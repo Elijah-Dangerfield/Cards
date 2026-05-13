@@ -33,6 +33,7 @@ class LocalBotsSession(
     val state: StateFlow<TableUiState> get() = _state
 
     private val tracker = OpponentTracker()
+    private val personalitiesBySeat: Map<Int, BotPersonality> = buildPersonalitiesBySeat()
     private var handNumber: Int = 0
     private var buttonIndex: Int = 0
     private var gameState: GameState = startNextHand()
@@ -109,14 +110,12 @@ class LocalBotsSession(
             }
         }
 
-    private val personalitiesBySeat: Map<Int, BotPersonality> by lazy {
-        buildMap {
-            var iter = 0
-            for (i in 0 until botPersonalities.size + 1) {
-                if (i == humanSeatIndex) continue
-                put(i, botPersonalities[iter % botPersonalities.size])
-                iter += 1
-            }
+    private fun buildPersonalitiesBySeat(): Map<Int, BotPersonality> = buildMap {
+        var iter = 0
+        for (i in 0 until botPersonalities.size + 1) {
+            if (i == humanSeatIndex) continue
+            put(i, botPersonalities[iter % botPersonalities.size])
+            iter += 1
         }
     }
 
