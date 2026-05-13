@@ -1,0 +1,547 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# The production ship. Builds both platforms and submits to the stores.
+#
+# Fires on:     Push of a tag matching `v*` (release-please creates these
+#               when you merge the release PR). Also workflow_dispatch with
+#               an explicit tag for re-runs after partial failures.
+#
+# Jobs (in order):
+#   resolve-tag           — normalizes tag + version from trigger input.
+#   android               — signs AAB, renders release notes, uploads to
+#                           Play Console production track (10% staged),
+#                           creates Sentry release + uploads mappings.
+#                           Uploads AAB/APK artifacts to the GitHub Release.
+#   ios                   — builds IPA, uploads to TestFlight external group
+#                           "main", submits to App Store review with Apple's
+#                           phased release enabled, creates Sentry release +
+#                           uploads dSYMs. Uploads IPA artifact.
+#   attach-artifacts      — attaches all platform binaries to the GH Release.
+#
+# Side effects: HUGE. Real builds go to TestFlight external testers and into
+#               the App Store review queue; Android goes to Play production
+#               (staged). Only trigger this with intention.
+# Escape hatches: `skip_app_store` and `skip_play_store` inputs on
+#                 workflow_dispatch if one platform needs re-running.
+# Edit to change: apps/ios/fastlane/Fastfile (iOS submission details),
+#                 this file's Play upload step (track, userFraction).
+# See: docs/release-automation.md → "Cutting a release"
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.2.3). Required if not triggered by a tag push.'
+        required: false
+        type: string
+      skip_app_store:
+        description: 'Skip App Store submission (external TestFlight only)'
+        required: false
+        default: false
+        type: boolean
+      skip_play_store:
+        description: 'Skip Play Store submission (Android AAB artifact only)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-tag:
+    name: Resolve tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${{ inputs.tag }}"
+            if [ -z "$TAG" ]; then
+              echo "::error::workflow_dispatch requires 'tag' input"
+              exit 1
+            fi
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  android:
+    name: Android AAB + Play submit
+    # Gate on iOS passing so a "Google shipped, Apple didn't" split can't
+    # happen again — we either release both platforms for a given tag or
+    # neither. If iOS fails, use workflow_dispatch with skip_app_store:true
+    # to retry iOS alone, or land a fix and let the next release carry it.
+    needs: [resolve-tag, ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      play_track: ${{ steps.play_track.outputs.track }}
+      play_status: ${{ steps.play_track.outputs.status }}
+
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+      VERSION_CODE_OVERRIDE: ${{ github.run_number }}
+      BUILD_NUMBER_OVERRIDE: ${{ github.run_number }}
+      RELEASE_CHANNEL_OVERRIDE: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+
+      - name: Read applicationId from versions.properties
+        id: app_id
+        run: |
+          APP_ID=$(grep '^applicationId=' versions.properties | cut -d= -f2 | tr -d ' ')
+          if [ -z "$APP_ID" ]; then
+            echo "::error::Could not read applicationId from versions.properties"
+            exit 1
+          fi
+          echo "Using applicationId: $APP_ID"
+          echo "value=$APP_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Android signing secrets
+        run: |
+          missing=0
+          for var in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!var}" ]; then
+              echo "::error::Secret $var is not set"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Bundle release AAB
+        run: ./gradlew :apps:compose:bundleRelease -Prelease.signing=true
+
+      - name: Build release APK (for sideload verification)
+        run: ./gradlew :apps:compose:assembleRelease -Prelease.signing=true
+
+      - name: Locate AAB
+        id: aab
+        run: |
+          AAB=$(ls apps/compose/build/outputs/bundle/release/*.aab | head -n 1)
+          echo "path=$AAB" >> "$GITHUB_OUTPUT"
+
+      - name: Detect first-release vs subsequent (Play Console)
+        id: play_track
+        if: ${{ !inputs.skip_play_store && env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PACKAGE_NAME: ${{ steps.app_id.outputs.value }}
+        run: |
+          # Ask Play whether there's already a production release. On HTTP 404,
+          # or if the production track is empty, this is a first release — route
+          # to the `internal` track (Play won't accept an automated production
+          # upload without a manually-promoted draft first).
+          set -e
+          SA_JSON="$(mktemp)"
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$SA_JSON"
+          TOKEN=$(python3 - <<'PY'
+          import base64, json, os, time, urllib.request, urllib.parse, hmac, hashlib
+          sa=json.load(open(os.environ['SA_JSON']))
+          header=base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b'=')
+          now=int(time.time())
+          claim={"iss":sa['client_email'],"scope":"https://www.googleapis.com/auth/androidpublisher","aud":"https://oauth2.googleapis.com/token","iat":now,"exp":now+3600}
+          payload=base64.urlsafe_b64encode(json.dumps(claim).encode()).rstrip(b'=')
+          unsigned=header+b'.'+payload
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          key=serialization.load_pem_private_key(sa['private_key'].encode(), password=None)
+          sig=key.sign(unsigned, padding.PKCS1v15(), hashes.SHA256())
+          jwt=unsigned+b'.'+base64.urlsafe_b64encode(sig).rstrip(b'=')
+          data=urllib.parse.urlencode({"grant_type":"urn:ietf:params:oauth:grant-type:jwt-bearer","assertion":jwt.decode()}).encode()
+          resp=urllib.request.urlopen(urllib.request.Request("https://oauth2.googleapis.com/token", data=data))
+          print(json.loads(resp.read())['access_token'])
+          PY
+          )
+          PKG=$(printf '%s' "$PACKAGE_NAME" | python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.stdin.read().strip(),safe=""))')
+          EDIT_JSON=$(curl -fsS -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Length: 0" "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PKG/edits" || true)
+          EDIT_ID=$(echo "$EDIT_JSON" | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("id",""))' 2>/dev/null || true)
+          if [ -z "$EDIT_ID" ]; then
+            echo "Could not create edit (new app or missing permission) — treating as first release"
+            echo "track=internal" >> "$GITHUB_OUTPUT"
+            echo "status=completed" >> "$GITHUB_OUTPUT"
+            echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+            rm -f "$SA_JSON"
+            exit 0
+          fi
+          TRACK_JSON=$(curl -fsS -H "Authorization: Bearer $TOKEN" "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PKG/edits/$EDIT_ID/tracks/production" || echo '{}')
+          HAS_RELEASE=$(echo "$TRACK_JSON" | python3 -c 'import json,sys;d=json.load(sys.stdin);print("yes" if d.get("releases") else "no")' 2>/dev/null || echo "no")
+          curl -fsS -X DELETE -H "Authorization: Bearer $TOKEN" "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PKG/edits/$EDIT_ID" || true
+          rm -f "$SA_JSON"
+          if [ "$HAS_RELEASE" = "yes" ]; then
+            echo "Existing production track found — using production (staged 10%)"
+            echo "track=production" >> "$GITHUB_OUTPUT"
+            echo "status=inProgress" >> "$GITHUB_OUTPUT"
+            echo "is_first_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No production release found on Play — first release. Routing to internal track. Manually promote in Play Console before the next release."
+            echo "track=internal" >> "$GITHUB_OUTPUT"
+            echo "status=completed" >> "$GITHUB_OUTPUT"
+            echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Render release notes for Play
+        run: |
+          mkdir -p apps/compose/build/play-release-notes/en-US
+          {
+            echo "v${{ needs.resolve-tag.outputs.version }}"
+            echo ""
+            gh release view "${{ needs.resolve-tag.outputs.tag }}" --json body -q .body 2>/dev/null || echo "See CHANGELOG.md for details."
+          } | head -c 500 > apps/compose/build/play-release-notes/en-US/default.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Submit to Play Console
+        # Track + status are resolved above: `internal` + `completed` on the
+        # very first release (Play won't accept an automated production upload
+        # without a pre-existing draft); `production` + `inProgress` (10% staged)
+        # on subsequent releases.
+        if: ${{ !inputs.skip_play_store && env.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+        uses: r0adkll/upload-google-play@v1
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ steps.app_id.outputs.value }}
+          releaseFiles: ${{ steps.aab.outputs.path }}
+          track: ${{ steps.play_track.outputs.track || 'internal' }}
+          status: ${{ steps.play_track.outputs.status || 'completed' }}
+          userFraction: ${{ steps.play_track.outputs.track == 'production' && '0.10' || '' }}
+          whatsNewDirectory: apps/compose/build/play-release-notes
+          mappingFile: apps/compose/build/outputs/mapping/release/mapping.txt
+          # debugSymbols omitted — no native (.so) libraries are shipped.
+
+      - name: Warn on missing Play credentials
+        if: ${{ !inputs.skip_play_store && env.PLAY_SERVICE_ACCOUNT_JSON == '' }}
+        run: echo "::warning::PLAY_SERVICE_ACCOUNT_JSON secret is not set — skipping Play Store submission. See docs/release-automation.md to configure."
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+
+      - name: Create Sentry release + upload mapping/debug files
+        if: env.SENTRY_AUTH_TOKEN != ''
+        run: |
+          set -e
+          RELEASE="cards@${{ needs.resolve-tag.outputs.version }}+${{ github.run_number }}"
+          npx --yes @sentry/cli releases new "$RELEASE"
+          npx --yes @sentry/cli releases set-commits "$RELEASE" --auto || true
+          if [ -f apps/compose/build/outputs/mapping/release/mapping.txt ]; then
+            npx --yes @sentry/cli upload-proguard \
+              --android-manifest apps/compose/build/intermediates/merged_manifests/release/AndroidManifest.xml \
+              apps/compose/build/outputs/mapping/release/mapping.txt || true
+          fi
+          npx --yes @sentry/cli debug-files upload apps/compose/build/intermediates/merged_native_libs/release/out/lib || true
+          npx --yes @sentry/cli releases finalize "$RELEASE"
+
+      - name: Upload AAB artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: apps/compose/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload APK artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: apps/compose/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+          retention-days: 90
+
+  ios:
+    name: iOS TestFlight external + App Store submit
+    needs: resolve-tag
+    runs-on: macos-26
+    timeout-minutes: 90
+
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      APPLE_DIST_CERT_P12_BASE64: ${{ secrets.APPLE_DIST_CERT_P12_BASE64 }}
+      APPLE_DIST_CERT_PASSWORD: ${{ secrets.APPLE_DIST_CERT_PASSWORD }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+      TESTFLIGHT_EXTERNAL_GROUP: External Testers
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_HIDE_CHANGELOG: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Select runner's default Xcode
+        # Don't try to out-clever the runner image. /Applications/Xcode.app
+        # is the default stable that GitHub's macos-26 image explicitly
+        # picks (26.2 as of April 2026), and the image team guarantees its
+        # iOS platform support is installed. Prerelease Xcodes like
+        # /Applications/Xcode_26.5.0.app ship as separate bundles with
+        # platform support missing, so `xcodebuild archive` fails with
+        # "iOS 26.5 is not installed". The 'beta' suffix on prerelease
+        # Xcode path names went away mid-2026 — a naive "pick the highest
+        # Xcode_*" script now picks exactly the broken bundle. Using the
+        # runner's default sidesteps the whole pick-a-version problem.
+        run: |
+          if [ ! -d /Applications/Xcode.app ]; then
+            echo "::error::/Applications/Xcode.app is missing on runner"
+            ls /Applications | grep -i xcode || true
+            exit 1
+          fi
+          sudo xcode-select -s /Applications/Xcode.app
+          echo "Using /Applications/Xcode.app"
+          xcodebuild -version
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          # Release fires on tag push (not a branch), so setup-gradle would
+          # otherwise restore-only and not save the Gradle build cache. The
+          # iOS release path is the only job that exercises KMP link tasks,
+          # so if we don't let this run save, the next release starts cold.
+          cache-read-only: false
+
+      # Cache keys below are prefixed with `xcode26-` so the Xcode-16 caches
+      # from before this workflow moved to macos-26 don't get restored and
+      # poison the new SDK's toolchain state. Drop the prefix (or bump it) on
+      # the next major Xcode upgrade.
+      - name: Cache Kotlin/Native (~/.konan)
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-xcode26-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            konan-${{ runner.os }}-xcode26-
+
+      - name: Cache SwiftPM global store
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-xcode26-${{ hashFiles('apps/ios/iosApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            spm-${{ runner.os }}-xcode26-
+
+      - name: Cache Xcode DerivedData
+        # Holds KMP framework outputs, resolved SwiftPM packages, Swift .o and
+        # .swiftmodule files, and the precompiled module cache. Combined with
+        # clean: false in the Fastfile, this is what lets incremental builds
+        # actually be incremental on CI. SHA-keyed so each release captures a
+        # fresh snapshot; restore-keys lets fresh runs warm-start from any
+        # prior release.
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-${{ runner.os }}-xcode26-${{ github.sha }}
+          restore-keys: |
+            deriveddata-${{ runner.os }}-xcode26-
+
+      - name: Set up Ruby / Bundler
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: apps/ios
+
+      - name: Populate TEAM_ID in xcconfig
+        working-directory: apps/ios/Configuration
+        run: |
+          tmpfile=$(mktemp)
+          awk -v team="${APPLE_TEAM_ID}" '
+            /^TEAM_ID[[:space:]]*=/ { print "TEAM_ID=" team; next }
+            { print }
+          ' Config.xcconfig > "$tmpfile"
+          mv "$tmpfile" Config.xcconfig
+
+      - name: Detect first-release vs subsequent (App Store Connect)
+        id: ios_first_release
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          # Ask App Store Connect whether any build has ever been uploaded for
+          # the bundle ID. If none, this is a first release and the App Store
+          # submission step must be skipped (Apple rejects automated submission
+          # of an app with no manually-created app record).
+          set -e
+          if [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ] || [ -z "$ASC_KEY_P8_BASE64" ]; then
+            echo "ASC credentials missing — assuming first release"
+            echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          BUNDLE_ID=$(grep -E '^\s*app_identifier' apps/ios/fastlane/Appfile | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$BUNDLE_ID" ]; then
+            echo "Could not read bundle id — assuming first release"
+            echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          KEY_PATH=$(mktemp)
+          printf '%s' "$ASC_KEY_P8_BASE64" | base64 --decode > "$KEY_PATH"
+          TOKEN=$(python3 - <<PY
+          import base64, json, os, time
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import ec, utils
+          key=serialization.load_pem_private_key(open(os.environ['KEY_PATH'],'rb').read(), password=None)
+          header={"alg":"ES256","kid":os.environ['ASC_KEY_ID'],"typ":"JWT"}
+          now=int(time.time())
+          payload={"iss":os.environ['ASC_ISSUER_ID'],"iat":now,"exp":now+1000,"aud":"appstoreconnect-v1"}
+          def b64(x): return base64.urlsafe_b64encode(x).rstrip(b'=').decode()
+          unsigned=(b64(json.dumps(header,separators=(',',':')).encode())+'.'+b64(json.dumps(payload,separators=(',',':')).encode())).encode()
+          der=key.sign(unsigned, ec.ECDSA(hashes.SHA256()))
+          r,s=utils.decode_dss_signature(der)
+          sig=r.to_bytes(32,'big')+s.to_bytes(32,'big')
+          print(unsigned.decode()+'.'+b64(sig))
+          PY
+          )
+          rm -f "$KEY_PATH"
+          RESP=$(curl -fsS -H "Authorization: Bearer $TOKEN" "https://api.appstoreconnect.apple.com/v1/apps?filter[bundleId]=$BUNDLE_ID&limit=1" || echo '{"data":[]}')
+          APP_COUNT=$(echo "$RESP" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("data",[])))' 2>/dev/null || echo "0")
+          if [ "$APP_COUNT" = "0" ]; then
+            echo "::warning::No app record found on App Store Connect for $BUNDLE_ID — first release. TestFlight internal only; skipping App Store submission."
+            echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+          else
+            APP_ID=$(echo "$RESP" | python3 -c 'import json,sys;print(json.load(sys.stdin)["data"][0]["id"])')
+            BUILDS=$(curl -fsS -H "Authorization: Bearer $TOKEN" "https://api.appstoreconnect.apple.com/v1/apps/$APP_ID/builds?limit=1" || echo '{"data":[]}')
+            BUILD_COUNT=$(echo "$BUILDS" | python3 -c 'import json,sys;print(len(json.load(sys.stdin).get("data",[])))' 2>/dev/null || echo "0")
+            if [ "$BUILD_COUNT" = "0" ]; then
+              echo "::warning::App exists on ASC but has zero builds — first release. TestFlight internal only; skipping App Store submission."
+              echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Existing builds found on ASC — full release lane"
+              echo "is_first_release=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Resolve release lane
+        id: lane
+        run: |
+          if [ "${{ inputs.skip_app_store }}" = "true" ] || [ "${{ steps.ios_first_release.outputs.is_first_release }}" = "true" ]; then
+            echo "lane=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "lane=release" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch release notes for TestFlight changelog
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$(gh release view "${{ needs.resolve-tag.outputs.tag }}" --json body -q .body 2>/dev/null || true)
+          if [ -z "$BODY" ]; then
+            BODY="v${{ needs.resolve-tag.outputs.version }}"
+          fi
+          {
+            echo "notes<<EOF"
+            printf "%s\n" "$BODY" | head -c 3000
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Pre-build KMP release framework
+        # Runs the same Kotlin/Native link task Xcode will invoke during the
+        # archive (via embedAndSignAppleFrameworkForXcode). Running it first
+        # from a plain Gradle invocation means the Gradle build cache + daemon
+        # are populated by the time xcodebuild delegates to `./gradlew`, so
+        # the Xcode build phase finds the framework UP-TO-DATE instead of
+        # re-linking (the longest step on a cold run).
+        run: ./gradlew :apps:compose:linkReleaseFrameworkIosArm64
+
+      - name: Build + release iOS
+        working-directory: apps/ios
+        env:
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_REF_NAME: ${{ needs.resolve-tag.outputs.tag }}
+          TESTFLIGHT_CHANGELOG: ${{ steps.notes.outputs.notes }}
+        run: bundle exec fastlane ${{ steps.lane.outputs.lane }}
+
+      - name: Upload ipa artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: apps/ios/build/*.ipa
+          if-no-files-found: ignore
+          retention-days: 90
+
+  attach-artifacts:
+    name: Attach artifacts to GitHub Release
+    needs: [resolve-tag, android, ios]
+    if: always() && needs.resolve-tag.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Android AAB
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: artifacts/android-aab
+        continue-on-error: true
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: artifacts/android-apk
+        continue-on-error: true
+
+      - name: Download iOS IPA
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: artifacts/ios-ipa
+        continue-on-error: true
+
+      - name: Attach artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
+          files: |
+            artifacts/android-aab/*.aab
+            artifacts/android-apk/*.apk
+            artifacts/ios-ipa/*.ipa
+          fail_on_unmatched_files: false

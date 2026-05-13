@@ -1,0 +1,89 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Maintains the release PR. Bumps versions, writes CHANGELOG, creates tag,
+# then dispatches release.yml (the default GITHUB_TOKEN doesn't cascade
+# triggers on tag pushes, so we explicitly hand off).
+#
+# Fires on:     Push to main.
+# Side effects: Opens or updates a single open PR titled "chore: release main".
+#               When that PR is merged, creates the git tag `vX.Y.Z` + a
+#               matching GitHub Release, then fires release.yml for that tag.
+# Version rule: fix/perf → patch bump. feat → minor. feat!/BREAKING → major
+#               (capped at minor while pre-1.0 per bump-minor-pre-major).
+#               chore/docs/ci/build/refactor/style/test/revert → no bump.
+# Edit to change: release-please-config.json (which files are bumped, bump
+#                 rules), .release-please-manifest.json (current version).
+# See: docs/release-automation.md → "Cutting a release"
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect first release (no prior v* tag)
+        id: first_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If no tag matching v* exists, this repo has never shipped. The
+          # release.yml preflight will route to Play internal + TestFlight
+          # internal only, and the release-please PR body needs a banner
+          # telling the human to promote manually.
+          TAG_COUNT=$(git tag -l 'v*' | wc -l | tr -d ' ')
+          if [ "$TAG_COUNT" = "0" ]; then
+            echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_first_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Prepend first-release banner to release-please PR
+        if: steps.first_release.outputs.is_first_release == 'true' && steps.release.outputs.pr != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ fromJson(steps.release.outputs.pr).number }}
+        run: |
+          set -e
+          CURRENT=$(gh pr view "$PR_NUMBER" --json body -q .body || echo "")
+          BANNER=$(cat <<'EOF'
+          > **!!! FIRST RELEASE — MANUAL ACTION REQUIRED !!!**
+          >
+          > This is the first release for this project. The release workflow will upload to the **Play internal track** and **TestFlight internal group only**. You must:
+          > 1. Promote the build manually in Play Console (Internal → Production).
+          > 2. Submit for App Store review manually in App Store Connect.
+          >
+          > Subsequent releases will go directly to production. See `SETUP.md`.
+
+          EOF
+          )
+          printf '%s\n%s' "$BANNER" "$CURRENT" > /tmp/body.md
+          gh pr edit "$PR_NUMBER" --body-file /tmp/body.md
+
+      - name: Dispatch release.yml for the new tag
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release.yml \
+            -f tag="${{ steps.release.outputs.tag_name }}" \
+            --repo "$GITHUB_REPOSITORY"

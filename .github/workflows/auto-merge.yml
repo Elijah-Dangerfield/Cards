@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Auto-merges PRs carrying the `ai-autofix` label once required checks pass.
+#
+# Fires on:     PRs that are opened / labeled / synchronized / reopened /
+#               marked ready-for-review. Also re-probes on check_suite and CI
+#               workflow completions so merges trigger when checks turn green.
+# Side effects: Enables GitHub's native auto-merge (squash) on matching PRs.
+#               Actual merge happens when all required status checks pass.
+# Use case:     Sentry-triage routine opens `ai-autofix` PRs; this ships them
+#               without a human click. Remove the label to block merge.
+# Edit to change: the `contains(..., 'ai-autofix')` filter or merge strategy.
+# See: docs/release-automation.md → "How automated fixes land"
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Auto-merge
+
+on:
+  pull_request:
+    types: [labeled, opened, synchronize, reopened, ready_for_review]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+jobs:
+  autofix:
+    name: Enable auto-merge on ai-autofix PRs
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ai-autofix') && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --squash \
+            --auto \
+            --delete-branch

@@ -1,0 +1,91 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PR gate. Compiles both platforms and runs unit tests.
+#
+# Fires on:     PRs and pushes to main (ignores docs-only changes and
+#               CHANGELOG.md, since release-please commits to CHANGELOG.md).
+# Skips:        release-please's PR and its merge commit — bumps-only
+#               changes can't break the build.
+# Side effects: none. No uploads. Ship by cutting a release via the
+#               release-please PR → release.yml.
+# Edit to change: compile commands or the test task below.
+# See: docs/release-automation.md
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build + test
+    # release-please's PR only changes versionName + CHANGELOG — it can't break
+    # the build. Skip the expensive macOS run on that branch AND on its merge
+    # commit into main (squash = "chore: release …", merge commit = "Merge
+    # pull request #N from …/release-please--branches--main").
+    if: >
+      github.head_ref != 'release-please--branches--main' &&
+      !startsWith(github.event.head_commit.message, 'chore: release') &&
+      !contains(github.event.head_commit.message, 'release-please--branches')
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select runner's default Xcode
+        run: |
+          if [ ! -d /Applications/Xcode.app ]; then
+            echo "::error::/Applications/Xcode.app is missing on runner"
+            ls /Applications | grep -i xcode || true
+            exit 1
+          fi
+          sudo xcode-select -s /Applications/Xcode.app
+          echo "Using /Applications/Xcode.app"
+          xcodebuild -version
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Cache Kotlin/Native (~/.konan)
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-xcode26-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            konan-${{ runner.os }}-xcode26-
+
+      - name: Compile Android + iOS Kotlin targets
+        run: ./gradlew :apps:compose:compileDebugKotlinAndroid :apps:compose:compileKotlinIosSimulatorArm64
+
+      - name: Assemble Android debug
+        run: ./gradlew :apps:compose:assembleDebug
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest

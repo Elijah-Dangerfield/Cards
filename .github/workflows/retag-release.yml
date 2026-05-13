@@ -1,0 +1,159 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# The "resubmit same version" button.
+#
+# Fires on:     workflow_dispatch only. Takes a version (e.g. 1.0.1) and an
+#               optional skip_play_store (defaults true — typical retag
+#               scenario is Apple rejected iOS but Play already shipped).
+#
+# What it does:
+#   1. Fails fast if main's HEAD already equals the existing tag's commit —
+#      there's nothing new to ship in that case.
+#   2. Deletes the existing GitHub Release + tag for the version (if any).
+#   3. Creates the tag at current origin/main and pushes it.
+#   4. Cancels the auto-triggered release.yml run that fired on tag push
+#      (we can't pass `skip_play_store` through a push trigger).
+#   5. Dispatches release.yml explicitly with `skip_play_store` honored.
+#
+# Why a separate workflow:
+#   release.yml's blast radius is huge (uploads to Play + App Store). Tag
+#   deletion is a materially different operation than "ship". Keeping
+#   re-ship plumbing out of release.yml keeps release.yml's mental model
+#   simple ("this is the button that ships"). See
+#   docs/branching-and-release-strategy.md for the longer rationale.
+#
+# Side effects:
+#   - Deletes the GitHub Release and tag for the given version. The release
+#     notes Markdown is gone forever — release-please will regenerate its
+#     changelog entry on the next release PR if needed.
+#   - Fires a fresh release.yml run with the selected platform scope.
+#   - Does NOT touch versions.properties / manifests / Config.xcconfig.
+#     Those need to already be at the target version on main (they will be,
+#     since release-please bumped them on the original release merge).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Retag release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to retag (e.g. 1.0.1). No leading v.'
+        required: true
+        type: string
+      skip_play_store:
+        description: 'Skip Play Store submission on the redispatched run (default true — typical Apple-only resubmit).'
+        required: false
+        default: true
+        type: boolean
+      skip_app_store:
+        description: 'Skip App Store submission on the redispatched run (default false — this workflow exists to reship iOS).'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: retag-${{ inputs.version }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  retag-and-dispatch:
+    name: Retag v${{ inputs.version }} and dispatch release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout (fetch-depth 0 for tag resolution)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate inputs
+        run: |
+          set -e
+          VERSION="${{ inputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::error::Version '$VERSION' must look like 'X.Y.Z'. No leading v."
+            exit 1
+          fi
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+
+      - name: Check that main is ahead of the existing tag
+        run: |
+          set -e
+          MAIN_SHA=$(git rev-parse origin/main)
+          EXISTING_SHA=$(git rev-parse "refs/tags/$TAG" 2>/dev/null || echo "")
+          if [ -z "$EXISTING_SHA" ]; then
+            echo "No existing $TAG tag found — treating as first tag."
+          elif [ "$MAIN_SHA" = "$EXISTING_SHA" ]; then
+            echo "::error::main HEAD equals the existing $TAG commit ($MAIN_SHA). Nothing to reship. Land a fix first."
+            exit 1
+          else
+            echo "main=$MAIN_SHA, existing $TAG=$EXISTING_SHA — retag will move $TAG forward."
+          fi
+
+      - name: Delete existing release + tag
+        run: |
+          set -e
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Deleting GitHub Release + tag $TAG"
+            gh release delete "$TAG" --cleanup-tag --yes
+          else
+            echo "No existing release for $TAG (tag may or may not exist; trying tag delete anyway)"
+            git push origin ":refs/tags/$TAG" 2>/dev/null || true
+          fi
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create tag at origin/main
+        run: |
+          set -e
+          git tag "$TAG" origin/main
+          git push origin "$TAG"
+          echo "Pushed $TAG at $(git rev-parse $TAG)"
+
+      - name: Cancel auto-triggered release.yml run
+        # The tag push we just did fires release.yml via its `push: tags:`
+        # trigger. That triggered run doesn't see workflow_dispatch inputs,
+        # so it would run Android + Play even though the user asked to
+        # skip Play. We cancel it and redispatch with the right inputs.
+        run: |
+          set -e
+          DEADLINE=$((SECONDS + 60))
+          RUN_ID=""
+          while [ $SECONDS -lt $DEADLINE ]; do
+            RUN_ID=$(gh run list --workflow=release.yml --limit 5 \
+              --json databaseId,event,headBranch,status \
+              --jq ".[] | select(.event == \"push\" and .headBranch == \"$TAG\" and .status != \"completed\") | .databaseId" \
+              | head -n 1)
+            if [ -n "$RUN_ID" ]; then
+              break
+            fi
+            echo "Waiting for auto-triggered release.yml run for $TAG…"
+            sleep 3
+          done
+          if [ -z "$RUN_ID" ]; then
+            echo "::warning::Didn't see an auto-triggered release.yml run within 60s. Skipping cancel; the redispatch below will still run but a parallel push-triggered run may proceed."
+          else
+            echo "Cancelling auto-triggered run $RUN_ID"
+            gh run cancel "$RUN_ID"
+          fi
+
+      - name: Dispatch release.yml with scoped inputs
+        run: |
+          set -e
+          gh workflow run release.yml \
+            --ref "$TAG" \
+            --field tag="$TAG" \
+            --field skip_play_store=${{ inputs.skip_play_store }} \
+            --field skip_app_store=${{ inputs.skip_app_store }}
+          echo "Dispatched release.yml for $TAG (skip_play_store=${{ inputs.skip_play_store }}, skip_app_store=${{ inputs.skip_app_store }})"
+          echo ""
+          echo "Watch: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/release.yml"

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.dangerfield.cards.maintenance</string>
+	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>We'd like to send you notifications.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+	</array>
+	<!--
+	  Deep links. Uncomment + customize to receive them.
+
+	  Custom scheme (cards://...):
+
+	  <key>CFBundleURLTypes</key>
+	  <array>
+	      <dict>
+	          <key>CFBundleURLName</key>
+	          <string>com.dangerfield.cards</string>
+	          <key>CFBundleURLSchemes</key>
+	          <array>
+	              <string>cards</string>
+	          </array>
+	      </dict>
+	  </array>
+
+	  Universal Links (https://...) require an `Associated Domains`
+	  entitlement (`applinks:example.com`) plus an
+	  apple-app-site-association file at https://example.com/.well-known/.
+
+	  Either way, .onOpenURL in iOSApp.swift forwards to DeepLinkBridge.
+	-->
+</dict>
+</plist>

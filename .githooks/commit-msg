@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Enforces Conventional Commits so release-please can derive version bumps
+# from commit history. Install by running scripts/install_hooks.sh, or let the
+# Gradle `verifyGitHooks` check nudge you.
+
+set -eu
+
+msg_file="${1:?commit message file required}"
+# First non-comment, non-empty line of the message.
+subject=$(grep -v '^#' "$msg_file" | sed '/^$/d' | head -n 1)
+
+# Auto-generated merge / revert commits are allowed.
+if [[ "$subject" =~ ^Merge\  ]] || [[ "$subject" =~ ^Revert\  ]]; then
+  exit 0
+fi
+
+# fixup!/squash!/amend! are handled at rebase time — let them through.
+if [[ "$subject" =~ ^(fixup|squash|amend)! ]]; then
+  exit 0
+fi
+
+pattern='^(feat|fix|perf|refactor|revert|docs|style|test|build|ci|chore)(\([a-z0-9 /_.-]+\))?!?: .+'
+
+if [[ ! "$subject" =~ $pattern ]]; then
+  cat <<EOF >&2
+
+  Commit message is not a Conventional Commit.
+
+    got:      "$subject"
+    expected: <type>(<optional-scope>)<!>: <subject>
+
+    types:    feat, fix, perf, refactor, revert, docs, style, test, build, ci, chore
+    examples: fix: prevent crash when timer runs to zero
+              feat(timers): custom sound per block
+              feat!: drop Android 8 support
+
+  This hook exists so release-please can derive version bumps from history.
+  Bypass with --no-verify if you really mean it.
+
+EOF
+  exit 1
+fi
+
+# Warn when a release-triggering type (feat/fix/perf) only touches
+# infrastructure files — usually means the author meant ci:/build:/chore:.
+release_type=$(printf '%s' "$subject" | grep -oE '^(feat|fix|perf)' || true)
+if [ -n "$release_type" ]; then
+  staged=$(git diff --cached --name-only)
+  user_facing=0
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    case "$f" in
+      .github/*|.githooks/*|\
+      build-logic/*|\
+      apps/ios/fastlane/*|apps/ios/Gemfile*|\
+      docs/*|pages/*|\
+      scripts/*|\
+      *.md|*.yml|*.yaml|\
+      release-please-config.json|.release-please-manifest.json|\
+      commitlint.config.*|proguard-rules.pro|\
+      .gitignore|.gitattributes)
+        ;;
+      *)
+        user_facing=1
+        ;;
+    esac
+  done <<< "$staged"
+
+  if [ "$user_facing" -eq 0 ]; then
+    cat <<EOF >&2
+
+  Heads up — "$release_type:" only touched CI / build / docs files:
+$(printf '%s\n' "$staged" | sed 's/^/      /')
+
+  release-please will treat this as a user-visible change and bump the
+  version. If that's not what you intended, rephrase the subject with a
+  non-release type:
+
+    ci:     CI / workflow configuration changes
+    build:  build system, dependencies, R8 rules, fastlane, version files
+    chore:  anything else that users won't see (e.g. repo housekeeping)
+
+  Continuing anyway. Bypass this warning with --no-verify (no effect here
+  since we didn't fail) or reword with: git commit --amend
+
+EOF
+  fi
+fi

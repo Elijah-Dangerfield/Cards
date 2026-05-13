@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Enforces Conventional Commit PR titles so release-please can classify
+# each change into fix / feat / breaking for auto version bumping.
+#
+# Fires on:     PR open / edit / reopen / synchronize.
+# Side effects: Blocks PR merge until the title matches the pattern.
+# Notes:        Individual commit messages on a feature branch are checked
+#               locally by .githooks/commit-msg (installed by
+#               scripts/install_hooks.sh). This workflow is the server-side
+#               fallback that checks the PR title — which becomes the merge
+#               commit message because PRs are squash-merged.
+# Edit to change: the `types` list or `subjectPattern` below.
+# See: AGENTS.md → "Conventional commits (required)"
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: commitlint
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  pr-title:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            revert
+            docs
+            style
+            test
+            build
+            ci
+            chore
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject (after "type: ") should start with a lowercase letter.
+            PRs are squash-merged, so the PR title becomes the commit message —
+            release-please derives the next version bump from conventional-commit
+            types (fix: → patch, feat: → minor, feat!: or BREAKING CHANGE → major).

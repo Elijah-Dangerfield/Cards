@@ -1,0 +1,930 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "f5b3562d1709e48c45dedba66ccee7da",
+    "entities": [
+      {
+        "tableName": "tasks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `categories` TEXT NOT NULL, `difficulty` TEXT NOT NULL, `requires_social` INTEGER NOT NULL, `best_for_moods` TEXT, `avoid_for_moods` TEXT, `minimum_scores` TEXT, `safe_to_reflect` INTEGER NOT NULL, `instruction` TEXT NOT NULL, `allows_text` INTEGER NOT NULL, `allows_photo` INTEGER NOT NULL, `allows_audio` INTEGER NOT NULL, `allows_drawing` INTEGER NOT NULL, `expected_length` TEXT NOT NULL, `condition_time_after` TEXT, `condition_time_before` TEXT, `condition_min_days_away` INTEGER, `condition_mood_trend` TEXT, `condition_month_start` INTEGER, `condition_month_end` INTEGER, `condition_day_start` INTEGER, `condition_day_end` INTEGER, `condition_max_session_position` INTEGER, `image_path` TEXT, `background_image_path` TEXT, `accent_color` TEXT, `placeholder` TEXT, `routing_options` TEXT, `selection_options` TEXT, `min_selections` INTEGER, `max_selections` INTEGER, `follow_up` TEXT, `duration_seconds` INTEGER, `require_front_camera` INTEGER, `requires_depth` INTEGER NOT NULL, `min_characters` INTEGER, `max_characters` INTEGER, `is_intro_task` INTEGER NOT NULL, `minimum_time_seconds` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "categories",
+            "columnName": "categories",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiresSocial",
+            "columnName": "requires_social",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bestForMoods",
+            "columnName": "best_for_moods",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "avoidForMoods",
+            "columnName": "avoid_for_moods",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "minimumScores",
+            "columnName": "minimum_scores",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "safeToReflect",
+            "columnName": "safe_to_reflect",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "instruction",
+            "columnName": "instruction",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowsText",
+            "columnName": "allows_text",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowsPhoto",
+            "columnName": "allows_photo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowsAudio",
+            "columnName": "allows_audio",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "allowsDrawing",
+            "columnName": "allows_drawing",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedLength",
+            "columnName": "expected_length",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conditionTimeAfter",
+            "columnName": "condition_time_after",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "conditionTimeBefore",
+            "columnName": "condition_time_before",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "conditionMinDaysAway",
+            "columnName": "condition_min_days_away",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "conditionMoodTrend",
+            "columnName": "condition_mood_trend",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "conditionMonthStart",
+            "columnName": "condition_month_start",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "conditionMonthEnd",
+            "columnName": "condition_month_end",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "conditionDayStart",
+            "columnName": "condition_day_start",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "conditionDayEnd",
+            "columnName": "condition_day_end",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "conditionMaxSessionPosition",
+            "columnName": "condition_max_session_position",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "imagePath",
+            "columnName": "image_path",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "backgroundImagePath",
+            "columnName": "background_image_path",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "accentColor",
+            "columnName": "accent_color",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "placeholder",
+            "columnName": "placeholder",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "routingOptions",
+            "columnName": "routing_options",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "selectionOptions",
+            "columnName": "selection_options",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "minSelections",
+            "columnName": "min_selections",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "maxSelections",
+            "columnName": "max_selections",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "followUp",
+            "columnName": "follow_up",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "durationSeconds",
+            "columnName": "duration_seconds",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "requireFrontCamera",
+            "columnName": "require_front_camera",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "requiresDepth",
+            "columnName": "requires_depth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minCharacters",
+            "columnName": "min_characters",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "maxCharacters",
+            "columnName": "max_characters",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "isIntroTask",
+            "columnName": "is_intro_task",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minimumTimeSeconds",
+            "columnName": "minimum_time_seconds",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "task_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`task_id` TEXT NOT NULL, `status` TEXT NOT NULL, `attempts` INTEGER NOT NULL, `last_attempt_at` INTEGER, `completed_at` INTEGER, `rescheduled_until` INTEGER, PRIMARY KEY(`task_id`), FOREIGN KEY(`task_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "taskId",
+            "columnName": "task_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAttemptAt",
+            "columnName": "last_attempt_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rescheduledUntil",
+            "columnName": "rescheduled_until",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "task_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_task_progress_task_id",
+            "unique": false,
+            "columnNames": [
+              "task_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_task_progress_task_id` ON `${TABLE_NAME}` (`task_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "tasks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "task_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "task_results",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `task_id` TEXT NOT NULL, `session_id` TEXT, `attempt_number` INTEGER NOT NULL, `completed_at` INTEGER NOT NULL, `time_spent_ms` INTEGER NOT NULL, `outcome` TEXT NOT NULL, `response_type` TEXT, `response_json` TEXT, `signals_json` TEXT NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`task_id`) REFERENCES `tasks`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`session_id`) REFERENCES `sessions`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "taskId",
+            "columnName": "task_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionId",
+            "columnName": "session_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attemptNumber",
+            "columnName": "attempt_number",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAt",
+            "columnName": "completed_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeSpentMs",
+            "columnName": "time_spent_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outcome",
+            "columnName": "outcome",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "responseType",
+            "columnName": "response_type",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "responseJson",
+            "columnName": "response_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "signalsJson",
+            "columnName": "signals_json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_task_results_task_id",
+            "unique": false,
+            "columnNames": [
+              "task_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_task_results_task_id` ON `${TABLE_NAME}` (`task_id`)"
+          },
+          {
+            "name": "index_task_results_session_id",
+            "unique": false,
+            "columnNames": [
+              "session_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_task_results_session_id` ON `${TABLE_NAME}` (`session_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "tasks",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "task_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "sessions",
+            "onDelete": "SET NULL",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "session_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "user",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT, `name_set_at` INTEGER, `name_updated_at` INTEGER, `today_name` TEXT, `today_name_date` TEXT, `created_at` INTEGER NOT NULL, `last_session_at` INTEGER, `social_comfort` INTEGER NOT NULL, `openness` INTEGER NOT NULL, `playfulness` INTEGER NOT NULL, `patience` INTEGER NOT NULL, `reflection_depth` INTEGER NOT NULL, `adventurousness` INTEGER NOT NULL, `curiosity` INTEGER NOT NULL, `decisiveness` INTEGER NOT NULL, `preferred_time_of_day` TEXT, `writing_affinity` INTEGER NOT NULL, `photo_affinity` INTEGER NOT NULL, `audio_affinity` INTEGER NOT NULL, `drawing_affinity` INTEGER NOT NULL, `game_affinity` INTEGER NOT NULL, `action_affinity` INTEGER NOT NULL, `has_completed_onboarding` INTEGER NOT NULL, `has_completed_intro_task` INTEGER NOT NULL, `has_been_asked_about_social_skips` INTEGER NOT NULL, `has_been_asked_for_name` INTEGER NOT NULL, `has_seen_declining_mood_routing` INTEGER NOT NULL, `has_seen_stop_asking_routing` INTEGER NOT NULL, `has_been_asked_about_drawing_preference` INTEGER NOT NULL, `consecutive_low_effort_drawings` INTEGER NOT NULL, `has_been_asked_about_audio_preference` INTEGER NOT NULL, `consecutive_low_effort_audios` INTEGER NOT NULL, `has_been_asked_about_social_preference` INTEGER NOT NULL, `consecutive_social_refusals` INTEGER NOT NULL, `dismissive_response_count` INTEGER NOT NULL, `current_task_id` TEXT, `routing_effects_json` TEXT, `sessions_count` INTEGER NOT NULL, `tasks_completed` INTEGER NOT NULL, `tasks_skipped` INTEGER NOT NULL, `app_open_count` INTEGER NOT NULL, `settings_open_count` INTEGER NOT NULL, `about_open_count` INTEGER NOT NULL, `no_click_count_onboarding` INTEGER NOT NULL, `bug_report_count` INTEGER NOT NULL, `permission_denial_count` INTEGER NOT NULL, `back_button_press_count` INTEGER NOT NULL, `shake_count` INTEGER NOT NULL, `late_night_session_count` INTEGER NOT NULL, `morning_session_count` INTEGER NOT NULL, `midday_session_count` INTEGER NOT NULL, `average_hesitation_ms` INTEGER, `optional_media_added_count` INTEGER NOT NULL, `delete_and_rewrite_count` INTEGER NOT NULL, `quick_exit_count` INTEGER NOT NULL, `idle_session_count` INTEGER NOT NULL, `optional_media_opportunities` INTEGER NOT NULL, `text_tasks_completed` INTEGER NOT NULL, `total_text_length` INTEGER NOT NULL, `vulgarity_count` INTEGER NOT NULL, `easter_eggs_found_count` INTEGER NOT NULL, `high_battery_charging_count` INTEGER NOT NULL, `drawing_skip_count` INTEGER NOT NULL, `drawing_opportunity_count` INTEGER NOT NULL, `stillness_skip_count` INTEGER NOT NULL, `stillness_opportunity_count` INTEGER NOT NULL, `game_play_count` INTEGER NOT NULL, `your_mom_count` INTEGER NOT NULL, `gibberish_count` INTEGER NOT NULL, `single_word_response_count` INTEGER NOT NULL, `emoji_heavy_response_count` INTEGER NOT NULL, `question_response_count` INTEGER NOT NULL, `weekend_session_count` INTEGER NOT NULL, `easter_egg_state_json` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "nameSetAt",
+            "columnName": "name_set_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "nameUpdatedAt",
+            "columnName": "name_updated_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "todayName",
+            "columnName": "today_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "todayNameDate",
+            "columnName": "today_name_date",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSessionAt",
+            "columnName": "last_session_at",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "socialComfort",
+            "columnName": "social_comfort",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openness",
+            "columnName": "openness",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playfulness",
+            "columnName": "playfulness",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "patience",
+            "columnName": "patience",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reflectionDepth",
+            "columnName": "reflection_depth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "adventurousness",
+            "columnName": "adventurousness",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "curiosity",
+            "columnName": "curiosity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "decisiveness",
+            "columnName": "decisiveness",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "preferredTimeOfDay",
+            "columnName": "preferred_time_of_day",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "writingAffinity",
+            "columnName": "writing_affinity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "photoAffinity",
+            "columnName": "photo_affinity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "audioAffinity",
+            "columnName": "audio_affinity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "drawingAffinity",
+            "columnName": "drawing_affinity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameAffinity",
+            "columnName": "game_affinity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "actionAffinity",
+            "columnName": "action_affinity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasCompletedOnboarding",
+            "columnName": "has_completed_onboarding",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasCompletedIntroTask",
+            "columnName": "has_completed_intro_task",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasBeenAskedAboutSocialSkips",
+            "columnName": "has_been_asked_about_social_skips",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasBeenAskedForName",
+            "columnName": "has_been_asked_for_name",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasSeenDecliningMoodRouting",
+            "columnName": "has_seen_declining_mood_routing",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasSeenStopAskingRouting",
+            "columnName": "has_seen_stop_asking_routing",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasBeenAskedAboutDrawingPreference",
+            "columnName": "has_been_asked_about_drawing_preference",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consecutiveLowEffortDrawings",
+            "columnName": "consecutive_low_effort_drawings",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasBeenAskedAboutAudioPreference",
+            "columnName": "has_been_asked_about_audio_preference",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consecutiveLowEffortAudios",
+            "columnName": "consecutive_low_effort_audios",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasBeenAskedAboutSocialPreference",
+            "columnName": "has_been_asked_about_social_preference",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "consecutiveSocialRefusals",
+            "columnName": "consecutive_social_refusals",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dismissiveResponseCount",
+            "columnName": "dismissive_response_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentTaskId",
+            "columnName": "current_task_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "routingEffectsJson",
+            "columnName": "routing_effects_json",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sessionsCount",
+            "columnName": "sessions_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tasksCompleted",
+            "columnName": "tasks_completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tasksSkipped",
+            "columnName": "tasks_skipped",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "appOpenCount",
+            "columnName": "app_open_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "settingsOpenCount",
+            "columnName": "settings_open_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "aboutOpenCount",
+            "columnName": "about_open_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "noClickCountOnboarding",
+            "columnName": "no_click_count_onboarding",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bugReportCount",
+            "columnName": "bug_report_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "permissionDenialCount",
+            "columnName": "permission_denial_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "backButtonPressCount",
+            "columnName": "back_button_press_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "shakeCount",
+            "columnName": "shake_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lateNightSessionCount",
+            "columnName": "late_night_session_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "morningSessionCount",
+            "columnName": "morning_session_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "middaySessionCount",
+            "columnName": "midday_session_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "averageHesitationMs",
+            "columnName": "average_hesitation_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "optionalMediaAddedCount",
+            "columnName": "optional_media_added_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deleteAndRewriteCount",
+            "columnName": "delete_and_rewrite_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quickExitCount",
+            "columnName": "quick_exit_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idleSessionCount",
+            "columnName": "idle_session_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "optionalMediaOpportunities",
+            "columnName": "optional_media_opportunities",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "textTasksCompleted",
+            "columnName": "text_tasks_completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalTextLength",
+            "columnName": "total_text_length",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "vulgarityCount",
+            "columnName": "vulgarity_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "easterEggsFoundCount",
+            "columnName": "easter_eggs_found_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "highBatteryChargingCount",
+            "columnName": "high_battery_charging_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "drawingSkipCount",
+            "columnName": "drawing_skip_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "drawingOpportunityCount",
+            "columnName": "drawing_opportunity_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stillnessSkipCount",
+            "columnName": "stillness_skip_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stillnessOpportunityCount",
+            "columnName": "stillness_opportunity_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gamePlayCount",
+            "columnName": "game_play_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "yourMomCount",
+            "columnName": "your_mom_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gibberishCount",
+            "columnName": "gibberish_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "singleWordResponseCount",
+            "columnName": "single_word_response_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "emojiHeavyResponseCount",
+            "columnName": "emoji_heavy_response_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "questionResponseCount",
+            "columnName": "question_response_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weekendSessionCount",
+            "columnName": "weekend_session_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "easterEggStateJson",
+            "columnName": "easter_egg_state_json",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `startedAt` INTEGER NOT NULL, `endedAt` INTEGER, `mood` TEXT, `moodDismissed` INTEGER NOT NULL, `tasksCompleted` INTEGER NOT NULL, `tasksSkipped` INTEGER NOT NULL, `previousSessionId` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAt",
+            "columnName": "startedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAt",
+            "columnName": "endedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "mood",
+            "columnName": "mood",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "moodDismissed",
+            "columnName": "moodDismissed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tasksCompleted",
+            "columnName": "tasksCompleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tasksSkipped",
+            "columnName": "tasksSkipped",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previousSessionId",
+            "columnName": "previousSessionId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f5b3562d1709e48c45dedba66ccee7da')"
+    ]
+  }
+}

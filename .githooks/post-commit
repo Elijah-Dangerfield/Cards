@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Prints a one-line recap of what release-please will do with the commit
+# you just made. Purely informational — doesn't block anything.
+
+subject=$(git log -1 --pretty=%s)
+# Strip scope + breaking marker to get the bare type.
+type=$(printf '%s' "$subject" | grep -oE '^[a-z]+')
+breaking=$(printf '%s' "$subject" | grep -oE '^[a-z]+(\([^)]+\))?!:')
+
+case "$type" in
+  feat)
+    if [ -n "$breaking" ]; then
+      echo "» feat!: major bump (capped at minor pre-1.0). Goes under 'Features' in release notes."
+    else
+      echo "» feat: minor bump. Goes under 'Features' in release notes."
+    fi
+    ;;
+  fix)
+    if [ -n "$breaking" ]; then
+      echo "» fix!: major bump (capped at minor pre-1.0). Goes under 'Bug Fixes' in release notes."
+    else
+      echo "» fix: patch bump. Goes under 'Bug Fixes' in release notes."
+    fi
+    ;;
+  perf)
+    echo "» perf: patch bump. Goes under 'Performance Improvements' in release notes."
+    ;;
+  revert)
+    echo "» revert: patch bump. Goes under 'Reverts' in release notes."
+    ;;
+  docs|style|test|build|ci|refactor|chore)
+    echo "» $type: no version bump. Not shown in release notes."
+    ;;
+  *)
+    # Non-conventional (e.g. merge, rebase auto-commit) — stay silent.
+    ;;
+esac

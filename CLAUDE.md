@@ -1,0 +1,3 @@
+# CLAUDE.md
+
+See [AGENTS.md](./AGENTS.md) for AI agent guidelines for this repository.

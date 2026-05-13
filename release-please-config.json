@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        "versions.properties",
+        "apps/ios/Configuration/Config.xcconfig"
+      ],
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "draft": false,
+      "prerelease": false
+    }
+  },
+  "separate-pull-requests": false,
+  "pull-request-header": "👉 **This PR is the next release.** Merging it ships the app.\n\nWhat will happen when you merge:\n\n1. `versionName` in [`versions.properties`](../blob/main/versions.properties) and `MARKETING_VERSION` in [`Config.xcconfig`](../blob/main/apps/ios/Configuration/Config.xcconfig) bump to the version below.\n2. [`CHANGELOG.md`](../blob/main/CHANGELOG.md) gets the entries below appended.\n3. A git tag `vX.Y.Z` and a matching GitHub Release are created.\n4. [`release.yml`](../actions/workflows/release.yml) fires:\n   - Android → Play Console production (10% staged rollout)\n   - iOS → TestFlight external group `main` → submitted to App Store review with phased release\n   - Sentry release created + mappings/dSYMs uploaded\n\n**Don't merge yet if:** something in the changelog shouldn't ship, or you want to wait for more fixes to bundle. Land a revert on `main` and this PR updates within a minute.\n\nSee [docs/release-automation.md](../blob/main/docs/release-automation.md) for the full pipeline, secrets, and runbook."
+}
