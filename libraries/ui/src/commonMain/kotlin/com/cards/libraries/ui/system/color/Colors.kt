@@ -77,35 +77,33 @@ interface StatusColor {
 }
 
 val defaultColors = object : Colors {
-    // Blue as primary accent - like a clear sky
     override val accentPrimary = ColorResource.Blue600
     override val onAccentPrimary = ColorResource.White
-    // Purple as secondary - adds a touch of creativity and calm
     override val accentSecondary = ColorResource.Purple600
     override val onAccentSecondary = ColorResource.White
 
     override val shadow = ColorResource.Black_A30
-    override val textDisabled = ColorResource.Gray400
+    override val textDisabled = ColorResource.Gray600
     override val danger = ColorResource.Red600
-    // White surfaces for a clean, modern look
-    override val surfacePrimary = ColorResource.White
-    override val surfaceDisabled = ColorResource.Gray200
-    override val onSurfacePrimary = ColorResource.Gray900
-    override val surfaceSecondary = ColorResource.Gray100
-    override val onSurfaceSecondary = ColorResource.Gray800
-    override val surfaceTertiary = ColorResource.Gray200
-    override val onSurfaceTertiary = ColorResource.Gray700
-    override val onSurfaceDisabled = ColorResource.Gray400
-    // Light gray background for a soft, neutral canvas
-    override val background = ColorResource.Gray50
-    override val onBackground = ColorResource.Gray900
-    override val border = ColorResource.Gray300
-    override val borderSecondary = ColorResource.Gray400
-    override val borderDisabled = ColorResource.Gray200
-    // Dark gray text on light backgrounds for high readability
-    override val text = ColorResource.Gray900
+
+    override val surfacePrimary = ColorResource.Gray900
+    override val surfaceDisabled = ColorResource.Gray800
+    override val onSurfacePrimary = ColorResource.Gray50
+    override val surfaceSecondary = ColorResource.Gray800
+    override val onSurfaceSecondary = ColorResource.Gray100
+    override val surfaceTertiary = ColorResource.Gray700
+    override val onSurfaceTertiary = ColorResource.Gray100
+    override val onSurfaceDisabled = ColorResource.Gray500
+
+    override val background = ColorResource.Black
+    override val onBackground = ColorResource.Gray50
+    override val border = ColorResource.Gray800
+    override val borderSecondary = ColorResource.Gray700
+    override val borderDisabled = ColorResource.Gray800
+
+    override val text = ColorResource.Gray50
     override val backgroundOverlay = ColorResource.Black_A70
-    override val textSecondary = ColorResource.Gray600
+    override val textSecondary = ColorResource.Gray400
 
     override val status = object : StatusColor {
         override val okay = ColorResource.Green600

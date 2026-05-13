@@ -1,22 +1,43 @@
 package com.dangerfield.cards.features.home.impl
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.system.VerticalSpacerD500
-import com.dangerfield.cards.system.VerticalSpacerD800
+
+private val ChipGold = Color(0xFFE0B863)
+private val FeltGreen = Color(0xFF124A33)
+private val FeltGreenLight = Color(0xFF1E6A4A)
+private val CardCasual = Color(0xFF2D5F4A)
+private val CardStandard = Color(0xFF2D4A6F)
+private val CardChallenging = Color(0xFF6F2D4A)
 
 @Composable
 fun HomeScreen(
@@ -33,61 +54,224 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+                .padding(horizontal = 20.dp),
         ) {
-            Text(
-                text = "Welcome to Cards",
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
-                textAlign = TextAlign.Center,
+            Spacer(modifier = Modifier.height(12.dp))
+            TopStatus(onProfileTap = onNavigateToFeedback)
+            Spacer(modifier = Modifier.height(20.dp))
+            ChipBalance(amount = 10_000)
+            Spacer(modifier = Modifier.height(28.dp))
+            SectionLabel("Practice against bots")
+            Spacer(modifier = Modifier.height(12.dp))
+            PlayCard(
+                title = "Casual table",
+                subtitle = "Forgiving bots · learning mode",
+                accent = CardCasual,
+                onClick = { onPlayBots("Casual") },
             )
-
-            VerticalSpacerD800()
-
-            if (state.userName != null) {
-                Text(
-                    text = "Hello, ${state.userName}!",
-                    typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.textSecondary,
-                )
-                VerticalSpacerD500()
-            }
-
-            Text(
-                text = "This is your starting point.\nBuild something amazing!",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
-                textAlign = TextAlign.Center,
+            Spacer(modifier = Modifier.height(12.dp))
+            PlayCard(
+                title = "Standard table",
+                subtitle = "Balanced bots · most realistic",
+                accent = CardStandard,
+                onClick = { onPlayBots("Standard") },
             )
-
-            VerticalSpacerD800()
-
-            Text(
-                text = "Practice against bots",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+            Spacer(modifier = Modifier.height(12.dp))
+            PlayCard(
+                title = "Challenging table",
+                subtitle = "Aggressive bots · they read you",
+                accent = CardChallenging,
+                onClick = { onPlayBots("Challenging") },
             )
-            VerticalSpacerD500()
-
-            Button(onClick = { onPlayBots("Casual") }) { Text("Play Casual") }
-            VerticalSpacerD500()
-            Button(onClick = { onPlayBots("Standard") }) { Text("Play Standard") }
-            VerticalSpacerD500()
-            Button(onClick = { onPlayBots("Challenging") }) { Text("Play Challenging") }
-
-            VerticalSpacerD800()
-
-            Button(onClick = onNavigateToFeedback) {
-                Text("Send Feedback")
-            }
-
-            VerticalSpacerD500()
-
-            Button(onClick = onNavigateToBugReport) {
-                Text("Report a Bug")
-            }
+            Spacer(modifier = Modifier.weight(1f))
+            FooterLink(
+                label = "Send feedback",
+                onClick = onNavigateToFeedback,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            FooterLink(
+                label = "Report a bug",
+                onClick = onNavigateToBugReport,
+            )
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
+}
+
+@Composable
+private fun TopStatus(onProfileTap: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ChipBadge(amount = 10_000)
+        Spacer(modifier = Modifier.weight(1f))
+        XpBadge(level = 1)
+        Spacer(modifier = Modifier.width(12.dp))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.08f))
+                .clickable(onClick = onProfileTap),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Person,
+                contentDescription = "Profile",
+                tint = AppTheme.colors.text.color,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipBadge(amount: Long) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.06f))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .clip(CircleShape)
+                .background(ChipGold),
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = amount.toString(),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun XpBadge(level: Int) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.08f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = level.toString(),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun ChipBalance(amount: Long) {
+    Column {
+        Text(
+            text = "Your chips",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = formatThousands(amount),
+            typography = AppTheme.typography.Heading.H800,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        typography = AppTheme.typography.Body.B500,
+        color = AppTheme.colors.text,
+    )
+}
+
+@Composable
+private fun PlayCard(
+    title: String,
+    subtitle: String,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.horizontalGradient(
+                    colors = listOf(accent.copy(alpha = 0.95f), accent.copy(alpha = 0.7f)),
+                ),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "♠",
+                typography = AppTheme.typography.Heading.H600,
+                color = AppTheme.colors.text,
+            )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.text,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.text,
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = AppTheme.colors.text.color,
+        )
+    }
+}
+
+@Composable
+private fun FooterLink(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
+    }
+}
+
+private fun formatThousands(value: Long): String {
+    val s = value.toString()
+    val withCommas = StringBuilder()
+    val len = s.length
+    for (i in 0 until len) {
+        if (i > 0 && (len - i) % 3 == 0) withCommas.append(',')
+        withCommas.append(s[i])
+    }
+    return withCommas.toString()
 }
