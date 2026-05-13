@@ -20,7 +20,7 @@ import java.lang.ref.WeakReference
  * returns null when the app is fully backgrounded.
  */
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = ActivityProvider::class)
 @Inject
 class AndroidActivityProvider(
     context: Context,

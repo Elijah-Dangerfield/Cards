@@ -30,8 +30,9 @@ fun Project.enforceModuleBoundaries() {
 
     afterEvaluate {
         configurations.forEach { config ->
-            config.dependencies.toList().forEach { dep ->
+            config.dependencies.toList().forEach inner@{ dep ->
                 if (dep is ProjectDependency) {
+                    if (dep.path == path) return@inner
                     checkImplDependency(path, dep.path)
                     checkFeatureApiToApi(path, dep.path)
                 }

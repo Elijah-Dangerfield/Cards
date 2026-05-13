@@ -77,7 +77,9 @@ private fun HttpClientConfig<*>.applyCommonConfig(config: NetworkConfig) {
             level = LogLevel.INFO
             logger = object : Logger {
                 private val log = KLog.withTag("Network")
-                override fun log(message: String) = log.d { message }
+                override fun log(message: String) {
+                    log.d { message }
+                }
             }
         }
     }
