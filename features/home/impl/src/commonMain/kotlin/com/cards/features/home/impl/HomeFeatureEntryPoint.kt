@@ -6,6 +6,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.FeedbackRoute
 import com.dangerfield.cards.features.home.HomeRoute
+import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.home.impl.bugreport.BugReportScreen
 import com.dangerfield.cards.features.home.impl.bugreport.BugReportViewModel
 import com.dangerfield.cards.features.home.impl.feedback.FeedbackScreen
@@ -35,6 +36,9 @@ class HomeFeatureEntryPoint(
                 viewModel = viewModel,
                 onNavigateToFeedback = { router.navigate(FeedbackRoute()) },
                 onNavigateToBugReport = { router.navigate(BugReportRoute()) },
+                onPlayBots = { difficulty ->
+                    router.navigate(PlayBotsRoute(difficulty = difficulty, seatCount = 4))
+                },
             )
         }
         

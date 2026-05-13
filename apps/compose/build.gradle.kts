@@ -42,6 +42,8 @@ kotlin {
 
             implementation(projects.features.home)
             implementation(projects.features.home.impl)
+            implementation(projects.features.room)
+            implementation(projects.features.room.impl)
 
             implementation(libs.atomicfu)
             

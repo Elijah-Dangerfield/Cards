@@ -23,6 +23,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onNavigateToFeedback: () -> Unit,
     onNavigateToBugReport: () -> Unit,
+    onPlayBots: (difficulty: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
@@ -60,6 +61,21 @@ fun HomeScreen(
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
             )
+
+            VerticalSpacerD800()
+
+            Text(
+                text = "Practice against bots",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+            )
+            VerticalSpacerD500()
+
+            Button(onClick = { onPlayBots("Casual") }) { Text("Play Casual") }
+            VerticalSpacerD500()
+            Button(onClick = { onPlayBots("Standard") }) { Text("Play Standard") }
+            VerticalSpacerD500()
+            Button(onClick = { onPlayBots("Challenging") }) { Text("Play Challenging") }
 
             VerticalSpacerD800()
 

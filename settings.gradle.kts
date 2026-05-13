@@ -42,6 +42,8 @@ include(":apps:server")
 // Features
 include(":features:home")
 include(":features:home:impl")
+include(":features:room")
+include(":features:room:impl")
 
 
 // Libraries
