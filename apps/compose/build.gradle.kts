@@ -25,6 +25,8 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.cards.impl)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.bots)
+            implementation(projects.libraries.gameplay)
             implementation(projects.libraries.navigation)
             implementation(projects.libraries.navigation.impl)
             implementation(projects.libraries.resources)
