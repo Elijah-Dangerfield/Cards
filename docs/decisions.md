@@ -26,6 +26,86 @@ The canonical V1 plan lives at `~/.claude/plans/this-is-going-to-vast-kahn.md` o
 
 ---
 
+## 2026-05-13 — Client/server boundary: server-first, auth is the only exception
+
+**Decision:** The mobile client talks directly to **Supabase Auth** for the Apple/Google sign-in flow and that's it. Everything else — profile, leaderboards, room create/join, game state, chips, XP, connections, AppConfig, the future hand history and notifications register — goes through the Kotlin Ktor server. The server is the only thing that talks to Postgres.
+
+The split, concretely:
+
+| Concern | Path |
+|---|---|
+| Sign in with Apple / Google | Client → Supabase Auth (direct, via the OS OAuth flow) |
+| JWT validation | Server validates the Supabase JWT on every HTTPS request and every WS connect |
+| Profile read/write, leaderboards, rooms, XP, connections, app config | Client → Ktor server (HTTPS, JWT-authenticated) |
+| Realtime game state during a hand | Client ↔ Ktor WebSocket (one channel per room) |
+| Postgres queries | Server only, via direct DB connection with the service role key |
+| Supabase Realtime | Not used in V1. Possible future use for low-stakes row subscriptions (e.g. "friend started a game") but never for in-hand game state. |
+
+**Why server-first:**
+
+1. **Poker forces it.** Shuffle, deal, betting validation, hand evaluation must be server-authoritative. Half the code already goes through the server — making the rest match removes the split brain.
+2. **Schema changes don't break clients.** When a column is added or renamed, the server adapts the response shape; old binaries keep working. Direct-to-Supabase welds each client version to its schema version, which is painful with App Store / Play Store update lag.
+3. **Business logic stays in one place.** "Award XP on hand completion" touches multiple tables and must be atomic. One Ktor transaction is bulletproof; three Supabase calls from a phone are fragile (network drops, partial writes).
+4. **Anti-abuse and provably-fair primitives need server enforcement.** Rate limiting, intent nonces, the shuffle commit-reveal protocol, turn-timer enforcement — none of these can be done with RLS alone.
+5. **Migration optionality.** If we ever outgrow Supabase, swapping the server's DB driver is one PR. Direct-to-Supabase means every shipped client has `supabase.co` welded in.
+
+**Why realtime through Ktor, not Supabase Realtime:**
+
+Supabase Realtime broadcasts row changes. The game state during a hand lives in an in-memory coroutine on the server, not in a Postgres row — persisting every state transition just to fan it out would be wasteful and would expose intermediate states (the moment hole cards are dealt, they'd briefly land in a row before any RLS could hide them). Server-driven turn timers need code, not row triggers. Ktor WebSockets give us a per-room channel where the server publishes JSON diffs when it wants to. Standard pattern.
+
+**Supabase's role in this architecture:**
+
+We're using Supabase for:
+- Managed Postgres (hosted DB, point-in-time recovery, backups)
+- Auth (JWT issuer + Apple/Google OAuth dance)
+- Maybe Storage later for avatar uploads
+
+We're not using:
+- PostgREST (the auto-generated REST API)
+- Supabase SDK on the server (we connect to Postgres directly)
+- Realtime (we have our own WS)
+
+This makes Supabase feel like "managed Postgres + hosted auth" rather than "all-in-one backend," which is the right framing for an app with its own game-logic server.
+
+**How to apply:**
+
+- When adding a new client capability, the default answer is "add a Ktor endpoint" not "query Supabase directly from the client."
+- The one exception is the Sign-in-with-Apple / Google flow, which has to happen client-side because Apple/Google's OAuth UI runs on-device.
+- New realtime features inside a room (emotes, chat, sit-out signals) go through the existing per-room WS channel, not a new Supabase subscription.
+- Realtime features *outside* a room (notifications about friends, leaderboard ticks) can use Supabase Realtime if it's the simpler answer, but evaluate per case.
+
+**Status:** Locked.
+
+---
+
+## 2026-05-13 — Two Supabase projects: dev and prod
+
+**Decision:** Maintain two separate Supabase projects from the start:
+- `cards-dev` — used by debug builds and local development. Safe to reset, seed with fake data, test migrations against.
+- `cards-prod` — used by release builds (Play Store / TestFlight external / App Store). Real users, real chips.
+
+No shared project. No staging tier in V1 (overkill at our scale).
+
+**Why:**
+- Testing schema migrations against prod is how teams lose user data.
+- RLS policy changes can lock real users out — must be tested in dev first.
+- "Reset the table" during development is a common need; doing it in prod is a disaster.
+- Auth tokens are per-project, so dev logins don't clutter prod.
+- Different rate limits, quotas, and extensions can be exercised independently.
+
+**How to apply:**
+- Provision `cards-dev` when the first server work begins (Phase 2).
+- Provision `cards-prod` right before the first invite to real users (after V1 internal testing).
+- The build picks the project per Android variant: debug → `supabase.dev.*`, release → `supabase.prod.*`. Extend `loadSupabaseMetadata` in `build-logic/src/main/java/com/cards/util/Versioning.kt` to read variant-specific keys.
+- CI gets two pairs of GitHub secrets: `SUPABASE_DEV_PROJECT_ID` / `SUPABASE_DEV_ANON_KEY` and `SUPABASE_PROD_PROJECT_ID` / `SUPABASE_PROD_ANON_KEY`.
+- Service role keys (for the Ktor server) get the same dev/prod split, stored on whatever host runs the server (Fly.io secrets, Railway env vars, etc.).
+
+**Optional third leg:** Supabase local CLI (`supabase start`) for offline schema iteration. Worth it once we're iterating heavily on Postgres schema; not needed before then.
+
+**Status:** Locked.
+
+---
+
 ## 2026-05-13 — Auth: anonymous-by-default with claim flow
 
 **Decision:** New users get Supabase anonymous sign-in on first launch — no auth UI shown. They play bots and join rooms with a generated `Anon-XXXX` handle and random avatar. "Claim your account" links to Apple/Google later (Supabase Auth identity linking), preserving XP and chip balance.
