@@ -14,7 +14,6 @@ android {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            api(projects.libraries.appconfig)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
             api(projects.libraries.storage)

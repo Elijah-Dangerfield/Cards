@@ -9,8 +9,6 @@ application {
 }
 
 dependencies {
-    implementation(projects.libraries.appconfig)
-
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
 

@@ -75,7 +75,8 @@ fun App(appComponent: AppComponent) {
 
     val shakeHandler = remember { appComponent.shakeHandler }
     val deepLinkBridge = remember { appComponent.deepLinkBridge }
-    val appConfigService = remember { appComponent.appConfigService }
+    val appConfigFlow = remember { appComponent.appConfigFlow }
+    val ensureAppConfigLoaded = remember { appComponent.ensureAppConfigLoaded }
 
     DisposableEffect(shakeHandler) {
         shakeHandler.start()
@@ -84,15 +85,14 @@ fun App(appComponent: AppComponent) {
         }
     }
 
-    LaunchedEffect(appConfigService) {
-        appConfigService.refresh()
+    LaunchedEffect(ensureAppConfigLoaded) {
+        ensureAppConfigLoaded()
     }
 
-    val appConfig by appConfigService.state.collectAsState()
-    val guardState = AppGuardState.from(
-        config = appConfig,
-        clientVersionCode = CardsBuildConfig.VERSION_CODE,
-    )
+    val appConfigMap by appConfigFlow.collectAsState(initial = null)
+    val guardState = appConfigMap?.let {
+        AppGuardState.from(configMap = it, clientVersionCode = CardsBuildConfig.VERSION_CODE)
+    } ?: AppGuardState.Normal
 
     LaunchedEffect(navController, deepLinkBridge) {
         deepLinkBridge.urls.collect { url ->

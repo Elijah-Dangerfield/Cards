@@ -1,6 +1,5 @@
 package com.dangerfield.cards.libraries.cards
 
-import com.dangerfield.cards.libraries.appconfig.AppConfig
 import com.dangerfield.cards.libraries.storage.Cache
 import com.dangerfield.cards.libraries.storage.CacheFactory
 import com.dangerfield.cards.libraries.storage.versionedJsonSerializer
@@ -24,9 +23,6 @@ data class AppData(
     // User actions
     val feedbacksGiven: Int = 0,
     val bugsReported: Int = 0,
-
-    // Last AppConfig fetched from the server; nullable on a fresh install
-    val cachedAppConfig: AppConfig? = null,
 ) {
     /**
      * Get the visit count for a screen by its tracking key.

@@ -1,7 +1,5 @@
 package com.dangerfield.cards.server
 
-import com.dangerfield.cards.libraries.appconfig.AppConfig
-import com.dangerfield.cards.libraries.appconfig.MaintenanceState
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -17,6 +15,8 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import org.slf4j.event.Level
 
 fun main() {
@@ -54,20 +54,25 @@ private fun Application.module() {
             call.respond(mapOf("ok" to true))
         }
 
+        // Returns a sparse JSON tree keyed by ConfiguredValue.path (e.g. "upgrade.minSupportedVersionCode").
+        // Empty object means "use client defaults for everything". The client merges this with QA-menu
+        // overrides before resolving each value.
         get("/v1/app-config") {
             call.respond(currentAppConfig())
         }
     }
 }
 
-// In-memory config for the dev server. Replace with Postgres read in Phase 2 deployment work.
-private fun currentAppConfig(): AppConfig = AppConfig(
-    minSupportedClientVersionCode = 1,
-    maintenance = MaintenanceState.Off,
-    startingChipGrant = 10_000,
-    anonymousChipGrant = 2_000,
-    botXpMultiplier = 0.5,
-    turnTimerSecondsDefault = 30,
-    emoteCooldownMs = 2_000,
-    featureUnlocks = emptyMap(),
+// In-memory config tree for the dev server. Edit, restart, the change is live on the next refresh.
+// Production reads this from Postgres later; the wire format stays the same.
+private fun currentAppConfig(): JsonObject = JsonObject(
+    mapOf(
+        "upgrade" to JsonObject(
+            mapOf(
+                "minSupportedVersionCode" to JsonPrimitive(1),
+                "maintenanceMode" to JsonPrimitive("off"),
+                "maintenanceMessage" to JsonPrimitive("We're updating the servers, back in a moment."),
+            ),
+        ),
+    ),
 )

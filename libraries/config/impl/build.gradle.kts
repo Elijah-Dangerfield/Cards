@@ -19,8 +19,11 @@ kotlin {
             implementation(projects.libraries.config)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.networking)
             implementation(projects.libraries.storage)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.contentNegotiation)
             implementation(compose.components.resources)
         }
     }

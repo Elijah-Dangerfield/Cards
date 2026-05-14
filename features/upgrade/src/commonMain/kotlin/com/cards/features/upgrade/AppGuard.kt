@@ -1,14 +1,13 @@
 package com.dangerfield.cards.features.upgrade
 
-import com.dangerfield.cards.libraries.appconfig.AppConfig
-import com.dangerfield.cards.libraries.appconfig.MaintenanceState
+import com.dangerfield.cards.libraries.config.AppConfigMap
 
 /**
  * Derived state describing whether the app shell should let the user reach
  * the navigation graph this frame, or whether a blocking modal should cover
  * everything.
  *
- * Compute with [AppGuardState.from] given the current [AppConfig] and the
+ * Compute with [AppGuardState.from] given the current [AppConfigMap] and the
  * running client's version code.
  */
 sealed interface AppGuardState {
@@ -26,14 +25,15 @@ sealed interface AppGuardState {
     data object UpgradeRequired : AppGuardState
 
     companion object {
-        fun from(config: AppConfig, clientVersionCode: Int): AppGuardState {
-            if (clientVersionCode < config.minSupportedClientVersionCode) {
+        fun from(configMap: AppConfigMap, clientVersionCode: Int): AppGuardState {
+            val config = UpgradeConfig(configMap)
+            if (clientVersionCode < config.minSupportedVersionCode) {
                 return UpgradeRequired
             }
-            return when (val m = config.maintenance) {
-                MaintenanceState.Off -> Normal
-                is MaintenanceState.Blocking -> MaintenanceBlocking(m.message)
-                is MaintenanceState.Banner -> MaintenanceBanner(m.message)
+            return when (config.maintenanceMode.lowercase()) {
+                "blocking" -> MaintenanceBlocking(config.maintenanceMessage)
+                "banner" -> MaintenanceBanner(config.maintenanceMessage)
+                else -> Normal
             }
         }
     }

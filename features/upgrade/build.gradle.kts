@@ -9,7 +9,7 @@ android {
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            api(projects.libraries.appconfig)
+            api(projects.libraries.config)
         }
     }
 }

@@ -53,8 +53,6 @@ include(":features:upgrade:impl")
 
 
 // Libraries
-include(":libraries:appconfig")
-include(":libraries:appconfig:impl")
 include(":libraries:config")
 include(":libraries:config:impl")
 include(":libraries:core")
