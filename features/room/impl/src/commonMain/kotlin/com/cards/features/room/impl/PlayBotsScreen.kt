@@ -1,5 +1,10 @@
 package com.dangerfield.cards.features.room.impl
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,16 +21,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,17 +42,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Suit
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
-import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -55,7 +61,7 @@ private val CardWhite = Color(0xFFF4F1E8)
 private val CardRed = Color(0xFFC42E2E)
 private val CardBlack = Color(0xFF1A1A1A)
 private val CardBackBlue = Color(0xFF2E4A9E)
-private val ActiveGlow = Color(0xFFFFD66E)
+private val SeatActive = Color(0xFFFFD66E)
 
 @Composable
 fun PlayBotsScreen(
@@ -64,25 +70,50 @@ fun PlayBotsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Screen(modifier = modifier) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 12.dp),
-        ) {
-            TopBar(
-                handNumber = (state.table as? TableUiState.Active)?.handNumber,
-                onBack = onBack,
-                onCheatSheet = { onAction(PlayBotsAction.ToggleCheatSheet) },
-            )
+    var raiseSheetOpen by remember { mutableStateOf(false) }
+    LaunchedEffect((state.table as? TableUiState.Active)?.isHumanTurn) {
+        if ((state.table as? TableUiState.Active)?.isHumanTurn != true) {
+            raiseSheetOpen = false
+        }
+    }
 
-            when (val table = state.table) {
-                TableUiState.Loading -> LoadingTable()
-                is TableUiState.Active -> ActiveTable(
-                    table = table,
-                    onIntent = { onAction(PlayBotsAction.SubmitIntent(it)) },
+    Screen(modifier = modifier) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                TopBar(
+                    handNumber = (state.table as? TableUiState.Active)?.handNumber,
+                    onBack = onBack,
+                    onCheatSheet = { onAction(PlayBotsAction.ToggleCheatSheet) },
                 )
+
+                when (val table = state.table) {
+                    TableUiState.Loading -> LoadingTable()
+                    is TableUiState.Active -> ActiveTable(
+                        table = table,
+                        onIntent = { onAction(PlayBotsAction.SubmitIntent(it)) },
+                        onExpandRaise = { raiseSheetOpen = true },
+                    )
+                }
+            }
+
+            val active = state.table as? TableUiState.Active
+            AnimatedVisibility(
+                visible = raiseSheetOpen && active?.isHumanTurn == true && active.humanLegalActions != null,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter),
+            ) {
+                active?.humanLegalActions?.let { legal ->
+                    RaiseSheet(
+                        legal = legal,
+                        humanSeatIndex = active.seats.first { it.isHuman }.index,
+                        onDismiss = { raiseSheetOpen = false },
+                        onIntent = { intent ->
+                            raiseSheetOpen = false
+                            onAction(PlayBotsAction.SubmitIntent(intent))
+                        },
+                    )
+                }
             }
         }
 
@@ -104,9 +135,9 @@ private fun TopBar(
     ) {
         IconButton(onClick = onBack) {
             Icon(
-                imageVector = Icons.Default.ArrowBack,
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = Color.White,
+                tint = AppTheme.colors.text.color,
             )
         }
         Text(
@@ -119,7 +150,7 @@ private fun TopBar(
             Icon(
                 imageVector = Icons.Default.HelpOutline,
                 contentDescription = "Hand rankings",
-                tint = Color.White,
+                tint = AppTheme.colors.text.color,
             )
         }
     }
@@ -140,22 +171,20 @@ private fun LoadingTable() {
 private fun ActiveTable(
     table: TableUiState.Active,
     onIntent: (PlayerIntent) -> Unit,
+    onExpandRaise: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Spacer(modifier = Modifier.height(8.dp))
-
         OpponentsRow(table = table)
 
-        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-            BoardAndPot(table = table)
-        }
+        Spacer(modifier = Modifier.height(28.dp))
+        BoardArea(table = table)
 
-        HumanArea(table = table)
+        Spacer(modifier = Modifier.weight(1f))
+        PlayerArea(table = table)
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        ActionBar(table = table, onIntent = onIntent)
-
+        Spacer(modifier = Modifier.height(20.dp))
+        QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
         Spacer(modifier = Modifier.height(12.dp))
     }
 }
@@ -168,27 +197,31 @@ private fun OpponentsRow(table: TableUiState.Active) {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.Top,
     ) {
-        opponents.forEach { seat -> OpponentSeat(seat = seat) }
+        opponents.forEach { seat ->
+            OpponentSeat(seat = seat, bigBlind = table.bigBlind, smallBlind = table.smallBlind)
+        }
     }
 }
 
 @Composable
-private fun OpponentSeat(seat: SeatView) {
+private fun OpponentSeat(seat: SeatView, bigBlind: Long, smallBlind: Long) {
     val folded = seat.participation == HandParticipation.Folded
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(horizontal = 4.dp).alpha(if (folded) 0.45f else 1f),
+        modifier = Modifier
+            .padding(horizontal = 2.dp)
+            .alpha(if (folded) 0.4f else 1f),
     ) {
         Box(contentAlignment = Alignment.Center) {
             if (seat.isActing) {
                 Box(
                     modifier = Modifier
-                        .size(60.dp)
+                        .size(56.dp)
                         .clip(CircleShape)
-                        .background(ActiveGlow.copy(alpha = 0.35f)),
+                        .background(SeatActive.copy(alpha = 0.28f)),
                 )
             }
-            AvatarCircle(name = seat.displayName, size = 48.dp)
+            AvatarCircle(name = seat.displayName, size = 44.dp)
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -196,36 +229,25 @@ private fun OpponentSeat(seat: SeatView) {
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.text,
         )
-        ChipBadge(amount = seat.stack)
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (seat.holeCards.isNotEmpty()) {
-                seat.holeCards.forEach { CardView(card = it, size = CardSize.Small) }
-            } else if (seat.showHoleCardBacks) {
-                repeat(2) { CardBackView(size = CardSize.Small) }
-            }
-        }
+        Text(
+            text = seat.stack.toString(),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
         if (seat.contributedThisStreet > 0) {
             Spacer(modifier = Modifier.height(4.dp))
-            ChipPill(amount = seat.contributedThisStreet)
-        }
-        if (folded) {
-            Text(
-                text = "FOLD",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+            ChipPill(
+                amount = seat.contributedThisStreet,
+                isSmallBlind = seat.contributedThisStreet == smallBlind,
+                isBigBlind = seat.contributedThisStreet == bigBlind,
             )
         }
     }
 }
 
 @Composable
-private fun BoardAndPot(table: TableUiState.Active) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (table.pot > 0) {
-            PotBadge(amount = table.pot)
-            Spacer(modifier = Modifier.height(12.dp))
-        }
+private fun BoardArea(table: TableUiState.Active) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -236,6 +258,16 @@ private fun BoardAndPot(table: TableUiState.Active) {
                 else CardSlot(size = CardSize.Board)
             }
         }
+        if (table.pot > 0) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                Text(
+                    text = table.pot.toString(),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.textSecondary,
+                )
+            }
+        }
         if (table.handResult != null) {
             Spacer(modifier = Modifier.height(16.dp))
             HandResultBanner(result = table.handResult, seats = table.seats)
@@ -244,63 +276,88 @@ private fun BoardAndPot(table: TableUiState.Active) {
 }
 
 @Composable
-private fun HumanArea(table: TableUiState.Active) {
+private fun PlayerArea(table: TableUiState.Active) {
     val human = table.seats.firstOrNull { it.isHuman } ?: return
     val folded = human.participation == HandParticipation.Folded
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 4.dp),
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            if (human.isActing) {
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(CircleShape)
-                        .background(ActiveGlow.copy(alpha = 0.35f)),
-                )
-            }
-            AvatarCircle(name = "You", size = 48.dp)
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "You",
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
-            )
-            ChipBadge(amount = human.stack)
-            if (human.contributedThisStreet > 0) {
-                Spacer(modifier = Modifier.height(2.dp))
-                ChipPill(amount = human.contributedThisStreet)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.alpha(if (folded) 0.4f else 1f)) {
+        Row(
+            modifier = Modifier.alpha(if (folded) 0.35f else 1f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             if (human.holeCards.isNotEmpty()) {
                 human.holeCards.forEach { CardView(card = it, size = CardSize.Hole) }
             } else {
                 repeat(2) { CardSlot(size = CardSize.Hole) }
             }
         }
+        Spacer(modifier = Modifier.weight(1f))
+        PlayerInfoTile(
+            stack = human.stack,
+            handLabel = table.humanHandLabel,
+            currentBet = human.contributedThisStreet,
+            isActing = human.isActing,
+        )
     }
 }
 
 @Composable
-private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Unit) {
+private fun PlayerInfoTile(stack: Long, handLabel: String?, currentBet: Long, isActing: Boolean) {
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .border(
+                width = if (isActing) 2.dp else 1.dp,
+                color = if (isActing) SeatActive.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(16.dp),
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = handLabel ?: "",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
+        Spacer(modifier = Modifier.height(if (handLabel != null) 6.dp else 0.dp))
+        AvatarCircle(name = "You", size = 44.dp)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = stack.toString(),
+            typography = AppTheme.typography.Body.B600,
+            color = AppTheme.colors.text,
+        )
+        if (currentBet > 0) {
+            Spacer(modifier = Modifier.height(4.dp))
+            ChipPill(amount = currentBet, isSmallBlind = false, isBigBlind = false)
+        }
+    }
+}
+
+@Composable
+private fun QuickActionBar(
+    table: TableUiState.Active,
+    onIntent: (PlayerIntent) -> Unit,
+    onExpandRaise: () -> Unit,
+) {
     val legal = table.humanLegalActions
     if (!table.isHumanTurn || legal == null) {
         Box(
-            modifier = Modifier.fillMaxWidth().height(120.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = when {
-                    table.handResult != null -> "Hand complete — dealing next…"
+                    table.handResult != null -> "Hand complete · next dealing"
                     else -> "Waiting for opponents…"
                 },
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
             )
         }
@@ -308,18 +365,78 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
     }
 
     val humanSeat = table.seats.first { it.isHuman }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PrimaryPill(
+            label = if (legal.canCheck) "Check" else "Call ${legal.callAmount}",
+            modifier = Modifier.weight(1f),
+        ) {
+            onIntent(
+                if (legal.canCheck) PlayerIntent.Check(humanSeat.index)
+                else PlayerIntent.Call(humanSeat.index),
+            )
+        }
+        if (legal.canRaise) {
+            PrimaryPill(
+                label = "Raise ${legal.minRaiseTotal}",
+                modifier = Modifier.weight(1f),
+            ) {
+                onIntent(PlayerIntent.Raise(humanSeat.index, legal.minRaiseTotal))
+            }
+        }
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White.copy(alpha = 0.06f))
+                .clickable(onClick = onExpandRaise),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.ArrowUpward,
+                contentDescription = "More options",
+                tint = AppTheme.colors.text.color,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrimaryPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .height(52.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun RaiseSheet(
+    legal: LegalActions,
+    humanSeatIndex: Int,
+    onDismiss: () -> Unit,
+    onIntent: (PlayerIntent) -> Unit,
+) {
     var raiseTotal by remember(legal.minRaiseTotal, legal.maxRaiseTotal) {
         mutableStateOf(legal.minRaiseTotal.coerceAtMost(legal.maxRaiseTotal))
     }
     var raiseText by remember(legal.minRaiseTotal, legal.maxRaiseTotal) {
         mutableStateOf(raiseTotal.toString())
     }
-    LaunchedEffect(legal.minRaiseTotal, legal.maxRaiseTotal) {
-        raiseTotal = raiseTotal.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
-        raiseText = raiseTotal.toString()
-    }
-    fun setRaiseTotal(value: Long) {
-        val clamped = value.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
+    fun setRaiseTotal(v: Long) {
+        val clamped = v.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
         raiseTotal = clamped
         raiseText = clamped.toString()
     }
@@ -327,28 +444,33 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.Black.copy(alpha = 0.35f))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(AppTheme.colors.surfacePrimary.color)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            ActionButton("Fold", modifier = Modifier.weight(1f)) {
-                onIntent(PlayerIntent.Fold(humanSeat.index))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "More options",
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.text,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
+                    tint = AppTheme.colors.text.color,
+                )
             }
-            if (legal.canCheck) {
-                ActionButton("Check", modifier = Modifier.weight(1f)) {
-                    onIntent(PlayerIntent.Check(humanSeat.index))
-                }
-            } else if (legal.canCall) {
-                ActionButton("Call ${legal.callAmount}", modifier = Modifier.weight(1f)) {
-                    onIntent(PlayerIntent.Call(humanSeat.index))
-                }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            SecondaryPill(label = "Fold", modifier = Modifier.weight(1f)) {
+                onIntent(PlayerIntent.Fold(humanSeatIndex))
             }
-            if (legal.canAllIn) {
-                ActionButton("All In", modifier = Modifier.weight(1f)) {
-                    onIntent(PlayerIntent.AllIn(humanSeat.index))
-                }
+            SecondaryPill(label = "All In ${legal.allInAmount}", modifier = Modifier.weight(1f)) {
+                onIntent(PlayerIntent.AllIn(humanSeatIndex))
             }
         }
 
@@ -362,20 +484,17 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.textSecondary,
                 )
-                RaiseAmountField(
+                RaiseField(
                     text = raiseText,
                     onTextChange = { typed ->
                         val digitsOnly = typed.filter { it.isDigit() }.take(9)
                         raiseText = digitsOnly
-                        digitsOnly.toLongOrNull()?.let { parsed ->
-                            raiseTotal = parsed.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
-                        }
+                        digitsOnly.toLongOrNull()?.let { setRaiseTotal(it) }
                     },
-                    onCommit = { setRaiseTotal(raiseTotal) },
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = "min ${legal.minRaiseTotal} · max ${legal.maxRaiseTotal}",
+                    text = "max ${legal.maxRaiseTotal}",
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.textSecondary,
                 )
@@ -385,52 +504,87 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
                 onValueChange = { setRaiseTotal(it.toLong()) },
                 valueRange = legal.minRaiseTotal.toFloat()..legal.maxRaiseTotal.toFloat(),
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 val pot = legal.potIfYouCall
-                QuickRaise("½ pot", modifier = Modifier.weight(1f)) {
+                QuickRaise(label = "½ pot", modifier = Modifier.weight(1f)) {
                     setRaiseTotal(pot / 2)
                 }
-                QuickRaise("¾ pot", modifier = Modifier.weight(1f)) {
+                QuickRaise(label = "¾ pot", modifier = Modifier.weight(1f)) {
                     setRaiseTotal((pot * 3) / 4)
                 }
-                QuickRaise("Pot", modifier = Modifier.weight(1f)) {
+                QuickRaise(label = "Pot", modifier = Modifier.weight(1f)) {
                     setRaiseTotal(pot)
                 }
             }
-            ActionButton(
-                "Raise to $raiseTotal",
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                onIntent(PlayerIntent.Raise(humanSeat.index, raiseTotal))
+            PrimaryConfirm(label = "Raise to $raiseTotal") {
+                onIntent(PlayerIntent.Raise(humanSeatIndex, raiseTotal))
             }
         }
     }
 }
 
 @Composable
-private fun ActionButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = modifier) {
-        Text(label, typography = AppTheme.typography.Body.B500)
+private fun SecondaryPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.text,
+        )
     }
 }
 
 @Composable
-private fun RaiseAmountField(
-    text: String,
-    onTextChange: (String) -> Unit,
-    onCommit: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun PrimaryConfirm(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(AppTheme.colors.accentPrimary.color)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B600,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun QuickRaise(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        contentAlignment = Alignment.CenterStart,
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun RaiseField(text: String, onTextChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         BasicTextField(
             value = text,
@@ -443,33 +597,14 @@ private fun RaiseAmountField(
 }
 
 @Composable
-private fun QuickRaise(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.White.copy(alpha = 0.1f))
-            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
-        )
-    }
-}
-
-@Composable
-private fun AvatarCircle(name: String, size: androidx.compose.ui.unit.Dp) {
-    val initial = name.firstOrNull()?.uppercase() ?: "?"
-    val seed = name.hashCode()
+private fun AvatarCircle(name: String, size: Dp) {
     val hues = listOf(
         Color(0xFFE07AB1), Color(0xFFF6B26B), Color(0xFFFFD966),
         Color(0xFF93C47D), Color(0xFF76A5AF), Color(0xFF8E7CC3),
     )
+    val seed = name.hashCode()
     val bg = hues[((seed % hues.size) + hues.size) % hues.size]
+    val initial = name.firstOrNull()?.uppercase() ?: "?"
     Box(
         modifier = Modifier
             .size(size)
@@ -487,16 +622,7 @@ private fun AvatarCircle(name: String, size: androidx.compose.ui.unit.Dp) {
 }
 
 @Composable
-private fun ChipBadge(amount: Long) {
-    Text(
-        text = amount.toString(),
-        typography = AppTheme.typography.Body.B400,
-        color = AppTheme.colors.textSecondary,
-    )
-}
-
-@Composable
-private fun ChipPill(amount: Long) {
+private fun ChipPill(amount: Long, isSmallBlind: Boolean, isBigBlind: Boolean) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
@@ -511,58 +637,41 @@ private fun ChipPill(amount: Long) {
     }
 }
 
-@Composable
-private fun PotBadge(amount: Long) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.Black.copy(alpha = 0.45f))
-            .border(1.dp, ChipGold.copy(alpha = 0.6f), RoundedCornerShape(50))
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = "Pot $amount",
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.text,
-        )
-    }
-}
-
-private enum class CardSize(val width: androidx.compose.ui.unit.Dp, val height: androidx.compose.ui.unit.Dp) {
+private enum class CardSize(val width: Dp, val height: Dp) {
     Small(28.dp, 40.dp),
-    Hole(60.dp, 84.dp),
-    Board(48.dp, 68.dp),
+    Hole(72.dp, 100.dp),
+    Board(56.dp, 80.dp),
 }
 
 @Composable
 private fun CardView(card: Card, size: CardSize) {
     val isRed = card.suit == Suit.Hearts || card.suit == Suit.Diamonds
-    val color = if (isRed) CardRed else CardBlack
     Box(
         modifier = Modifier
             .size(width = size.width, height = size.height)
-            .shadow(3.dp, RoundedCornerShape(6.dp))
-            .clip(RoundedCornerShape(6.dp))
+            .shadow(4.dp, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(CardWhite)
-            .padding(4.dp),
+            .padding(6.dp),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 text = card.rank.short,
-                typography = if (size == CardSize.Small) AppTheme.typography.Body.B400 else AppTheme.typography.Body.B600,
-                color = AppTheme.colors.background,
+                typography = if (size == CardSize.Hole) AppTheme.typography.Heading.H600
+                else AppTheme.typography.Body.B600,
+                color = if (isRed) AppTheme.colors.danger else AppTheme.colors.background,
                 modifier = Modifier,
                 textAlign = TextAlign.Start,
             )
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomEnd) {
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.BottomStart) {
                 Text(
                     text = card.suit.symbol,
-                    typography = if (size == CardSize.Small) AppTheme.typography.Body.B500 else AppTheme.typography.Body.B700,
-                    color = AppTheme.colors.background,
+                    typography = if (size == CardSize.Hole) AppTheme.typography.Heading.H600
+                    else AppTheme.typography.Body.B600,
+                    color = if (isRed) AppTheme.colors.danger else AppTheme.colors.background,
                 )
             }
         }
-        Box(modifier = Modifier.fillMaxSize().alpha(if (isRed) 1f else 0f).background(color.copy(alpha = 0f)))
     }
 }
 
@@ -571,14 +680,14 @@ private fun CardBackView(size: CardSize) {
     Box(
         modifier = Modifier
             .size(width = size.width, height = size.height)
-            .shadow(3.dp, RoundedCornerShape(6.dp))
-            .clip(RoundedCornerShape(6.dp))
+            .shadow(3.dp, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(
                 Brush.linearGradient(
                     colors = listOf(CardBackBlue, CardBackBlue.copy(alpha = 0.7f)),
                 ),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(6.dp)),
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(8.dp)),
     )
 }
 
@@ -587,15 +696,14 @@ private fun CardSlot(size: CardSize) {
     Box(
         modifier = Modifier
             .size(width = size.width, height = size.height)
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(6.dp)),
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
     )
 }
 
 @Composable
 private fun HandResultBanner(result: HandResultView, seats: List<SeatView>) {
-    val winnerLines = result.winners.map { w ->
+    val lines = result.winners.map { w ->
         val seat = seats.firstOrNull { it.index == w.seatIndex }
         val name = seat?.displayName ?: "Seat ${w.seatIndex}"
         if (w.byFold) "$name wins ${w.amount} by fold"
@@ -608,7 +716,7 @@ private fun HandResultBanner(result: HandResultView, seats: List<SeatView>) {
             .background(Color.Black.copy(alpha = 0.5f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        winnerLines.forEach {
+        lines.forEach {
             Text(
                 text = it,
                 typography = AppTheme.typography.Body.B500,
@@ -617,4 +725,3 @@ private fun HandResultBanner(result: HandResultView, seats: List<SeatView>) {
         }
     }
 }
-

@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.Seat
@@ -21,6 +22,7 @@ sealed interface TableUiState {
         val actingSeatIndex: Int?,
         val isHumanTurn: Boolean,
         val humanLegalActions: LegalActions?,
+        val humanHandLabel: String?,
         val lastBotThoughts: Map<Int, BotThought>,
         val handResult: HandResultView?,
         val smallBlind: Long,
@@ -52,6 +54,7 @@ sealed interface TableUiState {
             }
             val humanSeat = gameState.seats.firstOrNull { it.index == humanSeatIndex }
             val legal = if (isHumanTurn && humanSeat != null) LegalActions.from(gameState, humanSeat) else null
+            val humanHandLabel = humanSeat?.let { previewHandLabel(it.holeCards, gameState.community) }
             val result = lastWinners?.let { ev ->
                 HandResultView(
                     winners = ev.winners,
@@ -66,6 +69,7 @@ sealed interface TableUiState {
                 actingSeatIndex = acting,
                 isHumanTurn = isHumanTurn,
                 humanLegalActions = legal,
+                humanHandLabel = humanHandLabel,
                 lastBotThoughts = lastThoughts,
                 handResult = result,
                 smallBlind = gameState.settings.smallBlind,
@@ -172,3 +176,13 @@ data class HandResultView(
     val winners: List<HandWinner>,
     val board: List<Card>,
 )
+
+private fun previewHandLabel(holeCards: List<Card>, community: List<Card>): String? {
+    if (holeCards.size != 2) return null
+    val total = holeCards + community
+    return when {
+        total.size == 2 -> if (holeCards[0].rank == holeCards[1].rank) "Pocket pair" else null
+        total.size in 5..7 -> HandEvaluator.evaluate(total).category.displayName
+        else -> null
+    }
+}
