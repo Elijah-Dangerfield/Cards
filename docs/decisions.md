@@ -316,3 +316,33 @@ When we revisit, the rough sketch is:
 - For V1, surface XP as a number; level/progress-bar UI lands when we have enough data to know what XP thresholds feel right.
 
 **Status:** Locked for V1.
+
+---
+
+## 2026-05-14 — XP earning formula and local-only persistence (V1)
+
+**Decision:** XP scales with **engagement intensity**, not outcome. The base formula (multiplayer rate, halved for bots) per finished hand is:
+
+| Source | Amount | Condition |
+|---|---|---|
+| BASE | +10 | every finished hand (even a fold) |
+| INVESTMENT | +1 per BB committed, capped at +20 | chips voluntarily put in this hand |
+| SHOWDOWN | +10 | reached showdown |
+| HAND_STRENGTH | (categoryOrdinal + 1) × 2 (1..20) | hand shown at showdown — winning or losing |
+
+Bots earn 0.5× of every component (per the locked anti-farm rule). Multiplayer earns 1.0×. The `wonPot` flag is **not** an input — winning and losing the same hand at the same engagement level earn identical XP.
+
+**Persistence in V1:** XP and lifetime hand counters live in **on-device Room tables** (`progression` singleton + `xp_events` ledger). Schema matches the eventual server `xp_events` table so Phase 3 can backfill on first login.
+
+**Why this shape:**
+- "Scale by hand strength / pot size" (per user) felt better than flat per-hand, but the engagement-intensity framing keeps the decoupling-from-outcome invariant intact.
+- Hand-strength bonus at showdown rewards "showing up and showing a real hand" — naturally tracks skill and play depth without rewarding luck.
+- Cap on investment (20 BB) prevents one all-in lottery hand from dwarfing a session of solid play.
+- Local persistence now (vs. waiting for Phase 3) means the XP detail sheet ships with real, growing numbers; users see progress from day one. Migration to server is a one-shot import once auth lands.
+
+**How to apply:**
+- New XP sources must follow the rule: amount may depend on what the player did, never on what the opponent did or who won.
+- When tuning numbers (everything in `XpCalculator.kt`), preserve order-of-magnitude — a normal hand should feel like "10-30 XP" against bots and "20-60 XP" in multiplayer.
+- Level thresholds remain deferred (per the previous entry) until we have a session's worth of real XP numbers to anchor them.
+
+**Status:** Locked for V1. Phase 3 migration will lift this to a server-authoritative `xp_events` table — the formula moves to the server unchanged.

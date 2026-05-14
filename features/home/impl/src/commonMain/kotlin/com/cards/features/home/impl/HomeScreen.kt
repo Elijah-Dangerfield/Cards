@@ -34,22 +34,22 @@ fun HomeScreen(
     onNavigateToBugReport: () -> Unit,
     onPlayBots: (difficulty: String) -> Unit,
     onTapRank: () -> Unit,
+    onTapXp: () -> Unit,
     onTapCash: () -> Unit,
     onStartGame: () -> Unit,
     onJoinGame: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    @Suppress("UNUSED_VARIABLE")
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
-    // TODO: surface rank/chips/xp from HomeState once the auth/persistence layer
-    // (Phase 3) lands; for now they remain placeholders. Rank stays flat in V1
-    // because bot games don't move Elo — see docs/decisions.md (2026-05-14).
+    // Rank + chips are still placeholders until Phase 3 (auth/server). XP is
+    // live via the local progression repo — bots award XP on hand completion.
     HomeScreenContent(
         rank = 1200,
         chips = 10_000,
-        xp = 0,
+        xp = state.xp,
         onPlayBots = onPlayBots,
         onTapRank = onTapRank,
+        onTapXp = onTapXp,
         onTapCash = onTapCash,
         onStartGame = onStartGame,
         onJoinGame = onJoinGame,
@@ -64,6 +64,7 @@ private fun HomeScreenContent(
     xp: Long,
     onPlayBots: (difficulty: String) -> Unit,
     onTapRank: () -> Unit,
+    onTapXp: () -> Unit,
     onTapCash: () -> Unit,
     onStartGame: () -> Unit,
     onJoinGame: () -> Unit,
@@ -86,7 +87,7 @@ private fun HomeScreenContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 RankBadge(rank = rank, onClick = onTapRank)
-                XpBadge(xp = xp)
+                XpBadge(xp = xp, onClick = onTapXp)
                 Spacer(modifier = Modifier.weight(1f))
                 ChipBadge(amount = chips, onClick = onTapCash)
             }
@@ -191,6 +192,7 @@ private fun HomeScreenPreview_Default() {
             xp = 2_840,
             onPlayBots = {},
             onTapRank = {},
+            onTapXp = {},
             onTapCash = {},
             onStartGame = {},
             onJoinGame = {},
@@ -208,6 +210,7 @@ private fun HomeScreenPreview_BrokeAndLowRank() {
             xp = 60,
             onPlayBots = {},
             onTapRank = {},
+            onTapXp = {},
             onTapCash = {},
             onStartGame = {},
             onJoinGame = {},
@@ -225,6 +228,7 @@ private fun HomeScreenPreview_Whale() {
             xp = 982_000,
             onPlayBots = {},
             onTapRank = {},
+            onTapXp = {},
             onTapCash = {},
             onStartGame = {},
             onJoinGame = {},

@@ -1,8 +1,13 @@
 package com.dangerfield.cards.features.profile.impl
 
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
+import com.dangerfield.cards.features.progression.XpDetailSheetRoute
+import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
@@ -20,16 +25,20 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class ProfileFeatureEntryPoint(
     private val appConfigRepository: AppConfigRepository,
     private val configOverrideRepository: ConfigOverrideRepository,
+    private val progressionRepository: ProgressionRepository,
 ) : FeatureEntryPoint {
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<ProfileRoute> {
+            val progression by progressionRepository.observeProgression()
+                .collectAsStateWithLifecycle(initialValue = Progression.Empty)
+
             ProfileScreen(
                 settings = ProfileSettings(
                     displayName = "You",
                     handle = "anon-1742",
                     rank = 1200,
-                    xp = 0,
-                    handsPlayed = 0,
+                    xp = progression.totalXp,
+                    handsPlayed = progression.handsPlayed,
                     isAnonymous = true,
                     gameplaySpeed = GameplaySpeed.Normal,
                     appVersion = "0.1.0",
@@ -38,6 +47,7 @@ class ProfileFeatureEntryPoint(
                 onClaimAccount = {},
                 onEditProfile = {},
                 onChangeGameplaySpeed = {},
+                onTapXp = { router.navigate(XpDetailSheetRoute()) },
                 onSendFeedback = {},
                 onReportBug = {},
                 onPrivacyPolicy = {},

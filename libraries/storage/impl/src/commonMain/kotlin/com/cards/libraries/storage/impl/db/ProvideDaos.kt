@@ -1,7 +1,9 @@
 package com.dangerfield.cards.libraries.storage.impl.db
 
+import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserDao
+import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -18,3 +20,15 @@ class ProvideUserDao @Inject constructor(
 class ProvideSessionDao @Inject constructor(
     provider: AppDatabaseProvider
 ) : SessionDao by provider.database.sessionDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = ProgressionDao::class)
+class ProvideProgressionDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : ProgressionDao by provider.database.progressionDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = XpEventDao::class)
+class ProvideXpEventDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : XpEventDao by provider.database.xpEventDao()

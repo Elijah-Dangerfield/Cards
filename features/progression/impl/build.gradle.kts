@@ -3,16 +3,14 @@ plugins {
 }
 
 android {
-    namespace = "com.dangerfield.cards.features.room.impl"
+    namespace = "com.dangerfield.cards.features.progression.impl"
 }
 
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation(projects.features.room)
-            implementation(projects.libraries.bots)
+            implementation(projects.features.progression)
             implementation(projects.libraries.cards)
-            implementation(projects.libraries.gameplay)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.ui)

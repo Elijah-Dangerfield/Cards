@@ -3,6 +3,9 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.XpMode
+import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import kotlinx.coroutines.launch
@@ -12,8 +15,10 @@ import me.tatarka.inject.annotations.Inject
 class PlayBotsViewModel @Inject constructor(
     @Assisted private val difficulty: BotDifficulty,
     @Assisted private val seatCount: Int,
+    private val progressionRepository: ProgressionRepository,
 ) : SEAViewModel<PlayBotsState, PlayBotsEvent, PlayBotsAction>(initialStateArg = PlayBotsState()) {
 
+    private val logger = KLog.withTag("PlayBotsViewModel")
     private val humanSeatIndex = 0
     private val botPersonalities = BotPersonality.forDifficulty(difficulty, seatCount - 1)
 
@@ -21,6 +26,20 @@ class PlayBotsViewModel @Inject constructor(
         difficulty = difficulty,
         humanSeatIndex = humanSeatIndex,
         botPersonalities = botPersonalities,
+        onHandEnded = { event, state ->
+            val summary = HandResultSummaryBuilder.build(
+                event = event,
+                state = state,
+                humanSeatIndex = humanSeatIndex,
+                mode = XpMode.BOTS,
+            )
+            // Awards run off the engine thread — failures here must not
+            // disrupt the hand-end UI flow.
+            viewModelScope.launch {
+                runCatching { progressionRepository.awardForHand(summary) }
+                    .onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
+            }
+        },
     )
 
     init {

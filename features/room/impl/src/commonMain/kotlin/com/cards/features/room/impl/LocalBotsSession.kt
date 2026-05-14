@@ -32,6 +32,12 @@ class LocalBotsSession(
     settings: RoomSettings = RoomSettings.Default,
     private val random: Random = Random.Default,
     private val botActionDelayMs: Long = 750L,
+    /**
+     * Called when a hand ends, before any next-hand setup runs. Receives the
+     * event and the game state captured at hand-end (so seat contributions
+     * and hole cards are still intact). Defaults to a no-op for tests.
+     */
+    private val onHandEnded: (GameEvent.HandEnded, GameState) -> Unit = { _, _ -> },
 ) {
     private val settings: RoomSettings = settings
     private val _state = MutableStateFlow(initialState())
@@ -219,7 +225,10 @@ class LocalBotsSession(
             when (ev) {
                 is GameEvent.ActionTaken -> lastActionBySeat[ev.seatIndex] = ev.action
                 is GameEvent.StreetAdvanced -> lastActionBySeat.clear()
-                is GameEvent.HandEnded -> lastWinners = ev
+                is GameEvent.HandEnded -> {
+                    lastWinners = ev
+                    onHandEnded(ev, gameState)
+                }
                 else -> Unit
             }
         }

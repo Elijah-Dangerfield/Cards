@@ -22,6 +22,7 @@ import com.dangerfield.cards.features.home.impl.bugreport.BugReportViewModel
 import com.dangerfield.cards.features.home.impl.feedback.FeedbackScreen
 import com.dangerfield.cards.features.home.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.BugReportRoute
+import com.dangerfield.cards.features.progression.XpDetailSheetRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -59,6 +60,7 @@ class HomeFeatureEntryPoint(
                     router.navigate(PlayBotsRoute(difficulty = difficulty, seatCount = 4))
                 },
                 onTapRank = { activeDialog = HomeDialog.Rank },
+                onTapXp = { router.navigate(XpDetailSheetRoute()) },
                 onTapCash = {
                     router.navigate(
                         ShopRoute(),
