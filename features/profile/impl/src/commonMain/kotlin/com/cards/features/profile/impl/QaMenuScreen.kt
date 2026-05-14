@@ -22,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,19 +42,23 @@ import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.ConfiguredValue
 import com.dangerfield.cards.libraries.config.FeatureConfig
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 @Composable
 fun QaMenuScreen(
-    configMap: AppConfigMap,
+    configStream: Flow<AppConfigMap>,
+    initialConfig: AppConfigMap,
     overrideRepository: ConfigOverrideRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
+    val configMap by configStream.collectAsState(initial = initialConfig)
 
     val featureConfigs = remember(configMap) { knownFeatureConfigs(configMap) }
     val rows = remember(featureConfigs) { collectRows(featureConfigs) }
@@ -61,7 +66,8 @@ fun QaMenuScreen(
     val drafts = remember { mutableStateMapOf<String, String>() }
     LaunchedEffect(rows) {
         rows.forEach { row ->
-            if (row.path !in drafts) drafts[row.path] = row.currentValue.toString()
+            // Always sync drafts to live values so the editor reflects what's currently active.
+            drafts[row.path] = row.currentValue.toString()
         }
     }
 
@@ -104,6 +110,22 @@ fun QaMenuScreen(
                     color = AppTheme.colors.textSecondary,
                 )
 
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AppTheme.colors.surfaceSecondary.color)
+                        .clickable {
+                            scope.launch { overrideRepository.clearAll() }
+                        }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        text = "Clear all overrides",
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.text,
+                    )
+                }
+
                 featureConfigs.forEach { feature ->
                     val featureRows = rows.filter { it.featureName == feature.featureName }
                     if (featureRows.isEmpty()) return@forEach
@@ -113,12 +135,9 @@ fun QaMenuScreen(
                                 row = row,
                                 draft = drafts[row.path] ?: row.currentValue.toString(),
                                 onDraftChange = { drafts[row.path] = it },
-                                onApply = {
-                                    val parsed = parseValue(drafts[row.path] ?: "", row.default)
-                                    if (parsed != null) {
-                                        scope.launch {
-                                            overrideRepository.addOverride(ConfigOverride(row.path, parsed))
-                                        }
+                                onApply = { value ->
+                                    scope.launch {
+                                        overrideRepository.addOverride(ConfigOverride(row.path, value))
                                     }
                                 },
                             )
@@ -157,23 +176,32 @@ private fun QaRow(
     row: QaRowData,
     draft: String,
     onDraftChange: (String) -> Unit,
-    onApply: () -> Unit,
+    onApply: (Any) -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        Text(
-            text = row.name,
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.onSurfacePrimary,
-        )
-        Text(
-            text = row.path,
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = row.name,
+                    typography = AppTheme.typography.Body.B600,
+                    color = AppTheme.colors.onSurfacePrimary,
+                )
+                Text(
+                    text = row.path,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.onSurfaceSecondary,
+                )
+            }
+            Text(
+                text = typeLabelFor(row.default),
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "current: ${row.currentValue}    default: ${row.default}",
@@ -181,37 +209,87 @@ private fun QaRow(
             color = AppTheme.colors.onSurfaceSecondary,
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AppTheme.colors.surfaceSecondary.color)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-            ) {
-                BasicTextField(
-                    value = draft,
-                    onValueChange = onDraftChange,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = keyboardTypeFor(row.default),
-                    ),
-                    typographyToken = AppTheme.typography.Body.B500,
-                )
+
+        when {
+            row.default is Boolean -> {
+                // Switch toggles immediately — no Apply button needed.
+                val checked = (row.currentValue as? Boolean) ?: false
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (checked) "on" else "off",
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.onSurfacePrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = checked,
+                        onCheckedChange = { onApply(it) },
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(AppTheme.colors.accentPrimary.color)
-                    .clickable(onClick = onApply)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-            ) {
-                Text(
-                    text = "Apply",
-                    typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onAccentPrimary,
-                )
+            row.allowedValues != null -> {
+                // Enum-style values: render each option as a chip. Tapping a
+                // chip applies the override immediately.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.allowedValues.forEach { option ->
+                        val selected = option == row.currentValue
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    if (selected) AppTheme.colors.accentPrimary.color
+                                    else AppTheme.colors.surfaceSecondary.color,
+                                )
+                                .clickable { onApply(option) }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                text = option.toString(),
+                                typography = AppTheme.typography.Body.B500,
+                                color = if (selected) AppTheme.colors.onAccentPrimary
+                                else AppTheme.colors.onSurfacePrimary,
+                            )
+                        }
+                    }
+                }
+            }
+            else -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.surfaceSecondary.color)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    ) {
+                        BasicTextField(
+                            value = draft,
+                            onValueChange = onDraftChange,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = keyboardTypeFor(row.default),
+                            ),
+                            typographyToken = AppTheme.typography.Body.B500,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.accentPrimary.color)
+                            .clickable {
+                                val parsed = parseValue(draft, row.default)
+                                if (parsed != null) onApply(parsed)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = "Apply",
+                            typography = AppTheme.typography.Body.B500,
+                            color = AppTheme.colors.onAccentPrimary,
+                        )
+                    }
+                }
             }
         }
     }
@@ -223,12 +301,22 @@ private fun QaRow(
     )
 }
 
+private fun typeLabelFor(default: Any): String = when (default) {
+    is Boolean -> "bool"
+    is Int -> "int"
+    is Long -> "long"
+    is Double -> "double"
+    is String -> "string"
+    else -> default::class.simpleName ?: "?"
+}
+
 private data class QaRowData(
     val featureName: String,
     val name: String,
     val path: String,
     val default: Any,
     val currentValue: Any,
+    val allowedValues: List<Any>?,
 )
 
 private fun knownFeatureConfigs(configMap: AppConfigMap): List<FeatureConfig> = listOf(
@@ -252,6 +340,7 @@ private fun collectRows(featureConfigs: List<FeatureConfig>): List<QaRowData> {
                 path = value.path,
                 default = value.default,
                 currentValue = resolveCurrent(value, fc.configMap),
+                allowedValues = value.allowedValues,
             )
         }
     }
@@ -285,4 +374,42 @@ private fun keyboardTypeFor(default: Any): KeyboardType = when (default) {
     is Int, is Long -> KeyboardType.Number
     is Double -> KeyboardType.Decimal
     else -> KeyboardType.Text
+}
+
+private class PreviewConfigOverrideRepository(
+    private val initial: List<com.dangerfield.cards.libraries.config.ConfigOverride<Any>> = emptyList(),
+) : com.dangerfield.cards.libraries.config.ConfigOverrideRepository {
+    private val flow = kotlinx.coroutines.flow.MutableStateFlow(initial)
+    override fun getOverrides(): List<com.dangerfield.cards.libraries.config.ConfigOverride<Any>> = flow.value
+    override fun getOverridesFlow(): kotlinx.coroutines.flow.Flow<List<com.dangerfield.cards.libraries.config.ConfigOverride<Any>>> = flow
+    override suspend fun addOverride(override: com.dangerfield.cards.libraries.config.ConfigOverride<Any>) {
+        flow.value = flow.value.filter { it.path != override.path } + override
+    }
+    override suspend fun clearAll() {
+        flow.value = emptyList()
+    }
+}
+
+private class PreviewAppConfigMap(override val map: Map<String, *>) : AppConfigMap()
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun QaMenuScreenPreview() {
+    val configMap = PreviewAppConfigMap(
+        map = mapOf(
+            "upgrade" to mapOf(
+                "minSupportedVersionCode" to 1,
+                "maintenanceMode" to "off",
+                "maintenanceMessage" to "We're updating the servers...",
+            ),
+        ),
+    )
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        QaMenuScreen(
+            configStream = kotlinx.coroutines.flow.flowOf(configMap),
+            initialConfig = configMap,
+            overrideRepository = PreviewConfigOverrideRepository(),
+            onBack = {},
+        )
+    }
 }

@@ -17,7 +17,10 @@ class UpgradeConfig(configMap: AppConfigMap) : FeatureConfig(
     val minSupportedVersionCode by featureValue(default = 1)
 
     /** "off", "banner", or "blocking" — controls whether [MaintenanceState] surfaces. */
-    val maintenanceMode by featureValue(default = "off")
+    val maintenanceMode by featureValue(
+        default = "off",
+        allowedValues = listOf("off", "banner", "blocking"),
+    )
 
     /** Body text shown for banner / blocking maintenance states. */
     val maintenanceMessage by featureValue(default = "We're updating the servers, back in a moment.")

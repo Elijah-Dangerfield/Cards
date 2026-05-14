@@ -63,10 +63,14 @@ data class BotPersonality(
         val Roster: List<BotPersonality> = listOf(Jane, David, Gina, Steve, Mike)
 
         fun forDifficulty(difficulty: BotDifficulty, count: Int): List<BotPersonality> {
+            // Ordering matters: with few bots we want the first N to span
+            // distinct archetypes so the table doesn't feel like clones.
+            // First slot LAG (action), then tight (foil), then maniac, then
+            // calling station, then balanced TAG.
             val pool = when (difficulty) {
-                BotDifficulty.Casual -> listOf(Jane, Steve)
-                BotDifficulty.Standard -> listOf(Jane, David, Gina, Steve, Mike)
-                BotDifficulty.Challenging -> listOf(David, Gina, Mike)
+                BotDifficulty.Casual -> listOf(Steve, Jane)
+                BotDifficulty.Standard -> listOf(David, Jane, Mike, Steve, Gina)
+                BotDifficulty.Challenging -> listOf(David, Mike, Gina)
             }
             return List(count) { pool[it % pool.size] }
         }

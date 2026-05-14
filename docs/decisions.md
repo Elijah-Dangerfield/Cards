@@ -263,3 +263,56 @@ While building out `:libraries:gameplay` and `:libraries:bots` I hit three templ
 - No comments in code (existing convention from AGENTS.md). Only document the WHY of non-obvious decisions in this log or in commit messages.
 
 **Status:** Locked.
+
+
+---
+
+## 2026-05-14 — Training mode for new players (deferred — capturing the shape)
+
+**Decision:** Not building training mode now. Captured here so the V1-polish session that takes it on starts with the shape already thought through.
+
+When we revisit, the rough sketch is:
+
+1. **Onboarding picks experience level.** First-launch flow asks "new to poker / know the basics / experienced" and toggles a `trainingMode` flag accordingly. Training mode is also toggleable later in profile settings. Default ON only for self-identified new players.
+
+2. **Behavior heatmap on the profile.** Track per-decision tendencies (VPIP, PFR, aggression, fold-to-cbet, etc. — we already track most of these for opponent modeling on bots, just reuse the math for the human). Surface as a "your playstyle" panel on the profile: a 2D placement on aggressive↔passive × tight↔loose, or a small radar chart. Updates as the user plays.
+
+3. **Custom tips section on profile**, generated from the heatmap. Not generic advice — specific to what they actually do. e.g. "You fold to 78% of 3-bets — try defending more with suited connectors and pairs." 3-5 tips, refreshed as their stats shift.
+
+4. **In-game training nudges (when trainingMode = ON):** the lean version from the earlier discussion — always-visible equity %, one-line post-hand verdict, optional "?" hint button on your turn. No tooltips, no forced walkthroughs.
+
+**Why deferred:** Phase 3 (auth) and Phase 4 (multiplayer) are bigger unlocks for user value right now. Training mode is an enhancement of bot play, and bot play is already playable. The heatmap requires persistent stats per user, which requires Phase 3 anyway — so this work naturally slots in *after* auth lands.
+
+**Status:** Deferred. Revisit after Phase 3.
+
+
+---
+
+## 2026-05-14 — Chips, rank, XP are three separate concepts
+
+**Decision:** Cards has three independent progression/value axes. They do not collapse into each other.
+
+1. **Chips** — buy-in currency.
+   - **Multiplayer:** persistent, "sacred" (no random refills, no daily free spins). Going broke = rate-limited recovery grant (one-shot, server-enforced) per the V1 plan's bottom-out path.
+   - **Bot mode:** practice chips. Auto-rebuy to `startingStack` between hands if the seat busted (already shipped — `LocalBotsSession.lastSeatsForRotation`). No real consequence.
+
+2. **Rank** — Elo-style skill rating, **multiplayer-only**.
+   - Bots don't move rank because they're static heuristics — beating Jane 100 times says nothing about your skill vs humans.
+   - Floors around 800 (real Elo behavior), can't hit zero.
+   - For V1 (bots only), displayed but with a "Play multiplayer to earn rank" hint. Doesn't change.
+
+3. **XP** — lifetime engagement counter, **both modes**.
+   - Always goes up. Cannot decrease, cannot bottom out.
+   - Bot games earn at **0.5×** the multiplayer rate (per the V1 plan's anti-farm rule).
+   - Drives level progression / achievements / cosmetics unlocks (future).
+   - This is the "I made progress" signal every session, decoupled from win/lose.
+
+**Why:** Every successful poker app (Offsuit, PokerStars, even Zynga) separates these. Collapsing them — e.g., "rank = chips won" — creates the "I went broke, I'm starting over" experience that kills new-player retention. Three lanes means a beginner can lose chips, see XP go up, see rank stay flat, and still feel like they're moving forward.
+
+**How to apply:**
+- Treat any new feature touching one axis as not touching the others. A chip refill doesn't affect XP. An XP bonus doesn't move rank. Etc.
+- When rendering profile/home: show all three, never merge into one summary metric.
+- For Phase 3 persistence: the `xp_events` ledger from the V1 plan covers XP. Chips and rank go in their own server-authoritative tables.
+- For V1, surface XP as a number; level/progress-bar UI lands when we have enough data to know what XP thresholds feel right.
+
+**Status:** Locked for V1.

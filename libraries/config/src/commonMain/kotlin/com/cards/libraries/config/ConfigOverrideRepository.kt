@@ -14,4 +14,7 @@ interface ConfigOverrideRepository {
 
     /** Persists or updates a single override value for the given path. */
     suspend fun addOverride(override: ConfigOverride<Any>)
+
+    /** Wipes every override. Useful from the QA menu or a debug recovery affordance. */
+    suspend fun clearAll()
 }

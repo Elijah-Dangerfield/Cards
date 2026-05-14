@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.upgrade.AppGuardState
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -38,6 +39,7 @@ import com.dangerfield.cards.system.AppTheme
 fun AppGuardLayer(
     state: AppGuardState,
     onOpenStore: () -> Unit,
+    onClearOverrides: () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -59,8 +61,14 @@ fun AppGuardLayer(
             exit = fadeOut(),
         ) {
             when (state) {
-                is AppGuardState.UpgradeRequired -> UpgradeRequiredOverlay(onOpenStore = onOpenStore)
-                is AppGuardState.MaintenanceBlocking -> MaintenanceBlockingOverlay(message = state.message)
+                is AppGuardState.UpgradeRequired -> UpgradeRequiredOverlay(
+                    onOpenStore = onOpenStore,
+                    onClearOverrides = onClearOverrides,
+                )
+                is AppGuardState.MaintenanceBlocking -> MaintenanceBlockingOverlay(
+                    message = state.message,
+                    onClearOverrides = onClearOverrides,
+                )
                 else -> Unit
             }
         }
@@ -86,7 +94,7 @@ private fun MaintenanceBanner(message: String) {
 }
 
 @Composable
-private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit) {
+private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: () -> Unit) {
     BlockingOverlay {
         Text(
             text = "Time to update",
@@ -105,11 +113,12 @@ private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit) {
         Button(onClick = onOpenStore) {
             Text("Update Cards")
         }
+        DebugEscapeHatch(onClearOverrides = onClearOverrides)
     }
 }
 
 @Composable
-private fun MaintenanceBlockingOverlay(message: String) {
+private fun MaintenanceBlockingOverlay(message: String, onClearOverrides: () -> Unit) {
     BlockingOverlay {
         Text(
             text = "We'll be right back",
@@ -124,6 +133,23 @@ private fun MaintenanceBlockingOverlay(message: String) {
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
+        DebugEscapeHatch(onClearOverrides = onClearOverrides)
+    }
+}
+
+@Composable
+private fun DebugEscapeHatch(onClearOverrides: () -> Unit) {
+    if (!BuildInfo.isDebug) return
+    Spacer(modifier = Modifier.height(24.dp))
+    Text(
+        text = "Debug only: this overlay can be triggered by a QA override.",
+        typography = AppTheme.typography.Body.B400,
+        color = AppTheme.colors.textSecondary,
+        textAlign = TextAlign.Center,
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Button(onClick = onClearOverrides) {
+        Text("Clear overrides")
     }
 }
 
@@ -146,5 +172,70 @@ private fun BlockingOverlay(content: @Composable () -> Unit) {
         ) {
             content()
         }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun AppGuardLayerPreview_Normal() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        AppGuardLayer(state = AppGuardState.Normal, onOpenStore = {}) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(AppTheme.colors.background.color),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "App content",
+                    typography = AppTheme.typography.Heading.H600,
+                    color = AppTheme.colors.text,
+                )
+            }
+        }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun AppGuardLayerPreview_Banner() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        AppGuardLayer(
+            state = AppGuardState.MaintenanceBanner("Servers degraded, hands may be slower."),
+            onOpenStore = {},
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(AppTheme.colors.background.color),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "App content",
+                    typography = AppTheme.typography.Heading.H600,
+                    color = AppTheme.colors.text,
+                )
+            }
+        }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun AppGuardLayerPreview_MaintenanceBlocking() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        AppGuardLayer(
+            state = AppGuardState.MaintenanceBlocking(
+                "We're updating the server. Back in about 15 minutes.",
+            ),
+            onOpenStore = {},
+        ) { }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun AppGuardLayerPreview_UpgradeRequired() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        AppGuardLayer(
+            state = AppGuardState.UpgradeRequired,
+            onOpenStore = {},
+        ) { }
     }
 }

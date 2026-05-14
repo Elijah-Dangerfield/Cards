@@ -16,13 +16,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.FeatureCard
 import com.dangerfield.cards.libraries.ui.components.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.components.RankBadge
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun HomeScreen(
@@ -36,8 +39,36 @@ fun HomeScreen(
     onJoinGame: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    @Suppress("UNUSED_VARIABLE")
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+    // TODO: surface rank/chips/xp from HomeState once the auth/persistence layer
+    // (Phase 3) lands; for now they remain placeholders. Rank stays flat in V1
+    // because bot games don't move Elo — see docs/decisions.md (2026-05-14).
+    HomeScreenContent(
+        rank = 1200,
+        chips = 10_000,
+        xp = 0,
+        onPlayBots = onPlayBots,
+        onTapRank = onTapRank,
+        onTapCash = onTapCash,
+        onStartGame = onStartGame,
+        onJoinGame = onJoinGame,
+        modifier = modifier,
+    )
+}
 
+@Composable
+private fun HomeScreenContent(
+    rank: Int,
+    chips: Long,
+    xp: Long,
+    onPlayBots: (difficulty: String) -> Unit,
+    onTapRank: () -> Unit,
+    onTapCash: () -> Unit,
+    onStartGame: () -> Unit,
+    onJoinGame: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Screen(modifier = modifier) { paddingValues ->
         Column(
             modifier = Modifier
@@ -47,17 +78,21 @@ fun HomeScreen(
                 .padding(horizontal = 20.dp),
         ) {
             Spacer(modifier = Modifier.height(12.dp))
+            // Rank · XP · Chips header — the three independent progression axes
+            // (see docs/decisions.md 2026-05-14). Never collapse them into one.
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                RankBadge(rank = 1200, onClick = onTapRank)
+                RankBadge(rank = rank, onClick = onTapRank)
+                XpBadge(xp = xp)
                 Spacer(modifier = Modifier.weight(1f))
-                ChipBadge(amount = 10_000, onClick = onTapCash)
+                ChipBadge(amount = chips, onClick = onTapCash)
             }
 
             Spacer(modifier = Modifier.height(28.dp))
-            HeroChips(amount = 10_000)
+            HeroChips(amount = chips)
             Spacer(modifier = Modifier.height(28.dp))
 
             SectionLabel("Play with friends")
@@ -144,4 +179,55 @@ private fun formatThousands(value: Long): String {
         withCommas.append(s[i])
     }
     return withCommas.toString()
+}
+
+@Preview
+@Composable
+private fun HomeScreenPreview_Default() {
+    PreviewContent {
+        HomeScreenContent(
+            rank = 1200,
+            chips = 10_000,
+            xp = 2_840,
+            onPlayBots = {},
+            onTapRank = {},
+            onTapCash = {},
+            onStartGame = {},
+            onJoinGame = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenPreview_BrokeAndLowRank() {
+    PreviewContent {
+        HomeScreenContent(
+            rank = 800,
+            chips = 0,
+            xp = 60,
+            onPlayBots = {},
+            onTapRank = {},
+            onTapCash = {},
+            onStartGame = {},
+            onJoinGame = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenPreview_Whale() {
+    PreviewContent {
+        HomeScreenContent(
+            rank = 2400,
+            chips = 1_234_567,
+            xp = 982_000,
+            onPlayBots = {},
+            onTapRank = {},
+            onTapCash = {},
+            onStartGame = {},
+            onJoinGame = {},
+        )
+    }
 }

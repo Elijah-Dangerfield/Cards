@@ -115,6 +115,37 @@ dialog<DialogRoute> { backStackEntry, dialogState -> ... }
 
 Don't roll a new persistent cache for a single boolean — extend `AppData`. Round-trip is automatic via `versionedJsonSerializer` (missing fields fall back to defaults, so adding a field is non-breaking). For an example wrapper that exposes `StateFlow<Boolean>` for Compose, see how a feature-level store reads `AppCache.updates` and writes via `appCache.update { it.copy(...) }`.
 
+## Compose previews (required for screens)
+
+Every user-facing screen composable needs `@Preview` coverage. Without it, iterating on UI means rebuild → reinstall → navigate to the screen → set up the state by hand — every change. With previews, Android Studio renders the screen instantly and you can flip through every meaningful state.
+
+**The rules:**
+
+1. **Every public screen-level composable** in a `:features:*:impl` module must have at least one `@Preview`. New screens land with previews in the same PR.
+2. **Cover the meaningful states**, not just the happy path. For a typed `State` UI, that's one preview per logically distinct rendering — e.g. for `PlayBotsScreen`: your turn / bot thinking / raise unavailable / showdown / fold-around / loading. The bugs that escape tests are usually state-specific; previews catch them.
+3. **Screens that take a `ViewModel` directly aren't previewable** as-is. Extract a stateless `XxxScreenContent` that takes raw inputs (state values + callbacks); the public `XxxScreen(viewModel)` becomes a thin wrapper that collects state and delegates. Previews target the content composable.
+4. **Use `PreviewContent { ... }`** from `:libraries:ui` as the wrapper — it provides the theme, clock, build info, and dialog host so previews match runtime appearance.
+5. **Import `@Preview` from** `org.jetbrains.compose.ui.tooling.preview.Preview` (multiplatform-compatible), not the Android-only one.
+6. **Name previews `<ScreenName>Preview_<StateDescription>`** so the Studio preview pane lists them readably.
+
+```kotlin
+@Preview
+@Composable
+private fun PlayBotsScreenPreview_YourTurnPreflop() {
+    PreviewContent {
+        PlayBotsScreen(
+            state = PlayBotsState(table = previewActive()),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+```
+
+**Sample-data factories** for complex state types (table state, profile settings, etc.) belong as `private fun preview<Thing>()` helpers in the same file as the screen. They're for `@Preview` only — don't reuse them as test fixtures (real tests build state through the engine).
+
+**Repository / Flow dependencies in previews:** for screens that take a repository or `Flow<…>`, define a small `private class Preview<Type>` in-file that returns canned values. See `PreviewConfigOverrideRepository` in `QaMenuScreen.kt`.
+
 ## Cross-cutting state in Compose
 
 When something (a service, a setting, a theme value) is needed by every composable in a subtree but doesn't belong on the screen-level ViewModel, prefer a `staticCompositionLocalOf` over threading parameters. Provide it once at the subtree root:
@@ -129,6 +160,28 @@ CompositionLocalProvider(LocalMyService provides realService) {
 ```
 
 Default it to a noop, never `error("not provided")`. This keeps `@Preview` and unit tests trivial — they get the noop automatically.
+
+## Remote-tunable values (`:libraries:config`)
+
+Anything that should be changeable without shipping a build — min supported version, maintenance banner, XP multipliers, timer defaults, feature kill switches — goes through `:libraries:config`. Don't roll a parallel system.
+
+Declare values on a `FeatureConfig` subclass; they automatically appear in the debug QA menu (`features/profile/impl/.../QaMenuScreen.kt`) for per-session override.
+
+```kotlin
+class UpgradeConfig(configMap: AppConfigMap) : FeatureConfig(
+    featureName = "upgrade",
+    configMap = configMap,
+) {
+    val minSupportedVersionCode by featureValue(default = 1)
+    val maintenanceMode by featureValue(default = "off")
+}
+```
+
+Resolution cascade: debug override → server override → QA override → default. Hard-coded defaults always exist so the app works offline / cold cold-start. Server-side, `:apps:server` serves `GET /v1/app-config` from `AppConfigSource`.
+
+## Decisions log
+
+`docs/decisions.md` is an append-only architectural decisions log. **Add an entry whenever you make a non-trivial architectural call** (new module boundary, choice of library, scope cut, schema shape). Each entry: date, the decision, the alternatives considered, and *why*. Future agents (and the user) read this to understand the shape of the codebase without re-deriving every call.
 
 ## Coding Guidelines
 
@@ -163,4 +216,6 @@ Default it to a noop, never `error("not provided")`. This keeps `@Preview` and u
 | App DI | `apps/compose/src/.../AppComponent.kt` |
 | iOS entry | `apps/ios/iosApp/iOSApp.swift` |
 | Swift↔Kotlin patterns | `docs/swift-kotlin-communication-patterns.md` |
+| Architecture decisions log (append-only) | `docs/decisions.md` |
+| Remote config + QA menu | `libraries/config/...`, `features/profile/impl/.../QaMenuScreen.kt` |
 

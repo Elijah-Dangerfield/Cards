@@ -2,6 +2,7 @@ package com.dangerfield.cards
 
 import com.dangerfield.cards.libraries.cards.impl.AppEventDispatcher
 import com.dangerfield.cards.libraries.config.AppConfigFlow
+import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
 import com.dangerfield.cards.libraries.navigation.DeepLinkBridge
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
@@ -24,6 +25,7 @@ interface AppComponent {
     val deepLinkBridge: DeepLinkBridge
     val appConfigFlow: AppConfigFlow
     val ensureAppConfigLoaded: EnsureAppConfigLoaded
+    val configOverrideRepository: ConfigOverrideRepository
     
     /**
      * Eagerly initialized to start observing app lifecycle events.

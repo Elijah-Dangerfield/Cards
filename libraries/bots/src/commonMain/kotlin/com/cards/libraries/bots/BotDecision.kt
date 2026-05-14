@@ -81,26 +81,40 @@ object BotDecision {
         if (toCall > 0) rationaleParts += "potOdds=" + fmt2(potOdds)
         if (draws?.hasDraw == true) rationaleParts += drawTag(draws)
 
+        // Humanlike noise: occasionally a strong hand slow-plays as a call/check,
+        // and occasionally a marginal hand just calls instead of folding.
+        val slowPlayChance = if (state.street == BettingRound.Preflop) 0.0
+        else (0.12 - personality.aggression * 0.10).coerceIn(0.0, 0.15)
+        val willSlowPlay = random.nextDouble() < slowPlayChance
+        val curiosityCall = 0.10 + (1.0 - personality.tightness) * 0.10
+        val feelingCurious = random.nextDouble() < curiosityCall
+
         val intent = when {
-            effectiveStrength >= raiseThreshold || willBluff || willSemiBluff -> {
-                rationaleParts += if (willBluff) "bluff" else if (willSemiBluff) "semi-bluff" else "value"
+            (effectiveStrength >= raiseThreshold || willBluff || willSemiBluff) && !willSlowPlay -> {
+                rationaleParts += when {
+                    willBluff -> "bluff"
+                    willSemiBluff -> "semi-bluff"
+                    else -> "value"
+                }
                 buildRaiseOrBet(state, seat, personality, effectiveStrength, random, toCall)
             }
             noBetOpen -> {
-                rationaleParts += "check"
+                rationaleParts += if (willSlowPlay) "slow-play check" else "check"
                 PlayerIntent.Check(seatIndex)
             }
-            effectiveStrength < foldThreshold && potOdds > effectiveStrength + 0.05 -> {
-                rationaleParts += "fold"
-                PlayerIntent.Fold(seatIndex)
-            }
-            potOdds <= effectiveStrength + 0.05 -> {
-                rationaleParts += "call"
+            // Loose threshold for calling: includes pot odds AND a curiosity factor
+            // so bots don't fold robotically every marginal spot.
+            potOdds <= effectiveStrength + 0.10 || feelingCurious -> {
+                rationaleParts += if (feelingCurious) "curious call" else "call"
                 if (toCall >= seat.stack) PlayerIntent.AllIn(seatIndex)
                 else PlayerIntent.Call(seatIndex)
             }
-            else -> {
+            effectiveStrength < foldThreshold -> {
                 rationaleParts += "fold"
+                PlayerIntent.Fold(seatIndex)
+            }
+            else -> {
+                rationaleParts += "marginal fold"
                 PlayerIntent.Fold(seatIndex)
             }
         }
@@ -142,12 +156,14 @@ object BotDecision {
     }
 
     private fun computeFoldThreshold(personality: BotPersonality, difficulty: BotDifficulty): Double {
-        val base = 0.18 + personality.tightness * 0.30
+        // Lowered from previous values: with the curiosity-call branch in place,
+        // bots fold less mechanically. Real players call wider than equity says.
+        val base = 0.10 + personality.tightness * 0.26
         return when (difficulty) {
-            BotDifficulty.Casual -> base + 0.10
+            BotDifficulty.Casual -> base + 0.05
             BotDifficulty.Standard -> base
-            BotDifficulty.Challenging -> base - 0.05
-        }.coerceIn(0.05, 0.85)
+            BotDifficulty.Challenging -> base - 0.04
+        }.coerceIn(0.04, 0.75)
     }
 
     private fun computeRaiseThreshold(personality: BotPersonality, difficulty: BotDifficulty): Double {

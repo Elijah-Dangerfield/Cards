@@ -28,6 +28,7 @@ class ProfileFeatureEntryPoint(
                     displayName = "You",
                     handle = "anon-1742",
                     rank = 1200,
+                    xp = 0,
                     handsPlayed = 0,
                     isAnonymous = true,
                     gameplaySpeed = GameplaySpeed.Normal,
@@ -48,7 +49,8 @@ class ProfileFeatureEntryPoint(
 
         screen<QaMenuRoute> {
             QaMenuScreen(
-                configMap = appConfigRepository.config(),
+                configStream = appConfigRepository.configStream(),
+                initialConfig = appConfigRepository.config(),
                 overrideRepository = configOverrideRepository,
                 onBack = { router.goBack() },
             )

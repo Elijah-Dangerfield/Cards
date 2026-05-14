@@ -43,7 +43,9 @@ class ConfigOverrideRepositoryImpl @Inject constructor(
 
     override suspend fun addOverride(override: ConfigOverride<Any>) {
         mutex.withLock {
-            val updated = overridesState.value + override
+            // Replace any existing override for the same path so toggling a
+            // setting back doesn't pile up entries.
+            val updated = overridesState.value.filter { it.path != override.path } + override
             converter.encodeOverrides(updated)
                 .onSuccess { json ->
                     logger.d { "Persisting ${updated.size} overrides" }
@@ -52,6 +54,13 @@ class ConfigOverrideRepositoryImpl @Inject constructor(
                 .onFailure { error ->
                     logger.e(error) { "Unable to persist overrides" }
                 }
+        }
+    }
+
+    override suspend fun clearAll() {
+        mutex.withLock {
+            logger.d { "Clearing all overrides" }
+            configCache.update { snapshot -> snapshot.copy(overridesJson = null) }
         }
     }
 

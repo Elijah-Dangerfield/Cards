@@ -10,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -63,6 +64,7 @@ import com.dangerfield.cards.libraries.ui.system.LocalClock
 import com.dangerfield.cards.system.AppThemeProvider
 import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.launch
 
 @Composable
 fun App(appComponent: AppComponent) {
@@ -77,6 +79,8 @@ fun App(appComponent: AppComponent) {
     val deepLinkBridge = remember { appComponent.deepLinkBridge }
     val appConfigFlow = remember { appComponent.appConfigFlow }
     val ensureAppConfigLoaded = remember { appComponent.ensureAppConfigLoaded }
+    val configOverrideRepository = remember { appComponent.configOverrideRepository }
+    val appScope = rememberCoroutineScope()
 
     DisposableEffect(shakeHandler) {
         shakeHandler.start()
@@ -143,6 +147,9 @@ fun App(appComponent: AppComponent) {
                         router.openWebLink(
                             "https://play.google.com/store/apps/details?id=${CardsBuildConfig.APPLICATION_ID}",
                         )
+                    },
+                    onClearOverrides = {
+                        appScope.launch { configOverrideRepository.clearAll() }
                     },
                 ) {
                     AppNavigation(

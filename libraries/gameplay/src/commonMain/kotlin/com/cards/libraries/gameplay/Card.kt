@@ -15,7 +15,7 @@ enum class Suit(val symbol: String) {
 }
 
 @Serializable
-enum class Rank(val value: Int, val short: String) {
+enum class Rank(val value: Int, val short: String, val display: String = short) {
     Two(2, "2"),
     Three(3, "3"),
     Four(4, "4"),
@@ -24,7 +24,7 @@ enum class Rank(val value: Int, val short: String) {
     Seven(7, "7"),
     Eight(8, "8"),
     Nine(9, "9"),
-    Ten(10, "T"),
+    Ten(10, "T", display = "10"),
     Jack(11, "J"),
     Queen(12, "Q"),
     King(13, "K"),

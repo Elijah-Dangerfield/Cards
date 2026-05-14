@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
 
 sealed interface TableUiState {
@@ -18,6 +19,7 @@ sealed interface TableUiState {
         val street: BettingRound,
         val communityCards: List<Card>,
         val pot: Long,
+        val potCommittedThisStreet: Long,
         val seats: List<SeatView>,
         val actingSeatIndex: Int?,
         val isHumanTurn: Boolean,
@@ -28,6 +30,9 @@ sealed interface TableUiState {
         val smallBlind: Long,
         val bigBlind: Long,
         val handNumber: Int,
+        val buttonSeatIndex: Int,
+        val smallBlindSeatIndex: Int?,
+        val bigBlindSeatIndex: Int?,
     ) : TableUiState
 
     companion object {
@@ -37,11 +42,13 @@ sealed interface TableUiState {
             personalitiesBySeat: Map<Int, BotPersonality>,
             lastThoughts: Map<Int, BotThought>,
             lastWinners: GameEvent.HandEnded?,
+            lastActionBySeat: Map<Int, PlayerAction>,
         ): Active {
-            val pot = gameState.seats.sumOf { it.contributedThisStreet } +
-                gameState.pots.sumOf { it.amount }
+            val committedThisStreet = gameState.seats.sumOf { it.contributedThisStreet }
+            val pot = committedThisStreet + gameState.pots.sumOf { it.amount }
             val acting = gameState.actingSeatIndex
             val isHumanTurn = acting == humanSeatIndex
+            val (sbIndex, bbIndex) = blindSeats(gameState)
             val seats = gameState.seats.map { seat ->
                 SeatView.fromSeat(
                     seat = seat,
@@ -50,6 +57,10 @@ sealed interface TableUiState {
                     personality = personalitiesBySeat[seat.index],
                     hideHoleCards = seat.index != humanSeatIndex && lastWinners == null,
                     revealedHoleCards = lastWinners?.revealedHoleCards?.get(seat.index),
+                    lastAction = lastActionBySeat[seat.index],
+                    isDealer = seat.index == gameState.buttonSeatIndex,
+                    isSmallBlind = seat.index == sbIndex,
+                    isBigBlind = seat.index == bbIndex,
                 )
             }
             val humanSeat = gameState.seats.firstOrNull { it.index == humanSeatIndex }
@@ -65,6 +76,7 @@ sealed interface TableUiState {
                 street = gameState.street,
                 communityCards = gameState.community,
                 pot = pot,
+                potCommittedThisStreet = committedThisStreet,
                 seats = seats,
                 actingSeatIndex = acting,
                 isHumanTurn = isHumanTurn,
@@ -75,7 +87,28 @@ sealed interface TableUiState {
                 smallBlind = gameState.settings.smallBlind,
                 bigBlind = gameState.settings.bigBlind,
                 handNumber = gameState.handNumber,
+                buttonSeatIndex = gameState.buttonSeatIndex,
+                smallBlindSeatIndex = sbIndex,
+                bigBlindSeatIndex = bbIndex,
             )
+        }
+
+        private fun blindSeats(state: GameState): Pair<Int?, Int?> {
+            val active = state.seats.filter {
+                it.handParticipation == HandParticipation.InHand ||
+                    it.handParticipation == HandParticipation.AllIn ||
+                    it.handParticipation == HandParticipation.Folded
+            }
+            if (active.size < 2) return null to null
+            val sorted = active.sortedBy { it.index }
+            val firstAfterIdx = sorted.indexOfFirst { it.index > state.buttonSeatIndex }
+                .let { if (it < 0) 0 else it }
+            val ordered = sorted.drop(firstAfterIdx) + sorted.take(firstAfterIdx)
+            return if (active.size == 2) {
+                ordered.firstOrNull { it.index != state.buttonSeatIndex }?.index to state.buttonSeatIndex
+            } else {
+                ordered.getOrNull(0)?.index to ordered.getOrNull(1)?.index
+            }
         }
     }
 }
@@ -93,6 +126,10 @@ data class SeatView(
     val showHoleCardBacks: Boolean,
     val participation: HandParticipation,
     val seatEmpty: Boolean,
+    val lastAction: PlayerAction?,
+    val isDealer: Boolean,
+    val isSmallBlind: Boolean,
+    val isBigBlind: Boolean,
 ) {
     companion object {
         fun fromSeat(
@@ -102,6 +139,10 @@ data class SeatView(
             personality: BotPersonality?,
             hideHoleCards: Boolean,
             revealedHoleCards: List<Card>?,
+            lastAction: PlayerAction?,
+            isDealer: Boolean,
+            isSmallBlind: Boolean,
+            isBigBlind: Boolean,
         ): SeatView {
             val visibleHole = when {
                 seat.handParticipation == HandParticipation.NotDealt -> emptyList()
@@ -127,9 +168,22 @@ data class SeatView(
                 showHoleCardBacks = backs,
                 participation = seat.handParticipation,
                 seatEmpty = seat.playerId == null,
+                lastAction = lastAction,
+                isDealer = isDealer,
+                isSmallBlind = isSmallBlind,
+                isBigBlind = isBigBlind,
             )
         }
     }
+}
+
+fun PlayerAction.shortLabel(): String = when (this) {
+    is PlayerAction.Fold -> "Folded"
+    is PlayerAction.Check -> "Checked"
+    is PlayerAction.Call -> "Called $amount"
+    is PlayerAction.Bet -> "Bet $amount"
+    is PlayerAction.Raise -> "Raised to $totalStreetContribution"
+    is PlayerAction.AllIn -> "All in $amount"
 }
 
 data class LegalActions(
@@ -137,6 +191,7 @@ data class LegalActions(
     val canCall: Boolean,
     val callAmount: Long,
     val canRaise: Boolean,
+    val isOpenBet: Boolean,
     val minRaiseTotal: Long,
     val maxRaiseTotal: Long,
     val canAllIn: Boolean,
@@ -149,7 +204,8 @@ data class LegalActions(
             val canCheck = toCall == 0L
             val canCall = toCall in 1..seat.stack
             val canRaise = seat.stack > toCall
-            val minRaiseTotal = if (state.currentBetThisStreet == 0L) {
+            val isOpenBet = state.currentBetThisStreet == 0L
+            val minRaiseTotal = if (isOpenBet) {
                 state.settings.bigBlind
             } else {
                 state.currentBetThisStreet + state.lastFullRaiseSize
@@ -162,6 +218,7 @@ data class LegalActions(
                 canCall = canCall,
                 callAmount = toCall,
                 canRaise = canRaise && maxRaiseTotal >= minRaiseTotal,
+                isOpenBet = isOpenBet,
                 minRaiseTotal = minRaiseTotal,
                 maxRaiseTotal = maxRaiseTotal,
                 canAllIn = seat.stack > 0,

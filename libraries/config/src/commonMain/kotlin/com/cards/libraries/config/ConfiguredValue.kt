@@ -60,4 +60,13 @@ abstract class ConfiguredValue<out T : Any> {
      * Value to be used specifically for debug builds.
      */
     open val debugOverride: T? = null
+
+    /**
+     * Optional list of valid values for this config. When provided, the QA
+     * menu renders a chip-style selector instead of a free-text input — useful
+     * for enum-like strings (e.g. `"off" | "banner" | "blocking"`).
+     *
+     * Leave `null` for open-ended values (numbers, free-form text, etc.).
+     */
+    open val allowedValues: List<@UnsafeVariance T>? = null
 }

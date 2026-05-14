@@ -40,7 +40,15 @@ class PlayBotsViewModel @Inject constructor(
                 it.copy(table = action.uiState)
             }
             is PlayBotsAction.SubmitIntent -> {
-                session.submitHumanIntent(action.intent)
+                // Don't block the SEAViewModel action channel while bots take their turns —
+                // their state emissions are queued as SessionStateChanged actions and need to
+                // be processed to update the UI. Run the bot loop on its own coroutine.
+                viewModelScope.launch {
+                    session.submitHumanIntent(action.intent)
+                }
+            }
+            is PlayBotsAction.AdvanceNextHand -> {
+                session.advanceToNextHand()
             }
             is PlayBotsAction.ToggleCheatSheet -> action.updateState {
                 it.copy(cheatSheetOpen = !it.cheatSheetOpen)
@@ -61,5 +69,6 @@ sealed class PlayBotsEvent {
 sealed class PlayBotsAction {
     data class SessionStateChanged(val uiState: TableUiState) : PlayBotsAction()
     data class SubmitIntent(val intent: PlayerIntent) : PlayBotsAction()
+    data object AdvanceNextHand : PlayBotsAction()
     data object ToggleCheatSheet : PlayBotsAction()
 }

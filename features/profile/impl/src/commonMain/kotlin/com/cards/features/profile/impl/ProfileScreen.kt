@@ -31,6 +31,7 @@ data class ProfileSettings(
     val displayName: String,
     val handle: String,
     val rank: Int,
+    val xp: Long,
     val handsPlayed: Int,
     val isAnonymous: Boolean,
     val gameplaySpeed: GameplaySpeed,
@@ -84,9 +85,16 @@ fun ProfileScreen(
                     ),
                     ListSectionItem(
                         headlineText = "Rank",
-                        supportingText = "Elo-style poker rank",
+                        supportingText = "Skill rating · multiplayer only",
                         accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
                             text = settings.rank.toString(),
+                        ),
+                    ),
+                    ListSectionItem(
+                        headlineText = "XP",
+                        supportingText = "Lifetime · bots earn at 0.5×",
+                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
+                            text = settings.xp.toString(),
                         ),
                     ),
                     ListSectionItem(
@@ -247,5 +255,90 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
                 color = AppTheme.colors.text,
             )
         }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.runtime.Composable
+private fun ProfileScreenPreview_Anonymous() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ProfileScreen(
+            settings = ProfileSettings(
+                displayName = "Anon-1742",
+                handle = "anon-1742",
+                rank = 1200,
+                xp = 60,
+                handsPlayed = 0,
+                isAnonymous = true,
+                gameplaySpeed = GameplaySpeed.Normal,
+                appVersion = "0.1.0",
+                showQaMenu = false,
+            ),
+            onClaimAccount = {},
+            onEditProfile = {},
+            onChangeGameplaySpeed = {},
+            onSendFeedback = {},
+            onReportBug = {},
+            onPrivacyPolicy = {},
+            onTermsOfService = {},
+            onDeleteAccount = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.runtime.Composable
+private fun ProfileScreenPreview_Claimed() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ProfileScreen(
+            settings = ProfileSettings(
+                displayName = "Elijah",
+                handle = "edangerfield",
+                rank = 1820,
+                xp = 12_400,
+                handsPlayed = 412,
+                isAnonymous = false,
+                gameplaySpeed = GameplaySpeed.Fast,
+                appVersion = "0.1.0",
+                showQaMenu = false,
+            ),
+            onClaimAccount = {},
+            onEditProfile = {},
+            onChangeGameplaySpeed = {},
+            onSendFeedback = {},
+            onReportBug = {},
+            onPrivacyPolicy = {},
+            onTermsOfService = {},
+            onDeleteAccount = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.runtime.Composable
+private fun ProfileScreenPreview_DebugBuild() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ProfileScreen(
+            settings = ProfileSettings(
+                displayName = "Elijah",
+                handle = "edangerfield",
+                rank = 1820,
+                xp = 12_400,
+                handsPlayed = 412,
+                isAnonymous = false,
+                gameplaySpeed = GameplaySpeed.Normal,
+                appVersion = "0.1.0-debug",
+                showQaMenu = true,
+            ),
+            onClaimAccount = {},
+            onEditProfile = {},
+            onChangeGameplaySpeed = {},
+            onSendFeedback = {},
+            onReportBug = {},
+            onPrivacyPolicy = {},
+            onTermsOfService = {},
+            onDeleteAccount = {},
+            onOpenQaMenu = {},
+        )
     }
 }

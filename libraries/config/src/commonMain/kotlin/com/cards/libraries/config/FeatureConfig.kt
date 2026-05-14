@@ -14,6 +14,7 @@ abstract class FeatureConfig(
         description: String = "",
         default: T,
         path: String? = null,
+        allowedValues: List<T>? = null,
     ): ReadOnlyProperty<FeatureConfig, T> = object : ReadOnlyProperty<FeatureConfig, T> {
 
         private var cachedValue: ConfiguredValue<T>? = null
@@ -24,7 +25,8 @@ abstract class FeatureConfig(
                 resolvedName = name ?: property.name,
                 featureName = featureName,
                 description = description,
-                default = default
+                default = default,
+                allowedValues = allowedValues,
             ).also {
                 cachedValue = it
                 thisRef.values += it
@@ -38,6 +40,7 @@ abstract class FeatureConfig(
             featureName: String,
             description: String,
             default: T,
+            allowedValues: List<T>?,
         ): ConfiguredValue<T> = object : ConfiguredValue<T>() {
             override val name: String = resolvedName
             override val description: String = description
@@ -45,6 +48,7 @@ abstract class FeatureConfig(
             override val path: String = (pathOverride ?: resolvedName.toPath()).let {
                 if (it.startsWith(featureName)) it else "$featureName.$it"
             }
+            override val allowedValues: List<T>? = allowedValues
         }
     }
 }

@@ -96,3 +96,11 @@ private fun ComingSoonCard() {
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ShopScreenPreview() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ShopScreen()
+    }
+}

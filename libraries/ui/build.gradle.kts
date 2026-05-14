@@ -19,6 +19,10 @@ kotlin {
             implementation(projects.libraries.core)
             // TODO honestly the cards library should expose the component that require cards domain
             implementation(projects.libraries.cards)
+            // Poker game types (Card, Rank, Suit) for components/poker. These
+            // are pure data classes — no engine, no Compose — so they're safe
+            // to pull into the DS.
+            api(projects.libraries.gameplay)
 
             api(compose.ui)
             api(compose.uiUtil)
