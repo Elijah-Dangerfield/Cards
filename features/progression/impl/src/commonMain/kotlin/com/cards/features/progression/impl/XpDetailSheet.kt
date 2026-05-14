@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.progression.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AllAchievements
+import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.XpEvent
@@ -38,6 +42,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun XpDetailSheetContent(
     state: XpDetailState,
+    onSeeAllAchievements: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val levelProgress = remember(state.progression.totalXp) {
@@ -52,6 +57,12 @@ fun XpDetailSheetContent(
         Spacer(modifier = Modifier.height(24.dp))
 
         LifetimeStatsGrid(progression = state.progression)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        AchievementsHighlights(
+            progress = state.achievements,
+            onSeeAll = onSeeAllAchievements,
+        )
         Spacer(modifier = Modifier.height(24.dp))
 
         if (state.recentEvents.isNotEmpty()) {
@@ -287,6 +298,72 @@ private fun WhatXpDoes() {
 }
 
 @Composable
+private fun AchievementsHighlights(
+    progress: AchievementProgress,
+    onSeeAll: () -> Unit,
+) {
+    // Show the 3 most-recently-earned achievements on the XP page so progress
+    // feels visible at a glance. If nothing's earned yet, surface 3 "easy
+    // wins" instead so the section never reads as empty.
+    val earnedOrdered = progress.earned.entries
+        .sortedByDescending { it.value }
+        .mapNotNull { (id, ts) -> AllAchievementsById[id]?.let { it to ts } }
+    val toShow = if (earnedOrdered.isNotEmpty()) {
+        earnedOrdered.take(3).map { (ach, ts) -> ach to ts }
+    } else {
+        AllAchievements.take(3).map { it to (null as Long?) }
+    }
+    val total = AllAchievements.size
+    val earnedCount = progress.earned.size
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Achievements",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = "$earnedCount / $total",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            toShow.forEach { (achievement, earnedAt) ->
+                AchievementMedallion(
+                    achievement = achievement,
+                    earnedAtEpochMs = earnedAt,
+                    progress = progress.counters[achievement.id] ?: 0,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(50))
+                .background(AppTheme.colors.surfaceSecondary.color)
+                .clickable(onClick = onSeeAll)
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "See all $total achievements",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+            )
+        }
+    }
+}
+
+@Composable
 private fun InfoCard(content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
@@ -331,6 +408,7 @@ private fun sourceLabel(source: XpSource): String = when (source) {
     XpSource.INVESTMENT -> "Chips committed"
     XpSource.SHOWDOWN -> "Reached showdown"
     XpSource.HAND_STRENGTH -> "Hand strength"
+    XpSource.ACHIEVEMENT -> "Achievement unlocked"
 }
 
 private fun modeLabel(mode: XpMode): String = when (mode) {

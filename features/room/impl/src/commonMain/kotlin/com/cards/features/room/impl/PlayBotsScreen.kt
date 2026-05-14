@@ -175,6 +175,7 @@ fun PlayBotsScreen(
                 // recovery visible so new players aren't confused.
                 BustDialog(
                     xpEarned = state.lastHandXpAwarded,
+                    earnedAchievements = state.recentlyEarned,
                     onDealMeIn = { onAction(PlayBotsAction.AdvanceNextHand) },
                 )
             } else {
@@ -182,6 +183,7 @@ fun PlayBotsScreen(
                     result = handResult,
                     seats = active.seats,
                     xpEarned = state.lastHandXpAwarded,
+                    earnedAchievements = state.recentlyEarned,
                     onNextHand = { onAction(PlayBotsAction.AdvanceNextHand) },
                 )
             }

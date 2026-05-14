@@ -43,6 +43,9 @@ enum class XpSource {
 
     /** Awarded for the strength of the hand shown at showdown. */
     HAND_STRENGTH,
+
+    /** Bonus XP from an unlocked achievement. */
+    ACHIEVEMENT,
 }
 
 /** Whether a hand was played against bots or in a multiplayer room. */

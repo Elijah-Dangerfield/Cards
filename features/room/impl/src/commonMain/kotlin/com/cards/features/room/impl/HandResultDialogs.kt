@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -49,6 +50,7 @@ internal fun ShowdownDialog(
     result: HandResultView,
     seats: List<SeatView>,
     xpEarned: Int?,
+    earnedAchievements: List<EarnedAchievement>,
     onNextHand: () -> Unit,
 ) {
     val winnerIndices = result.winners.map { it.seatIndex }.toSet()
@@ -108,6 +110,12 @@ internal fun ShowdownDialog(
             // not outcome" framing from docs/decisions.md.
             if (xpEarned != null && xpEarned > 0) {
                 XpEarnedBubble(amount = xpEarned)
+            }
+
+            // Newly-unlocked achievements get their own celebratory callouts —
+            // one per earned achievement.
+            earnedAchievements.forEach { earned ->
+                AchievementUnlockedCallout(earned = earned)
             }
 
             // Show the community cards so the player can read each hand against
@@ -176,7 +184,11 @@ internal fun ShowdownDialog(
  * normal next-hand advance.
  */
 @Composable
-internal fun BustDialog(xpEarned: Int?, onDealMeIn: () -> Unit) {
+internal fun BustDialog(
+    xpEarned: Int?,
+    earnedAchievements: List<EarnedAchievement>,
+    onDealMeIn: () -> Unit,
+) {
     Dialog(onDismissRequest = onDealMeIn) {
         Column(
             modifier = Modifier
@@ -217,6 +229,9 @@ internal fun BustDialog(xpEarned: Int?, onDealMeIn: () -> Unit) {
             if (xpEarned != null && xpEarned > 0) {
                 XpEarnedBubble(amount = xpEarned)
             }
+            earnedAchievements.forEach { earned ->
+                AchievementUnlockedCallout(earned = earned)
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -232,6 +247,53 @@ internal fun BustDialog(xpEarned: Int?, onDealMeIn: () -> Unit) {
                     color = AppTheme.colors.onAccentPrimary,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Per-achievement unlock celebration shown in the hand-end dialogs. Renders
+ * as a horizontal card with the achievement's icon + name + reward summary.
+ * Multiple achievements stack vertically.
+ */
+@Composable
+private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(PokerPalette.ChipGold.copy(alpha = 0.18f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = earned.achievement.icon,
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.text,
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Achievement unlocked",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+            )
+            Text(
+                text = earned.achievement.name,
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.text,
+            )
+            val rewardSummary = buildString {
+                append("+${earned.achievement.xpReward} XP")
+                if (earned.achievement.chipReward > 0L) {
+                    append(" · +${earned.achievement.chipReward} chips")
+                }
+            }
+            Text(
+                text = rewardSummary,
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+            )
         }
     }
 }

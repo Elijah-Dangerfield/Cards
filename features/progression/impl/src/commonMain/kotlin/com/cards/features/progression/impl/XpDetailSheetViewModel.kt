@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.progression.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
@@ -14,6 +16,7 @@ import me.tatarka.inject.annotations.Inject
 class XpDetailSheetViewModel(
     progressionRepository: ProgressionRepository,
     xpEventRepository: XpEventRepository,
+    achievementRepository: AchievementRepository,
 ) : SEAViewModel<XpDetailState, XpDetailEvent, XpDetailAction>(
     initialStateArg = XpDetailState(),
 ) {
@@ -23,10 +26,12 @@ class XpDetailSheetViewModel(
             combine(
                 progressionRepository.observeProgression(),
                 xpEventRepository.observeRecent(RECENT_EVENT_LIMIT),
-            ) { progression, events -> progression to events }
-                .collect { (progression, events) ->
-                    takeAction(XpDetailAction.DataChanged(progression, events))
-                }
+                achievementRepository.observeProgress(),
+            ) { progression, events, achievements ->
+                Triple(progression, events, achievements)
+            }.collect { (progression, events, achievements) ->
+                takeAction(XpDetailAction.DataChanged(progression, events, achievements))
+            }
         }
     }
 
@@ -36,6 +41,7 @@ class XpDetailSheetViewModel(
                 it.copy(
                     progression = action.progression,
                     recentEvents = action.events,
+                    achievements = action.achievements,
                     isLoading = false,
                 )
             }
@@ -51,6 +57,7 @@ data class XpDetailState(
     val isLoading: Boolean = true,
     val progression: Progression = Progression.Empty,
     val recentEvents: List<XpEvent> = emptyList(),
+    val achievements: AchievementProgress = AchievementProgress.Empty,
 )
 
 sealed interface XpDetailEvent
@@ -59,5 +66,6 @@ sealed interface XpDetailAction {
     data class DataChanged(
         val progression: Progression,
         val events: List<XpEvent>,
+        val achievements: AchievementProgress,
     ) : XpDetailAction
 }

@@ -45,6 +45,26 @@ interface ProgressionDao {
         updatedAtEpochMs: Long,
     )
 
+    /**
+     * Add `xpDelta` to `total_xp` without touching the hand counters — used
+     * for non-hand XP awards (achievements, bonuses). Lazy-creates the row.
+     */
+    @Query(
+        """
+        UPDATE progression SET
+            total_xp = total_xp + :xpDelta,
+            updated_at_epoch_ms = :updatedAtEpochMs
+        WHERE id = 'user'
+        """
+    )
+    suspend fun addXpOnly(xpDelta: Int, updatedAtEpochMs: Long)
+
+    @Transaction
+    suspend fun ensureExistsAndAddXp(xpDelta: Int, updatedAtEpochMs: Long) {
+        insertIfMissing(ProgressionEntity())
+        addXpOnly(xpDelta = xpDelta, updatedAtEpochMs = updatedAtEpochMs)
+    }
+
     @Transaction
     suspend fun ensureExistsAndApply(
         xpDelta: Int,

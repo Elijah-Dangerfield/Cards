@@ -5,6 +5,9 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
 import androidx.room.TypeConverters
+import com.dangerfield.cards.libraries.cards.storage.db.AchievementCounterEntity
+import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
+import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
@@ -23,8 +26,10 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         ProgressionEntity::class,
         XpEventEntity::class,
         ChipsEntity::class,
+        AchievementEarnedEntity::class,
+        AchievementCounterEntity::class,
     ],
-    version = 6, // v6: added chips singleton table for shop / future MP buy-ins
+    version = 7, // v7: achievement_earned + achievement_counter tables
     exportSchema = true
 )
 @TypeConverters(CoreTypeConverters::class)
@@ -35,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun progressionDao(): ProgressionDao
     abstract fun xpEventDao(): XpEventDao
     abstract fun chipsDao(): ChipsDao
+    abstract fun achievementDao(): AchievementDao
 }
 
 @Suppress("KotlinNoActualForExpect")

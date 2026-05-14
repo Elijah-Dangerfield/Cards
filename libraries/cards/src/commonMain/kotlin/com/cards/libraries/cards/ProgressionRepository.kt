@@ -62,6 +62,13 @@ interface ProgressionRepository {
      */
     suspend fun awardForHand(summary: HandResultSummary): List<XpEvent>
 
+    /**
+     * Add `delta` XP from a non-hand source — typically an unlocked
+     * achievement. Records one ledger row with [XpSource.ACHIEVEMENT] and
+     * the current mode-agnostic timestamp. Hand counters are not touched.
+     */
+    suspend fun applyAchievementXp(delta: Int): XpEvent
+
     /** Reset all progression state. Used by "Fresh Start" / debug menus. */
     suspend fun deleteAll()
 }

@@ -36,10 +36,13 @@ class LocalBotsSession(
     private val botActionDelayMs: Long = 750L,
     /**
      * Called when a hand ends, before any next-hand setup runs. Receives the
-     * event and the game state captured at hand-end (so seat contributions
-     * and hole cards are still intact). Defaults to a no-op for tests.
+     * event, the game state captured at hand-end (so seat contributions and
+     * hole cards are still intact), and the human's stack as it was at the
+     * START of this hand — used by achievement detection for "comeback"
+     * style criteria that need to compare start vs. end stacks. Defaults to
+     * a no-op for tests.
      */
-    private val onHandEnded: (GameEvent.HandEnded, GameState) -> Unit = { _, _ -> },
+    private val onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit = { _, _, _ -> },
 ) {
     private val settings: RoomSettings = settings
     private val _state = MutableStateFlow(initialState())
@@ -55,6 +58,13 @@ class LocalBotsSession(
     private var lastBotThoughts: Map<Int, BotThought> = emptyMap()
     private var lastWinners: GameEvent.HandEnded? = null
     private val nextHandSignal: Channel<Unit> = Channel(capacity = 1)
+    /**
+     * Human's stack as it was right after blinds posted at the start of the
+     * current hand. Captured once per hand from the seeded seats; readers
+     * (achievement detection) need a stable "start of hand" reference even
+     * after subsequent bets have moved the live seat stack.
+     */
+    private var humanStackAtHandStart: Long = 0L
     private var gameState: GameState = startNextHand()
 
     private fun initialState(): TableUiState = TableUiState.Loading
@@ -85,6 +95,8 @@ class LocalBotsSession(
         lastBotThoughts = emptyMap()
         lastWinners = null
         gameState = result.state
+        humanStackAtHandStart = result.state.seats
+            .firstOrNull { it.index == humanSeatIndex }?.stack ?: 0L
         emit()
         return result.state
     }
@@ -253,7 +265,7 @@ class LocalBotsSession(
                 }
                 is GameEvent.HandEnded -> {
                     lastWinners = ev
-                    onHandEnded(ev, gameState)
+                    onHandEnded(ev, gameState, humanStackAtHandStart)
                 }
                 else -> Unit
             }

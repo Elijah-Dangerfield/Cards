@@ -3,7 +3,6 @@ package com.dangerfield.cards.features.progression.impl
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -11,7 +10,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.progression.AchievementsRoute
-import com.dangerfield.cards.features.progression.XpDetailSheetRoute
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -24,17 +22,17 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
-class XpDetailSheetEntryPoint(
-    private val viewModelFactory: () -> XpDetailSheetViewModel,
+class AchievementsEntryPoint(
+    private val viewModelFactory: () -> AchievementsViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
-        screen<XpDetailSheetRoute> {
-            val viewModel: XpDetailSheetViewModel = viewModel { viewModelFactory() }
+        screen<AchievementsRoute> {
+            val viewModel: AchievementsViewModel = viewModel { viewModelFactory() }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 
             Screen(
-                topBar = { DetailTopBar(title = "XP", onBack = router::goBack) },
+                topBar = { DetailTopBar(title = "Achievements", onBack = router::goBack) },
             ) { padding ->
                 Column(
                     modifier = Modifier
@@ -42,10 +40,7 @@ class XpDetailSheetEntryPoint(
                         .padding(padding)
                         .padding(horizontal = 20.dp),
                 ) {
-                    XpDetailSheetContent(
-                        state = state,
-                        onSeeAllAchievements = { router.navigate(AchievementsRoute()) },
-                    )
+                    AchievementsScreenContent(state = state)
                 }
             }
         }

@@ -87,6 +87,33 @@ class ProgressionRepositoryImpl(
         }
     }
 
+    override suspend fun applyAchievementXp(delta: Int): XpEvent {
+        require(delta > 0) { "Achievement XP delta must be positive (got $delta)" }
+        val now = clock.now().toEpochMilliseconds()
+        // Achievement XP bumps total_xp only — never touches hand counters.
+        progressionDao.ensureExistsAndAddXp(xpDelta = delta, updatedAtEpochMs = now)
+
+        val entity = com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity(
+            deltaXp = delta,
+            source = XpSource.ACHIEVEMENT.name,
+            // V1 tagging — achievement XP isn't really mode-specific. When MP
+            // lands and a multiplayer-only achievement unlocks, swap this to
+            // a sensible mode.
+            mode = XpMode.BOTS.name,
+            handId = null,
+            createdAtEpochMs = now,
+        )
+        xpEventDao.insertAll(listOf(entity))
+        return XpEvent(
+            id = 0L,
+            deltaXp = delta,
+            source = XpSource.ACHIEVEMENT,
+            mode = XpMode.BOTS,
+            handId = null,
+            createdAtEpochMs = now,
+        )
+    }
+
     override suspend fun deleteAll() {
         progressionDao.deleteAll()
         xpEventDao.deleteAll()

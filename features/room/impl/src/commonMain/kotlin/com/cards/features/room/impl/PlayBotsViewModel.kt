@@ -3,6 +3,9 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.AchievementHandContext
+import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -16,6 +19,7 @@ class PlayBotsViewModel @Inject constructor(
     @Assisted private val difficulty: BotDifficulty,
     @Assisted private val seatCount: Int,
     private val progressionRepository: ProgressionRepository,
+    private val achievementRepository: AchievementRepository,
 ) : SEAViewModel<PlayBotsState, PlayBotsEvent, PlayBotsAction>(initialStateArg = PlayBotsState()) {
 
     private val logger = KLog.withTag("PlayBotsViewModel")
@@ -26,21 +30,38 @@ class PlayBotsViewModel @Inject constructor(
         difficulty = difficulty,
         humanSeatIndex = humanSeatIndex,
         botPersonalities = botPersonalities,
-        onHandEnded = { event, state ->
+        onHandEnded = { event, state, humanStartingStack ->
             val summary = HandResultSummaryBuilder.build(
                 event = event,
                 state = state,
                 humanSeatIndex = humanSeatIndex,
                 mode = XpMode.BOTS,
             )
-            // Awards run off the engine thread — failures here must not
-            // disrupt the hand-end UI flow.
+            val context = AchievementHandContext(
+                opponentBotNames = state.seats
+                    .filter { it.index != humanSeatIndex && it.isBot }
+                    .map { it.displayName },
+                botDifficulty = difficulty.name,
+                humanStartingStack = humanStartingStack,
+                humanEndingStack = state.seats.firstOrNull { it.index == humanSeatIndex }?.stack ?: 0L,
+                bigBlind = state.settings.bigBlind,
+            )
+            // XP + achievements run off the engine thread — failures here
+            // must not disrupt the hand-end UI flow.
             viewModelScope.launch {
                 runCatching {
                     val awarded = progressionRepository.awardForHand(summary)
                     val total = awarded.sumOf { it.deltaXp }
                     if (total > 0) takeAction(PlayBotsAction.HandXpAwarded(total))
                 }.onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
+            }
+            viewModelScope.launch {
+                runCatching {
+                    val earned = achievementRepository.recordHand(summary, context)
+                    if (earned.isNotEmpty()) takeAction(PlayBotsAction.AchievementsEarned(earned))
+                }.onFailure {
+                    logger.w(it) { "Achievement recording failed for hand ${summary.handId}" }
+                }
             }
         },
     )
@@ -76,7 +97,9 @@ class PlayBotsViewModel @Inject constructor(
             }
             is PlayBotsAction.AdvanceNextHand -> {
                 session.advanceToNextHand()
-                action.updateState { it.copy(lastHandXpAwarded = null) }
+                action.updateState {
+                    it.copy(lastHandXpAwarded = null, recentlyEarned = emptyList())
+                }
             }
             is PlayBotsAction.ToggleCheatSheet -> action.updateState {
                 it.copy(cheatSheetOpen = !it.cheatSheetOpen)
@@ -84,6 +107,12 @@ class PlayBotsViewModel @Inject constructor(
             is PlayBotsAction.XpChanged -> action.updateState { it.copy(xp = action.totalXp) }
             is PlayBotsAction.HandXpAwarded -> action.updateState {
                 it.copy(lastHandXpAwarded = action.amount)
+            }
+            is PlayBotsAction.AchievementsEarned -> action.updateState {
+                it.copy(recentlyEarned = action.earned)
+            }
+            is PlayBotsAction.DismissEarnedToast -> action.updateState {
+                it.copy(recentlyEarned = emptyList())
             }
         }
     }
@@ -96,6 +125,9 @@ data class PlayBotsState(
     /** XP awarded for the most recently completed hand. Surfaced in the
      *  showdown dialog; cleared when the user advances to the next hand. */
     val lastHandXpAwarded: Int? = null,
+    /** Achievements earned by the just-finished hand. Drives the unlock toast
+     *  on the table screen. Cleared when the user advances or dismisses. */
+    val recentlyEarned: List<EarnedAchievement> = emptyList(),
 )
 
 sealed class PlayBotsEvent {
@@ -109,4 +141,6 @@ sealed class PlayBotsAction {
     data object ToggleCheatSheet : PlayBotsAction()
     data class XpChanged(val totalXp: Long) : PlayBotsAction()
     data class HandXpAwarded(val amount: Int) : PlayBotsAction()
+    data class AchievementsEarned(val earned: List<EarnedAchievement>) : PlayBotsAction()
+    data object DismissEarnedToast : PlayBotsAction()
 }
