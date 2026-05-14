@@ -11,6 +11,7 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.features.home)
             implementation(projects.features.room)
+            implementation(projects.features.shop)
             implementation(projects.libraries.navigation)
 
             implementation(projects.libraries.core)

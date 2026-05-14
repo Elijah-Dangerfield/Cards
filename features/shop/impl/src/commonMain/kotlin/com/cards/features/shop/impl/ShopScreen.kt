@@ -19,6 +19,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Row
+import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -32,7 +34,11 @@ fun ShopScreen(modifier: Modifier = Modifier) {
                 .padding(padding)
                 .padding(horizontal = 20.dp),
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                ChipBadge(amount = 10_000)
+            }
+            Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = "Shop",
                 typography = AppTheme.typography.Heading.H800,

@@ -1,22 +1,15 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
@@ -35,25 +28,20 @@ private val rankings: List<Pair<String, String>> = listOf(
 
 @Composable
 fun HandRankingsCheatSheet(onDismiss: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.BottomCenter,
+    BottomSheet(
+        onDismissRequest = onDismiss,
+        showDragHandle = true,
+        backgroundColor = AppTheme.colors.surfacePrimary,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                .background(AppTheme.colors.surfaceSecondary.color)
-                .padding(20.dp)
-                .clickable(enabled = false, onClick = {}),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
         ) {
             Text(
                 text = "Hand rankings",
                 typography = AppTheme.typography.Heading.H500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.onSurfacePrimary,
             )
             Spacer(modifier = Modifier.height(12.dp))
             rankings.forEach { (name, description) ->
@@ -66,16 +54,17 @@ fun HandRankingsCheatSheet(onDismiss: () -> Unit) {
                         Text(
                             text = name,
                             typography = AppTheme.typography.Body.B500,
-                            color = AppTheme.colors.text,
+                            color = AppTheme.colors.onSurfacePrimary,
                         )
                         Text(
                             text = description,
                             typography = AppTheme.typography.Body.B400,
-                            color = AppTheme.colors.textSecondary,
+                            color = AppTheme.colors.onSurfaceSecondary,
                         )
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

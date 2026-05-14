@@ -50,6 +50,7 @@ import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Suit
+import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
@@ -592,31 +593,6 @@ private fun RaiseField(text: String, onTextChange: (String) -> Unit, modifier: M
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             typographyToken = AppTheme.typography.Body.B600,
-        )
-    }
-}
-
-@Composable
-private fun AvatarCircle(name: String, size: Dp) {
-    val hues = listOf(
-        Color(0xFFE07AB1), Color(0xFFF6B26B), Color(0xFFFFD966),
-        Color(0xFF93C47D), Color(0xFF76A5AF), Color(0xFF8E7CC3),
-    )
-    val seed = name.hashCode()
-    val bg = hues[((seed % hues.size) + hues.size) % hues.size]
-    val initial = name.firstOrNull()?.uppercase() ?: "?"
-    Box(
-        modifier = Modifier
-            .size(size)
-            .shadow(2.dp, CircleShape)
-            .clip(CircleShape)
-            .background(bg),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = initial,
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.text,
         )
     }
 }
