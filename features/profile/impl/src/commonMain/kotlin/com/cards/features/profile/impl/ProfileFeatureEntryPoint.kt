@@ -3,6 +3,12 @@ package com.dangerfield.cards.features.profile.impl
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
+import com.dangerfield.cards.features.home.FeedbackRoute
+import com.dangerfield.cards.features.profile.BugReportRoute
+import com.dangerfield.cards.features.profile.ClaimAccountRoute
+import com.dangerfield.cards.features.profile.DeleteAccountRoute
+import com.dangerfield.cards.features.profile.EditProfileRoute
+import com.dangerfield.cards.features.profile.GameplaySpeedRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
@@ -21,6 +27,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
+/**
+ * Profile + every sub-route reachable from it. Sub-routes that aren't built
+ * yet (edit profile, gameplay speed, delete account, claim account) register
+ * a [PlaceholderScreen] so navigation works end-to-end. Privacy + terms hand
+ * off to the system browser via [Router.openWebLink].
+ */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
@@ -30,6 +42,7 @@ class ProfileFeatureEntryPoint(
     private val progressionRepository: ProgressionRepository,
     private val userRepository: UserRepository,
 ) : FeatureEntryPoint {
+
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<ProfileRoute> {
             val progression by progressionRepository.observeProgression()
@@ -52,16 +65,16 @@ class ProfileFeatureEntryPoint(
                     appVersion = "0.1.0",
                     showQaMenu = BuildInfo.isDebug,
                 ),
-                onClaimAccount = {},
-                onEditProfile = {},
-                onChangeGameplaySpeed = {},
+                onClaimAccount = { router.navigate(ClaimAccountRoute()) },
+                onEditProfile = { router.navigate(EditProfileRoute()) },
+                onChangeGameplaySpeed = { router.navigate(GameplaySpeedRoute()) },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
                 onTapXp = { router.navigate(XpDetailSheetRoute()) },
-                onSendFeedback = {},
-                onReportBug = {},
-                onPrivacyPolicy = {},
-                onTermsOfService = {},
-                onDeleteAccount = {},
+                onSendFeedback = { router.navigate(FeedbackRoute()) },
+                onReportBug = { router.navigate(BugReportRoute()) },
+                onPrivacyPolicy = { router.openWebLink(PRIVACY_POLICY_URL) },
+                onTermsOfService = { router.openWebLink(TERMS_OF_SERVICE_URL) },
+                onDeleteAccount = { router.navigate(DeleteAccountRoute()) },
                 onOpenQaMenu = { router.navigate(QaMenuRoute()) },
             )
         }
@@ -74,5 +87,42 @@ class ProfileFeatureEntryPoint(
                 onBack = { router.goBack() },
             )
         }
+
+        screen<EditProfileRoute> {
+            PlaceholderScreen(
+                title = "Edit profile",
+                body = "Choose a display name and avatar. Lands with Phase 3 auth — for now your handle stays anonymous.",
+                onBack = { router.goBack() },
+            )
+        }
+
+        screen<GameplaySpeedRoute> {
+            PlaceholderScreen(
+                title = "Gameplay speed",
+                body = "Pick how fast cards and chips animate. Coming soon — for now it's locked to Normal.",
+                onBack = { router.goBack() },
+            )
+        }
+
+        screen<DeleteAccountRoute> {
+            PlaceholderScreen(
+                title = "Delete account",
+                body = "Wipe your local data and start fresh. Lands with Phase 3 auth so we can clear server-side state too.",
+                onBack = { router.goBack() },
+            )
+        }
+
+        screen<ClaimAccountRoute> {
+            PlaceholderScreen(
+                title = "Claim your account",
+                body = "Sign in with Apple or Google to save your XP and chips across devices, and unlock multiplayer. Coming with Phase 3 auth.",
+                onBack = { router.goBack() },
+            )
+        }
+    }
+
+    private companion object {
+        const val PRIVACY_POLICY_URL = "https://cards.dangerfield.com/privacy"
+        const val TERMS_OF_SERVICE_URL = "https://cards.dangerfield.com/terms"
     }
 }

@@ -237,17 +237,24 @@ private fun PlayerInfoTile(
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
-        if (seat.contributedThisStreet > 0) {
-            Spacer(modifier = Modifier.height(4.dp))
-            ChipPill(amount = seat.contributedThisStreet)
-        }
-        if (seat.lastAction != null && !seat.isActing) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = seat.lastAction.shortLabel(),
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
-            )
+        // Show the chip contribution (gold pill) OR the last-action label, not
+        // both — they overlap in meaning ("Call 30" + a 30-chip pill duplicates
+        // info) and stacking them blew the column past the locked row height
+        // and clipped the bottom of the pill. Chip pill wins when there's a
+        // contribution; the text fills in for fold/check/all-in.
+        when {
+            seat.contributedThisStreet > 0 -> {
+                Spacer(modifier = Modifier.height(4.dp))
+                ChipPill(amount = seat.contributedThisStreet)
+            }
+            seat.lastAction != null && !seat.isActing -> {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = seat.lastAction.shortLabel(),
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.textSecondary,
+                )
+            }
         }
     }
 }

@@ -157,12 +157,6 @@ fun ProfileScreen(
                         headlineText = "Terms of service",
                         onClick = onTermsOfService,
                     ),
-                    ListSectionItem(
-                        headlineText = "Version",
-                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
-                            text = settings.appVersion,
-                        ),
-                    ),
                 ),
             )
 
@@ -192,7 +186,17 @@ fun ProfileScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+            // App version as a quiet, centered footer rather than a table cell.
+            // It's a "where am I in the release cycle" reference, not an action.
+            Text(
+                text = "v${settings.appVersion}",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
