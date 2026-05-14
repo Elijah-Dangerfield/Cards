@@ -32,19 +32,16 @@ import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.navigation.toEnterTransition
 import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.Column
-import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.shop.ShopRoute
-import com.dangerfield.cards.libraries.navigation.NavigationOptions
-import com.dangerfield.cards.libraries.navigation.TabRoute
 import com.dangerfield.cards.libraries.ui.PreviewAppState
 import com.dangerfield.cards.libraries.ui.components.AppBottomBar
 import com.dangerfield.cards.libraries.ui.components.BottomBarItem
@@ -144,8 +141,6 @@ fun App(appComponent: AppComponent) {
     }
 }
 
-private enum class BottomTab { Home, Shop, Profile }
-
 @Composable
 private fun AppNavigation(
     navController: NavHostController,
@@ -156,15 +151,8 @@ private fun AppNavigation(
 ) {
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val destination = currentBackStackEntry?.destination
-    val selectedTab: BottomTab? = when {
-        destination == null -> null
-        destination.hasRoute<HomeRoute>() -> BottomTab.Home
-        destination.hasRoute<ShopRoute>() -> BottomTab.Shop
-        destination.hasRoute<ProfileRoute>() -> BottomTab.Profile
-        else -> null
-    }
-    val showBottomBar = selectedTab != null
+    val currentDestination = navController.currentDestination
+    val shouldHideBottomBar = currentBackStackEntry?.tabString() == null
 
     Screen(
         snackbarHost = {
@@ -172,26 +160,35 @@ private fun AppNavigation(
         },
         bottomBar = {
             AnimatedVisibility(
-                visible = showBottomBar,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                visible = !shouldHideBottomBar,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it },
             ) {
                 AppBottomBar(
                     items = listOf(
-                        BottomBarItem.Home(isSelected = selectedTab == BottomTab.Home),
-                        BottomBarItem.Shop(isSelected = selectedTab == BottomTab.Shop),
-                        BottomBarItem.Profile(isSelected = selectedTab == BottomTab.Profile),
+                        BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
+                        BottomBarItem.Shop(isSelected = currentDestination?.hasRoute<ShopRoute>() == true),
+                        BottomBarItem.Profile(isSelected = currentDestination?.hasRoute<ProfileRoute>() == true),
                     ),
                     onItemClick = { item ->
-                        val route = when (item) {
-                            is BottomBarItem.Home -> HomeRoute()
-                            is BottomBarItem.Shop -> ShopRoute()
-                            is BottomBarItem.Profile -> ProfileRoute()
+                        val (isAlreadySelected, route) = when (item) {
+                            is BottomBarItem.Home -> (currentDestination?.hasRoute<HomeRoute>() == true) to HomeRoute()
+                            is BottomBarItem.Shop -> (currentDestination?.hasRoute<ShopRoute>() == true) to ShopRoute()
+                            is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
                         }
-                        router.navigate(
-                            route,
-                            NavigationOptions(launchSingleTop = true, clearBackStack = true),
-                        )
+
+                        if (!isAlreadySelected) {
+                            navController.navigate(route) {
+                                // Pop back to the start destination so the back stack stays shallow
+                                popUpTo(HomeRoute::class) {
+                                    saveState = true
+                                }
+                                // Avoid multiple copies of the same destination
+                                launchSingleTop = true
+                                // Restore inner-tab state when reselecting a previously selected tab
+                                restoreState = true
+                            }
+                        }
                     },
                 )
             }
@@ -207,6 +204,7 @@ private fun AppNavigation(
                     // Enter animation should match B's Enter
                     val targetRoute = targetState.toRouteOrNull<Route>()
                     val (animationType, reason) = when {
+                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
                         targetRoute != null -> targetRoute.enter to "Using target route enter animation"
                         else -> AnimationType.None to "Target destination is not a Route; default to none"
                     }
@@ -221,6 +219,7 @@ private fun AppNavigation(
                     val initialRoute = initialState.toRouteOrNull<Route>()
                     val targetRoute = targetState.toRouteOrNull<Route>()
                     val (animationType, reason) = when {
+                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
                         initialRoute != null -> initialRoute.popExit.opposite() to "Mirroring initial popExit animation"
                         targetRoute != null -> targetRoute.enter to "Fallback to target route enter animation"
                         else -> AnimationType.None to "No route metadata; default to none"
@@ -235,6 +234,7 @@ private fun AppNavigation(
                     // Exit animation should match A's Exit
                     val initialRoute = initialState.toRouteOrNull<Route>()
                     val (animationType, reason) = when {
+                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
                         initialRoute != null -> initialRoute.exit to "Using initial route exit animation"
                         else -> AnimationType.None to "Initial destination is not a Route; default to none"
                     }
@@ -249,6 +249,7 @@ private fun AppNavigation(
                     val initialRoute = initialState.toRouteOrNull<Route>()
 
                     val (animationType, reason) = when {
+                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
                         initialRoute != null -> initialRoute.popExit to "Using initial route popExit animation"
                         else -> AnimationType.None to "Initial destination is not a Route; default to none"
                     }
@@ -271,6 +272,20 @@ private fun AppNavigation(
             router.Bind(navController)
         },
     )
+}
+
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isSwitchingTabs(): Boolean {
+    val initialTab = initialState.tabString()
+    val targetTab = targetState.tabString()
+    val isBothTabs = initialTab != null && targetTab != null
+    return isBothTabs && initialTab != targetTab
+}
+
+private fun NavBackStackEntry.tabString(): String? = when {
+    destination.hasRoute<HomeRoute>() -> "Home"
+    destination.hasRoute<ShopRoute>() -> "Shop"
+    destination.hasRoute<ProfileRoute>() -> "Profile"
+    else -> null
 }
 
 /**
