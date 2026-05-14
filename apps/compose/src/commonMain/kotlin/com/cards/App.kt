@@ -39,6 +39,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Column
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavDestination.Companion.hasRoute
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.shop.ShopRoute
@@ -155,14 +156,15 @@ private fun AppNavigation(
 ) {
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStackEntry?.toRouteOrNull<Route>()
-    val showBottomBar = currentRoute is TabRoute
-    val selectedTab: BottomTab? = when (currentRoute) {
-        is HomeRoute -> BottomTab.Home
-        is ShopRoute -> BottomTab.Shop
-        is ProfileRoute -> BottomTab.Profile
+    val destination = currentBackStackEntry?.destination
+    val selectedTab: BottomTab? = when {
+        destination == null -> null
+        destination.hasRoute<HomeRoute>() -> BottomTab.Home
+        destination.hasRoute<ShopRoute>() -> BottomTab.Shop
+        destination.hasRoute<ProfileRoute>() -> BottomTab.Profile
         else -> null
     }
+    val showBottomBar = selectedTab != null
 
     Screen(
         snackbarHost = {

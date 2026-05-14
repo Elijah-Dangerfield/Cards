@@ -50,9 +50,6 @@ import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
-private val FeltDark = Color(0xFF0E2D1F)
-private val FeltMid = Color(0xFF124A33)
-private val FeltLight = Color(0xFF1E6A4A)
 private val ChipGold = Color(0xFFE0B863)
 private val CardWhite = Color(0xFFF4F1E8)
 private val CardRed = Color(0xFFC42E2E)
@@ -68,31 +65,24 @@ fun PlayBotsScreen(
     modifier: Modifier = Modifier,
 ) {
     Screen(modifier = modifier) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(FeltLight, FeltMid, FeltDark),
-                        radius = 1400f,
-                    ),
-                ),
+                .padding(horizontal = 12.dp),
         ) {
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-                TopBar(
-                    handNumber = (state.table as? TableUiState.Active)?.handNumber,
-                    onBack = onBack,
-                    onCheatSheet = { onAction(PlayBotsAction.ToggleCheatSheet) },
-                )
+            TopBar(
+                handNumber = (state.table as? TableUiState.Active)?.handNumber,
+                onBack = onBack,
+                onCheatSheet = { onAction(PlayBotsAction.ToggleCheatSheet) },
+            )
 
-                when (val table = state.table) {
-                    TableUiState.Loading -> LoadingTable()
-                    is TableUiState.Active -> ActiveTable(
-                        table = table,
-                        onIntent = { onAction(PlayBotsAction.SubmitIntent(it)) },
-                    )
-                }
+            when (val table = state.table) {
+                TableUiState.Loading -> LoadingTable()
+                is TableUiState.Active -> ActiveTable(
+                    table = table,
+                    onIntent = { onAction(PlayBotsAction.SubmitIntent(it)) },
+                )
             }
         }
 
