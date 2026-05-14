@@ -71,9 +71,27 @@ class XpCalculatorTest {
         )
         assertTrue(awards.any { it.source == XpSource.SHOWDOWN })
         assertTrue(awards.any { it.source == XpSource.HAND_STRENGTH })
-        // TwoPair ordinal = 2 → (2+1) × 2 = 6 raw → × 0.5 = 3
+        // TwoPair raw bonus is 8 (super-linear curve) → × 0.5 bots = 4.
         val strength = awards.first { it.source == XpSource.HAND_STRENGTH }
-        assertEquals(3, strength.amount)
+        assertEquals(4, strength.amount)
+    }
+
+    @Test
+    fun handStrengthBonusGrowsSuperLinearly() {
+        // The whole point of the curve is that big hands feel meaningfully
+        // bigger than small ones. Asserts the gap between Two Pair and Flush
+        // is at least 4× the gap between High Card and Pair.
+        fun strengthFor(grade: HandCategoryGrade): Int = XpCalculator
+            .calculate(summary(reachedShowdown = true, handCategory = grade))
+            .first { it.source == XpSource.HAND_STRENGTH }
+            .amount
+
+        val highToPair = strengthFor(HandCategoryGrade.Pair) - strengthFor(HandCategoryGrade.HighCard)
+        val twoPairToFlush = strengthFor(HandCategoryGrade.Flush) - strengthFor(HandCategoryGrade.TwoPair)
+        assertTrue(
+            twoPairToFlush > highToPair * 4,
+            "Expected the Flush-vs-TwoPair gap ($twoPairToFlush) to dwarf the Pair-vs-HighCard gap ($highToPair)",
+        )
     }
 
     @Test

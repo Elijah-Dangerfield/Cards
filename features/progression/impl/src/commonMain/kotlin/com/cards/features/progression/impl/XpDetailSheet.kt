@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,10 +24,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -37,12 +40,15 @@ fun XpDetailSheetContent(
     state: XpDetailState,
     modifier: Modifier = Modifier,
 ) {
+    val levelProgress = remember(state.progression.totalXp) {
+        levelProgressFor(state.progression.totalXp)
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
     ) {
-        XpHero(xp = state.progression.totalXp)
+        XpHero(progress = levelProgress)
         Spacer(modifier = Modifier.height(24.dp))
 
         LifetimeStatsGrid(progression = state.progression)
@@ -68,14 +74,14 @@ fun XpDetailSheetContent(
 }
 
 @Composable
-private fun XpHero(xp: Long) {
+private fun XpHero(progress: LevelProgress) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(72.dp)
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
@@ -85,22 +91,53 @@ private fun XpHero(xp: Long) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "✦",
+                text = progress.level.toString(),
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.text,
             )
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = formatThousands(xp),
-            typography = AppTheme.typography.Heading.H800,
+            text = "Level ${progress.level}",
+            typography = AppTheme.typography.Heading.H700,
             color = AppTheme.colors.text,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Lifetime XP",
+            text = "${formatThousands(progress.totalXp)} XP",
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.textSecondary,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        LevelProgressBar(progress = progress)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
+        )
+    }
+}
+
+@Composable
+private fun LevelProgressBar(progress: LevelProgress) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .clip(RoundedCornerShape(50))
+            .background(AppTheme.colors.surfaceSecondary.color),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress.fraction)
+                .height(10.dp)
+                .clip(RoundedCornerShape(50))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
+                    ),
+                ),
         )
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import com.dangerfield.cards.libraries.gameplay.describe
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -282,9 +283,12 @@ private fun ShowdownRow(
     isWinner: Boolean,
     winAmount: Long,
 ) {
-    val category = remember(seat.holeCards, board) {
+    // Render the full descriptor ("Pair of Kings, Queen kicker") rather than
+    // just the category — that's the difference between "I tied and somehow
+    // lost" and "ah, the kicker decided it."
+    val handDescription = remember(seat.holeCards, board) {
         if (seat.holeCards.size == 2 && board.size in 3..5) {
-            HandEvaluator.evaluate(seat.holeCards + board).category.displayName
+            HandEvaluator.evaluate(seat.holeCards + board).describe()
         } else null
     }
     val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
@@ -305,9 +309,10 @@ private fun ShowdownRow(
         Spacer(modifier = Modifier.weight(1f))
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = category ?: "—",
+                text = handDescription ?: "—",
                 typography = AppTheme.typography.Body.B400,
                 color = if (isWinner) goldText else AppTheme.colors.onSurfaceSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
             )
             if (isWinner && winAmount > 0) {
                 Text(

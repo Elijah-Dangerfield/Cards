@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.HandCategoryGrade
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
@@ -11,13 +12,18 @@ import com.dangerfield.cards.libraries.cards.XpSource
  *   BASE          = 10  (any finished hand — even an instant fold)
  *   INVESTMENT    = clamp(chipsCommitted / bigBlind, 0..20) × 1
  *   SHOWDOWN      = 10  (only if reachedShowdown)
- *   HAND_STRENGTH = (categoryGrade.ordinal + 1) × 2   (1..20, only at showdown)
+ *   HAND_STRENGTH = curve(handCategory) (only at showdown; see [HAND_STRENGTH_BY_GRADE])
  *
  * Bots get half of each award (integer division, rounded down).
  *
  * Invariant: the awards depend ONLY on engagement signals. The summary's
  * `wonPot` field is intentionally not read here — XP must not move based on
  * who won the pot.
+ *
+ * **Curve choice:** hand-strength bonuses grow super-linearly so showing a
+ * flush feels significantly more rewarding than showing two pair. Skilled
+ * play (reaching showdown with strong holdings) leans heavily on this term;
+ * fold-spam players still get base XP but the per-hand ceiling stays modest.
  */
 internal data class XpAward(val source: XpSource, val amount: Int)
 
@@ -40,8 +46,7 @@ internal object XpCalculator {
                 add(XpAward(XpSource.SHOWDOWN, SHOWDOWN_XP))
                 val category = summary.handCategory
                 if (category != null) {
-                    val strength = (category.ordinal + 1) * HAND_STRENGTH_XP_PER_GRADE
-                    add(XpAward(XpSource.HAND_STRENGTH, strength))
+                    add(XpAward(XpSource.HAND_STRENGTH, HAND_STRENGTH_BY_GRADE[category.ordinal]))
                 }
             }
         }
@@ -56,13 +61,26 @@ internal object XpCalculator {
             .filter { it.amount > 0 }
     }
 
-    // Tuned for "feels good after one session" — flat per hand around 10-15 XP
-    // vs. bots, more like 25-30 XP for a played-to-showdown hand. Easy to retune
-    // once we have real session data.
     private const val BASE_XP = 10
     private const val SHOWDOWN_XP = 10
     private const val INVESTMENT_XP_PER_BB = 1
     private const val INVESTMENT_BB_CAP = 20
-    private const val HAND_STRENGTH_XP_PER_GRADE = 2
     private const val BOT_MULTIPLIER = 0.5
+
+    /**
+     * Hand-strength bonus by [HandCategoryGrade] ordinal (HighCard..RoyalFlush).
+     * Super-linear so the gap between, say, Two Pair and a Flush feels real.
+     */
+    private val HAND_STRENGTH_BY_GRADE: IntArray = intArrayOf(
+        2,   // HighCard
+        4,   // Pair
+        8,   // TwoPair
+        14,  // ThreeOfAKind
+        22,  // Straight
+        32,  // Flush
+        44,  // FullHouse
+        60,  // FourOfAKind
+        80,  // StraightFlush
+        100, // RoyalFlush
+    )
 }
