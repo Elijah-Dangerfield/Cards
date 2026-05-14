@@ -13,11 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,8 +34,6 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
 private val ChipGold = Color(0xFFE0B863)
-private val FeltGreen = Color(0xFF124A33)
-private val FeltGreenLight = Color(0xFF1E6A4A)
 private val CardCasual = Color(0xFF2D5F4A)
 private val CardStandard = Color(0xFF2D4A6F)
 private val CardChallenging = Color(0xFF6F2D4A)
@@ -54,12 +53,16 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
             Spacer(modifier = Modifier.height(12.dp))
-            TopStatus(onProfileTap = onNavigateToFeedback)
-            Spacer(modifier = Modifier.height(20.dp))
-            ChipBalance(amount = 10_000)
+            TopStatusBar(
+                rank = 1200,
+                cashBalance = 10_000,
+            )
+            Spacer(modifier = Modifier.height(28.dp))
+            HeroChips(amount = 10_000)
             Spacer(modifier = Modifier.height(28.dp))
             SectionLabel("Practice against bots")
             Spacer(modifier = Modifier.height(12.dp))
@@ -83,83 +86,52 @@ fun HomeScreen(
                 accent = CardChallenging,
                 onClick = { onPlayBots("Challenging") },
             )
-            Spacer(modifier = Modifier.weight(1f))
-            FooterLink(
-                label = "Send feedback",
-                onClick = onNavigateToFeedback,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            FooterLink(
-                label = "Report a bug",
-                onClick = onNavigateToBugReport,
-            )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-private fun TopStatus(onProfileTap: () -> Unit) {
+private fun TopStatusBar(rank: Int, cashBalance: Long) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChipBadge(amount = 10_000)
+        RankBadge(rank = rank)
         Spacer(modifier = Modifier.weight(1f))
-        XpBadge(level = 1)
-        Spacer(modifier = Modifier.width(12.dp))
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.08f))
-                .clickable(onClick = onProfileTap),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Person,
-                contentDescription = "Profile",
-                tint = AppTheme.colors.text.color,
-            )
-        }
+        CashBadge(amount = cashBalance)
     }
 }
 
 @Composable
-private fun ChipBadge(amount: Long) {
+private fun RankBadge(rank: Int) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(Color.White.copy(alpha = 0.06f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(14.dp)
+                .size(20.dp)
                 .clip(CircleShape)
-                .background(ChipGold),
-        )
-        Spacer(modifier = Modifier.width(6.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF8E7CC3), Color(0xFFE07AB1)),
+                    ),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "♛",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.text,
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = amount.toString(),
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
-        )
-    }
-}
-
-@Composable
-private fun XpBadge(level: Int) {
-    Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.08f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = level.toString(),
+            text = "Rank $rank",
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
@@ -167,7 +139,38 @@ private fun XpBadge(level: Int) {
 }
 
 @Composable
-private fun ChipBalance(amount: Long) {
+private fun CashBadge(amount: Long) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.06f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(ChipGold),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "$",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.background,
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = formatThousands(amount),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun HeroChips(amount: Long) {
     Column {
         Text(
             text = "Your chips",
@@ -243,24 +246,6 @@ private fun PlayCard(
             imageVector = Icons.Default.ChevronRight,
             contentDescription = null,
             tint = AppTheme.colors.text.color,
-        )
-    }
-}
-
-@Composable
-private fun FooterLink(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
         )
     }
 }

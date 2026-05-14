@@ -38,18 +38,18 @@ sealed class PreviewBottomBar(val render: @Composable () -> Unit) {
         AppBottomBar(
             items = listOf(
                 BottomBarItem.Home(isSelected = true),
-                BottomBarItem.Activity(isSelected = false),
+                BottomBarItem.Shop(isSelected = false),
                 BottomBarItem.Profile(isSelected = false),
             ),
             onItemClick = {},
         )
     })
 
-    object Activity : PreviewBottomBar({
+    object Shop : PreviewBottomBar({
         AppBottomBar(
             items = listOf(
                 BottomBarItem.Home(isSelected = false),
-                BottomBarItem.Activity(isSelected = true),
+                BottomBarItem.Shop(isSelected = true),
                 BottomBarItem.Profile(isSelected = false),
             ),
             onItemClick = {},
@@ -60,7 +60,7 @@ sealed class PreviewBottomBar(val render: @Composable () -> Unit) {
         AppBottomBar(
             items = listOf(
                 BottomBarItem.Home(isSelected = false),
-                BottomBarItem.Activity(isSelected = false),
+                BottomBarItem.Shop(isSelected = false),
                 BottomBarItem.Profile(isSelected = true),
             ),
             onItemClick = {},

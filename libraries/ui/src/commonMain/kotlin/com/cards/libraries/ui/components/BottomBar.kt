@@ -65,12 +65,12 @@ sealed class BottomBarItem(
             badgeAmount = badgeAmount
         )
 
-    data class Activity(override val isSelected: Boolean, override val badgeAmount: Int = 0) :
+    data class Shop(override val isSelected: Boolean, override val badgeAmount: Int = 0) :
         BottomBarItem(
-            title = "Activity",
+            title = "Shop",
             isSelected = isSelected,
-            selectedIcon = { Icons.Chart.Filled("Activity Tab") },
-            unselectedIcon = { Icons.Chart.Outlined("Activity Tab") },
+            selectedIcon = { Icons.Shop.Filled("Shop Tab") },
+            unselectedIcon = { Icons.Shop.Outlined("Shop Tab") },
             badgeAmount = badgeAmount
         )
 
@@ -233,7 +233,7 @@ private fun BottomBarPreviewHome() {
 
                 items = listOf(
                     BottomBarItem.Home(isSelected = true),
-                    BottomBarItem.Activity(isSelected = false),
+                    BottomBarItem.Shop(isSelected = false),
                     BottomBarItem.Profile(isSelected = false),
                 ),
                 onItemClick = {},
@@ -258,7 +258,7 @@ private fun BottomBarPreviewActivity() {
             AppBottomBar(
                 items = listOf(
                     BottomBarItem.Home(isSelected = false),
-                    BottomBarItem.Activity(isSelected = true, badgeAmount = 3),
+                    BottomBarItem.Shop(isSelected = true, badgeAmount = 3),
                     BottomBarItem.Profile(isSelected = false),
                 ),
                 onItemClick = {},
@@ -284,7 +284,7 @@ private fun BottomBarPreviewProfile() {
             AppBottomBar(
                 items = listOf(
                     BottomBarItem.Home(isSelected = false, badgeAmount = 12),
-                    BottomBarItem.Activity(isSelected = false, badgeAmount = 5),
+                    BottomBarItem.Shop(isSelected = false, badgeAmount = 5),
                     BottomBarItem.Profile(isSelected = true),
                 ),
                 onItemClick = {},

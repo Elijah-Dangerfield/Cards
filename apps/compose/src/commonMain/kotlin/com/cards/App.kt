@@ -32,7 +32,21 @@ import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.navigation.toEnterTransition
 import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Column
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.dangerfield.cards.features.home.HomeRoute
+import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.shop.ShopRoute
+import com.dangerfield.cards.libraries.navigation.NavigationOptions
+import com.dangerfield.cards.libraries.navigation.TabRoute
 import com.dangerfield.cards.libraries.ui.PreviewAppState
+import com.dangerfield.cards.libraries.ui.components.AppBottomBar
+import com.dangerfield.cards.libraries.ui.components.BottomBarItem
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogHost
@@ -129,6 +143,8 @@ fun App(appComponent: AppComponent) {
     }
 }
 
+private enum class BottomTab { Home, Shop, Profile }
+
 @Composable
 private fun AppNavigation(
     navController: NavHostController,
@@ -138,9 +154,45 @@ private fun AppNavigation(
     router: DelegatingRouter,
 ) {
 
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.toRouteOrNull<Route>()
+    val showBottomBar = currentRoute is TabRoute
+    val selectedTab: BottomTab? = when (currentRoute) {
+        is HomeRoute -> BottomTab.Home
+        is ShopRoute -> BottomTab.Shop
+        is ProfileRoute -> BottomTab.Profile
+        else -> null
+    }
+
     Screen(
         snackbarHost = {
             PresenterSnackbarHost()
+        },
+        bottomBar = {
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            ) {
+                AppBottomBar(
+                    items = listOf(
+                        BottomBarItem.Home(isSelected = selectedTab == BottomTab.Home),
+                        BottomBarItem.Shop(isSelected = selectedTab == BottomTab.Shop),
+                        BottomBarItem.Profile(isSelected = selectedTab == BottomTab.Profile),
+                    ),
+                    onItemClick = { item ->
+                        val route = when (item) {
+                            is BottomBarItem.Home -> HomeRoute()
+                            is BottomBarItem.Shop -> ShopRoute()
+                            is BottomBarItem.Profile -> ProfileRoute()
+                        }
+                        router.navigate(
+                            route,
+                            NavigationOptions(launchSingleTop = true, clearBackStack = true),
+                        )
+                    },
+                )
+            }
         },
         content = {
             NavHost(

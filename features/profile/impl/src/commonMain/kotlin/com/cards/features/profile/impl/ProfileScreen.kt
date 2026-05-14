@@ -1,0 +1,254 @@
+package com.dangerfield.cards.features.profile.impl
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.components.ListSection
+import com.dangerfield.cards.libraries.ui.components.ListSectionItem
+import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.system.AppTheme
+
+data class ProfileSettings(
+    val displayName: String,
+    val handle: String,
+    val rank: Int,
+    val handsPlayed: Int,
+    val isAnonymous: Boolean,
+    val gameplaySpeed: GameplaySpeed,
+    val appVersion: String,
+)
+
+enum class GameplaySpeed(val label: String) {
+    Slow("Slow"),
+    Normal("Normal"),
+    Fast("Fast"),
+}
+
+@Composable
+fun ProfileScreen(
+    settings: ProfileSettings,
+    onClaimAccount: () -> Unit,
+    onEditProfile: () -> Unit,
+    onChangeGameplaySpeed: () -> Unit,
+    onSendFeedback: () -> Unit,
+    onReportBug: () -> Unit,
+    onPrivacyPolicy: () -> Unit,
+    onTermsOfService: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Screen(modifier = modifier) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+        ) {
+            ProfileHeader(settings = settings)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (settings.isAnonymous) {
+                ClaimAccountCard(onClaimAccount = onClaimAccount)
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            ListSection(
+                title = "Account",
+                items = listOf(
+                    ListSectionItem(
+                        headlineText = "Edit profile",
+                        supportingText = "Name and avatar",
+                        onClick = onEditProfile,
+                    ),
+                    ListSectionItem(
+                        headlineText = "Rank",
+                        supportingText = "Elo-style poker rank",
+                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
+                            text = settings.rank.toString(),
+                        ),
+                    ),
+                    ListSectionItem(
+                        headlineText = "Hands played",
+                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
+                            text = settings.handsPlayed.toString(),
+                        ),
+                    ),
+                ),
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            ListSection(
+                title = "Gameplay",
+                items = listOf(
+                    ListSectionItem(
+                        headlineText = "Speed",
+                        supportingText = "How fast cards and chips move",
+                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
+                            text = settings.gameplaySpeed.label,
+                        ),
+                        onClick = onChangeGameplaySpeed,
+                    ),
+                ),
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            ListSection(
+                title = "Support",
+                items = listOf(
+                    ListSectionItem(
+                        headlineText = "Send feedback",
+                        supportingText = "Tell us what's working and what isn't",
+                        onClick = onSendFeedback,
+                    ),
+                    ListSectionItem(
+                        headlineText = "Report a bug",
+                        supportingText = "Something broken? Let us know",
+                        onClick = onReportBug,
+                    ),
+                ),
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            ListSection(
+                title = "About",
+                items = listOf(
+                    ListSectionItem(
+                        headlineText = "Privacy policy",
+                        onClick = onPrivacyPolicy,
+                    ),
+                    ListSectionItem(
+                        headlineText = "Terms of service",
+                        onClick = onTermsOfService,
+                    ),
+                    ListSectionItem(
+                        headlineText = "Version",
+                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
+                            text = settings.appVersion,
+                        ),
+                    ),
+                ),
+            )
+
+            if (!settings.isAnonymous) {
+                Spacer(modifier = Modifier.height(20.dp))
+                ListSection(
+                    items = listOf(
+                        ListSectionItem(
+                            headlineText = "Delete account",
+                            onClick = onDeleteAccount,
+                        ),
+                    ),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProfileHeader(settings: ProfileSettings) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        AvatarLarge(name = settings.displayName)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = settings.displayName,
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.text,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = if (settings.isAnonymous) "Guest · ${settings.handle}" else "@${settings.handle}",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
+    }
+}
+
+@Composable
+private fun AvatarLarge(name: String) {
+    val hues = listOf(
+        Color(0xFFE07AB1), Color(0xFFF6B26B), Color(0xFFFFD966),
+        Color(0xFF93C47D), Color(0xFF76A5AF), Color(0xFF8E7CC3),
+    )
+    val seed = name.hashCode()
+    val bg = hues[((seed % hues.size) + hues.size) % hues.size]
+    val initial = name.firstOrNull()?.uppercase() ?: "?"
+    Box(
+        modifier = Modifier
+            .size(96.dp)
+            .clip(CircleShape)
+            .background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initial,
+            typography = AppTheme.typography.Heading.H800,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+            .background(AppTheme.colors.accentPrimary.color)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "Claim your account",
+            typography = AppTheme.typography.Body.B600,
+            color = AppTheme.colors.text,
+        )
+        Text(
+            text = "Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.text,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                .background(Color.White.copy(alpha = 0.15f))
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "Get started",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+            )
+        }
+    }
+}

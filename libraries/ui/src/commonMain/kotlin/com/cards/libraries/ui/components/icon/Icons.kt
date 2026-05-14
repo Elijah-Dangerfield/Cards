@@ -31,6 +31,8 @@ import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ChatBubble
@@ -104,6 +106,12 @@ enum class Icons(
         default = com.dangerfield.cards.libraries.ui.components.icon.icons.Home,
         filled = HomeFilled,
         outlined = com.dangerfield.cards.libraries.ui.components.icon.icons.Home,
+    ),
+
+    Shop(
+        default = androidx.compose.material.icons.Icons.Outlined.ShoppingBag,
+        filled = androidx.compose.material.icons.Icons.Filled.ShoppingBag,
+        outlined = androidx.compose.material.icons.Icons.Outlined.ShoppingBag,
     ),
 
     Time(

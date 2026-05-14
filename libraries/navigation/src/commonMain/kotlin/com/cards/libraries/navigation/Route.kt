@@ -99,6 +99,8 @@ open class Route(
 
     companion object
 }
+
+interface TabRoute
 inline fun <reified T> NavBackStackEntry.toRouteOrNull(): T? = Catching<T> { toRoute(T::class) }
     .logOnFailure()
     .getOrNull()
