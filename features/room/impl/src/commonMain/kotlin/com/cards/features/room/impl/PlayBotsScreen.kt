@@ -62,6 +62,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -78,6 +79,7 @@ import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.XpBadge
+import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
@@ -158,12 +160,26 @@ fun PlayBotsScreen(
 
         val handResult = active?.handResult
         if (handResult != null && active.seats.isNotEmpty()) {
-            ShowdownDialog(
-                result = handResult,
-                seats = active.seats,
-                xpEarned = state.lastHandXpAwarded,
-                onNextHand = { onAction(PlayBotsAction.AdvanceNextHand) },
-            )
+            val humanSeat = active.seats.firstOrNull { it.isHuman }
+            val humanBust = humanSeat != null && humanSeat.stack <= 0
+            if (humanBust) {
+                // Bust takes over the moment — focused "you went bust, here's
+                // a fresh stack" modal instead of the full showdown. Per the
+                // V1 decision (docs/decisions.md 2026-05-14) bot stacks
+                // auto-rebuy between hands; this dialog just makes that
+                // recovery visible so new players aren't confused.
+                BustDialog(
+                    xpEarned = state.lastHandXpAwarded,
+                    onDealMeIn = { onAction(PlayBotsAction.AdvanceNextHand) },
+                )
+            } else {
+                ShowdownDialog(
+                    result = handResult,
+                    seats = active.seats,
+                    xpEarned = state.lastHandXpAwarded,
+                    onNextHand = { onAction(PlayBotsAction.AdvanceNextHand) },
+                )
+            }
         }
     }
 }
@@ -345,11 +361,17 @@ private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
             text = seat.displayName,
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.text,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = seat.stack.toString(),
+            text = formatCompactChips(seat.stack),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
         if (seat.contributedThisStreet > 0) {
             Spacer(modifier = Modifier.height(4.dp))
@@ -781,9 +803,12 @@ private fun PlayerInfoTile(
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = seat.stack.toString(),
+            text = formatCompactChips(seat.stack),
             typography = AppTheme.typography.Body.B600,
             color = AppTheme.colors.text,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
         if (seat.contributedThisStreet > 0) {
             Spacer(modifier = Modifier.height(4.dp))
@@ -936,6 +961,8 @@ private fun PrimaryPill(
 
 @Composable
 private fun ChipPill(amount: Long) {
+    // Compact-format big numbers so the gold pill doesn't blow out the tile
+    // width on hands with deep stacks (e.g. an all-in into a large pot).
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
@@ -943,9 +970,12 @@ private fun ChipPill(amount: Long) {
             .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(
-            text = amount.toString(),
+            text = formatCompactChips(amount),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.background,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -1111,6 +1141,74 @@ private fun XpEarnedBubble(amount: Int) {
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
         )
+    }
+}
+
+/**
+ * Shown instead of [ShowdownDialog] when the human's stack hit 0 this hand.
+ * The auto-rebuy happens silently between hands ([LocalBotsSession]); this
+ * modal just makes that moment legible so new players don't wonder how they
+ * still have chips next hand. Single "Deal me in" CTA which triggers the
+ * normal next-hand advance.
+ */
+@Composable
+private fun BustDialog(xpEarned: Int?, onDealMeIn: () -> Unit) {
+    Dialog(onDismissRequest = onDealMeIn) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.surfaceSecondary.color),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "💸",
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.text,
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = "You went bust",
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.onSurfacePrimary,
+                )
+                Text(
+                    text = "Practice chips refilled — chips against bots don't count for keeps. Deal yourself in and keep sharpening up.",
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.onSurfaceSecondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            if (xpEarned != null && xpEarned > 0) {
+                XpEarnedBubble(amount = xpEarned)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(AppTheme.colors.accentPrimary.color)
+                    .clickable(onClick = onDealMeIn)
+                    .padding(vertical = 18.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Deal me in",
+                    typography = AppTheme.typography.Heading.H600,
+                    color = AppTheme.colors.onAccentPrimary,
+                )
+            }
+        }
     }
 }
 

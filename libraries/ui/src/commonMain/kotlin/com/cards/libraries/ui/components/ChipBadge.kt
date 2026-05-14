@@ -66,3 +66,36 @@ internal fun formatThousands(value: Long): String {
     }
     return sb.toString()
 }
+
+/**
+ * Compact chip / number formatter for tight UI surfaces.
+ *
+ * - `123`     → `"123"`
+ * - `1_234`   → `"1.2k"`
+ * - `12_345`  → `"12k"`
+ * - `1_234_567` → `"1.2M"`
+ *
+ * Use this anywhere a number is rendered in a fixed-width pill / badge / tile
+ * where a comma-grouped value (e.g. `"1,234,567"`) can blow out the layout.
+ */
+fun formatCompactChips(value: Long): String {
+    val abs = if (value < 0) -value else value
+    return when {
+        abs < 1_000L -> value.toString()
+        abs < 10_000L -> {
+            // 1.2k — one fractional digit, dropped if zero
+            val tenths = (value * 10) / 1_000L
+            val whole = tenths / 10
+            val frac = (tenths % 10).let { if (it < 0) -it else it }
+            if (frac == 0L) "${whole}k" else "${whole}.${frac}k"
+        }
+        abs < 1_000_000L -> "${value / 1_000L}k"
+        abs < 10_000_000L -> {
+            val tenths = (value * 10) / 1_000_000L
+            val whole = tenths / 10
+            val frac = (tenths % 10).let { if (it < 0) -it else it }
+            if (frac == 0L) "${whole}M" else "${whole}.${frac}M"
+        }
+        else -> "${value / 1_000_000L}M"
+    }
+}

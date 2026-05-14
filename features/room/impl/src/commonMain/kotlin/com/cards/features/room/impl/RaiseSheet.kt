@@ -55,10 +55,23 @@ internal fun RaiseSheet(
     var raiseText by remember(legal.minRaiseTotal, legal.maxRaiseTotal) {
         mutableStateOf(raiseTotal.toString())
     }
+    // Slider / quick-pot taps snap both the text and the underlying total to
+    // the clamped value — the user clicked a discrete value, the field should
+    // reflect it.
     fun setRaiseTotal(v: Long) {
         val clamped = v.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
         raiseTotal = clamped
         raiseText = clamped.toString()
+    }
+    // Free-text typing must NOT clamp the visible text — otherwise a single
+    // digit like "5" gets rewritten to the min on every keystroke and the
+    // user can never compose a multi-digit number. Only the submitted total
+    // (`raiseTotal`) and the slider position get clamped silently.
+    fun onTypedRaise(typed: String) {
+        val digitsOnly = typed.filter { it.isDigit() }.take(9)
+        raiseText = digitsOnly
+        val parsed = digitsOnly.toLongOrNull() ?: 0L
+        raiseTotal = parsed.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
     }
 
     Column(
@@ -114,11 +127,7 @@ internal fun RaiseSheet(
                 )
                 RaiseField(
                     text = raiseText,
-                    onTextChange = { typed ->
-                        val digitsOnly = typed.filter { it.isDigit() }.take(9)
-                        raiseText = digitsOnly
-                        digitsOnly.toLongOrNull()?.let { setRaiseTotal(it) }
-                    },
+                    onTextChange = ::onTypedRaise,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
