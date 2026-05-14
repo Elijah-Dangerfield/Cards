@@ -44,6 +44,12 @@ class LocalBotsSession(
      */
     private val onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit = { _, _, _ -> },
 ) {
+    // Logger must be declared BEFORE any field whose initializer transitively
+    // calls a method that logs — Kotlin runs field initializers top-to-bottom,
+    // so logging from `startNextHand()` (which `gameState` invokes below)
+    // sees a null `logger` if the field is further down in the file.
+    private val logger = KLog.withTag("LocalBotsSession")
+
     private val settings: RoomSettings = settings
     private val _state = MutableStateFlow(initialState())
     val state: StateFlow<TableUiState> get() = _state
@@ -244,8 +250,6 @@ class LocalBotsSession(
         applyIntentAndEmit(intent)
         runUntilHumansTurnOrComplete()
     }
-
-    private val logger = KLog.withTag("LocalBotsSession")
 
     private fun isHumanIntentLegal(intent: PlayerIntent): Boolean {
         if (intent.seatIndex != humanSeatIndex) return false
