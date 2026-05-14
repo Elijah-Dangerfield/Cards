@@ -70,6 +70,7 @@ class LocalBotsSession(
     private fun initialState(): TableUiState = TableUiState.Loading
 
     private fun startNextHand(): GameState {
+        logger.d { "startNextHand: handNumber ${handNumber} -> ${handNumber + 1}" }
         handNumber += 1
         if (handNumber > 1) {
             val active = lastSeatsForRotation
@@ -155,9 +156,13 @@ class LocalBotsSession(
     }
 
     suspend fun runUntilHumansTurnOrComplete() {
+        logger.d {
+            "runUntilHumansTurnOrComplete enter: hand=$handNumber street=${gameState.street} acting=${gameState.actingSeatIndex}"
+        }
         while (gameState.actingSeatIndex != null && gameState.actingSeatIndex != humanSeatIndex) {
             val acting = gameState.actingSeatIndex!!
             val personality = personalitiesBySeat.getValue(acting)
+            logger.d { "Bot loop iter: hand=$handNumber acting=$acting street=${gameState.street}" }
             delay(botThinkingDelayMs)
             // Monte Carlo equity is CPU-bound (≈200 hand evaluations per call).
             // Run off the main thread so the UI stays responsive while bots think.
@@ -179,6 +184,20 @@ class LocalBotsSession(
                     handContext = handContext,
                 )
             }
+            // Re-check after the suspension points (`delay`, `withContext`): another
+            // coroutine on Main may have advanced the state in the meantime. Without
+            // this guard the engine throws "Not seat X's turn" when we try to apply
+            // a stale decision. Returning to the loop top picks up the new acting
+            // seat and computes a fresh decision.
+            val liveActing = gameState.actingSeatIndex
+            if (liveActing != acting || decision.intent.seatIndex != acting) {
+                logger.w {
+                    "Bot decision for seat $acting is stale " +
+                        "(now acting=$liveActing, intent.seatIndex=${decision.intent.seatIndex}, " +
+                        "street=${gameState.street}). Skipping apply."
+                }
+                continue
+            }
             lastBotThoughts = lastBotThoughts + (acting to decision.thought)
             applyIntentAndEmit(decision.intent)
             delay(botActionDelayMs)
@@ -197,10 +216,14 @@ class LocalBotsSession(
     }
 
     fun advanceToNextHand() {
+        logger.d { "advanceToNextHand: signal sent (hand=$handNumber)" }
         nextHandSignal.trySend(Unit)
     }
 
     suspend fun submitHumanIntent(intent: PlayerIntent) {
+        logger.d {
+            "submitHumanIntent: $intent hand=$handNumber street=${gameState.street} acting=${gameState.actingSeatIndex}"
+        }
         if (gameState.actingSeatIndex != humanSeatIndex) {
             logger.w {
                 "Intent $intent dropped — not your turn (acting=${gameState.actingSeatIndex})"
@@ -243,10 +266,18 @@ class LocalBotsSession(
     }
 
     private fun applyIntentAndEmit(intent: PlayerIntent) {
+        logger.d {
+            "applyIntentAndEmit: $intent hand=$handNumber street=${gameState.street} " +
+                "actingBefore=${gameState.actingSeatIndex}"
+        }
         val streetBefore = gameState.street
         val result = GameEngine.applyIntent(gameState, intent)
         result.events.forEach(tracker::observe)
         gameState = result.state
+        logger.d {
+            "applyIntentAndEmit: applied. street=${gameState.street} " +
+                "actingAfter=${gameState.actingSeatIndex} events=${result.events.size}"
+        }
         result.events.forEach { ev ->
             when (ev) {
                 is GameEvent.ActionTaken -> {

@@ -366,3 +366,20 @@ Bots earn 0.5× of every component (per the locked anti-farm rule). Multiplayer 
 
 **Status:** Deferred. Revisit when multiplayer chip economy is live and the first sellable shop item is designed.
 
+---
+
+## 2026-05-14 — Known limitations after V1 achievement system
+
+**Decision:** Three known sharp edges we intentionally shipped with the V1 achievement system. Each is small enough that fixing it can wait for the next time the area is touched, but tracking here so they don't get lost.
+
+1. **Per-bot wins counter is liberally credited.** In a 4-seat bot table (1 human + 3 bots), a winning hand credits a +1 to the `wins_vs_bot_<name>` counter for *every* bot at the table. The natural reading of "Beat Jane 10 times" when she's one of three opponents is "you won 10 hands at a table that included Jane", which we credit; the strict reading would be "you specifically beat Jane heads-up", which we don't currently track. Tighten this when bot identity becomes first-class in the engine's per-pot attribution (likely Phase 3 alongside multiplayer's per-player Elo tracking).
+
+2. **Mid-multiplayer-tournament criteria are not modeled.** The [`Criterion`](libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/Achievement.kt) sealed class handles per-hand counters and custom cross-hand counters, but Phase 3 multiplayer will need new criterion types for tournament-specific events (final-table appearance, bubble survival, heads-up wins). Add new `Criterion` subtypes then; the achievement engine's evaluator picks them up automatically as long as `Custom` is the only escape hatch.
+
+3. **Achievement toasts only fire at hand-end.** Because all V1 criteria are hand-end triggered, the "Achievement unlocked" callout lives inside the showdown / bust dialogs. If a future criterion fires mid-hand (e.g. "made an aggressive bet on every street" or anything time-bounded), we'll need a separate on-table toast — the current data path goes through `recentlyEarned` in `PlayBotsState`, cleared on `AdvanceNextHand`, and only rendered by the hand-end dialogs.
+
+**How to apply:** Don't preemptively fix any of these — they're sharp but cheap to live with. When you next touch the relevant area for an unrelated reason, pull the corresponding fix in.
+
+**Status:** Tracked.
+
+

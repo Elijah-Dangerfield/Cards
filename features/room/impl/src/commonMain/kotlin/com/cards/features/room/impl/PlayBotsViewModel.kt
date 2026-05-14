@@ -91,6 +91,7 @@ class PlayBotsViewModel @Inject constructor(
                 // Don't block the SEAViewModel action channel while bots take their turns —
                 // their state emissions are queued as SessionStateChanged actions and need to
                 // be processed to update the UI. Run the bot loop on its own coroutine.
+                logger.d { "VM received SubmitIntent ${action.intent}" }
                 viewModelScope.launch {
                     session.submitHumanIntent(action.intent)
                 }
