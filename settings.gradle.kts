@@ -48,9 +48,13 @@ include(":features:room")
 include(":features:room:impl")
 include(":features:shop")
 include(":features:shop:impl")
+include(":features:upgrade")
+include(":features:upgrade:impl")
 
 
 // Libraries
+include(":libraries:appconfig")
+include(":libraries:appconfig:impl")
 include(":libraries:config")
 include(":libraries:config:impl")
 include(":libraries:core")

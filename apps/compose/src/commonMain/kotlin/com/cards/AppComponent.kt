@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.libraries.appconfig.AppConfigService
 import com.dangerfield.cards.libraries.cards.impl.AppEventDispatcher
 import com.dangerfield.cards.libraries.navigation.DeepLinkBridge
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
@@ -20,6 +21,7 @@ interface AppComponent {
     val telemetry: Telemetry
     val shakeHandler: ShakeHandler
     val deepLinkBridge: DeepLinkBridge
+    val appConfigService: AppConfigService
     
     /**
      * Eagerly initialized to start observing app lifecycle events.

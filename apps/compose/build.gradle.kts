@@ -48,6 +48,11 @@ kotlin {
             implementation(projects.features.room.impl)
             implementation(projects.features.shop)
             implementation(projects.features.shop.impl)
+            implementation(projects.features.upgrade)
+            implementation(projects.features.upgrade.impl)
+
+            implementation(projects.libraries.appconfig)
+            implementation(projects.libraries.appconfig.impl)
 
             implementation(libs.atomicfu)
             

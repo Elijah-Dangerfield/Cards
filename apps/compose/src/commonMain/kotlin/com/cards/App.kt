@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -17,6 +18,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavUri
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
+import com.dangerfield.cards.buildinfo.CardsBuildConfig
+import com.dangerfield.cards.features.upgrade.AppGuardState
+import com.dangerfield.cards.features.upgrade.impl.AppGuardLayer
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.BuildInfo
@@ -71,6 +75,7 @@ fun App(appComponent: AppComponent) {
 
     val shakeHandler = remember { appComponent.shakeHandler }
     val deepLinkBridge = remember { appComponent.deepLinkBridge }
+    val appConfigService = remember { appComponent.appConfigService }
 
     DisposableEffect(shakeHandler) {
         shakeHandler.start()
@@ -78,6 +83,16 @@ fun App(appComponent: AppComponent) {
             shakeHandler.stop()
         }
     }
+
+    LaunchedEffect(appConfigService) {
+        appConfigService.refresh()
+    }
+
+    val appConfig by appConfigService.state.collectAsState()
+    val guardState = AppGuardState.from(
+        config = appConfig,
+        clientVersionCode = CardsBuildConfig.VERSION_CODE,
+    )
 
     LaunchedEffect(navController, deepLinkBridge) {
         deepLinkBridge.urls.collect { url ->
@@ -122,13 +137,22 @@ fun App(appComponent: AppComponent) {
     ) {
         AppThemeProvider {
             Box(modifier = Modifier.fillMaxSize()) {
-                AppNavigation(
-                    navController = navController,
-                    floatingWindowNavigator = floatingWindowNavigator,
-                    featureEntryPoints = appComponent.featureEntryPoints,
-                    startDestination = appViewModel.startDestination,
-                    router = router,
-                )
+                AppGuardLayer(
+                    state = guardState,
+                    onOpenStore = {
+                        router.openWebLink(
+                            "https://play.google.com/store/apps/details?id=${CardsBuildConfig.APPLICATION_ID}",
+                        )
+                    },
+                ) {
+                    AppNavigation(
+                        navController = navController,
+                        floatingWindowNavigator = floatingWindowNavigator,
+                        featureEntryPoints = appComponent.featureEntryPoints,
+                        startDestination = appViewModel.startDestination,
+                        router = router,
+                    )
+                }
 
                 SplashGate()
 
