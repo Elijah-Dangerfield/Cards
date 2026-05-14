@@ -107,7 +107,7 @@ object GameEngine {
         var currentBet = state.currentBetThisStreet
         var lastFullRaise = state.lastFullRaiseSize
 
-        val (newSeat, action, becameAllIn) = resolveAction(seat, intent, currentBet, lastFullRaise)
+        val (newSeat, action) = resolveAction(seat, intent, currentBet, lastFullRaise)
 
         seats = seats.map { if (it.index == seat.index) newSeat else it }
 
@@ -142,7 +142,7 @@ object GameEngine {
             else -> Unit
         }
 
-        var working = state.copy(
+        val working = state.copy(
             seats = seats,
             currentBetThisStreet = currentBet,
             lastFullRaiseSize = lastFullRaise,
@@ -219,26 +219,35 @@ object GameEngine {
         )
     }
 
+    /**
+     * Translate a player intent into the resulting seat + action pair, with
+     * all the poker-rule validation (min bet, min raise, can't check when
+     * facing a bet, etc.) inline.
+     *
+     * The returned action is `PlayerAction.AllIn` whenever the move puts the
+     * seat at zero chips, regardless of the original intent — so a "Call"
+     * intent that empties the stack surfaces as an All-In to downstream code.
+     */
     private fun resolveAction(
         seat: Seat,
         intent: PlayerIntent,
         currentBet: Long,
         lastFullRaise: Long,
-    ): Triple<Seat, PlayerAction, Boolean> {
+    ): Pair<Seat, PlayerAction> {
         return when (intent) {
             is PlayerIntent.Fold -> {
                 val newSeat = seat.copy(
                     handParticipation = HandParticipation.Folded,
                     hasActedThisStreet = true,
                 )
-                Triple(newSeat, PlayerAction.Fold, false)
+                newSeat to PlayerAction.Fold
             }
             is PlayerIntent.Check -> {
                 require(seat.contributedThisStreet == currentBet) {
                     "Cannot check: must call ${currentBet - seat.contributedThisStreet}"
                 }
                 val newSeat = seat.copy(hasActedThisStreet = true)
-                Triple(newSeat, PlayerAction.Check, false)
+                newSeat to PlayerAction.Check
             }
             is PlayerIntent.Call -> {
                 val toCall = currentBet - seat.contributedThisStreet
@@ -250,7 +259,7 @@ object GameEngine {
                 } else {
                     PlayerAction.Call(actual)
                 }
-                Triple(updated, action, updated.handParticipation == HandParticipation.AllIn)
+                updated to action
             }
             is PlayerIntent.Bet -> {
                 require(currentBet == 0L) { "Cannot bet when there's an open bet — raise instead" }
@@ -266,7 +275,7 @@ object GameEngine {
                 } else {
                     PlayerAction.Bet(intent.amount)
                 }
-                Triple(updated, action, updated.handParticipation == HandParticipation.AllIn)
+                updated to action
             }
             is PlayerIntent.Raise -> {
                 require(currentBet > 0) { "No bet to raise — bet first" }
@@ -284,13 +293,13 @@ object GameEngine {
                 } else {
                     PlayerAction.Raise(updated.contributedThisStreet, raiseAmount)
                 }
-                Triple(updated, action, updated.handParticipation == HandParticipation.AllIn)
+                updated to action
             }
             is PlayerIntent.AllIn -> {
                 val toContribute = seat.stack
                 require(toContribute > 0) { "Stack is empty" }
                 val updated = applyChipsToStreet(seat, toContribute).copy(hasActedThisStreet = true)
-                Triple(updated, PlayerAction.AllIn(toContribute), true)
+                updated to PlayerAction.AllIn(toContribute)
             }
         }
     }
@@ -434,14 +443,9 @@ object GameEngine {
         val events = prior.toMutableList()
         var s = seq
 
-        val pots = if (state.pots.isEmpty()) PotBuilder.buildPots(state.seats) else state.pots
-        val orderedPots = pots
-
-        val contendersByPot: Map<Int, List<Seat>> = orderedPots.mapIndexed { i, pot ->
-            i to pot.eligibleSeatIndexes.mapNotNull { idx ->
-                state.seats.firstOrNull { it.index == idx && it.isInHand }
-            }
-        }.toMap()
+        // `state.pots` is set by `advanceStreet` (the only caller) before we
+        // ever reach Showdown — trust it.
+        val pots = state.pots
 
         val ranks: Map<Int, HandRank> = state.seats.filter { it.isInHand && it.holeCards.size == 2 }
             .associate { seat ->
@@ -450,8 +454,10 @@ object GameEngine {
 
         val winners = mutableListOf<HandWinner>()
         var seatsAfterAwards = state.seats
-        orderedPots.forEachIndexed { potIndex, pot ->
-            val contenders = contendersByPot[potIndex].orEmpty()
+        pots.forEachIndexed { potIndex, pot ->
+            val contenders = pot.eligibleSeatIndexes.mapNotNull { idx ->
+                state.seats.firstOrNull { it.index == idx && it.isInHand }
+            }
             if (contenders.isEmpty()) return@forEachIndexed
             val best = contenders.mapNotNull { ranks[it.index]?.let { r -> it to r } }
                 .maxByOrNull { it.second }?.second ?: return@forEachIndexed
@@ -491,7 +497,7 @@ object GameEngine {
         return Triple(
             state.copy(
                 seats = seatsAfterAwards,
-                pots = orderedPots,
+                pots = pots,
                 street = BettingRound.Complete,
                 actingSeatIndex = null,
             ),
