@@ -15,6 +15,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -63,6 +64,13 @@ fun Dialog(
     animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
     scrimColor: Color = ModalDialogDefaults.scrimColor(),
     contentAlignment: Alignment = Alignment.Center,
+    /**
+     * Cap the dialog's height to a fraction of available screen height. Pass
+     * a value in (0f, 1f] to enable scrolling for tall content — the caller's
+     * content must use `verticalScroll` to actually scroll. Null (default)
+     * keeps the historical wrap-content behavior for short dialogs.
+     */
+    maxHeightFraction: Float? = null,
     content: @Composable () -> Unit = {},
 ) {
     HostedDialog(
@@ -74,10 +82,17 @@ fun Dialog(
         scrimColor = scrimColor,
         contentAlignment = contentAlignment
     ) {
-        Box(
-            modifier = Modifier
+        val sizeModifier = if (maxHeightFraction != null) {
+            Modifier
+                .fillMaxWidth(0.8f)
+                .fillMaxHeight(maxHeightFraction.coerceIn(0.1f, 1f))
+        } else {
+            Modifier
                 .fillMaxWidth(0.8f)
                 .animateContentSize()
+        }
+        Box(
+            modifier = sizeModifier
                 .clipToBounds()
                 .background(AppTheme.colors.surfacePrimary.color, shape = Radii.Card.shape),
             contentAlignment = Alignment.Center

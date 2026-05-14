@@ -7,7 +7,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -25,7 +24,10 @@ fun LastActionPill(label: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.14f))
+            // Lifted off the table surface via a DS token rather than a
+            // hand-tuned alpha; matches the chip badge / XP badge family so
+            // every pill in the app has the same surface temperature.
+            .background(AppTheme.colors.surfaceTertiary.color)
             .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(

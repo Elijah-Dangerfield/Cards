@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -19,12 +20,17 @@ import com.dangerfield.cards.system.AppTheme
  * Shared back-button + title top bar for the XP and Rank detail screens.
  * Lives in this module because both screens are progression-feature scoped;
  * if a third detail screen lands elsewhere we can lift this to libraries/ui.
+ *
+ * Applies `statusBarsPadding()` so the bar's content sits below the system
+ * status bar — the parent `Screen`'s Scaffold doesn't push the topBar slot
+ * down for us.
  */
 @Composable
 internal fun DetailTopBar(title: String, onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .statusBarsPadding()
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

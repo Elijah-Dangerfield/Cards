@@ -44,10 +44,11 @@ import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Apple-Fitness-style achievement card. Front shows the icon + name + rarity
- * color; tapping flips to the back which describes the criterion, the earned
- * date, and the reward. Earned cards get a slow shimmer sweep so they feel
- * alive; locked cards are desaturated and show a lock glyph.
+ * Apple-Fitness-style achievement card. Earned cards show the icon + name +
+ * rarity color with a slow shimmer sweep, and tapping flips them to the
+ * back to reveal criterion + earned date + reward. Locked cards are a
+ * mystery — "?" glyph, no title, no description, no flip — so players have
+ * to *discover* what unlocks them by playing.
  *
  * The card flips in-place via a Y-axis rotation; we swap the back content
  * once rotation crosses 90° so neither side renders mirrored.
@@ -56,12 +57,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun AchievementMedallion(
     achievement: Achievement,
     earnedAtEpochMs: Long?,
-    progress: Int,
+    @Suppress("UNUSED_PARAMETER") progress: Int,
     modifier: Modifier = Modifier,
 ) {
+    val isEarned = earnedAtEpochMs != null
     var flipped by remember { mutableStateOf(false) }
     val rotation by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (flipped) 180f else 0f,
+        targetValue = if (flipped && isEarned) 180f else 0f,
         animationSpec = tween(durationMillis = 520),
         label = "medallion-flip",
     )
@@ -75,13 +77,13 @@ fun AchievementMedallion(
                 cameraDistance = 14f * density
             }
             .clip(RoundedCornerShape(24.dp))
-            .clickable { flipped = !flipped },
+            // Locked cards don't flip — the mystery is the whole point.
+            .clickable(enabled = isEarned) { flipped = !flipped },
     ) {
         if (!showingBack) {
             MedallionFront(
                 achievement = achievement,
-                isEarned = earnedAtEpochMs != null,
-                progress = progress,
+                isEarned = isEarned,
             )
         } else {
             // Counter-rotate so the back content reads normally.
@@ -103,7 +105,6 @@ fun AchievementMedallion(
 private fun MedallionFront(
     achievement: Achievement,
     isEarned: Boolean,
-    progress: Int,
 ) {
     val rarityColor = achievement.rarity.color()
     Box(
@@ -115,6 +116,8 @@ private fun MedallionFront(
                         listOf(rarityColor.copy(alpha = 0.35f), rarityColor.copy(alpha = 0.12f)),
                     )
                 } else {
+                    // Locked: neutral surface, no rarity tint. The mystery
+                    // shouldn't telegraph how special the achievement is.
                     Brush.linearGradient(
                         listOf(
                             AppTheme.colors.surfaceSecondary.color,
@@ -134,23 +137,28 @@ private fun MedallionFront(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = if (isEarned) achievement.icon else "🔒",
+                text = if (isEarned) achievement.icon else "?",
                 typography = AppTheme.typography.Display.D1200,
                 color = if (isEarned) AppTheme.colors.text else AppTheme.colors.textSecondary,
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = achievement.name,
-                typography = AppTheme.typography.Body.B500,
-                color = if (isEarned) AppTheme.colors.text else AppTheme.colors.textSecondary,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-            )
-            if (!isEarned && progress > 0 && progress < achievement.criterion.target) {
+            if (isEarned) {
                 Spacer(modifier = Modifier.height(6.dp))
-                ProgressDots(
-                    progress = progress,
-                    target = achievement.criterion.target,
+                Text(
+                    text = achievement.name,
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.text,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                )
+            } else {
+                // Locked: no name, no progress, no hint. Discoverable only
+                // by playing — keeps the unlock moment a real surprise.
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Locked",
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.textSecondary,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -245,14 +253,6 @@ private fun ShimmerOverlay() {
     )
 }
 
-@Composable
-private fun ProgressDots(progress: Int, target: Int) {
-    Text(
-        text = "$progress / $target",
-        typography = AppTheme.typography.Body.B400,
-        color = AppTheme.colors.textSecondary,
-    )
-}
 
 /**
  * Mid-fidelity relative date. "today" / "yesterday" / "N days ago" / "MMM dd"

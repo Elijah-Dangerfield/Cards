@@ -5,18 +5,26 @@ import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.ALL_IN_HANDS
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.CHALLENGING_WINS
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.COMEBACK_5BB
+import com.dangerfield.cards.libraries.cards.CURRENT_LEVEL
 import com.dangerfield.cards.libraries.cards.Criterion
+import com.dangerfield.cards.libraries.cards.DOUBLED_UP
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
+import com.dangerfield.cards.libraries.cards.GOOD_FOLD
 import com.dangerfield.cards.libraries.cards.HandCategoryGrade
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.MAX_POT_SEEN
 import com.dangerfield.cards.libraries.cards.NO_BUST_STREAK
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.TRIPLED_UP
+import com.dangerfield.cards.libraries.cards.WIN_BY_FOLD
 import com.dangerfield.cards.libraries.cards.XpMode
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementCounterEntity
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
@@ -84,6 +92,12 @@ class AchievementRepositoryImpl(
         updatePerBotWinsCounter(summary, context)
         updateChallengingWinsCounter(summary, context)
         updateComebackCounter(summary, context)
+        updateWinByFoldCounter(summary)
+        updateGoodFoldCounter(summary)
+        updateAllInCounter(summary)
+        updateMaxPotSeen(summary)
+        updateStackSwingCounters(context)
+        updateCurrentLevel()
 
         // 3) Re-read counters once, then check every un-earned achievement.
         val counters = achievementDao.getCounters().associate { it.key to it.value }
@@ -174,6 +188,58 @@ class AchievementRepositoryImpl(
         if (startBb > 5) return
         if (context.humanEndingStack < context.humanStartingStack * 2) return
         achievementDao.incrementCounter(COMEBACK_5BB, 1)
+    }
+
+    private suspend fun updateWinByFoldCounter(summary: HandResultSummary) {
+        if (summary.wonByFold) achievementDao.incrementCounter(WIN_BY_FOLD, 1)
+    }
+
+    private suspend fun updateGoodFoldCounter(summary: HandResultSummary) {
+        // "Good fold" = the human folded, the hand went to showdown, and their
+        // would-have-been hand at the river would have lost. Rewards bankroll
+        // discipline rather than just engagement.
+        if (summary.foldedHandWouldHaveLost) achievementDao.incrementCounter(GOOD_FOLD, 1)
+    }
+
+    private suspend fun updateAllInCounter(summary: HandResultSummary) {
+        if (summary.humanWasAllIn) achievementDao.incrementCounter(ALL_IN_HANDS, 1)
+    }
+
+    private suspend fun updateMaxPotSeen(summary: HandResultSummary) {
+        if (summary.totalPot <= 0) return
+        // High-water mark: only ratchet up. Avoid increment — we want max,
+        // not sum.
+        val current = achievementDao.getCounter(MAX_POT_SEEN) ?: 0
+        if (summary.totalPot.toInt() > current) {
+            achievementDao.setCounter(
+                AchievementCounterEntity(key = MAX_POT_SEEN, value = summary.totalPot.toInt()),
+            )
+        }
+    }
+
+    private suspend fun updateStackSwingCounters(context: AchievementHandContext) {
+        // Doubled / tripled up = ended a hand with 2× / 3× the starting stack.
+        // Count occurrences rather than gate on first — over time these become
+        // "X times you doubled up" trivia, which we may surface in stats later.
+        if (context.humanStartingStack <= 0L) return
+        if (context.humanEndingStack >= context.humanStartingStack * 2L) {
+            achievementDao.incrementCounter(DOUBLED_UP, 1)
+        }
+        if (context.humanEndingStack >= context.humanStartingStack * 3L) {
+            achievementDao.incrementCounter(TRIPLED_UP, 1)
+        }
+    }
+
+    private suspend fun updateCurrentLevel() {
+        // Mirror the current level from progression into the achievement-counter
+        // table so level-threshold criteria evaluate uniformly with everything
+        // else. Read AFTER `awardForHand` in the caller — the XP for this
+        // hand needs to land before we compute level here.
+        val xp = progressionRepository.getProgression().totalXp
+        val level = levelProgressFor(xp).level
+        achievementDao.setCounter(
+            AchievementCounterEntity(key = CURRENT_LEVEL, value = level),
+        )
     }
 
     private fun buildProgress(

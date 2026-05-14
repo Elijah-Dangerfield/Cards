@@ -19,12 +19,30 @@ val AllAchievements: List<Achievement> = listOf(
         xpReward = AchievementRarity.COMMON.defaultXpReward,
     ),
     Achievement(
+        id = AchievementId.HANDS_10,
+        name = "Warming up",
+        description = "Play 10 hands.",
+        icon = "🔥",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.HandsPlayed(10),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
+    Achievement(
         id = AchievementId.HANDS_100,
         name = "Regular",
         description = "Play 100 hands.",
         icon = "🪙",
         rarity = AchievementRarity.RARE,
         criterion = Criterion.HandsPlayed(100),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.HANDS_500,
+        name = "Card sharp",
+        description = "Play 500 hands.",
+        icon = "🎴",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.HandsPlayed(500),
         xpReward = AchievementRarity.RARE.defaultXpReward,
     ),
     Achievement(
@@ -232,6 +250,135 @@ val AllAchievements: List<Achievement> = listOf(
         xpReward = AchievementRarity.EPIC.defaultXpReward,
         chipReward = 500L,
     ),
+
+    // Pot-size milestones — based on the total pot of the hand the human
+    // participated in (won or lost). Tracks ambition more than profit.
+    Achievement(
+        id = AchievementId.POT_500,
+        name = "Pot odds",
+        description = "Be at the table for a pot of 500 chips or more.",
+        icon = "🥉",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = MAX_POT_SEEN, target = 500),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.POT_1000,
+        name = "Four-figure pot",
+        description = "Be at the table for a pot of 1,000 chips or more.",
+        icon = "🥈",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = MAX_POT_SEEN, target = 1_000),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.POT_5000,
+        name = "Whale pot",
+        description = "Be at the table for a pot of 5,000 chips or more.",
+        icon = "🐋",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = MAX_POT_SEEN, target = 5_000),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 500L,
+    ),
+
+    // Tactical wins — based on outcome shape, not just frequency.
+    Achievement(
+        id = AchievementId.FIRST_WIN_BY_FOLD,
+        name = "Bluffer's delight",
+        description = "Win a pot without reaching showdown — everyone else folded.",
+        icon = "🎭",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = WIN_BY_FOLD, target = 1),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.WIN_BY_FOLD_10,
+        name = "The convincer",
+        description = "Win 10 pots without reaching showdown.",
+        icon = "🪄",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = WIN_BY_FOLD, target = 10),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.GOOD_FOLD_FIRST,
+        name = "Know when to fold 'em",
+        description = "Fold a hand that, in hindsight, you would have lost.",
+        icon = "🧠",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = GOOD_FOLD, target = 1),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.GOOD_FOLD_25,
+        name = "Disciplined",
+        description = "Make 25 good folds — hands you would have lost at showdown.",
+        icon = "🧘",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = GOOD_FOLD, target = 25),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.FIRST_ALL_IN,
+        name = "All in",
+        description = "Go all in for the first time.",
+        icon = "🎲",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = ALL_IN_HANDS, target = 1),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
+
+    // Stack swings — captures the "I doubled up!" moment.
+    Achievement(
+        id = AchievementId.DOUBLE_UP,
+        name = "Doubled up",
+        description = "Finish a hand with 2× the chips you started it with.",
+        icon = "📊",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = DOUBLED_UP, target = 1),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.TRIPLE_UP,
+        name = "Tripled up",
+        description = "Finish a hand with 3× the chips you started it with.",
+        icon = "💹",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = TRIPLED_UP, target = 1),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 250L,
+    ),
+
+    // Level milestones
+    Achievement(
+        id = AchievementId.REACH_LEVEL_5,
+        name = "Leveled up",
+        description = "Reach level 5.",
+        icon = "⭐",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = CURRENT_LEVEL, target = 5),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.REACH_LEVEL_10,
+        name = "Double digits",
+        description = "Reach level 10.",
+        icon = "🌟",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = CURRENT_LEVEL, target = 10),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+    ),
+    Achievement(
+        id = AchievementId.REACH_LEVEL_25,
+        name = "Felt veteran",
+        description = "Reach level 25.",
+        icon = "💎",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = CURRENT_LEVEL, target = 25),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 1_000L,
+    ),
 )
 
 val AllAchievementsById: Map<AchievementId, Achievement> = AllAchievements.associateBy { it.id }
@@ -241,6 +388,25 @@ val AllAchievementsById: Map<AchievementId, Achievement> = AllAchievements.assoc
 const val NO_BUST_STREAK: String = "no_bust_streak"
 const val CHALLENGING_WINS: String = "challenging_wins"
 const val COMEBACK_5BB: String = "comeback_5bb"
+
+/** Wins where everyone else folded (no showdown reached). */
+const val WIN_BY_FOLD: String = "win_by_fold"
+
+/** Folds where, in hindsight, the human would have lost the showdown anyway. */
+const val GOOD_FOLD: String = "good_fold"
+
+/** Hands where the human went all-in at any point. */
+const val ALL_IN_HANDS: String = "all_in_hands"
+
+/** Times the human's stack grew to ≥ 2× / 3× the starting stack within a hand. */
+const val DOUBLED_UP: String = "doubled_up"
+const val TRIPLED_UP: String = "tripled_up"
+
+/** Max pot the human has been a part of (sticky high-water mark). */
+const val MAX_POT_SEEN: String = "max_pot_seen"
+
+/** Current player level (mirrored from progression for level-threshold achievements). */
+const val CURRENT_LEVEL: String = "current_level"
 
 /** Key for "hands won against bot with [name]". */
 fun winsVsBotKey(name: String): String = "wins_vs_bot_$name"

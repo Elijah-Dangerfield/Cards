@@ -54,8 +54,10 @@ class PlayBotsViewModel @Inject constructor(
                     val total = awarded.sumOf { it.deltaXp }
                     if (total > 0) takeAction(PlayBotsAction.HandXpAwarded(total))
                 }.onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
-            }
-            viewModelScope.launch {
+
+                // Sequenced after XP awarding: the achievement engine reads the
+                // current total XP to mirror the player's level into a counter,
+                // so level-threshold criteria evaluate against this hand's XP.
                 runCatching {
                     val earned = achievementRepository.recordHand(summary, context)
                     if (earned.isNotEmpty()) takeAction(PlayBotsAction.AchievementsEarned(earned))

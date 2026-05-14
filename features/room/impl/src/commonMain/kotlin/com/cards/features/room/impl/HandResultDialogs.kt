@@ -63,7 +63,9 @@ internal fun ShowdownDialog(
     val totalPot = result.winners.sumOf { it.amount }
     val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
 
-    Dialog(onDismissRequest = onNextHand) {
+    // Tall when an achievement (or several) unlock; cap to 85% screen height
+    // so the column has bounds for `verticalScroll` to actually scroll within.
+    Dialog(onDismissRequest = onNextHand, maxHeightFraction = 0.85f) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

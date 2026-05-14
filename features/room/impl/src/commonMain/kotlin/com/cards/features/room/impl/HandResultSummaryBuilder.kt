@@ -31,6 +31,7 @@ internal object HandResultSummaryBuilder {
         val reachedShowdown = !wasFold && humanRevealedCards != null
         val wonPot = event.winners.any { it.seatIndex == humanSeatIndex }
         val chipsCommitted = humanSeat?.contributedThisHand ?: 0L
+        val byFoldAround = event.winners.isNotEmpty() && event.winners.all { it.byFold }
 
         val categoryGrade: HandCategoryGrade? = if (reachedShowdown) {
             val winningRank = event.winners
@@ -45,6 +46,31 @@ internal object HandResultSummaryBuilder {
             null
         }
 
+        val totalPot = event.winners.sumOf { it.amount }
+
+        // "Was the fold actually correct?" — if the human folded AND the dealt
+        // board got to enough cards (flop+) to compare, evaluate what the human
+        // would have shown vs the strongest revealed hand. Only meaningful for
+        // showdown-ending hands; fold-around hands can't be compared.
+        val foldedHandWouldHaveLost = if (wasFold && humanSeat != null &&
+            humanSeat.holeCards.size == 2 && event.board.size >= 3 && !byFoldAround
+        ) {
+            val humanRank = HandEvaluator.evaluate(humanSeat.holeCards + event.board)
+            val bestRevealed = event.revealedHoleCards
+                .filterKeys { it != humanSeatIndex }
+                .mapNotNull { (_, holes) ->
+                    if (holes.size == 2) HandEvaluator.evaluate(holes + event.board) else null
+                }
+                .maxOrNull()
+            bestRevealed != null && humanRank < bestRevealed
+        } else {
+            false
+        }
+
+        val wonByFold = wonPot && !reachedShowdown
+        val humanWasAllIn = humanSeat?.handParticipation == HandParticipation.AllIn ||
+            (humanSeat != null && humanSeat.stack <= 0L && humanSeat.contributedThisHand > 0L)
+
         return HandResultSummary(
             handId = state.handNumber.toString(),
             mode = mode,
@@ -54,6 +80,10 @@ internal object HandResultSummaryBuilder {
             chipsCommitted = chipsCommitted,
             bigBlind = state.settings.bigBlind,
             handCategory = categoryGrade,
+            totalPot = totalPot,
+            foldedHandWouldHaveLost = foldedHandWouldHaveLost,
+            wonByFold = wonByFold,
+            humanWasAllIn = humanWasAllIn,
         )
     }
 

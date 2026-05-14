@@ -20,6 +20,19 @@ data class HandResultSummary(
     val bigBlind: Long,
     /** Hand category at showdown. Null if the user folded before showdown. */
     val handCategory: HandCategoryGrade?,
+    /** Total pot for the just-finished hand (sum of all pot awards). */
+    val totalPot: Long = 0L,
+    /**
+     * True when the human folded AND the winner's final hand category would
+     * have beaten the human's. Computed at hand-end with hindsight (the human's
+     * hole cards + the dealt board), so it answers "was this the right fold?"
+     * Null if the human didn't fold or there's no comparable hand.
+     */
+    val foldedHandWouldHaveLost: Boolean = false,
+    /** True when the human won the pot without reaching showdown (everyone else folded). */
+    val wonByFold: Boolean = false,
+    /** True when the human went all-in at any point during the hand. */
+    val humanWasAllIn: Boolean = false,
 )
 
 /**

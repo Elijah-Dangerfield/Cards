@@ -28,13 +28,18 @@ data class Achievement(
  * existing id would lose user progress, so prefer adding a new one.
  */
 enum class AchievementId {
+    // Volume
     FIRST_HAND,
+    HANDS_10,
     HANDS_100,
+    HANDS_500,
     HANDS_1000,
 
+    // Endurance
     NO_BUST_50,
     NO_BUST_100,
 
+    // Hand-strength milestones (shown at showdown)
     SHOW_PAIR,
     SHOW_TWO_PAIR,
     SHOW_THREE_OF_KIND,
@@ -45,16 +50,38 @@ enum class AchievementId {
     SHOW_STRAIGHT_FLUSH,
     SHOW_ROYAL_FLUSH,
 
+    // Pot-size milestones
+    POT_500,
+    POT_1000,
+    POT_5000,
+
+    // Tactical wins
+    FIRST_WIN_BY_FOLD,
+    WIN_BY_FOLD_10,
+    GOOD_FOLD_FIRST,
+    GOOD_FOLD_25,
+    FIRST_ALL_IN,
+
+    // Bot mastery
     BEAT_JANE_10,
     BEAT_DAVID_10,
     BEAT_GINA_10,
     BEAT_STEVE_10,
     BEAT_MIKE_10,
 
+    // Difficulty
     CHALLENGING_FIRST_WIN,
     CHALLENGING_10_WINS,
 
+    // Stack swings
     COMEBACK_FROM_5BB,
+    DOUBLE_UP,
+    TRIPLE_UP,
+
+    // Level milestones
+    REACH_LEVEL_5,
+    REACH_LEVEL_10,
+    REACH_LEVEL_25,
 }
 
 enum class AchievementRarity {

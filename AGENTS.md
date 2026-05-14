@@ -183,6 +183,22 @@ Resolution cascade: debug override → server override → QA override → defau
 
 `docs/decisions.md` is an append-only architectural decisions log. **Add an entry whenever you make a non-trivial architectural call** (new module boundary, choice of library, scope cut, schema shape). Each entry: date, the decision, the alternatives considered, and *why*. Future agents (and the user) read this to understand the shape of the codebase without re-deriving every call.
 
+## Design system (DS-first rule)
+
+**Every screen must lean on the design system. Don't hand-tune one-off styling.**
+
+The DS lives in `:libraries:ui` — colors, surface tokens, typography, spacing, and primitive components (`ChipBadge`, `XpBadge`, `LastActionPill`, `ListSection`, `BasicBottomSheet`, etc.). Surface colors come from `AppTheme.colors.{surfacePrimary, surfaceSecondary, surfaceTertiary, surfaceDisabled, accentPrimary, danger, ...}`. Typography from `AppTheme.typography.{Heading, Body, Display}`.
+
+**Concrete rules:**
+
+1. **No raw `Color.White.copy(alpha = X)` for surface backgrounds.** Use a `surface*` token. The alpha-on-white pattern produces a one-off shade per call site; the screens drift apart and the DS becomes nominal rather than load-bearing. Surfaces, pills, cards, callout boxes — all `AppTheme.colors.surface*`. The hand-tuned alphas we used in early V1 (chip pills, action pills, info cards) caused real bugs: the chip-pill cutoff and the action-pill-overlap were symptoms of the same "hand-tuned tile" mindset.
+2. **Reuse the existing primitives before writing a new one.** `ChipBadge` / `XpBadge` / `RankBadge` for chip-style affordances. `ListSection` / `ListSectionItem` for settings rows. `BasicBottomSheet` for slide-up sheets. `Dialog` for modals (with `maxHeightFraction` for tall scrollable content). `Screen` for the outer scaffold. If you're about to write a `Box { background, clip, padding, Text }` for the third time, lift it to `:libraries/ui` first.
+3. **Borders, dividers, and emphasis lines** use `AppTheme.colors.border` / `borderSecondary` — not hand-tuned white alpha.
+4. **Pokemon-game-specific visual artifacts** (chip-gold, card-back-blue, suits) live in `PokerPalette` in `:libraries:ui/system/color/`. Anything semantic (background, surface, accent, text) uses the theme tokens.
+5. **Spacing comes from `Dimension`** tokens (`Dimension.D200`, `D400`, `D800`, etc.) when you have several values at once; one-off `dp` literals are fine for small offsets.
+
+**The DS-first instinct is what keeps screens from feeling like a-grab-bag-of-Compose.** When in doubt, ask "could I drop this into another screen and have it look at home?" If the answer is "only if I retune the alpha values" — extract it to the DS first.
+
 ## Coding Guidelines
 
 - Code like a staff engineer
