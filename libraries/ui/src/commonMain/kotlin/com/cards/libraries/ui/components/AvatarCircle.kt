@@ -31,6 +31,7 @@ fun AvatarCircle(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     typography: TypographyResource = AppTheme.typography.Body.B600,
+    emoji: String? = null,
 ) {
     val seed = name.hashCode()
     val bg = avatarHues[((seed % avatarHues.size) + avatarHues.size) % avatarHues.size]
@@ -44,7 +45,7 @@ fun AvatarCircle(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = initial,
+            text = emoji ?: initial,
             typography = typography,
             color = AppTheme.colors.text,
         )

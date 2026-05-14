@@ -5,6 +5,8 @@ import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.BotThought
 import com.dangerfield.cards.libraries.bots.OpponentTracker
+import com.dangerfield.cards.libraries.bots.StreetAction
+import com.dangerfield.cards.libraries.bots.buildHandContext
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEngine
@@ -42,6 +44,8 @@ class LocalBotsSession(
     private var handNumber: Int = 0
     private var buttonIndex: Int = 0
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
+    private val currentStreetLog: MutableList<StreetAction> = mutableListOf()
+    private var preflopAggressorSeatIndex: Int? = null
     private var lastBotThoughts: Map<Int, BotThought> = emptyMap()
     private var lastWinners: GameEvent.HandEnded? = null
     private val nextHandSignal: Channel<Unit> = Channel(capacity = 1)
@@ -70,6 +74,8 @@ class LocalBotsSession(
         )
         result.events.forEach(tracker::observe)
         lastActionBySeat.clear()
+        currentStreetLog.clear()
+        preflopAggressorSeatIndex = null
         lastBotThoughts = emptyMap()
         lastWinners = null
         gameState = result.state
@@ -137,6 +143,12 @@ class LocalBotsSession(
             delay(botThinkingDelayMs)
             // Monte Carlo equity is CPU-bound (≈200 hand evaluations per call).
             // Run off the main thread so the UI stays responsive while bots think.
+            val handContext = buildHandContext(
+                state = gameState,
+                actingSeatIndex = acting,
+                currentStreetLog = currentStreetLog.toList(),
+                preflopAggressorSeatIndex = preflopAggressorSeatIndex,
+            )
             val decision = withContext(Dispatchers.Default) {
                 BotDecision.choose(
                     state = gameState,
@@ -146,6 +158,7 @@ class LocalBotsSession(
                     opponentTracker = tracker,
                     random = random,
                     equityIterations = 200,
+                    handContext = handContext,
                 )
             }
             lastBotThoughts = lastBotThoughts + (acting to decision.thought)
@@ -212,13 +225,26 @@ class LocalBotsSession(
     }
 
     private fun applyIntentAndEmit(intent: PlayerIntent) {
+        val streetBefore = gameState.street
         val result = GameEngine.applyIntent(gameState, intent)
         result.events.forEach(tracker::observe)
         gameState = result.state
         result.events.forEach { ev ->
             when (ev) {
-                is GameEvent.ActionTaken -> lastActionBySeat[ev.seatIndex] = ev.action
-                is GameEvent.StreetAdvanced -> lastActionBySeat.clear()
+                is GameEvent.ActionTaken -> {
+                    lastActionBySeat[ev.seatIndex] = ev.action
+                    currentStreetLog += StreetAction(ev.seatIndex, ev.action)
+                    val aggressive = ev.action is PlayerAction.Raise ||
+                        ev.action is PlayerAction.Bet ||
+                        ev.action is PlayerAction.AllIn
+                    if (streetBefore == BettingRound.Preflop && aggressive) {
+                        preflopAggressorSeatIndex = ev.seatIndex
+                    }
+                }
+                is GameEvent.StreetAdvanced -> {
+                    lastActionBySeat.clear()
+                    currentStreetLog.clear()
+                }
                 is GameEvent.HandEnded -> lastWinners = ev
                 else -> Unit
             }

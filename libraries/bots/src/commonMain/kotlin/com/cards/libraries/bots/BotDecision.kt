@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.bots
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Seat
 import kotlinx.serialization.Serializable
@@ -33,6 +34,7 @@ object BotDecision {
         opponentTracker: OpponentTracker = OpponentTracker(),
         random: Random = Random.Default,
         equityIterations: Int = 300,
+        handContext: HandContext = HandContext.Empty,
     ): BotDecisionResult {
         val seat = state.seatAt(seatIndex)
         require(seat.canAct) { "Seat $seatIndex cannot act" }
@@ -63,10 +65,23 @@ object BotDecision {
         val opponentAdjustment = computeOpponentAdjustment(state, opponentTracker, seatIndex, difficulty)
         val effectiveStrength = (strength + opponentAdjustment.strengthBias).coerceIn(0.0, 1.0)
 
-        val foldThreshold = computeFoldThreshold(personality, difficulty)
-        val raiseThreshold = computeRaiseThreshold(personality, difficulty)
+        val tactical = computeTacticalAdjustment(
+            state = state,
+            seatIndex = seatIndex,
+            personality = personality,
+            difficulty = difficulty,
+            handContext = handContext,
+            toCall = toCall,
+        )
+
+        val baseFoldThreshold = computeFoldThreshold(personality, difficulty)
+        val baseRaiseThreshold = computeRaiseThreshold(personality, difficulty)
+        val foldThreshold = (baseFoldThreshold + tactical.foldThresholdDelta).coerceIn(0.04, 0.85)
+        val raiseThreshold = (baseRaiseThreshold + tactical.raiseThresholdDelta).coerceIn(0.20, 0.95)
+
         val semiBluffChance = computeSemiBluffChance(personality, difficulty, draws)
-        val bluffChance = computeBluffChance(personality, difficulty, state)
+        val baseBluffChance = computeBluffChance(personality, difficulty, state)
+        val bluffChance = (baseBluffChance + tactical.bluffChanceDelta).coerceIn(0.0, 0.6)
 
         val noBetOpen = toCall == 0L
         val willBluff = random.nextDouble() < bluffChance && noBetOpen
@@ -78,6 +93,7 @@ object BotDecision {
             val sign = if (opponentAdjustment.strengthBias >= 0) "+" else ""
             rationaleParts += "opp-adj=" + sign + fmt2(opponentAdjustment.strengthBias)
         }
+        if (tactical.tag != null) rationaleParts += tactical.tag
         if (toCall > 0) rationaleParts += "potOdds=" + fmt2(potOdds)
         if (draws?.hasDraw == true) rationaleParts += drawTag(draws)
 
@@ -127,6 +143,113 @@ object BotDecision {
             rationale = rationaleParts.joinToString(" · "),
         )
         return BotDecisionResult(intent, thought)
+    }
+
+    private fun computeTacticalAdjustment(
+        state: GameState,
+        seatIndex: Int,
+        personality: BotPersonality,
+        difficulty: BotDifficulty,
+        handContext: HandContext,
+        toCall: Long,
+    ): TacticalAdjustment {
+        if (difficulty == BotDifficulty.Casual) return TacticalAdjustment.None
+
+        // 1. Position modifier — applied regardless of situation.
+        var foldDelta = 0.0
+        var raiseDelta = 0.0
+        var bluffDelta = 0.0
+        val tags = mutableListOf<String>()
+
+        when (handContext.position) {
+            TablePosition.Early -> {
+                foldDelta += 0.05
+                raiseDelta += 0.04
+            }
+            TablePosition.Middle -> Unit
+            TablePosition.Late, TablePosition.HeadsUpButton -> {
+                foldDelta -= 0.05
+                raiseDelta -= 0.05
+            }
+            TablePosition.SmallBlind -> {
+                foldDelta += 0.02
+                raiseDelta += 0.02
+            }
+            TablePosition.BigBlind, TablePosition.HeadsUpBlind -> {
+                // BB defends wider when facing a single late open.
+                if (state.street == BettingRound.Preflop && handContext.raisesInFront == 1) {
+                    foldDelta -= 0.04
+                }
+            }
+        }
+
+        // 2. Situational modifiers (preflop).
+        if (state.street == BettingRound.Preflop) {
+            val late = handContext.position == TablePosition.Late ||
+                handContext.position == TablePosition.HeadsUpButton ||
+                handContext.position == TablePosition.SmallBlind
+            val stealSpot = late && handContext.isUnopened && handContext.foldsInFront >= 1
+            if (stealSpot) {
+                // Steal incentive scales with aggression; the table-tightness streak
+                // (consecutive folds in front) amplifies it.
+                val streakBoost = handContext.consecutiveFoldStreak.coerceAtMost(4) * 0.02
+                val incentive = 0.06 + personality.aggression * 0.10 + streakBoost
+                raiseDelta -= incentive
+                foldDelta -= 0.04
+                bluffDelta += 0.04 + personality.aggression * 0.06
+                tags += "steal"
+            }
+
+            if (handContext.selfRaisedThisStreet && handContext.raisesInFront > 0 && toCall > 0) {
+                // We opened, got 3bet (or worse) — tighten hard unless we're a maniac.
+                val tightenAmount = 0.10 - personality.aggression * 0.06
+                foldDelta += tightenAmount
+                raiseDelta += 0.08 - personality.aggression * 0.05
+                tags += "facing-3bet"
+            } else if (!handContext.selfRaisedThisStreet && handContext.raisesInFront > 0) {
+                if (handContext.callersInFront >= 1) {
+                    // Squeeze opportunity: open + caller in front of us.
+                    raiseDelta -= 0.04 * personality.aggression
+                    foldDelta += 0.02
+                    tags += "squeeze"
+                } else {
+                    // Plain cold-call vs a raise — tighten.
+                    foldDelta += 0.06
+                    raiseDelta += 0.04
+                    tags += "cold-call"
+                }
+            }
+        } else {
+            // 3. Postflop situational modifiers.
+            val wasAggressor = handContext.preflopAggressorSeatIndex == seatIndex
+            val allChecksSoFar = handContext.streetActionsBeforeSelf.isNotEmpty() &&
+                handContext.streetActionsBeforeSelf.all { it.action is PlayerAction.Check }
+
+            if (wasAggressor && toCall == 0L && (allChecksSoFar || handContext.streetActionsBeforeSelf.isEmpty())) {
+                // C-bet opportunity. Continuation frequency scales with aggression.
+                val cbetPush = 0.08 + personality.aggression * 0.12
+                raiseDelta -= cbetPush
+                bluffDelta += 0.05 + personality.aggression * 0.05
+                tags += "c-bet"
+            }
+
+            val donkLeadFaced = wasAggressor && toCall > 0L &&
+                handContext.streetActionsBeforeSelf.any {
+                    it.action is PlayerAction.Bet || it.action is PlayerAction.Raise
+                }
+            if (donkLeadFaced) {
+                // OOP opponent led into the raiser — usually strength; tighten.
+                foldDelta += 0.05 - personality.aggression * 0.03
+                tags += "donk-faced"
+            }
+        }
+
+        return TacticalAdjustment(
+            foldThresholdDelta = foldDelta,
+            raiseThresholdDelta = raiseDelta,
+            bluffChanceDelta = bluffDelta,
+            tag = if (tags.isEmpty()) null else tags.joinToString(",", prefix = "ctx:"),
+        )
     }
 
     private fun computeOpponentAdjustment(
@@ -259,6 +382,17 @@ object BotDecision {
 }
 
 private data class OpponentAdjustment(val strengthBias: Double, val note: String?)
+
+private data class TacticalAdjustment(
+    val foldThresholdDelta: Double,
+    val raiseThresholdDelta: Double,
+    val bluffChanceDelta: Double,
+    val tag: String?,
+) {
+    companion object {
+        val None: TacticalAdjustment = TacticalAdjustment(0.0, 0.0, 0.0, null)
+    }
+}
 
 private fun fmt2(value: Double): String {
     val scaled = kotlin.math.round(value * 100.0).toLong()
