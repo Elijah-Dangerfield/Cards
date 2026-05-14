@@ -16,6 +16,7 @@ data class BotPersonality(
     val aggression: Double,
     val bluffRate: Double,
     val avatarKey: String,
+    val emoji: String,
 ) {
     init {
         require(tightness in 0.0..1.0) { "tightness must be in 0..1" }
@@ -30,6 +31,7 @@ data class BotPersonality(
             aggression = 0.25,
             bluffRate = 0.04,
             avatarKey = "avatar_jane",
+            emoji = "🧐",
         )
         val David: BotPersonality = BotPersonality(
             name = "David",
@@ -37,6 +39,7 @@ data class BotPersonality(
             aggression = 0.72,
             bluffRate = 0.18,
             avatarKey = "avatar_david",
+            emoji = "😎",
         )
         val Gina: BotPersonality = BotPersonality(
             name = "Gina",
@@ -44,6 +47,7 @@ data class BotPersonality(
             aggression = 0.58,
             bluffRate = 0.10,
             avatarKey = "avatar_gina",
+            emoji = "🦊",
         )
         val Steve: BotPersonality = BotPersonality(
             name = "Steve",
@@ -51,6 +55,7 @@ data class BotPersonality(
             aggression = 0.22,
             bluffRate = 0.05,
             avatarKey = "avatar_steve",
+            emoji = "🐢",
         )
         val Mike: BotPersonality = BotPersonality(
             name = "Mike",
@@ -58,6 +63,7 @@ data class BotPersonality(
             aggression = 0.90,
             bluffRate = 0.30,
             avatarKey = "avatar_mike",
+            emoji = "🤡",
         )
 
         val Roster: List<BotPersonality> = listOf(Jane, David, Gina, Steve, Mike)

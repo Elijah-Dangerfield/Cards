@@ -320,7 +320,7 @@ private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ringSize)) {
             if (seat.isActing) PulsingActiveRing(modifier = Modifier.size(ringSize))
             if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
-            AvatarCircle(name = seat.displayName, size = avatarSize)
+            AvatarCircle(name = seat.displayName, size = avatarSize, emoji = seat.emoji)
             // Dealer / SB / BB chip in the corner.
             BlindMarker(
                 seat = seat,
@@ -1122,6 +1122,15 @@ private fun ShowdownRow(
 
 private fun card(rank: Rank, suit: Suit): Card = Card(rank, suit)
 
+private fun previewBotEmoji(name: String): String = when (name) {
+    "Jane" -> "🧐"
+    "David" -> "😎"
+    "Gina" -> "🦊"
+    "Steve" -> "🐢"
+    "Mike" -> "🤡"
+    else -> "🤖"
+}
+
 private fun previewHumanSeat(
     stack: Long = 980,
     contributed: Long = 0,
@@ -1140,6 +1149,7 @@ private fun previewHumanSeat(
     isHuman = true,
     isBot = false,
     avatarKey = null,
+    emoji = null,
     holeCards = holeCards,
     showHoleCardBacks = false,
     participation = HandParticipation.InHand,
@@ -1171,6 +1181,7 @@ private fun previewBotSeat(
     isHuman = false,
     isBot = true,
     avatarKey = "avatar_$name",
+    emoji = previewBotEmoji(name),
     holeCards = holeCards,
     showHoleCardBacks = participation == HandParticipation.InHand && holeCards.isEmpty(),
     participation = participation,
