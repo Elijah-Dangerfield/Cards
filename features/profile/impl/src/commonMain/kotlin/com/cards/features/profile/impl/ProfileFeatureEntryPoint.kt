@@ -2,6 +2,10 @@ package com.dangerfield.cards.features.profile.impl
 
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.profile.QaMenuRoute
+import com.dangerfield.cards.libraries.config.AppConfigRepository
+import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -13,7 +17,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
-class ProfileFeatureEntryPoint : FeatureEntryPoint {
+class ProfileFeatureEntryPoint(
+    private val appConfigRepository: AppConfigRepository,
+    private val configOverrideRepository: ConfigOverrideRepository,
+) : FeatureEntryPoint {
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<ProfileRoute> {
             ProfileScreen(
@@ -25,6 +32,7 @@ class ProfileFeatureEntryPoint : FeatureEntryPoint {
                     isAnonymous = true,
                     gameplaySpeed = GameplaySpeed.Normal,
                     appVersion = "0.1.0",
+                    showQaMenu = BuildInfo.isDebug,
                 ),
                 onClaimAccount = {},
                 onEditProfile = {},
@@ -34,6 +42,15 @@ class ProfileFeatureEntryPoint : FeatureEntryPoint {
                 onPrivacyPolicy = {},
                 onTermsOfService = {},
                 onDeleteAccount = {},
+                onOpenQaMenu = { router.navigate(QaMenuRoute()) },
+            )
+        }
+
+        screen<QaMenuRoute> {
+            QaMenuScreen(
+                configMap = appConfigRepository.config(),
+                overrideRepository = configOverrideRepository,
+                onBack = { router.goBack() },
             )
         }
     }

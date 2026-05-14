@@ -35,6 +35,7 @@ data class ProfileSettings(
     val isAnonymous: Boolean,
     val gameplaySpeed: GameplaySpeed,
     val appVersion: String,
+    val showQaMenu: Boolean = false,
 )
 
 enum class GameplaySpeed(val label: String) {
@@ -54,6 +55,7 @@ fun ProfileScreen(
     onPrivacyPolicy: () -> Unit,
     onTermsOfService: () -> Unit,
     onDeleteAccount: () -> Unit,
+    onOpenQaMenu: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Screen(modifier = modifier) { padding ->
@@ -159,6 +161,20 @@ fun ProfileScreen(
                         ListSectionItem(
                             headlineText = "Delete account",
                             onClick = onDeleteAccount,
+                        ),
+                    ),
+                )
+            }
+
+            if (settings.showQaMenu) {
+                Spacer(modifier = Modifier.height(20.dp))
+                ListSection(
+                    title = "Debug",
+                    items = listOf(
+                        ListSectionItem(
+                            headlineText = "QA menu",
+                            supportingText = "Override config values for this session",
+                            onClick = onOpenQaMenu,
                         ),
                     ),
                 )
