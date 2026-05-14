@@ -22,6 +22,7 @@ import com.dangerfield.cards.features.home.impl.bugreport.BugReportViewModel
 import com.dangerfield.cards.features.home.impl.feedback.FeedbackScreen
 import com.dangerfield.cards.features.home.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.BugReportRoute
+import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.XpDetailSheetRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.shop.ShopRoute
@@ -59,7 +60,7 @@ class HomeFeatureEntryPoint(
                 onPlayBots = { difficulty ->
                     router.navigate(PlayBotsRoute(difficulty = difficulty, seatCount = 4))
                 },
-                onTapRank = { activeDialog = HomeDialog.Rank },
+                onTapRank = { router.navigate(RankDetailSheetRoute()) },
                 onTapXp = { router.navigate(XpDetailSheetRoute()) },
                 onTapCash = {
                     router.navigate(
@@ -102,7 +103,7 @@ class HomeFeatureEntryPoint(
     }
 }
 
-internal enum class HomeDialog { StartGame, JoinGame, Rank }
+internal enum class HomeDialog { StartGame, JoinGame }
 
 @Composable
 private fun ComingSoonDialog(
@@ -112,12 +113,10 @@ private fun ComingSoonDialog(
     val title = when (dialog) {
         HomeDialog.StartGame -> "Start a game with friends"
         HomeDialog.JoinGame -> "Join a friend's game"
-        HomeDialog.Rank -> "Your poker rank"
     }
     val body = when (dialog) {
         HomeDialog.StartGame -> "Multiplayer is in development. Soon you'll be able to spin up a private room, share a 6-letter code, and play with friends. For now, sharpen up against the bots."
         HomeDialog.JoinGame -> "Code-based room joining lands with multiplayer. We'll let you know when it's ready."
-        HomeDialog.Rank -> "Cards uses a chess-style Elo rank that updates after every hand against a real opponent. Your stats and rank history will live here once multiplayer ships."
     }
     Dialog(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(20.dp)) {

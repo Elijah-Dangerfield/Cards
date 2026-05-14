@@ -144,7 +144,7 @@ private fun StatTile(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(AppTheme.colors.surfaceSecondary.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Text(
@@ -167,7 +167,7 @@ private fun RecentEventsList(events: List<XpEvent>) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.06f)),
+            .background(AppTheme.colors.surfaceSecondary.color),
     ) {
         events.forEachIndexed { index, event ->
             EventRow(event)
@@ -255,7 +255,7 @@ private fun InfoCard(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(AppTheme.colors.surfaceSecondary.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

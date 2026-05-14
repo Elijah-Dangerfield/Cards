@@ -26,7 +26,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
 @Composable
-fun ShopScreen(modifier: Modifier = Modifier) {
+fun ShopScreen(chips: Long, modifier: Modifier = Modifier) {
     Screen(modifier = modifier) { padding ->
         Column(
             modifier = Modifier
@@ -36,7 +36,7 @@ fun ShopScreen(modifier: Modifier = Modifier) {
         ) {
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                ChipBadge(amount = 10_000)
+                ChipBadge(amount = chips)
             }
             Spacer(modifier = Modifier.height(20.dp))
             Text(
@@ -101,6 +101,6 @@ private fun ComingSoonCard() {
 @Composable
 private fun ShopScreenPreview() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
-        ShopScreen()
+        ShopScreen(chips = 10_000)
     }
 }

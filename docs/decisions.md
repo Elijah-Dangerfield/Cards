@@ -346,3 +346,23 @@ Bots earn 0.5× of every component (per the locked anti-farm rule). Multiplayer 
 - Level thresholds remain deferred (per the previous entry) until we have a session's worth of real XP numbers to anchor them.
 
 **Status:** Locked for V1. Phase 3 migration will lift this to a server-authoritative `xp_events` table — the formula moves to the server unchanged.
+
+---
+
+## 2026-05-14 — Shop unlock gating deferred
+
+**Decision:** The shop screen renders the live chip balance via `ChipsRepository`, but **no XP- or rank-gated items exist yet**. Locking cosmetics or features behind progression thresholds is deferred until we have:
+
+1. A real chip economy — multiplayer win/loss deltas, a defined "going broke" recovery grant, prices that mean something.
+2. Actual purchasable items (card backs, avatars, table themes — all "coming soon" today).
+3. Real XP / rank data from live sessions so threshold numbers aren't pulled from thin air.
+
+**Why:** Designing gating thresholds before the economy and inventory exist would mean retuning everything later. The infrastructure to support it is already in place — `ChipsRepository`, `ProgressionRepository`, and (future) a rank repo — so wiring an "Unlocks at XP 1,000" badge is a small additive change when we're ready.
+
+**How to apply:**
+- When adding shop items, default them to "available to all" and only introduce gating once we have at least one item we're confident shouldn't be available day-one.
+- Don't sprinkle XP/rank checks into UI ad hoc — when gating ships, put it behind a single `ShopItem.unlockRequirement` field so the rule lives in one place.
+- The `RankDetailSheet` and `XpDetailSheet` already promise "future updates will unlock cosmetics, titles, and achievements" — that copy is the user-facing contract for when this lands.
+
+**Status:** Deferred. Revisit when multiplayer chip economy is live and the first sellable shop item is designed.
+

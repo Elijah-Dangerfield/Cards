@@ -11,10 +11,19 @@ data class User(
     val name: String?,
     val createdAt: Long, // epoch millis
     val lastSessionAt: Long?, // epoch millis
-    
+
     // Flags
     val hasCompletedOnboarding: Boolean,
-    
+    /**
+     * True until the user claims their account via Apple/Google sign-in.
+     *
+     * V1 has no auth at all (everyone is anonymous), so this is synthesized
+     * as `true` in [UserRepository]. Phase 3 will wire it to real Supabase
+     * Auth state — at that point the field becomes the canonical signal for
+     * "show me the claim-account prompts" and "rank is locked".
+     */
+    val isAnonymous: Boolean = true,
+
     // Stats
     val sessionsCount: Int,
     val appOpenCount: Int,

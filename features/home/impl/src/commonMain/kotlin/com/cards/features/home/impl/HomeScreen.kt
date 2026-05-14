@@ -41,11 +41,12 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
-    // Rank + chips are still placeholders until Phase 3 (auth/server). XP is
-    // live via the local progression repo — bots award XP on hand completion.
+    // Rank stays at 0 ("Unranked") for anon users — real Elo lands when they
+    // claim their account and play multiplayer (see docs/decisions.md 2026-05-14
+    // and the RankDetailSheet explainer). XP and chips are live via repos.
     HomeScreenContent(
-        rank = 1200,
-        chips = 10_000,
+        rank = if (state.isAnonymous) 0 else 1200,
+        chips = state.chips,
         xp = state.xp,
         onPlayBots = onPlayBots,
         onTapRank = onTapRank,

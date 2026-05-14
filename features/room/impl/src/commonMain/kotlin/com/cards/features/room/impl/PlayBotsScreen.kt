@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -78,6 +77,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
+import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
@@ -111,6 +111,7 @@ fun PlayBotsScreen(
                 TopBar(
                     handNumber = active?.handNumber,
                     street = active?.street,
+                    xp = state.xp,
                     onBack = onBack,
                     onCheatSheet = { onAction(PlayBotsAction.ToggleCheatSheet) },
                 )
@@ -151,6 +152,7 @@ fun PlayBotsScreen(
                 onDismiss = { onAction(PlayBotsAction.ToggleCheatSheet) },
                 handNumber = active?.handNumber,
                 street = active?.street,
+                pot = active?.pot,
             )
         }
 
@@ -159,6 +161,7 @@ fun PlayBotsScreen(
             ShowdownDialog(
                 result = handResult,
                 seats = active.seats,
+                xpEarned = state.lastHandXpAwarded,
                 onNextHand = { onAction(PlayBotsAction.AdvanceNextHand) },
             )
         }
@@ -169,11 +172,13 @@ fun PlayBotsScreen(
 private fun TopBar(
     handNumber: Int?,
     street: BettingRound?,
+    xp: Long,
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
 ) {
-    // Minimal top row — just navigation + the info affordance. Hand number
-    // and street live in the cheat-sheet/info dialog now (tap "?").
+    // Minimal top row — navigation, lifetime XP, info. XP appears here so the
+    // counter ticks up live during a session and the player feels progress
+    // even when they lose a hand.
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -185,6 +190,8 @@ private fun TopBar(
                 tint = AppTheme.colors.text.color,
             )
         }
+        Spacer(modifier = Modifier.weight(1f))
+        XpBadge(xp = xp)
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onCheatSheet) {
             Icon(
@@ -233,7 +240,11 @@ private fun ActiveTable(
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
+            // Tall clearance above the opponents row so the chevron + last-
+            // action pill (both rendered as TopCenter overlays on each avatar
+            // with negative Y offsets, ~24dp of upward overflow) have room to
+            // breathe instead of being clipped by the TopBar.
+            Spacer(modifier = Modifier.height(32.dp))
             OpponentsRow(table = table)
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -291,42 +302,42 @@ private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
             .padding(horizontal = 2.dp)
             .alpha(if (folded) 0.4f else 1f),
     ) {
-        // Last action label — crossfades when it changes so it doesn't jump.
-        Box(
-            modifier = Modifier.height(20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Crossfade(
-                targetState = seat.lastAction,
-                animationSpec = tween(220),
-                label = "last-action",
-            ) { action ->
-                if (action != null) LastActionPill(label = action.shortLabel())
-            }
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-
-        // Chevron pointing down at the active seat.
-        Box(modifier = Modifier.height(14.dp), contentAlignment = Alignment.Center) {
-            if (seat.isActing) {
-                Text(
-                    text = "▼",
-                    typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.text,
-                )
-            }
-        }
-
+        // Chevron and action pill both float above the avatar via TopCenter
+        // overlays — no reserved vertical strip — so the row sits flush at the
+        // top of its column whether anyone has acted yet or not. Chevron + pill
+        // never co-exist (the engine clears pills on StreetAdvanced before the
+        // seat becomes active again), so positioning both at the top is safe.
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ringSize)) {
             if (seat.isActing) PulsingActiveRing(modifier = Modifier.size(ringSize))
             if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
             AvatarCircle(name = seat.displayName, size = avatarSize, emoji = seat.emoji)
-            // Dealer / SB / BB chip in the corner.
+
+            // Active-turn chevron — floats just above the avatar's outer ring.
+            ChevronOverlay(
+                visible = seat.isActing,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-16).dp),
+            )
+
+            // Last-action pill — slides in from above and overlaps the avatar's
+            // top edge by a few dp so the chip feels like it lands on the seat
+            // instead of floating in dead space.
+            LastActionOverlay(
+                action = seat.lastAction,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-6).dp),
+            )
+
+            // Dealer / SB / BB chip — overlapping inward over the avatar's
+            // bottom-right so the edge seats in the row don't clip the badge
+            // against the screen margin.
             BlindMarker(
                 seat = seat,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 4.dp, y = 4.dp),
+                    .offset(x = (-2).dp, y = (-2).dp),
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -390,13 +401,52 @@ private fun WinnerGlow(modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Extracted so the `AnimatedVisibility` call site sees only `BoxScope` and
+ * resolves to the top-level overload. Inlining this into `OpponentSeat` puts
+ * it inside an outer `Column { Box { ... } }`, which makes the `ColumnScope`
+ * extension of `AnimatedVisibility` ambiguous with the top-level function.
+ */
+@Composable
+private fun ChevronOverlay(visible: Boolean, modifier: Modifier = Modifier) {
+    Box(modifier = modifier) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(animationSpec = tween(160)),
+            exit = fadeOut(animationSpec = tween(140)),
+        ) {
+            Text(
+                text = "▼",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LastActionOverlay(action: PlayerAction?, modifier: Modifier = Modifier) {
+    Box(modifier = modifier) {
+        AnimatedVisibility(
+            visible = action != null,
+            enter = slideInVertically(animationSpec = tween(240)) { -it } +
+                fadeIn(animationSpec = tween(200)),
+            exit = slideOutVertically(animationSpec = tween(180)) { -it } +
+                fadeOut(animationSpec = tween(140)),
+        ) {
+            action?.let { LastActionPill(label = it.shortLabel()) }
+        }
+    }
+}
+
 @Composable
 private fun LastActionPill(label: String) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.14f))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+        ,
     ) {
         Text(
             text = label,
@@ -703,7 +753,7 @@ private fun PlayerInfoTile(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(AppTheme.colors.surfacePrimary.color)
             .border(
                 width = 1.dp,
                 color = Color.White.copy(alpha = 0.08f),
@@ -715,8 +765,8 @@ private fun PlayerInfoTile(
     ) {
         Text(
             text = handLabel ?: "",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            typography = AppTheme.typography.Body.B500.Bold,
+            color = AppTheme.colors.text,
         )
         Spacer(modifier = Modifier.height(if (handLabel != null) 6.dp else 0.dp))
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(60.dp)) {
@@ -726,7 +776,7 @@ private fun PlayerInfoTile(
                 seat = seat,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 4.dp, y = 4.dp),
+                    .offset(x = (-2).dp, y = (-2).dp),
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -904,6 +954,7 @@ private fun ChipPill(amount: Long) {
 private fun ShowdownDialog(
     result: HandResultView,
     seats: List<SeatView>,
+    xpEarned: Int?,
     onNextHand: () -> Unit,
 ) {
     val winnerIndices = result.winners.map { it.seatIndex }.toSet()
@@ -920,46 +971,69 @@ private fun ShowdownDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(horizontal = 24.dp, vertical = 28.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = when {
-                    humanWon -> "You win +$humanWinAmount"
-                    byFold -> {
-                        val winnerName = seats.firstOrNull { it.index in winnerIndices }?.displayName ?: "Player"
-                        "$winnerName wins by fold"
-                    }
-                    else -> "Showdown"
-                },
-                typography = AppTheme.typography.Heading.H600,
-                color = if (humanWon) goldText else AppTheme.colors.onSurfacePrimary,
-            )
-
-            if (!humanWon) {
+            // Hero: outcome headline gets a centered, bigger treatment so the
+            // dialog reads as celebratory rather than utilitarian.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 Text(
-                    text = "Pot $totalPot",
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    text = when {
+                        humanWon -> "You win"
+                        byFold -> {
+                            val winnerName = seats.firstOrNull { it.index in winnerIndices }?.displayName ?: "Player"
+                            "$winnerName wins by fold"
+                        }
+                        else -> "Showdown"
+                    },
+                    typography = AppTheme.typography.Display.D1200,
+                    color = if (humanWon) goldText else AppTheme.colors.onSurfacePrimary,
                 )
+                if (humanWon) {
+                    Text(
+                        text = "+$humanWinAmount",
+                        typography = AppTheme.typography.Heading.H800,
+                        color = goldText,
+                    )
+                } else {
+                    Text(
+                        text = "Pot $totalPot",
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.onSurfaceSecondary,
+                    )
+                }
+            }
+
+            // XP earned for this hand. Always shown when something was awarded
+            // — even if the player lost the pot — to reinforce the "engagement,
+            // not outcome" framing from docs/decisions.md.
+            if (xpEarned != null && xpEarned > 0) {
+                XpEarnedBubble(amount = xpEarned)
             }
 
             // Show the community cards so the player can read each hand against
             // the full board.
             if (result.board.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Board",
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    result.board.forEach { card ->
-                        PlayingCard(card = card, size = PlayingCardSize.Deck)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "Board",
+                        typography = AppTheme.typography.Body.B400,
+                        color = AppTheme.colors.onSurfaceSecondary,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        result.board.forEach { card ->
+                            PlayingCard(card = card, size = PlayingCardSize.Deck)
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
             }
 
             // Real-poker behavior: mucked (folded) hands stay hidden. Only
@@ -980,22 +1054,63 @@ private fun ShowdownDialog(
                 }
             }
 
+            Spacer(modifier = Modifier.height(4.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(32.dp))
                     .background(AppTheme.colors.accentPrimary.color)
                     .clickable(onClick = onNextHand)
-                    .padding(vertical = 14.dp),
+                    .padding(vertical = 18.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "Next hand",
-                    typography = AppTheme.typography.Body.B600,
+                    typography = AppTheme.typography.Heading.H600,
                     color = AppTheme.colors.onAccentPrimary,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun XpEarnedBubble(amount: Int) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
+                    ),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "✦",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+            )
+        }
+        Text(
+            text = "+$amount XP",
+            typography = AppTheme.typography.Heading.H600,
+            color = AppTheme.colors.text,
+        )
+        Text(
+            text = "earned",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
     }
 }
 

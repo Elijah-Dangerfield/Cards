@@ -30,7 +30,7 @@ fun RankBadge(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.06f))
+            .background(AppTheme.colors.surfaceSecondary.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
@@ -53,7 +53,9 @@ fun RankBadge(
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Rank $rank",
+            // 0 means "not yet ranked" (anonymous or no multiplayer games yet).
+            // The sheet behind this badge explains the path to a real rating.
+            text = if (rank <= 0) "Unranked" else "Rank $rank",
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )

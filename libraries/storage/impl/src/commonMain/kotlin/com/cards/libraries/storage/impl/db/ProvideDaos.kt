@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.storage.impl.db
 
+import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserDao
@@ -32,3 +33,9 @@ class ProvideProgressionDao @Inject constructor(
 class ProvideXpEventDao @Inject constructor(
     provider: AppDatabaseProvider
 ) : XpEventDao by provider.database.xpEventDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = ChipsDao::class)
+class ProvideChipsDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : ChipsDao by provider.database.chipsDao()

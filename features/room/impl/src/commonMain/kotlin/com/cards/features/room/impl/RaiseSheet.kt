@@ -86,7 +86,11 @@ internal fun RaiseSheet(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            SheetPill(label = "Fold", modifier = Modifier.weight(1f)) {
+            SheetPill(
+                label = "Fold",
+                modifier = Modifier.weight(1f),
+                destructive = true,
+            ) {
                 onIntent(PlayerIntent.Fold(humanSeatIndex))
             }
             SheetPill(
@@ -155,19 +159,30 @@ internal fun RaiseSheet(
 }
 
 @Composable
-private fun SheetPill(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun SheetPill(
+    label: String,
+    modifier: Modifier = Modifier,
+    destructive: Boolean = false,
+    onClick: () -> Unit,
+) {
+    // `destructive` taps the design system's `danger` token (Red600) for the
+    // Fold action — visually distinct so the user doesn't fat-finger it on the
+    // way to All In, and consistent with how the rest of the app signals
+    // irreversible actions.
+    val bg = if (destructive) AppTheme.colors.danger else AppTheme.colors.surfaceSecondary
+    val fg = if (destructive) AppTheme.colors.onAccentPrimary else AppTheme.colors.onSurfacePrimary
     Box(
         modifier = modifier
             .height(60.dp)
             .clip(RoundedCornerShape(30.dp))
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(bg.color)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
             typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = fg,
         )
     }
 }

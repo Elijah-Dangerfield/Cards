@@ -36,8 +36,11 @@ class PlayBotsViewModel @Inject constructor(
             // Awards run off the engine thread — failures here must not
             // disrupt the hand-end UI flow.
             viewModelScope.launch {
-                runCatching { progressionRepository.awardForHand(summary) }
-                    .onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
+                runCatching {
+                    val awarded = progressionRepository.awardForHand(summary)
+                    val total = awarded.sumOf { it.deltaXp }
+                    if (total > 0) takeAction(PlayBotsAction.HandXpAwarded(total))
+                }.onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
             }
         },
     )
@@ -50,6 +53,11 @@ class PlayBotsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             session.runUntilHumansTurnOrComplete()
+        }
+        viewModelScope.launch {
+            progressionRepository.observeProgression().collect { progression ->
+                takeAction(PlayBotsAction.XpChanged(progression.totalXp))
+            }
         }
     }
 
@@ -68,9 +76,14 @@ class PlayBotsViewModel @Inject constructor(
             }
             is PlayBotsAction.AdvanceNextHand -> {
                 session.advanceToNextHand()
+                action.updateState { it.copy(lastHandXpAwarded = null) }
             }
             is PlayBotsAction.ToggleCheatSheet -> action.updateState {
                 it.copy(cheatSheetOpen = !it.cheatSheetOpen)
+            }
+            is PlayBotsAction.XpChanged -> action.updateState { it.copy(xp = action.totalXp) }
+            is PlayBotsAction.HandXpAwarded -> action.updateState {
+                it.copy(lastHandXpAwarded = action.amount)
             }
         }
     }
@@ -79,6 +92,10 @@ class PlayBotsViewModel @Inject constructor(
 data class PlayBotsState(
     val table: TableUiState = TableUiState.Loading,
     val cheatSheetOpen: Boolean = false,
+    val xp: Long = 0,
+    /** XP awarded for the most recently completed hand. Surfaced in the
+     *  showdown dialog; cleared when the user advances to the next hand. */
+    val lastHandXpAwarded: Int? = null,
 )
 
 sealed class PlayBotsEvent {
@@ -90,4 +107,6 @@ sealed class PlayBotsAction {
     data class SubmitIntent(val intent: PlayerIntent) : PlayBotsAction()
     data object AdvanceNextHand : PlayBotsAction()
     data object ToggleCheatSheet : PlayBotsAction()
+    data class XpChanged(val totalXp: Long) : PlayBotsAction()
+    data class HandXpAwarded(val amount: Int) : PlayBotsAction()
 }
