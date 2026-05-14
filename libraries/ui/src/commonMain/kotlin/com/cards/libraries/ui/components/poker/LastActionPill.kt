@@ -1,0 +1,49 @@
+package com.dangerfield.cards.libraries.ui.components.poker
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
+
+/**
+ * Subtle rounded pill showing a player's last action ("Fold", "Call", "All in",
+ * etc.). Caller is responsible for short-labeling the action (the engine's
+ * `PlayerAction` types are sealed in the gameplay library, which this lib
+ * doesn't depend on).
+ */
+@Composable
+fun LastActionPill(label: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.14f))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LastActionPillPreview_Fold() {
+    PreviewContent { LastActionPill(label = "Fold") }
+}
+
+@Preview
+@Composable
+private fun LastActionPillPreview_AllIn() {
+    PreviewContent { LastActionPill(label = "All in") }
+}
