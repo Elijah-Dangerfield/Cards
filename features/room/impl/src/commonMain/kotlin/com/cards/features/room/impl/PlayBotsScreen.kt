@@ -41,9 +41,12 @@ import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Suit
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
@@ -318,8 +321,17 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
     var raiseTotal by remember(legal.minRaiseTotal, legal.maxRaiseTotal) {
         mutableStateOf(legal.minRaiseTotal.coerceAtMost(legal.maxRaiseTotal))
     }
+    var raiseText by remember(legal.minRaiseTotal, legal.maxRaiseTotal) {
+        mutableStateOf(raiseTotal.toString())
+    }
     LaunchedEffect(legal.minRaiseTotal, legal.maxRaiseTotal) {
         raiseTotal = raiseTotal.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
+        raiseText = raiseTotal.toString()
+    }
+    fun setRaiseTotal(value: Long) {
+        val clamped = value.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
+        raiseTotal = clamped
+        raiseText = clamped.toString()
     }
 
     Column(
@@ -351,22 +363,36 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
         }
 
         if (legal.canRaise) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
                     text = "Raise to",
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.textSecondary,
                 )
-                Spacer(modifier = Modifier.weight(1f))
+                RaiseAmountField(
+                    text = raiseText,
+                    onTextChange = { typed ->
+                        val digitsOnly = typed.filter { it.isDigit() }.take(9)
+                        raiseText = digitsOnly
+                        digitsOnly.toLongOrNull()?.let { parsed ->
+                            raiseTotal = parsed.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
+                        }
+                    },
+                    onCommit = { setRaiseTotal(raiseTotal) },
+                    modifier = Modifier.weight(1f),
+                )
                 Text(
-                    text = "$raiseTotal",
-                    typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.text,
+                    text = "min ${legal.minRaiseTotal} · max ${legal.maxRaiseTotal}",
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.textSecondary,
                 )
             }
             Slider(
                 value = raiseTotal.toFloat(),
-                onValueChange = { raiseTotal = it.toLong() },
+                onValueChange = { setRaiseTotal(it.toLong()) },
                 valueRange = legal.minRaiseTotal.toFloat()..legal.maxRaiseTotal.toFloat(),
             )
             Row(
@@ -375,13 +401,13 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
             ) {
                 val pot = legal.potIfYouCall
                 QuickRaise("½ pot", modifier = Modifier.weight(1f)) {
-                    raiseTotal = (pot / 2).coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
+                    setRaiseTotal(pot / 2)
                 }
                 QuickRaise("¾ pot", modifier = Modifier.weight(1f)) {
-                    raiseTotal = ((pot * 3) / 4).coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
+                    setRaiseTotal((pot * 3) / 4)
                 }
                 QuickRaise("Pot", modifier = Modifier.weight(1f)) {
-                    raiseTotal = pot.coerceIn(legal.minRaiseTotal, legal.maxRaiseTotal)
+                    setRaiseTotal(pot)
                 }
             }
             ActionButton(
@@ -398,6 +424,31 @@ private fun ActionBar(table: TableUiState.Active, onIntent: (PlayerIntent) -> Un
 private fun ActionButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Button(onClick = onClick, modifier = modifier) {
         Text(label, typography = AppTheme.typography.Body.B500)
+    }
+}
+
+@Composable
+private fun RaiseAmountField(
+    text: String,
+    onTextChange: (String) -> Unit,
+    onCommit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        BasicTextField(
+            value = text,
+            onValueChange = onTextChange,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            typographyToken = AppTheme.typography.Body.B600,
+        )
     }
 }
 
