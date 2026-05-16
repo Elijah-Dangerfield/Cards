@@ -202,7 +202,7 @@ The DS lives in `:libraries:ui` — colors, surface tokens, typography, spacing,
 ## Coding Guidelines
 
 - Code like a staff engineer
-- Use `Catching { }` from libraries/core instead of `runCatching`
+- Use `Catching { }` from libraries/core instead of `runCatching`. `runCatching` swallows `CancellationException`, which breaks structured concurrency in suspend functions and coroutine scopes. `Catching` rethrows it (while preserving `TimeoutCancellationException`). Use it everywhere for consistency, not just inside coroutines.
 - No comments in code
 - Custom UI components in libraries/ui—avoid Material directly
 - Check `ComposeApp.h` for Swift names of Kotlin types before using in Swift
