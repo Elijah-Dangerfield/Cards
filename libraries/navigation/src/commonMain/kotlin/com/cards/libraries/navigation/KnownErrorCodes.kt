@@ -1,12 +1,13 @@
 package com.dangerfield.cards.libraries.navigation
 
+import com.dangerfield.cards.libraries.core.Catching
 import kotlin.reflect.KClass
 
 private data class ErrorCodeMapping(
     val code: Int,
     val predicate: (Throwable) -> Boolean
 ) {
-    fun matches(throwable: Throwable): Boolean = runCatching { predicate(throwable) }.getOrDefault(false)
+    fun matches(throwable: Throwable): Boolean = Catching { predicate(throwable) }.getOrDefault(false)
 }
 
 /**

@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventListener
@@ -62,7 +63,7 @@ class AppEventDispatcher(
 
     private fun notifyListeners(event: AppEvent) {
         listeners.forEach { listener ->
-            runCatching {
+            Catching {
                 when (event) {
                     is AppEvent.ColdBoot -> listener.onColdBoot(event)
                     is AppEvent.WarmBoot -> listener.onWarmBoot(event)

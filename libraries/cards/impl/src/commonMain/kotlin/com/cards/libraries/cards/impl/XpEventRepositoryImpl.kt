@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
+import com.dangerfield.cards.libraries.core.Catching
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import me.tatarka.inject.annotations.Inject
@@ -32,12 +33,13 @@ class XpEventRepositoryImpl(
         source = parseSource(source),
         mode = parseMode(mode),
         handId = handId,
+        description = description,
         createdAtEpochMs = createdAtEpochMs,
     )
 
-    private fun parseSource(raw: String): XpSource = runCatching { XpSource.valueOf(raw) }
+    private fun parseSource(raw: String): XpSource = Catching { XpSource.valueOf(raw) }
         .getOrDefault(XpSource.BASE)
 
-    private fun parseMode(raw: String): XpMode = runCatching { XpMode.valueOf(raw) }
+    private fun parseMode(raw: String): XpMode = Catching { XpMode.valueOf(raw) }
         .getOrDefault(XpMode.BOTS)
 }

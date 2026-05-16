@@ -131,7 +131,7 @@ private class ConfiguredTelemetry(
         }
 
         val typeTag = if (isBugReport) "bug_report" else "feedback"
-        val sentryId = eventId?.let { runCatching { SentryId(it) }.getOrNull() } ?: SentryId.EMPTY_ID
+        val sentryId = eventId?.let { Catching { SentryId(it) }.getOrNull() } ?: SentryId.EMPTY_ID
         val feedback = UserFeedback(sentryId).apply {
             comments = buildString {
                 if (isBugReport && errorCode != null) {

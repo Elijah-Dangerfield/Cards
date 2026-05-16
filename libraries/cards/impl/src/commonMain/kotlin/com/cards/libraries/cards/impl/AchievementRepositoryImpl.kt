@@ -11,6 +11,8 @@ import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.CHALLENGING_WINS
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.COMEBACK_5BB
+import com.dangerfield.cards.libraries.cards.DONT_CALL_IT_COMEBACK_COUNTER
+import com.dangerfield.cards.libraries.cards.SHORT_STACK_ARMED
 import com.dangerfield.cards.libraries.cards.CURRENT_LEVEL
 import com.dangerfield.cards.libraries.cards.Criterion
 import com.dangerfield.cards.libraries.cards.DOUBLED_UP
@@ -29,6 +31,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.AchievementCounterEntity
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
 import com.dangerfield.cards.libraries.cards.winsVsBotKey
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -92,6 +95,7 @@ class AchievementRepositoryImpl(
         updatePerBotWinsCounter(summary, context)
         updateChallengingWinsCounter(summary, context)
         updateComebackCounter(summary, context)
+        updateDontCallItComebackCounter(context)
         updateWinByFoldCounter(summary)
         updateGoodFoldCounter(summary)
         updateAllInCounter(summary)
@@ -104,24 +108,54 @@ class AchievementRepositoryImpl(
         val alreadyEarned = achievementDao.getEarned().map { it.achievementId }.toSet()
         val now = clock.now().toEpochMilliseconds()
 
-        val newlyEarned = mutableListOf<EarnedAchievement>()
-        for (ach in AllAchievements) {
-            if (ach.id.name in alreadyEarned) continue
-            if (!modeAllows(ach, summary.mode)) continue
-            if (!ach.criterion.isMet(ach.id, counters)) continue
+        // Eligible = criterion met this hand and not earned previously. We
+        // CAP how many actually unlock per hand so a new player doesn't get
+        // flooded with 5+ achievements in their first session (a flood reads
+        // as a one-time confetti rather than ongoing motivation). Anything
+        // over the cap stays eligible — its criterion will still pass next
+        // hand and it'll unlock then.
+        val eligible = AllAchievements.filter { ach ->
+            ach.id.name !in alreadyEarned &&
+                modeAllows(ach, summary.mode) &&
+                ach.criterion.isMet(ach.id, counters)
+        }
+        // Award lower-rarity / lower-XP first so the user climbs from common
+        // → epic over multiple hands instead of getting their biggest
+        // payouts up front.
+        val ordered = eligible.sortedWith(
+            compareBy({ it.rarity.ordinal }, { it.xpReward }),
+        )
+        val toAwardThisHand = ordered.take(MAX_ACHIEVEMENTS_PER_HAND)
 
+        val newlyEarned = mutableListOf<EarnedAchievement>()
+        for (ach in toAwardThisHand) {
             achievementDao.insertEarned(
                 AchievementEarnedEntity(achievementId = ach.id.name, earnedAtEpochMs = now),
             )
             newlyEarned += EarnedAchievement(achievement = ach, earnedAtEpochMs = now)
             logger.i { "Achievement earned: ${ach.id.name} (${ach.name})" }
         }
+        if (ordered.size > toAwardThisHand.size) {
+            logger.d {
+                "Deferred ${ordered.size - toAwardThisHand.size} achievements to next hand " +
+                    "(per-hand cap = $MAX_ACHIEVEMENTS_PER_HAND)"
+            }
+        }
 
-        // 4) Award rewards for the freshly-earned achievements.
+        // 4) Award rewards for the freshly-earned achievements. One XP ledger
+        //    row per achievement so the recent-XP feed shows the specific
+        //    name ("Achievement unlocked · Royal flush") instead of an opaque
+        //    aggregated "+700 XP".
         if (newlyEarned.isNotEmpty()) {
-            val xpDelta = newlyEarned.sumOf { it.achievement.xpReward }
+            for (earned in newlyEarned) {
+                if (earned.achievement.xpReward > 0) {
+                    progressionRepository.applyAchievementXp(
+                        delta = earned.achievement.xpReward,
+                        description = earned.achievement.name,
+                    )
+                }
+            }
             val chipDelta = newlyEarned.sumOf { it.achievement.chipReward }
-            if (xpDelta > 0) progressionRepository.applyAchievementXp(xpDelta)
             if (chipDelta > 0L) chipsRepository.applyDelta(chipDelta)
         }
 
@@ -190,6 +224,30 @@ class AchievementRepositoryImpl(
         achievementDao.incrementCounter(COMEBACK_5BB, 1)
     }
 
+    private suspend fun updateDontCallItComebackCounter(context: AchievementHandContext) {
+        // "Don't call it a comeback" = the human's stack dipped to <=100 chips
+        // at some point, then climbed back to a full 1,000-chip stack. Tracks
+        // the deeper "I was almost out" recovery arc (the 5BB version is
+        // single-hand only). Armed flag persists across hands; once recovery
+        // triggers, the flag resets so subsequent dips can re-arm later runs.
+        val ending = context.humanEndingStack
+        val armed = (achievementDao.getCounter(SHORT_STACK_ARMED) ?: 0) > 0
+        if (armed && ending >= 1_000L) {
+            achievementDao.incrementCounter(DONT_CALL_IT_COMEBACK_COUNTER, 1)
+            achievementDao.setCounter(
+                AchievementCounterEntity(key = SHORT_STACK_ARMED, value = 0),
+            )
+        }
+        // Re-arm AFTER the recovery check so a single hand can't both dip
+        // and recover (would defeat the purpose). `> 0` excludes the bust
+        // case — bust already has its own modal + auto-rebuy story.
+        if (ending in 1L..100L) {
+            achievementDao.setCounter(
+                AchievementCounterEntity(key = SHORT_STACK_ARMED, value = 1),
+            )
+        }
+    }
+
     private suspend fun updateWinByFoldCounter(summary: HandResultSummary) {
         if (summary.wonByFold) achievementDao.incrementCounter(WIN_BY_FOLD, 1)
     }
@@ -242,19 +300,27 @@ class AchievementRepositoryImpl(
         )
     }
 
+    private companion object {
+        /** How many achievements can unlock from a single finished hand.
+         *  Caps the "everything popped at once" flood new players hit on
+         *  their first session — anything over the cap stays eligible and
+         *  unlocks on a subsequent hand. */
+        const val MAX_ACHIEVEMENTS_PER_HAND: Int = 2
+    }
+
     private fun buildProgress(
         earnedRows: List<AchievementEarnedEntity>,
         counterRows: List<AchievementCounterEntity>,
     ): AchievementProgress {
         val earned = earnedRows.mapNotNull { row ->
-            val id = runCatching { AchievementId.valueOf(row.achievementId) }.getOrNull()
+            val id = Catching { AchievementId.valueOf(row.achievementId) }.getOrNull()
             id?.let { it to row.earnedAtEpochMs }
         }.toMap()
 
         val perAchievementCounters = mutableMapOf<AchievementId, Int>()
         val customCounters = mutableMapOf<String, Int>()
         for (row in counterRows) {
-            val asAchievementId = runCatching { AchievementId.valueOf(row.key) }.getOrNull()
+            val asAchievementId = Catching { AchievementId.valueOf(row.key) }.getOrNull()
             if (asAchievementId != null && asAchievementId in AllAchievementsById) {
                 perAchievementCounters[asAchievementId] = row.value
             } else {

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.home.impl.feedback
 
 import com.dangerfield.cards.libraries.cards.Telemetry
+import com.dangerfield.cards.libraries.core.Catching
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -26,7 +27,7 @@ class FeedbackRepositoryImpl @Inject constructor(
         logId: String?,
         errorCode: Int?,
     ): Result<Unit> {
-        return runCatching {
+        return Catching {
             telemetry.captureUserFeedback(
                 message = message,
                 isBugReport = isBugReport,
