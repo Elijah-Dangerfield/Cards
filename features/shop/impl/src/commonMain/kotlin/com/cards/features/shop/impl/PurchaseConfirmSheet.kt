@@ -12,12 +12,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -71,29 +71,27 @@ internal fun PurchaseConfirmSheet(
     val sheetState = rememberBottomSheetState(BottomSheetValue.Expanded)
     var pendingTerminalAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
-    // Bubble flavor depends on what's being bought. Chip-funded purchases
-    // get the gold coin (so the user reads "this is a chips thing" before
-    // "this is a buy thing"). IAP packs get a 💰 emoji as a stand-in until
-    // we have real pack art keyed off iconKey.
-    val handle: BottomSheetDragHandle = when (pending) {
-        is PendingPurchase.ChipOffer -> BottomSheetDragHandle.Icon(
-            content = {
-                ChipCoin(
-                    size = 36.dp,
-                    textTypography = AppTheme.typography.Heading.H700,
-                )
-            },
-        )
-        is PendingPurchase.IapPack -> BottomSheetDragHandle.Icon(
-            content = {
-                Text(
-                    text = "💰",
-                    typography = AppTheme.typography.Heading.H800,
-                    color = AppTheme.colors.text,
-                )
-            },
-        )
-    }
+    // Bubble icon = the product's own iconKey-mapped emoji, so the sheet's
+    // top icon matches what the user tapped in the grid. Decision: lean
+    // into emojis as the primary product art for V1 — the server only
+    // ships an `iconKey`, and `emojiForIconKey` is the single mapping
+    // table for the whole app. When real drawable assets land, we swap
+    // the helper to render an Image; the call sites here don't change.
+    val productEmoji = emojiForIconKey(
+        when (pending) {
+            is PendingPurchase.IapPack -> pending.product.iconKey
+            is PendingPurchase.ChipOffer -> pending.product.iconKey
+        }
+    )
+    val handle: BottomSheetDragHandle = BottomSheetDragHandle.Icon(
+        content = {
+            Text(
+                text = productEmoji,
+                typography = AppTheme.typography.Heading.H800,
+                color = AppTheme.colors.text,
+            )
+        },
+    )
 
     BasicBottomSheet(
         state = sheetState,
@@ -205,16 +203,29 @@ private fun ChipOfferConfirmContent(
             BadgePill(text = it, accent = ColorResource.Red400)
         }
         // Description is the "what does this DO" sentence the user needs
-        // before committing — Victory Dance isn't obvious from the name
-        // alone. Fall back to subtitle-only when the server didn't send one.
-        offer.description?.let {
+        // before committing — "Victory Dance" / "Bluff Master" / "Neon
+        // Table" don't communicate behavior from the name alone. Rendered
+        // as a tinted card so it reads as a distinct block ("here's what
+        // you get") rather than blending into the subtitle.
+        offer.description?.let { description ->
             VerticalSpacerD400()
-            Text(
-                text = it,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
-                modifier = Modifier.padding(horizontal = 8.dp),
-            )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = AppTheme.colors.surfaceSecondary,
+                contentColor = AppTheme.colors.onSurfaceSecondary,
+                radius = Radii.Card,
+                elevation = Elevation.None,
+                onClick = {},
+                bounceScale = 1f,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = description,
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.text,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
         VerticalSpacerD500()
         // Headline price — big coin to match Heading.H900 weight.

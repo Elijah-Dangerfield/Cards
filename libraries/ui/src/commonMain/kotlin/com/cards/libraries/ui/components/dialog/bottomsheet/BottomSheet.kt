@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -128,22 +127,35 @@ fun BottomSheet(
 /**
  * Renders the overhanging icon bubble inside Material3's drag-handle slot.
  *
- * Layout strategy:
- *  1. The slot's measured height = `bubbleSize / 2 + 12dp` — that's the
- *     bottom half of the bubble plus space for the grabber pill. The TOP
- *     half of the bubble overhangs the sheet's top edge.
- *  2. The bubble Box is `size(bubbleSize)` with
- *     `Modifier.offset(y = -bubbleSize/2)` so its vertical CENTER lands
- *     at the slot's y=0 (which is the sheet's regular top edge).
- *  3. The notched sheet shape (set on the [ModalBottomSheet] container)
- *     carves out a half-circle of radius `bubbleSize/2` at top-center —
- *     so the bubble's overhanging top half is inside the clip outline
- *     and renders correctly.
+ * Coordinate system inside the slot (slot-y, where slot-y=0 is the top of
+ * the slot — which is also the top of the sheet's measured bounds and the
+ * top of the bulge carved by [NotchedSheetShape]):
+ *
+ * ```
+ *  slot-y=0          ← top of bulge (visible sheet edge curves up to here)
+ *      ___
+ *     /   \          ← bulge area, slot-y ∈ [0, bubbleSize/2]
+ *  ──┘     └──       ← slot-y = bubbleSize/2 — visual "regular" sheet top
+ *    │     │
+ *    │     │         ← bubble's bottom half, lives inside sheet body
+ *    └─────┘         ← slot-y = bubbleSize — bottom of slot
+ * ```
+ *
+ * The slot's measured height = `bubbleSize`. The bubble is sized
+ * `bubbleSize × bubbleSize` and aligned to the TOP of the slot, so its
+ * top edge aligns with slot-y=0 (the bulge top) and its bottom edge
+ * aligns with slot-y=bubbleSize (just inside the sheet body). Visually,
+ * the bubble's vertical center lands exactly on the sheet's regular top
+ * edge → half-on / half-off look.
+ *
+ * No `Modifier.offset` is needed — the math works out by sizing alone,
+ * which keeps the bubble inside the slot's measured bounds and avoids
+ * any GraphicsLayer clipping surprises.
  *
  * Bubble fill defaults to the sheet's [sheetBackground]. The intentional
- * effect is "the sheet's top edge IS the bubble" — they merge visually.
- * If callers want the bubble to stand out, they pass an explicit color
- * via [BottomSheetDragHandle.Icon.backgroundColor].
+ * effect is "the sheet's top edge flows into the bubble" — they merge.
+ * Override [BottomSheetDragHandle.Icon.backgroundColor] for a contrasting
+ * bubble.
  */
 @Composable
 private fun IconBubbleSlot(
@@ -158,13 +170,12 @@ private fun IconBubbleSlot(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(bubbleSize / 2 + 12.dp),
+            .height(bubbleSize),
         contentAlignment = Alignment.TopCenter,
     ) {
         Box(
             modifier = Modifier
                 .size(bubbleSize)
-                .offset(y = -bubbleSize / 2)
                 .clip(CircleShape)
                 .background(bubbleColor.color)
                 .let {
@@ -180,16 +191,6 @@ private fun IconBubbleSlot(
                 spec.content()
             }
         }
-        // Grabber pill — sits below the bubble. Reuses the sheet's content
-        // color at translucent alpha so it doesn't shout louder than the
-        // bubble.
-        Box(
-            modifier = Modifier
-                .padding(top = bubbleSize / 2 + 6.dp)
-                .size(width = 36.dp, height = 4.dp)
-                .clip(CircleShape)
-                .background(sheetContentColor.color.copy(alpha = 0.25f)),
-        )
     }
 }
 
