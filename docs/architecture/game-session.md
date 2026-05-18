@@ -388,3 +388,55 @@ Phase 0.2.b–0.2.f are *not* in this turn. Next step is your call:
 
 - **Recommended next:** Phase 0.2.b — add ViewModel tests before any code moves. Per the original V1 roadmap, tests-before-refactor is the safe path.
 - **Alternative:** skip ahead to Phase 0.2.c (transitional `LocalGameSession`) if you'd rather have the abstraction in place ASAP and write tests for both old and new in parallel.
+
+---
+
+## Appendix — `PlayPokerViewModel` MVI shape (Phase 0.2.d)
+
+The contract the new ViewModel exposes. Tests written against this shape are the "safe island" — locked once written, refactors underneath stay green.
+
+Bot/human-agnostic by design. `SeatOccupant` (sealed Bot/Human/Empty) replaces ad-hoc isBot flags. Raw `GameEvent` flows through the SEA pipeline so tests can assert on individual events (cards dealt, action taken, hand ended) without UI coupling.
+
+```kotlin
+data class PlayPokerState(
+    val table: TableUiState = TableUiState.Loading,    // UI-projected table render
+    val occupants: List<SeatOccupant> = emptyList(),    // bot/human-agnostic seat info
+    val cheatSheetOpen: Boolean = false,
+    val xp: Long = 0,
+    val lastHandXpAwarded: Int? = null,
+    val recentlyEarned: List<EarnedAchievement> = emptyList(),
+    val skipBustDialog: Boolean = false,
+    val skipLeaveBotsConfirm: Boolean = false,
+    val turnFeedback: TurnFeedback = TurnFeedback.Sound,
+    val connection: ConnectionState = ConnectionState.Connected,
+)
+
+sealed interface PlayPokerAction {
+    // Engine subscriptions (internal — fired by VM's own session observers)
+    data class GameStateUpdated(val state: GameState) : PlayPokerAction
+    data class GameEventReceived(val event: GameEvent) : PlayPokerAction
+    data class OccupantsUpdated(val occupants: List<SeatOccupant>) : PlayPokerAction
+
+    // Player intents (from UI taps)
+    data class Submit(val intent: PlayerIntent) : PlayPokerAction
+    data object RequestNextHand : PlayPokerAction
+
+    // Local UI
+    data object ToggleCheatSheet : PlayPokerAction
+    data object DismissEarnedToast : PlayPokerAction
+
+    // Settings setters / mirrors / hand-end transients (omitted for brevity — same shape
+    // as PlayBotsAction's equivalent members; see PlayPokerViewModel.kt for the full list)
+}
+
+sealed interface PlayPokerEvent {
+    data object NavigatedBack : PlayPokerEvent
+    data class ShowAchievementUnlock(val achievement: EarnedAchievement) : PlayPokerEvent
+    data class PlayHaptic(val kind: HapticKind) : PlayPokerEvent
+    data class PlaySound(val kind: SoundKind) : PlayPokerEvent
+}
+```
+
+**Session consumed:** small `PokerSession` interface in `features/room/impl/` exposing `gameStateFlow`, `events`, `suspend submit(intent)`, `requestNextHand()`. `LocalBotsSession` already satisfies this via the flows added in commit `3724fc7` plus two one-line method aliases.
+
+**Strangler:** built next to `PlayBotsViewModel`; production routing unchanged. Tests in Phase 0.2.f → screen swap in 0.2.g → delete old VM in 0.2.h.
