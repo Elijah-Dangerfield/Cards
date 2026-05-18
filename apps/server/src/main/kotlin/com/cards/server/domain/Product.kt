@@ -73,6 +73,17 @@ sealed interface Product {
         val costChips: Long,
         /** What buying this unlocks — opaque key the client maps to inventory. */
         val grantsKey: String,
+        /**
+         * Longer-form explanation of what the user actually gets. The
+         * tile-level [subtitleByLocale] is a category label ("Emote",
+         * "Card back") — this is the sentence-or-two that tells a new
+         * player what "Victory Dance" or "Neon Table" actually does in a
+         * hand. Surfaced in the purchase confirmation sheet.
+         *
+         * Optional — items without one fall back to the subtitle in UI.
+         * BCP-47 tag → string, same as the other localized fields.
+         */
+        val descriptionByLocale: Map<String, String>? = null,
     ) : Product
 }
 

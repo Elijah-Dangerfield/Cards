@@ -89,10 +89,18 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
         // grid feels alive even before real art assets are wired in.
         val chipOffers = listOf(
             // --- Emotes (cheapest, gateway purchases) ---
+            // Descriptions are deliberately concrete: a new player should know
+            // "what does buying this do at the table" without having to guess
+            // from the tile name alone. Equippable / consumable behavior is
+            // also called out here since the no-item-catalog screen lands later.
             Product.ChipOffer(
                 id = "emote_dance",
                 titleByLocale = mapOf("en" to "Victory Dance", "es" to "Baile de victoria"),
                 subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                descriptionByLocale = mapOf(
+                    "en" to "Send a celebration dance to the table when you win a hand — fills everyone's screen for a beat. Equip from your items.",
+                    "es" to "Envía un baile de celebración a la mesa cuando ganes una mano. Equipa desde tus objetos.",
+                ),
                 iconKey = "emote_dance",
                 costChips = 2_500,
                 grantsKey = "emote.dance",
@@ -101,6 +109,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "emote_tilt",
                 titleByLocale = mapOf("en" to "Salty Shake", "es" to "Sacudida salada"),
                 subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                descriptionByLocale = mapOf(
+                    "en" to "Tap to react when a bad beat hits — a salt-shake animation rolls over the table. Equip from your items.",
+                ),
                 iconKey = "emote_tilt",
                 costChips = 2_500,
                 grantsKey = "emote.tilt",
@@ -109,6 +120,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "emote_think",
                 titleByLocale = mapOf("en" to "Deep Think", "es" to "Pensamiento profundo"),
                 subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                descriptionByLocale = mapOf(
+                    "en" to "Bluff-think emote you can send while it's your turn. Let opponents wonder. Equip from your items.",
+                ),
                 iconKey = "emote_think",
                 costChips = 2_500,
                 grantsKey = "emote.think",
@@ -117,6 +131,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "emote_facepalm",
                 titleByLocale = mapOf("en" to "Facepalm", "es" to "Palma en la cara"),
                 subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                descriptionByLocale = mapOf(
+                    "en" to "Self-deprecating facepalm reaction. Send it after a fold you regret. Equip from your items.",
+                ),
                 iconKey = "emote_facepalm",
                 costChips = 2_500,
                 grantsKey = "emote.facepalm",
@@ -126,6 +143,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "cardback_gold",
                 titleByLocale = mapOf("en" to "Gold Foil", "es" to "Lámina dorada"),
                 subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
+                descriptionByLocale = mapOf(
+                    "en" to "Replaces the pattern on the back of your hole cards. Equip from your items.",
+                ),
                 iconKey = "cardback_gold",
                 costChips = 6_000,
                 grantsKey = "cardback.gold",
@@ -134,6 +154,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "cardback_marble",
                 titleByLocale = mapOf("en" to "Marble", "es" to "Mármol"),
                 subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
+                descriptionByLocale = mapOf(
+                    "en" to "Marble-pattern card back — replaces the default. Equip from your items.",
+                ),
                 iconKey = "cardback_marble",
                 badgeByLocale = mapOf("en" to "POPULAR", "es" to "POPULAR"),
                 costChips = 6_000,
@@ -143,6 +166,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "cardback_neon",
                 titleByLocale = mapOf("en" to "Neon Lines", "es" to "Líneas de neón"),
                 subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
+                descriptionByLocale = mapOf(
+                    "en" to "Glowing neon-line card back. Equip from your items.",
+                ),
                 iconKey = "cardback_neon",
                 costChips = 6_000,
                 grantsKey = "cardback.neon",
@@ -152,6 +178,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "table_neon",
                 titleByLocale = mapOf("en" to "Neon Table", "es" to "Mesa de neón"),
                 subtitleByLocale = mapOf("en" to "Table theme", "es" to "Tema de mesa"),
+                descriptionByLocale = mapOf(
+                    "en" to "Replaces the felt and rail color of your poker table. Equip from your items.",
+                ),
                 iconKey = "table_neon",
                 featured = true,
                 badgeByLocale = mapOf("en" to "NEW", "es" to "NUEVO"),
@@ -162,6 +191,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "table_sunset",
                 titleByLocale = mapOf("en" to "Sunset Felt", "es" to "Fieltro atardecer"),
                 subtitleByLocale = mapOf("en" to "Table theme", "es" to "Tema de mesa"),
+                descriptionByLocale = mapOf(
+                    "en" to "Warm sunset-orange felt that ties the room together. Equip from your items.",
+                ),
                 iconKey = "table_sunset",
                 costChips = 12_000,
                 grantsKey = "table.sunset",
@@ -171,6 +203,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "title_bluff_master",
                 titleByLocale = mapOf("en" to "Bluff Master", "es" to "Maestro del farol"),
                 subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
+                descriptionByLocale = mapOf(
+                    "en" to "Shows under your name at the table for everyone to see. Equip from your items.",
+                ),
                 iconKey = "title_bluff_master",
                 costChips = 15_000,
                 grantsKey = "title.bluff_master",
@@ -179,6 +214,9 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 id = "title_high_roller",
                 titleByLocale = mapOf("en" to "High Roller", "es" to "Apostador grande"),
                 subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
+                descriptionByLocale = mapOf(
+                    "en" to "Rare title — shows under your name at the table for everyone to see. Equip from your items.",
+                ),
                 iconKey = "title_high_roller",
                 badgeByLocale = mapOf("en" to "RARE", "es" to "RARO"),
                 costChips = 25_000,

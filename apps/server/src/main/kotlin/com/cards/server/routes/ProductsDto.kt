@@ -46,6 +46,13 @@ data class ChipOfferDto(
     val grantsKey: String,
     val featured: Boolean = false,
     val badge: String? = null,
+    /**
+     * Long-form description shown in the purchase-confirmation sheet so the
+     * user knows what they're buying ("Send this emote when you win — it
+     * fills everyone's screen.") Optional; UI falls back to [subtitle] when
+     * the server doesn't provide one.
+     */
+    val description: String? = null,
 )
 
 /**

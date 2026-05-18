@@ -64,6 +64,7 @@ private fun Product.ChipOffer.toDto(ctx: ClientContext): ChipOfferDto = ChipOffe
     grantsKey = grantsKey,
     featured = featured,
     badge = badgeByLocale?.let { pickLocalized(it, ctx.preferredLocales) }?.ifEmpty { null },
+    description = descriptionByLocale?.let { pickLocalized(it, ctx.preferredLocales) }?.ifEmpty { null },
 )
 
 private fun PlatformStore.forPlatform(platform: ClientContext.Platform): PlatformStore.StoreSku =

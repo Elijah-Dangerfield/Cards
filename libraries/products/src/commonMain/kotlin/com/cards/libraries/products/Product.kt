@@ -52,6 +52,16 @@ sealed interface Product {
         val grantsKey: String,
         override val featured: Boolean = false,
         override val badge: String? = null,
+        /**
+         * Long-form explanation of what the user actually gets. Where
+         * [subtitle] is a category label ("Emote", "Card back"), this is
+         * one or two sentences explaining the behavior ("Send a celebration
+         * dance to the table when you win a hand…"). Server-localized.
+         *
+         * Null = no description provided; UI should fall back to [subtitle]
+         * rather than rendering an empty block.
+         */
+        val description: String? = null,
     ) : Product
 }
 

@@ -44,6 +44,7 @@ data class ChipOfferDto(
     val grantsKey: String,
     val featured: Boolean = false,
     val badge: String? = null,
+    val description: String? = null,
 )
 
 @Serializable
@@ -77,6 +78,7 @@ private fun ChipOfferDto.toDomain(): Product.ChipOffer = Product.ChipOffer(
     grantsKey = grantsKey,
     featured = featured,
     badge = badge,
+    description = description,
 )
 
 private fun StoreSkuDto.toDomain(): StoreSku = StoreSku(
