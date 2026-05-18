@@ -36,6 +36,12 @@ class InventorySyncServiceImpl(
     private val mutex = Mutex()
 
     override suspend fun sync(): Result<Unit> = mutex.withLock {
+        // TODO(shop-roadmap §2): post-auth this becomes the server-
+        //   authoritative reconciliation pass — server can revert rows
+        //   for race / insufficient_chips / offer_expired / revoked
+        //   reasons and we re-credit chips with a soft toast. Add
+        //   telemetry events (sync.confirmed / sync.reverted{reason} /
+        //   sync.failed / sync.empty_inventory). See docs/shop-roadmap.md.
         Catching {
             val pending = inventoryRepository.getInventory()
                 .filter { it.state == PurchaseState.Pending }

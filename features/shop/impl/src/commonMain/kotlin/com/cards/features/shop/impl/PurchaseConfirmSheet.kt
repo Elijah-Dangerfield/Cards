@@ -65,24 +65,30 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 internal fun PurchaseConfirmSheet(
     pending: PendingPurchase,
+    mode: PurchaseSheetMode,
     chipBalance: Long,
+    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberBottomSheetState(BottomSheetValue.Expanded)
+    val sheetState = rememberBottomSheetState()
     var pendingTerminalAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     // Bubble icon = the product's own emoji from the server. The
     // server is authoritative for what a product looks like; there's no
     // client-side mapping. Purchase sheets use the squircle style so
-    // the bubble doubles as an "app-icon-like" product callout.
-    val productEmoji = when (pending) {
-        is PendingPurchase.IapPack -> pending.product.iconEmoji
-        is PendingPurchase.ChipOffer -> pending.product.iconEmoji
+    // the bubble doubles as an "app-icon-like" product callout, and the
+    // bubble's fill mirrors the product's grid-card tile (gold tint, accent
+    // tint, or the featured-pack gradient) so the tap-to-sheet transition
+    // feels visually continuous.
+    val product = when (pending) {
+        is PendingPurchase.IapPack -> pending.product
+        is PendingPurchase.ChipOffer -> pending.product
     }
     val handle: BottomSheetDragHandle = BottomSheetDragHandle.Emoji(
-        emoji = productEmoji,
+        emoji = product.iconEmoji,
         style = EmojiHandleStyle.Squircle,
+        surface = productBubbleSurface(product),
     )
 
     BasicBottomSheet(
@@ -107,14 +113,19 @@ internal fun PurchaseConfirmSheet(
         when (pending) {
             is PendingPurchase.IapPack -> IapPackConfirmContent(
                 pack = pending.product,
+                timeAnchor = timeAnchor,
                 onConfirm = animatedConfirm,
                 onCancel = animatedCancel,
+                onExpired = animatedCancel,
             )
             is PendingPurchase.ChipOffer -> ChipOfferConfirmContent(
                 offer = pending.product,
+                mode = mode,
                 chipBalance = chipBalance,
+                timeAnchor = timeAnchor,
                 onConfirm = animatedConfirm,
                 onCancel = animatedCancel,
+                onExpired = animatedCancel,
             )
         }
     }
@@ -123,13 +134,26 @@ internal fun PurchaseConfirmSheet(
 @Composable
 private fun IapPackConfirmContent(
     pack: Product.ChipPack,
+    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
+    onExpired: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Sale-window countdown echo. Same composable + anchor math as
+        // the grid card. Clock-spoof-resistant. Hits zero → onExpired.
+        val saleEpochMs = pack.availableUntilEpochMs
+        if (saleEpochMs != null && timeAnchor != null) {
+            CountdownBadge(
+                timeAnchor = timeAnchor,
+                availableUntilEpochMs = saleEpochMs,
+                onExpired = onExpired,
+            )
+            VerticalSpacerD300()
+        }
         Text(
             text = pack.title,
             typography = AppTheme.typography.Heading.H700,
@@ -167,18 +191,50 @@ private fun IapPackConfirmContent(
     }
 }
 
+/**
+ * Chip-offer purchase sheet body. The sheet ALWAYS opens — even for
+ * owned / locked / unaffordable items — so users can read the
+ * description and learn "what is this?" before they qualify to buy.
+ * The CTA + auxiliary copy varies per [mode].
+ *
+ *  - [PurchaseSheetMode.Available]   → headline price + BalancePreview +
+ *    "Buy now" primary button.
+ *  - [PurchaseSheetMode.Insufficient] → price + BalancePreview with the
+ *    after-purchase row in danger color + disabled "Need X more chips"
+ *    primary button.
+ *  - [PurchaseSheetMode.Locked]      → "Unlocks at Level N" prompt
+ *    inline (no chip cost shown) + disabled primary button.
+ *  - [PurchaseSheetMode.Owned]       → "You own this" prompt + close-
+ *    only buttons. The "manage in Your Items" hint is in the body copy.
+ *    TODO(shop-roadmap §3): swap the close-only CTA for "Manage in
+ *      Profile" → navigate to the Your Items page once that screen lands.
+ */
 @Composable
 private fun ChipOfferConfirmContent(
     offer: Product.ChipOffer,
+    mode: PurchaseSheetMode,
     chipBalance: Long,
+    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
+    onExpired: () -> Unit,
 ) {
-    val canAfford = chipBalance >= offer.costChips
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Sale-window countdown echo, when present. Same primitive +
+        // anchor as the grid card, so the countdown the user saw on the
+        // card stays synced inside the sheet.
+        val saleEpochMs = offer.availableUntilEpochMs
+        if (saleEpochMs != null && timeAnchor != null) {
+            CountdownBadge(
+                timeAnchor = timeAnchor,
+                availableUntilEpochMs = saleEpochMs,
+                onExpired = onExpired,
+            )
+            VerticalSpacerD300()
+        }
         Text(
             text = offer.title,
             typography = AppTheme.typography.Heading.H700,
@@ -220,27 +276,112 @@ private fun ChipOfferConfirmContent(
             }
         }
         VerticalSpacerD500()
-        // Headline price — big coin to match Heading.H900 weight.
-        ChipCoinAmount(
-            amount = offer.costChips,
-            coinSize = 32.dp,
-            typography = AppTheme.typography.Heading.H900,
-            color = AppTheme.colors.text,
-            gap = 10.dp,
-        )
-        VerticalSpacerD500()
-        BalancePreview(
-            currentBalance = chipBalance,
-            cost = offer.costChips,
-            canAfford = canAfford,
-        )
+        // Mode-specific commerce area: headline price + BalancePreview
+        // for buyable modes; status prompt for locked/owned.
+        when (mode) {
+            is PurchaseSheetMode.Available, is PurchaseSheetMode.Insufficient -> {
+                ChipCoinAmount(
+                    amount = offer.costChips,
+                    coinSize = 32.dp,
+                    typography = AppTheme.typography.Heading.H900,
+                    color = AppTheme.colors.text,
+                    gap = 10.dp,
+                )
+                VerticalSpacerD500()
+                BalancePreview(
+                    currentBalance = chipBalance,
+                    cost = offer.costChips,
+                    canAfford = mode is PurchaseSheetMode.Available,
+                )
+            }
+            is PurchaseSheetMode.Locked -> StatusPrompt(
+                emoji = "🔒",
+                title = "Unlocks at Level ${mode.requiredLevel}",
+                body = "Keep playing to level up. Once you hit Level ${mode.requiredLevel} this'll be buyable for ${formatChips(offer.costChips)} chips.",
+            )
+            is PurchaseSheetMode.Owned -> StatusPrompt(
+                emoji = "✓",
+                title = if (mode.pendingSync) "You own this · Syncing" else "You own this",
+                body = "Equip from Your Items in your profile. (Coming soon — see shop-roadmap.md §3.)",
+            )
+        }
         VerticalSpacerD700()
-        SheetButtons(
-            confirmLabel = if (canAfford) "Buy now" else "Not enough chips",
-            onConfirm = onConfirm,
-            onCancel = onCancel,
-            confirmEnabled = canAfford,
-        )
+        // Mode-specific CTA. Confirm button only fires for Available;
+        // everything else gets a disabled informational label or a
+        // close-only Owned variant.
+        when (mode) {
+            is PurchaseSheetMode.Available -> SheetButtons(
+                confirmLabel = "Buy now",
+                onConfirm = onConfirm,
+                onCancel = onCancel,
+                confirmEnabled = true,
+            )
+            is PurchaseSheetMode.Insufficient -> SheetButtons(
+                confirmLabel = "Need ${formatChips(mode.shortBy)} more chips",
+                onConfirm = onConfirm,
+                onCancel = onCancel,
+                confirmEnabled = false,
+            )
+            is PurchaseSheetMode.Locked -> SheetButtons(
+                confirmLabel = "Locked",
+                onConfirm = onConfirm,
+                onCancel = onCancel,
+                confirmEnabled = false,
+            )
+            is PurchaseSheetMode.Owned -> SheetButtons(
+                confirmLabel = "Close",
+                onConfirm = onCancel,  // primary = close
+                onCancel = onCancel,
+                confirmEnabled = true,
+                showCancel = false,
+            )
+        }
+    }
+}
+
+/**
+ * Centered emoji + title + body prompt block. Used for non-buyable
+ * sheet modes (Locked, Owned) in place of the price + balance preview.
+ * Visually consistent with the description card so the sheet has a
+ * single "story-block" feel.
+ */
+@Composable
+private fun StatusPrompt(
+    emoji: String,
+    title: String,
+    body: String,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = AppTheme.colors.surfaceSecondary,
+        contentColor = AppTheme.colors.onSurfaceSecondary,
+        radius = Radii.Card,
+        elevation = Elevation.None,
+        onClick = {},
+        bounceScale = 1f,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = emoji,
+                typography = AppTheme.typography.Heading.H800,
+                color = AppTheme.colors.text,
+            )
+            VerticalSpacerD200()
+            Text(
+                text = title,
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.text,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD100()
+            Text(
+                text = body,
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -301,6 +442,7 @@ private fun SheetButtons(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
     confirmEnabled: Boolean,
+    showCancel: Boolean = true,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         ButtonPrimary(
@@ -310,9 +452,11 @@ private fun SheetButtons(
         ) {
             Text(text = confirmLabel)
         }
-        VerticalSpacerD300()
-        ButtonSecondary(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-            Text(text = "Cancel")
+        if (showCancel) {
+            VerticalSpacerD300()
+            ButtonSecondary(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                Text(text = "Cancel")
+            }
         }
     }
 }
@@ -345,7 +489,9 @@ private fun PurchaseConfirmSheetPreview_IapPack() {
                     store = StoreSku("chips_medium", "$4.99"),
                 ),
             ),
+            mode = PurchaseSheetMode.Available,
             chipBalance = 12_450,
+            timeAnchor = null,
             onConfirm = {},
             onDismiss = {},
         )
@@ -354,7 +500,7 @@ private fun PurchaseConfirmSheetPreview_IapPack() {
 
 @Preview
 @Composable
-private fun PurchaseConfirmSheetPreview_ChipOfferWithDescription() {
+private fun PurchaseConfirmSheetPreview_ChipOfferAvailable() {
     PreviewContent {
         PurchaseConfirmSheet(
             pending = PendingPurchase.ChipOffer(
@@ -368,7 +514,9 @@ private fun PurchaseConfirmSheetPreview_ChipOfferWithDescription() {
                     grantsKey = "emote.dance",
                 ),
             ),
+            mode = PurchaseSheetMode.Available,
             chipBalance = 12_450,
+            timeAnchor = null,
             onConfirm = {},
             onDismiss = {},
         )
@@ -377,7 +525,7 @@ private fun PurchaseConfirmSheetPreview_ChipOfferWithDescription() {
 
 @Preview
 @Composable
-private fun PurchaseConfirmSheetPreview_ChipOfferCannotAfford() {
+private fun PurchaseConfirmSheetPreview_ChipOfferInsufficient() {
     PreviewContent {
         PurchaseConfirmSheet(
             pending = PendingPurchase.ChipOffer(
@@ -392,7 +540,9 @@ private fun PurchaseConfirmSheetPreview_ChipOfferCannotAfford() {
                     grantsKey = "title.high_roller",
                 ),
             ),
+            mode = PurchaseSheetMode.Insufficient(shortBy = 23_500),
             chipBalance = 1_500,
+            timeAnchor = null,
             onConfirm = {},
             onDismiss = {},
         )
@@ -401,7 +551,33 @@ private fun PurchaseConfirmSheetPreview_ChipOfferCannotAfford() {
 
 @Preview
 @Composable
-private fun PurchaseConfirmSheetPreview_ChipOfferNoDescription() {
+private fun PurchaseConfirmSheetPreview_ChipOfferLocked() {
+    PreviewContent {
+        PurchaseConfirmSheet(
+            pending = PendingPurchase.ChipOffer(
+                Product.ChipOffer(
+                    id = "title_shark",
+                    title = "The Shark",
+                    subtitle = "Player title",
+                    description = "For the player who reads the table. Shows under your name.",
+                    iconEmoji = "🦈",
+                    costChips = 18_000,
+                    grantsKey = "title.shark",
+                    unlockLevel = 15,
+                ),
+            ),
+            mode = PurchaseSheetMode.Locked(requiredLevel = 15),
+            chipBalance = 25_000,
+            timeAnchor = null,
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PurchaseConfirmSheetPreview_ChipOfferOwned() {
     PreviewContent {
         PurchaseConfirmSheet(
             pending = PendingPurchase.ChipOffer(
@@ -409,12 +585,15 @@ private fun PurchaseConfirmSheetPreview_ChipOfferNoDescription() {
                     id = "cardback_marble",
                     title = "Marble",
                     subtitle = "Card back",
+                    description = "Marble-pattern card back — replaces the default. Equip from your items.",
                     iconEmoji = "🂠",
                     costChips = 6_000,
                     grantsKey = "cardback.marble",
                 ),
             ),
+            mode = PurchaseSheetMode.Owned(pendingSync = false),
             chipBalance = 12_450,
+            timeAnchor = null,
             onConfirm = {},
             onDismiss = {},
         )

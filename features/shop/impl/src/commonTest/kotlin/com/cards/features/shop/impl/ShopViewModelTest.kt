@@ -125,7 +125,10 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun requestPurchase_alreadyOwnedOffer_doesNotOpenSheet() = runUnitTest {
+    fun requestPurchase_ownedOffer_opensSheetInOwnedMode() = runUnitTest {
+        // The sheet now opens for owned items too — users can re-read
+        // the description and find the "manage in profile" guidance.
+        // Buying is still gated at the Confirm action.
         val inv = FakeInventoryRepository().apply {
             emit(listOf(SAMPLE_PENDING_INVENTORY_ITEM))
         }
@@ -134,7 +137,27 @@ class ShopViewModelTest : CoroutineTest() {
 
         vm.takeAction(ShopAction.RequestPurchase(ownedOffer))
 
-        assertNull(vm.state.pendingPurchase, "sheet should not open for owned items")
+        assertNotNull(vm.state.pendingPurchase, "owned items now open the sheet")
+        assertTrue(
+            vm.state.sheetModeFor(ownedOffer) is PurchaseSheetMode.Owned,
+            "and the mode classifier returns Owned",
+        )
+    }
+
+    @Test
+    fun confirmPendingPurchase_isNoOpForOwnedItem() = runUnitTest {
+        // The Confirm action is the real fence — defense in depth.
+        val inv = FakeInventoryRepository().apply {
+            emit(listOf(SAMPLE_PENDING_INVENTORY_ITEM))
+        }
+        val vm = buildVm(inventoryRepository = inv)
+        val ownedOffer = SAMPLE_CATALOG.chipOffers.first { it.id == "emote_dance" }
+        vm.takeAction(ShopAction.RequestPurchase(ownedOffer))
+
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        // Sheet still up (no-op), no repo redeem called.
+        assertNotNull(vm.state.pendingPurchase, "Confirm is a no-op for Owned")
     }
 
     @Test

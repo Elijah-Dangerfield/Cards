@@ -112,10 +112,19 @@ fun ShopScreen(
         }
 
         // Purchase confirmation overlay — rendered last so it sits on top.
+        // Sheet opens for ALL states (owned / locked / insufficient /
+        // available) so users can read product details; the rendered
+        // content + CTA varies. See PurchaseSheetMode in ShopViewModel.kt.
         state.pendingPurchase?.let { pending ->
+            val product: Product = when (pending) {
+                is PendingPurchase.IapPack -> pending.product
+                is PendingPurchase.ChipOffer -> pending.product
+            }
             PurchaseConfirmSheet(
                 pending = pending,
+                mode = state.sheetModeFor(product),
                 chipBalance = state.chipBalance,
+                timeAnchor = state.timeAnchor,
                 onConfirm = { onAction(ShopAction.ConfirmPendingPurchase) },
                 onDismiss = { onAction(ShopAction.DismissPendingPurchase) },
             )
@@ -480,25 +489,30 @@ private fun ChipOfferCard(
     onExpired: () -> Unit,
     onClick: () -> Unit,
 ) {
-    // Locked + Insufficient both dim the card so it reads as "blocked";
-    // Available + Owned stay at full alpha. Locked is the most-dimmed
-    // since the level gate is the harder blocker.
-    val interactionAlpha = when (cardState) {
-        is ChipOfferCardState.Locked -> 0.65f
+    // Dimming model: in Locked / Insufficient states we want the card to
+    // read as "blocked," but the BLOCKING INFO (lock icon, "Unlocks at
+    // level N", "Need X more chips") must stay crisp — that's where the
+    // user's attention should land. So we DON'T put alpha on the Surface
+    // itself; instead the dimmable elements (icon, title, subtitle) carry
+    // their own alpha, while the state overlays + footers render at full
+    // opacity on top.
+    val dimmableAlpha = when (cardState) {
+        is ChipOfferCardState.Locked -> 0.45f
         is ChipOfferCardState.Insufficient -> 0.55f
         is ChipOfferCardState.Available -> 1f
         is ChipOfferCardState.Owned -> 1f
     }
-    val tappable = cardState is ChipOfferCardState.Available
+    // Every state can open the sheet now — see the VM. Non-Available
+    // sheets show "here's what this is" content with a disabled CTA.
     val card: @Composable () -> Unit = {
         Surface(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight().alpha(interactionAlpha),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             color = AppTheme.colors.surfacePrimary,
             contentColor = AppTheme.colors.onSurfacePrimary,
             radius = Radii.Card,
             elevation = Elevation.Card,
-            onClick = if (tappable) onClick else ({}),
-            bounceScale = if (tappable) 0.95f else 1f,
+            onClick = onClick,
+            bounceScale = 0.95f,
             contentPadding = PaddingValues(16.dp),
         ) {
             Column(
@@ -506,11 +520,17 @@ private fun ChipOfferCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    ProductIcon(emoji = offer.iconEmoji, tone = IconTone.Accent)
+                    ProductIcon(
+                        emoji = offer.iconEmoji,
+                        tone = IconTone.Accent,
+                        modifier = Modifier.alpha(dimmableAlpha),
+                    )
                     when (cardState) {
                         is ChipOfferCardState.Owned -> OwnedCheck(
                             modifier = Modifier.align(Alignment.TopEnd),
                         )
+                        // Lock overlay renders OUTSIDE the alpha so it
+                        // pops over the dimmed icon, not through it.
                         is ChipOfferCardState.Locked -> LockIconOverlay()
                         else -> Unit
                     }
@@ -521,6 +541,7 @@ private fun ChipOfferCard(
                     typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.text,
                     textAlign = TextAlign.Center,
+                    modifier = Modifier.alpha(dimmableAlpha),
                 )
                 VerticalSpacerD100()
                 Text(
@@ -528,11 +549,14 @@ private fun ChipOfferCard(
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.textSecondary,
                     textAlign = TextAlign.Center,
+                    modifier = Modifier.alpha(dimmableAlpha),
                 )
                 // Push the footer to the bottom edge — see ChipPackCard
                 // for the rationale.
                 Spacer(modifier = Modifier.weight(1f, fill = true))
                 Spacer(modifier = Modifier.height(Dimension.D400))
+                // Footers render at full opacity regardless of card state
+                // — they carry the actionable info the user needs to see.
                 when (cardState) {
                     is ChipOfferCardState.Available -> ChipCostFooter(
                         cost = cardState.costChips,
@@ -590,49 +614,52 @@ private fun ChipOfferCard(
 
 /**
  * White lock icon centered on the product icon — the most direct visual
- * cue that a card is gated. Sits inside a dark translucent backdrop so
- * it works against any [IconTone] of the underlying tile.
+ * cue that a card is gated. Sits in a fully-opaque dark bubble so it
+ * reads cleanly OVER the dimmed icon underneath (don't inherit the
+ * dimmable alpha; the lock is the critical info).
  */
 @Composable
 private fun LockIconOverlay() {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(40.dp)
             .clip(CircleShape)
-            .background(AppTheme.colors.background.color.copy(alpha = 0.75f)),
+            .background(AppTheme.colors.background.color),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "🔒",
-            typography = AppTheme.typography.Body.B600,
+            typography = AppTheme.typography.Heading.H600,
             color = AppTheme.colors.text,
         )
     }
 }
 
+/**
+ * "Unlocks at Level N" pill. Brighter copy + heavier weight than a
+ * regular metadata footer so it stands out on the dimmed card.
+ */
 @Composable
 private fun LockedFooter(requiredLevel: Int) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(AppTheme.colors.surfaceDisabled.color)
+            .background(AppTheme.colors.surfaceTertiary.color)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
             text = "Unlocks at Level $requiredLevel",
-            typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.textSecondary,
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.text,
         )
     }
 }
 
 /**
- * Cost footer for the "can't afford" state. Same shape as the available
- * footer but the cost is rendered in the danger color, and a small
- * second-line caption surfaces exactly how many chips the user is short.
- *
- * Loud enough that a player scrolling the grid immediately sees "I'm
- * close but not there yet" instead of just a vaguely-dimmed card.
+ * Cost footer for the "can't afford" state. The deficit copy "Need
+ * X more chips" sits in the danger color at body weight so it stays
+ * legible on top of the dimmed card content above — it's the most
+ * important thing on the card in this state.
  */
 @Composable
 private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
@@ -655,9 +682,9 @@ private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
         if (shortBy > 0) {
             VerticalSpacerD100()
             Text(
-                text = "${formatChips(shortBy)} short",
-                typography = AppTheme.typography.Label.L400,
-                color = AppTheme.colors.textSecondary,
+                text = "Need ${formatChips(shortBy)} more",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.danger,
             )
         }
     }

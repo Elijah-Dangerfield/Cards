@@ -54,6 +54,14 @@ class ProductsRepositoryImpl(
     override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = timeAnchor.asStateFlow()
 
     override suspend fun refresh(): Result<ProductCatalog> = refreshMutex.withLock {
+        // TODO(shop-roadmap §1): after the catalog fetch lands, cross-
+        //   reference IAP SKUs against the platform store
+        //   (StoreKit `Product.products(for:)` / Play
+        //   `queryProductDetails`). Drop catalog rows the store doesn't
+        //   recognize, replace `fallbackPriceDisplay` with the store's
+        //   localized price, and emit telemetry
+        //   (`shop.iap.empty_store_response`, `shop.iap.missing_skus`,
+        //   `shop.iap.price_resolved`). See docs/shop-roadmap.md.
         Catching {
             val dto = dataSource.fetchCatalog()
             val catalog = dto.toDomain()

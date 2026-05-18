@@ -141,17 +141,16 @@ class ShopViewModel @Inject constructor(
             // ---- Purchase intent flow ----
 
             is ShopAction.RequestPurchase -> {
-                // Defense-in-depth: refuse to open the confirm sheet for
-                // owned / locked / unaffordable / expired items. UI also
-                // gates these, but the action layer is the final fence.
+                // Open the sheet for ANY non-expired state — Owned,
+                // Locked, Insufficient, Available. The sheet renders
+                // state-appropriate content + CTA, so users can learn
+                // "what does this even do?" before they qualify to buy.
+                //
+                // Expired offers are the one exception: silently refresh
+                // + surface a toast rather than opening a stale sheet.
+                // The catalog filter drops it from the next response.
                 val product = action.product
-                if (state.ownsProduct(product.id)) return
-                if (!state.isUnlocked(product)) return
-                if (product is Product.ChipOffer && !state.canAfford(product)) return
                 if (state.isExpired(product)) {
-                    // Offer expired between fetch and tap. Refresh so the
-                    // user sees the new state (it'll be filtered out
-                    // server-side), and surface a soft error toast.
                     sendEvent(ShopEvent.OfferExpired(product.id))
                     takeAction(ShopAction.Refresh)
                     return
@@ -162,12 +161,33 @@ class ShopViewModel @Inject constructor(
                 it.copy(pendingPurchase = null)
             }
             is ShopAction.ConfirmPendingPurchase -> {
+                // Defense-in-depth: the sheet's primary CTA is disabled
+                // for non-buyable states, but the action layer is the
+                // final fence. Anything outside Available is a no-op.
                 val pending = state.pendingPurchase ?: return
+                val product: Product = when (pending) {
+                    is PendingPurchase.IapPack -> pending.product
+                    is PendingPurchase.ChipOffer -> pending.product
+                }
+                if (state.sheetModeFor(product) !is PurchaseSheetMode.Available) return
+                if (state.isExpired(product)) {
+                    sendEvent(ShopEvent.OfferExpired(product.id))
+                    takeAction(ShopAction.Refresh)
+                    return
+                }
                 when (pending) {
                     is PendingPurchase.IapPack -> {
                         // Hand off to the platform-IAP coordinator. Sheet
                         // closes; no local mutation yet — that happens on
                         // store callback (later chunk).
+                        //
+                        // TODO(shop-roadmap §1): server catalog × platform-
+                        //   store SKU reconciliation. Today we trust the
+                        //   server's SKU exists in the platform store; in
+                        //   practice we'll need to call StoreKit /
+                        //   BillingClient.queryProductDetails, drop
+                        //   missing-SKU products, and replace the
+                        //   fallback price. See docs/shop-roadmap.md.
                         action.updateState { it.copy(pendingPurchase = null) }
                         sendEvent(ShopEvent.LaunchPurchase(pending.product))
                     }
@@ -276,13 +296,35 @@ data class ShopState(
     }
 
     /**
-     * Classify a chip offer into one of the four visible states the shop
-     * grid renders. Keep this here (not in the screen) so we have a
-     * single source of truth and the renderer is just `when`.
+     * Classify a product for the purchase confirmation sheet. The sheet
+     * opens for ALL states — Owned / Locked / Insufficient / Available
+     * — but the rendered content + CTA varies. The shop screen used to
+     * gate sheet-open at the action layer; we relaxed that so users can
+     * still read "what is this thing?" even if they can't buy yet.
      *
-     * Priority: owned > locked > insufficient > available. Locked beats
-     * insufficient because the level gate is the more meaningful blocker
-     * — even if the user has the chips, they can't buy.
+     * Returns null for IAP packs (they always render as Available — no
+     * level lock, no chip cost — for V1).
+     */
+    fun sheetModeFor(product: Product): PurchaseSheetMode = when {
+        ownsProduct(product.id) -> {
+            val pendingSync = inventory
+                .firstOrNull { it.productId == product.id }
+                ?.state == com.dangerfield.cards.libraries.cards.PurchaseState.Pending
+            PurchaseSheetMode.Owned(pendingSync = pendingSync)
+        }
+        !isUnlocked(product) -> PurchaseSheetMode.Locked(
+            requiredLevel = (product as? Product.ChipOffer)?.unlockLevel ?: 1,
+        )
+        product is Product.ChipOffer && !canAfford(product) -> PurchaseSheetMode.Insufficient(
+            shortBy = (product.costChips - chipBalance).coerceAtLeast(0),
+        )
+        else -> PurchaseSheetMode.Available
+    }
+
+    /**
+     * Classify a chip offer into one of the four visible states the
+     * shop grid renders. Single source of truth; renderer is just
+     * `when`. Priority: owned > locked > insufficient > available.
      */
     fun classify(offer: Product.ChipOffer): ChipOfferCardState = when {
         ownsProduct(offer.id) -> {
@@ -300,6 +342,29 @@ data class ShopState(
         )
         else -> ChipOfferCardState.Available(costChips = offer.costChips)
     }
+}
+
+/**
+ * The mutually-exclusive states the purchase confirmation sheet renders
+ * in. Mirrors [ChipOfferCardState] but lives in its own type so the
+ * sheet can also represent owned items (the grid card has a different
+ * visual for owned and doesn't share this state).
+ *
+ * Classifier: [ShopState.sheetModeFor]. Visual rendering:
+ * [PurchaseConfirmSheet].
+ */
+sealed interface PurchaseSheetMode {
+    /** Buyable: user is unlocked + can afford + offer is in-window. */
+    data object Available : PurchaseSheetMode
+
+    /** Unlocked but can't afford. Disabled CTA + "Need X more chips" copy. */
+    data class Insufficient(val shortBy: Long) : PurchaseSheetMode
+
+    /** Locked by level. Disabled CTA + "Unlocks at Level N" copy. */
+    data class Locked(val requiredLevel: Int) : PurchaseSheetMode
+
+    /** User already owns this. No buy CTA — close + "manage in profile" hint. */
+    data class Owned(val pendingSync: Boolean) : PurchaseSheetMode
 }
 
 /**
