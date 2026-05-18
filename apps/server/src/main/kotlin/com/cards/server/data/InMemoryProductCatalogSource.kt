@@ -79,19 +79,20 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
         ).filter { context.platform in it.platforms }
 
         // Chip-purchasable items live in the same catalog as IAP packs (one
-        // API, one cache, one rendering pipeline). Each one joins to a
+        // API, one cache, one rendering pipeline). Each joins to a
         // client-bundled asset via `iconKey` (visual) and `grantsKey`
         // (effect/inventory entry).
         //
-        // V1 selection is intentionally small + cosmetic-only — no
-        // gameplay-affecting items, per the V1 product spec (no P2W).
-        // Real assets land in :libraries:ui when the design files are ready;
-        // until then the client falls back to a placeholder emoji.
+        // V1 selection is cosmetic-only — no gameplay-affecting items, per
+        // the no-P2W product spec. Mixed across price tiers + categories
+        // (emotes / table themes / card backs / player titles) so the shop
+        // grid feels alive even before real art assets are wired in.
         val chipOffers = listOf(
+            // --- Emotes (cheapest, gateway purchases) ---
             Product.ChipOffer(
                 id = "emote_dance",
                 titleByLocale = mapOf("en" to "Victory Dance", "es" to "Baile de victoria"),
-                subtitleByLocale = mapOf("en" to "Avatar emote", "es" to "Emote de avatar"),
+                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
                 iconKey = "emote_dance",
                 costChips = 2_500,
                 grantsKey = "emote.dance",
@@ -99,11 +100,54 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
             Product.ChipOffer(
                 id = "emote_tilt",
                 titleByLocale = mapOf("en" to "Salty Shake", "es" to "Sacudida salada"),
-                subtitleByLocale = mapOf("en" to "Avatar emote", "es" to "Emote de avatar"),
+                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
                 iconKey = "emote_tilt",
                 costChips = 2_500,
                 grantsKey = "emote.tilt",
             ),
+            Product.ChipOffer(
+                id = "emote_think",
+                titleByLocale = mapOf("en" to "Deep Think", "es" to "Pensamiento profundo"),
+                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                iconKey = "emote_think",
+                costChips = 2_500,
+                grantsKey = "emote.think",
+            ),
+            Product.ChipOffer(
+                id = "emote_facepalm",
+                titleByLocale = mapOf("en" to "Facepalm", "es" to "Palma en la cara"),
+                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                iconKey = "emote_facepalm",
+                costChips = 2_500,
+                grantsKey = "emote.facepalm",
+            ),
+            // --- Card backs (mid-tier) ---
+            Product.ChipOffer(
+                id = "cardback_gold",
+                titleByLocale = mapOf("en" to "Gold Foil", "es" to "Lámina dorada"),
+                subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
+                iconKey = "cardback_gold",
+                costChips = 6_000,
+                grantsKey = "cardback.gold",
+            ),
+            Product.ChipOffer(
+                id = "cardback_marble",
+                titleByLocale = mapOf("en" to "Marble", "es" to "Mármol"),
+                subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
+                iconKey = "cardback_marble",
+                badgeByLocale = mapOf("en" to "POPULAR", "es" to "POPULAR"),
+                costChips = 6_000,
+                grantsKey = "cardback.marble",
+            ),
+            Product.ChipOffer(
+                id = "cardback_neon",
+                titleByLocale = mapOf("en" to "Neon Lines", "es" to "Líneas de neón"),
+                subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
+                iconKey = "cardback_neon",
+                costChips = 6_000,
+                grantsKey = "cardback.neon",
+            ),
+            // --- Table themes (premium) ---
             Product.ChipOffer(
                 id = "table_neon",
                 titleByLocale = mapOf("en" to "Neon Table", "es" to "Mesa de neón"),
@@ -111,16 +155,34 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 iconKey = "table_neon",
                 featured = true,
                 badgeByLocale = mapOf("en" to "NEW", "es" to "NUEVO"),
-                costChips = 8_000,
+                costChips = 12_000,
                 grantsKey = "table.neon",
             ),
+            Product.ChipOffer(
+                id = "table_sunset",
+                titleByLocale = mapOf("en" to "Sunset Felt", "es" to "Fieltro atardecer"),
+                subtitleByLocale = mapOf("en" to "Table theme", "es" to "Tema de mesa"),
+                iconKey = "table_sunset",
+                costChips = 12_000,
+                grantsKey = "table.sunset",
+            ),
+            // --- Player titles (top tier — vanity flex) ---
             Product.ChipOffer(
                 id = "title_bluff_master",
                 titleByLocale = mapOf("en" to "Bluff Master", "es" to "Maestro del farol"),
                 subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
                 iconKey = "title_bluff_master",
-                costChips = 5_000,
+                costChips = 15_000,
                 grantsKey = "title.bluff_master",
+            ),
+            Product.ChipOffer(
+                id = "title_high_roller",
+                titleByLocale = mapOf("en" to "High Roller", "es" to "Apostador grande"),
+                subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
+                iconKey = "title_high_roller",
+                badgeByLocale = mapOf("en" to "RARE", "es" to "RARO"),
+                costChips = 25_000,
+                grantsKey = "title.high_roller",
             ),
         ).filter { context.platform in it.platforms }
 
