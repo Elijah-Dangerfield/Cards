@@ -91,151 +91,310 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
         // the no-P2W product spec. Mixed across price tiers + categories
         // (emotes / table themes / card backs / player titles) so the shop
         // grid feels alive even before real art assets are wired in.
+        // Catalog organisation:
+        //   - Categories: felts (table colors, visible to you only in V1) →
+        //     card backs → emote / avatar emoji packs → player titles.
+        //   - Level gating: cheaper / friendlier items unlock first
+        //     (1 → 3 → 5), premium tier at 10, vanity-flex items at 15+.
+        //   - Each "pack" purchase grants a SET of related items (e.g.,
+        //     Animal Pack unlocks 8 avatar emojis). Single-cosmetic items
+        //     keep their grantsKey leaf-named.
+        //   - V1 is strictly cosmetic — no items that reveal opponent
+        //     hands, betting odds, or other gameplay info. Anything
+        //     adjacent to that is filed for the MP / training-mode pass.
         val chipOffers = listOf(
-            // --- Emotes (cheapest, gateway purchases) ---
-            // Descriptions are deliberately concrete: a new player should know
-            // "what does buying this do at the table" without having to guess
-            // from the tile name alone. Equippable / consumable behavior is
-            // also called out here since the no-item-catalog screen lands later.
+            // --- Felts (cheap, gateway purchase, level 1) ---
             Product.ChipOffer(
-                id = "emote_dance",
-                titleByLocale = mapOf("en" to "Victory Dance", "es" to "Baile de victoria"),
-                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                id = "felt_royal_red",
+                titleByLocale = mapOf("en" to "Royal Red Felt", "es" to "Fieltro rojo real"),
+                subtitleByLocale = mapOf("en" to "Table felt", "es" to "Fieltro de mesa"),
                 descriptionByLocale = mapOf(
-                    "en" to "Send a celebration dance to the table when you win a hand — fills everyone's screen for a beat. Equip from your items.",
-                    "es" to "Envía un baile de celebración a la mesa cuando ganes una mano. Equipa desde tus objetos.",
+                    "en" to "Deep red felt for the playing surface. Equip from your items — visible to you only in solo games.",
                 ),
-                iconKey = "emote_dance",
+                iconKey = "felt_royal_red",
+                iconEmoji = "🟥",
+                costChips = 1_500,
+                grantsKey = "felt.royal_red",
+                unlockLevel = 1,
+            ),
+            Product.ChipOffer(
+                id = "felt_midnight_blue",
+                titleByLocale = mapOf("en" to "Midnight Blue Felt", "es" to "Fieltro azul medianoche"),
+                subtitleByLocale = mapOf("en" to "Table felt", "es" to "Fieltro de mesa"),
+                descriptionByLocale = mapOf(
+                    "en" to "Deep blue felt — easy on the eyes during long sessions. Equip from your items.",
+                ),
+                iconKey = "felt_midnight_blue",
+                iconEmoji = "🟦",
+                costChips = 1_500,
+                grantsKey = "felt.midnight_blue",
+                unlockLevel = 1,
+            ),
+            Product.ChipOffer(
+                id = "felt_charcoal",
+                titleByLocale = mapOf("en" to "Charcoal Felt", "es" to "Fieltro carbón"),
+                subtitleByLocale = mapOf("en" to "Table felt", "es" to "Fieltro de mesa"),
+                descriptionByLocale = mapOf(
+                    "en" to "Moody black felt. Equip from your items.",
+                ),
+                iconKey = "felt_charcoal",
+                iconEmoji = "⬛",
+                costChips = 2_000,
+                grantsKey = "felt.charcoal",
+                unlockLevel = 3,
+            ),
+
+            // --- Emote reaction packs (cheap, level 1-3, multiple emotes per pack) ---
+            Product.ChipOffer(
+                id = "emotes_drama",
+                titleByLocale = mapOf("en" to "Drama Emote Pack", "es" to "Paquete drama"),
+                subtitleByLocale = mapOf("en" to "Emotes · 4 reactions", "es" to "Emotes · 4 reacciones"),
+                descriptionByLocale = mapOf(
+                    "en" to "Unlocks 💃 🧂 🎭 🤦 — send big, screen-filling reactions to the table. Equip individually from your items.",
+                ),
+                iconKey = "emotes_drama",
                 iconEmoji = "💃",
-                costChips = 2_500,
-                grantsKey = "emote.dance",
+                costChips = 3_500,
+                grantsKey = "emotes.drama",
+                unlockLevel = 1,
             ),
             Product.ChipOffer(
-                id = "emote_tilt",
-                titleByLocale = mapOf("en" to "Salty Shake", "es" to "Sacudida salada"),
-                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                id = "emotes_cute",
+                titleByLocale = mapOf("en" to "Cute Emote Pack", "es" to "Paquete tierno"),
+                subtitleByLocale = mapOf("en" to "Emotes · 4 reactions", "es" to "Emotes · 4 reacciones"),
                 descriptionByLocale = mapOf(
-                    "en" to "Tap to react when a bad beat hits — a salt-shake animation rolls over the table. Equip from your items.",
+                    "en" to "Unlocks 🥺 🥰 😇 🤗 — soft-pawed reactions for friendly tables. Equip from your items.",
                 ),
-                iconKey = "emote_tilt",
-                iconEmoji = "🧂",
-                costChips = 2_500,
-                grantsKey = "emote.tilt",
+                iconKey = "emotes_cute",
+                iconEmoji = "🥺",
+                costChips = 3_500,
+                grantsKey = "emotes.cute",
+                unlockLevel = 1,
             ),
             Product.ChipOffer(
-                id = "emote_think",
-                titleByLocale = mapOf("en" to "Deep Think", "es" to "Pensamiento profundo"),
-                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                id = "emotes_fierce",
+                titleByLocale = mapOf("en" to "Fierce Emote Pack", "es" to "Paquete feroz"),
+                subtitleByLocale = mapOf("en" to "Emotes · 4 reactions", "es" to "Emotes · 4 reacciones"),
                 descriptionByLocale = mapOf(
-                    "en" to "Bluff-think emote you can send while it's your turn. Let opponents wonder. Equip from your items.",
+                    "en" to "Unlocks 😤 🔥 💀 😎 — heat for the bluffers. Equip from your items.",
                 ),
-                iconKey = "emote_think",
-                iconEmoji = "🤔",
-                costChips = 2_500,
-                grantsKey = "emote.think",
+                iconKey = "emotes_fierce",
+                iconEmoji = "🔥",
+                costChips = 4_500,
+                grantsKey = "emotes.fierce",
+                unlockLevel = 5,
             ),
             Product.ChipOffer(
-                id = "emote_facepalm",
-                titleByLocale = mapOf("en" to "Facepalm", "es" to "Palma en la cara"),
-                subtitleByLocale = mapOf("en" to "Emote", "es" to "Emote"),
+                id = "emotes_royal",
+                titleByLocale = mapOf("en" to "Royal Emote Pack", "es" to "Paquete real"),
+                subtitleByLocale = mapOf("en" to "Emotes · 4 reactions", "es" to "Emotes · 4 reacciones"),
                 descriptionByLocale = mapOf(
-                    "en" to "Self-deprecating facepalm reaction. Send it after a fold you regret. Equip from your items.",
+                    "en" to "Unlocks 👑 🃏 ♠️ ♥️ — high-roller-coded reactions. Equip from your items.",
                 ),
-                iconKey = "emote_facepalm",
-                iconEmoji = "🤦",
-                costChips = 2_500,
-                grantsKey = "emote.facepalm",
+                iconKey = "emotes_royal",
+                iconEmoji = "👑",
+                costChips = 6_000,
+                grantsKey = "emotes.royal",
+                unlockLevel = 10,
             ),
+
+            // --- Avatar emoji packs (replaces the temporary letter avatar) ---
+            // Concept: every player gets a single random starter emoji + the
+            // "Basic" pack at signup. Buying a pack unlocks its emojis as
+            // avatar choices in profile. V1 ships the packs; the avatar-
+            // picker UI lands when auth lands.
+            Product.ChipOffer(
+                id = "avatars_animals",
+                titleByLocale = mapOf("en" to "Animal Avatars", "es" to "Avatares animales"),
+                subtitleByLocale = mapOf("en" to "Avatar pack · 8 emojis", "es" to "Paquete · 8 emojis"),
+                descriptionByLocale = mapOf(
+                    "en" to "Unlocks 🐱 🐶 🐯 🐼 🦊 🐻 🦁 🐸 as avatar choices in your profile. Pick the one you wear at the table.",
+                ),
+                iconKey = "avatars_animals",
+                iconEmoji = "🦊",
+                costChips = 4_000,
+                grantsKey = "avatars.animals",
+                unlockLevel = 1,
+            ),
+            Product.ChipOffer(
+                id = "avatars_food",
+                titleByLocale = mapOf("en" to "Foodie Avatars", "es" to "Avatares foodie"),
+                subtitleByLocale = mapOf("en" to "Avatar pack · 8 emojis", "es" to "Paquete · 8 emojis"),
+                descriptionByLocale = mapOf(
+                    "en" to "Unlocks 🍕 🍔 🌮 🍣 🍰 🥑 🍩 ☕ as avatar choices. Become The Taco Player.",
+                ),
+                iconKey = "avatars_food",
+                iconEmoji = "🍕",
+                costChips = 4_000,
+                grantsKey = "avatars.food",
+                unlockLevel = 1,
+            ),
+            Product.ChipOffer(
+                id = "avatars_sports",
+                titleByLocale = mapOf("en" to "Sports Avatars", "es" to "Avatares deportes"),
+                subtitleByLocale = mapOf("en" to "Avatar pack · 8 emojis", "es" to "Paquete · 8 emojis"),
+                descriptionByLocale = mapOf(
+                    "en" to "Unlocks ⚽ 🏀 🏈 ⚾ 🎾 🎯 🎳 🥊 as avatar choices.",
+                ),
+                iconKey = "avatars_sports",
+                iconEmoji = "🏀",
+                costChips = 4_500,
+                grantsKey = "avatars.sports",
+                unlockLevel = 3,
+            ),
+            Product.ChipOffer(
+                id = "avatars_fantasy",
+                titleByLocale = mapOf("en" to "Fantasy Avatars", "es" to "Avatares fantasía"),
+                subtitleByLocale = mapOf("en" to "Avatar pack · 8 emojis", "es" to "Paquete · 8 emojis"),
+                descriptionByLocale = mapOf(
+                    "en" to "Unlocks 🧙 🧚 🧛 🧜 🦄 🐉 🧞 🐲 as avatar choices.",
+                ),
+                iconKey = "avatars_fantasy",
+                iconEmoji = "🧙",
+                badgeByLocale = mapOf("en" to "POPULAR", "es" to "POPULAR"),
+                costChips = 6_000,
+                grantsKey = "avatars.fantasy",
+                unlockLevel = 5,
+            ),
+            Product.ChipOffer(
+                id = "avatars_mythical",
+                titleByLocale = mapOf("en" to "Mythical Avatars", "es" to "Avatares míticos"),
+                subtitleByLocale = mapOf("en" to "Avatar pack · 8 emojis", "es" to "Paquete · 8 emojis"),
+                descriptionByLocale = mapOf(
+                    "en" to "Unlocks 🦖 🐙 🦕 🦑 🦞 🦀 🐡 🦈 as avatar choices.",
+                ),
+                iconKey = "avatars_mythical",
+                iconEmoji = "🦖",
+                costChips = 9_000,
+                grantsKey = "avatars.mythical",
+                unlockLevel = 15,
+            ),
+
             // --- Card backs (mid-tier) ---
             Product.ChipOffer(
-                id = "cardback_gold",
-                titleByLocale = mapOf("en" to "Gold Foil", "es" to "Lámina dorada"),
-                subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
-                descriptionByLocale = mapOf(
-                    "en" to "Replaces the pattern on the back of your hole cards. Equip from your items.",
-                ),
-                iconKey = "cardback_gold",
-                iconEmoji = "🂠",
-                costChips = 6_000,
-                grantsKey = "cardback.gold",
-            ),
-            Product.ChipOffer(
                 id = "cardback_marble",
-                titleByLocale = mapOf("en" to "Marble", "es" to "Mármol"),
+                titleByLocale = mapOf("en" to "Marble Card Back", "es" to "Reverso mármol"),
                 subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
                 descriptionByLocale = mapOf(
-                    "en" to "Marble-pattern card back — replaces the default. Equip from your items.",
+                    "en" to "Marble-pattern back for your hole cards. Equip from your items.",
                 ),
                 iconKey = "cardback_marble",
                 iconEmoji = "🂠",
                 badgeByLocale = mapOf("en" to "POPULAR", "es" to "POPULAR"),
-                costChips = 6_000,
+                costChips = 4_000,
                 grantsKey = "cardback.marble",
+                unlockLevel = 3,
+            ),
+            Product.ChipOffer(
+                id = "cardback_gold",
+                titleByLocale = mapOf("en" to "Gold Foil Card Back", "es" to "Reverso oro"),
+                subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
+                descriptionByLocale = mapOf(
+                    "en" to "Glinting gold foil pattern. Equip from your items.",
+                ),
+                iconKey = "cardback_gold",
+                iconEmoji = "🂠",
+                costChips = 5_000,
+                grantsKey = "cardback.gold",
+                unlockLevel = 5,
             ),
             Product.ChipOffer(
                 id = "cardback_neon",
-                titleByLocale = mapOf("en" to "Neon Lines", "es" to "Líneas de neón"),
+                titleByLocale = mapOf("en" to "Neon Lines Card Back", "es" to "Reverso neón"),
                 subtitleByLocale = mapOf("en" to "Card back", "es" to "Reverso de carta"),
                 descriptionByLocale = mapOf(
-                    "en" to "Glowing neon-line card back. Equip from your items.",
+                    "en" to "Glowing neon-line pattern. Equip from your items.",
                 ),
                 iconKey = "cardback_neon",
                 iconEmoji = "🂠",
-                costChips = 6_000,
+                costChips = 5_000,
                 grantsKey = "cardback.neon",
+                unlockLevel = 5,
             ),
-            // --- Table themes (premium) ---
+            Product.ChipOffer(
+                id = "cardback_diamond",
+                titleByLocale = mapOf("en" to "Diamond Lattice", "es" to "Rejilla diamante"),
+                subtitleByLocale = mapOf("en" to "Card back · Premium", "es" to "Reverso · Premium"),
+                descriptionByLocale = mapOf(
+                    "en" to "Crystalline diamond pattern — for high-roller decks. Equip from your items.",
+                ),
+                iconKey = "cardback_diamond",
+                iconEmoji = "💎",
+                costChips = 12_000,
+                grantsKey = "cardback.diamond",
+                unlockLevel = 15,
+            ),
+
+            // --- Premium table themes (high tier) ---
             Product.ChipOffer(
                 id = "table_neon",
                 titleByLocale = mapOf("en" to "Neon Table", "es" to "Mesa de neón"),
                 subtitleByLocale = mapOf("en" to "Table theme", "es" to "Tema de mesa"),
                 descriptionByLocale = mapOf(
-                    "en" to "Replaces the felt and rail color of your poker table. Equip from your items.",
+                    "en" to "Replaces the felt AND rail with a full neon table theme. Higher tier than a felt-only swap.",
                 ),
                 iconKey = "table_neon",
                 iconEmoji = "🎰",
                 featured = true,
                 badgeByLocale = mapOf("en" to "NEW", "es" to "NUEVO"),
-                costChips = 12_000,
+                costChips = 8_000,
                 grantsKey = "table.neon",
+                unlockLevel = 8,
             ),
             Product.ChipOffer(
                 id = "table_sunset",
-                titleByLocale = mapOf("en" to "Sunset Felt", "es" to "Fieltro atardecer"),
+                titleByLocale = mapOf("en" to "Sunset Table", "es" to "Mesa atardecer"),
                 subtitleByLocale = mapOf("en" to "Table theme", "es" to "Tema de mesa"),
                 descriptionByLocale = mapOf(
-                    "en" to "Warm sunset-orange felt that ties the room together. Equip from your items.",
+                    "en" to "Warm sunset-orange theme. Felt + rail. Equip from your items.",
                 ),
                 iconKey = "table_sunset",
                 iconEmoji = "🌅",
-                costChips = 12_000,
+                costChips = 8_000,
                 grantsKey = "table.sunset",
+                unlockLevel = 8,
             ),
-            // --- Player titles (top tier — vanity flex) ---
+
+            // --- Player titles (top tier — pure vanity flex) ---
             Product.ChipOffer(
                 id = "title_bluff_master",
                 titleByLocale = mapOf("en" to "Bluff Master", "es" to "Maestro del farol"),
                 subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
                 descriptionByLocale = mapOf(
-                    "en" to "Shows under your name at the table for everyone to see. Equip from your items.",
+                    "en" to "Shows under your name at the table for everyone to see. Pure flex.",
                 ),
                 iconKey = "title_bluff_master",
                 iconEmoji = "🎭",
-                costChips = 15_000,
+                costChips = 12_000,
                 grantsKey = "title.bluff_master",
+                unlockLevel = 10,
+            ),
+            Product.ChipOffer(
+                id = "title_shark",
+                titleByLocale = mapOf("en" to "The Shark", "es" to "El tiburón"),
+                subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
+                descriptionByLocale = mapOf(
+                    "en" to "For the player who reads the table. Shows under your name.",
+                ),
+                iconKey = "title_shark",
+                iconEmoji = "🦈",
+                costChips = 18_000,
+                grantsKey = "title.shark",
+                unlockLevel = 15,
             ),
             Product.ChipOffer(
                 id = "title_high_roller",
                 titleByLocale = mapOf("en" to "High Roller", "es" to "Apostador grande"),
                 subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
                 descriptionByLocale = mapOf(
-                    "en" to "Rare title — shows under your name at the table for everyone to see. Equip from your items.",
+                    "en" to "Rare title for the dedicated. Shows under your name.",
                 ),
                 iconKey = "title_high_roller",
                 iconEmoji = "🏆",
                 badgeByLocale = mapOf("en" to "RARE", "es" to "RARO"),
                 costChips = 25_000,
                 grantsKey = "title.high_roller",
+                unlockLevel = 20,
             ),
         ).filter { context.platform in it.platforms }
 

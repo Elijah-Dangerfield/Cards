@@ -177,11 +177,7 @@ private fun CatalogContent(
             ProductGrid(items = state.catalog.chipOffers) { offer ->
                 ChipOfferCard(
                     offer = offer,
-                    owned = state.ownsProduct(offer.id),
-                    pendingSync = state.inventory
-                        .firstOrNull { it.productId == offer.id }
-                        ?.state == PurchaseState.Pending,
-                    canAfford = state.canAfford(offer),
+                    cardState = state.classify(offer),
                     onClick = { onAction(ShopAction.RequestPurchase(offer)) },
                 )
             }
@@ -436,20 +432,37 @@ private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
 // Chip offer card (grid item) — owned / affordable / dimmed
 // ---------------------------------------------------------------------------
 
+/**
+ * Chip-offer grid card. Visual treatment dispatches on [cardState]:
+ *
+ *  - [ChipOfferCardState.Available] → normal card, ChipCostFooter
+ *  - [ChipOfferCardState.Insufficient] → dimmed card, cost footer in
+ *    danger color + "X more" deficit caption
+ *  - [ChipOfferCardState.Locked] → dimmed card, lock-icon overlay on the
+ *    product icon, "Unlocks at Level N" footer (no chip cost shown)
+ *  - [ChipOfferCardState.Owned] → normal card, green check on the icon,
+ *    "OWNED" / "OWNED · SYNCING" footer
+ *
+ * Only [ChipOfferCardState.Available] is tappable. Other states call back
+ * into [onClick] for analytics / future "tap to learn more" interactions
+ * but the VM's [ShopAction.RequestPurchase] is gated as well.
+ */
 @Composable
 private fun ChipOfferCard(
     offer: Product.ChipOffer,
-    owned: Boolean,
-    pendingSync: Boolean,
-    canAfford: Boolean,
+    cardState: ChipOfferCardState,
     onClick: () -> Unit,
 ) {
-    val interactionAlpha = when {
-        owned -> 1f
-        canAfford -> 1f
-        else -> 0.55f
+    // Locked + Insufficient both dim the card so it reads as "blocked";
+    // Available + Owned stay at full alpha. Locked is the most-dimmed
+    // since the level gate is the harder blocker.
+    val interactionAlpha = when (cardState) {
+        is ChipOfferCardState.Locked -> 0.65f
+        is ChipOfferCardState.Insufficient -> 0.55f
+        is ChipOfferCardState.Available -> 1f
+        is ChipOfferCardState.Owned -> 1f
     }
-    val tappable = !owned && canAfford
+    val tappable = cardState is ChipOfferCardState.Available
     val card: @Composable () -> Unit = {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight().alpha(interactionAlpha),
@@ -465,9 +478,15 @@ private fun ChipOfferCard(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(contentAlignment = Alignment.TopEnd) {
+                Box(contentAlignment = Alignment.Center) {
                     ProductIcon(iconKey = offer.iconKey, tone = IconTone.Accent)
-                    if (owned) OwnedCheck()
+                    when (cardState) {
+                        is ChipOfferCardState.Owned -> OwnedCheck(
+                            modifier = Modifier.align(Alignment.TopEnd),
+                        )
+                        is ChipOfferCardState.Locked -> LockIconOverlay()
+                        else -> Unit
+                    }
                 }
                 VerticalSpacerD400()
                 Text(
@@ -483,39 +502,127 @@ private fun ChipOfferCard(
                     color = AppTheme.colors.textSecondary,
                     textAlign = TextAlign.Center,
                 )
-                // Push the footer to the bottom edge — see ChipPackCard for
-                // the rationale. Keeps every card in a row aligned at the
-                // footer regardless of badge / subtitle length variance.
+                // Push the footer to the bottom edge — see ChipPackCard
+                // for the rationale.
                 Spacer(modifier = Modifier.weight(1f, fill = true))
                 Spacer(modifier = Modifier.height(Dimension.D400))
-                when {
-                    owned -> OwnedFooter(syncing = pendingSync)
-                    else -> ChipCostFooter(cost = offer.costChips, canAfford = canAfford)
+                when (cardState) {
+                    is ChipOfferCardState.Available -> ChipCostFooter(
+                        cost = cardState.costChips,
+                        canAfford = true,
+                    )
+                    is ChipOfferCardState.Insufficient -> InsufficientChipsFooter(
+                        cost = cardState.costChips,
+                        shortBy = cardState.shortBy,
+                    )
+                    is ChipOfferCardState.Locked -> LockedFooter(
+                        requiredLevel = cardState.requiredLevel,
+                    )
+                    is ChipOfferCardState.Owned -> OwnedFooter(syncing = cardState.pendingSync)
                 }
             }
         }
     }
 
-    // Owned items skip the corner badge: the OwnedCheck overlay on the icon
-    // already communicates state and a second pill on top of it just clutters.
+    // Owned + Locked items skip the marketing badge: the icon-level
+    // overlay already says "this card is in a special state" and a
+    // second pill on top of that is clutter.
     val offerBadge = offer.badge
-    if (offerBadge == null || owned) {
+    val showBadge = offerBadge != null &&
+        cardState !is ChipOfferCardState.Owned &&
+        cardState !is ChipOfferCardState.Locked
+    if (!showBadge) {
         Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) { card() }
     } else {
         BadgedBox(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             contentRadius = Radii.Card,
             placement = BadgePlacement.EdgeAlignedTop,
-            badge = { OverhangBadge(text = offerBadge, accent = ColorResource.Red400) },
+            badge = { OverhangBadge(text = offerBadge!!, accent = ColorResource.Red400) },
             content = { card() },
         )
     }
 }
 
+/**
+ * White lock icon centered on the product icon — the most direct visual
+ * cue that a card is gated. Sits inside a dark translucent backdrop so
+ * it works against any [IconTone] of the underlying tile.
+ */
 @Composable
-private fun OwnedCheck() {
+private fun LockIconOverlay() {
     Box(
         modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(AppTheme.colors.background.color.copy(alpha = 0.75f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "🔒",
+            typography = AppTheme.typography.Body.B600,
+            color = AppTheme.colors.text,
+        )
+    }
+}
+
+@Composable
+private fun LockedFooter(requiredLevel: Int) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(AppTheme.colors.surfaceDisabled.color)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = "Unlocks at Level $requiredLevel",
+            typography = AppTheme.typography.Label.L400,
+            color = AppTheme.colors.textSecondary,
+        )
+    }
+}
+
+/**
+ * Cost footer for the "can't afford" state. Same shape as the available
+ * footer but the cost is rendered in the danger color, and a small
+ * second-line caption surfaces exactly how many chips the user is short.
+ *
+ * Loud enough that a player scrolling the grid immediately sees "I'm
+ * close but not there yet" instead of just a vaguely-dimmed card.
+ */
+@Composable
+private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(AppTheme.colors.danger.color.copy(alpha = 0.18f))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ChipCoin(size = 16.dp, textTypography = AppTheme.typography.Body.B400)
+            Spacer(modifier = Modifier.size(6.dp))
+            Text(
+                text = formatChips(cost),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.danger,
+            )
+        }
+        if (shortBy > 0) {
+            VerticalSpacerD100()
+            Text(
+                text = "${formatChips(shortBy)} short",
+                typography = AppTheme.typography.Label.L400,
+                color = AppTheme.colors.textSecondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun OwnedCheck(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
             .size(28.dp)
             .clip(CircleShape)
             .background(AppTheme.colors.status.okay.color),

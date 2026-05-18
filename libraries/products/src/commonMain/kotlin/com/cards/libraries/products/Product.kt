@@ -63,6 +63,12 @@ sealed interface Product {
         override val featured: Boolean = false,
         override val badge: String? = null,
         /**
+         * Minimum player level required to purchase. 1 / null = no gate.
+         * Locked products are still shown in the shop (as a "carrot") but
+         * rendered with a lock overlay + "Unlocks at Level N" footer.
+         */
+        val unlockLevel: Int? = null,
+        /**
          * Long-form explanation of what the user actually gets. Where
          * [subtitle] is a category label ("Emote", "Card back"), this is
          * one or two sentences explaining the behavior ("Send a celebration

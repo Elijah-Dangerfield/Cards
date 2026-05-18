@@ -83,6 +83,19 @@ sealed interface Product {
         /** What buying this unlocks — opaque key the client maps to inventory. */
         val grantsKey: String,
         /**
+         * Minimum player level required to purchase. Clients with a lower
+         * level should still see the product in the shop (so it's a
+         * visible carrot), but render it as locked with the unlock
+         * requirement called out.
+         *
+         * 1 (or null) = no level gate — available at signup.
+         *
+         * Locked offers usually still have a [costChips] cost the user
+         * must pay on top of the level requirement (level unlocks the
+         * RIGHT to buy, not the item itself).
+         */
+        val unlockLevel: Int? = null,
+        /**
          * Longer-form explanation of what the user actually gets. The
          * tile-level [subtitleByLocale] is a category label ("Emote",
          * "Card back") — this is the sentence-or-two that tells a new

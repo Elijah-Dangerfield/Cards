@@ -258,11 +258,13 @@ class ShopViewModelTest : CoroutineTest() {
         inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
         inventorySyncService: FakeSyncService = FakeSyncService(),
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
+        progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
         inventoryRepository = inventoryRepository,
         inventorySyncService = inventorySyncService,
         chipsRepository = chipsRepository,
+        progressionRepository = progressionRepository,
     )
 
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
@@ -382,5 +384,31 @@ class ShopViewModelTest : CoroutineTest() {
             purchasedAtEpochMs = 1000L,
             costChipsAtPurchase = 2_500L,
         )
+    }
+
+    /**
+     * Minimal fake for [com.dangerfield.cards.libraries.cards.ProgressionRepository]
+     * — we only exercise the observeProgression Flow path in shop tests.
+     * Bumping XP via the mutable state will trigger the VM to recompute
+     * playerLevel on the next collection.
+     */
+    private class FakeProgressionRepository(
+        initial: com.dangerfield.cards.libraries.cards.Progression =
+            com.dangerfield.cards.libraries.cards.Progression.Empty,
+    ) : com.dangerfield.cards.libraries.cards.ProgressionRepository {
+        private val state = MutableStateFlow(initial)
+
+        fun setXp(totalXp: Long) {
+            state.value = state.value.copy(totalXp = totalXp)
+        }
+
+        override fun observeProgression() = state.asStateFlow()
+        override suspend fun getProgression() = state.value
+        override suspend fun awardForHand(
+            summary: com.dangerfield.cards.libraries.cards.HandResultSummary,
+        ) = emptyList<com.dangerfield.cards.libraries.cards.XpEvent>()
+        override suspend fun applyAchievementXp(delta: Int, description: String?) =
+            error("not used in shop tests")
+        override suspend fun deleteAll() {}
     }
 }

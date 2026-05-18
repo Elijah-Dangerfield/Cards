@@ -47,6 +47,7 @@ data class ChipOfferDto(
     val featured: Boolean = false,
     val badge: String? = null,
     val description: String? = null,
+    val unlockLevel: Int? = null,
 )
 
 @Serializable
@@ -83,6 +84,7 @@ private fun ChipOfferDto.toDomain(): Product.ChipOffer = Product.ChipOffer(
     featured = featured,
     badge = badge,
     description = description,
+    unlockLevel = unlockLevel,
 )
 
 private fun StoreSkuDto.toDomain(): StoreSku = StoreSku(

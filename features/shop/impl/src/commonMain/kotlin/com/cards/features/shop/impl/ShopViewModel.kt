@@ -5,7 +5,9 @@ import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.InventorySyncService
+import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.RedeemResult
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.products.Product
@@ -48,6 +50,7 @@ class ShopViewModel @Inject constructor(
     private val inventoryRepository: InventoryRepository,
     private val inventorySyncService: InventorySyncService,
     private val chipsRepository: ChipsRepository,
+    private val progressionRepository: ProgressionRepository,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
@@ -66,6 +69,16 @@ class ShopViewModel @Inject constructor(
         viewModelScope.launch {
             inventoryRepository.observeInventory().collect { inventory ->
                 takeAction(ShopAction.InventoryChanged(inventory))
+            }
+        }
+        viewModelScope.launch {
+            // Player level is derived from lifetime XP via the cards
+            // progression curve. Recomputed on every progression update
+            // so the shop's lock state flips the moment the user levels
+            // up mid-session.
+            progressionRepository.observeProgression().collect { progression ->
+                val level = levelProgressFor(progression.totalXp).level
+                takeAction(ShopAction.PlayerLevelChanged(level))
             }
         }
         // Kick off catalog refresh + inventory sync (these run concurrently).
@@ -104,6 +117,9 @@ class ShopViewModel @Inject constructor(
                     ownedProductIds = action.inventory.map { item -> item.productId }.toSet(),
                 )
             }
+            is ShopAction.PlayerLevelChanged -> action.updateState {
+                it.copy(playerLevel = action.level)
+            }
             is ShopAction.DismissError -> action.updateState {
                 it.copy(errorMessage = null)
             }
@@ -111,10 +127,14 @@ class ShopViewModel @Inject constructor(
             // ---- Purchase intent flow ----
 
             is ShopAction.RequestPurchase -> {
-                // Don't open the sheet for items the user already owns —
-                // pure defensive (UI also gates this), but covers any race.
-                if (state.ownsProduct(action.product.id)) return
-                action.updateState { it.copy(pendingPurchase = PendingPurchase.from(action.product)) }
+                // Defense-in-depth: refuse to open the confirm sheet for
+                // owned / locked / unaffordable items. UI also gates these,
+                // but the action layer is the final fence.
+                val product = action.product
+                if (state.ownsProduct(product.id)) return
+                if (!state.isUnlocked(product)) return
+                if (product is Product.ChipOffer && !state.canAfford(product)) return
+                action.updateState { it.copy(pendingPurchase = PendingPurchase.from(product)) }
             }
             is ShopAction.DismissPendingPurchase -> action.updateState {
                 it.copy(pendingPurchase = null)
@@ -185,6 +205,12 @@ data class ShopState(
     /** Quick-lookup set of product ids the user owns. Updated alongside
      *  [inventory] so screen code doesn't re-derive it on every recompose. */
     val ownedProductIds: Set<String> = emptySet(),
+    /**
+     * Player's current level, derived from lifetime XP via the cards
+     * progression curve. Drives the unlock-state classifier for chip
+     * offers gated by [Product.ChipOffer.unlockLevel].
+     */
+    val playerLevel: Int = 1,
     /** Non-null while the purchase confirmation sheet is up. */
     val pendingPurchase: PendingPurchase? = null,
 ) {
@@ -195,6 +221,66 @@ data class ShopState(
      * row + by the VM as a final guard before mutating state.
      */
     fun canAfford(offer: Product.ChipOffer): Boolean = chipBalance >= offer.costChips
+
+    /**
+     * Is the product unlocked for this user (i.e., past the level gate)?
+     * Products without an [Product.ChipOffer.unlockLevel] are always
+     * unlocked. IAP packs don't have a level gate today.
+     */
+    fun isUnlocked(product: Product): Boolean = when (product) {
+        is Product.ChipPack -> true // IAP packs aren't level-gated in V1.
+        is Product.ChipOffer -> (product.unlockLevel ?: 1) <= playerLevel
+    }
+
+    /**
+     * Classify a chip offer into one of the four visible states the shop
+     * grid renders. Keep this here (not in the screen) so we have a
+     * single source of truth and the renderer is just `when`.
+     *
+     * Priority: owned > locked > insufficient > available. Locked beats
+     * insufficient because the level gate is the more meaningful blocker
+     * — even if the user has the chips, they can't buy.
+     */
+    fun classify(offer: Product.ChipOffer): ChipOfferCardState = when {
+        ownsProduct(offer.id) -> {
+            val pendingSync = inventory
+                .firstOrNull { it.productId == offer.id }
+                ?.state == com.dangerfield.cards.libraries.cards.PurchaseState.Pending
+            ChipOfferCardState.Owned(pendingSync = pendingSync)
+        }
+        !isUnlocked(offer) -> ChipOfferCardState.Locked(
+            requiredLevel = offer.unlockLevel ?: 1,
+        )
+        !canAfford(offer) -> ChipOfferCardState.Insufficient(
+            costChips = offer.costChips,
+            shortBy = (offer.costChips - chipBalance).coerceAtLeast(0),
+        )
+        else -> ChipOfferCardState.Available(costChips = offer.costChips)
+    }
+}
+
+/**
+ * The mutually-exclusive states a chip-offer card can be in on the shop
+ * grid. The renderer dispatches on this — each variant carries exactly
+ * the data its visual treatment needs.
+ *
+ * Defined as a sealed interface so adding a future state (e.g.,
+ * "TimeLimited", "RequiresAchievement") only touches the classifier and
+ * the renderer, not every call site.
+ */
+sealed interface ChipOfferCardState {
+    /** Buyable: user is unlocked and can afford. */
+    data class Available(val costChips: Long) : ChipOfferCardState
+
+    /** Unlocked but can't afford. Show cost in danger + deficit indicator. */
+    data class Insufficient(val costChips: Long, val shortBy: Long) : ChipOfferCardState
+
+    /** Locked by level. Show lock overlay + "Unlocks at Level N" footer. */
+    data class Locked(val requiredLevel: Int) : ChipOfferCardState
+
+    /** User already owns this. [pendingSync] true while the local row
+     *  hasn't been confirmed by the server yet. */
+    data class Owned(val pendingSync: Boolean) : ChipOfferCardState
 }
 
 /**
@@ -224,6 +310,7 @@ sealed interface ShopAction {
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
     data class ChipsChanged(val balance: Long) : ShopAction
     data class InventoryChanged(val inventory: List<InventoryItem>) : ShopAction
+    data class PlayerLevelChanged(val level: Int) : ShopAction
     data object DismissError : ShopAction
 
     /** User tapped a product row → open the purchase confirmation sheet. */

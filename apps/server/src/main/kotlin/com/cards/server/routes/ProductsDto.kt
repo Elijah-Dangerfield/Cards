@@ -58,6 +58,11 @@ data class ChipOfferDto(
      * the server doesn't provide one.
      */
     val description: String? = null,
+    /**
+     * Minimum player level required to purchase. 1 / null = no level gate.
+     * See server domain `Product.ChipOffer.unlockLevel`.
+     */
+    val unlockLevel: Int? = null,
 )
 
 /**
