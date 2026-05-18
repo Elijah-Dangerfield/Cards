@@ -102,9 +102,9 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun PlayBotsScreen(
-    state: PlayBotsState,
-    onAction: (PlayBotsAction) -> Unit,
+fun PlayPokerScreen(
+    state: PlayPokerState,
+    onAction: (PlayPokerAction) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onTapXp: () -> Unit = {},
@@ -161,7 +161,7 @@ fun PlayBotsScreen(
                     street = active?.street,
                     xp = state.xp,
                     onBack = requestLeave,
-                    onCheatSheet = { onAction(PlayBotsAction.ToggleCheatSheet) },
+                    onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
                 )
 
@@ -170,7 +170,7 @@ fun PlayBotsScreen(
                 } else {
                     ActiveTable(
                         table = active,
-                        onIntent = { onAction(PlayBotsAction.SubmitIntent(it)) },
+                        onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { raiseSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
                         onPotClick = { potExplainerOpen = true },
@@ -199,7 +199,7 @@ fun PlayBotsScreen(
                     humanSeatIndex = active.seats.first { it.isHuman }.index,
                     onIntent = { intent ->
                         raiseSheetOpen = false
-                        onAction(PlayBotsAction.SubmitIntent(intent))
+                        onAction(PlayPokerAction.Submit(intent))
                     },
                 )
             }
@@ -207,7 +207,7 @@ fun PlayBotsScreen(
 
         if (state.cheatSheetOpen) {
             HandRankingsCheatSheet(
-                onDismiss = { onAction(PlayBotsAction.ToggleCheatSheet) },
+                onDismiss = { onAction(PlayPokerAction.ToggleCheatSheet) },
                 handNumber = active?.handNumber,
                 street = active?.street,
                 pot = active?.pot,
@@ -257,7 +257,7 @@ fun PlayBotsScreen(
                     leaveConfirmOpen = false
                     onBack()
                 },
-                onSetSkipLeaveConfirm = { onAction(PlayBotsAction.SetSkipLeaveConfirm(it)) },
+                onSetSkipLeaveConfirm = { onAction(PlayPokerAction.SetSkipLeaveConfirm(it)) },
             )
         }
 
@@ -277,14 +277,14 @@ fun PlayBotsScreen(
                 // hand the moment we observe a bust.
                 if (state.skipBustDialog) {
                     LaunchedEffect(handResult) {
-                        onAction(PlayBotsAction.AdvanceNextHand)
+                        onAction(PlayPokerAction.RequestNextHand)
                     }
                 } else {
                     BustDialog(
                         xpEarned = state.lastHandXpAwarded,
                         earnedAchievements = state.recentlyEarned,
-                        onDealMeIn = { onAction(PlayBotsAction.AdvanceNextHand) },
-                        onSetSkipBustDialog = { onAction(PlayBotsAction.SetSkipBustDialog(it)) },
+                        onDealMeIn = { onAction(PlayPokerAction.RequestNextHand) },
+                        onSetSkipBustDialog = { onAction(PlayPokerAction.SetSkipBustDialog(it)) },
                     )
                 }
             } else {
@@ -293,7 +293,7 @@ fun PlayBotsScreen(
                     seats = active.seats,
                     xpEarned = state.lastHandXpAwarded,
                     earnedAchievements = state.recentlyEarned,
-                    onNextHand = { onAction(PlayBotsAction.AdvanceNextHand) },
+                    onNextHand = { onAction(PlayPokerAction.RequestNextHand) },
                 )
             }
         }
@@ -559,10 +559,10 @@ private fun previewLegalActions(
 
 @Preview
 @Composable
-private fun PlayBotsScreenPreview_YourTurnPreflop() {
+private fun PlayPokerScreenPreview_YourTurnPreflop() {
     PreviewContent {
-        PlayBotsScreen(
-            state = PlayBotsState(table = previewActive()),
+        PlayPokerScreen(
+            state = PlayPokerState(table = previewActive()),
             onAction = {},
             onBack = {},
         )
@@ -571,10 +571,10 @@ private fun PlayBotsScreenPreview_YourTurnPreflop() {
 
 @Preview
 @Composable
-private fun PlayBotsScreenPreview_YourTurnPostflopOpenBet() {
+private fun PlayPokerScreenPreview_YourTurnPostflopOpenBet() {
     PreviewContent {
-        PlayBotsScreen(
-            state = PlayBotsState(
+        PlayPokerScreen(
+            state = PlayPokerState(
                 table = previewActive(
                     street = BettingRound.Flop,
                     communityCards = listOf(
@@ -606,10 +606,10 @@ private fun PlayBotsScreenPreview_YourTurnPostflopOpenBet() {
 
 @Preview
 @Composable
-private fun PlayBotsScreenPreview_RaiseUnavailable() {
+private fun PlayPokerScreenPreview_RaiseUnavailable() {
     PreviewContent {
-        PlayBotsScreen(
-            state = PlayBotsState(
+        PlayPokerScreen(
+            state = PlayPokerState(
                 table = previewActive(
                     seats = previewDefaultSeats().map {
                         if (it.isHuman) it.copy(stack = 15) else it
@@ -630,10 +630,10 @@ private fun PlayBotsScreenPreview_RaiseUnavailable() {
 
 @Preview
 @Composable
-private fun PlayBotsScreenPreview_BotThinking() {
+private fun PlayPokerScreenPreview_BotThinking() {
     PreviewContent {
-        PlayBotsScreen(
-            state = PlayBotsState(
+        PlayPokerScreen(
+            state = PlayPokerState(
                 table = previewActive(
                     actingSeatIndex = 3,
                     isHumanTurn = false,
@@ -655,7 +655,7 @@ private fun PlayBotsScreenPreview_BotThinking() {
 
 @Preview
 @Composable
-private fun PlayBotsScreenPreview_Showdown() {
+private fun PlayPokerScreenPreview_Showdown() {
     val board = listOf(
         card(Rank.Ten, Suit.Hearts),
         card(Rank.Jack, Suit.Hearts),
@@ -701,8 +701,8 @@ private fun PlayBotsScreenPreview_Showdown() {
         board = board,
     )
     PreviewContent {
-        PlayBotsScreen(
-            state = PlayBotsState(
+        PlayPokerScreen(
+            state = PlayPokerState(
                 table = previewActive(
                     street = BettingRound.Showdown,
                     communityCards = board,
@@ -722,10 +722,10 @@ private fun PlayBotsScreenPreview_Showdown() {
 
 @Preview
 @Composable
-private fun PlayBotsScreenPreview_CheatSheet() {
+private fun PlayPokerScreenPreview_CheatSheet() {
     PreviewContent {
-        PlayBotsScreen(
-            state = PlayBotsState(table = previewActive(), cheatSheetOpen = true),
+        PlayPokerScreen(
+            state = PlayPokerState(table = previewActive(), cheatSheetOpen = true),
             onAction = {},
             onBack = {},
         )
@@ -734,10 +734,10 @@ private fun PlayBotsScreenPreview_CheatSheet() {
 
 @Preview
 @Composable
-private fun PlayBotsScreenPreview_Loading() {
+private fun PlayPokerScreenPreview_Loading() {
     PreviewContent {
-        PlayBotsScreen(
-            state = PlayBotsState(table = TableUiState.Loading),
+        PlayPokerScreen(
+            state = PlayPokerState(table = TableUiState.Loading),
             onAction = {},
             onBack = {},
         )

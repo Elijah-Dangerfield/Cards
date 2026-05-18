@@ -16,34 +16,38 @@ import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.Personality
 import com.dangerfield.cards.libraries.game.PlayStyle
 import com.dangerfield.cards.libraries.game.SeatOccupant
+import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Seat
 import kotlinx.coroutines.launch
+import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
 /**
- * The new ViewModel — UI-decoupled, bot/human-agnostic, consumed via [PokerSession].
+ * The bot/human-agnostic ViewModel that backs the play-poker screen.
  *
- * Built next to [PlayBotsViewModel] (strangler pattern). Production routing is unchanged:
- * the screen still uses the old VM. This VM is constructible in tests directly and is
- * the target for the test suite landing in Phase 0.2.f. Once tests are green, the screen
- * is swapped (0.2.g) and the old VM deleted (0.2.h).
+ * Consumes [PokerSession] (UI-decoupled engine state + events) via a
+ * [PokerSessionFactory] injected by the [PlayPokerFeatureEntryPoint]. For
+ * solo mode the factory is [SoloBotsPokerSessionFactory]; for MP (Phase 4)
+ * it will be a `RemotePokerSessionFactory` satisfying the same interface
+ * with no VM changes required.
  *
  * Design notes:
- * - Takes a [PokerSession] supplier (not the session itself) so the lambda passed for
- *   hand-end achievement/XP wiring closes over `viewModelScope` correctly. The session
- *   is constructed lazily once the supplier is invoked in `init`.
- * - Achievement / XP / settings-mirror logic mirrors [PlayBotsViewModel] — these don't
- *   change with the session source, only the engine-state consumption does.
- * - [PlayPokerState.occupants] is derived from [GameState.seats]. Bot personalities come
- *   from a constructor-supplied map (solo) or will come from the server (MP, Phase 4).
+ * - Takes a session FACTORY (not a session) so the hand-end lambda below
+ *   can close over `viewModelScope` correctly — the session is constructed
+ *   in the init block.
+ * - [PlayPokerState.table] is projected from raw [GameState] via the
+ *   factory's `tableFor`; per-hand transients (winners, last-action pills)
+ *   come from engine events the VM observes.
  *
- * See `docs/architecture/game-session.md` Appendix for the locked MVI contract.
+ * See `docs/architecture/game-session.md` for the architecture overview and
+ * the appendix for the locked MVI contract.
  */
 class PlayPokerViewModel @Inject constructor(
-    private val sessionFactory: PokerSessionFactory,
+    @Assisted private val sessionFactory: PokerSessionFactory,
     private val progressionRepository: ProgressionRepository,
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
@@ -54,9 +58,17 @@ class PlayPokerViewModel @Inject constructor(
     private val logger = KLog.withTag("PlayPokerViewModel")
     private val humanSeatIndex: Int = 0
 
-    // Cached bot-speed mirror — the session reads this via a non-suspending provider on
-    // every bot turn. Same pattern as PlayBotsViewModel.
+    // Cached bot-speed mirror — the session reads this via a non-suspending
+    // provider on every bot turn so a settings toggle mid-hand takes effect
+    // on the next bot decision.
     private var latestBotSpeed: BotSpeed = BotSpeed.Normal
+
+    // Per-hand transient state that feeds into TableUiState projection but
+    // ISN'T part of [GameState]. We track them from engine events and pass
+    // into the factory's projection on every state emission. Cleared at the
+    // start of each hand.
+    private var lastWinners: GameEvent.HandEnded? = null
+    private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
 
     // Session created lazily so the hand-end lambda below can reference `viewModelScope`.
     private val session: PokerSession = sessionFactory.create(
@@ -142,12 +154,33 @@ class PlayPokerViewModel @Inject constructor(
     override suspend fun handleAction(action: PlayPokerAction) {
         when (action) {
             is PlayPokerAction.GameStateUpdated -> action.updateState {
-                it.copy(table = sessionFactory.tableFor(action.state))
+                it.copy(
+                    table = sessionFactory.tableFor(
+                        state = action.state,
+                        lastWinners = lastWinners,
+                        lastActionBySeat = lastActionBySeat.toMap(),
+                    ),
+                )
             }
             is PlayPokerAction.OccupantsUpdated -> action.updateState {
                 it.copy(occupants = action.occupants)
             }
-            is PlayPokerAction.GameEventReceived -> Unit  // hook for haptics/sound in 0.2.f when wired
+            is PlayPokerAction.GameEventReceived -> {
+                // Track transients that the TableUiState projection needs but
+                // GameState alone can't carry — most notably the HandEnded
+                // event (used for showdown rendering) and the most recent
+                // action per seat (rendered as a "Folded" / "Called X" pill).
+                when (val ev = action.event) {
+                    is GameEvent.HandStarted -> {
+                        lastWinners = null
+                        lastActionBySeat.clear()
+                    }
+                    is GameEvent.StreetAdvanced -> lastActionBySeat.clear()
+                    is GameEvent.ActionTaken -> lastActionBySeat[ev.seatIndex] = ev.action
+                    is GameEvent.HandEnded -> lastWinners = ev
+                    else -> Unit
+                }
+            }
 
             is PlayPokerAction.Submit -> {
                 logger.d { "VM received Submit ${action.intent}" }
@@ -282,12 +315,21 @@ interface PokerSessionFactory {
     fun occupantsFor(state: GameState): List<SeatOccupant>
 
     /**
-     * Project the raw engine state into a [TableUiState] for rendering. The
-     * factory owns this projection because the inputs differ by session type:
-     * solo knows bot personalities locally; MP will source them from
+     * Project the raw engine state into a [TableUiState] for rendering.
+     *
+     * The factory owns this projection because the inputs differ by session
+     * type: solo knows bot personalities locally; MP will source them from
      * server-provided occupant metadata.
+     *
+     * [lastWinners] and [lastActionBySeat] are per-hand transients the VM
+     * tracks from engine events — they aren't part of [GameState] proper
+     * but the rendered table needs them (showdown dialog, "Called 50" pill).
      */
-    fun tableFor(state: GameState): TableUiState
+    fun tableFor(
+        state: GameState,
+        lastWinners: GameEvent.HandEnded? = null,
+        lastActionBySeat: Map<Int, PlayerAction> = emptyMap(),
+    ): TableUiState
 }
 
 /**

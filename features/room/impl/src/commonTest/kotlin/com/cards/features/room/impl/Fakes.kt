@@ -20,6 +20,7 @@ import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
@@ -103,13 +104,17 @@ class FakePokerSessionFactory(
         seatToOccupant(seat, personalities[seat.index])
     }
 
-    override fun tableFor(state: GameState): TableUiState = TableUiState.fromGameState(
+    override fun tableFor(
+        state: GameState,
+        lastWinners: GameEvent.HandEnded?,
+        lastActionBySeat: Map<Int, PlayerAction>,
+    ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
         personalitiesBySeat = emptyMap(),
         lastThoughts = emptyMap(),
-        lastWinners = null,
-        lastActionBySeat = emptyMap(),
+        lastWinners = lastWinners,
+        lastActionBySeat = lastActionBySeat,
     )
 }
 

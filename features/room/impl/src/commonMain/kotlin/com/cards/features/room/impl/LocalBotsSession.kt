@@ -61,10 +61,10 @@ class LocalBotsSession(
      * responsive). Tests pass a `TestDispatcherProvider` whose `default` is
      * the test scheduler, so the bot loop advances on virtual time.
      *
-     * Defaulted to [DefaultDispatcherProvider] for the existing
-     * `PlayBotsViewModel` constructor that doesn't yet thread the provider
-     * through. Once that VM is deleted (Phase 0.2.h), this default goes away
-     * and `PlayPokerViewModel` will inject the provider via DI.
+     * Defaulted to [DefaultDispatcherProvider] for the [LocalBotsSession]
+     * test-fixture callers that don't thread the provider through. Production
+     * code goes through [SoloBotsPokerSessionFactory], which always injects
+     * the DI-provided [DispatcherProvider].
      */
     private val dispatchers: DispatcherProvider = DefaultDispatcherProvider(),
 ) : PokerSession {
