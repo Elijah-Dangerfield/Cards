@@ -1,0 +1,77 @@
+package com.dangerfield.cards.libraries.products
+
+import kotlinx.serialization.Serializable
+
+/**
+ * Client-side domain model for a shop product.
+ *
+ * Two flavors, distinguished by how the user pays:
+ *  - [ChipPack] — purchased with real money via the platform store (IAP).
+ *  - [ChipOffer] — purchased with in-game chips.
+ *
+ * Display strings are pre-localized by the server using the request's
+ * `Accept-Language` header — the client never sees raw locale maps. UI just
+ * renders [title] / [subtitle] / [badge] as-is.
+ *
+ * For [ChipPack.store.fallbackPriceDisplay]: this is the placeholder price
+ * the UI shows while the platform store fetch is in-flight or fails. The
+ * platform store (App Store / Play Store) is always the source of truth for
+ * the actual localized price the user pays — the SKU is the join key.
+ *
+ * `@Serializable` so the repo can cache a snapshot to disk later if we want
+ * offline reads. Currently the cache lives in memory only.
+ */
+@Serializable
+sealed interface Product {
+    val id: String
+    val title: String
+    val subtitle: String
+    val iconKey: String
+    val featured: Boolean
+    val badge: String?
+
+    @Serializable
+    data class ChipPack(
+        override val id: String,
+        override val title: String,
+        override val subtitle: String,
+        override val iconKey: String,
+        val grantsChips: Long,
+        val store: StoreSku,
+        override val featured: Boolean = false,
+        override val badge: String? = null,
+    ) : Product
+
+    @Serializable
+    data class ChipOffer(
+        override val id: String,
+        override val title: String,
+        override val subtitle: String,
+        override val iconKey: String,
+        val costChips: Long,
+        val grantsKey: String,
+        override val featured: Boolean = false,
+        override val badge: String? = null,
+    ) : Product
+}
+
+/** Platform store join key for [Product.ChipPack]. */
+@Serializable
+data class StoreSku(
+    val sku: String,
+    val fallbackPriceDisplay: String,
+)
+
+/** Full shop catalog snapshot. */
+@Serializable
+data class ProductCatalog(
+    val chipPacks: List<Product.ChipPack> = emptyList(),
+    val chipOffers: List<Product.ChipOffer> = emptyList(),
+) {
+    val isEmpty: Boolean
+        get() = chipPacks.isEmpty() && chipOffers.isEmpty()
+
+    companion object {
+        val Empty: ProductCatalog = ProductCatalog()
+    }
+}
