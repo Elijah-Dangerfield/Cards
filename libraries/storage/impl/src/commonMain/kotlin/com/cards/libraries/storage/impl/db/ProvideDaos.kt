@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.storage.impl.db
 
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
+import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
@@ -53,3 +54,9 @@ class ProvideAchievementDao @Inject constructor(
 class ProvideInventoryDao @Inject constructor(
     provider: AppDatabaseProvider
 ) : InventoryDao by provider.database.inventoryDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = EquipmentDao::class)
+class ProvideEquipmentDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : EquipmentDao by provider.database.equipmentDao()

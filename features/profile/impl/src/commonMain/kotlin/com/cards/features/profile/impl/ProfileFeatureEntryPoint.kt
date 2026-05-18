@@ -26,9 +26,12 @@ import com.dangerfield.cards.features.profile.impl.edit.EditProfileScreen
 import com.dangerfield.cards.features.profile.impl.edit.EditProfileViewModel
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackScreen
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
+import com.dangerfield.cards.features.profile.impl.items.MyItemsScreen
+import com.dangerfield.cards.features.profile.impl.items.MyItemsViewModel
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
+import com.dangerfield.cards.features.profile.MyItemsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
@@ -71,6 +74,7 @@ class ProfileFeatureEntryPoint(
     private val deleteAccountViewModelFactory: () -> DeleteAccountViewModel,
     private val editProfileViewModelFactory: () -> EditProfileViewModel,
     private val claimAccountViewModelFactory: () -> ClaimAccountViewModel,
+    private val myItemsViewModelFactory: () -> MyItemsViewModel,
     private val userRepository: UserRepository,
     private val appCache: AppCache,
 ) : FeatureEntryPoint {
@@ -115,6 +119,7 @@ class ProfileFeatureEntryPoint(
                 ),
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },
+                onOpenMyItems = { router.navigate(MyItemsRoute()) },
                 onBotSpeedChange = { speed ->
                     scope.launch { appCache.update { it.copy(botSpeed = speed) } }
                 },
@@ -170,6 +175,16 @@ class ProfileFeatureEntryPoint(
                 }
             }
             DeleteAccountScreen(
+                state = state,
+                onAction = viewModel::takeAction,
+                onBack = { router.goBack() },
+            )
+        }
+
+        screen<MyItemsRoute> {
+            val viewModel: MyItemsViewModel = viewModel { myItemsViewModelFactory() }
+            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+            MyItemsScreen(
                 state = state,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },

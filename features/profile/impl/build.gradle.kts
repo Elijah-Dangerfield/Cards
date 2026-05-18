@@ -17,6 +17,7 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.config)
+            implementation(projects.libraries.products)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.ui)
