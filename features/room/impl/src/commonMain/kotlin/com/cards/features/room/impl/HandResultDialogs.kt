@@ -17,7 +17,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,11 +28,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.gameplay.Rank
+import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.describe
+import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.checkbox.Checkbox
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -37,6 +46,8 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD100
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Hand-end modals shown when the human's hand finishes — either a normal
@@ -63,9 +74,7 @@ internal fun ShowdownDialog(
     val totalPot = result.winners.sumOf { it.amount }
     val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
 
-    // Tall when an achievement (or several) unlock; cap to 85% screen height
-    // so the column has bounds for `verticalScroll` to actually scroll within.
-    Dialog(onDismissRequest = onNextHand, maxHeightFraction = 0.85f) {
+    Dialog(onDismissRequest = onNextHand) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -158,7 +167,7 @@ internal fun ShowdownDialog(
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            VerticalSpacerD100()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -190,8 +199,14 @@ internal fun BustDialog(
     xpEarned: Int?,
     earnedAchievements: List<EarnedAchievement>,
     onDealMeIn: () -> Unit,
+    onSetSkipBustDialog: (Boolean) -> Unit,
 ) {
-    Dialog(onDismissRequest = onDealMeIn) {
+    var dontShowAgain by remember { mutableStateOf(false) }
+    val confirm: () -> Unit = {
+        if (dontShowAgain) onSetSkipBustDialog(true)
+        onDealMeIn()
+    }
+    Dialog(onDismissRequest = confirm) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -234,12 +249,32 @@ internal fun BustDialog(
             earnedAchievements.forEach { earned ->
                 AchievementUnlockedCallout(earned = earned)
             }
+            // "Don't show again" — once acknowledged, the modal stops popping
+            // on future busts and the user goes straight to the next hand.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { dontShowAgain = !dontShowAgain }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Checkbox(
+                    checked = dontShowAgain,
+                    onCheckedChange = { dontShowAgain = it },
+                )
+                Text(
+                    text = "Don't show this again",
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.onSurfaceSecondary,
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(32.dp))
                     .background(AppTheme.colors.accentPrimary.color)
-                    .clickable(onClick = onDealMeIn)
+                    .clickable(onClick = confirm)
                     .padding(vertical = 18.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -386,5 +421,106 @@ private fun ShowdownRow(
                 )
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun ShowdownDialogPreview_HumanWinsAtRiver() {
+    PreviewContent {
+        val board = PreviewSamples.riverBoard()
+        ShowdownDialog(
+            result = HandResultView(
+                winners = listOf(PreviewSamples.handWinner(seatIndex = 0, amount = 240)),
+                board = board,
+            ),
+            seats = listOf(
+                PreviewSamples.humanSeat(
+                    stack = 1_220,
+                    holeCards = listOf(
+                        PreviewSamples.card(Rank.Ace, Suit.Spades),
+                        PreviewSamples.card(Rank.Ace, Suit.Clubs),
+                    ),
+                ),
+                PreviewSamples.botSeat(
+                    index = 1,
+                    name = "Jane",
+                    stack = 760,
+                    holeCards = listOf(
+                        PreviewSamples.card(Rank.King, Suit.Hearts),
+                        PreviewSamples.card(Rank.Queen, Suit.Hearts),
+                    ),
+                ),
+            ),
+            xpEarned = 75,
+            earnedAchievements = listOf(
+                PreviewSamples.earnedAchievement(
+                    name = "Pocket rockets",
+                    description = "Win a hand with pocket aces.",
+                    icon = "🚀",
+                    rarity = AchievementRarity.RARE,
+                    xpReward = 200,
+                ),
+            ),
+            onNextHand = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShowdownDialogPreview_BotWinsByFold() {
+    PreviewContent {
+        ShowdownDialog(
+            result = HandResultView(
+                winners = listOf(
+                    PreviewSamples.handWinner(seatIndex = 1, amount = 60, byFold = true),
+                ),
+                board = emptyList(),
+            ),
+            seats = listOf(
+                PreviewSamples.humanSeat(
+                    participation = HandParticipation.Folded,
+                    lastAction = PlayerAction.Fold,
+                ),
+                PreviewSamples.botSeat(index = 1, name = "Jane", stack = 1_060),
+            ),
+            xpEarned = 10,
+            earnedAchievements = emptyList(),
+            onNextHand = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BustDialogPreview() {
+    PreviewContent {
+        BustDialog(
+            xpEarned = 25,
+            earnedAchievements = emptyList(),
+            onDealMeIn = {},
+            onSetSkipBustDialog = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BustDialogPreview_WithAchievement() {
+    PreviewContent {
+        BustDialog(
+            xpEarned = 25,
+            earnedAchievements = listOf(
+                PreviewSamples.earnedAchievement(
+                    name = "Tilt resistance",
+                    description = "Bust without leaving the table.",
+                    icon = "🧘",
+                    rarity = AchievementRarity.COMMON,
+                ),
+            ),
+            onDealMeIn = {},
+            onSetSkipBustDialog = {},
+        )
     }
 }

@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
+import kotlin.time.TimeSource
 
 class LocalBotsSession(
     private val difficulty: BotDifficulty,
@@ -34,6 +35,13 @@ class LocalBotsSession(
     settings: RoomSettings = RoomSettings.Default,
     private val random: Random = Random.Default,
     private val botActionDelayMs: Long = 750L,
+    /**
+     * Live user-chosen bot speed. Read on every loop iteration so toggling
+     * it in Settings during a hand applies on the very next bot turn,
+     * without restarting the session.
+     */
+    private val botSpeedProvider: () -> com.dangerfield.cards.libraries.cards.BotSpeed =
+        { com.dangerfield.cards.libraries.cards.BotSpeed.Normal },
     /**
      * Called when a hand ends, before any next-hand setup runs. Receives the
      * event, the game state captured at hand-end (so seat contributions and
@@ -72,6 +80,26 @@ class LocalBotsSession(
      */
     private var humanStackAtHandStart: Long = 0L
     private var gameState: GameState = startNextHand()
+
+    // Rolling window of recent human decision durations. Bots subtly mirror
+    // the user's tempo — captured by stamping when the human becomes acting
+    // and computing the delta when their intent arrives.
+    private var humanTurnStartMark: TimeSource.Monotonic.ValueTimeMark? = null
+    private val recentHumanPaceMs: ArrayDeque<Long> = ArrayDeque()
+    private val humanPaceWindowSize: Int = 5
+
+    private fun pushHumanPace(durationMs: Long) {
+        // Clamp absurd outliers so a single distracted user (phone down for
+        // 30s) doesn't poison the average for the rest of the session.
+        val clamped = durationMs.coerceIn(150L, 8_000L)
+        recentHumanPaceMs.addLast(clamped)
+        while (recentHumanPaceMs.size > humanPaceWindowSize) recentHumanPaceMs.removeFirst()
+    }
+
+    private fun humanPaceAverageMs(): Long? {
+        if (recentHumanPaceMs.isEmpty()) return null
+        return recentHumanPaceMs.sum() / recentHumanPaceMs.size
+    }
 
     private fun initialState(): TableUiState = TableUiState.Loading
 
@@ -169,7 +197,6 @@ class LocalBotsSession(
             val acting = gameState.actingSeatIndex!!
             val personality = personalitiesBySeat.getValue(acting)
             logger.d { "Bot loop iter: hand=$handNumber acting=$acting street=${gameState.street}" }
-            delay(botThinkingDelayMs)
             // Monte Carlo equity is CPU-bound (≈200 hand evaluations per call).
             // Run off the main thread so the UI stays responsive while bots think.
             val handContext = buildHandContext(
@@ -190,7 +217,19 @@ class LocalBotsSession(
                     handContext = handContext,
                 )
             }
-            // Re-check after the suspension points (`delay`, `withContext`): another
+            // Calibrated think delay — driven by who the bot is, how hard the
+            // decision actually is, and the user's recent tempo. Computed
+            // AFTER the decision so we have access to thought.handStrength /
+            // potOdds for the complexity term.
+            val currentSpeed = botSpeedProvider()
+            val thinkDelay = BotTiming.thinkDelayMs(
+                personality = personality,
+                thought = decision.thought,
+                userPaceMs = humanPaceAverageMs(),
+                speed = currentSpeed,
+            )
+            delay(thinkDelay)
+            // Re-check after the suspension points (`withContext`, `delay`): another
             // coroutine on Main may have advanced the state in the meantime. Without
             // this guard the engine throws "Not seat X's turn" when we try to apply
             // a stale decision. Returning to the loop top picks up the new acting
@@ -206,8 +245,16 @@ class LocalBotsSession(
             }
             lastBotThoughts = lastBotThoughts + (acting to decision.thought)
             applyIntentAndEmit(decision.intent)
-            delay(botActionDelayMs)
+            // Action-tail delay also scales with user speed pref.
+            delay((botActionDelayMs * currentSpeed.multiplier).toLong())
             if (gameState.street == BettingRound.Complete) break
+        }
+
+        // Stamp the moment the human becomes the actor so we can measure how
+        // long they take to decide. Only set on transitions INTO the human's
+        // turn (don't reset mid-think on UI re-emits).
+        if (gameState.actingSeatIndex == humanSeatIndex && humanTurnStartMark == null) {
+            humanTurnStartMark = TimeSource.Monotonic.markNow()
         }
 
         if (gameState.street == BettingRound.Complete) {
@@ -247,6 +294,13 @@ class LocalBotsSession(
             return
         }
         logger.d { "Applying human intent $intent" }
+        // Capture how long the human took before applying — `applyIntentAndEmit`
+        // flips the actor so we want the duration of the just-ended turn,
+        // not the new one.
+        humanTurnStartMark?.let { mark ->
+            pushHumanPace(mark.elapsedNow().inWholeMilliseconds)
+        }
+        humanTurnStartMark = null
         applyIntentAndEmit(intent)
         runUntilHumansTurnOrComplete()
     }
@@ -319,5 +373,4 @@ class LocalBotsSession(
         )
     }
 
-    private val botThinkingDelayMs: Long = (botActionDelayMs * 2) / 3
 }

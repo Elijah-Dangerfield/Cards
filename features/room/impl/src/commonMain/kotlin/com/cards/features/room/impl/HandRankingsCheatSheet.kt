@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -17,17 +18,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
+import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD1000
+import com.dangerfield.cards.system.VerticalSpacerD200
+import com.dangerfield.cards.system.VerticalSpacerD300
+import com.dangerfield.cards.system.VerticalSpacerD50
+import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD600
+import com.dangerfield.cards.system.VerticalSpacerD800
+import com.dangerfield.cards.system.VerticalSpacerD900
 
 private data class RankingEntry(
     val name: String,
@@ -175,27 +184,44 @@ fun HandRankingsCheatSheet(
                     street = street,
                     pot = pot,
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                VerticalSpacerD900()
             }
 
+            Text(
+                text = "How to act",
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.onSurfacePrimary,
+            )
+            VerticalSpacerD600()
+            ActionRow(symbol = "✓", title = "Check", desc = "Pass to the next player without betting.")
+            VerticalSpacerD300()
+            ActionRow(symbol = "=", title = "Call", desc = "Match the current bet to stay in the hand.")
+            VerticalSpacerD300()
+            ActionRow(symbol = "↑", title = "Raise", desc = "Increase the current bet. Everyone else must call, raise, or fold.")
+            VerticalSpacerD300()
+            ActionRow(symbol = "✕", title = "Fold", desc = "Give up the hand. Any chips already in the pot stay.")
+            VerticalSpacerD300()
+            ActionRow(symbol = "★", title = "All in", desc = "Push your entire stack. If you win, you win up to what everyone matched.")
+
+            VerticalSpacerD1000()
             Text(
                 text = "Hand rankings",
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            VerticalSpacerD200()
             Text(
                 text = "Strongest on top.",
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
-            Spacer(modifier = Modifier.height(20.dp))
+            VerticalSpacerD800()
 
             rankings.forEach { entry ->
                 RankingCard(entry = entry)
-                Spacer(modifier = Modifier.height(12.dp))
+                VerticalSpacerD500()
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            VerticalSpacerD300()
         }
     }
 }
@@ -209,38 +235,94 @@ private fun CurrentHandCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(28.dp))
             .background(AppTheme.colors.surfaceSecondary.color)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(horizontal = 22.dp, vertical = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (handNumber != null) {
+                HandNumberPill(handNumber = handNumber)
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            StreetProgress(current = street)
+        }
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = streetLabelForCheatSheet(street),
-                typography = AppTheme.typography.Heading.H700,
+                typography = AppTheme.typography.Heading.H900,
                 color = AppTheme.colors.onSurfacePrimary,
             )
             Spacer(modifier = Modifier.weight(1f))
             if (pot != null && pot > 0) {
-                Text(
-                    text = "Pot $pot",
-                    typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
-                )
+                ChipPill(amount = pot)
             }
         }
-        if (handNumber != null) {
-            Text(
-                text = "Hand #$handNumber",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
-            )
-        }
+
         Text(
             text = streetExplainer(street),
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfacePrimary,
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.onSurfaceSecondary,
         )
+    }
+}
+
+@Composable
+private fun HandNumberPill(handNumber: Int) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(AppTheme.colors.surfaceTertiary.color)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = "HAND #$handNumber",
+            typography = AppTheme.typography.Label.L500,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
+    }
+}
+
+private val progressStages = listOf(
+    BettingRound.Preflop,
+    BettingRound.Flop,
+    BettingRound.Turn,
+    BettingRound.River,
+    BettingRound.Showdown,
+)
+
+@Composable
+private fun StreetProgress(current: BettingRound) {
+    // Map Complete back onto Showdown for progress purposes — once the hand's
+    // resolved the journey is "all the way through."
+    val currentIndex = when (current) {
+        BettingRound.Complete -> progressStages.lastIndex
+        else -> progressStages.indexOf(current).coerceAtLeast(0)
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        progressStages.forEachIndexed { index, _ ->
+            val isCurrent = index == currentIndex
+            val isPast = index < currentIndex
+            val color = when {
+                isCurrent -> AppTheme.colors.accentPrimary.color
+                isPast -> AppTheme.colors.onSurfaceSecondary.color
+                else -> AppTheme.colors.surfaceTertiary.color
+            }
+            Box(
+                modifier = Modifier
+                    .height(8.dp)
+                    .width(if (isCurrent) 22.dp else 10.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(color),
+            )
+        }
     }
 }
 
@@ -260,14 +342,54 @@ private fun streetExplainer(street: BettingRound): String = when (street) {
 }
 
 @Composable
+private fun ActionRow(symbol: String, title: String, desc: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(50))
+                .background(AppTheme.colors.surfaceTertiary.color),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = symbol,
+                typography = AppTheme.typography.Heading.H600,
+                color = AppTheme.colors.onSurfacePrimary,
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.onSurfacePrimary,
+            )
+            VerticalSpacerD50()
+            Text(
+                text = desc,
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+        }
+    }
+}
+
+@Composable
 private fun RankingCard(entry: RankingEntry) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(AppTheme.colors.surfaceSecondary.color)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Column {
             Text(

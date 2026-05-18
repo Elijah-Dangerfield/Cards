@@ -9,12 +9,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,16 +51,22 @@ fun AppGuardLayer(
     content: @Composable () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        content()
-
-        AnimatedVisibility(
-            visible = state is AppGuardState.MaintenanceBanner,
-            enter = slideInVertically { -it } + fadeIn(),
-            exit = slideOutVertically { -it } + fadeOut(),
-            modifier = Modifier.align(Alignment.TopCenter),
-        ) {
-            val banner = state as? AppGuardState.MaintenanceBanner
-            if (banner != null) MaintenanceBanner(message = banner.message)
+        // Banner + content stacked vertically — banner takes its own slot
+        // at the top and pushes the rest of the app down. (Blocking overlays
+        // stay as covering Boxes since "the app is down" should obscure
+        // whatever was on screen.)
+        Column(modifier = Modifier.fillMaxSize()) {
+            AnimatedVisibility(
+                visible = state is AppGuardState.MaintenanceBanner,
+                enter = slideInVertically { -it } + fadeIn(),
+                exit = slideOutVertically { -it } + fadeOut(),
+            ) {
+                val banner = state as? AppGuardState.MaintenanceBanner
+                if (banner != null) MaintenanceBanner(message = banner.message)
+            }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                content()
+            }
         }
 
         AnimatedVisibility(
@@ -77,18 +91,30 @@ fun AppGuardLayer(
 
 @Composable
 private fun MaintenanceBanner(message: String) {
-    Box(
+    // Banner is rendered OUTSIDE the Scaffold's safe-area scope (it's hosted
+    // at the screen root so it can sit above any route), so it applies the
+    // status-bar inset itself or it gets tucked under the notch.
+    val warning = AppTheme.colors.status.warning.color
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AppTheme.colors.surfacePrimary.color)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
+            .background(warning.copy(alpha = 0.18f))
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
+        Icon(
+            imageVector = Icons.Default.Warning,
+            contentDescription = null,
+            tint = warning,
+        )
+        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = message,
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Start,
         )
     }
 }

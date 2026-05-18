@@ -1,6 +1,5 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -9,10 +8,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,7 +46,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -81,6 +78,7 @@ import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
@@ -95,22 +93,65 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD1100
+import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlinx.coroutines.delay
 
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PlayBotsScreen(
     state: PlayBotsState,
     onAction: (PlayBotsAction) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onTapXp: () -> Unit = {},
 ) {
     var raiseSheetOpen by remember { mutableStateOf(false) }
+    var blindExplainerOpen by remember { mutableStateOf(false) }
+    var potExplainerOpen by remember { mutableStateOf(false) }
+    var stackExplainerOpen by remember { mutableStateOf(false) }
+    var leaveConfirmOpen by remember { mutableStateOf(false) }
+    // Action / bet / hand-label explainers carry their own context so each
+    // dialog can render specific copy instead of opening the whole cheat sheet.
+    var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
+    var betPillDialog by remember { mutableStateOf<Pair<String, Long>?>(null) }
+    var handLabelDialog by remember { mutableStateOf<String?>(null) }
     val active = state.table as? TableUiState.Active
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(active?.isHumanTurn) {
-        if (active?.isHumanTurn != true) raiseSheetOpen = false
+        if (active?.isHumanTurn != true) {
+            raiseSheetOpen = false
+        } else {
+            // Fire the configured "your turn" cue. Vibrate uses platform
+            // haptics (Compose handles Android natively; iOS no-ops in
+            // older versions, ok). Sound is wired in the data but the
+            // KMP audio path isn't built yet — see docs/backlog.md.
+            when (state.turnFeedback) {
+                com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate ->
+                    haptics.performHapticFeedback(
+                        androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
+                    )
+                com.dangerfield.cards.libraries.cards.TurnFeedback.Sound -> Unit
+                com.dangerfield.cards.libraries.cards.TurnFeedback.Mute -> Unit
+            }
+        }
     }
+
+    // Confirm-leave gate. Skip the confirmation when:
+    //  - the user has previously opted out via "don't show this again", or
+    //  - the table is loading / no hand is in progress (no progress to lose).
+    val handInProgress = active != null && active.handResult == null
+    val requestLeave: () -> Unit = {
+        if (state.skipLeaveBotsConfirm || !handInProgress) {
+            onBack()
+        } else {
+            leaveConfirmOpen = true
+        }
+    }
+    BackHandler(enabled = true) { requestLeave() }
 
     Screen(modifier = modifier) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -119,8 +160,9 @@ fun PlayBotsScreen(
                     handNumber = active?.handNumber,
                     street = active?.street,
                     xp = state.xp,
-                    onBack = onBack,
+                    onBack = requestLeave,
                     onCheatSheet = { onAction(PlayBotsAction.ToggleCheatSheet) },
+                    onTapXp = onTapXp,
                 )
 
                 if (active == null) {
@@ -130,27 +172,36 @@ fun PlayBotsScreen(
                         table = active,
                         onIntent = { onAction(PlayBotsAction.SubmitIntent(it)) },
                         onExpandRaise = { raiseSheetOpen = true },
+                        onBlindClick = { blindExplainerOpen = true },
+                        onPotClick = { potExplainerOpen = true },
+                        onBetPillClick = { name, amount -> betPillDialog = name to amount },
+                        onLastActionClick = { name, action -> lastActionDialog = name to action },
+                        onStackClick = { stackExplainerOpen = true },
+                        onHandLabelClick = { label -> handLabelDialog = label },
                     )
                 }
             }
 
-            AnimatedVisibility(
-                visible = raiseSheetOpen && active?.isHumanTurn == true && active.humanLegalActions != null,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                modifier = Modifier.align(Alignment.BottomCenter),
+        }
+
+        // Render the action sheet as a real bottom sheet so the user gets the
+        // expected affordances — drag-to-dismiss, scrim, tap-outside-to-close,
+        // and a built-in title + close X — without rolling those ourselves.
+        val legal = active?.humanLegalActions
+        if (raiseSheetOpen && active?.isHumanTurn == true && legal != null) {
+            BasicBottomSheet(
+                onDismissRequest = { raiseSheetOpen = false },
+                backgroundColor = AppTheme.colors.surfacePrimary,
+                showCloseButton = true,
             ) {
-                active?.humanLegalActions?.let { legal ->
-                    RaiseSheet(
-                        legal = legal,
-                        humanSeatIndex = active.seats.first { it.isHuman }.index,
-                        onDismiss = { raiseSheetOpen = false },
-                        onIntent = { intent ->
-                            raiseSheetOpen = false
-                            onAction(PlayBotsAction.SubmitIntent(intent))
-                        },
-                    )
-                }
+                RaiseSheet(
+                    legal = legal,
+                    humanSeatIndex = active.seats.first { it.isHuman }.index,
+                    onIntent = { intent ->
+                        raiseSheetOpen = false
+                        onAction(PlayBotsAction.SubmitIntent(intent))
+                    },
+                )
             }
         }
 
@@ -160,6 +211,53 @@ fun PlayBotsScreen(
                 handNumber = active?.handNumber,
                 street = active?.street,
                 pot = active?.pot,
+            )
+        }
+
+        if (blindExplainerOpen) {
+            BlindRolesExplainer(onDismiss = { blindExplainerOpen = false })
+        }
+
+        if (potExplainerOpen) {
+            PotExplainer(onDismiss = { potExplainerOpen = false })
+        }
+
+        if (stackExplainerOpen) {
+            val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
+            StackExplainer(stack = humanStack, onDismiss = { stackExplainerOpen = false })
+        }
+
+        lastActionDialog?.let { (name, action) ->
+            LastActionExplainer(
+                seatName = name,
+                action = action,
+                onDismiss = { lastActionDialog = null },
+            )
+        }
+
+        betPillDialog?.let { (name, amount) ->
+            BetPillExplainer(
+                seatName = name,
+                amount = amount,
+                onDismiss = { betPillDialog = null },
+            )
+        }
+
+        handLabelDialog?.let { label ->
+            HandLabelExplainer(
+                label = label,
+                onDismiss = { handLabelDialog = null },
+            )
+        }
+
+        if (leaveConfirmOpen) {
+            LeaveBotsConfirmDialog(
+                onStay = { leaveConfirmOpen = false },
+                onLeave = {
+                    leaveConfirmOpen = false
+                    onBack()
+                },
+                onSetSkipLeaveConfirm = { onAction(PlayBotsAction.SetSkipLeaveConfirm(it)) },
             )
         }
 
@@ -173,11 +271,22 @@ fun PlayBotsScreen(
                 // V1 decision (docs/decisions.md 2026-05-14) bot stacks
                 // auto-rebuy between hands; this dialog just makes that
                 // recovery visible so new players aren't confused.
-                BustDialog(
-                    xpEarned = state.lastHandXpAwarded,
-                    earnedAchievements = state.recentlyEarned,
-                    onDealMeIn = { onAction(PlayBotsAction.AdvanceNextHand) },
-                )
+                //
+                // If the user has ticked "Don't show this again" previously,
+                // skip the modal entirely and advance straight to the next
+                // hand the moment we observe a bust.
+                if (state.skipBustDialog) {
+                    LaunchedEffect(handResult) {
+                        onAction(PlayBotsAction.AdvanceNextHand)
+                    }
+                } else {
+                    BustDialog(
+                        xpEarned = state.lastHandXpAwarded,
+                        earnedAchievements = state.recentlyEarned,
+                        onDealMeIn = { onAction(PlayBotsAction.AdvanceNextHand) },
+                        onSetSkipBustDialog = { onAction(PlayBotsAction.SetSkipBustDialog(it)) },
+                    )
+                }
             } else {
                 ShowdownDialog(
                     result = handResult,
@@ -198,6 +307,7 @@ private fun TopBar(
     xp: Long,
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
+    onTapXp: () -> Unit = {},
 ) {
     // Minimal top row — navigation, lifetime XP, info. XP appears here so the
     // counter ticks up live during a session and the player feels progress
@@ -214,7 +324,7 @@ private fun TopBar(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
-        XpBadge(xp = xp)
+        XpBadge(xp = xp, onClick = onTapXp)
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onCheatSheet) {
             Icon(
@@ -251,6 +361,12 @@ private fun ActiveTable(
     table: TableUiState.Active,
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
+    onBlindClick: () -> Unit,
+    onPotClick: () -> Unit,
+    onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
+    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
+    onStackClick: () -> Unit = {},
+    onHandLabelClick: (label: String) -> Unit = {},
 ) {
     // Pinned-bottom layout: opponents + board scroll if needed, but the
     // player's hand and the action bar always sit at the bottom in reach.
@@ -267,17 +383,34 @@ private fun ActiveTable(
             // action pill (both rendered as TopCenter overlays on each avatar
             // with negative Y offsets, ~24dp of upward overflow) have room to
             // breathe instead of being clipped by the TopBar.
-            Spacer(modifier = Modifier.height(32.dp))
-            OpponentsRow(table = table)
+            VerticalSpacerD1100()
+            OpponentsRow(
+                table = table,
+                onBlindClick = onBlindClick,
+                onBetPillClick = onBetPillClick,
+                onLastActionClick = onLastActionClick,
+            )
 
-            Spacer(modifier = Modifier.height(20.dp))
-            BoardArea(table = table)
+            VerticalSpacerD800()
+            BoardArea(table = table, onPotClick = onPotClick)
         }
 
-        PlayerArea(table = table)
-        Spacer(modifier = Modifier.height(12.dp))
-        QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
-        Spacer(modifier = Modifier.height(12.dp))
+        // Player row + action bar share a Column so that when the action bar
+        // collapses (no human turn, hand finished), this whole block shrinks
+        // and the player row slides DOWN to occupy the freed space —
+        // instead of sitting in place above an empty reserved slot.
+        Column(modifier = Modifier.fillMaxWidth()) {
+            PlayerArea(
+                table = table,
+                onBlindClick = onBlindClick,
+                onBetPillClick = onBetPillClick,
+                onLastActionClick = onLastActionClick,
+                onStackClick = onStackClick,
+                onHandLabelClick = onHandLabelClick,
+            )
+            QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
+            VerticalSpacerD500()
+        }
     }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
@@ -35,9 +36,16 @@ import com.dangerfield.cards.libraries.ui.components.poker.PulsingActiveRing
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD100
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-internal fun OpponentsRow(table: TableUiState.Active) {
+internal fun OpponentsRow(
+    table: TableUiState.Active,
+    onBlindClick: () -> Unit = {},
+    onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
+    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
+) {
     val opponents = table.seats.filter { !it.isHuman }
     val winners = table.handResult?.winners?.map { it.seatIndex }?.toSet().orEmpty()
     // Each opponent gets equal share of the row via weight, and the avatar
@@ -63,6 +71,9 @@ internal fun OpponentsRow(table: TableUiState.Active) {
                         seat = seat,
                         isWinner = seat.index in winners,
                         avatarSize = avatarSize,
+                        onBlindClick = onBlindClick,
+                        onBetPillClick = onBetPillClick,
+                        onLastActionClick = onLastActionClick,
                     )
                 }
             }
@@ -71,24 +82,35 @@ internal fun OpponentsRow(table: TableUiState.Active) {
 }
 
 @Composable
-private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
+private fun OpponentSeat(
+    seat: SeatView,
+    isWinner: Boolean,
+    avatarSize: Dp,
+    onBlindClick: () -> Unit,
+    onBetPillClick: (seatName: String, amount: Long) -> Unit,
+    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+) {
     val folded = seat.participation == HandParticipation.Folded
     val ringSize = avatarSize + 12.dp
+    val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
+    val dimMod = Modifier.alpha(if (folded) 0.4f else 1f)
+    // The fade-when-folded effect is applied per-element rather than on the
+    // outer Column. A wrapping `Modifier.alpha` rasterizes into an offscreen
+    // layer sized to the wrapped bounds, which clips the LastActionPill's
+    // negative-Y offset (the "Fold" chip floats above the avatar's top edge
+    // and was getting cut off). Splitting the dim keeps the pill out of the
+    // clipped region while still fading the avatar + identity text.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .padding(horizontal = 2.dp)
-            .alpha(if (folded) 0.4f else 1f),
+        modifier = Modifier.padding(horizontal = 2.dp),
     ) {
-        // Chevron and action pill both float above the avatar via TopCenter
-        // overlays — no reserved vertical strip — so the row sits flush at the
-        // top of its column whether anyone has acted yet or not. Chevron + pill
-        // never co-exist (the engine clears pills on StreetAdvanced before the
-        // seat becomes active again), so positioning both at the top is safe.
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ringSize)) {
-            if (seat.isActing) PulsingActiveRing(modifier = Modifier.size(ringSize))
-            if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
-            AvatarCircle(name = seat.displayName, size = avatarSize, emoji = seat.emoji)
+            // Faded subtree — everything that's "the seat" semantically.
+            Box(modifier = Modifier.size(ringSize).then(dimMod), contentAlignment = Alignment.Center) {
+                if (seat.isActing) PulsingActiveRing(modifier = Modifier.size(ringSize))
+                if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
+                AvatarCircle(name = seat.displayName, size = avatarSize, emoji = seat.emoji)
+            }
 
             // Active-turn chevron — floats just above the avatar's outer ring.
             ChevronOverlay(
@@ -98,11 +120,11 @@ private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
                     .offset(y = (-16).dp),
             )
 
-            // Last-action pill — slides in from above and overlaps the avatar's
-            // top edge by a few dp so the chip feels like it lands on the seat
-            // instead of floating in dead space.
+            // Last-action pill — rendered OUTSIDE the dim scope so the "Fold"
+            // pill doesn't get clipped by the offscreen layer.
             LastActionOverlay(
                 action = seat.lastAction,
+                onClick = { action -> onLastActionClick(seat.displayName, action) },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .offset(y = (-6).dp),
@@ -115,12 +137,13 @@ private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
                 isDealer = seat.isDealer,
                 isSmallBlind = seat.isSmallBlind,
                 isBigBlind = seat.isBigBlind,
+                onClick = if (hasBlindRole) onBlindClick else null,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = (-2).dp, y = (-2).dp),
+                    .offset(x = (-6).dp, y = (-6).dp),
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        VerticalSpacerD100()
         Text(
             text = seat.displayName,
             typography = AppTheme.typography.Body.B400,
@@ -128,6 +151,7 @@ private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
+            modifier = dimMod,
         )
         Text(
             text = formatCompactChips(seat.stack),
@@ -136,10 +160,15 @@ private fun OpponentSeat(seat: SeatView, isWinner: Boolean, avatarSize: Dp) {
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
+            modifier = dimMod,
         )
         if (seat.contributedThisStreet > 0) {
-            Spacer(modifier = Modifier.height(4.dp))
-            ChipPill(amount = seat.contributedThisStreet)
+            VerticalSpacerD100()
+            ChipPill(
+                amount = seat.contributedThisStreet,
+                onClick = { onBetPillClick(seat.displayName, seat.contributedThisStreet) },
+                modifier = dimMod,
+            )
         }
     }
 }
@@ -168,7 +197,11 @@ private fun ChevronOverlay(visible: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun LastActionOverlay(action: PlayerAction?, modifier: Modifier = Modifier) {
+private fun LastActionOverlay(
+    action: PlayerAction?,
+    onClick: (PlayerAction) -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     Box(modifier = modifier) {
         AnimatedVisibility(
             visible = action != null,
@@ -177,7 +210,100 @@ private fun LastActionOverlay(action: PlayerAction?, modifier: Modifier = Modifi
             exit = slideOutVertically(animationSpec = tween(180)) { -it } +
                 fadeOut(animationSpec = tween(140)),
         ) {
-            action?.let { LastActionPill(label = it.shortLabel()) }
+            action?.let { a -> LastActionPill(label = a.shortLabel(), onClick = { onClick(a) }) }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun OpponentsRowPreview_HeadsUp() {
+    PreviewContent {
+        OpponentsRow(
+            table = PreviewSamples.activeTable(
+                seats = listOf(
+                    PreviewSamples.humanSeat(isDealer = false),
+                    PreviewSamples.botSeat(index = 1, name = "Jane", isActing = true, isDealer = true),
+                ),
+                actingSeatIndex = 1,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun OpponentsRowPreview_FourSeats_MidHand() {
+    PreviewContent {
+        OpponentsRow(
+            table = PreviewSamples.activeTable(
+                seats = listOf(
+                    PreviewSamples.humanSeat(),
+                    PreviewSamples.botSeat(
+                        index = 1,
+                        name = "David",
+                        isSmallBlind = true,
+                        contributed = 20,
+                        lastAction = PlayerAction.Call(amount = 20),
+                    ),
+                    PreviewSamples.botSeat(
+                        index = 2,
+                        name = "Jane",
+                        isBigBlind = true,
+                        contributed = 60,
+                        isActing = true,
+                        lastAction = PlayerAction.Raise(totalStreetContribution = 60, raiseAmount = 40),
+                    ),
+                    PreviewSamples.botSeat(
+                        index = 3,
+                        name = "Mike",
+                        participation = HandParticipation.Folded,
+                        lastAction = PlayerAction.Fold,
+                    ),
+                ),
+                actingSeatIndex = 2,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun OpponentsRowPreview_SixSeats() {
+    PreviewContent {
+        OpponentsRow(
+            table = PreviewSamples.activeTable(
+                seats = listOf(
+                    PreviewSamples.humanSeat(),
+                    PreviewSamples.botSeat(index = 1, name = "David", isSmallBlind = true),
+                    PreviewSamples.botSeat(index = 2, name = "Jane", isBigBlind = true),
+                    PreviewSamples.botSeat(index = 3, name = "Mike", isActing = true),
+                    PreviewSamples.botSeat(index = 4, name = "Gina"),
+                    PreviewSamples.botSeat(index = 5, name = "Steve", participation = HandParticipation.Folded),
+                ),
+                actingSeatIndex = 3,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun OpponentsRowPreview_Winner() {
+    PreviewContent {
+        OpponentsRow(
+            table = PreviewSamples.activeTable(
+                seats = listOf(
+                    PreviewSamples.humanSeat(participation = HandParticipation.Folded),
+                    PreviewSamples.botSeat(index = 1, name = "Jane", stack = 1_240),
+                    PreviewSamples.botSeat(index = 2, name = "David", participation = HandParticipation.Folded),
+                ),
+                actingSeatIndex = null,
+                handResult = HandResultView(
+                    winners = listOf(PreviewSamples.handWinner(seatIndex = 1)),
+                    board = emptyList(),
+                ),
+            ),
+        )
     }
 }

@@ -20,10 +20,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Row
+import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD1000
+import com.dangerfield.cards.system.VerticalSpacerD1300
+import com.dangerfield.cards.system.VerticalSpacerD200
+import com.dangerfield.cards.system.VerticalSpacerD300
+import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD700
 
 @Composable
 fun ShopScreen(chips: Long, modifier: Modifier = Modifier) {
@@ -34,24 +41,25 @@ fun ShopScreen(chips: Long, modifier: Modifier = Modifier) {
                 .padding(padding)
                 .padding(horizontal = 20.dp),
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
+            VerticalSpacerD500()
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 ChipBadge(amount = chips)
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            VerticalSpacerD1000()
             Text(
                 text = "Shop",
-                typography = AppTheme.typography.Heading.H800,
+                typography = AppTheme.typography.Heading.H900,
                 color = AppTheme.colors.text,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            VerticalSpacerD300()
             Text(
                 text = "Cosmetics and table styles coming soon",
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
-            Spacer(modifier = Modifier.height(48.dp))
+            VerticalSpacerD1300()
             ComingSoonCard()
+            BottomBarSpacer()
         }
     }
 }
@@ -80,14 +88,14 @@ private fun ComingSoonCard() {
                 color = AppTheme.colors.text,
             )
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        VerticalSpacerD700()
         Text(
             text = "Nothing for sale yet",
             typography = AppTheme.typography.Body.B600,
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        VerticalSpacerD200()
         Text(
             text = "Card backs, avatars, and table themes will live here. We'll let you know.",
             typography = AppTheme.typography.Body.B400,

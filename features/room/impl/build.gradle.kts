@@ -10,6 +10,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.features.room)
+            implementation(projects.features.progression)
             implementation(projects.libraries.bots)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.gameplay)

@@ -8,14 +8,23 @@ import com.dangerfield.cards.features.profile.BugReportRoute
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
-import com.dangerfield.cards.features.profile.GameplaySpeedRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.XpDetailSheetRoute
+import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.UserRepository
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
@@ -41,6 +50,7 @@ class ProfileFeatureEntryPoint(
     private val configOverrideRepository: ConfigOverrideRepository,
     private val progressionRepository: ProgressionRepository,
     private val userRepository: UserRepository,
+    private val appCache: AppCache,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -50,6 +60,8 @@ class ProfileFeatureEntryPoint(
             val user by userRepository.observeUser()
                 .collectAsStateWithLifecycle(initialValue = null)
             val isAnon = user?.isAnonymous ?: true
+            val appData by appCache.updates.collectAsState(initial = AppData())
+            val scope = rememberCoroutineScope()
 
             ProfileScreen(
                 settings = ProfileSettings(
@@ -61,13 +73,19 @@ class ProfileFeatureEntryPoint(
                     xp = progression.totalXp,
                     handsPlayed = progression.handsPlayed,
                     isAnonymous = isAnon,
-                    gameplaySpeed = GameplaySpeed.Normal,
+                    botSpeed = appData.botSpeed,
+                    turnFeedback = appData.turnFeedback,
                     appVersion = "0.1.0",
                     showQaMenu = BuildInfo.isDebug,
                 ),
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },
-                onChangeGameplaySpeed = { router.navigate(GameplaySpeedRoute()) },
+                onBotSpeedChange = { speed ->
+                    scope.launch { appCache.update { it.copy(botSpeed = speed) } }
+                },
+                onTurnFeedbackChange = { feedback ->
+                    scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }
+                },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
                 onTapXp = { router.navigate(XpDetailSheetRoute()) },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
@@ -92,14 +110,6 @@ class ProfileFeatureEntryPoint(
             PlaceholderScreen(
                 title = "Edit profile",
                 body = "Choose a display name and avatar. Lands with Phase 3 auth — for now your handle stays anonymous.",
-                onBack = { router.goBack() },
-            )
-        }
-
-        screen<GameplaySpeedRoute> {
-            PlaceholderScreen(
-                title = "Gameplay speed",
-                body = "Pick how fast cards and chips animate. Coming soon — for now it's locked to Normal.",
                 onBack = { router.goBack() },
             )
         }

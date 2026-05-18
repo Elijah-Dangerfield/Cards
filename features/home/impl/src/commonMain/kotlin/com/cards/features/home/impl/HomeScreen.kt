@@ -6,17 +6,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.AnimatedNumberText
+import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.FeatureCard
 import com.dangerfield.cards.libraries.ui.components.FeatureCardAccents
@@ -24,7 +27,15 @@ import com.dangerfield.cards.libraries.ui.components.RankBadge
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
+import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD300
+import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD600
+import com.dangerfield.cards.system.VerticalSpacerD1000
+import com.dangerfield.cards.system.VerticalSpacerD1100
+import com.dangerfield.cards.system.VerticalSpacerD1200
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -79,9 +90,7 @@ private fun HomeScreenContent(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
-            // Rank · XP · Chips header — the three independent progression axes
-            // (see docs/decisions.md 2026-05-14). Never collapse them into one.
+            VerticalSpacerD500()
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -93,12 +102,12 @@ private fun HomeScreenContent(
                 ChipBadge(amount = chips, onClick = onTapCash)
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            VerticalSpacerD1100()
             HeroChips(amount = chips)
-            Spacer(modifier = Modifier.height(28.dp))
+            VerticalSpacerD1200()
 
             SectionLabel("Play with friends")
-            Spacer(modifier = Modifier.height(12.dp))
+            VerticalSpacerD600()
             FeatureCard(
                 title = "Start a game",
                 subtitle = "Get a code, invite your friends",
@@ -106,7 +115,7 @@ private fun HomeScreenContent(
                 glyph = "✦",
                 onClick = onStartGame,
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            VerticalSpacerD600()
             FeatureCard(
                 title = "Join with code",
                 subtitle = "Enter a 6-letter room code",
@@ -115,9 +124,9 @@ private fun HomeScreenContent(
                 onClick = onJoinGame,
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            VerticalSpacerD1100()
             SectionLabel("Practice against bots")
-            Spacer(modifier = Modifier.height(12.dp))
+            VerticalSpacerD600()
             FeatureCard(
                 title = "Casual table",
                 subtitle = "Forgiving bots · learning mode",
@@ -125,7 +134,7 @@ private fun HomeScreenContent(
                 glyph = "♠",
                 onClick = { onPlayBots("Casual") },
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            VerticalSpacerD600()
             FeatureCard(
                 title = "Standard table",
                 subtitle = "Balanced bots · most realistic",
@@ -133,7 +142,7 @@ private fun HomeScreenContent(
                 glyph = "♣",
                 onClick = { onPlayBots("Standard") },
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            VerticalSpacerD600()
             FeatureCard(
                 title = "Challenging table",
                 subtitle = "Aggressive bots · they read you",
@@ -141,24 +150,30 @@ private fun HomeScreenContent(
                 glyph = "♦",
                 onClick = { onPlayBots("Challenging") },
             )
-            Spacer(modifier = Modifier.height(40.dp))
+            VerticalSpacerD1000()
+            BottomBarSpacer()
         }
     }
 }
 
 @Composable
 private fun HeroChips(amount: Long) {
-    Column {
+    val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Text(
-            text = "Your chips",
-            typography = AppTheme.typography.Body.B400,
+            text = "YOUR CHIPS",
+            typography = AppTheme.typography.Label.L400,
             color = AppTheme.colors.textSecondary,
+            textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = formatThousands(amount),
-            typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.text,
+        VerticalSpacerD300()
+        AnimatedNumberText(
+            value = amount,
+            typography = AppTheme.typography.Display.D1200,
+            color = goldText,
         )
     }
 }
@@ -167,20 +182,9 @@ private fun HeroChips(amount: Long) {
 private fun SectionLabel(text: String) {
     Text(
         text = text,
-        typography = AppTheme.typography.Body.B500,
+        typography = AppTheme.typography.Heading.H500,
         color = AppTheme.colors.text,
     )
-}
-
-private fun formatThousands(value: Long): String {
-    val s = value.toString()
-    val withCommas = StringBuilder()
-    val len = s.length
-    for (i in 0 until len) {
-        if (i > 0 && (len - i) % 3 == 0) withCommas.append(',')
-        withCommas.append(s[i])
-    }
-    return withCommas.toString()
 }
 
 @Preview

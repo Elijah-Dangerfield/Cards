@@ -245,10 +245,19 @@ private fun EventRow(event: XpEvent) {
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.text,
             )
-            event.handId?.let { handId ->
+            // Subline disambiguates the row: hand id for hand-derived XP,
+            // achievement name for achievement unlocks. Without this the feed
+            // says "Achievement unlocked" without ever telling the user which
+            // one popped.
+            val subline = when {
+                event.description != null -> event.description
+                event.handId != null -> "Hand #${event.handId} · ${modeLabel(event.mode)}"
+                else -> null
+            }
+            subline?.let {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Hand #$handId · ${modeLabel(event.mode)}",
+                    text = it,
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.textSecondary,
                 )
@@ -456,10 +465,10 @@ private fun XpDetailSheetContent_Populated() {
                     updatedAtEpochMs = 0,
                 ),
                 recentEvents = listOf(
-                    XpEvent(1, 5, XpSource.BASE, XpMode.BOTS, "42", 0L),
-                    XpEvent(2, 3, XpSource.INVESTMENT, XpMode.BOTS, "42", 0L),
-                    XpEvent(3, 5, XpSource.SHOWDOWN, XpMode.BOTS, "42", 0L),
-                    XpEvent(4, 6, XpSource.HAND_STRENGTH, XpMode.BOTS, "42", 0L),
+                    XpEvent(id = 1, deltaXp = 5, source = XpSource.BASE, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
+                    XpEvent(id = 2, deltaXp = 3, source = XpSource.INVESTMENT, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
+                    XpEvent(id = 3, deltaXp = 5, source = XpSource.SHOWDOWN, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
+                    XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                 ),
             ),
             modifier = Modifier.padding(20.dp),

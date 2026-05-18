@@ -52,14 +52,16 @@ class HomeFeatureEntryPoint(
         screen<HomeRoute> {
             val viewModel: HomeViewModel = viewModel { homeViewModelFactory() }
             var activeDialog by remember { mutableStateOf<HomeDialog?>(null) }
+            // The bot-table setup dialog is parameterized on the difficulty
+            // the user tapped so we can route to that difficulty after they
+            // pick a seat count.
+            var setupDifficulty by remember { mutableStateOf<String?>(null) }
 
             HomeScreen(
                 viewModel = viewModel,
                 onNavigateToFeedback = { router.navigate(FeedbackRoute()) },
                 onNavigateToBugReport = { router.navigate(BugReportRoute()) },
-                onPlayBots = { difficulty ->
-                    router.navigate(PlayBotsRoute(difficulty = difficulty, seatCount = 4))
-                },
+                onPlayBots = { difficulty -> setupDifficulty = difficulty },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
                 onTapXp = { router.navigate(XpDetailSheetRoute()) },
                 onTapCash = {
@@ -76,6 +78,17 @@ class HomeFeatureEntryPoint(
                 ComingSoonDialog(
                     dialog = activeDialog!!,
                     onDismiss = { activeDialog = null },
+                )
+            }
+
+            setupDifficulty?.let { difficulty ->
+                BotTableSetupDialog(
+                    difficultyLabel = difficulty,
+                    onStart = { seatCount ->
+                        setupDifficulty = null
+                        router.navigate(PlayBotsRoute(difficulty = difficulty, seatCount = seatCount))
+                    },
+                    onDismiss = { setupDifficulty = null },
                 )
             }
         }

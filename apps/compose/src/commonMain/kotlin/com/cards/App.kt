@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import com.dangerfield.cards.buildinfo.CardsBuildConfig
 import com.dangerfield.cards.features.upgrade.AppGuardState
 import com.dangerfield.cards.features.upgrade.impl.AppGuardLayer
+import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.BuildInfo
@@ -93,11 +94,6 @@ fun App(appComponent: AppComponent) {
         ensureAppConfigLoaded()
     }
 
-    val appConfigMap by appConfigFlow.collectAsState(initial = null)
-    val guardState = appConfigMap?.let {
-        AppGuardState.from(configMap = it, clientVersionCode = CardsBuildConfig.VERSION_CODE)
-    } ?: AppGuardState.Normal
-
     LaunchedEffect(navController, deepLinkBridge) {
         deepLinkBridge.urls.collect { url ->
             Catching {
@@ -141,8 +137,8 @@ fun App(appComponent: AppComponent) {
     ) {
         AppThemeProvider {
             Box(modifier = Modifier.fillMaxSize()) {
-                AppGuardLayer(
-                    state = guardState,
+                AppGuardGate(
+                    appConfigFlow = appConfigFlow,
                     onOpenStore = {
                         router.openWebLink(
                             "https://play.google.com/store/apps/details?id=${CardsBuildConfig.APPLICATION_ID}",
@@ -209,6 +205,7 @@ private fun AppNavigation(
                         }
 
                         if (!isAlreadySelected) {
+                            KLog.d { "Navigating to bottom bar route: ${item.title}" }
                             navController.navigate(route) {
                                 // Pop back to the start destination so the back stack stays shallow
                                 popUpTo(HomeRoute::class) {
@@ -317,6 +314,32 @@ private fun NavBackStackEntry.tabString(): String? = when {
     destination.hasRoute<ShopRoute>() -> "Shop"
     destination.hasRoute<ProfileRoute>() -> "Profile"
     else -> null
+}
+
+/**
+ * Isolates the `appConfigFlow` state read into its own composable so flow emissions
+ * (notably the 5s config-refresh timeout on iOS falling back to defaults) cannot
+ * recompose `App` and reset the `NavHost`'s start destination — same defensive
+ * pattern as [SplashGate].
+ */
+@Composable
+private fun AppGuardGate(
+    appConfigFlow: AppConfigFlow,
+    onOpenStore: () -> Unit,
+    onClearOverrides: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val appConfigMap by appConfigFlow.collectAsState(initial = null)
+    val guardState = appConfigMap?.let {
+        AppGuardState.from(configMap = it, clientVersionCode = CardsBuildConfig.VERSION_CODE)
+    } ?: AppGuardState.Normal
+
+    AppGuardLayer(
+        state = guardState,
+        onOpenStore = onOpenStore,
+        onClearOverrides = onClearOverrides,
+        content = content,
+    )
 }
 
 /**

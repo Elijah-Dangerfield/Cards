@@ -21,11 +21,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD100
+import com.dangerfield.cards.system.VerticalSpacerD1100
+import com.dangerfield.cards.system.VerticalSpacerD50
+import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD800
+import com.dangerfield.cards.system.VerticalSpacerD900
 
 data class ProfileSettings(
     val displayName: String,
@@ -34,23 +41,19 @@ data class ProfileSettings(
     val xp: Long,
     val handsPlayed: Long,
     val isAnonymous: Boolean,
-    val gameplaySpeed: GameplaySpeed,
+    val botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
+    val turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
     val appVersion: String,
     val showQaMenu: Boolean = false,
 )
-
-enum class GameplaySpeed(val label: String) {
-    Slow("Slow"),
-    Normal("Normal"),
-    Fast("Fast"),
-}
 
 @Composable
 fun ProfileScreen(
     settings: ProfileSettings,
     onClaimAccount: () -> Unit,
     onEditProfile: () -> Unit,
-    onChangeGameplaySpeed: () -> Unit,
+    onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
+    onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
     onTapRank: () -> Unit,
     onTapXp: () -> Unit,
     onSendFeedback: () -> Unit,
@@ -70,11 +73,11 @@ fun ProfileScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             ProfileHeader(settings = settings)
-            Spacer(modifier = Modifier.height(24.dp))
+            VerticalSpacerD900()
 
             if (settings.isAnonymous) {
                 ClaimAccountCard(onClaimAccount = onClaimAccount)
-                Spacer(modifier = Modifier.height(20.dp))
+                VerticalSpacerD800()
             }
 
             ListSection(
@@ -110,23 +113,16 @@ fun ProfileScreen(
                 ),
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            VerticalSpacerD800()
 
-            ListSection(
-                title = "Gameplay",
-                items = listOf(
-                    ListSectionItem(
-                        headlineText = "Speed",
-                        supportingText = "How fast cards and chips move",
-                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
-                            text = settings.gameplaySpeed.label,
-                        ),
-                        onClick = onChangeGameplaySpeed,
-                    ),
-                ),
+            GameplaySection(
+                botSpeed = settings.botSpeed,
+                turnFeedback = settings.turnFeedback,
+                onBotSpeedChange = onBotSpeedChange,
+                onTurnFeedbackChange = onTurnFeedbackChange,
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            VerticalSpacerD800()
 
             ListSection(
                 title = "Support",
@@ -144,7 +140,7 @@ fun ProfileScreen(
                 ),
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            VerticalSpacerD800()
 
             ListSection(
                 title = "About",
@@ -161,7 +157,7 @@ fun ProfileScreen(
             )
 
             if (!settings.isAnonymous) {
-                Spacer(modifier = Modifier.height(20.dp))
+                VerticalSpacerD800()
                 ListSection(
                     items = listOf(
                         ListSectionItem(
@@ -173,7 +169,7 @@ fun ProfileScreen(
             }
 
             if (settings.showQaMenu) {
-                Spacer(modifier = Modifier.height(20.dp))
+                VerticalSpacerD800()
                 ListSection(
                     title = "Debug",
                     items = listOf(
@@ -186,7 +182,7 @@ fun ProfileScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            VerticalSpacerD1100()
             // App version as a quiet, centered footer rather than a table cell.
             // It's a "where am I in the release cycle" reference, not an action.
             Text(
@@ -196,8 +192,51 @@ fun ProfileScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            BottomBarSpacer()
         }
+    }
+}
+
+@Composable
+private fun GameplaySection(
+    botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
+    turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
+    onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
+    onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
+) {
+    // Custom section so each row gets its own dropdown popup. Visually
+    // matches `ListSection` (same surface, same shape) but each row is a
+    // `DropdownSettingRow` that opens an inline menu instead of routing
+    // to a separate screen.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+            .background(AppTheme.colors.surfacePrimary.color),
+    ) {
+        Text(
+            text = "Gameplay",
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.textSecondary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        com.dangerfield.cards.libraries.ui.components.DropdownSettingRow(
+            headlineText = "Bot speed",
+            supportingText = "How fast the bots think and act",
+            options = com.dangerfield.cards.libraries.cards.BotSpeed.entries.toList(),
+            selected = botSpeed,
+            onSelect = onBotSpeedChange,
+            label = { it.label },
+            showDivider = true,
+        )
+        com.dangerfield.cards.libraries.ui.components.DropdownSettingRow(
+            headlineText = "Your turn feedback",
+            supportingText = "Cue when it becomes your turn",
+            options = com.dangerfield.cards.libraries.cards.TurnFeedback.entries.toList(),
+            selected = turnFeedback,
+            onSelect = onTurnFeedbackChange,
+            label = { it.label },
+        )
     }
 }
 
@@ -211,15 +250,19 @@ private fun ProfileHeader(settings: ProfileSettings) {
             name = settings.displayName,
             size = 96.dp,
             typography = AppTheme.typography.Heading.H800,
+            // Guest accounts get a card emoji so they read as "you, the
+            // anonymous player" rather than a stranger named "G". Falls back
+            // to the initial once the user claims their account.
+            emoji = if (settings.isAnonymous) "🃏" else null,
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        VerticalSpacerD500()
         Text(
             text = settings.displayName,
             typography = AppTheme.typography.Heading.H700,
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        VerticalSpacerD50()
         Text(
             text = if (settings.isAnonymous) "Guest · ${settings.handle}" else "@${settings.handle}",
             typography = AppTheme.typography.Body.B400,
@@ -248,7 +291,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.text,
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        VerticalSpacerD100()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -278,13 +321,15 @@ private fun ProfileScreenPreview_Anonymous() {
                 xp = 60,
                 handsPlayed = 0,
                 isAnonymous = true,
-                gameplaySpeed = GameplaySpeed.Normal,
+                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Sound,
                 appVersion = "0.1.0",
                 showQaMenu = false,
             ),
             onClaimAccount = {},
             onEditProfile = {},
-            onChangeGameplaySpeed = {},
+            onBotSpeedChange = {},
+            onTurnFeedbackChange = {},
             onTapRank = {},
             onTapXp = {},
             onSendFeedback = {},
@@ -308,13 +353,15 @@ private fun ProfileScreenPreview_Claimed() {
                 xp = 12_400,
                 handsPlayed = 412,
                 isAnonymous = false,
-                gameplaySpeed = GameplaySpeed.Fast,
+                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Fast,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                 appVersion = "0.1.0",
                 showQaMenu = false,
             ),
             onClaimAccount = {},
             onEditProfile = {},
-            onChangeGameplaySpeed = {},
+            onBotSpeedChange = {},
+            onTurnFeedbackChange = {},
             onTapRank = {},
             onTapXp = {},
             onSendFeedback = {},
@@ -338,13 +385,15 @@ private fun ProfileScreenPreview_DebugBuild() {
                 xp = 12_400,
                 handsPlayed = 412,
                 isAnonymous = false,
-                gameplaySpeed = GameplaySpeed.Normal,
+                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Sound,
                 appVersion = "0.1.0-debug",
                 showQaMenu = true,
             ),
             onClaimAccount = {},
             onEditProfile = {},
-            onChangeGameplaySpeed = {},
+            onBotSpeedChange = {},
+            onTurnFeedbackChange = {},
             onTapRank = {},
             onTapXp = {},
             onSendFeedback = {},

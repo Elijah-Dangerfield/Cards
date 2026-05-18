@@ -47,7 +47,9 @@ class OpponentTracker {
             is GameEvent.HandStarted -> {
                 currentHandNumber = event.handNumber
                 currentStreet = BettingRound.Preflop
-                profiles.replaceAll { _, profile -> profile.copy(handsObserved = profile.handsObserved + 1) }
+                for ((seat, profile) in profiles.toMap()) {
+                    profiles[seat] = profile.copy(handsObserved = profile.handsObserved + 1)
+                }
             }
             is GameEvent.StreetAdvanced -> {
                 currentStreet = event.street

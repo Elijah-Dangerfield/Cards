@@ -73,12 +73,27 @@ data class BotPersonality(
             // distinct archetypes so the table doesn't feel like clones.
             // First slot LAG (action), then tight (foil), then maniac, then
             // calling station, then balanced TAG.
-            val pool = when (difficulty) {
+            val primary = when (difficulty) {
                 BotDifficulty.Casual -> listOf(Steve, Jane)
                 BotDifficulty.Standard -> listOf(David, Jane, Mike, Steve, Gina)
                 BotDifficulty.Challenging -> listOf(David, Mike, Gina)
             }
-            return List(count) { pool[it % pool.size] }
+            // Pull from the difficulty's flavor list first, then top up from
+            // the rest of the Roster before resorting to duplicates. Keeps
+            // every seat at the table identifiable by name as long as the
+            // count is within the roster size (5).
+            val result = mutableListOf<BotPersonality>()
+            primary.forEach { if (result.size < count) result += it }
+            Roster.filter { it !in primary }.forEach { if (result.size < count) result += it }
+            // Edge case: count > Roster.size. Fall back to cycling the primary
+            // pool so we never return fewer than `count` seats — the
+            // duplicate names this introduces are unavoidable at 6+ seats.
+            var i = 0
+            while (result.size < count) {
+                result += primary[i % primary.size]
+                i++
+            }
+            return result
         }
     }
 }

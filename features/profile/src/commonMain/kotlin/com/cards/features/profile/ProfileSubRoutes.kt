@@ -7,10 +7,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 class EditProfileRoute : Route()
 
-/** Choose gameplay animation speed (Slow / Normal / Fast). V1 placeholder. */
-@Serializable
-class GameplaySpeedRoute : Route()
-
 /** Confirm + execute account deletion. V1 placeholder. */
 @Serializable
 class DeleteAccountRoute : Route()

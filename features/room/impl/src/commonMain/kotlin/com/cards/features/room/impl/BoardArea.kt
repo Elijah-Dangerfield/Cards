@@ -3,6 +3,9 @@ package com.dangerfield.cards.features.room.impl
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +14,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,59 +26,82 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
+import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
-import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSlot
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD600
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-internal fun BoardArea(table: TableUiState.Active) {
+internal fun BoardArea(table: TableUiState.Active, onPotClick: () -> Unit = {}) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        // Five community cards, overlapping. Later cards render on top of earlier
-        // ones — since rank+suit are on the left edge of each card, the right
-        // edge being clipped by the next card is fine.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy((-28).dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            for (i in 0 until 5) {
-                val c = table.communityCards.getOrNull(i)
-                val streetIndexInStreet = if (i < 3) i else 0
-                BoardCard(
-                    card = c,
-                    slotIndex = i,
-                    revealDelayMs = streetIndexInStreet * 240,
-                    size = PlayingCardSize.Board,
-                )
+        val cardSize = PlayingCardSize.Board
+        val overlap = 28.dp
+        // Five community cards, overlapping. A single outlined well sits behind
+        // the row spanning the full 5-slot region — dealt cards cover their
+        // portion of the well, undealt portions read as one unified "cards land
+        // here" zone instead of five disconnected outlines.
+        Box(contentAlignment = Alignment.Center) {
+            BoardWell(
+                width = cardSize.width * 5 - overlap * 4,
+                height = cardSize.height,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(-overlap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                for (i in 0 until 5) {
+                    val c = table.communityCards.getOrNull(i)
+                    val streetIndexInStreet = if (i < 3) i else 0
+                    if (c == null) {
+                        Spacer(modifier = Modifier.size(width = cardSize.width, height = cardSize.height))
+                    } else {
+                        BoardCard(
+                            card = c,
+                            revealDelayMs = streetIndexInStreet * 240,
+                            size = cardSize,
+                        )
+                    }
+                }
             }
         }
         if (table.pot > 0) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Pot ${table.pot}",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
-            )
+            VerticalSpacerD600()
+            PotPill(amount = table.pot, onClick = onPotClick)
         }
-        // Showdown is rendered as a modal sheet so it doesn't fight the table
-        // layout for vertical space — see ShowdownDialog at the screen root.
     }
 }
 
 @Composable
-private fun BoardCard(card: Card?, slotIndex: Int, revealDelayMs: Int, size: PlayingCardSize) {
-    if (card == null) {
-        PlayingCardSlot(size = size)
-        return
-    }
+private fun BoardWell(width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
+    Box(
+        modifier = Modifier
+            .size(width = width, height = height)
+            .clip(RoundedCornerShape(16.dp))
+            .border(
+                width = 1.5.dp,
+                color = Color.White.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(16.dp),
+            ),
+    )
+}
+
+@Composable
+private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
     // Compose previews don't drive animations to completion — without this the
     // card would render mid-flight (translated up, half-flipped). In preview,
     // jump straight to the settled face-up state.
@@ -128,5 +156,85 @@ private fun BoardCard(card: Card?, slotIndex: Int, revealDelayMs: Int, size: Pla
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PotPill(amount: Long, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .clickable(onClick = onClick)
+            .padding(start = 14.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(PokerPalette.ChipGold),
+        )
+        Text(
+            text = "POT",
+            typography = AppTheme.typography.Label.L400,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
+        Text(
+            text = formatCompactChips(amount),
+            typography = AppTheme.typography.Heading.H600,
+            color = AppTheme.colors.onSurfacePrimary,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BoardAreaPreview_Preflop() {
+    PreviewContent {
+        BoardArea(table = PreviewSamples.activeTable(pot = 30))
+    }
+}
+
+@Preview
+@Composable
+private fun BoardAreaPreview_Flop() {
+    PreviewContent {
+        BoardArea(
+            table = PreviewSamples.activeTable(
+                street = BettingRound.Flop,
+                communityCards = PreviewSamples.flopBoard(),
+                pot = 120,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BoardAreaPreview_Turn() {
+    PreviewContent {
+        BoardArea(
+            table = PreviewSamples.activeTable(
+                street = BettingRound.Turn,
+                communityCards = PreviewSamples.turnBoard(),
+                pot = 320,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BoardAreaPreview_River_BigPot() {
+    PreviewContent {
+        BoardArea(
+            table = PreviewSamples.activeTable(
+                street = BettingRound.River,
+                communityCards = PreviewSamples.riverBoard(),
+                pot = 1_840,
+            ),
+        )
     }
 }

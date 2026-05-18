@@ -2,8 +2,10 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -31,10 +33,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 internal fun QuickActionBar(
@@ -64,17 +68,25 @@ internal fun QuickActionBar(
         }
     }
 
-    // Reserve the bar's height always so the layout above (player area, board)
-    // doesn't shift when actions slide in/out. 20dp hint row + 60dp button row.
+    // No fixed-height wrapper here — the bar's slot collapses when actions
+    // aren't visible so the player row above slides DOWN to fill the freed
+    // space (see ActiveTable: PlayerArea + this bar share a Column).
     Box(
-        modifier = Modifier.fillMaxWidth().height(80.dp),
+        modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.BottomCenter,
     ) {
         AnimatedVisibility(
             visible = canShow,
+            // `expand/shrinkVertically` animate the LAYOUT slot's height in
+            // lockstep with the slide — without them the slot snaps from
+            // content-size to 0 at the end of the slide-out animation,
+            // which makes the player row above appear to "jump" down at
+            // the very end instead of sliding down smoothly with the bar.
             enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(260)) +
+                expandVertically(animationSpec = tween(260)) +
                 fadeIn(animationSpec = tween(180)),
             exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(220)) +
+                shrinkVertically(animationSpec = tween(220)) +
                 fadeOut(animationSpec = tween(140)),
         ) {
             val legal = lastLegal
@@ -166,6 +178,62 @@ private fun PrimaryPill(
             text = label,
             typography = AppTheme.typography.Body.B600,
             color = if (enabled) AppTheme.colors.text else faded,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun QuickActionBarPreview_CallOrRaise() {
+    PreviewContent {
+        QuickActionBar(
+            table = PreviewSamples.activeTable(
+                legalActions = PreviewSamples.legalActions(callAmount = 20, minRaiseTotal = 40),
+            ),
+            onIntent = {},
+            onExpandRaise = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun QuickActionBarPreview_CheckOrBet() {
+    PreviewContent {
+        QuickActionBar(
+            table = PreviewSamples.activeTable(
+                legalActions = PreviewSamples.legalActions(
+                    canCheck = true,
+                    canCall = false,
+                    callAmount = 0,
+                    isOpenBet = true,
+                    minRaiseTotal = 20,
+                ),
+            ),
+            onIntent = {},
+            onExpandRaise = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun QuickActionBarPreview_RaiseBlocked() {
+    PreviewContent {
+        QuickActionBar(
+            table = PreviewSamples.activeTable(
+                seats = PreviewSamples.defaultSeats().map {
+                    if (it.isHuman) it.copy(stack = 15) else it
+                },
+                legalActions = PreviewSamples.legalActions(
+                    canRaise = false,
+                    callAmount = 20,
+                    minRaiseTotal = 40,
+                    maxRaiseTotal = 15,
+                ),
+            ),
+            onIntent = {},
+            onExpandRaise = {},
         )
     }
 }
