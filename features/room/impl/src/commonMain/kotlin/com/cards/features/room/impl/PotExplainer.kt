@@ -1,24 +1,17 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD100
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -38,19 +31,8 @@ internal fun PotExplainer(onDismiss: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(PokerPalette.ChipGold),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "$",
-                    typography = AppTheme.typography.Heading.H800,
-                    color = AppTheme.colors.background,
-                )
-            }
+            // ChipCoin (DS) — see StackExplainer for the rationale.
+            ChipCoin(size = 56.dp, textTypography = AppTheme.typography.Heading.H800)
             Text(
                 text = "The pot",
                 typography = AppTheme.typography.Heading.H700,
