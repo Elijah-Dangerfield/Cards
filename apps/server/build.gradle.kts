@@ -22,6 +22,11 @@ dependencies {
     implementation("io.ktor:ktor-server-call-logging:3.3.3")
     implementation("io.ktor:ktor-server-call-id:3.3.3")
     implementation("io.ktor:ktor-server-rate-limit:3.3.3")
+
+    // Error reporting. SDK initialises only when SENTRY_DSN is set,
+    // so the dependency is paid (in jar size) but stays a no-op for
+    // unconfigured deploys. See plugins/Sentry.kt.
+    implementation("io.sentry:sentry:7.18.1")
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation("ch.qos.logback:logback-classic:1.5.6")
     implementation(libs.ktor.serverAuth)

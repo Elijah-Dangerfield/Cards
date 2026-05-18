@@ -42,6 +42,7 @@ fun Application.installStatusPages() {
         }
         exception<Throwable> { call, cause ->
             logger.error("Unhandled error", cause)
+            captureToSentry(cause, context = "status-pages")
             call.respond(
                 HttpStatusCode.InternalServerError,
                 ProblemResponse(ProblemResponse.Problem("internal", cause.message ?: "unknown")),

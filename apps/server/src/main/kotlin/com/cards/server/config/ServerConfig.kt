@@ -11,12 +11,14 @@ data class ServerConfig(
     val database: DatabaseConfig,
     val supabase: SupabaseConfig,
     val http: HttpConfig,
+    val sentry: SentryConfig,
 ) {
     companion object {
         fun fromEnv(env: Env = Env()): ServerConfig = ServerConfig(
             database = DatabaseConfig.fromEnv(env),
             supabase = SupabaseConfig.fromEnv(env),
             http = HttpConfig.fromEnv(env),
+            sentry = SentryConfig.fromEnv(env),
         )
     }
 }
@@ -101,6 +103,41 @@ data class HttpConfig(
         fun fromEnv(env: Env): HttpConfig = HttpConfig(
             host = env.get("SERVER_HOST") ?: "0.0.0.0",
             port = env.int("SERVER_PORT", default = 8080),
+        )
+    }
+}
+
+/**
+ * Server-side Sentry settings. The SDK is initialised at startup ONLY when
+ * [dsn] is non-blank — V1 ships unconfigured by default so deploys without
+ * a Sentry project (or local dev) don't pay any cost.
+ *
+ * Recommended setup once Sentry exists: one Sentry project for the server,
+ * separate from the client project (different SDKs, different stack
+ * traces, different release cadence). Within that one project, use
+ * `SENTRY_ENVIRONMENT=dev|prod` to filter — distinct *projects* per
+ * environment makes cross-env grouping (the same exception happening in
+ * both) awkward.
+ */
+data class SentryConfig(
+    /** Project DSN. Sentry → Project Settings → Client Keys. */
+    val dsn: String?,
+    /** Tagged on every event. Conventional values: `dev`, `prod`. */
+    val environment: String,
+    /** Optional release identifier. Conventionally the git short SHA. */
+    val release: String?,
+) {
+    companion object {
+        fun fromEnv(env: Env): SentryConfig = SentryConfig(
+            dsn = env["SENTRY_DSN"],
+            // Fly sets FLY_APP_NAME; we map cards-server → prod, anything
+            // else → dev. Override with SENTRY_ENVIRONMENT when needed.
+            environment = env["SENTRY_ENVIRONMENT"]
+                ?: when (env["FLY_APP_NAME"]) {
+                    "cards-server" -> "prod"
+                    else -> "dev"
+                },
+            release = env["SENTRY_RELEASE"],
         )
     }
 }

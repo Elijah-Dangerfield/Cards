@@ -34,7 +34,17 @@ changes under `apps/server/**` triggers an auto-deploy via GitHub Actions
    - `DATABASE_URL` uses Supabase's **direct connection** host (works from Fly because Fly has IPv6 outbound).
    - The `$` in the password is URL-encoded as `%24`.
    - `SUPABASE_URL` is enough on its own: the server fetches the project's public JWT signing keys from `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` at runtime. No shared JWT secret is stored anywhere.
-   - For account deletion later, add `SUPABASE_SERVICE_ROLE_KEY` here (Project Settings → API → service_role key, treat like a root password).
+   - For account deletion, add `SUPABASE_SERVICE_ROLE_KEY` here (Project Settings → API → service_role key, treat like a root password).
+
+   **Optional: error reporting via Sentry.**
+   Once a Sentry project exists, add its DSN. Without these, the server logs a warning at startup and `Sentry.captureException(...)` becomes a no-op.
+   ```
+   fly secrets set \
+     SENTRY_DSN='<https://...@oXXXX.ingest.sentry.io/YYYY>' \
+     SENTRY_ENVIRONMENT='dev' \
+     -a cards-server-dev
+   ```
+   For `cards-server` (prod), use `SENTRY_ENVIRONMENT='prod'` against the same Sentry project. Use one Sentry project for the server (separate from the client project) and let `SENTRY_ENVIRONMENT` differentiate dev vs prod issues — easier cross-env grouping than splitting projects.
 
 5. **Get a deploy token for CI**:
    ```
