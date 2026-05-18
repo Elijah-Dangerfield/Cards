@@ -54,7 +54,7 @@ class LocalBotsSession(
      * a no-op for tests.
      */
     private val onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit = { _, _, _ -> },
-) {
+) : PokerSession {
     // Logger must be declared BEFORE any field whose initializer transitively
     // calls a method that logs — Kotlin runs field initializers top-to-bottom,
     // so logging from `startNextHand()` (which `gameState` invokes below)
@@ -93,7 +93,7 @@ class LocalBotsSession(
     private val _gameStateFlow: MutableStateFlow<GameState> by lazy(LazyThreadSafetyMode.NONE) {
         MutableStateFlow(gameState)
     }
-    val gameStateFlow: StateFlow<GameState> get() = _gameStateFlow
+    override val gameStateFlow: StateFlow<GameState> get() = _gameStateFlow
 
     /**
      * UI-decoupled engine events. New ViewModel layer subscribes for animations,
@@ -102,7 +102,7 @@ class LocalBotsSession(
      * most ~30 events, generous headroom for non-suspending tryEmit).
      */
     private val _events = MutableSharedFlow<GameEvent>(extraBufferCapacity = 64)
-    val events: SharedFlow<GameEvent> get() = _events.asSharedFlow()
+    override val events: SharedFlow<GameEvent> get() = _events.asSharedFlow()
 
     private var gameState: GameState = startNextHand()
 
@@ -419,5 +419,15 @@ class LocalBotsSession(
             _events.tryEmit(it)
         }
     }
+
+    // --- PokerSession interface aliases ---
+    // The interface uses clean names ([submit], [requestNextHand]); the existing screen
+    // still uses the original method names. Both call paths remain valid during the
+    // strangler period.
+
+    override suspend fun submit(intent: com.dangerfield.cards.libraries.gameplay.PlayerIntent) =
+        submitHumanIntent(intent)
+
+    override fun requestNextHand() = advanceToNextHand()
 
 }
