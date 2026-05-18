@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -16,29 +17,36 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.upgrade.AppGuardState
 import com.dangerfield.cards.libraries.core.BuildInfo
-import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
 /**
- * Renders the right modal layer for the current [AppGuardState] above whatever
- * the app's nav graph is drawing. Place this once inside the app's root, after
- * the nav graph and after the dialog host, so it can cover everything.
+ * Renders blocking overlays (upgrade-required, maintenance) for the current
+ * [AppGuardState] above whatever the app's nav graph is drawing. Place this
+ * once inside the app's root, after the nav graph and after the dialog host,
+ * so it can cover everything.
+ *
+ * The non-blocking maintenance banner is rendered separately by
+ * [AppGuardBanner] so it can sit inside the app's [Scaffold] `topBar` slot
+ * and inherit the same status-bar inset model as the rest of the chrome.
  *
  * [content] is the rest of the app (typically the nav graph). It is drawn at
  * all times; the guard layer just covers it when needed.
@@ -51,23 +59,7 @@ fun AppGuardLayer(
     content: @Composable () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Banner + content stacked vertically — banner takes its own slot
-        // at the top and pushes the rest of the app down. (Blocking overlays
-        // stay as covering Boxes since "the app is down" should obscure
-        // whatever was on screen.)
-        Column(modifier = Modifier.fillMaxSize()) {
-            AnimatedVisibility(
-                visible = state is AppGuardState.MaintenanceBanner,
-                enter = slideInVertically { -it } + fadeIn(),
-                exit = slideOutVertically { -it } + fadeOut(),
-            ) {
-                val banner = state as? AppGuardState.MaintenanceBanner
-                if (banner != null) MaintenanceBanner(message = banner.message)
-            }
-            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                content()
-            }
-        }
+        content()
 
         AnimatedVisibility(
             visible = state is AppGuardState.MaintenanceBlocking || state is AppGuardState.UpgradeRequired,
@@ -89,11 +81,29 @@ fun AppGuardLayer(
     }
 }
 
+/**
+ * Renders the non-blocking maintenance banner if [state] is
+ * [AppGuardState.MaintenanceBanner]. Designed to be placed in a `Scaffold`'s
+ * `topBar` slot so the Scaffold owns status-bar inset propagation — putting
+ * the banner outside the Scaffold causes it to dip under the status bar.
+ */
+@Composable
+fun AppGuardBanner(state: AppGuardState) {
+    AnimatedVisibility(
+        visible = state is AppGuardState.MaintenanceBanner,
+        enter = slideInVertically { -it } + fadeIn(),
+        exit = slideOutVertically { -it } + fadeOut(),
+    ) {
+        val banner = state as? AppGuardState.MaintenanceBanner
+        if (banner != null) MaintenanceBanner(message = banner.message)
+    }
+}
+
 @Composable
 private fun MaintenanceBanner(message: String) {
-    // Banner is rendered OUTSIDE the Scaffold's safe-area scope (it's hosted
-    // at the screen root so it can sit above any route), so it applies the
-    // status-bar inset itself or it gets tucked under the notch.
+    // Lives in the Scaffold's topBar slot, which draws at y=0 with no
+    // implicit insets — so we apply statusBars padding ourselves to keep
+    // text out from under the notch while the background bleeds up.
     val warning = AppTheme.colors.status.warning.color
     Row(
         modifier = Modifier
@@ -121,7 +131,7 @@ private fun MaintenanceBanner(message: String) {
 
 @Composable
 private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: () -> Unit) {
-    BlockingOverlay {
+    BlockingScreen(debugEscape = { DebugEscapeHatch(onClearOverrides = onClearOverrides) }) {
         Text(
             text = "Time to update",
             typography = AppTheme.typography.Heading.H700,
@@ -136,16 +146,17 @@ private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: ()
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(24.dp))
-        Button(onClick = onOpenStore) {
+        ButtonPrimary(onClick = onOpenStore) {
             Text("Update Cards")
         }
-        DebugEscapeHatch(onClearOverrides = onClearOverrides)
     }
 }
 
 @Composable
 private fun MaintenanceBlockingOverlay(message: String, onClearOverrides: () -> Unit) {
-    BlockingOverlay {
+    BlockingScreen(debugEscape = { DebugEscapeHatch(onClearOverrides = onClearOverrides) }) {
+        // TODO: replace this with a watchable animation/illustration so users
+        // have something to look at while we're down for maintenance.
         Text(
             text = "We'll be right back",
             typography = AppTheme.typography.Heading.H700,
@@ -159,44 +170,51 @@ private fun MaintenanceBlockingOverlay(message: String, onClearOverrides: () -> 
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
-        DebugEscapeHatch(onClearOverrides = onClearOverrides)
     }
 }
 
 @Composable
 private fun DebugEscapeHatch(onClearOverrides: () -> Unit) {
     if (!BuildInfo.isDebug) return
-    Spacer(modifier = Modifier.height(24.dp))
-    Text(
-        text = "Debug only: this overlay can be triggered by a QA override.",
-        typography = AppTheme.typography.Body.B400,
-        color = AppTheme.colors.textSecondary,
-        textAlign = TextAlign.Center,
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    Button(onClick = onClearOverrides) {
+    ButtonDanger(
+        onClick = onClearOverrides,
+        style = ButtonStyle.Text,
+        size = ButtonSize.Small,
+    ) {
         Text("Clear overrides")
     }
 }
 
+/**
+ * Full-screen blocking treatment for guard states. Main [content] is centered;
+ * [debugEscape] is tucked at the bottom inside the safe area so QA can break
+ * out of an overlay without making it a first-class part of the UI.
+ */
 @Composable
-private fun BlockingOverlay(content: @Composable () -> Unit) {
+private fun BlockingScreen(
+    debugEscape: @Composable () -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppTheme.colors.background.color),
-        contentAlignment = Alignment.Center,
+            .background(AppTheme.colors.background.color)
+            .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .clip(RoundedCornerShape(20.dp))
-                .background(AppTheme.colors.surfacePrimary.color)
-                .padding(28.dp),
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
+            content = content,
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
         ) {
-            content()
+            debugEscape()
         }
     }
 }

@@ -31,9 +31,18 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class NetworkClientImpl(
     private val config: NetworkConfig,
-    private val authTokenProvider: AuthTokenProvider,
+    private val authTokenProviderProvider: () -> AuthTokenProvider,
     private val headersProvider: ClientHeadersProvider,
 ) : NetworkClient {
+
+    // Lazy provider rather than direct injection: the real
+    // [AuthTokenProvider] (in `:libraries:identity:impl`) depends on the
+    // unauthenticated HTTP client to call `/v1/auth/refresh`, which would
+    // create a constructor-time DI cycle (network → auth → network). Both
+    // sides are already singletons (`SingleIn(AppScope::class)`), so this
+    // resolves to the same instance — we just defer when the graph walks
+    // through it.
+    private val authTokenProvider: AuthTokenProvider by lazy { authTokenProviderProvider() }
 
     override val client: HttpClient by lazy {
         HttpClient {

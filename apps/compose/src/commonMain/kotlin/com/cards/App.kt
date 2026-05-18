@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import com.dangerfield.cards.buildinfo.CardsBuildConfig
 import com.dangerfield.cards.features.upgrade.AppGuardState
+import com.dangerfield.cards.features.upgrade.impl.AppGuardBanner
 import com.dangerfield.cards.features.upgrade.impl.AppGuardLayer
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.Catching
@@ -147,14 +148,18 @@ fun App(appComponent: AppComponent) {
                     onClearOverrides = {
                         appScope.launch { configOverrideRepository.clearAll() }
                     },
-                ) {
-                    AppNavigation(
-                        navController = navController,
-                        floatingWindowNavigator = floatingWindowNavigator,
-                        featureEntryPoints = appComponent.featureEntryPoints,
-                        startDestination = appViewModel.startDestination,
-                        router = router,
-                    )
+                ) { guardState ->
+                    val startDestination by appViewModel.startDestination.collectAsState()
+                    startDestination?.let { route ->
+                        AppNavigation(
+                            navController = navController,
+                            floatingWindowNavigator = floatingWindowNavigator,
+                            featureEntryPoints = appComponent.featureEntryPoints,
+                            startDestination = route,
+                            router = router,
+                            topBar = { AppGuardBanner(state = guardState) },
+                        )
+                    }
                 }
 
                 SplashGate()
@@ -175,6 +180,7 @@ private fun AppNavigation(
     featureEntryPoints: Set<FeatureEntryPoint>,
     startDestination: Route,
     router: DelegatingRouter,
+    topBar: @Composable () -> Unit = {},
 ) {
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
@@ -182,6 +188,7 @@ private fun AppNavigation(
     val shouldHideBottomBar = currentBackStackEntry?.tabString() == null
 
     Screen(
+        topBar = topBar,
         snackbarHost = {
             PresenterSnackbarHost()
         },
@@ -327,7 +334,7 @@ private fun AppGuardGate(
     appConfigFlow: AppConfigFlow,
     onOpenStore: () -> Unit,
     onClearOverrides: () -> Unit,
-    content: @Composable () -> Unit,
+    content: @Composable (AppGuardState) -> Unit,
 ) {
     val appConfigMap by appConfigFlow.collectAsState(initial = null)
     val guardState = appConfigMap?.let {
@@ -338,8 +345,9 @@ private fun AppGuardGate(
         state = guardState,
         onOpenStore = onOpenStore,
         onClearOverrides = onClearOverrides,
-        content = content,
-    )
+    ) {
+        content(guardState)
+    }
 }
 
 /**
