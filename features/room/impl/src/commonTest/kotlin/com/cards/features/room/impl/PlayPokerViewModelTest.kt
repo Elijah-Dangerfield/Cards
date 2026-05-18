@@ -98,6 +98,19 @@ class PlayPokerViewModelTest : CoroutineTest() {
     // ---------- Engine state subscription ----------
 
     @Test
+    fun gameStateEmission_populatesTable() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        // The stub state has 2 seats and is on the Preflop street — the
+        // derived TableUiState should be Active (not Loading) and reflect that.
+        val table = vm.state.table
+        assertTrue(table is TableUiState.Active, "table is Active once gameState emits")
+        assertEquals(2, (table as TableUiState.Active).seats.size)
+    }
+
+    @Test
     fun gameStateEmission_populatesOccupants() = runUnitTest {
         val session = FakePokerSession()
         val factory = FakePokerSessionFactory(session = session)

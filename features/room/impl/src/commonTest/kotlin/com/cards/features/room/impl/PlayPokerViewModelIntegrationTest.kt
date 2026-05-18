@@ -277,5 +277,14 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
 
         override fun occupantsFor(state: GameState): List<SeatOccupant> =
             state.seats.map { seat -> seatToOccupant(seat, personality = null) }
+
+        override fun tableFor(state: GameState): TableUiState = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
+            personalitiesBySeat = emptyMap(),
+            lastThoughts = emptyMap(),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
     }
 }

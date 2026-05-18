@@ -141,7 +141,9 @@ class PlayPokerViewModel @Inject constructor(
 
     override suspend fun handleAction(action: PlayPokerAction) {
         when (action) {
-            is PlayPokerAction.GameStateUpdated -> Unit  // occupants subaction handles state; raw state surfaced via session for future use
+            is PlayPokerAction.GameStateUpdated -> action.updateState {
+                it.copy(table = sessionFactory.tableFor(action.state))
+            }
             is PlayPokerAction.OccupantsUpdated -> action.updateState {
                 it.copy(occupants = action.occupants)
             }
@@ -194,6 +196,13 @@ class PlayPokerViewModel @Inject constructor(
 // ---------- MVI types ----------
 
 data class PlayPokerState(
+    /**
+     * UI-projected table state — what the screen actually renders. Derived
+     * from the raw engine state via [PokerSessionFactory.tableFor], so the
+     * projection logic stays out of the VM and can vary between solo (knows
+     * bot personalities locally) and MP (gets occupant metadata from server).
+     */
+    val table: TableUiState = TableUiState.Loading,
     val occupants: List<SeatOccupant> = emptyList(),
     val cheatSheetOpen: Boolean = false,
     val xp: Long = 0,
@@ -271,6 +280,14 @@ interface PokerSessionFactory {
 
     /** Derive [SeatOccupant] list from current engine state. */
     fun occupantsFor(state: GameState): List<SeatOccupant>
+
+    /**
+     * Project the raw engine state into a [TableUiState] for rendering. The
+     * factory owns this projection because the inputs differ by session type:
+     * solo knows bot personalities locally; MP will source them from
+     * server-provided occupant metadata.
+     */
+    fun tableFor(state: GameState): TableUiState
 }
 
 /**

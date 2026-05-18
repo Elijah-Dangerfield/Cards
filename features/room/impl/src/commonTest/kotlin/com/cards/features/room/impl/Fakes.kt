@@ -102,6 +102,15 @@ class FakePokerSessionFactory(
     override fun occupantsFor(state: GameState): List<SeatOccupant> = state.seats.map { seat ->
         seatToOccupant(seat, personalities[seat.index])
     }
+
+    override fun tableFor(state: GameState): TableUiState = TableUiState.fromGameState(
+        gameState = state,
+        humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
+        personalitiesBySeat = emptyMap(),
+        lastThoughts = emptyMap(),
+        lastWinners = null,
+        lastActionBySeat = emptyMap(),
+    )
 }
 
 // ---------- AppCache ----------
