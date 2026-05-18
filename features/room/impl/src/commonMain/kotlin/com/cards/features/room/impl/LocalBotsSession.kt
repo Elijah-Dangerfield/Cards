@@ -3,7 +3,6 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.bots.BotDecision
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
-import com.dangerfield.cards.libraries.bots.BotThought
 import com.dangerfield.cards.libraries.bots.OpponentTracker
 import com.dangerfield.cards.libraries.bots.StreetAction
 import com.dangerfield.cards.libraries.bots.buildHandContext
@@ -85,7 +84,6 @@ class LocalBotsSession(
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
     private val currentStreetLog: MutableList<StreetAction> = mutableListOf()
     private var preflopAggressorSeatIndex: Int? = null
-    private var lastBotThoughts: Map<Int, BotThought> = emptyMap()
     private var lastWinners: GameEvent.HandEnded? = null
     private val nextHandSignal: Channel<Unit> = Channel(capacity = 1)
     /**
@@ -175,7 +173,6 @@ class LocalBotsSession(
         lastActionBySeat.clear()
         currentStreetLog.clear()
         preflopAggressorSeatIndex = null
-        lastBotThoughts = emptyMap()
         lastWinners = null
         setGameState(result.state)
         humanStackAtHandStart = result.state.seats
@@ -291,7 +288,6 @@ class LocalBotsSession(
                 }
                 continue
             }
-            lastBotThoughts = lastBotThoughts + (acting to decision.thought)
             applyIntentAndEmit(decision.intent)
             // Action-tail delay also scales with user speed pref.
             delay((botActionDelayMs * currentSpeed.multiplier).toLong())
@@ -415,7 +411,6 @@ class LocalBotsSession(
             gameState = gameState,
             humanSeatIndex = humanSeatIndex,
             personalitiesBySeat = personalitiesBySeat,
-            lastThoughts = lastBotThoughts,
             lastWinners = lastWinners,
             lastActionBySeat = lastActionBySeat.toMap(),
         )

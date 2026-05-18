@@ -111,7 +111,6 @@ internal object PreviewSamples {
         isHumanTurn = actingSeatIndex == 0,
         humanLegalActions = legalActions,
         humanHandLabel = humanHandLabel,
-        lastBotThoughts = emptyMap(),
         handResult = handResult,
         smallBlind = 10,
         bigBlind = 20,

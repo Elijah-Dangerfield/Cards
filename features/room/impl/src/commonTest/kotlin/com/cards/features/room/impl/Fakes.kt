@@ -112,7 +112,6 @@ class FakePokerSessionFactory(
         gameState = state,
         humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
         personalitiesBySeat = emptyMap(),
-        lastThoughts = emptyMap(),
         lastWinners = lastWinners,
         lastActionBySeat = lastActionBySeat,
     )

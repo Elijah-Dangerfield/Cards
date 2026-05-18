@@ -360,7 +360,6 @@ private fun previewTable(
     isHumanTurn = seat.isActing,
     humanLegalActions = null,
     humanHandLabel = humanHandLabel,
-    lastBotThoughts = emptyMap(),
     handResult = handResult,
     smallBlind = 10,
     bigBlind = 20,

@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.libraries.bots.BotPersonality
-import com.dangerfield.cards.libraries.bots.BotThought
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.GameEvent
@@ -25,7 +24,6 @@ sealed interface TableUiState {
         val isHumanTurn: Boolean,
         val humanLegalActions: LegalActions?,
         val humanHandLabel: String?,
-        val lastBotThoughts: Map<Int, BotThought>,
         val handResult: HandResultView?,
         val smallBlind: Long,
         val bigBlind: Long,
@@ -40,7 +38,6 @@ sealed interface TableUiState {
             gameState: GameState,
             humanSeatIndex: Int,
             personalitiesBySeat: Map<Int, BotPersonality>,
-            lastThoughts: Map<Int, BotThought>,
             lastWinners: GameEvent.HandEnded?,
             lastActionBySeat: Map<Int, PlayerAction>,
         ): Active {
@@ -82,7 +79,6 @@ sealed interface TableUiState {
                 isHumanTurn = isHumanTurn,
                 humanLegalActions = legal,
                 humanHandLabel = humanHandLabel,
-                lastBotThoughts = lastThoughts,
                 handResult = result,
                 smallBlind = gameState.settings.smallBlind,
                 bigBlind = gameState.settings.bigBlind,

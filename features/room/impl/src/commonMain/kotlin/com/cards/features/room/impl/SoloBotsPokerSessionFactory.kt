@@ -92,12 +92,6 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         gameState = state,
         humanSeatIndex = humanSeatIndex,
         personalitiesBySeat = personalitiesBySeat,
-        // Bot thoughts aren't tracked in the new architecture (the bot loop
-        // owns its own per-decision thoughts but the VM doesn't surface them
-        // through events yet). Empty map means the cheat-sheet-style thought
-        // bubbles don't render; the game itself plays identically. Hook up
-        // BotThought event emission in a future chunk if it's missed.
-        lastThoughts = emptyMap(),
         lastWinners = lastWinners,
         lastActionBySeat = lastActionBySeat,
     )

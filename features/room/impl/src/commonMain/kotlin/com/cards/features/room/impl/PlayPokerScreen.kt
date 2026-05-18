@@ -518,7 +518,6 @@ private fun previewActive(
     isHumanTurn = isHumanTurn,
     humanLegalActions = humanLegalActions,
     humanHandLabel = humanHandLabel,
-    lastBotThoughts = emptyMap(),
     handResult = handResult,
     smallBlind = 10,
     bigBlind = 20,
