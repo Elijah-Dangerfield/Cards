@@ -8,6 +8,8 @@ import com.dangerfield.cards.libraries.bots.OpponentTracker
 import com.dangerfield.cards.libraries.bots.StreetAction
 import com.dangerfield.cards.libraries.bots.buildHandContext
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.flowroutines.DefaultDispatcherProvider
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEngine
 import com.dangerfield.cards.libraries.gameplay.GameEvent
@@ -19,7 +21,6 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.libraries.gameplay.deterministicDeck
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -54,6 +55,18 @@ class LocalBotsSession(
      * a no-op for tests.
      */
     private val onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit = { _, _, _ -> },
+    /**
+     * Dispatchers for off-main work. The bot's Monte Carlo equity computation
+     * runs on `dispatchers.default` (CPU-bound — keeps the UI thread
+     * responsive). Tests pass a `TestDispatcherProvider` whose `default` is
+     * the test scheduler, so the bot loop advances on virtual time.
+     *
+     * Defaulted to [DefaultDispatcherProvider] for the existing
+     * `PlayBotsViewModel` constructor that doesn't yet thread the provider
+     * through. Once that VM is deleted (Phase 0.2.h), this default goes away
+     * and `PlayPokerViewModel` will inject the provider via DI.
+     */
+    private val dispatchers: DispatcherProvider = DefaultDispatcherProvider(),
 ) : PokerSession {
     // Logger must be declared BEFORE any field whose initializer transitively
     // calls a method that logs — Kotlin runs field initializers top-to-bottom,
@@ -97,11 +110,21 @@ class LocalBotsSession(
 
     /**
      * UI-decoupled engine events. New ViewModel layer subscribes for animations,
-     * achievement triggers, sound cues, telemetry. Replay 0 (state flow is the
-     * source of truth for "what's currently true"); buffer 64 (a hand fires at
-     * most ~30 events, generous headroom for non-suspending tryEmit).
+     * achievement triggers, sound cues, telemetry.
+     *
+     * `replay = 16` — covers a hand's worth of events so subscribers that attach
+     * shortly after the session is constructed (the canonical case: the VM's init
+     * block subscribes after `sessionFactory.create()` has fired HandStarted /
+     * BlindPosted / HoleCardsDealt synchronously) don't miss the opening events.
+     * Without replay, those initial events are silently dropped — caught by
+     * LocalBotsSessionTest's `handStartedAndBlindPostedEvents_emitted_onConstruction`.
+     *
+     * `extraBufferCapacity = 64` headroom for tryEmit during heavy multi-street action.
      */
-    private val _events = MutableSharedFlow<GameEvent>(extraBufferCapacity = 64)
+    private val _events = MutableSharedFlow<GameEvent>(
+        replay = 16,
+        extraBufferCapacity = 64,
+    )
     override val events: SharedFlow<GameEvent> get() = _events.asSharedFlow()
 
     private var gameState: GameState = startNextHand()
@@ -230,7 +253,7 @@ class LocalBotsSession(
                 currentStreetLog = currentStreetLog.toList(),
                 preflopAggressorSeatIndex = preflopAggressorSeatIndex,
             )
-            val decision = withContext(Dispatchers.Default) {
+            val decision = withContext(dispatchers.default) {
                 BotDecision.choose(
                     state = gameState,
                     seatIndex = acting,
