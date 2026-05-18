@@ -3,6 +3,8 @@ package com.dangerfield.cards.libraries.networking.impl
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.AuthTokenProvider
+import com.dangerfield.cards.libraries.networking.ClientHeaders
+import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.NetworkJson
@@ -30,17 +32,18 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class NetworkClientImpl(
     private val config: NetworkConfig,
     private val authTokenProvider: AuthTokenProvider,
+    private val headersProvider: ClientHeadersProvider,
 ) : NetworkClient {
 
     override val client: HttpClient by lazy {
         HttpClient {
-            applyCommonConfig(config)
+            applyCommonConfig(config, headersProvider)
         }
     }
 
     override val authenticatedClient: HttpClient by lazy {
         HttpClient {
-            applyCommonConfig(config)
+            applyCommonConfig(config, headersProvider)
             install(Auth) {
                 bearer {
                     loadTokens {
@@ -58,7 +61,10 @@ class NetworkClientImpl(
     }
 }
 
-private fun HttpClientConfig<*>.applyCommonConfig(config: NetworkConfig) {
+private fun HttpClientConfig<*>.applyCommonConfig(
+    config: NetworkConfig,
+    headersProvider: ClientHeadersProvider,
+) {
     install(ContentNegotiation) {
         json(NetworkJson)
     }
@@ -71,6 +77,15 @@ private fun HttpClientConfig<*>.applyCommonConfig(config: NetworkConfig) {
         if (config.baseUrl.isNotBlank()) url(config.baseUrl)
         headers.append(HttpHeaders.Accept, "application/json")
         headers.append(HttpHeaders.ContentType, "application/json")
+        // Per-request: re-read from the provider on every call so locale
+        // changes flow through immediately. The provider caches its
+        // build-info bits, so this is cheap.
+        val h = headersProvider.current()
+        headers.append(HttpHeaders.AcceptLanguage, h.acceptLanguage)
+        headers.append(ClientHeaders.HEADER_PLATFORM, h.platform)
+        headers.append(ClientHeaders.HEADER_APP_VERSION, h.appVersion)
+        headers.append(ClientHeaders.HEADER_BUILD_NUMBER, h.buildNumber)
+        h.countryCode?.let { headers.append(ClientHeaders.HEADER_COUNTRY_CODE, it) }
     }
     if (BuildInfo.isDebug) {
         install(Logging) {
