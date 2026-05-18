@@ -308,7 +308,7 @@ internal const val AnonymousAvatarEmoji: String = "🃏"
 
 // --------------------------------------------------------------------------
 // Preview fixtures — file-private, kept tight so the previews stand alone
-// without leaning on the larger fixture set in PlayBotsScreen.kt.
+// without leaning on the larger fixture set in PlayPokerScreen.kt.
 // --------------------------------------------------------------------------
 
 private fun previewHumanSeat(
