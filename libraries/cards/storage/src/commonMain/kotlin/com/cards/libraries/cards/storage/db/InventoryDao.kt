@@ -1,0 +1,37 @@
+package com.dangerfield.cards.libraries.cards.storage.db
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface InventoryDao {
+
+    @Query("SELECT * FROM inventory ORDER BY purchased_at_epoch_ms DESC")
+    fun observeAll(): Flow<List<InventoryEntity>>
+
+    @Query("SELECT * FROM inventory ORDER BY purchased_at_epoch_ms DESC")
+    suspend fun getAll(): List<InventoryEntity>
+
+    @Query("SELECT * FROM inventory WHERE product_id = :productId LIMIT 1")
+    suspend fun getByProductId(productId: String): InventoryEntity?
+
+    @Query("SELECT * FROM inventory WHERE sync_state = 'Pending'")
+    suspend fun getPending(): List<InventoryEntity>
+
+    /** Returns the row id of the new entry, or -1 if a row with this product
+     *  id already existed. The duplicate path is the "already owned" signal. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfMissing(entity: InventoryEntity): Long
+
+    @Query("UPDATE inventory SET sync_state = 'Confirmed' WHERE product_id IN (:productIds)")
+    suspend fun markConfirmed(productIds: Collection<String>)
+
+    @Query("DELETE FROM inventory WHERE product_id = :productId")
+    suspend fun delete(productId: String)
+
+    @Query("DELETE FROM inventory")
+    suspend fun deleteAll()
+}

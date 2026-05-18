@@ -10,6 +10,8 @@ import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
+import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
+import com.dangerfield.cards.libraries.cards.storage.db.InventoryEntity
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
@@ -28,8 +30,9 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         ChipsEntity::class,
         AchievementEarnedEntity::class,
         AchievementCounterEntity::class,
+        InventoryEntity::class,
     ],
-    version = 8, // v8: xp_events.description column for achievement names
+    version = 9, // v9: inventory table for owned shop items
     exportSchema = true
 )
 @TypeConverters(CoreTypeConverters::class)
@@ -41,6 +44,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun xpEventDao(): XpEventDao
     abstract fun chipsDao(): ChipsDao
     abstract fun achievementDao(): AchievementDao
+    abstract fun inventoryDao(): InventoryDao
 }
 
 @Suppress("KotlinNoActualForExpect")
