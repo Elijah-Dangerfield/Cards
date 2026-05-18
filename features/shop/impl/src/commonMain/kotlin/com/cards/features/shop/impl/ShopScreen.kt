@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -27,6 +26,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.PurchaseState
@@ -35,15 +35,15 @@ import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipBadge
+import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -51,7 +51,6 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD200
-import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD700
@@ -71,8 +70,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  - **"Build your style"** section: 2-column grid of chip-purchasable
  *    items. Per-card states: BUY (affordable) / OWNED (in inventory) /
  *    DIMMED (can't afford).
- *  - **Purchase confirmation**: bottom sheet over everything else with
- *    item summary, balance preview (chip offers), and a chunky CTA.
+ *  - **Purchase confirmation**: [PurchaseConfirmSheet] over everything else
+ *    with item summary, balance preview (chip offers), and a chunky CTA.
  *
  * Top-level state branches: Loading → spinner. Empty → polished empty
  * state. Loaded → full layout above. Errors during refresh surface as an
@@ -80,6 +79,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *
  * Stateless on purpose — every `@Preview` renders without DI; the entry
  * point is the only place that knows about the VM.
+ *
+ * Component split:
+ *  - Sheet + sub-content + balance preview: [PurchaseConfirmSheet].
+ *  - Icon tiles / shared pills / emoji placeholder map: [ShopComponents].
  */
 @Composable
 fun ShopScreen(
@@ -352,19 +355,31 @@ private fun HeroProductIcon(iconKey: String) {
 // Chip pack card (grid item)
 // ---------------------------------------------------------------------------
 
+/**
+ * Cards with a [Product.badge] wrap their Surface in a [BadgedBox] so the
+ * badge can hang off the top-right corner without disturbing the card's
+ * interior layout. The translation nudges the badge in toward the card
+ * just enough that it can't get clipped by the screen's horizontal padding
+ * on the rightmost column.
+ *
+ * Without [BadgedBox] we had a hand-rolled `CornerBadge` that used a flat
+ * `offset(x = 6, y = -6)` — works for centered cards but the right column's
+ * badge crept under the parent Column's padding. Letting the DS primitive
+ * handle the math means the same call site works on any grid.
+ */
 @Composable
 private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-        color = AppTheme.colors.surfacePrimary,
-        contentColor = AppTheme.colors.onSurfacePrimary,
-        radius = Radii.Card,
-        elevation = Elevation.Card,
-        onClick = onClick,
-        bounceScale = 0.95f,
-        contentPadding = PaddingValues(16.dp),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
+    val card: @Composable () -> Unit = {
+        Surface(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            color = AppTheme.colors.surfacePrimary,
+            contentColor = AppTheme.colors.onSurfacePrimary,
+            radius = Radii.Card,
+            elevation = Elevation.Card,
+            onClick = onClick,
+            bounceScale = 0.95f,
+            contentPadding = PaddingValues(16.dp),
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -396,16 +411,23 @@ private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
                     color = AppTheme.colors.text,
                 )
             }
-            // Badge as top-right sticker — overlays the card, doesn't take
-            // flow space, so its presence doesn't change card height.
-            pack.badge?.let {
-                CornerBadge(
-                    text = it,
-                    accent = ColorResource.Amber600,
-                    modifier = Modifier.align(Alignment.TopEnd),
-                )
-            }
         }
+    }
+
+    val packBadge = pack.badge
+    if (packBadge == null) {
+        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) { card() }
+    } else {
+        BadgedBox(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            contentRadius = Radii.Card,
+            // Pull the badge slightly back into the card so the
+            // overhanging portion can't get cropped by the screen's 20.dp
+            // horizontal padding on the right-column cell.
+            badgeTranslation = DpOffset(x = (-30).dp, y = 2.dp),
+            badge = { OverhangBadge(text = packBadge, accent = ColorResource.Amber600) },
+            content = { card() },
+        )
     }
 }
 
@@ -427,17 +449,17 @@ private fun ChipOfferCard(
         else -> 0.55f
     }
     val tappable = !owned && canAfford
-    Surface(
-        modifier = Modifier.fillMaxWidth().fillMaxHeight().alpha(interactionAlpha),
-        color = AppTheme.colors.surfacePrimary,
-        contentColor = AppTheme.colors.onSurfacePrimary,
-        radius = Radii.Card,
-        elevation = Elevation.Card,
-        onClick = if (tappable) onClick else ({}),
-        bounceScale = if (tappable) 0.95f else 1f,
-        contentPadding = PaddingValues(16.dp),
-    ) {
-        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
+    val card: @Composable () -> Unit = {
+        Surface(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight().alpha(interactionAlpha),
+            color = AppTheme.colors.surfacePrimary,
+            contentColor = AppTheme.colors.onSurfacePrimary,
+            radius = Radii.Card,
+            elevation = Elevation.Card,
+            onClick = if (tappable) onClick else ({}),
+            bounceScale = if (tappable) 0.95f else 1f,
+            contentPadding = PaddingValues(16.dp),
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -470,19 +492,22 @@ private fun ChipOfferCard(
                     else -> ChipCostFooter(cost = offer.costChips, canAfford = canAfford)
                 }
             }
-            // Badge as top-right corner sticker — see ChipPackCard rationale.
-            // Doesn't render for owned items: the OwnedCheck overlay on the
-            // icon already signals state and a second pill would just clutter.
-            if (!owned) {
-                offer.badge?.let {
-                    CornerBadge(
-                        text = it,
-                        accent = ColorResource.Red400,
-                        modifier = Modifier.align(Alignment.TopEnd),
-                    )
-                }
-            }
         }
+    }
+
+    // Owned items skip the corner badge: the OwnedCheck overlay on the icon
+    // already communicates state and a second pill on top of it just clutters.
+    val offerBadge = offer.badge
+    if (offerBadge == null || owned) {
+        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) { card() }
+    } else {
+        BadgedBox(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            contentRadius = Radii.Card,
+            badgeTranslation = DpOffset(x = (-6).dp, y = 2.dp),
+            badge = { OverhangBadge(text = offerBadge, accent = ColorResource.Red400) },
+            content = { card() },
+        )
     }
 }
 
@@ -530,132 +555,16 @@ private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "🪙",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
-        )
-        Spacer(modifier = Modifier.size(4.dp))
+        // ChipCoin (DS) — matches the gold coin used in the header / table pot
+        // / stack so users get one consistent "this means chips" affordance.
+        ChipCoin(size = 16.dp, textTypography = AppTheme.typography.Body.B400)
+        Spacer(modifier = Modifier.size(6.dp))
         Text(
             text = formatChips(cost),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
     }
-}
-
-// ---------------------------------------------------------------------------
-// Shared bits
-// ---------------------------------------------------------------------------
-
-private enum class IconTone { Gold, Accent, Neutral }
-
-@Composable
-private fun ProductIcon(iconKey: String, tone: IconTone) {
-    val bg = when (tone) {
-        IconTone.Gold -> ColorResource.Amber600.color.copy(alpha = 0.18f)
-        IconTone.Accent -> AppTheme.colors.accentPrimary.color.copy(alpha = 0.18f)
-        IconTone.Neutral -> AppTheme.colors.surfaceSecondary.color
-    }
-    Box(
-        modifier = Modifier
-            .size(64.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(bg),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = emojiForIconKey(iconKey),
-            typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.text,
-        )
-    }
-}
-
-@Composable
-private fun BadgePill(text: String, accent: ColorResource) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(accent.color.copy(alpha = 0.18f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = text,
-            typography = AppTheme.typography.Label.L400,
-            color = accent,
-        )
-    }
-}
-
-/**
- * Top-right corner sticker badge — solid background, sits over the card edge
- * with a small overhang so it reads as "applied to" the card rather than
- * "inside" it. Used on grid cards where putting the badge inline below the
- * price would push card heights out of sync with their row neighbors.
- */
-@Composable
-private fun CornerBadge(
-    text: String,
-    accent: ColorResource,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .offset(x = 6.dp, y = (-6).dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(accent.color)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = text,
-            typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.background,
-        )
-    }
-}
-
-/** Format chip costs with a thousands separator (KMP — no Locale ergonomics). */
-private fun formatChips(amount: Long): String {
-    if (amount < 1_000) return amount.toString()
-    val s = amount.toString()
-    val out = StringBuilder()
-    var count = 0
-    for (i in s.lastIndex downTo 0) {
-        out.append(s[i])
-        count++
-        if (count == 3 && i > 0) {
-            out.append(',')
-            count = 0
-        }
-    }
-    return out.reverse().toString()
-}
-
-/**
- * Asset-key → emoji placeholder. Real drawable resources land via the
- * `Res.allDrawableResources[iconKey]` lookup; this fallback keeps the UI
- * alive and on-brand until the design files are wired in.
- */
-private fun emojiForIconKey(iconKey: String): String = when {
-    iconKey.startsWith("chips_") -> when (iconKey) {
-        "chips_small" -> "🪙"
-        "chips_medium" -> "💰"
-        "chips_large" -> "💎"
-        "chips_mega" -> "👑"
-        else -> "🪙"
-    }
-    iconKey.startsWith("emote_") -> when (iconKey) {
-        "emote_dance" -> "💃"
-        "emote_tilt" -> "🧂"
-        "emote_think" -> "🤔"
-        "emote_facepalm" -> "🤦"
-        else -> "😀"
-    }
-    iconKey.startsWith("cardback_") -> "🂠"
-    iconKey.startsWith("table_") -> "🎰"
-    iconKey.startsWith("title_") -> "🏆"
-    else -> "🎁"
 }
 
 // ---------------------------------------------------------------------------
@@ -746,259 +655,6 @@ private fun ErrorBanner(
 }
 
 // ---------------------------------------------------------------------------
-// Purchase confirmation bottom sheet
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun PurchaseConfirmSheet(
-    pending: PendingPurchase,
-    chipBalance: Long,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    BasicBottomSheet(
-        onDismissRequest = onDismiss,
-        backgroundColor = AppTheme.colors.surfacePrimary,
-    ) {
-        when (pending) {
-            is PendingPurchase.IapPack -> IapPackConfirmContent(
-                pack = pending.product,
-                onConfirm = onConfirm,
-                onCancel = onDismiss,
-            )
-            is PendingPurchase.ChipOffer -> ChipOfferConfirmContent(
-                offer = pending.product,
-                chipBalance = chipBalance,
-                onConfirm = onConfirm,
-                onCancel = onDismiss,
-            )
-        }
-    }
-}
-
-@Composable
-private fun IapPackConfirmContent(
-    pack: Product.ChipPack,
-    onConfirm: () -> Unit,
-    onCancel: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        SheetIcon(iconKey = pack.iconKey, tone = IconTone.Gold)
-        VerticalSpacerD500()
-        Text(
-            text = pack.title,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
-        )
-        VerticalSpacerD100()
-        Text(
-            text = pack.subtitle,
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-        )
-        pack.badge?.let {
-            VerticalSpacerD300()
-            BadgePill(text = it, accent = ColorResource.Amber600)
-        }
-        VerticalSpacerD700()
-        Text(
-            text = pack.store.fallbackPriceDisplay,
-            typography = AppTheme.typography.Heading.H900,
-            color = AppTheme.colors.text,
-        )
-        VerticalSpacerD200()
-        Text(
-            text = "Charged via your ${platformStoreName()}.",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
-        )
-        VerticalSpacerD700()
-        SheetButtons(
-            confirmLabel = "Buy now",
-            onConfirm = onConfirm,
-            onCancel = onCancel,
-            confirmEnabled = true,
-        )
-        VerticalSpacerD500()
-    }
-}
-
-@Composable
-private fun ChipOfferConfirmContent(
-    offer: Product.ChipOffer,
-    chipBalance: Long,
-    onConfirm: () -> Unit,
-    onCancel: () -> Unit,
-) {
-    val canAfford = chipBalance >= offer.costChips
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        SheetIcon(iconKey = offer.iconKey, tone = IconTone.Accent)
-        VerticalSpacerD500()
-        Text(
-            text = offer.title,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
-        )
-        VerticalSpacerD100()
-        Text(
-            text = offer.subtitle,
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-        )
-        offer.badge?.let {
-            VerticalSpacerD300()
-            BadgePill(text = it, accent = ColorResource.Red400)
-        }
-        VerticalSpacerD700()
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "🪙",
-                typography = AppTheme.typography.Heading.H900,
-                color = AppTheme.colors.text,
-            )
-            Spacer(modifier = Modifier.size(Dimension.D200))
-            Text(
-                text = formatChips(offer.costChips),
-                typography = AppTheme.typography.Heading.H900,
-                color = AppTheme.colors.text,
-            )
-        }
-        VerticalSpacerD500()
-        BalancePreview(
-            currentBalance = chipBalance,
-            cost = offer.costChips,
-            canAfford = canAfford,
-        )
-        VerticalSpacerD700()
-        SheetButtons(
-            confirmLabel = if (canAfford) "Buy now" else "Not enough chips",
-            onConfirm = onConfirm,
-            onCancel = onCancel,
-            confirmEnabled = canAfford,
-        )
-        VerticalSpacerD500()
-    }
-}
-
-@Composable
-private fun BalancePreview(currentBalance: Long, cost: Long, canAfford: Boolean) {
-    val newBalance = (currentBalance - cost).coerceAtLeast(0)
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AppTheme.colors.surfaceSecondary,
-        contentColor = AppTheme.colors.onSurfaceSecondary,
-        radius = Radii.Card,
-        elevation = Elevation.None,
-        onClick = {},
-        bounceScale = 1f,
-        contentPadding = PaddingValues(14.dp),
-    ) {
-        Column {
-            BalanceRow(label = "Your balance", amount = currentBalance)
-            VerticalSpacerD200()
-            BalanceRow(
-                label = "After purchase",
-                amount = newBalance,
-                amountColor = if (canAfford) AppTheme.colors.text else AppTheme.colors.danger,
-            )
-        }
-    }
-}
-
-@Composable
-private fun BalanceRow(
-    label: String,
-    amount: Long,
-    amountColor: ColorResource = AppTheme.colors.text,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
-            modifier = Modifier.weight(1f),
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "🪙",
-                typography = AppTheme.typography.Body.B500,
-                color = amountColor,
-            )
-            Spacer(modifier = Modifier.size(4.dp))
-            Text(
-                text = formatChips(amount),
-                typography = AppTheme.typography.Body.B500,
-                color = amountColor,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SheetIcon(iconKey: String, tone: IconTone) {
-    val bg = when (tone) {
-        IconTone.Gold -> ColorResource.Amber600.color.copy(alpha = 0.22f)
-        IconTone.Accent -> AppTheme.colors.accentPrimary.color.copy(alpha = 0.22f)
-        IconTone.Neutral -> AppTheme.colors.surfaceSecondary.color
-    }
-    Box(
-        modifier = Modifier
-            .size(96.dp)
-            .clip(RoundedCornerShape(28.dp))
-            .background(bg),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = emojiForIconKey(iconKey),
-            typography = AppTheme.typography.Heading.H1100,
-            color = AppTheme.colors.text,
-        )
-    }
-}
-
-@Composable
-private fun SheetButtons(
-    confirmLabel: String,
-    onConfirm: () -> Unit,
-    onCancel: () -> Unit,
-    confirmEnabled: Boolean,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        ButtonPrimary(
-            onClick = onConfirm,
-            enabled = confirmEnabled,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(text = confirmLabel)
-        }
-        VerticalSpacerD300()
-        ButtonSecondary(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-            Text(text = "Cancel")
-        }
-    }
-}
-
-@Composable
-private fun platformStoreName(): String =
-    when (com.dangerfield.cards.libraries.core.BuildInfo.platform) {
-        com.dangerfield.cards.libraries.core.Platform.iOS -> "App Store"
-        com.dangerfield.cards.libraries.core.Platform.Android -> "Google Play"
-    }
-
-// ---------------------------------------------------------------------------
 // Previews — every meaningful state.
 // ---------------------------------------------------------------------------
 
@@ -1072,60 +728,6 @@ private fun ShopScreenPreview_MixedOwnedAndDisabled() {
 
 @Preview
 @Composable
-private fun ShopScreenPreview_PurchaseConfirmIap() {
-    PreviewContent {
-        ShopScreen(
-            state = ShopState(
-                hasLoaded = true,
-                chipBalance = 12_450,
-                catalog = previewFullCatalog(),
-                pendingPurchase = PendingPurchase.IapPack(
-                    previewFullCatalog().chipPacks.first { it.featured },
-                ),
-            ),
-            onAction = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun ShopScreenPreview_PurchaseConfirmChipOffer() {
-    PreviewContent {
-        ShopScreen(
-            state = ShopState(
-                hasLoaded = true,
-                chipBalance = 12_450,
-                catalog = previewFullCatalog(),
-                pendingPurchase = PendingPurchase.ChipOffer(
-                    previewFullCatalog().chipOffers.first { it.featured },
-                ),
-            ),
-            onAction = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun ShopScreenPreview_PurchaseConfirmCannotAfford() {
-    PreviewContent {
-        ShopScreen(
-            state = ShopState(
-                hasLoaded = true,
-                chipBalance = 1_500,
-                catalog = previewFullCatalog(),
-                pendingPurchase = PendingPurchase.ChipOffer(
-                    previewFullCatalog().chipOffers.first { it.featured },
-                ),
-            ),
-            onAction = {},
-        )
-    }
-}
-
-@Preview
-@Composable
 private fun ShopScreenPreview_ErrorWithPriorCatalog() {
     PreviewContent {
         ShopScreen(
@@ -1183,6 +785,7 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             id = "emote_dance",
             title = "Victory Dance",
             subtitle = "Emote",
+            description = "Send a celebration dance to the table when you win a hand — fills everyone's screen for a beat. Equip from your items.",
             iconKey = "emote_dance",
             costChips = 2_500,
             grantsKey = "emote.dance",
