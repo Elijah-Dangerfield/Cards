@@ -19,6 +19,8 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,11 +53,66 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
+/**
+ * Where the badge sits relative to the anchor's top-right corner.
+ *
+ * Picks the badge's positioning anchor (pivot), which is then placed AT
+ * the anchor's top-right corner. Picking by pivot makes the placement
+ * **deterministic with respect to the badge's measured size** — wider
+ * text just produces a wider sticker without callers having to retune
+ * any offsets.
+ *
+ * Use [BadgeTranslation] for fine-tuning OR if you want to bake in a
+ * fixed inset (e.g., to keep a long badge from clipping against a
+ * surrounding screen padding).
+ */
+@Stable
+sealed interface BadgePlacement {
+    /**
+     * Material default: small inward inset on both axes (handle is mostly
+     * outside the corner but anchored just inside it). Good for notification
+     * dots / small numeric badges on bottom-bar icons.
+     */
+    @Immutable
+    object MaterialInset : BadgePlacement
+
+    /**
+     * Badge's CENTER lands on the anchor's top-right corner — so the
+     * badge half-overhangs in both X and Y. Scales correctly with badge
+     * content width: a longer "BEST VALUE" pill produces the same
+     * proportional overhang as a short "+20%" pill.
+     *
+     * The "sticker on the corner of the card" look. Best for shop tiles,
+     * achievement chips, and anything where the badge should clearly
+     * read as overhanging.
+     */
+    @Immutable
+    object CenterOnCorner : BadgePlacement
+
+    /**
+     * Badge's RIGHT EDGE aligns with the anchor's right edge — the badge
+     * stays inside the anchor's horizontal bounds, no X overhang, but
+     * still half-overhangs on top. Use when ambient padding (screen
+     * gutters, narrow rows) makes X overhang risky.
+     */
+    @Immutable
+    object EdgeAlignedTop : BadgePlacement
+
+    /**
+     * Free-form pixel offset from [MaterialInset] base. Reach for this
+     * only when none of the typed modes fit and the badge geometry is
+     * static enough that magic numbers won't drift.
+     */
+    @Immutable
+    data class Translation(val offset: DpOffset) : BadgePlacement
+}
+
 @Composable
 fun BadgedBox(
     badge: @Composable BoxScope.() -> Unit,
     modifier: Modifier = Modifier,
     contentRadius: Radius = Radii.None,
+    placement: BadgePlacement = BadgePlacement.MaterialInset,
     badgeTranslation: DpOffset = DpOffset.Zero,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -111,18 +168,54 @@ fun BadgedBox(
         ) {
 
             val badeHasContent = badgePlaceable.width > (BadgeTokens.Size.roundToPx())
-            val badgeHorizontalOffset =
-                if (badeHasContent) BadgeWithContentHorizontalOffset else BadgeOffset
-            val badgeVerticalOffset =
-                if (badeHasContent) BadgeWithContentVerticalOffset else BadgeOffset
 
             anchorPlaceable.placeRelative(0, 0)
-            val badgeX = (anchorPlaceable.width + badgeHorizontalOffset.roundToPx()) - cornerCompensationOffset.x.roundToInt()
-            val badgeY = (-badgePlaceable.height / 2 + badgeVerticalOffset.roundToPx()) + cornerCompensationOffset.y.roundToInt()
+
+            // Resolve the typed placement to a (left edge, top edge)
+            // coordinate for the badge. Everything is computed against
+            // measured `badgePlaceable.width / height`, so geometry stays
+            // correct as badge content grows.
+            val (baseX, baseY) = when (placement) {
+                is BadgePlacement.MaterialInset -> {
+                    val hOffsetPx =
+                        if (badeHasContent) BadgeWithContentHorizontalOffset.roundToPx() else BadgeOffset.roundToPx()
+                    val vOffsetPx =
+                        if (badeHasContent) BadgeWithContentVerticalOffset.roundToPx() else BadgeOffset.roundToPx()
+                    val x = (anchorPlaceable.width + hOffsetPx) - cornerCompensationOffset.x.roundToInt()
+                    val y = (-badgePlaceable.height / 2 + vOffsetPx) + cornerCompensationOffset.y.roundToInt()
+                    x to y
+                }
+
+                is BadgePlacement.CenterOnCorner -> {
+                    // Badge center on the corner: shift left by half-width
+                    // (so center.x lands on anchor.width) and up by
+                    // half-height (so center.y lands on the anchor top).
+                    val x = anchorPlaceable.width - badgePlaceable.width / 2
+                    val y = -badgePlaceable.height / 2
+                    x to y
+                }
+
+                is BadgePlacement.EdgeAlignedTop -> {
+                    // Badge right edge aligned with anchor right edge
+                    // (no X overhang), badge center on anchor top
+                    // (half Y overhang).
+                    val x = anchorPlaceable.width - badgePlaceable.width
+                    val y = -badgePlaceable.height / 2
+                    x to y
+                }
+
+                is BadgePlacement.Translation -> {
+                    val hOffsetPx = placement.offset.x.roundToPx()
+                    val vOffsetPx = placement.offset.y.roundToPx()
+                    val x = (anchorPlaceable.width + hOffsetPx) - cornerCompensationOffset.x.roundToInt()
+                    val y = (-badgePlaceable.height / 2 + vOffsetPx) + cornerCompensationOffset.y.roundToInt()
+                    x to y
+                }
+            }
 
             badgePlaceable.placeRelative(
-                badgeX + translationPx.x,
-                badgeY + translationPx.y
+                baseX + translationPx.x,
+                baseY + translationPx.y,
             )
         }
     }

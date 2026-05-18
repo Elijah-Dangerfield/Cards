@@ -19,11 +19,11 @@ import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
-import com.dangerfield.cards.libraries.ui.components.IconBubbleDragHandle
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetValue
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.rememberBottomSheetState
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -71,6 +71,30 @@ internal fun PurchaseConfirmSheet(
     val sheetState = rememberBottomSheetState(BottomSheetValue.Expanded)
     var pendingTerminalAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
+    // Bubble flavor depends on what's being bought. Chip-funded purchases
+    // get the gold coin (so the user reads "this is a chips thing" before
+    // "this is a buy thing"). IAP packs get a 💰 emoji as a stand-in until
+    // we have real pack art keyed off iconKey.
+    val handle: BottomSheetDragHandle = when (pending) {
+        is PendingPurchase.ChipOffer -> BottomSheetDragHandle.Icon(
+            content = {
+                ChipCoin(
+                    size = 36.dp,
+                    textTypography = AppTheme.typography.Heading.H700,
+                )
+            },
+        )
+        is PendingPurchase.IapPack -> BottomSheetDragHandle.Icon(
+            content = {
+                Text(
+                    text = "💰",
+                    typography = AppTheme.typography.Heading.H800,
+                    color = AppTheme.colors.text,
+                )
+            },
+        )
+    }
+
     BasicBottomSheet(
         state = sheetState,
         onDismissRequest = {
@@ -80,36 +104,7 @@ internal fun PurchaseConfirmSheet(
             (pendingTerminalAction ?: onDismiss).invoke()
         },
         backgroundColor = AppTheme.colors.surfacePrimary,
-        // No need for the extra top spacer — IconBubbleDragHandle already
-        // brings its own grabber + bubble + bottom-spacing block, and the
-        // content composables start with their own headline immediately.
-        topPadding = 0.dp,
-        dragHandle = {
-            // Bubble flavor depends on what's being bought. Chip-funded
-            // purchases get the gold coin (so the user reads "this is a
-            // chips thing" before "this is a buy thing"). IAP packs get a
-            // 🪙 emoji as a generic chip-stack stand-in until we have real
-            // pack art keyed off iconKey.
-            when (pending) {
-                is PendingPurchase.ChipOffer -> IconBubbleDragHandle(
-                    content = {
-                        ChipCoin(
-                            size = 36.dp,
-                            textTypography = AppTheme.typography.Heading.H700,
-                        )
-                    },
-                )
-                is PendingPurchase.IapPack -> IconBubbleDragHandle(
-                    content = {
-                        Text(
-                            text = "💰",
-                            typography = AppTheme.typography.Heading.H800,
-                            color = AppTheme.colors.text,
-                        )
-                    },
-                )
-            }
-        },
+        dragHandle = handle,
     ) {
         val animatedConfirm: () -> Unit = {
             pendingTerminalAction = onConfirm

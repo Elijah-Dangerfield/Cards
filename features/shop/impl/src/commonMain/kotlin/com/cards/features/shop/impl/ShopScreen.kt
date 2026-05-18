@@ -26,7 +26,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.PurchaseState
@@ -35,6 +34,7 @@ import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipBadge
@@ -418,13 +418,14 @@ private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
     if (packBadge == null) {
         Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) { card() }
     } else {
+        // EdgeAlignedTop: badge right-edge sits at the card's right edge,
+        // half-overhang on TOP only. Deterministic — scales correctly with
+        // badge text length and keeps the right-column cell from clipping
+        // against the screen's horizontal padding. No magic offsets.
         BadgedBox(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             contentRadius = Radii.Card,
-            // Pull the badge slightly back into the card so the
-            // overhanging portion can't get cropped by the screen's 20.dp
-            // horizontal padding on the right-column cell.
-            badgeTranslation = DpOffset(x = (-30).dp, y = 2.dp),
+            placement = BadgePlacement.EdgeAlignedTop,
             badge = { OverhangBadge(text = packBadge, accent = ColorResource.Amber600) },
             content = { card() },
         )
@@ -504,7 +505,7 @@ private fun ChipOfferCard(
         BadgedBox(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             contentRadius = Radii.Card,
-            badgeTranslation = DpOffset(x = (-6).dp, y = 2.dp),
+            placement = BadgePlacement.EdgeAlignedTop,
             badge = { OverhangBadge(text = offerBadge, accent = ColorResource.Red400) },
             content = { card() },
         )

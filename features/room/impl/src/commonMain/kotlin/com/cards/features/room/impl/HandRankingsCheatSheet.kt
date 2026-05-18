@@ -28,6 +28,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD200
@@ -166,7 +167,7 @@ fun HandRankingsCheatSheet(
 ) {
     BottomSheet(
         onDismissRequest = onDismiss,
-        showDragHandle = false,
+        dragHandle = com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.None,
         backgroundColor = AppTheme.colors.surfacePrimary,
     ) {
         Column(
@@ -193,15 +194,40 @@ fun HandRankingsCheatSheet(
                 color = AppTheme.colors.onSurfacePrimary,
             )
             VerticalSpacerD600()
-            ActionRow(symbol = "✓", title = "Check", desc = "Pass to the next player without betting.")
+            ActionRow(
+                symbol = "✓",
+                title = "Check",
+                desc = "Pass to the next player without betting.",
+                accent = ColorResource.Green600,
+            )
             VerticalSpacerD300()
-            ActionRow(symbol = "=", title = "Call", desc = "Match the current bet to stay in the hand.")
+            ActionRow(
+                symbol = "=",
+                title = "Call",
+                desc = "Match the current bet to stay in the hand.",
+                accent = ColorResource.Blue600,
+            )
             VerticalSpacerD300()
-            ActionRow(symbol = "↑", title = "Raise", desc = "Increase the current bet. Everyone else must call, raise, or fold.")
+            ActionRow(
+                symbol = "↑",
+                title = "Raise",
+                desc = "Increase the current bet. Everyone else must call, raise, or fold.",
+                accent = ColorResource.Orange600,
+            )
             VerticalSpacerD300()
-            ActionRow(symbol = "✕", title = "Fold", desc = "Give up the hand. Any chips already in the pot stay.")
+            ActionRow(
+                symbol = "✕",
+                title = "Fold",
+                desc = "Give up the hand. Any chips already in the pot stay.",
+                accent = ColorResource.Red600,
+            )
             VerticalSpacerD300()
-            ActionRow(symbol = "★", title = "All in", desc = "Push your entire stack. If you win, you win up to what everyone matched.")
+            ActionRow(
+                symbol = "★",
+                title = "All in",
+                desc = "Push your entire stack. If you win, you win up to what everyone matched.",
+                accent = ColorResource.Purple600,
+            )
 
             VerticalSpacerD1000()
             Text(
@@ -342,7 +368,12 @@ private fun streetExplainer(street: BettingRound): String = when (street) {
 }
 
 @Composable
-private fun ActionRow(symbol: String, title: String, desc: String) {
+private fun ActionRow(
+    symbol: String,
+    title: String,
+    desc: String,
+    accent: ColorResource,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -355,13 +386,13 @@ private fun ActionRow(symbol: String, title: String, desc: String) {
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(50))
-                .background(AppTheme.colors.surfaceTertiary.color),
+                .background(accent.color.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = symbol,
                 typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = accent,
             )
         }
         Spacer(modifier = Modifier.width(14.dp))
