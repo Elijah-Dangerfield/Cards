@@ -17,7 +17,18 @@
         android:theme="@style/Theme.Cards">
         <activity
             android:exported="true"
-            android:name=".MainActivity">
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|uiMode|keyboardHidden|smallestScreenSize|density|fontScale|locale">
+            <!--
+              configChanges: handle these changes inside Compose instead of
+              letting Android recreate the Activity. Without this, the
+              FloatingWindowNavigator instance passed to rememberNavController
+              changes on recreation, which causes nav-compose to discard its
+              saved back stack and pop the user to the start destination.
+              All listed config changes are reactive in Compose (orientation,
+              font scale, dark mode, density, locale), so the Activity does
+              not need to recreate for them.
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
