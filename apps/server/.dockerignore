@@ -1,0 +1,37 @@
+# Server Docker build only needs the server itself + repo-root Gradle
+# scaffolding. Everything else just bloats the build context.
+#
+# .dockerignore is evaluated from the build-context root (the repo root),
+# so paths here are repo-relative.
+
+# Build outputs everywhere
+**/build/
+**/.gradle/
+**/.kotlin/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Other apps that don't ship with the server image
+apps/compose/
+apps/ios/
+features/
+libraries/
+docs/
+pages/
+scripts/
+
+# Misc
+.git/
+.github/
+.claude/
+*.log
+*.DS_Store
+node_modules/
+local.properties
+
+# Server's own state we don't want baked in
+apps/server/.env
+apps/server/build/

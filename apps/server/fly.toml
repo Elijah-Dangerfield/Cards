@@ -1,0 +1,49 @@
+# Fly.io configuration for the Cards dev server.
+#
+# Generated manually (not via `fly launch` — it asks questions that don't
+# apply to our setup since Postgres lives on Supabase, not Fly).
+#
+# Workflow:
+#   - Local first-time deploy:  fly deploy --config apps/server/fly.toml
+#   - Secrets:                  fly secrets set KEY=VALUE -a cards-server-dev
+#   - Live logs:                fly logs -a cards-server-dev
+#   - Console (running VM):     fly ssh console -a cards-server-dev
+#   - Status:                   fly status -a cards-server-dev
+#
+# Production gets its own fly.toml (cards-server) when we ship.
+
+app = 'cards-server-dev'
+primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-east-1` pool.
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  SERVER_HOST = '0.0.0.0'
+  SERVER_PORT = '8080'
+  LOG_LEVEL = 'INFO'
+  # JVM heap tuned for the smallest Fly machine (256MB total).
+  # Leaving 64MB for native + metaspace.
+  JAVA_OPTS = '-Xms64m -Xmx192m -XX:+UseSerialGC -XX:+UnlockExperimentalVMOptions'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Scale to zero when idle to keep dev costs near $0. Fly cold-starts in
+  # ~1-2s on shared-cpu-1x, which is fine for dev. Prod fly.toml will set
+  # min_machines_running = 1 to avoid the first-request stall.
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/_health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

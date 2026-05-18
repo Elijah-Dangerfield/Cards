@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Server deploy to Fly.io.
+#
+# Fires on:    push to main, only when something under apps/server/** changes.
+# Side effects: deploys cards-server-dev. (cards-server / prod is a separate
+#              workflow when we ship.)
+# Auth:        FLY_API_TOKEN_DEV secret, created via
+#                `fly tokens create deploy -a cards-server-dev --expiry 8760h`
+#              and pasted into Repo Settings → Secrets and variables → Actions.
+#
+# See apps/server/DEPLOY.md for the one-time setup walkthrough.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy server (dev)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/server/**'
+      - 'build-logic/**'
+      - 'gradle/libs.versions.toml'
+      - 'settings.gradle.kts'
+      - 'build.gradle.kts'
+      - '.github/workflows/server-deploy.yml'
+
+concurrency:
+  # If multiple deploys queue up, run the latest only.
+  group: server-deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Fly (dev)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        run: |
+          flyctl deploy \
+            --config apps/server/fly.toml \
+            --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_DEV }}
+
+      - name: Smoke test
+        run: |
+          # Give Fly's edge proxy a beat to route to the new machine.
+          sleep 5
+          curl --fail --silent --show-error \
+               --max-time 20 \
+               https://cards-server-dev.fly.dev/_health
+          echo
