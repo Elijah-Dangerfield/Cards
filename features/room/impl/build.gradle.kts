@@ -28,5 +28,18 @@ kotlin {
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
         }
+        commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
+            // Tests reference types from these libraries directly via fakes that
+            // satisfy their interfaces. `implementation` deps from commonMain are
+            // visible at compile time, but transitive types from those modules
+            // (e.g. `Cache` from libraries/storage, which `AppCache` extends) need
+            // to be explicitly available on the test classpath.
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.game)
+            implementation(projects.libraries.gameplay)
+            implementation(projects.libraries.storage)
+            implementation(projects.libraries.flowroutines)
+        }
     }
 }

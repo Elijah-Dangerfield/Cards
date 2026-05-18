@@ -1,0 +1,225 @@
+package com.dangerfield.cards.features.room.impl
+
+import com.dangerfield.cards.libraries.cards.AchievementHandContext
+import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.EarnedAchievement
+import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.XpEvent
+import com.dangerfield.cards.libraries.cards.XpMode
+import com.dangerfield.cards.libraries.cards.XpSource
+import com.dangerfield.cards.libraries.game.Personality
+import com.dangerfield.cards.libraries.game.PlayStyle
+import com.dangerfield.cards.libraries.game.SeatOccupant
+import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+
+/**
+ * Test fakes for [PlayPokerViewModel]. Hand-rolled rather than mock-library because
+ * commonMain code can't rely on JVM-only mock libraries, and the interfaces are small
+ * enough that hand-rolled fakes are clearer than mock setup anyway.
+ *
+ * Each fake exposes controllable flow handles + spy fields so tests can drive engine
+ * state, simulate cache updates, and assert calls made by the VM.
+ */
+
+// ---------- PokerSession ----------
+
+class FakePokerSession(
+    initialGameState: GameState = stubGameState(),
+) : PokerSession {
+
+    private val _gameStateFlow = MutableStateFlow(initialGameState)
+    override val gameStateFlow: StateFlow<GameState> = _gameStateFlow
+
+    private val _events = MutableSharedFlow<GameEvent>(extraBufferCapacity = 64)
+    override val events: SharedFlow<GameEvent> = _events.asSharedFlow()
+
+    val submittedIntents = mutableListOf<PlayerIntent>()
+    var requestNextHandCount: Int = 0
+
+    fun emitGameState(state: GameState) {
+        _gameStateFlow.value = state
+    }
+
+    fun emitEvent(event: GameEvent) {
+        _events.tryEmit(event)
+    }
+
+    override suspend fun submit(intent: PlayerIntent) {
+        submittedIntents += intent
+    }
+
+    override fun requestNextHand() {
+        requestNextHandCount += 1
+    }
+}
+
+// ---------- PokerSessionFactory ----------
+
+class FakePokerSessionFactory(
+    val session: FakePokerSession = FakePokerSession(),
+    override val difficultyName: String = "Standard",
+    val personalities: Map<Int, Personality> = emptyMap(),
+) : PokerSessionFactory {
+
+    var bootstrapCalled: Boolean = false
+    var capturedOnHandEnded: ((GameEvent.HandEnded, GameState, Long) -> Unit)? = null
+    var capturedBotSpeedProvider: (() -> BotSpeed)? = null
+
+    override fun create(
+        humanSeatIndex: Int,
+        botSpeedProvider: () -> BotSpeed,
+        onHandEnded: (GameEvent.HandEnded, GameState, Long) -> Unit,
+    ): PokerSession {
+        capturedOnHandEnded = onHandEnded
+        capturedBotSpeedProvider = botSpeedProvider
+        return session
+    }
+
+    override suspend fun bootstrap(session: PokerSession) {
+        bootstrapCalled = true
+        // Test stays paused here — production loop runs the bot loop; fake just records.
+    }
+
+    override fun occupantsFor(state: GameState): List<SeatOccupant> = state.seats.map { seat ->
+        seatToOccupant(seat, personalities[seat.index])
+    }
+}
+
+// ---------- AppCache ----------
+
+class FakeAppCache(initial: AppData = AppData()) : AppCache {
+    private val state = MutableStateFlow(initial)
+    override val updates: Flow<AppData> = state
+    override suspend fun get(): AppData = state.value
+    override suspend fun set(value: AppData) { state.value = value }
+    override suspend fun clear() { state.value = AppData() }
+
+    fun emit(newValue: AppData) { state.value = newValue }
+}
+
+// ---------- ProgressionRepository ----------
+
+class FakeProgressionRepository(initial: Progression = Progression.Empty) : ProgressionRepository {
+    private val state = MutableStateFlow(initial)
+    val awardedSummaries = mutableListOf<HandResultSummary>()
+    var nextAwardedEvents: List<XpEvent> = emptyList()
+
+    override fun observeProgression(): Flow<Progression> = state
+    override suspend fun getProgression(): Progression = state.value
+
+    override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> {
+        awardedSummaries += summary
+        return nextAwardedEvents
+    }
+
+    override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
+        XpEvent(
+            id = 0,
+            deltaXp = delta,
+            source = XpSource.ACHIEVEMENT,
+            mode = XpMode.BOTS,
+            handId = null,
+            description = description,
+            createdAtEpochMs = 0,
+        )
+
+    override suspend fun deleteAll() { state.value = Progression.Empty }
+
+    fun emit(progression: Progression) { state.value = progression }
+}
+
+// ---------- AchievementRepository ----------
+
+class FakeAchievementRepository(
+    initial: AchievementProgress = AchievementProgress.Empty,
+) : AchievementRepository {
+    private val state = MutableStateFlow(initial)
+    val recordedHands = mutableListOf<Pair<HandResultSummary, AchievementHandContext>>()
+    var nextEarned: List<EarnedAchievement> = emptyList()
+
+    override fun observeProgress(): Flow<AchievementProgress> = state
+    override suspend fun getProgress(): AchievementProgress = state.value
+
+    override suspend fun recordHand(
+        summary: HandResultSummary,
+        context: AchievementHandContext,
+    ): List<EarnedAchievement> {
+        recordedHands += (summary to context)
+        return nextEarned
+    }
+
+    override suspend fun deleteAll() { state.value = AchievementProgress.Empty }
+}
+
+// ---------- Test data builders ----------
+
+private val testSettings = RoomSettings(
+    smallBlind = 5,
+    bigBlind = 10,
+    startingStack = 1_000,
+    maxSeats = 6,
+    turnTimerSeconds = 30,
+)
+
+fun stubGameState(
+    seats: List<Seat> = listOf(
+        testSeat(index = 0, displayName = "You", isBot = false, playerId = "human"),
+        testSeat(index = 1, displayName = "Steve", isBot = true, playerId = "bot-1"),
+    ),
+    handNumber: Int = 1,
+    actingSeatIndex: Int? = 0,
+    street: BettingRound = BettingRound.Preflop,
+): GameState = GameState(
+    settings = testSettings,
+    handNumber = handNumber,
+    buttonSeatIndex = 0,
+    seats = seats,
+    community = emptyList(),
+    street = street,
+    currentBetThisStreet = 0L,
+    lastFullRaiseSize = 0L,
+    actingSeatIndex = actingSeatIndex,
+    deckRemaining = emptyList(),
+)
+
+fun testSeat(
+    index: Int,
+    displayName: String = "Player$index",
+    isBot: Boolean = false,
+    playerId: String? = "p-$index",
+    stack: Long = 1_000,
+): Seat = Seat(
+    index = index,
+    playerId = playerId,
+    displayName = displayName,
+    stack = stack,
+    seatStatus = SeatStatus.Active,
+    handParticipation = HandParticipation.InHand,
+    isBot = isBot,
+)
+
+fun bizzaroPersonality(label: String = "Tight Aggressive"): Personality = Personality(
+    label = label,
+    style = PlayStyle.TightAggressive,
+    vpip = 0.22,
+    pfr = 0.18,
+)
