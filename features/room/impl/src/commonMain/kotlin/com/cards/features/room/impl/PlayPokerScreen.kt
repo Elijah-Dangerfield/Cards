@@ -743,3 +743,177 @@ private fun PlayPokerScreenPreview_Loading() {
         )
     }
 }
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_BustDialog() {
+    // Hand-over modal that takes over when the human busts. The handResult
+    // is present, human stack is 0 → bust dialog rather than showdown.
+    val board = listOf(
+        card(Rank.Ten, Suit.Hearts),
+        card(Rank.Jack, Suit.Hearts),
+        card(Rank.Queen, Suit.Hearts),
+        card(Rank.Three, Suit.Clubs),
+        card(Rank.Seven, Suit.Spades),
+    )
+    val seats = listOf(
+        previewHumanSeat(
+            stack = 0L,
+            isActing = false,
+            holeCards = listOf(card(Rank.Two, Suit.Clubs), card(Rank.Three, Suit.Diamonds)),
+        ),
+        previewBotSeat(
+            index = 1,
+            name = "David",
+            stack = 2_000,
+            holeCards = listOf(card(Rank.Ace, Suit.Hearts), card(Rank.King, Suit.Hearts)),
+        ),
+    )
+    val result = HandResultView(
+        winners = listOf(
+            HandWinner(
+                seatIndex = 1,
+                amount = 1_000,
+                handRank = HandEvaluator.evaluate(seats[1].holeCards + board),
+                byFold = false,
+            ),
+        ),
+        board = board,
+    )
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(
+                    street = BettingRound.Showdown,
+                    communityCards = board,
+                    pot = 1_000,
+                    seats = seats,
+                    actingSeatIndex = null,
+                    isHumanTurn = false,
+                    humanLegalActions = null,
+                    handResult = result,
+                ),
+                lastHandXpAwarded = 12,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_HandEndedWithXpAndAchievement() {
+    // Showdown dialog with both an XP award and a freshly-earned achievement.
+    // Exercises the combined "won the pot" + "leveled up" celebration UX.
+    val board = listOf(
+        card(Rank.Ten, Suit.Hearts),
+        card(Rank.Jack, Suit.Hearts),
+        card(Rank.Queen, Suit.Hearts),
+        card(Rank.Three, Suit.Clubs),
+        card(Rank.Seven, Suit.Spades),
+    )
+    val seats = listOf(
+        previewHumanSeat(
+            stack = 1_180,
+            isActing = false,
+            holeCards = listOf(card(Rank.Ace, Suit.Hearts), card(Rank.Ace, Suit.Spades)),
+        ),
+        previewBotSeat(
+            index = 1,
+            name = "David",
+            stack = 820,
+            holeCards = listOf(card(Rank.King, Suit.Spades), card(Rank.King, Suit.Diamonds)),
+        ),
+    )
+    val result = HandResultView(
+        winners = listOf(
+            HandWinner(
+                seatIndex = 0,
+                amount = 360,
+                handRank = HandEvaluator.evaluate(seats[0].holeCards + board),
+                byFold = false,
+            ),
+        ),
+        board = board,
+    )
+    val earned = listOf(
+        com.dangerfield.cards.libraries.cards.EarnedAchievement(
+            achievement = com.dangerfield.cards.libraries.cards.Achievement(
+                id = com.dangerfield.cards.libraries.cards.AchievementId.FIRST_HAND,
+                name = "First Blood",
+                description = "Win your first hand against the bots.",
+                icon = "trophy",
+                rarity = com.dangerfield.cards.libraries.cards.AchievementRarity.COMMON,
+                criterion = com.dangerfield.cards.libraries.cards.Criterion.HandsPlayed(target = 1),
+                xpReward = 25,
+            ),
+            earnedAtEpochMs = 0,
+        ),
+    )
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(
+                    street = BettingRound.Showdown,
+                    communityCards = board,
+                    pot = 360,
+                    seats = seats,
+                    actingSeatIndex = null,
+                    isHumanTurn = false,
+                    humanLegalActions = null,
+                    handResult = result,
+                ),
+                lastHandXpAwarded = 47,
+                recentlyEarned = earned,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_WonByFold() {
+    // Fold-around win: only one winner, byFold=true, no community cards
+    // revealed (preflop fold-around), no hole cards revealed for anyone.
+    val seats = listOf(
+        previewHumanSeat(
+            stack = 1_015,
+            isActing = false,
+            holeCards = listOf(card(Rank.Ace, Suit.Spades), card(Rank.King, Suit.Spades)),
+        ),
+        previewBotSeat(
+            index = 1,
+            name = "David",
+            stack = 985,
+            participation = HandParticipation.Folded,
+        ),
+    )
+    val result = HandResultView(
+        winners = listOf(
+            HandWinner(seatIndex = 0, amount = 15, handRank = null, byFold = true),
+        ),
+        board = emptyList(),
+    )
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(
+                    street = BettingRound.Complete,
+                    communityCards = emptyList(),
+                    pot = 15,
+                    seats = seats,
+                    actingSeatIndex = null,
+                    isHumanTurn = false,
+                    humanLegalActions = null,
+                    handResult = result,
+                ),
+                lastHandXpAwarded = 3,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
