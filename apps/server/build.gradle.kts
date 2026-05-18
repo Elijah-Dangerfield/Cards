@@ -29,6 +29,12 @@ dependencies {
     implementation(libs.anvil.runtime.optional)
     ksp(libs.kotlin.inject.compiler.ksp)
     ksp(libs.anvil.compiler)
+
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlin.testJunit)
+    testImplementation(libs.junit)
+    testImplementation(libs.ktor.serverTestHost)
+    testImplementation("io.ktor:ktor-client-content-negotiation:3.3.3")
 }
 
 kotlin {

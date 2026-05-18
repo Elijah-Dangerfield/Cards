@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.di
 
 import com.dangerfield.cards.server.domain.AppConfigSource
+import com.dangerfield.cards.server.domain.ProductCatalogSource
 import software.amazon.lastmile.kotlin.inject.anvil.MergeComponent
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
@@ -23,4 +24,5 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(ServerScope::class)
 abstract class ServerComponent {
     abstract val appConfigSource: AppConfigSource
+    abstract val productCatalogSource: ProductCatalogSource
 }

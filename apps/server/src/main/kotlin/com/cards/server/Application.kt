@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.healthRoutes
+import com.dangerfield.cards.server.routes.productsRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
 
@@ -30,5 +31,6 @@ fun Application.module() {
     routing {
         healthRoutes()
         appConfigRoutes(component.appConfigSource)
+        productsRoutes(component.productCatalogSource)
     }
 }
