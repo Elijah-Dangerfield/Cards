@@ -72,13 +72,13 @@ internal fun PurchaseConfirmSheet(
     val sheetState = rememberBottomSheetState(BottomSheetValue.Expanded)
     var pendingTerminalAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
-    // Bubble icon = the product's own emoji shipped from the server (or
-    // a client-side fallback derived from iconKey if the server didn't
-    // send one yet). Purchase sheets use the squircle style so the bubble
-    // doubles as an "app-icon-like" product callout.
+    // Bubble icon = the product's own emoji from the server. The
+    // server is authoritative for what a product looks like; there's no
+    // client-side mapping. Purchase sheets use the squircle style so
+    // the bubble doubles as an "app-icon-like" product callout.
     val productEmoji = when (pending) {
-        is PendingPurchase.IapPack -> pending.product.iconEmoji ?: emojiForIconKey(pending.product.iconKey)
-        is PendingPurchase.ChipOffer -> pending.product.iconEmoji ?: emojiForIconKey(pending.product.iconKey)
+        is PendingPurchase.IapPack -> pending.product.iconEmoji
+        is PendingPurchase.ChipOffer -> pending.product.iconEmoji
     }
     val handle: BottomSheetDragHandle = BottomSheetDragHandle.Emoji(
         emoji = productEmoji,
@@ -338,7 +338,7 @@ private fun PurchaseConfirmSheetPreview_IapPack() {
                     id = "chip_pack_medium",
                     title = "Tall Stack",
                     subtitle = "30,000 chips",
-                    iconKey = "chips_medium",
+                    iconEmoji = "💰",
                     featured = true,
                     badge = "BEST VALUE",
                     grantsChips = 30_000,
@@ -363,7 +363,7 @@ private fun PurchaseConfirmSheetPreview_ChipOfferWithDescription() {
                     title = "Victory Dance",
                     subtitle = "Emote",
                     description = "Send a celebration dance to the table when you win a hand — fills everyone's screen for a beat. Equip from your items.",
-                    iconKey = "emote_dance",
+                    iconEmoji = "💃",
                     costChips = 2_500,
                     grantsKey = "emote.dance",
                 ),
@@ -386,7 +386,7 @@ private fun PurchaseConfirmSheetPreview_ChipOfferCannotAfford() {
                     title = "High Roller",
                     subtitle = "Player title",
                     description = "Rare title — shows under your name at the table for everyone to see. Equip from your items.",
-                    iconKey = "title_high_roller",
+                    iconEmoji = "🏆",
                     badge = "RARE",
                     costChips = 25_000,
                     grantsKey = "title.high_roller",
@@ -409,7 +409,7 @@ private fun PurchaseConfirmSheetPreview_ChipOfferNoDescription() {
                     id = "cardback_marble",
                     title = "Marble",
                     subtitle = "Card back",
-                    iconKey = "cardback_marble",
+                    iconEmoji = "🂠",
                     costChips = 6_000,
                     grantsKey = "cardback.marble",
                 ),

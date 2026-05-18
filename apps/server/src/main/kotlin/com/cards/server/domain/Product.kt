@@ -24,7 +24,17 @@ sealed interface Product {
     val titleByLocale: Map<String, String>
     val subtitleByLocale: Map<String, String>
 
-    val iconKey: String
+    /**
+     * Single emoji rendered as the product's primary visual everywhere
+     * (grid tile, sheet bubble, etc). Server-authoritative — no client-
+     * side iconKey → emoji guessing.
+     *
+     * When real drawable assets ship, a sibling field (e.g. `iconUrl`
+     * or `assetId`) will be added; this emoji stays as the universal
+     * fallback so clients without the asset bundle still render.
+     */
+    val iconEmoji: String
+
     val featured: Boolean
     /** Free-form short marker like "BEST VALUE" or "+20%". Null = no badge. */
     val badgeByLocale: Map<String, String>?
@@ -36,14 +46,7 @@ sealed interface Product {
         override val id: String,
         override val titleByLocale: Map<String, String>,
         override val subtitleByLocale: Map<String, String>,
-        override val iconKey: String,
-        /**
-         * Single emoji (or short char like `$`) the client renders as the
-         * product's primary visual. Authoritative — the client doesn't
-         * need its own iconKey → emoji table when this is present. Falls
-         * back to a client-side default if null.
-         */
-        val iconEmoji: String,
+        override val iconEmoji: String,
         override val featured: Boolean = false,
         override val badgeByLocale: Map<String, String>? = null,
         override val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform> =
@@ -64,9 +67,7 @@ sealed interface Product {
         override val id: String,
         override val titleByLocale: Map<String, String>,
         override val subtitleByLocale: Map<String, String>,
-        override val iconKey: String,
-        /** See [ChipPack.iconEmoji]. */
-        val iconEmoji: String,
+        override val iconEmoji: String,
         override val featured: Boolean = false,
         override val badgeByLocale: Map<String, String>? = null,
         override val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform> =

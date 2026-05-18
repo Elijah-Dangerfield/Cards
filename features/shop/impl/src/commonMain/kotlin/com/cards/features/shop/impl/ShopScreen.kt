@@ -294,7 +294,7 @@ private fun FeaturedPackHero(pack: Product.ChipPack, onClick: () -> Unit) {
                 .padding(horizontal = 22.dp, vertical = 22.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                HeroProductIcon(iconKey = pack.iconKey)
+                HeroProductIcon(emoji = pack.iconEmoji)
                 Spacer(modifier = Modifier.size(Dimension.D700))
                 Column(modifier = Modifier.weight(1f)) {
                     pack.badge?.let {
@@ -326,7 +326,7 @@ private fun FeaturedPackHero(pack: Product.ChipPack, onClick: () -> Unit) {
 }
 
 @Composable
-private fun HeroProductIcon(iconKey: String) {
+private fun HeroProductIcon(emoji: String) {
     Box(
         modifier = Modifier
             .size(86.dp)
@@ -340,7 +340,7 @@ private fun HeroProductIcon(iconKey: String) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = emojiForIconKey(iconKey),
+            text = emoji,
             typography = AppTheme.typography.Heading.H1100,
             color = AppTheme.colors.onAccentPrimary,
         )
@@ -380,7 +380,7 @@ private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                ProductIcon(iconKey = pack.iconKey, tone = IconTone.Gold)
+                ProductIcon(emoji = pack.iconEmoji, tone = IconTone.Gold)
                 VerticalSpacerD400()
                 Text(
                     text = pack.title,
@@ -479,7 +479,7 @@ private fun ChipOfferCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    ProductIcon(iconKey = offer.iconKey, tone = IconTone.Accent)
+                    ProductIcon(emoji = offer.iconEmoji, tone = IconTone.Accent)
                     when (cardState) {
                         is ChipOfferCardState.Owned -> OwnedCheck(
                             modifier = Modifier.align(Alignment.TopEnd),
@@ -702,7 +702,7 @@ private fun EmptyState() {
         ) {
             Text(
                 text = "🛍️",
-                typography = AppTheme.typography.Heading.H900,
+                typography = AppTheme.typography.Heading.H1100,
                 color = AppTheme.colors.text,
             )
         }
@@ -714,7 +714,7 @@ private fun EmptyState() {
         )
         VerticalSpacerD200()
         Text(
-            text = "New chip packs and cosmetics drop weekly. Check back soon.",
+            text = "Might be a bug? New chip packs and cosmetics drop weekly. Check back soon.",
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
@@ -856,7 +856,7 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             id = "chip_pack_medium",
             title = "Tall Stack",
             subtitle = "30,000 chips",
-            iconKey = "chips_medium",
+            iconEmoji = "💰",
             featured = true,
             badge = "BEST VALUE",
             grantsChips = 30_000,
@@ -866,7 +866,7 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             id = "chip_pack_small",
             title = "Pocket Stack",
             subtitle = "5,000 chips",
-            iconKey = "chips_small",
+            iconEmoji = "🪙",
             grantsChips = 5_000,
             store = StoreSku("chips_small", "$0.99"),
         ),
@@ -874,7 +874,7 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             id = "chip_pack_large",
             title = "Whale Stack",
             subtitle = "80,000 chips",
-            iconKey = "chips_large",
+            iconEmoji = "🐋",
             badge = "+20%",
             grantsChips = 80_000,
             store = StoreSku("chips_large", "$9.99"),
@@ -883,63 +883,71 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             id = "chip_pack_mega",
             title = "High Roller",
             subtitle = "250,000 chips",
-            iconKey = "chips_mega",
+            iconEmoji = "👑",
             grantsChips = 250_000,
             store = StoreSku("chips_mega", "$19.99"),
         ),
     ),
     chipOffers = listOf(
         Product.ChipOffer(
-            id = "emote_dance",
-            title = "Victory Dance",
-            subtitle = "Emote",
-            description = "Send a celebration dance to the table when you win a hand — fills everyone's screen for a beat. Equip from your items.",
-            iconKey = "emote_dance",
-            costChips = 2_500,
-            grantsKey = "emote.dance",
+            id = "emotes_drama",
+            title = "Drama Emote Pack",
+            subtitle = "Emotes · 4 reactions",
+            description = "Unlocks 💃 🧂 🎭 🤦 — screen-filling reactions for the table. Equip individually from your items.",
+            iconEmoji = "💃",
+            costChips = 3_500,
+            grantsKey = "emotes.drama",
+            unlockLevel = 1,
         ),
         Product.ChipOffer(
-            id = "emote_tilt",
-            title = "Salty Shake",
-            subtitle = "Emote",
-            iconKey = "emote_tilt",
-            costChips = 2_500,
-            grantsKey = "emote.tilt",
+            id = "felt_royal_red",
+            title = "Royal Red Felt",
+            subtitle = "Table felt",
+            iconEmoji = "🟥",
+            costChips = 1_500,
+            grantsKey = "felt.royal_red",
+            unlockLevel = 1,
         ),
         Product.ChipOffer(
             id = "cardback_marble",
-            title = "Marble",
+            title = "Marble Card Back",
             subtitle = "Card back",
-            iconKey = "cardback_marble",
+            iconEmoji = "🂠",
             badge = "POPULAR",
-            costChips = 6_000,
+            costChips = 4_000,
             grantsKey = "cardback.marble",
+            unlockLevel = 3,
         ),
         Product.ChipOffer(
-            id = "cardback_neon",
-            title = "Neon Lines",
-            subtitle = "Card back",
-            iconKey = "cardback_neon",
-            costChips = 6_000,
-            grantsKey = "cardback.neon",
+            id = "tool_win_odds",
+            title = "Win Odds Display",
+            subtitle = "Utility",
+            description = "Live win-% during a hand, computed from your hole cards + the visible board.",
+            iconEmoji = "📊",
+            costChips = 10_000,
+            grantsKey = "tool.win_odds",
+            unlockLevel = 10,
         ),
         Product.ChipOffer(
             id = "table_neon",
             title = "Neon Table",
             subtitle = "Table theme",
-            iconKey = "table_neon",
+            iconEmoji = "🎰",
             featured = true,
             badge = "NEW",
-            costChips = 12_000,
+            costChips = 8_000,
             grantsKey = "table.neon",
+            unlockLevel = 8,
         ),
         Product.ChipOffer(
-            id = "title_bluff_master",
-            title = "Bluff Master",
+            id = "title_high_roller",
+            title = "High Roller",
             subtitle = "Player title",
-            iconKey = "title_bluff_master",
-            costChips = 15_000,
-            grantsKey = "title.bluff_master",
+            iconEmoji = "🏆",
+            badge = "RARE",
+            costChips = 25_000,
+            grantsKey = "title.high_roller",
+            unlockLevel = 20,
         ),
     ),
 )

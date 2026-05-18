@@ -36,17 +36,16 @@ import com.dangerfield.cards.system.AppTheme
 internal enum class IconTone { Gold, Accent, Neutral }
 
 /**
- * Square rounded-rect tile with a placeholder emoji at center. The size /
- * radius shrinks on the grid and grows in the sheet via [size] and
- * [cornerRadius] so callers don't have to re-derive proportions per
- * surface.
+ * Square rounded-rect tile with the product's emoji at center.
  *
- * Once real drawable assets ship via `Res.allDrawableResources[iconKey]`,
- * the emoji placeholder gets swapped for an Image; the API stays the same.
+ * The emoji is the server-authoritative product visual — there's no
+ * client-side iconKey → emoji mapping. When real drawable assets ship,
+ * this composable swaps the emoji Text for an Image and the call sites
+ * don't change.
  */
 @Composable
 internal fun ProductIcon(
-    iconKey: String,
+    emoji: String,
     tone: IconTone,
     size: Dp = 64.dp,
     cornerRadius: Dp = 20.dp,
@@ -65,7 +64,7 @@ internal fun ProductIcon(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = emojiForIconKey(iconKey),
+            text = emoji,
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.text,
         )
@@ -96,8 +95,8 @@ internal fun BadgePill(text: String, accent: ColorResource) {
 
 /**
  * Solid pill — accent-colored background, background-colored text. The
- * version used as a [BadgedBox] overhang on grid cards so it reads as
- * "stuck on" the card.
+ * version used as a [com.dangerfield.cards.libraries.ui.components.BadgedBox]
+ * overhang on grid cards so it reads as "stuck on" the card.
  */
 @Composable
 internal fun OverhangBadge(text: String, accent: ColorResource) {
@@ -130,30 +129,4 @@ internal fun formatChips(amount: Long): String {
         }
     }
     return out.reverse().toString()
-}
-
-/**
- * Asset-key → emoji placeholder. Real drawable resources land via the
- * `Res.allDrawableResources[iconKey]` lookup; this fallback keeps the UI
- * alive and on-brand until the design files are wired in.
- */
-internal fun emojiForIconKey(iconKey: String): String = when {
-    iconKey.startsWith("chips_") -> when (iconKey) {
-        "chips_small" -> "🪙"
-        "chips_medium" -> "💰"
-        "chips_large" -> "💎"
-        "chips_mega" -> "👑"
-        else -> "🪙"
-    }
-    iconKey.startsWith("emote_") -> when (iconKey) {
-        "emote_dance" -> "💃"
-        "emote_tilt" -> "🧂"
-        "emote_think" -> "🤔"
-        "emote_facepalm" -> "🤦"
-        else -> "😀"
-    }
-    iconKey.startsWith("cardback_") -> "🂠"
-    iconKey.startsWith("table_") -> "🎰"
-    iconKey.startsWith("title_") -> "🏆"
-    else -> "🎁"
 }

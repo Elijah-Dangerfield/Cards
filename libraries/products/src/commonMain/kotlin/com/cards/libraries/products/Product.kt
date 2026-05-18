@@ -11,22 +11,28 @@ import kotlinx.serialization.Serializable
  *
  * Display strings are pre-localized by the server using the request's
  * `Accept-Language` header — the client never sees raw locale maps. UI just
- * renders [title] / [subtitle] / [badge] as-is.
+ * renders [title] / [subtitle] / [badge] / [description] as-is.
  *
- * For [ChipPack.store.fallbackPriceDisplay]: this is the placeholder price
- * the UI shows while the platform store fetch is in-flight or fails. The
- * platform store (App Store / Play Store) is always the source of truth for
- * the actual localized price the user pays — the SKU is the join key.
+ * Primary visual: [iconEmoji]. The server is authoritative for what a
+ * product looks like; the client never maps from a key to a visual. When
+ * real drawable assets ship, a sibling field will be added at that point;
+ * the emoji stays as the universal fallback so clients without the asset
+ * bundle still render.
  *
- * `@Serializable` so the repo can cache a snapshot to disk later if we want
- * offline reads. Currently the cache lives in memory only.
+ * For [ChipPack.store.fallbackPriceDisplay]: placeholder price the UI
+ * shows while the platform store fetch is in-flight or fails. The
+ * platform store is the source of truth for the localized price the user
+ * actually pays — the SKU is the join key.
+ *
+ * `@Serializable` so the repo can cache a snapshot to disk later if we
+ * want offline reads. Currently the cache lives in memory only.
  */
 @Serializable
 sealed interface Product {
     val id: String
     val title: String
     val subtitle: String
-    val iconKey: String
+    val iconEmoji: String
     val featured: Boolean
     val badge: String?
 
@@ -35,15 +41,7 @@ sealed interface Product {
         override val id: String,
         override val title: String,
         override val subtitle: String,
-        override val iconKey: String,
-        /**
-         * Server-authoritative emoji char the UI renders as the product's
-         * primary visual. Preferred over deriving a placeholder from
-         * [iconKey] client-side. Nullable for forward compatibility with
-         * older servers that haven't started shipping it yet — client
-         * falls back to an iconKey-based mapping when null.
-         */
-        val iconEmoji: String? = null,
+        override val iconEmoji: String,
         val grantsChips: Long,
         val store: StoreSku,
         override val featured: Boolean = false,
@@ -55,9 +53,7 @@ sealed interface Product {
         override val id: String,
         override val title: String,
         override val subtitle: String,
-        override val iconKey: String,
-        /** See [ChipPack.iconEmoji]. */
-        val iconEmoji: String? = null,
+        override val iconEmoji: String,
         val costChips: Long,
         val grantsKey: String,
         override val featured: Boolean = false,
@@ -71,11 +67,10 @@ sealed interface Product {
         /**
          * Long-form explanation of what the user actually gets. Where
          * [subtitle] is a category label ("Emote", "Card back"), this is
-         * one or two sentences explaining the behavior ("Send a celebration
-         * dance to the table when you win a hand…"). Server-localized.
+         * one or two sentences explaining the behavior. Server-localized.
          *
-         * Null = no description provided; UI should fall back to [subtitle]
-         * rather than rendering an empty block.
+         * Null = no description provided; UI should fall back to
+         * [subtitle] rather than rendering an empty block.
          */
         val description: String? = null,
     ) : Product

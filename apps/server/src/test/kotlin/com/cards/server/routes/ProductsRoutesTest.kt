@@ -255,7 +255,6 @@ class ProductsRoutesTest {
                 id = "chip_pack_small",
                 titleByLocale = mapOf("en" to "Pocket Stack", "es" to "Pila de bolsillo"),
                 subtitleByLocale = mapOf("en" to "5,000 chips"),
-                iconKey = "chips_small",
                 iconEmoji = "🪙",
                 grantsChips = 5_000,
                 store = PlatformStore(
@@ -269,7 +268,6 @@ class ProductsRoutesTest {
                         id = "android_only_pack",
                         titleByLocale = mapOf("en" to "Android Special"),
                         subtitleByLocale = mapOf("en" to "1,000 chips"),
-                        iconKey = "chips_android",
                         iconEmoji = "🪙",
                         platforms = setOf(ClientContext.Platform.Android),
                         grantsChips = 1_000,
