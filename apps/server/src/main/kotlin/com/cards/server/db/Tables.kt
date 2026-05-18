@@ -27,3 +27,15 @@ object ProfilesTable : Table("profiles") {
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(userId)
 }
+
+/**
+ * One row per (user, equipped product). Row's mere presence means the
+ * user has the product equipped — unequipping deletes the row. See
+ * `V2__equipment.sql` for the schema authority.
+ */
+object EquipmentTable : Table("equipment") {
+    val userId = uuid("user_id")
+    val productId = text("product_id")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(userId, productId)
+}
