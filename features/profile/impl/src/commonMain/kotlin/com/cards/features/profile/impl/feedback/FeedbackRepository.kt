@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.home.impl.feedback
+package com.dangerfield.cards.features.profile.impl.feedback
 
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.core.Catching

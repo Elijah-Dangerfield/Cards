@@ -41,8 +41,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onNavigateToFeedback: () -> Unit,
-    onNavigateToBugReport: () -> Unit,
     onPlayBots: (difficulty: String) -> Unit,
     onTapRank: () -> Unit,
     onTapXp: () -> Unit,

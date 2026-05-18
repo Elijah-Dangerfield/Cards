@@ -15,6 +15,9 @@ kotlin {
             implementation(projects.libraries.ui)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.cards)
+            // `:features:profile` api carries `BugReportRoute`, the
+            // destination of the in-app error-fallback dialog.
+            implementation(projects.features.profile)
             api(libs.jetbrains.navigation.compose)
             implementation(libs.kotlinx.serialization.json)
         }

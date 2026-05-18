@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
+import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 
 /**
  * Typed drag-handle slot for [BasicBottomSheet] / [BottomSheet].
@@ -58,11 +59,18 @@ sealed interface BottomSheetDragHandle {
      * @param style Bubble shape. [EmojiHandleStyle.Circle] is the
      *   universal default; [EmojiHandleStyle.Squircle] is reserved for
      *   commerce / purchase sheets.
+     * @param surface Fill for the bubble — a [BubbleSurface.Solid] color
+     *   or a [BubbleSurface.Gradient] brush. `null` (default) means "match
+     *   the sheet's surfacePrimary" so the bubble reads as a continuation
+     *   of the top edge. Pass an explicit value to make the bubble pop
+     *   against the sheet (brand accent, product-specific gradient that
+     *   mirrors the card the user tapped, etc.).
      */
     @Immutable
     data class Emoji(
         val emoji: String,
         val style: EmojiHandleStyle = EmojiHandleStyle.Circle,
+        val surface: BubbleSurface? = null,
     ) : BottomSheetDragHandle
 
     /**

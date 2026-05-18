@@ -37,9 +37,13 @@ private tailrec fun <T : Any> setValueRecursive(
     if (path.size == 1) {
         outMap[key] = value
     } else {
-        val child = outMap.getOrPut(key) {
-            outMap[key] as? MutableMap<String, Any?> ?: mutableMapOf<String, Any?>()
-        }
-        setValueRecursive(child as MutableMap<String, Any?>, path.drop(1), value)
+        // Existing child maps may come from JSON deserialization as read-only
+        // HashMaps on Kotlin/Native — calling put() on them throws
+        // UnsupportedOperationException. Always copy into a fresh mutable map
+        // on the way down and write it back into the parent.
+        val existing = outMap[key] as? Map<String, Any?>
+        val child = existing?.toMutableMap() ?: mutableMapOf()
+        outMap[key] = child
+        setValueRecursive(child, path.drop(1), value)
     }
 }

@@ -1,6 +1,6 @@
-package com.dangerfield.cards.features.home.impl.bugreport
+package com.dangerfield.cards.features.profile.impl.bugreport
 
-import com.dangerfield.cards.features.home.impl.feedback.FeedbackRepository
+import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache

@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.home.impl.feedback
+package com.dangerfield.cards.features.profile.impl.feedback
 
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel

@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.home.impl.bugreport
+package com.dangerfield.cards.features.profile.impl.bugreport
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

@@ -11,19 +11,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.toRoute
-import com.dangerfield.cards.features.home.FeedbackRoute
 import com.dangerfield.cards.features.home.HomeRoute
-import com.dangerfield.cards.features.home.impl.bugreport.BugReportScreen
-import com.dangerfield.cards.features.home.impl.bugreport.BugReportViewModel
-import com.dangerfield.cards.features.home.impl.feedback.FeedbackScreen
-import com.dangerfield.cards.features.home.impl.feedback.FeedbackViewModel
-import com.dangerfield.cards.features.profile.BugReportRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
-import com.dangerfield.cards.features.progression.XpDetailSheetRoute
+import com.dangerfield.cards.features.progression.XpDetailsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -44,8 +36,6 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class HomeFeatureEntryPoint(
     private val homeViewModelFactory: () -> HomeViewModel,
-    private val feedbackViewModelFactory: () -> FeedbackViewModel,
-    private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -59,11 +49,9 @@ class HomeFeatureEntryPoint(
 
             HomeScreen(
                 viewModel = viewModel,
-                onNavigateToFeedback = { router.navigate(FeedbackRoute()) },
-                onNavigateToBugReport = { router.navigate(BugReportRoute()) },
                 onPlayBots = { difficulty -> setupDifficulty = difficulty },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
-                onTapXp = { router.navigate(XpDetailSheetRoute()) },
+                onTapXp = { router.navigate(XpDetailsRoute()) },
                 onTapCash = {
                     router.navigate(
                         ShopRoute(),
@@ -91,27 +79,6 @@ class HomeFeatureEntryPoint(
                     onDismiss = { setupDifficulty = null },
                 )
             }
-        }
-
-        screen<FeedbackRoute> {
-            val viewModel: FeedbackViewModel = viewModel { feedbackViewModelFactory() }
-            val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
-            FeedbackScreen(
-                state = state,
-                onAction = viewModel::takeAction,
-            )
-        }
-
-        screen<BugReportRoute> { backStackEntry ->
-            val route = backStackEntry.toRoute<BugReportRoute>()
-            val viewModel: BugReportViewModel = viewModel {
-                bugReportViewModelFactory(route.logId, route.errorCode, route.contextMessage)
-            }
-            val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
-            BugReportScreen(
-                state = state,
-                onAction = viewModel::takeAction,
-            )
         }
     }
 }

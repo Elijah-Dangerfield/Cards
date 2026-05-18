@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.home.impl.feedback
+package com.dangerfield.cards.features.profile.impl.feedback
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

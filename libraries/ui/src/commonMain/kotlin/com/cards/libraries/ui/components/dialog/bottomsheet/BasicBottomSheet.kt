@@ -172,7 +172,7 @@ private fun PreviewBasicBottomSheet_HandleNone() {
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
             dragHandle = BottomSheetDragHandle.None,
-            backgroundColor = AppTheme.colors.surfacePrimary,
+            backgroundColor = AppTheme.colors.background,
             stickyTopContent = {
                 Text(
                     text = "No drag handle",
@@ -197,7 +197,7 @@ private fun PreviewBasicBottomSheet_EmojiCircle() {
         BasicBottomSheet(
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
-            backgroundColor = AppTheme.colors.surfacePrimary,
+            backgroundColor = AppTheme.colors.background,
             dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉"),
             stickyTopContent = {
                 Text(
@@ -223,7 +223,7 @@ private fun PreviewBasicBottomSheet_EmojiSquircle() {
         BasicBottomSheet(
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
-            backgroundColor = AppTheme.colors.surfacePrimary,
+            backgroundColor = AppTheme.colors.background,
             dragHandle = BottomSheetDragHandle.Emoji(
                 emoji = "💃",
                 style = EmojiHandleStyle.Squircle,
@@ -258,7 +258,7 @@ private fun PreviewBasicBottomSheet_CloseButton() {
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
             showCloseButton = true,
-            backgroundColor = AppTheme.colors.surfacePrimary,
+            backgroundColor = AppTheme.colors.background,
             stickyTopContent = {
                 Text(
                     text = "Settings",

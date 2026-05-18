@@ -9,8 +9,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.products.Product
+import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -112,6 +115,39 @@ internal fun OverhangBadge(text: String, accent: ColorResource) {
             color = AppTheme.colors.background,
         )
     }
+}
+
+/**
+ * Bubble surface for the purchase sheet's emoji handle, picked so the
+ * sheet's bubble matches the visual treatment of the product's grid card.
+ * Three branches mirror the three card looks:
+ *
+ *  - Featured chip pack → the gradient backdrop from [FeaturedPackHero].
+ *    Keeps the visual line continuous from tap → sheet.
+ *  - Regular chip pack → gold tint (matches the [IconTone.Gold] tile).
+ *  - Chip-purchasable offer → accent tint (matches [IconTone.Accent]).
+ *
+ * Tint alpha matches [ProductIcon] so the bubble reads as the same chip
+ * the user just tapped, not a fresh visual.
+ */
+@Composable
+internal fun productBubbleSurface(product: Product): BubbleSurface = when (product) {
+    is Product.ChipPack -> if (product.featured) {
+        BubbleSurface.Gradient(
+            Brush.linearGradient(
+                colors = listOf(
+                    AppTheme.colors.accentSecondary.color,
+                    AppTheme.colors.accentPrimary.color,
+                ),
+            ),
+        )
+    } else {
+        BubbleSurface.Solid(color = ColorResource.Amber600, alpha = 0.18f)
+    }
+    is Product.ChipOffer -> BubbleSurface.Solid(
+        color = AppTheme.colors.accentPrimary,
+        alpha = 0.18f,
+    )
 }
 
 /** Format chip costs with a thousands separator (KMP — no Locale ergonomics). */

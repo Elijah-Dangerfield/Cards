@@ -23,7 +23,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubble
+import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleDefaults
 import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleNotchRadius
 import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.system.color.ProvideContentColor
@@ -78,6 +80,7 @@ fun BottomSheet(
         is BottomSheetDragHandle.Emoji -> NotchedSheetShape(
             cornerRadius = SheetCornerRadius,
             notchRadius = EmojiBubbleNotchRadius,
+            notchCornerRadius = EmojiBubbleDefaults.notchCornerRadiusFor(dragHandle.style),
         )
         else -> RoundedTopSheetShape
     }
@@ -95,17 +98,18 @@ fun BottomSheet(
         ),
         tonalElevation = 0.dp,
         dragHandle = {
-            when (val handle = dragHandle) {
+            when (dragHandle) {
                 BottomSheetDragHandle.None -> Unit
                 BottomSheetDragHandle.Basic -> DragHandle(
                     modifier = Modifier.fillMaxWidth(0.2f),
                     color = contentColor.color,
                 )
-                is BottomSheetDragHandle.Custom -> handle.render()
+                is BottomSheetDragHandle.Custom -> dragHandle.render()
                 is BottomSheetDragHandle.Emoji -> EmojiBubble(
-                    emoji = handle.emoji,
-                    style = handle.style,
-                    surfaceColor = backgroundColor,
+                    emoji = dragHandle.emoji,
+                    style = dragHandle.style,
+                    surface = dragHandle.surface
+                        ?: BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
                     contentColor = contentColor,
                 )
             }
@@ -138,6 +142,58 @@ private fun PreviewBottomSheet() {
         ) {
             Text(
                 text = "Content",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        vertical = Dimension.D1400,
+                        horizontal = Dimension.D400,
+                    ),
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Preview(heightDp = 500)
+@Composable
+private fun PreviewBottomSheet_EmojiHandle_DefaultSurface() {
+    PreviewContent {
+        BottomSheet(
+            onDismissRequest = {},
+            state = rememberBottomSheetState(BottomSheetValue.Expanded),
+            backgroundColor = AppTheme.colors.surfacePrimary,
+            dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉"),
+        ) {
+            Text(
+                text = "Emoji handle, default surface — bubble matches the sheet background.",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        vertical = Dimension.D1400,
+                        horizontal = Dimension.D400,
+                    ),
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Preview(heightDp = 500)
+@Composable
+private fun PreviewBottomSheet_EmojiHandle_AccentSurface() {
+    PreviewContent {
+        BottomSheet(
+            onDismissRequest = {},
+            state = rememberBottomSheetState(BottomSheetValue.Expanded),
+            backgroundColor = AppTheme.colors.surfacePrimary,
+            dragHandle = BottomSheetDragHandle.Emoji(
+                emoji = "$",
+                style = EmojiHandleStyle.Squircle,
+                surface = BubbleSurface.Solid(AppTheme.colors.accentPrimary),
+            ),
+        ) {
+            Text(
+                text = "Emoji handle, explicit surfaceColor — bubble pops against the sheet.",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(

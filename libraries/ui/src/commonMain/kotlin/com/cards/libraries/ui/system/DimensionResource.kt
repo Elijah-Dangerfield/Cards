@@ -57,6 +57,8 @@ object Dimension {
     val D1700 = DimensionResource.D1700.dp // 90 dp
     val D1800 = DimensionResource.D1800.dp // 94 dp
     val D1900 = DimensionResource.D1900.dp // 100 dp
+
+
 }
 
 /**

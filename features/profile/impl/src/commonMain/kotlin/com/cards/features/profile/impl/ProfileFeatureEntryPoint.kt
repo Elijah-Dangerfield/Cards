@@ -1,36 +1,43 @@
 package com.dangerfield.cards.features.profile.impl
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
-import com.dangerfield.cards.features.home.FeedbackRoute
+import androidx.navigation.toRoute
+import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.features.profile.BugReportRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
+import com.dangerfield.cards.features.profile.impl.account.AccountActionsAction
+import com.dangerfield.cards.features.profile.impl.account.AccountActionsEvent
+import com.dangerfield.cards.features.profile.impl.account.AccountActionsViewModel
+import com.dangerfield.cards.features.profile.impl.bugreport.BugReportScreen
+import com.dangerfield.cards.features.profile.impl.bugreport.BugReportViewModel
+import com.dangerfield.cards.features.profile.impl.feedback.FeedbackScreen
+import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
-import com.dangerfield.cards.features.progression.XpDetailSheetRoute
+import com.dangerfield.cards.features.progression.XpDetailsRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.UserRepository
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
+import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -49,6 +56,9 @@ class ProfileFeatureEntryPoint(
     private val appConfigRepository: AppConfigRepository,
     private val configOverrideRepository: ConfigOverrideRepository,
     private val progressionRepository: ProgressionRepository,
+    private val feedbackViewModelFactory: () -> FeedbackViewModel,
+    private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
+    private val accountActionsViewModelFactory: () -> AccountActionsViewModel,
     private val userRepository: UserRepository,
     private val appCache: AppCache,
 ) : FeatureEntryPoint {
@@ -62,6 +72,19 @@ class ProfileFeatureEntryPoint(
             val isAnon = user?.isAnonymous ?: true
             val appData by appCache.updates.collectAsState(initial = AppData())
             val scope = rememberCoroutineScope()
+
+            val accountActionsVm: AccountActionsViewModel =
+                androidx.lifecycle.viewmodel.compose.viewModel { accountActionsViewModelFactory() }
+            val accountActionsState by accountActionsVm.stateFlow.collectAsStateWithLifecycle()
+
+            accountActionsVm.ObserveEvents { event ->
+                when (event) {
+                    AccountActionsEvent.SignedOut -> router.navigate(
+                        OnboardingRoute(),
+                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
+                    )
+                }
+            }
 
             ProfileScreen(
                 settings = ProfileSettings(
@@ -87,12 +110,14 @@ class ProfileFeatureEntryPoint(
                     scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }
                 },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
-                onTapXp = { router.navigate(XpDetailSheetRoute()) },
+                onTapXp = { router.navigate(XpDetailsRoute()) },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },
                 onPrivacyPolicy = { router.openWebLink(PRIVACY_POLICY_URL) },
                 onTermsOfService = { router.openWebLink(TERMS_OF_SERVICE_URL) },
                 onDeleteAccount = { router.navigate(DeleteAccountRoute()) },
+                onSignOut = { accountActionsVm.takeAction(AccountActionsAction.ConfirmSignOut) },
+                isSigningOut = accountActionsState.isSigningOut,
                 onOpenQaMenu = { router.navigate(QaMenuRoute()) },
             )
         }
@@ -127,6 +152,28 @@ class ProfileFeatureEntryPoint(
                 title = "Claim your account",
                 body = "Sign in with Apple or Google to save your XP and chips across devices, and unlock multiplayer. Coming with Phase 3 auth.",
                 onBack = { router.goBack() },
+            )
+        }
+
+
+        screen<FeedbackRoute> {
+            val viewModel: FeedbackViewModel = viewModel { feedbackViewModelFactory() }
+            val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+            FeedbackScreen(
+                state = state,
+                onAction = viewModel::takeAction,
+            )
+        }
+
+        screen<BugReportRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<BugReportRoute>()
+            val viewModel: BugReportViewModel = viewModel {
+                bugReportViewModelFactory(route.logId, route.errorCode, route.contextMessage)
+            }
+            val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+            BugReportScreen(
+                state = state,
+                onAction = viewModel::takeAction,
             )
         }
     }

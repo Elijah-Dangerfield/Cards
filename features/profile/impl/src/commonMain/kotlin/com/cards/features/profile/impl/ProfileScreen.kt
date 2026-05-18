@@ -14,6 +14,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,12 +25,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.BasicDropdownMenuItem
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
+import com.dangerfield.cards.libraries.ui.components.DropdownMenu
+import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD1100
 import com.dangerfield.cards.system.VerticalSpacerD50
@@ -61,9 +69,12 @@ fun ProfileScreen(
     onPrivacyPolicy: () -> Unit,
     onTermsOfService: () -> Unit,
     onDeleteAccount: () -> Unit,
+    onSignOut: () -> Unit,
+    isSigningOut: Boolean = false,
     onOpenQaMenu: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showSignOutDialog by remember { mutableStateOf(false) }
     Screen(modifier = modifier) { padding ->
         Column(
             modifier = Modifier
@@ -156,17 +167,30 @@ fun ProfileScreen(
                 ),
             )
 
-            if (!settings.isAnonymous) {
-                VerticalSpacerD800()
-                ListSection(
-                    items = listOf(
+            VerticalSpacerD800()
+            ListSection(
+                items = buildList {
+                    add(
                         ListSectionItem(
-                            headlineText = "Delete account",
-                            onClick = onDeleteAccount,
+                            headlineText = if (isSigningOut) "Signing out…" else "Sign out",
+                            supportingText = if (settings.isAnonymous) {
+                                "Drops your guest progress and returns to the welcome screen"
+                            } else {
+                                "You'll need to sign in again to see your progress"
+                            },
+                            onClick = { if (!isSigningOut) showSignOutDialog = true },
                         ),
-                    ),
-                )
-            }
+                    )
+                    if (!settings.isAnonymous) {
+                        add(
+                            ListSectionItem(
+                                headlineText = "Delete account",
+                                onClick = onDeleteAccount,
+                            ),
+                        )
+                    }
+                },
+            )
 
             if (settings.showQaMenu) {
                 VerticalSpacerD800()
@@ -195,6 +219,61 @@ fun ProfileScreen(
             BottomBarSpacer()
         }
     }
+
+    if (showSignOutDialog) {
+        SignOutConfirmDialog(
+            isAnonymous = settings.isAnonymous,
+            onConfirm = {
+                showSignOutDialog = false
+                onSignOut()
+            },
+            onDismiss = { showSignOutDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun SignOutConfirmDialog(
+    isAnonymous: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val title = if (isAnonymous) "Sign out of guest account?" else "Sign out?"
+    val body = if (isAnonymous) {
+        "Your chips, XP, and game history are tied to this guest account. Signing out drops them. To keep your progress, choose 'Claim your account' instead."
+    } else {
+        "You'll be returned to the welcome screen. Your account stays — sign in again any time to come back."
+    }
+    com.dangerfield.cards.libraries.ui.components.dialog.Dialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Heading.H600,
+                color = AppTheme.colors.onSurfacePrimary,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = body,
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            com.dangerfield.cards.libraries.ui.components.button.Button(
+                onClick = onConfirm,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Sign out")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            com.dangerfield.cards.libraries.ui.components.button.Button(
+                onClick = onDismiss,
+                style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Text,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Cancel")
+            }
+        }
+    }
 }
 
 @Composable
@@ -204,39 +283,78 @@ private fun GameplaySection(
     onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
 ) {
-    // Custom section so each row gets its own dropdown popup. Visually
-    // matches `ListSection` (same surface, same shape) but each row is a
-    // `DropdownSettingRow` that opens an inline menu instead of routing
-    // to a separate screen.
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
-            .background(AppTheme.colors.surfacePrimary.color),
-    ) {
+    var botSpeedExpanded by remember { mutableStateOf(false) }
+    var turnFeedbackExpanded by remember { mutableStateOf(false) }
+
+    ListSection(
+        title = "Gameplay",
+        items = listOf(
+            ListSectionItem(
+                headlineText = "Bot speed",
+                supportingText = "How fast the bots think and act",
+                accessory = ListItemAccessory.Custom {
+                    DropdownAccessory(
+                        text = botSpeed.label,
+                        expanded = botSpeedExpanded,
+                        onDismiss = { botSpeedExpanded = false },
+                        options = com.dangerfield.cards.libraries.cards.BotSpeed.entries.toList(),
+                        label = { it.label },
+                        onSelect = {
+                            botSpeedExpanded = false
+                            onBotSpeedChange(it)
+                        },
+                    )
+                },
+                onClick = { botSpeedExpanded = true },
+            ),
+            ListSectionItem(
+                headlineText = "Your turn feedback",
+                supportingText = "Cue when it becomes your turn",
+                accessory = ListItemAccessory.Custom {
+                    DropdownAccessory(
+                        text = turnFeedback.label,
+                        expanded = turnFeedbackExpanded,
+                        onDismiss = { turnFeedbackExpanded = false },
+                        options = com.dangerfield.cards.libraries.cards.TurnFeedback.entries.toList(),
+                        label = { it.label },
+                        onSelect = {
+                            turnFeedbackExpanded = false
+                            onTurnFeedbackChange(it)
+                        },
+                    )
+                },
+                onClick = { turnFeedbackExpanded = true },
+            ),
+        ),
+    )
+}
+
+@Composable
+private fun <T> DropdownAccessory(
+    text: String,
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    options: List<T>,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+) {
+    Box {
         Text(
-            text = "Gameplay",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            text = text,
+            typography = AppTheme.typography.Body.B600,
+            color = AppTheme.colors.onSurfaceSecondary,
         )
-        com.dangerfield.cards.libraries.ui.components.DropdownSettingRow(
-            headlineText = "Bot speed",
-            supportingText = "How fast the bots think and act",
-            options = com.dangerfield.cards.libraries.cards.BotSpeed.entries.toList(),
-            selected = botSpeed,
-            onSelect = onBotSpeedChange,
-            label = { it.label },
-            showDivider = true,
-        )
-        com.dangerfield.cards.libraries.ui.components.DropdownSettingRow(
-            headlineText = "Your turn feedback",
-            supportingText = "Cue when it becomes your turn",
-            options = com.dangerfield.cards.libraries.cards.TurnFeedback.entries.toList(),
-            selected = turnFeedback,
-            onSelect = onTurnFeedbackChange,
-            label = { it.label },
-        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = onDismiss,
+        ) {
+            options.forEach { option ->
+                BasicDropdownMenuItem(
+                    text = { Text(text = label(option)) },
+                    onClick = { onSelect(option) },
+                )
+            }
+        }
     }
 }
 
@@ -248,8 +366,8 @@ private fun ProfileHeader(settings: ProfileSettings) {
     ) {
         AvatarCircle(
             name = settings.displayName,
-            size = 96.dp,
-            typography = AppTheme.typography.Heading.H800,
+            size = Dimension.D1900,
+            typography = AppTheme.typography.Heading.H1000,
             // Guest accounts get a card emoji so they read as "you, the
             // anonymous player" rather than a stranger named "G". Falls back
             // to the initial once the user claims their account.
@@ -337,6 +455,7 @@ private fun ProfileScreenPreview_Anonymous() {
             onPrivacyPolicy = {},
             onTermsOfService = {},
             onDeleteAccount = {},
+            onSignOut = {},
         )
     }
 }
@@ -369,6 +488,7 @@ private fun ProfileScreenPreview_Claimed() {
             onPrivacyPolicy = {},
             onTermsOfService = {},
             onDeleteAccount = {},
+            onSignOut = {},
         )
     }
 }
@@ -401,6 +521,7 @@ private fun ProfileScreenPreview_DebugBuild() {
             onPrivacyPolicy = {},
             onTermsOfService = {},
             onDeleteAccount = {},
+            onSignOut = {},
             onOpenQaMenu = {},
         )
     }

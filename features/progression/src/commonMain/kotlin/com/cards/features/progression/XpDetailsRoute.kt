@@ -9,4 +9,4 @@ import kotlinx.serialization.Serializable
  * so the host nav infrastructure handles the slide animation.
  */
 @Serializable
-class XpDetailSheetRoute : Route()
+class XpDetailsRoute : Route()

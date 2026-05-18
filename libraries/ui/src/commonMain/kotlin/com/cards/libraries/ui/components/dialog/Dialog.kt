@@ -103,6 +103,7 @@ fun Dialog(
             NotchedSheetShape(
                 cornerRadius = DialogCardCornerRadius,
                 notchRadius = EmojiBubbleNotchRadius,
+                notchCornerRadius = EmojiBubbleDefaults.notchCornerRadiusFor(emoji.style),
             )
         } else {
             Radii.Card.shape
@@ -121,7 +122,8 @@ fun Dialog(
                     EmojiBubble(
                         emoji = emoji.emoji,
                         style = emoji.style,
-                        surfaceColor = AppTheme.colors.surfacePrimary,
+                        surface = emoji.surface
+                            ?: BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
                         contentColor = AppTheme.colors.onSurfacePrimary,
                     )
                     content()
@@ -139,11 +141,14 @@ fun Dialog(
  * Mirrors [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.Emoji]
  * — same DS constants, same shape choices. Defaults to a circle
  * bubble; pass [EmojiHandleStyle.Squircle] for commerce / equip dialogs.
+ * [surface] overrides the bubble fill (color or gradient); leave null to
+ * match the dialog's surface for a seamless top edge.
  */
 @Immutable
 data class DialogEmoji(
     val emoji: String,
     val style: EmojiHandleStyle = EmojiHandleStyle.Circle,
+    val surface: BubbleSurface? = null,
 )
 
 /** Dialog top-corner radius. Matches [Radii.Card] visually but expressed
