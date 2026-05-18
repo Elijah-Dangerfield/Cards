@@ -91,6 +91,67 @@ class MyViewModel : SEAViewModel<State, Event, Action>(initialStateArg = State()
 - **Event**: One-shot side effects (navigation, toasts)
 - **Action**: Only way to mutate state via `action.updateState { }`
 
+## Coroutines & dispatchers
+
+**Never reach for `Dispatchers.{Main,IO,Default,Unconfined}` directly in production code.** Inject [`DispatcherProvider`](libraries/flowroutines/src/commonMain/kotlin/com/cards/libraries/flowroutines/DispatcherProvider.kt) and use `dispatchers.io`, `dispatchers.default`, etc. The DI graph already binds `DefaultDispatcherProvider`, so consumer classes just take it as a constructor parameter.
+
+```kotlin
+@Inject
+class MyRepository(
+    private val dispatchers: DispatcherProvider,
+) {
+    suspend fun heavyWork() = withContext(dispatchers.default) { … }
+}
+```
+
+Why: tests can swap in a `TestDispatcherProvider` (from `:libraries:flowroutines:testing`) whose four dispatchers all route to a single `TestDispatcher`, so the test scheduler controls every coroutine the code launches — including CPU-bound work. Direct `Dispatchers.Default` references can't be virtualized and produce flaky tests that race a real thread pool.
+
+The same rule applies to `withContext`, `launch(context = …)`, and any constructor parameter that takes a `CoroutineDispatcher`: take the provider, not the dispatcher.
+
+## Testing infrastructure
+
+**Extend `CoroutineTest`** ([libraries/flowroutines/testing](libraries/flowroutines/testing/src/commonMain/kotlin/com/cards/libraries/flowroutines/testing/CoroutineTest.kt)) for any test that touches a ViewModel, a `Flow`, or any suspend code. Add the module to your `commonTest` deps:
+
+```kotlin
+commonTest.dependencies {
+    implementation(projects.libraries.flowroutines.testing)
+}
+```
+
+What you get:
+
+- `Dispatchers.setMain` / `resetMain` installed around each test — `viewModelScope` routes through the test scheduler.
+- `dispatchers: DispatcherProvider` — pass it to any production class that takes one. All four dispatchers are the same `TestDispatcher`.
+- `runUnitTest { … }` — wraps `runTest` and cancels leaked child coroutines on exit, so long-lived workers (a bot loop suspended on a channel, an infinite-flow collector) don't trip `UncompletedCoroutinesError`.
+
+```kotlin
+class MyVmTest : CoroutineTest() {
+    @Test
+    fun loadsData() = runUnitTest {
+        val vm = MyViewModel(repo, dispatchers)
+        repo.emit(Foo(...))
+        assertEquals(Foo(...), vm.state.foo)
+    }
+}
+```
+
+Default dispatcher is `UnconfinedTestDispatcher` — continuations run eagerly so `vm.takeAction(...)` propagates to `vm.state` in the same virtual tick. Override `testDispatcher` in a subclass when you need explicit `runCurrent` / `advanceUntilIdle` control.
+
+**Use [Turbine](https://github.com/cashapp/turbine) for Flow assertions.** `:libraries:flowroutines:testing` re-exports it. Prefer it to hand-rolled `launch { collect { … } }` patterns:
+
+```kotlin
+@Test
+fun emitsExpected() = runUnitTest {
+    sut.flow.test {
+        assertEquals(Initial, awaitItem())
+        sut.trigger()
+        assertEquals(Updated, awaitItem())
+    }
+}
+```
+
+**Don't write `Dispatchers.setMain` boilerplate in individual test files** — that's what the base is for. If a test needs to do something CoroutineTest doesn't expose, lift the helper into CoroutineTest rather than re-inventing it per file.
+
 ## Navigation
 
 Routes are `@Serializable` data classes extending `Route`. Register in `FeatureEntryPoint.buildNavGraph()`:
