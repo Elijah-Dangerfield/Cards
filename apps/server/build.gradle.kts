@@ -23,6 +23,26 @@ dependencies {
     implementation("io.ktor:ktor-server-call-id:3.3.3")
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation("ch.qos.logback:logback-classic:1.5.6")
+    implementation(libs.ktor.serverAuth)
+    implementation(libs.ktor.serverAuthJwt)
+
+    // Auth — JWT verification. Auth0's java-jwt is what
+    // ktor-server-auth-jwt sits on top of; we use it directly when
+    // constructing our verifier. `jwks-rsa` adds the JwkProvider that
+    // fetches Supabase's public signing keys from the project's JWKS
+    // endpoint, with built-in caching + rate-limiting.
+    implementation(libs.auth0.jwt)
+    implementation(libs.auth0.jwksRsa)
+
+    // Database — Postgres + HikariCP + Exposed DSL + Flyway migrations.
+    // See docs/decisions.md "Server query layer" entry for the rationale.
+    implementation(libs.postgres.jdbc)
+    implementation(libs.hikaricp)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
+    implementation(libs.flyway.core)
+    runtimeOnly(libs.flyway.postgres)
 
     // DI — same pattern as the client: kotlin-inject + anvil
     implementation(libs.kotlin.inject.runtime.kmp)
@@ -36,8 +56,19 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation("io.ktor:ktor-client-content-negotiation:3.3.3")
+    testImplementation(libs.testcontainers.postgres)
 }
 
 kotlin {
     jvmToolchain(17)
+    compilerOptions {
+        // Match the client-side convention plugins' default opt-ins so
+        // KSP-generated code that calls stdlib's still-experimental types
+        // (Clock, Uuid) compiles cleanly. See
+        // build-logic/.../optInKotlinMarkers for the client equivalent.
+        freeCompilerArgs.addAll(
+            "-opt-in=kotlin.time.ExperimentalTime",
+            "-opt-in=kotlin.uuid.ExperimentalUuidApi",
+        )
+    }
 }

@@ -383,3 +383,274 @@ Bots earn 0.5× of every component (per the locked anti-farm rule). Multiplayer 
 **Status:** Tracked.
 
 
+---
+
+## 2026-05-18 — Identity pivot: server-managed device-keyed identity (supersedes 2026-05-13 Supabase Auth anon)
+
+**Decision:** The mobile client never talks to Supabase Auth. Identity is owned end-to-end by the Ktor server in `:apps:server`. First launch sends a best-effort device id to `POST /v1/identity`; the server matches it (or creates a fresh identity with a random emoji + random username), persists the link, and returns a server-issued JWT pair (access + refresh). Apple/Google "claim" — added in Phase 3.1 — exchanges a native OAuth token at our server for an upgraded identity bound to the same `identities.id`.
+
+This **supersedes** the 2026-05-13 "Auth: anonymous-by-default with claim flow" decision (which had the client talk directly to Supabase anonymous sign-in) and **amends** the 2026-05-13 "Client/server boundary: server-first, auth is the only exception" decision — there is no longer an exception. The client talks only to our server. Supabase's role narrows to "managed Postgres" (and maybe Storage later); no Supabase SDK ships in the client framework.
+
+**Why pivot:**
+1. **Custom identity logic doesn't fit Supabase Auth cleanly.** Device-keyed anonymous identity with deterministic recovery on reinstall (within best-effort device-id limits), random emoji + collision-checked username generation, anti-abuse rate limits on identity creation, and later OAuth claim that preserves XP/chips/achievements — all of this is custom server code either way. Going through Supabase first just adds a layer.
+2. **One auth system to reason about.** With Supabase Auth on the client, we'd have *two* JWTs in flight (Supabase's, ours) or we'd be passing Supabase JWTs through to Ktor and validating them there — neither is simpler than just issuing our own.
+3. **Migration optionality is now total.** Every shipped client holds a `cards.app`-issued JWT, never a `supabase.co` JWT. Swapping providers is a server-only change.
+4. **Smaller iOS framework.** No Supabase iOS SDK in the embedded `ComposeApp.xcframework`.
+
+**Trade-offs we accept:**
+- We own JWT rotation, refresh-token rotation, and revocation. Standard but non-trivial — covered by `ktor-server-auth-jwt` + a `refresh_tokens` table.
+- We don't get Supabase Auth's built-in MFA, magic links, or rate limiting. Not needed for V1; revisit if we add a sensitive surface.
+- Anonymous-identity-on-reinstall is *best-effort* and platform-bounded — `Settings.Secure.ANDROID_ID` survives most uninstalls but resets on factory reset; iOS `identifierForVendor` survives uninstall only if other apps from the same vendor are installed. This matches the device-id-best-effort framing in the original spec.
+
+**Schema (Flyway migration `V1__auth.sql`):**
+- `identities (id uuid pk, created_at timestamptz, last_seen_at timestamptz)`
+- `device_links (device_id text, platform text, identity_id uuid fk identities, first_seen_at timestamptz, primary key (device_id, platform))`
+- `profiles (identity_id uuid pk fk identities, display_name text unique, avatar_emoji text, created_at, updated_at)`
+- `refresh_tokens (token_hash text pk, identity_id uuid fk identities, expires_at timestamptz, revoked_at timestamptz)` — only hashes stored, raw token shown to client once
+
+**Endpoints (V1):**
+- `POST /v1/identity` — body `{deviceId, platform}` → `{identity, profile, accessToken, refreshToken}`. Idempotent on `(deviceId, platform)`.
+- `POST /v1/auth/refresh` — body `{refreshToken}` → fresh pair, rotates refresh token.
+- `GET /v1/me` — JWT-auth, returns current profile.
+- `POST /v1/auth/claim` — added in Phase 3.1.
+
+**How to apply:**
+- Any new client-side data access goes through Ktor with a Bearer JWT, full stop.
+- The client framework does not (and will not) include `supabase-kt` or any Supabase SDK.
+- When adding a new protected route, mount it under the `authenticated { ... }` block; the JWT plugin populates `call.identityId` for handlers.
+- Anonymous-vs-claimed status is recorded on the identity (claimed via `auth_identities` table when claim flow lands); anti-abuse rules from the original Auth decision (smaller chip grants, leaderboard exclusion until claimed) still apply.
+
+**Status:** Locked. Original Supabase-Auth-anonymous decision is now historical.
+
+---
+
+## 2026-05-18 — Server hosting target: Fly.io
+
+**Decision:** Production Ktor server runs on Fly.io. App-config and code-level wiring is host-agnostic (12-factor env vars) so a future move to Railway / Hetzner / Render is a redeploy, not a refactor.
+
+**Why Fly.io:**
+- Cheap-to-free at our scale and easy to scale up.
+- Native IPv6 outbound — Supabase moved their direct DB host to IPv6-only on free tier and Fly speaks IPv6 natively, so the server can use the direct Supabase Postgres host without the Session Pooler hop.
+- Simple secrets management (`fly secrets set`), simple deploy (`fly deploy`), simple health checks.
+- Multi-region is a one-line config change if we ever need it.
+
+**Standard env vars the server reads (12-factor):**
+- `DATABASE_URL` — Postgres connection string. Production points at Supabase direct (IPv6). Local dev points at Session Pooler (IPv4-compatible) or Testcontainers (in tests).
+- `JWT_SECRET` — HS256 signing secret, ≥ 64 bytes of entropy.
+- `JWT_ACCESS_TTL_MINUTES` (default 15), `JWT_REFRESH_TTL_DAYS` (default 30).
+- `SERVER_PORT` (default 8080).
+- `LOG_LEVEL` (default `INFO`).
+
+**Local dev:** values come from a gitignored `apps/server/.env` loaded at startup via a tiny `EnvLoader`. `.env.example` is checked in with safe defaults and the Session Pooler URL template.
+
+**Status:** Locked for V1 production. Hosting deploy itself happens after the auth code lands and we've tested locally.
+
+---
+
+## 2026-05-18 — Server query layer: Exposed + Flyway + HikariCP + Testcontainers
+
+**Decision:** The server's database layer is JetBrains Exposed (Kotlin SQL DSL) on top of HikariCP, with schema managed by Flyway migrations under `apps/server/src/main/resources/db/migration/`. Integration tests use Testcontainers + Postgres so every test runs against a real Postgres instance, matching the production engine.
+
+**Why:**
+- **Exposed** is the idiomatic Kotlin choice and keeps the server stack pure-Kotlin (matches the rest of the project). Type-safe enough without the codegen complexity of jOOQ. Backend engineers joining the team recognize it as "the Kotlin JetBrains one."
+- **HikariCP** is the default connection pool in JVM-land. No alternatives worth considering at this scale.
+- **Flyway** is industry-standard, file-based, deterministic. Plays well with Supabase Postgres. Avoids the "migrations live in code that runs once and you hope" footgun.
+- **Testcontainers + Postgres** catches bugs that an in-memory or H2 fallback would mask — Postgres-specific syntax, types, RLS, etc. Slower than mocks but much higher signal. The project already uses real impls in tests as a convention (see `feedback_use_catching.md`'s ethos).
+
+**Layout:**
+```
+apps/server/src/main/kotlin/com/dangerfield/cards/server/
+  db/
+    Database.kt          ← Hikari + Exposed wiring, transaction helpers
+    Tables.kt            ← Exposed table definitions
+    DbConfig.kt          ← parsed connection settings
+  data/                  ← repository implementations (DI-bound)
+  domain/                ← interfaces + value types (no Exposed types leak out)
+apps/server/src/main/resources/db/migration/
+  V1__auth.sql           ← initial schema
+```
+
+**Domain repositories return plain Kotlin types** — never `ResultRow` or `Op<Boolean>`. The Exposed surface stops at `data/`. This keeps the option open to swap Exposed for jOOQ or raw JDBC later without touching domain code.
+
+**Status:** Locked.
+
+---
+
+## 2026-05-18 — V1 client token storage: file-backed cache, not OS-encrypted
+
+**Decision:** The client stores its server-issued JWT access + refresh token pair in the same `:libraries:storage` file-backed cache used for `AppData` (DataStore on Android, file-backed JSON on iOS). **Not** EncryptedSharedPreferences (Android) or Keychain (iOS).
+
+**Why this is acceptable for V1:**
+- All identities in V1 are anonymous. A stolen refresh token grants access to a device-bound anonymous account with no PII, no real money, only play chips. The user's recovery path is "reinstall, get a new identity."
+- The OS already sandboxes app storage. A non-rooted/jailbroken device with screen-lock is well-defended; a rooted/jailbroken device with tokens in Keychain isn't materially safer than with them in DataStore.
+- Android encrypted storage is straightforward; iOS Keychain from Kotlin requires either cinterop boilerplate or a Swift Twin. Landing both alongside the rest of V1 auth wasn't worth the time at this risk level.
+
+**When this becomes unacceptable (and the trade-off resets):**
+The moment Apple/Google "claim" lands (Phase 3.1). A claimed account binds to a real human and the refresh token unlocks their persistent state across devices — at that point a leaked token has user-visible consequences.
+
+**Upgrade path:**
+- Add `androidx.security:security-crypto` to `:libraries:identity:impl` androidMain deps. Bind an `EncryptedSharedPreferencesTokenStore` with `@ContributesBinding(replaces = [TokenStoreImpl::class])` in the same source set.
+- Add an iOS Keychain wrapper. Easiest route: Swift Twin (per `docs/swift-kotlin-communication-patterns.md`) — interface stays in commonMain, Swift implements it and passes it into the DI graph via `IosAppComponentFactory.create(...)`. Bind with the same `replaces` annotation in iosMain.
+- The interface (`com.dangerfield.cards.libraries.identity.TokenStore`) doesn't change; only the wiring does. Existing on-device tokens get re-written into the new store on the next refresh (or first run after the upgrade).
+
+**Status:** Accepted V1 trade-off. Bump to OS-encrypted storage before the claim flow ships.
+
+---
+
+## 2026-05-18 — Networking: `NoOpAuthTokenProvider` lives in the api module, not impl
+
+**Decision:** The default no-op `AuthTokenProvider` binding lives in `:libraries:networking` (the api module), not `:libraries:networking:impl`. This is unusual — `@ContributesBinding` impls usually live in `:impl` modules.
+
+**Why:** anvil's `replaces` annotation argument requires the replaced class to be reference-able from the replacing module. Combined with the project's strict "only `:apps:*` may depend on `*:impl`" rule (enforced by `build-logic/.../ModuleBoundaries.kt`), an auth feature's impl module (e.g. `:libraries:identity:impl`) can't reference anything in `:libraries:networking:impl`. Putting the default binding in the api module is the cleanest way to make `replaces = [NoOpAuthTokenProvider::class]` work.
+
+**Trade-off:** the api module now has DI dependencies (`moduleConfig { di() }` in `libraries/networking/build.gradle.kts`). Acceptable — the api was a "naked Ktor wrapper" before and now becomes a "naked Ktor wrapper plus one default binding."
+
+**How to apply:** any future "default binding that consuming impls might want to replace" should live in the api module by the same logic. Don't repeat this for *every* class — only the ones with the replacement pattern.
+
+**Status:** Locked.
+
+---
+
+## 2026-05-18 — Identity pivot (REVERSED): back to Supabase Auth on the client
+
+**This supersedes the 2026-05-18 "Identity pivot: server-managed device-keyed identity" entry above.** The earlier reversal of the original 2026-05-13 Supabase-Auth design was made on the assumption that "build claim flow ourselves" was a 2–3 day effort. On a more honest re-estimate (Sign in with Apple's email-privacy-relay handling, name-only-on-first-signin trap, server-side JWKS verification, Google Credential Manager flow on Android, account-linking edge cases), it's 5–7 days plus indefinite maintenance of edge cases.
+
+Phase 3.1 (Apple/Google claim flow) is V1 scope per `docs/product/v1-mvp.md`, so this is a near-term cost, not a deferred one. Supabase Auth handles all of the above out of the box; `supabase-kt` (already in `libs.versions.toml`) is a first-class KMP client. The right call is to commit.
+
+**The new shape:**
+
+| Concern | Owner |
+|---|---|
+| Sign in (anonymous, Apple, Google, magic-link, etc.) | Supabase Auth, called via `supabase-kt` directly from the client |
+| Token issuance + refresh | Supabase Auth (server-side, transparent to us) |
+| Token storage on device | `supabase-kt`'s `SettingsSessionManager` (uses multiplatform-settings) |
+| JWT validation on our server | `ktor-server-auth-jwt` configured with `SUPABASE_JWT_SECRET` (HS256) |
+| Profile (display name, avatar emoji, future game state) | Our Postgres `profiles` table, FK to Supabase's `auth.users(id)` |
+| Profile bootstrap on first sign-in | `GET /v1/me` is get-or-create: if no profile row, generate username + emoji and insert |
+| Game logic, chips, XP, achievements, rooms | Our Ktor server (server-authoritative, unchanged) |
+| Realtime game state during a hand | Our Ktor WebSockets (server-authoritative, unchanged) |
+
+**What we throw away from the prior server-managed-identity design:**
+- `JwtTokenService` + Auth0 java-jwt direct usage for minting
+- `refresh_tokens` table (Supabase handles refresh)
+- `identities` table (Supabase's `auth.users` replaces it)
+- `device_links` table (Supabase has no device-keyed recovery; users either claim or accept the orphan-on-reinstall behavior)
+- `POST /v1/identity` route (Supabase Auth replaces it)
+- `POST /v1/auth/refresh` route (Supabase Auth replaces it)
+- Client `IdentityAuthTokenProvider`, `TokenStoreImpl`, `IdentityApi`, `DeviceIdProvider` Kotlin Twin and its Android/iOS impls
+
+**What we keep:**
+- Postgres + Hikari + Exposed + Flyway + Testcontainers scaffolding (still valuable for our own data)
+- `UsernameGenerator` + `EmojiAvatarGenerator` (called by `/v1/me` on first miss)
+- `profiles` table — schema mostly unchanged; FK now points at `auth.users(id)` instead of our own `identities(id)`
+- Server's Ktor structure (plugins, routes, observability, error envelope)
+- `:libraries:identity` interface module (the contract stays clean; only the impl swaps)
+- Onboarding feature module shell — VM now drives Supabase sign-in instead of `/v1/identity` POST
+- Network client lazy-provider cycle fix (still correct for any auth backing)
+
+**Anonymous → claim → sign-in conceptual model:**
+
+Supabase splits these into two distinct operations and we expose both:
+
+1. **Claim (link Apple/Google to current anonymous account):** `supabase.auth.linkIdentity(provider)`. Preserves all data (chips, XP, inventory). Fails if that OAuth identity already belongs to another `auth.users`.
+2. **Sign in to existing (switch accounts):** `supabase.auth.signInWithOAuth(provider)` (or `signInWith(IDToken)` for native flows). Switches the session. **Anonymous data is orphaned** (no auto-merge) and eventually cleaned up by a TTL sweep.
+
+V1 UX:
+- Primary path: "Claim" button → `linkIdentity` → happy or "this OAuth is already on another account — sign in there? (you'll lose guest progress)" prompt.
+- Secondary path: "I already have an account" → `signInWithOAuth` → explicit confirmation about losing guest data.
+
+We do **not** build automatic account-merge logic for V1. Picking the "claim first" default for the common case is enough; users who explicitly switch accounts accept the trade-off.
+
+**Trade-offs we accept by re-adopting Supabase:**
+
+- Vendor lock to Supabase Auth + Postgres. Migration cost down the road = export `auth.users`, write a one-time script to map to a new identity provider, swap `supabase-kt` for whatever replaces it. ~1 week of work if we ever do it. Acceptable for V1.
+- Anonymous accounts orphaned on `signInWithOAuth` to a pre-existing account. Sharp edge — V1 acceptable. Document a TTL cleanup task to delete anon-only `auth.users` >30 days inactive.
+- Our server validates Supabase JWTs but doesn't talk to Supabase Admin API (yet). Future work might add admin operations (account deletion compliance, user lookup) — needs `SUPABASE_SERVICE_ROLE_KEY` server-side then.
+
+**Required Supabase project configuration (manual steps):**
+- Authentication → Settings → "Allow anonymous sign-ins" → **on**.
+- Project Settings → API → record JWT secret (server `.env` → `SUPABASE_JWT_SECRET`).
+- Project Settings → API → record `anon` public key (client config → `SUPABASE_ANON_KEY`).
+- Phase 3.1: Authentication → Providers → enable Apple, Google with the respective OAuth credentials.
+
+**Status:** Locked. The earlier "server-managed device-keyed identity" entry is now historical; reading the log top-to-bottom, the third entry on this topic (this one) is the live decision.
+
+---
+
+## 2026-05-18 — Backend stack (consolidated): Supabase + Fly + Ktor
+
+**Recording the live backend stack after the auth flip, in one place, for new contributors.**
+
+| Layer | Choice |
+|---|---|
+| Auth | Supabase Auth (anonymous sign-in V1; Apple/Google claim in Phase 3.1) |
+| Database | Supabase Postgres (managed; we connect via direct IPv6 in prod, Session Pooler in local dev) |
+| Application server | Ktor 3.x on JVM 17, deployed to Fly.io |
+| Realtime (in-game) | Ktor WebSockets, server-authoritative (NOT Supabase Realtime) |
+| Realtime (cross-app — friend signals, notifications) | Deferred to V1.x; could be Supabase Realtime or our own WS |
+| Server DI | kotlin-inject + anvil (same as client) |
+| Server query layer | Exposed + HikariCP + Flyway migrations |
+| Server integration tests | Testcontainers + Postgres (real DB, not mocked) |
+| Hosting (server) | Fly.io (`cards-server-dev`, future `cards-server`) |
+| Secrets (server) | `fly secrets set ...` in prod; `apps/server/.env` (gitignored) in local dev |
+| CI deploy | GitHub Actions on merge to `main` when `apps/server/**` changes |
+| Crash + error reporting | Sentry (client already wired via `sentry-kmp`; server wiring pending) |
+| Avatar storage (future) | Supabase Storage |
+
+**The client/server boundary, restated:**
+
+- Client talks to **two** services:
+  1. **Supabase Auth** — for sign-in, sign-up, token refresh, account linking. Uses `supabase-kt` directly. No proxy through our server.
+  2. **Our Ktor server** — for everything else (profile, game state, chips, XP, achievements, room create/join, future leaderboards). Authenticated with the Supabase-issued JWT.
+
+- Server talks to **two** services:
+  1. **Supabase Postgres** — direct JDBC, full SQL access via service-role credentials.
+  2. **(Future) Supabase Admin API** — for account deletion compliance, user lookups. Only when needed.
+
+- Supabase Realtime is **not** used for game state. In-hand state lives in a server-side coroutine and is fanned out over our own WS.
+
+**Why this split (not "everything through our server"):**
+
+The earlier server-first decision was driven by "we don't want client-side state of record." That still holds for profile/chips/XP/games — those go through our server. But auth JWTs are not state-of-record; they're capabilities. Letting the client talk to Supabase Auth directly is the standard pattern and saves rebuilding OAuth flows.
+
+**Cost model at V1 scale (<100 daily users):**
+- Supabase free tier: 500MB DB, 50k MAU, 5GB egress — covers V1 launch comfortably.
+- Fly.io: ~$5-15/mo for the smallest shared-cpu-1x machine. Free hobby tier covers dev.
+- Total cold: $5-15/mo. Total realistic V1 launch: ~$25/mo (Supabase Pro tier $25 if we hit the free-tier ceiling).
+
+**Status:** Locked.
+
+---
+
+## 2026-05-18 — Delete-account flow deferred to its own chunk
+
+**Decision:** Account deletion lands in the next focused commit, not bundled with edit-profile + sign-out. It has different infra and security requirements that benefit from a focused review.
+
+**Why it's separate:**
+
+1. **Server needs the Supabase service-role key.** Public anon JWTs can only manage their bearer's own data via Supabase REST + RLS. Deleting an `auth.users` row requires the Admin API (`DELETE /auth/v1/admin/users/<id>`), which is service-role-gated. Adding the service-role key means a new env var (`SUPABASE_SERVICE_ROLE_KEY`), a new `fly secrets set` step in production, and a new credential to safeguard. Worth doing carefully.
+2. **Audit trail.** When a deletion happens we want to log who / when / from what source for compliance review (GDPR right-to-erasure, Apple's mandatory account-deletion review). That logging path doesn't exist yet — Sentry + structured request logs cover errors, not user actions.
+3. **Two-step UX is mandatory.** Apple's review guidelines require an explicit confirm-by-typing flow for destructive actions; we'll match (type "delete" to confirm). A dedicated `DeleteAccountRoute` screen is the right home, not a dialog crammed into edit-profile.
+
+**Shape when we build it:**
+
+Server:
+- New env var `SUPABASE_SERVICE_ROLE_KEY` (in `apps/server/.env` locally; `fly secrets set ...` in prod).
+- New `SupabaseAdminClient` wrapping service-role REST calls (just `DELETE /auth/v1/admin/users/<id>` for V1).
+- New `DELETE /v1/me` route:
+  - Auth-required (JWT plugin); server reads `userId` from the JWT's `sub` claim.
+  - `DELETE FROM profiles WHERE user_id = ?` (idempotent).
+  - Calls `SupabaseAdminClient.deleteUser(userId)`. On success returns 204.
+  - On admin-call failure (rate-limited, network) → 503; client retries. The profile row stays deleted (acceptable — user gets a fresh profile on next sign-in if their `auth.users` somehow persists).
+
+Client:
+- `IdentityRepository.deleteAccount(): DeleteAccountOutcome` (sealed, like the other auth outcomes).
+- `ProfileApi.deleteMe()` issues `DELETE /v1/me`.
+- New `DeleteAccountScreen` with type-to-confirm input + prominent destructive copy: "your chips, XP, achievements, and game history are permanently deleted."
+- On success: same as sign-out path (clear local cache, reset `hasUserOnboarded`, navigate to onboarding pager).
+
+Sharp edges to track when it lands:
+- The TTL sweep for orphaned anonymous `auth.users` (separately tracked) eventually replaces the "user signed in to a different account instead of claiming" cleanup. Until then, account deletion is the only path that actually removes `auth.users` rows.
+- Rate-limit `DELETE /v1/me` per-IP (e.g. 5 per hour) to prevent abuse if our JWT validation ever has a bug.
+
+**Status:** Tracked. Pick this up after the current profile chunk lands.
