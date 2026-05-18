@@ -13,6 +13,7 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.products)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)
 
@@ -23,6 +24,11 @@ kotlin {
             implementation(compose.materialIconsExtended)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
+        }
+        commonTest.dependencies {
+            implementation(projects.libraries.flowroutines.testing)
+            implementation(projects.libraries.products)
+            implementation(projects.libraries.cards)
         }
     }
 }

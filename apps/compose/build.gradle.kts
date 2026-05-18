@@ -39,6 +39,8 @@ kotlin {
             implementation(projects.libraries.cards.storage)
             implementation(projects.libraries.networking)
             implementation(projects.libraries.networking.impl)
+            implementation(projects.libraries.products)
+            implementation(projects.libraries.products.impl)
 
             implementation(projects.features.home)
             implementation(projects.features.home.impl)

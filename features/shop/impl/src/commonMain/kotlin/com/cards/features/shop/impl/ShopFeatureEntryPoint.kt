@@ -1,10 +1,9 @@
 package com.dangerfield.cards.features.shop.impl
 
-import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.shop.ShopRoute
-import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -17,13 +16,16 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class ShopFeatureEntryPoint(
-    private val chipsRepository: ChipsRepository,
+    private val shopVmFactory: () -> ShopViewModel,
 ) : FeatureEntryPoint {
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<ShopRoute> {
-            val chips by chipsRepository.observeBalance()
-                .collectAsStateWithLifecycle(initialValue = ChipsRepository.STARTING_GRANT)
-            ShopScreen(chips = chips)
+            val viewModel: ShopViewModel = viewModel(key = "shop") { shopVmFactory() }
+            val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+            ShopScreen(
+                state = state,
+                onAction = viewModel::takeAction,
+            )
         }
     }
 }
