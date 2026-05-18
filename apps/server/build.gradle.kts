@@ -26,6 +26,13 @@ dependencies {
     implementation(libs.ktor.serverAuth)
     implementation(libs.ktor.serverAuthJwt)
 
+    // Outbound HTTP — for calling Supabase's Admin API (account deletion,
+    // future admin lookups). CIO is engine-of-choice on JVM: pure Kotlin,
+    // small footprint, no extra native deps to ship in the Docker image.
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    testImplementation(libs.ktor.client.mock)
+
     // Auth — JWT verification. Auth0's java-jwt is what
     // ktor-server-auth-jwt sits on top of; we use it directly when
     // constructing our verifier. `jwks-rsa` adds the JwkProvider that

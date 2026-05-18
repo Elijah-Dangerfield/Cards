@@ -96,6 +96,25 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         assertNotEquals(a.displayName, b.displayName)
     }
 
+    @Test
+    fun delete_removesExistingProfile() = runTest {
+        val repo = newRepository()
+        val userId = UserId(UUID.randomUUID())
+        repo.findOrCreate(userId)
+        assertNotNull(repo.findById(userId))
+
+        repo.delete(userId)
+
+        assertNull(repo.findById(userId))
+    }
+
+    @Test
+    fun delete_isIdempotentWhenProfileNotPresent() = runTest {
+        val repo = newRepository()
+        // No row to begin with — should not throw.
+        repo.delete(UserId(UUID.randomUUID()))
+    }
+
     private fun newRepository(
         usernameGenerator: UsernameGenerator = AdjectiveNounUsernameGenerator(),
         avatarGenerator: AvatarGenerator = EmojiAvatarGenerator(),

@@ -74,6 +74,29 @@ interface IdentityRepository {
 
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
     suspend fun fetchAvatarPack(): AvatarPackOutcome
+
+    /**
+     * Permanently delete the current account. Calls the server's
+     * `DELETE /v1/me` (which in turn invokes Supabase's Admin API to
+     * remove `auth.users` plus drops the local profile row) and then
+     * tears down the local session.
+     *
+     * Idempotent for the caller: a previous successful delete that left
+     * a stale local cache will resolve to [DeleteAccountOutcome.Success]
+     * via the server's 204 path. The post-delete state is identical to
+     * sign-out — callers should reset onboarding and navigate to the
+     * onboarding root.
+     */
+    suspend fun deleteAccount(): DeleteAccountOutcome
+}
+
+sealed interface DeleteAccountOutcome {
+    data object Success : DeleteAccountOutcome
+    /** Server reports the delete endpoint isn't wired (no service-role key). */
+    data object NotConfigured : DeleteAccountOutcome
+    data object NotSignedIn : DeleteAccountOutcome
+    data class NetworkError(val cause: Throwable) : DeleteAccountOutcome
+    data class Unknown(val cause: Throwable) : DeleteAccountOutcome
 }
 
 sealed interface UpdateProfileOutcome {

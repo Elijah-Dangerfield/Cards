@@ -32,6 +32,14 @@ interface ProfileRepository {
         displayName: String?,
         avatarEmoji: String?,
     ): UpdateProfileOutcome
+
+    /**
+     * Remove the profile row for [userId]. Idempotent — succeeds whether
+     * a row existed or not. The caller (`DELETE /v1/me`) pairs this with a
+     * Supabase Admin API call that deletes the underlying `auth.users`
+     * row; this method only owns OUR table.
+     */
+    suspend fun delete(userId: UserId)
 }
 
 sealed interface UpdateProfileOutcome {

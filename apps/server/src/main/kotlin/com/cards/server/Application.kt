@@ -48,7 +48,7 @@ fun Application.module(config: ServerConfig) {
         appConfigRoutes(component.appConfigSource)
         productsRoutes(component.productCatalogSource)
         inventoryRoutes()
-        meRoutes(component.profileRepository)
+        meRoutes(component.profileRepository, component.supabaseAdminClient)
         avatarRoutes()
     }
 }

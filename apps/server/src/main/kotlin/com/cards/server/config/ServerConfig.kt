@@ -50,7 +50,8 @@ data class DatabaseConfig(
 }
 
 /**
- * Settings for verifying Supabase-issued JWTs.
+ * Settings for verifying Supabase-issued JWTs and calling Supabase's
+ * Admin API.
  *
  * Supabase signs JWTs with **ES256** (asymmetric) since their move to
  * "JWT Signing Keys." Our server fetches the project's public key from
@@ -63,13 +64,17 @@ data class DatabaseConfig(
  * Legacy HS256 + shared secret is deprecated by Supabase and intentionally
  * not supported here — see `docs/decisions.md`.
  *
- * We don't store the service-role key here — V1 doesn't call the Supabase
- * Admin API. Add a separate `SUPABASE_SERVICE_ROLE_KEY` field if and when
- * we do (account deletion compliance, admin lookups).
+ * [serviceRoleKey] is the project's service_role JWT, required for
+ * Admin API calls (e.g. `DELETE /auth/v1/admin/users/<id>` for account
+ * deletion). Optional because most routes don't need it — endpoints
+ * that do (see [DELETE /v1/me]) respond with 503 NotConfigured when it
+ * isn't set, so non-deletion deployments stay functional. Treat as a
+ * root password: never log it, never return it from any endpoint.
  */
 data class SupabaseConfig(
     /** e.g. `https://yuqrfhdoejonclgbixlw.supabase.co`. */
     val projectUrl: String,
+    val serviceRoleKey: String?,
 ) {
     /** Issuer the Auth service stamps on every JWT it issues. */
     val expectedIssuer: String get() = "$projectUrl/auth/v1"
@@ -80,7 +85,10 @@ data class SupabaseConfig(
     companion object {
         fun fromEnv(env: Env): SupabaseConfig {
             val url = env.require("SUPABASE_URL").trimEnd('/')
-            return SupabaseConfig(projectUrl = url)
+            return SupabaseConfig(
+                projectUrl = url,
+                serviceRoleKey = env["SUPABASE_SERVICE_ROLE_KEY"],
+            )
         }
     }
 }

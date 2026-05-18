@@ -2,16 +2,20 @@ package com.dangerfield.cards.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -23,6 +27,7 @@ import java.util.Date
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -175,6 +180,7 @@ class MeRoutesTest {
     private suspend fun callMe(
         repo: ProfileRepository,
         bearer: String?,
+        adminClient: SupabaseAdminClient = AlwaysSuccessAdmin,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -182,12 +188,32 @@ class MeRoutesTest {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo) }
+                routing { meRoutes(repo, adminClient) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             }
             val response = client.get("/v1/me") {
+                bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+            }
+            assert(response)
+        }
+    }
+
+    private suspend fun callDeleteMe(
+        repo: ProfileRepository,
+        adminClient: SupabaseAdminClient,
+        bearer: String?,
+        assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
+    ) {
+        testApplication {
+            application {
+                installSerialization()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing { meRoutes(repo, adminClient) }
+            }
+            val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
             }
             assert(response)
@@ -208,6 +234,8 @@ class MeRoutesTest {
     private class FakeProfileRepository(private val existing: Profile?) : ProfileRepository {
         var findOrCreateCalls: Int = 0
             private set
+        var deleteCalls: Int = 0
+            private set
 
         override suspend fun findById(userId: UserId): Profile? = existing
 
@@ -227,5 +255,76 @@ class MeRoutesTest {
             displayName: String?,
             avatarEmoji: String?,
         ): com.dangerfield.cards.server.domain.UpdateProfileOutcome = error("not used in this test")
+
+        override suspend fun delete(userId: UserId) {
+            deleteCalls++
+        }
+    }
+
+    private object AlwaysSuccessAdmin : SupabaseAdminClient {
+        override suspend fun deleteUser(userId: UserId): DeleteUserResult = DeleteUserResult.Success
+    }
+
+    private class StubAdmin(val result: DeleteUserResult) : SupabaseAdminClient {
+        var calls: Int = 0
+            private set
+
+        override suspend fun deleteUser(userId: UserId): DeleteUserResult {
+            calls++
+            return result
+        }
+    }
+
+    @Test
+    fun delete_returns204_andCleansLocalProfile_whenAdminSucceeds() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = StubAdmin(DeleteUserResult.Success)
+        callDeleteMe(repo, admin, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.NoContent, resp.status)
+            assertEquals(1, admin.calls)
+            assertEquals(1, repo.deleteCalls)
+        }
+    }
+
+    @Test
+    fun delete_returns204_whenSupabaseAlreadyHadNoSuchUser() = runTest {
+        val repo = FakeProfileRepository(existing = null)
+        val admin = StubAdmin(DeleteUserResult.AlreadyGone)
+        callDeleteMe(repo, admin, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.NoContent, resp.status)
+            assertEquals(1, repo.deleteCalls)
+        }
+    }
+
+    @Test
+    fun delete_returns503_whenServiceRoleKeyNotConfigured() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = StubAdmin(DeleteUserResult.NotConfigured)
+        callDeleteMe(repo, admin, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.ServiceUnavailable, resp.status)
+            assertEquals(0, repo.deleteCalls, "local profile must not be touched if admin call short-circuits")
+            assertTrue(resp.bodyAsText().contains("delete_not_configured"))
+        }
+    }
+
+    @Test
+    fun delete_returns503_whenAdminCallFails() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = StubAdmin(DeleteUserResult.Failure(statusCode = 500, cause = null))
+        callDeleteMe(repo, admin, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.ServiceUnavailable, resp.status)
+            assertEquals(0, repo.deleteCalls, "local profile must not be touched until admin call succeeds")
+        }
+    }
+
+    @Test
+    fun delete_returns401_whenAuthHeaderMissing() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = StubAdmin(DeleteUserResult.Success)
+        callDeleteMe(repo, admin, bearer = null) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+            assertEquals(0, admin.calls)
+            assertEquals(0, repo.deleteCalls)
+        }
     }
 }

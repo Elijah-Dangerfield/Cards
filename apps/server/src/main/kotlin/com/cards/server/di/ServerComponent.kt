@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.MergeComponent
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -20,7 +21,7 @@ import kotlin.time.ExperimentalTime
  *
  * ```
  * val component = ServerComponent::class.create(database, supabaseConfig)
- * routing { meRoutes(component.profileRepository) }
+ * routing { meRoutes(component.profileRepository, component.supabaseAdminClient) }
  * ```
  *
  * Add a new service: annotate its impl with `@ContributesBinding(ServerScope::class)`,
@@ -39,6 +40,7 @@ abstract class ServerComponent(
     abstract val appConfigSource: AppConfigSource
     abstract val productCatalogSource: ProductCatalogSource
     abstract val profileRepository: ProfileRepository
+    abstract val supabaseAdminClient: SupabaseAdminClient
 
     /**
      * Wall-clock source. Singleton so every component sees the same "now"

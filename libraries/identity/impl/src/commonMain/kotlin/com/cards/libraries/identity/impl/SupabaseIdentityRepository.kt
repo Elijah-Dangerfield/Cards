@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.ResendOutcome
 import com.dangerfield.cards.libraries.identity.SignInOutcome
@@ -243,6 +244,45 @@ class SupabaseIdentityRepository(
         AvatarPackOutcome.Unknown(e)
     } catch (e: Throwable) {
         AvatarPackOutcome.NetworkError(e)
+    }
+
+    override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
+        if (supabase.auth.currentSessionOrNull() == null) {
+            return@withLock DeleteAccountOutcome.NotSignedIn
+        }
+
+        val outcome = try {
+            val response = profileApi.deleteMe()
+            when (response.status.value) {
+                204, 200, 404 -> DeleteAccountOutcome.Success
+                401 -> DeleteAccountOutcome.NotSignedIn
+                503 -> DeleteAccountOutcome.NotConfigured
+                else -> DeleteAccountOutcome.Unknown(IllegalStateException("Unexpected status ${response.status.value}"))
+            }
+        } catch (e: ClientRequestException) {
+            when (e.response.status.value) {
+                401 -> DeleteAccountOutcome.NotSignedIn
+                else -> DeleteAccountOutcome.Unknown(e)
+            }
+        } catch (e: ServerResponseException) {
+            // 503 from our server flows here because Ktor treats 5xx as
+            // server-response errors. Map it back to NotConfigured before
+            // we get to the catch-all.
+            if (e.response.status.value == 503) DeleteAccountOutcome.NotConfigured
+            else DeleteAccountOutcome.Unknown(e)
+        } catch (e: Throwable) {
+            DeleteAccountOutcome.NetworkError(e)
+        }
+
+        if (outcome is DeleteAccountOutcome.Success) {
+            // Tear down the local session regardless of which success path
+            // we took. We hold the mutex, so we can flip cache + state safely.
+            Catching { supabase.auth.signOut() }
+                .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
+            identityCache.clear()
+            _state.value = IdentityState.Unknown
+        }
+        outcome
     }
 
     /**

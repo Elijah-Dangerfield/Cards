@@ -1,7 +1,9 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.AvatarStarterPack
+import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.isAnonymousUser
@@ -11,15 +13,21 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
+import org.slf4j.LoggerFactory
 
 /**
- * `GET /v1/me`  — returns the currently-authenticated user's profile, creating
- *                 it if this is their first contact (get-or-create).
- * `PATCH /v1/me` — update `displayName` and/or `avatarEmoji`. Both optional.
+ * `GET /v1/me`     — returns the currently-authenticated user's profile,
+ *                    creating it if this is their first contact (get-or-create).
+ * `PATCH /v1/me`   — update `displayName` and/or `avatarEmoji`. Both optional.
+ * `DELETE /v1/me`  — permanent account deletion: removes the Supabase
+ *                    auth.users row (via the Admin API) AND our profile row.
+ *                    Returns 204 on success.
  *
- * Both require a valid Supabase JWT. The JWT plugin populates `call.userId()`.
+ * All three require a valid Supabase JWT. The JWT plugin populates
+ * `call.userId()`.
  *
  * Validation rules for PATCH:
  *  - `displayName`: 1..MAX_NAME_LEN chars after trim. Server-side uniqueness
@@ -27,8 +35,14 @@ import io.ktor.server.routing.patch
  *    409 on conflict.
  *  - `avatarEmoji`: must be a member of [AvatarStarterPack]. Lets us
  *    treat the starter pack as a closed enum without trusting the client.
+ *
+ * DELETE ordering: admin call first (revokes the user's sessions immediately,
+ * so even if the local profile delete fails the user can't come back via
+ * the same account), then local profile cleanup. An orphan profile is
+ * recoverable by a future sweep; an orphan auth.users with a live JWT is
+ * a security problem.
  */
-fun Route.meRoutes(repository: ProfileRepository) {
+fun Route.meRoutes(repository: ProfileRepository, adminClient: SupabaseAdminClient) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
@@ -65,6 +79,35 @@ fun Route.meRoutes(repository: ProfileRepository) {
                     HttpStatusCode.NotFound,
                     problem("profile_not_found", "No profile for this user. Hit GET /v1/me first."),
                 )
+            }
+        }
+
+        delete("/v1/me") {
+            val userId = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+            when (val admin = adminClient.deleteUser(userId)) {
+                DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
+                    repository.delete(userId)
+                    call.respond(HttpStatusCode.NoContent)
+                }
+                DeleteUserResult.NotConfigured -> call.respond(
+                    HttpStatusCode.ServiceUnavailable,
+                    problem(
+                        "delete_not_configured",
+                        "Account deletion is not enabled on this server. Set SUPABASE_SERVICE_ROLE_KEY and redeploy.",
+                    ),
+                )
+                is DeleteUserResult.Failure -> {
+                    LoggerFactory.getLogger("MeRoutes").error(
+                        "Supabase admin delete failed for user {} (status={})",
+                        userId,
+                        admin.statusCode,
+                        admin.cause,
+                    )
+                    call.respond(
+                        HttpStatusCode.ServiceUnavailable,
+                        problem("delete_failed", "Could not delete account right now. Please try again."),
+                    )
+                }
             }
         }
     }

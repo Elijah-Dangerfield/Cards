@@ -14,6 +14,8 @@ import com.dangerfield.cards.server.domain.UsernameGenerator
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.ResultRow
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
@@ -52,6 +54,12 @@ class PostgresProfileRepository(
             .where { ProfilesTable.userId eq userId.value }
             .singleOrNull()
             ?.toProfile()
+    }
+
+    override suspend fun delete(userId: UserId) {
+        database.transaction {
+            ProfilesTable.deleteWhere { ProfilesTable.userId eq userId.value }
+        }
     }
 
     override suspend fun update(

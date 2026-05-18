@@ -2,9 +2,11 @@ package com.dangerfield.cards.libraries.identity.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.serialization.Serializable
@@ -34,6 +36,13 @@ interface ProfileApi {
 
     /** `GET /v1/avatars` — starter emoji pack for the picker. */
     suspend fun avatars(): AvatarPackDto
+
+    /**
+     * `DELETE /v1/me` — permanent account deletion. Returns the raw
+     * response so the repository can branch on 204 (success), 503
+     * (delete_not_configured), 401 (session gone), etc.
+     */
+    suspend fun deleteMe(): HttpResponse
 }
 
 @Serializable
@@ -64,4 +73,7 @@ class HttpProfileApi(
 
     override suspend fun avatars(): AvatarPackDto =
         networkClient.authenticatedClient.get("/v1/avatars").body()
+
+    override suspend fun deleteMe(): HttpResponse =
+        networkClient.authenticatedClient.delete("/v1/me")
 }

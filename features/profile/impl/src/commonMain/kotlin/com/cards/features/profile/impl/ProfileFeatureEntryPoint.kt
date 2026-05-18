@@ -13,8 +13,14 @@ import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsAction
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsEvent
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsViewModel
+import com.dangerfield.cards.features.profile.impl.account.DeleteAccountEvent
+import com.dangerfield.cards.features.profile.impl.account.DeleteAccountScreen
+import com.dangerfield.cards.features.profile.impl.account.DeleteAccountViewModel
 import com.dangerfield.cards.features.profile.impl.bugreport.BugReportScreen
 import com.dangerfield.cards.features.profile.impl.bugreport.BugReportViewModel
+import com.dangerfield.cards.features.profile.impl.edit.EditProfileEvent
+import com.dangerfield.cards.features.profile.impl.edit.EditProfileScreen
+import com.dangerfield.cards.features.profile.impl.edit.EditProfileViewModel
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackScreen
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
@@ -59,6 +65,8 @@ class ProfileFeatureEntryPoint(
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
     private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
     private val accountActionsViewModelFactory: () -> AccountActionsViewModel,
+    private val deleteAccountViewModelFactory: () -> DeleteAccountViewModel,
+    private val editProfileViewModelFactory: () -> EditProfileViewModel,
     private val userRepository: UserRepository,
     private val appCache: AppCache,
 ) : FeatureEntryPoint {
@@ -132,17 +140,34 @@ class ProfileFeatureEntryPoint(
         }
 
         screen<EditProfileRoute> {
-            PlaceholderScreen(
-                title = "Edit profile",
-                body = "Choose a display name and avatar. Lands with Phase 3 auth — for now your handle stays anonymous.",
+            val viewModel: EditProfileViewModel = viewModel { editProfileViewModelFactory() }
+            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+            viewModel.ObserveEvents { event ->
+                when (event) {
+                    EditProfileEvent.Saved -> router.goBack()
+                }
+            }
+            EditProfileScreen(
+                state = state,
+                onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
             )
         }
 
         screen<DeleteAccountRoute> {
-            PlaceholderScreen(
-                title = "Delete account",
-                body = "Wipe your local data and start fresh. Lands with Phase 3 auth so we can clear server-side state too.",
+            val viewModel: DeleteAccountViewModel = viewModel { deleteAccountViewModelFactory() }
+            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+            viewModel.ObserveEvents { event ->
+                when (event) {
+                    DeleteAccountEvent.Deleted -> router.navigate(
+                        OnboardingRoute(),
+                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
+                    )
+                }
+            }
+            DeleteAccountScreen(
+                state = state,
+                onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
             )
         }
