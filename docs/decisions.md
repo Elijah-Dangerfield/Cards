@@ -654,3 +654,68 @@ Sharp edges to track when it lands:
 - Rate-limit `DELETE /v1/me` per-IP (e.g. 5 per hour) to prevent abuse if our JWT validation ever has a bug.
 
 **Status:** Tracked. Pick this up after the current profile chunk lands.
+
+---
+
+## 2026-05-18 — Phase 3.1 backend hardening (delete, claim, sweep, rate limit, Sentry) — landed
+
+**What landed in this pass** (one decision entry so the log doesn't fragment per piece):
+
+1. **`is_anonymous` end-to-end.** Server reads the claim from the JWT and surfaces it on `GET /v1/me`. Client `IdentityRepository` stops hardcoding `isAnonymous = true` — the claim-account UI flips off automatically after `linkIdentity` lands.
+2. **DELETE /v1/me.** `SupabaseAdminClient` calls Supabase Admin API first (revokes the JWT immediately so the user can't come back via the same token even if local cleanup fails), then deletes the local profile row. Service-role key is optional — endpoint returns 503 (`delete_not_configured`) when unset.
+3. **Type-to-confirm delete UI.** App Store review explicitly requires non-trivial confirmation for destructive actions; matches on Android. Edit-profile screen was already built but not wired — that wiring landed in the same pass.
+4. **OAuth claim / sign-in.** `IdentityRepository.linkOAuthIdentity(Google|Apple)` and `signInWithOAuth(Google|Apple)`. Both gated behind `IdentityFeatureConfig.{googleSignInEnabled,appleSignInEnabled}` (default false) — UI hides the buttons until the Supabase dashboard's Providers tab has credentials. Flipping the AppConfig flag turns them on without a client release.
+5. **Rate limiting.** IP-based, three buckets: global 600/min, `PATCH /v1/me` 30/hr, `DELETE /v1/me` 5/hr. Per-JWT-subject would be tighter but Ktor's `RateLimit` plugin runs before auth; defer to a future revisit when abuse patterns warrant the plumbing.
+6. **Sentry plumbing.** `io.sentry:sentry` on JVM, init guarded by `SENTRY_DSN` (no-op when unset). One project, two environments (`dev`/`prod`) is the recommended shape — distinct projects per env hurts cross-env grouping.
+7. **Orphan anon sweep.** `POST /v1/admin/sweep-anonymous-users` gated by `X-Admin-Token`. In-process scheduling skipped because Fly's auto-stop makes background timers unreliable; DEPLOY.md walks through the GitHub Actions cron pattern.
+
+**Status:** Landed.
+
+---
+
+## 2026-05-18 — App integrity attestation (Play Integrity / App Attest) — planned, not enforced
+
+**Decision:** Ship V1 with `AppIntegrityVerifier` scaffolding bound to a no-op default — `NoOpAppIntegrityVerifier` returns `NotConfigured` so no route currently enforces it. Real verification (Google Play Integrity on Android, Apple App Attest on iOS) lands before the first invited-real-users release, not before.
+
+**Why not enforce in V1:**
+- Anonymous Supabase users have no PII, no real money, no leaderboard impact. The worst case is a scripted attacker minting throwaway profiles. The rate limiter caps the rate and the orphan sweep cleans them up after 30 days.
+- Real verification requires Google Play Console + Apple Developer setup that's outside the dev environment. Wiring it now without those credentials would mean turning it off everywhere or stubbing — same effect, more friction.
+
+**Why scaffold it now:**
+- The interface defines the request shape (`X-App-Integrity-Token` header) and the outcome type (`Verified` / `Missing` / `Invalid` / `TransientFailure` / `NotConfigured`). Routes that adopt it later branch on this without restructuring.
+- `NoOpAppIntegrityVerifier` is bound via `@ContributesBinding`. Real verifiers swap in with `replaces = [NoOpAppIntegrityVerifier::class]` — no cross-cutting refactor.
+
+**When to enforce:** before public TestFlight / Play Closed Testing. The first protected surface is `/v1/me` get-or-create — that's where the Supabase anon JWT becomes load-bearing for our server. Future surfaces (room create, MP join, chip grants) follow the same pattern.
+
+**Implementation plan (separate session):**
+
+*Android — Play Integrity:*
+1. Add `com.google.android.play:integrity` to the client (Android source set).
+2. On first launch, call `IntegrityManager.requestIntegrityToken(...)` with the project's Google Cloud project number.
+3. Attach the returned token as `X-App-Integrity-Token` on the first `/v1/me` call (and any other gated surfaces).
+4. Server-side: create `PlayIntegrityVerifier` that decrypts + verifies the token via Google's Play Integrity API. Required server secret: a Google service account JSON with Play Integrity API scope, stored as `PLAY_INTEGRITY_CREDENTIALS_JSON`.
+5. Verify: package name matches our app id, app cert hash matches the upload key fingerprint, request hash matches the request we just made.
+
+*iOS — App Attest:*
+1. Client uses `DCAppAttestService` (iOS 14+). Generate key on first launch; persist key id to UserDefaults.
+2. For each protected call, generate an `assertion` over the request body hash + a nonce. Attach as `X-App-Integrity-Token`.
+3. Server-side: `AppAttestVerifier` validates the assertion against Apple's PKI. The first call also includes the `attestation` (one-time per install) to register the key id; subsequent calls only send the assertion.
+4. Server secret: none required — App Attest verification is offline PKI verification. The only setup is whitelisting the Cards bundle id in App Store Connect's App Attest entitlement.
+
+*Server config (when ready):*
+- `PLAY_INTEGRITY_CREDENTIALS_JSON` (multi-line env var or path to a file in Fly volumes).
+- `APP_ATTEST_ENABLED` boolean — separate flag so we can ship Android-first if iOS is delayed.
+- Optional `APP_INTEGRITY_ENFORCED` boolean — when true, missing/invalid tokens hard-fail (403); when false, the verifier still runs but failures only log + Sentry-breadcrumb. Useful for soft-launch.
+
+*Rollout sequence:*
+1. Ship the verifiers in soft-launch (log-only) for one release.
+2. Watch Sentry for false-positive rates. Common gotchas: emulators (Android), TestFlight builds (iOS App Attest's Production vs Sandbox environment).
+3. Flip `APP_INTEGRITY_ENFORCED=true` once the false-positive rate is acceptable.
+4. Hard-fail `/v1/me` first-touch without a valid token.
+
+**Sharp edges to remember:**
+- Don't gate `/_health` (Fly probes), `/v1/app-config` (would brick the kill switch), or the existing rate-limit-already-protected `DELETE /v1/me`.
+- Android emulators can't mint real Play Integrity tokens. Need either a debug bypass (`APP_INTEGRITY_DEBUG_BYPASS_TOKEN=<random>` that the client uses on debug builds) or a soft-launch / log-only mode while QA is on emulators.
+- iOS App Attest has Sandbox vs Production environments — TestFlight is Production, Xcode local builds are Sandbox. The server has to pick the right Apple root cert chain per environment.
+
+**Status:** Planned. Scaffolding (`AppIntegrityVerifier` + `NoOpAppIntegrityVerifier`) landed alongside this entry; enforcement and real verifiers land before first invited release.
