@@ -61,7 +61,7 @@ fun BasicBottomSheet(
                     horizontalArrangement = Arrangement.End
                 ) {
                     IconButton(
-                        icon = Icons.Check("CLose"),
+                        icon = Icons.Close("CLose"),
                         onClick = state::dismiss
                     )
                 }

@@ -16,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -111,11 +110,9 @@ fun PlayingCardBack(
             .size(width = size.width, height = size.height)
             .shadow(shadowElevation(size.width) - 1.dp, RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(PokerPalette.CardBackBlue, PokerPalette.CardBackBlue.copy(alpha = 0.7f)),
-                ),
-            )
+            // Solid (opaque) so the back doesn't reveal whatever is behind it
+            // (table felt, slot well, etc.).
+            .background(PokerPalette.CardBackBlue)
             .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(cornerRadius)),
     )
 }
@@ -131,7 +128,7 @@ fun PlayingCardSlot(
         modifier = modifier
             .size(width = size.width, height = size.height)
             .clip(RoundedCornerShape(cornerRadius))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(cornerRadius)),
+            .background(PokerPalette.CardSlot),
     )
 }
 
@@ -139,15 +136,15 @@ fun PlayingCardSlot(
 
 @Composable
 private fun defaultRankTypography(width: Dp): TypographyResource = when {
-    width >= 90.dp -> AppTheme.typography.Heading.H700
-    width >= 60.dp -> AppTheme.typography.Heading.H600
-    width >= 40.dp -> AppTheme.typography.Body.B600
-    else -> AppTheme.typography.Body.B500
+    width >= 90.dp -> AppTheme.typography.Heading.H1000
+    width >= 60.dp -> AppTheme.typography.Heading.H800
+    width >= 40.dp -> AppTheme.typography.Body.B700
+    else -> AppTheme.typography.Body.B600
 }
 
 @Composable
 private fun defaultSuitTypography(width: Dp): TypographyResource = when {
-    width >= 90.dp -> AppTheme.typography.Heading.H600
+    width >= 90.dp -> AppTheme.typography.Heading.H1000
     width >= 60.dp -> AppTheme.typography.Body.B600
     else -> AppTheme.typography.Body.B500
 }

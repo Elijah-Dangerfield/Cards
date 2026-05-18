@@ -31,4 +31,7 @@ object PokerPalette {
 
     /** Big-blind chip color. Small blind reuses [ChipGold]. */
     val BlindRed: Color = Color(0xFFC42E2E)
+
+    /** Fill for an empty card slot — reads as a card-shaped "well" the next card will land in. */
+    val CardSlot: Color = Color(0x14F4F1E8)
 }

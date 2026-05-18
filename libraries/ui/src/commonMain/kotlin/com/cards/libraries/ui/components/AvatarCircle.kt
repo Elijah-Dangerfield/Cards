@@ -31,6 +31,10 @@ fun AvatarCircle(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     typography: TypographyResource = AppTheme.typography.Body.B600,
+    // Emojis are visually denser than letters at the same point size and read
+    // smaller inside the circle. Default to a larger token so an avatar emoji
+    // feels like the avatar, not a punctuation mark sitting in it.
+    emojiTypography: TypographyResource = AppTheme.typography.Display.D1100,
     emoji: String? = null,
 ) {
     val seed = name.hashCode()
@@ -46,7 +50,7 @@ fun AvatarCircle(
     ) {
         Text(
             text = emoji ?: initial,
-            typography = typography,
+            typography = if (emoji != null) emojiTypography else typography,
             color = AppTheme.colors.text,
         )
     }

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components.poker
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,7 +21,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * doesn't depend on).
  */
 @Composable
-fun LastActionPill(label: String, modifier: Modifier = Modifier) {
+fun LastActionPill(label: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
@@ -28,6 +29,7 @@ fun LastActionPill(label: String, modifier: Modifier = Modifier) {
             // hand-tuned alpha; matches the chip badge / XP badge family so
             // every pill in the app has the same surface temperature.
             .background(AppTheme.colors.surfaceTertiary.color)
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(

@@ -309,3 +309,20 @@ object BottomBarSizes {
     val BottomBarVerticalHeight: Dp =
         TopPadding + BottomPadding + _IconSize.dp
 }
+
+/**
+ * Reserves bottom space equal to the app's [AppBottomBar] resting height so
+ * trailing content (footer text, last CTA) stays visible regardless of whether
+ * the bar is animating in or out.
+ *
+ * Use as the last child of a scrolling Column on tab screens (Home, Shop,
+ * Profile). Non-tab screens hide the bar entirely and shouldn't reserve it.
+ *
+ * A constant reservation (rather than reading live `paddingValues`) keeps
+ * scroll position stable while the bar animates — content doesn't reflow as
+ * the bar slides on or off screen.
+ */
+@Composable
+fun BottomBarSpacer() {
+    Spacer(modifier = Modifier.height(BottomBarSizes.BottomBarVerticalHeight))
+}

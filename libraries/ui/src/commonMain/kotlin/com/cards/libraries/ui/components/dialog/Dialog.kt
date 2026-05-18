@@ -15,11 +15,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.layout.layout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -64,13 +64,6 @@ fun Dialog(
     animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
     scrimColor: Color = ModalDialogDefaults.scrimColor(),
     contentAlignment: Alignment = Alignment.Center,
-    /**
-     * Cap the dialog's height to a fraction of available screen height. Pass
-     * a value in (0f, 1f] to enable scrolling for tall content — the caller's
-     * content must use `verticalScroll` to actually scroll. Null (default)
-     * keeps the historical wrap-content behavior for short dialogs.
-     */
-    maxHeightFraction: Float? = null,
     content: @Composable () -> Unit = {},
 ) {
     HostedDialog(
@@ -82,17 +75,21 @@ fun Dialog(
         scrimColor = scrimColor,
         contentAlignment = contentAlignment
     ) {
-        val sizeModifier = if (maxHeightFraction != null) {
-            Modifier
-                .fillMaxWidth(0.8f)
-                .fillMaxHeight(maxHeightFraction.coerceIn(0.1f, 1f))
-        } else {
-            Modifier
-                .fillMaxWidth(0.8f)
-                .animateContentSize()
+        // Hard ceiling at 92% of screen height so tall content (long
+        // achievement lists, multi-seat showdowns) is reachable via
+        // `verticalScroll` instead of running off the bottom. Short content
+        // ignores the cap and sits at its natural size.
+        val capModifier = Modifier.layout { measurable, constraints ->
+            val cap = (constraints.maxHeight * 0.92f).toInt()
+            val capped = constraints.copy(maxHeight = cap)
+            val placeable = measurable.measure(capped)
+            layout(placeable.width, placeable.height) { placeable.place(0, 0) }
         }
         Box(
-            modifier = sizeModifier
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .then(capModifier)
+                .animateContentSize()
                 .clipToBounds()
                 .background(AppTheme.colors.surfacePrimary.color, shape = Radii.Card.shape),
             contentAlignment = Alignment.Center

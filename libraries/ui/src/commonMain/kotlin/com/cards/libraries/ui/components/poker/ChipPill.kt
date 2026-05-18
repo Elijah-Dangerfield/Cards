@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components.poker
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,12 +25,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * non-wrapping line so a deep all-in stack can't blow the pill width out.
  */
 @Composable
-fun ChipPill(amount: Long, modifier: Modifier = Modifier) {
+fun ChipPill(amount: Long, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(50))
             .background(PokerPalette.ChipGold)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Text(
             text = formatCompactChips(amount),

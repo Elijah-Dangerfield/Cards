@@ -43,34 +43,34 @@ fun FeatureCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(
                 Brush.horizontalGradient(
                     colors = listOf(accent.copy(alpha = 0.95f), accent.copy(alpha = 0.7f)),
                 ),
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 22.dp, vertical = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(52.dp)
+                .clip(RoundedCornerShape(16.dp))
                 .background(Color.White.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = glyph,
-                typography = AppTheme.typography.Heading.H600,
+                typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.text,
             )
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(18.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                typography = AppTheme.typography.Body.B600,
+                typography = AppTheme.typography.Heading.H500,
                 color = AppTheme.colors.text,
             )
             Spacer(modifier = Modifier.height(2.dp))

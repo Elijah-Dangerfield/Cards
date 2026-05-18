@@ -62,10 +62,11 @@ fun XpBadge(
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = "${formatThousands(xp)} XP",
+        AnimatedNumberText(
+            value = xp,
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
+            formatter = { "${formatThousands(it)} XP" },
         )
     }
 }

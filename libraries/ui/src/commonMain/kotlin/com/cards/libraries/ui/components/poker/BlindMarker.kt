@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components.poker
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -29,25 +30,58 @@ fun BlindMarker(
     isSmallBlind: Boolean,
     isBigBlind: Boolean,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
-    val (label, bg) = when {
-        isDealer -> "D" to PokerPalette.DealerWhite
-        isSmallBlind -> "SB" to PokerPalette.ChipGold
-        isBigBlind -> "BB" to PokerPalette.BlindRed
-        else -> null to null
+    val role = when {
+        isDealer -> Triple("D", PokerPalette.DealerWhite, AppTheme.colors.background)
+        isSmallBlind -> Triple("SB", PokerPalette.ChipGold, AppTheme.colors.background)
+        // White-on-red for the BB — black-on-red is too low contrast against
+        // the dark red background to read at this size.
+        isBigBlind -> Triple("BB", PokerPalette.BlindRed, AppTheme.colors.text)
+        else -> null
+    } ?: return
+    val (label, bg, fg) = role
+    // When clickable, the layout outer size grows to give the touch target
+    // some room past the visible chip. Sized just generously enough to
+    // distinguish "tap the marker" from "tap the avatar" or "tap the stack
+    // number below" — going much bigger started claiming half the avatar's
+    // tap zone and crowded the stack text below.
+    if (onClick != null) {
+        // Outer Box is intentionally NOT clipped — clipping it to a circle
+        // would crop the inner chip (anchored at BottomEnd) wherever it pokes
+        // past the circle's curve.
+        Box(
+            modifier = modifier
+                .size(32.dp)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.BottomEnd,
+        ) {
+            MarkerChip(label = label, bg = bg, fg = fg)
+        }
+    } else {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            MarkerChip(label = label, bg = bg, fg = fg)
+        }
     }
-    if (label == null || bg == null) return
+}
+
+@Composable
+private fun MarkerChip(
+    label: String,
+    bg: androidx.compose.ui.graphics.Color,
+    fg: com.dangerfield.cards.libraries.ui.system.color.ColorResource,
+) {
     Box(
-        modifier = modifier
-            .size(18.dp)
+        modifier = Modifier
+            .size(22.dp)
             .clip(CircleShape)
             .background(bg),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.background,
+            typography = AppTheme.typography.Label.L500,
+            color = fg,
         )
     }
 }

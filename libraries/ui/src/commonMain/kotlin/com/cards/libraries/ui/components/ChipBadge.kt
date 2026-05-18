@@ -48,10 +48,11 @@ fun ChipBadge(
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = formatThousands(amount),
+        AnimatedNumberText(
+            value = amount,
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
+            formatter = { formatThousands(it) },
         )
     }
 }
