@@ -2,22 +2,16 @@ package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 
 @Composable
@@ -34,19 +28,9 @@ fun ChipBadge(
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        Box(
-            modifier = Modifier
-                .size(18.dp)
-                .clip(CircleShape)
-                .background(PokerPalette.ChipGold),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "$",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.background,
-            )
-        }
+        // Use the canonical chip-coin primitive so this badge stays in lockstep
+        // with every other "this is chips" treatment across the app.
+        ChipCoin()
         Spacer(modifier = Modifier.width(8.dp))
         AnimatedNumberText(
             value = amount,
