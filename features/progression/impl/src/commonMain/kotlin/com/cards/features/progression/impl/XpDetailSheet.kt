@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,52 +36,59 @@ import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun XpDetailSheetContent(
+fun XpDetailSheet(
     state: XpDetailState,
+    onBack: () -> Unit,
     onSeeAllAchievements: () -> Unit = {},
-    modifier: Modifier = Modifier,
 ) {
     val levelProgress = remember(state.progression.totalXp) {
         levelProgressFor(state.progression.totalXp)
     }
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-    ) {
-        XpHero(progress = levelProgress)
-        Spacer(modifier = Modifier.height(24.dp))
-
-        LifetimeStatsGrid(progression = state.progression)
-        Spacer(modifier = Modifier.height(24.dp))
-
-        AchievementsHighlights(
-            progress = state.achievements,
-            onSeeAll = onSeeAllAchievements,
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-
-        if (state.recentEvents.isNotEmpty()) {
-            SectionTitle("Recent XP")
-            Spacer(modifier = Modifier.height(8.dp))
-            RecentEventsList(events = state.recentEvents)
+    Screen(
+        topBar = { DetailTopBar(title = "XP", onBack = onBack) },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            XpHero(progress = levelProgress)
             Spacer(modifier = Modifier.height(24.dp))
+
+            LifetimeStatsGrid(progression = state.progression)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            AchievementsHighlights(
+                progress = state.achievements,
+                onSeeAll = onSeeAllAchievements,
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (state.recentEvents.isNotEmpty()) {
+                SectionTitle("Recent XP")
+                Spacer(modifier = Modifier.height(8.dp))
+                RecentEventsList(events = state.recentEvents)
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            SectionTitle("How you earn XP")
+            Spacer(modifier = Modifier.height(8.dp))
+            HowToEarn()
+            Spacer(modifier = Modifier.height(24.dp))
+
+            SectionTitle("What XP does for you")
+            Spacer(modifier = Modifier.height(8.dp))
+            WhatXpDoes()
+            Spacer(modifier = Modifier.height(8.dp))
         }
-
-        SectionTitle("How you earn XP")
-        Spacer(modifier = Modifier.height(8.dp))
-        HowToEarn()
-        Spacer(modifier = Modifier.height(24.dp))
-
-        SectionTitle("What XP does for you")
-        Spacer(modifier = Modifier.height(8.dp))
-        WhatXpDoes()
-        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -137,7 +145,7 @@ private fun LevelProgressBar(progress: LevelProgress) {
             .fillMaxWidth()
             .height(10.dp)
             .clip(RoundedCornerShape(50))
-            .background(AppTheme.colors.surfaceSecondary.color),
+            .background(AppTheme.colors.surfacePrimary.color),
     ) {
         Box(
             modifier = Modifier
@@ -192,7 +200,7 @@ private fun StatTile(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Text(
@@ -215,7 +223,7 @@ private fun RecentEventsList(events: List<XpEvent>) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AppTheme.colors.surfaceSecondary.color),
+            .background(AppTheme.colors.surfacePrimary.color),
     ) {
         events.forEachIndexed { index, event ->
             EventRow(event)
@@ -358,7 +366,7 @@ private fun AchievementsHighlights(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(50))
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfacePrimary.color)
                 .clickable(onClick = onSeeAll)
                 .padding(vertical = 12.dp),
             contentAlignment = Alignment.Center,
@@ -378,7 +386,7 @@ private fun InfoCard(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -439,20 +447,20 @@ private fun formatThousands(value: Long): String {
 
 @Preview
 @Composable
-private fun XpDetailSheetContent_Empty() {
+private fun XpDetailSheet_Empty() {
     PreviewContent {
-        XpDetailSheetContent(
+        XpDetailSheet(
             state = XpDetailState(isLoading = false),
-            modifier = Modifier.padding(20.dp),
+            onBack = {},
         )
     }
 }
 
 @Preview
 @Composable
-private fun XpDetailSheetContent_Populated() {
+private fun XpDetailSheet_Populated() {
     PreviewContent {
-        XpDetailSheetContent(
+        XpDetailSheet(
             state = XpDetailState(
                 isLoading = false,
                 progression = Progression(
@@ -471,7 +479,7 @@ private fun XpDetailSheetContent_Populated() {
                     XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                 ),
             ),
-            modifier = Modifier.padding(20.dp),
+            onBack = {},
         )
     }
 }

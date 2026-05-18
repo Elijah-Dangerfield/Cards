@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,37 +24,44 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun RankDetailSheetContent(
+fun RankDetailSheet(
     state: RankDetailState,
+    onBack: () -> Unit,
     onClaimAccount: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-    ) {
-        RankHero(rank = state.rank, isAnonymous = state.isAnonymous)
-        Spacer(modifier = Modifier.height(24.dp))
+    Screen(
+        topBar = { DetailTopBar(title = "Rank", onBack = onBack) },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            RankHero(rank = state.rank, isAnonymous = state.isAnonymous)
+            Spacer(modifier = Modifier.height(24.dp))
 
-        SectionTitle("How rank works")
-        Spacer(modifier = Modifier.height(8.dp))
-        HowRankWorks()
-        Spacer(modifier = Modifier.height(24.dp))
+            SectionTitle("How rank works")
+            Spacer(modifier = Modifier.height(8.dp))
+            HowRankWorks()
+            Spacer(modifier = Modifier.height(24.dp))
 
-        if (state.isAnonymous) {
-            ClaimAccountCard(onClick = onClaimAccount)
-            Spacer(modifier = Modifier.height(8.dp))
-        } else {
-            SectionTitle("Where you'll see it")
-            Spacer(modifier = Modifier.height(8.dp))
-            WhereYouSeeIt()
-            Spacer(modifier = Modifier.height(8.dp))
+            if (state.isAnonymous) {
+                ClaimAccountCard(onClick = onClaimAccount)
+                Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                SectionTitle("Where you'll see it")
+                Spacer(modifier = Modifier.height(8.dp))
+                WhereYouSeeIt()
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
     }
 }
@@ -201,24 +209,24 @@ private fun SectionTitle(text: String) {
 
 @Preview
 @Composable
-private fun RankDetailSheetContent_Anonymous() {
+private fun RankDetailSheet_Anonymous() {
     PreviewContent {
-        RankDetailSheetContent(
+        RankDetailSheet(
             state = RankDetailState(isAnonymous = true, rank = 0),
+            onBack = {},
             onClaimAccount = {},
-            modifier = Modifier.padding(20.dp),
         )
     }
 }
 
 @Preview
 @Composable
-private fun RankDetailSheetContent_Claimed() {
+private fun RankDetailSheet_Claimed() {
     PreviewContent {
-        RankDetailSheetContent(
+        RankDetailSheet(
             state = RankDetailState(isAnonymous = false, rank = 1200),
+            onBack = {},
             onClaimAccount = {},
-            modifier = Modifier.padding(20.dp),
         )
     }
 }

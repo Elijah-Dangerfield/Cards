@@ -12,40 +12,49 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun AchievementsScreenContent(
+fun AchievementsScreen(
     state: AchievementsState,
-    modifier: Modifier = Modifier,
+    onBack: () -> Unit,
 ) {
     val earned = state.progress.earned.size
     val total = AllAchievements.size
 
-    Column(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = "$earned of $total earned",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+    Screen(
+        topBar = { DetailTopBar(title = "Achievements", onBack = onBack) },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp),
         ) {
-            items(AllAchievements, key = { it.id }) { achievement ->
-                AchievementMedallion(
-                    achievement = achievement,
-                    earnedAtEpochMs = state.progress.earned[achievement.id],
-                    progress = state.progress.counters[achievement.id] ?: 0,
-                )
+            Text(
+                text = "$earned of $total earned",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.textSecondary,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(AllAchievements, key = { it.id }) { achievement ->
+                    AchievementMedallion(
+                        achievement = achievement,
+                        earnedAtEpochMs = state.progress.earned[achievement.id],
+                        progress = state.progress.counters[achievement.id] ?: 0,
+                    )
+                }
             }
         }
     }
@@ -53,9 +62,9 @@ fun AchievementsScreenContent(
 
 @Preview
 @Composable
-private fun AchievementsScreenContentPreview() {
+private fun AchievementsScreenPreview() {
     PreviewContent {
-        AchievementsScreenContent(
+        AchievementsScreen(
             state = AchievementsState(
                 isLoading = false,
                 progress = AchievementProgress(
@@ -69,7 +78,7 @@ private fun AchievementsScreenContentPreview() {
                     customCounters = emptyMap(),
                 ),
             ),
-            modifier = Modifier.padding(16.dp),
+            onBack = {},
         )
     }
 }

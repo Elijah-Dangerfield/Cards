@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.gameplay
 
+import com.dangerfield.cards.libraries.core.logging.KLog
 import kotlin.random.Random
 
 data class StepResult(
@@ -8,6 +9,8 @@ data class StepResult(
 )
 
 object GameEngine {
+
+    private val logger = KLog.withTag("GameEngine")
 
     fun startHand(
         settings: RoomSettings,
@@ -90,6 +93,12 @@ object GameEngine {
 
         events += GameEvent.StreetAdvanced(++seq, BettingRound.Preflop, emptyList())
 
+        logger.d {
+            "startHand hand=$handNumber button=$buttonSeatIndex " +
+                "sb=seat${sbSeat.index}/$sbAmount bb=seat${bbSeat.index}/$bbAmount " +
+                "stacks=[${seatList.joinToString { "s${it.index}=${it.stack}" }}]"
+        }
+
         return StepResult(state.copy(lastSequence = seq), events)
     }
 
@@ -117,6 +126,14 @@ object GameEngine {
             action = action,
             resultingStreetContribution = newSeat.contributedThisStreet,
         )
+
+        logger.d {
+            "applyIntent hand=${state.handNumber} street=${state.street} seq=$seq " +
+                "seat=${seat.index} action=$action " +
+                "stack=${seat.stack}->${newSeat.stack} " +
+                "contributedHand=${seat.contributedThisHand}->${newSeat.contributedThisHand} " +
+                "currentBet=$currentBet"
+        }
 
         when (action) {
             is PlayerAction.Bet -> {
@@ -423,6 +440,12 @@ object GameEngine {
             board = state.community,
             revealedHoleCards = emptyMap(),
         )
+
+        logger.d {
+            "awardPotByFold hand=${state.handNumber} winner=seat${winner.index} " +
+                "amount=$totalAmount stack=${winner.stack}->${winner.stack + totalAmount} " +
+                "contributions=[${state.seats.joinToString { "s${it.index}=${it.contributedThisHand}" }}]"
+        }
         return Triple(
             state.copy(
                 seats = updatedSeats,
@@ -452,6 +475,12 @@ object GameEngine {
                 seat.index to HandEvaluator.evaluate(seat.holeCards + state.community)
             }
 
+        logger.d {
+            "runShowdown hand=${state.handNumber} board=${state.community} " +
+                "pots=[${pots.joinToString { "p${it.amount}/elig=${it.eligibleSeatIndexes}" }}] " +
+                "ranks=[${ranks.entries.joinToString { "s${it.key}=${it.value.category}" }}]"
+        }
+
         val winners = mutableListOf<HandWinner>()
         var seatsAfterAwards = state.seats
         pots.forEachIndexed { potIndex, pot ->
@@ -470,6 +499,7 @@ object GameEngine {
             for ((i, w) in ordered.withIndex()) {
                 val extra = if (i < remainder) 1L else 0L
                 val award = share + extra
+                val stackBefore = seatsAfterAwards.first { it.index == w.index }.stack
                 seatsAfterAwards = seatsAfterAwards.map {
                     if (it.index == w.index) it.copy(stack = it.stack + award) else it
                 }
@@ -481,6 +511,12 @@ object GameEngine {
                     withCategory = ranks[w.index]?.category,
                 )
                 winners += HandWinner(w.index, award, ranks[w.index], byFold = false)
+                logger.d {
+                    "potAwarded hand=${state.handNumber} pot=$potIndex/${pot.amount} " +
+                        "winner=seat${w.index} amount=$award " +
+                        "stack=$stackBefore->${stackBefore + award} " +
+                        "category=${ranks[w.index]?.category} tied=${tied.size}"
+                }
             }
         }
 
