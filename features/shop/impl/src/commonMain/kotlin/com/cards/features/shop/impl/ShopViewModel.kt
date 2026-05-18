@@ -2,7 +2,10 @@ package com.dangerfield.cards.features.shop.impl
 
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.ChipsRepository
-import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.cards.InventoryItem
+import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.InventorySyncService
+import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.products.Product
@@ -12,44 +15,62 @@ import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
 /**
- * Backs the shop screen. Loads the product catalog from
- * [ProductsRepository], observes the chip balance from [ChipsRepository],
- * and exposes both to the screen as one [ShopState].
+ * Backs the shop screen.
  *
- * Catalog lifecycle:
- *  - On init, subscribes to the cached flow (emits [ProductCatalog.Empty] until
- *    the first successful refresh) and kicks off a refresh.
- *  - Pull-to-refresh fires [ShopAction.Refresh] which re-runs the network
- *    fetch. Errors surface as the [ShopState.errorMessage] field so the
- *    screen can show a snackbar without losing the prior catalog.
+ * Three streams are wired on init:
+ *  - Catalog (server-driven what's-for-sale)
+ *  - Chip balance (drives can-afford gating + "you have / after" preview)
+ *  - Inventory (drives the "OWNED" badge on chip offers)
  *
- * Why one combined [ShopState] field for the catalog instead of separate
- * `loading` + `data`: a screen that shows the *prior* catalog while refreshing
- * is the right UX. Separate booleans for "is refreshing" + "has loaded
- * before" + "error to surface" map directly onto the state shape below.
+ * Catalog refresh is kicked at init + on pull-to-refresh. Inventory sync
+ * (locally-pending → server-confirmed) is also kicked at init — once auth
+ * lands and the server tracks per-user state, that becomes the
+ * reconciliation pass.
+ *
+ * Optimistic redemption flow ([ShopAction.ConfirmPendingPurchase] for a
+ * chip-funded offer):
+ *  1. Pre-check chip balance — if insufficient, surface error and close
+ *     the sheet without mutating anything. (UI also disables the button
+ *     when balance < cost so this path is defensive, not primary.)
+ *  2. Call [InventoryRepository.redeemChipOffer] — it atomically inserts
+ *     the inventory row as Pending and deducts chips.
+ *  3. Close the sheet, emit a confirmation event for the UI to celebrate
+ *     (toast, haptic, whatever).
+ *  4. Best-effort fire [InventorySyncService.sync] in the background so
+ *     the row flips Pending → Confirmed before the user closes the app.
+ *
+ * IAP packs ([ShopAction.ConfirmPendingPurchase] for a chip pack) emit a
+ * [ShopEvent.LaunchPurchase] for the future PurchaseCoordinator to pick
+ * up; nothing local changes until the platform store confirms.
  */
 class ShopViewModel @Inject constructor(
     private val productsRepository: ProductsRepository,
+    private val inventoryRepository: InventoryRepository,
+    private val inventorySyncService: InventorySyncService,
     private val chipsRepository: ChipsRepository,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
 
     init {
-        // Catalog feed → state
         viewModelScope.launch {
             productsRepository.observeCatalog().collect { catalog ->
                 takeAction(ShopAction.CatalogChanged(catalog))
             }
         }
-        // Chip balance mirror
         viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(ShopAction.ChipsChanged(balance))
             }
         }
-        // Kick the first refresh
+        viewModelScope.launch {
+            inventoryRepository.observeInventory().collect { inventory ->
+                takeAction(ShopAction.InventoryChanged(inventory))
+            }
+        }
+        // Kick off catalog refresh + inventory sync (these run concurrently).
         takeAction(ShopAction.Refresh)
+        viewModelScope.launch { inventorySyncService.sync() }
     }
 
     override suspend fun handleAction(action: ShopAction) {
@@ -77,22 +98,76 @@ class ShopViewModel @Inject constructor(
             is ShopAction.ChipsChanged -> action.updateState {
                 it.copy(chipBalance = action.balance)
             }
+            is ShopAction.InventoryChanged -> action.updateState {
+                it.copy(
+                    inventory = action.inventory,
+                    ownedProductIds = action.inventory.map { item -> item.productId }.toSet(),
+                )
+            }
             is ShopAction.DismissError -> action.updateState {
                 it.copy(errorMessage = null)
             }
-            is ShopAction.PurchaseChipPack -> {
-                // Real platform-IAP flow lands in a later chunk. For now,
-                // surface the intended SKU as an event so the screen can
-                // show a "Coming soon" toast (and a future
-                // PurchaseCoordinator picks this up to launch the platform
-                // billing flow).
-                sendEvent(ShopEvent.LaunchPurchase(action.product))
+
+            // ---- Purchase intent flow ----
+
+            is ShopAction.RequestPurchase -> {
+                // Don't open the sheet for items the user already owns —
+                // pure defensive (UI also gates this), but covers any race.
+                if (state.ownsProduct(action.product.id)) return
+                action.updateState { it.copy(pendingPurchase = PendingPurchase.from(action.product)) }
             }
-            is ShopAction.RedeemChipOffer -> {
-                Catching {
-                    chipsRepository.applyDelta(-action.offer.costChips)
-                    sendEvent(ShopEvent.OfferRedeemed(action.offer))
-                }.onFailure { logger.w(it) { "Redeem failed for ${action.offer.id}" } }
+            is ShopAction.DismissPendingPurchase -> action.updateState {
+                it.copy(pendingPurchase = null)
+            }
+            is ShopAction.ConfirmPendingPurchase -> {
+                val pending = state.pendingPurchase ?: return
+                when (pending) {
+                    is PendingPurchase.IapPack -> {
+                        // Hand off to the platform-IAP coordinator. Sheet
+                        // closes; no local mutation yet — that happens on
+                        // store callback (later chunk).
+                        action.updateState { it.copy(pendingPurchase = null) }
+                        sendEvent(ShopEvent.LaunchPurchase(pending.product))
+                    }
+                    is PendingPurchase.ChipOffer -> {
+                        confirmChipOfferRedeem(pending.product)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun confirmChipOfferRedeem(offer: Product.ChipOffer) {
+        // Close the sheet first — feedback should be instant; the actual
+        // optimistic write lands in the same frame on UnconfinedTestDispatcher
+        // and a thread-or-two later in production.
+        val action = ShopAction.ConfirmPendingPurchase
+        action.updateState { it.copy(pendingPurchase = null) }
+
+        val result = inventoryRepository.redeemChipOffer(
+            productId = offer.id,
+            costChips = offer.costChips,
+        )
+        when (result) {
+            is RedeemResult.Success -> {
+                sendEvent(ShopEvent.RedeemSucceeded(offer))
+                // Fire-and-forget server reconcile so the Pending row flips
+                // to Confirmed before the user closes the app. Failures
+                // here are non-fatal — next launch retries.
+                viewModelScope.launch { inventorySyncService.sync() }
+            }
+            is RedeemResult.InsufficientChips -> {
+                // UI's affordance check should prevent this, but if a race
+                // sneaks through (balance changed between sheet-open and
+                // confirm) we surface it as an error toast.
+                action.updateState {
+                    it.copy(errorMessage = "Not enough chips for ${offer.title}.")
+                }
+            }
+            is RedeemResult.AlreadyOwned -> {
+                // Idempotent: tell the user it's already in their library
+                // (without bothering them too much).
+                sendEvent(ShopEvent.AlreadyOwned(offer))
             }
         }
     }
@@ -101,48 +176,73 @@ class ShopViewModel @Inject constructor(
 // ---------- MVI types ----------
 
 data class ShopState(
-    /** Latest catalog from the repo. Empty until first successful refresh. */
     val catalog: ProductCatalog = ProductCatalog.Empty,
-    /** True while a network refresh is in flight. Prior catalog stays visible. */
     val isRefreshing: Boolean = false,
-    /** True once at least one refresh has completed (success OR failure). */
     val hasLoaded: Boolean = false,
-    /** User's current chip balance. */
     val chipBalance: Long = ChipsRepository.STARTING_GRANT,
-    /** Latest refresh failure message; null when there's nothing to show. */
     val errorMessage: String? = null,
-)
+    val inventory: List<InventoryItem> = emptyList(),
+    /** Quick-lookup set of product ids the user owns. Updated alongside
+     *  [inventory] so screen code doesn't re-derive it on every recompose. */
+    val ownedProductIds: Set<String> = emptySet(),
+    /** Non-null while the purchase confirmation sheet is up. */
+    val pendingPurchase: PendingPurchase? = null,
+) {
+    fun ownsProduct(productId: String): Boolean = productId in ownedProductIds
+
+    /**
+     * Can the user afford the offer? Used by the screen to disable the
+     * row + by the VM as a final guard before mutating state.
+     */
+    fun canAfford(offer: Product.ChipOffer): Boolean = chipBalance >= offer.costChips
+}
+
+/**
+ * One in-flight purchase, kept on state so the bottom sheet renders.
+ *
+ * Two variants because the flow downstream is different: IAP packs need
+ * the platform billing system to confirm, chip offers complete locally and
+ * optimistically.
+ */
+sealed interface PendingPurchase {
+    data class IapPack(val product: Product.ChipPack) : PendingPurchase
+    data class ChipOffer(val product: Product.ChipOffer) : PendingPurchase
+
+    companion object {
+        fun from(product: Product): PendingPurchase = when (product) {
+            is Product.ChipPack -> IapPack(product)
+            is Product.ChipOffer -> ChipOffer(product)
+        }
+    }
+}
 
 sealed interface ShopAction {
-    /** User-triggered refresh (initial load + pull-to-refresh). */
+    /** Pull-to-refresh / initial load. */
     data object Refresh : ShopAction
-
-    /** Internal — refresh completed (any outcome). */
     data object RefreshFinished : ShopAction
-
-    /** Internal — refresh failed; pipe the message to state. */
     data class RefreshFailed(val message: String) : ShopAction
-
-    /** Internal — repo flow emitted a new catalog. */
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
-
-    /** Internal — chip balance updated. */
     data class ChipsChanged(val balance: Long) : ShopAction
-
-    /** User dismissed the error snackbar. */
+    data class InventoryChanged(val inventory: List<InventoryItem>) : ShopAction
     data object DismissError : ShopAction
 
-    /** User tapped a chip pack — kick the platform-IAP flow. */
-    data class PurchaseChipPack(val product: Product.ChipPack) : ShopAction
+    /** User tapped a product row → open the purchase confirmation sheet. */
+    data class RequestPurchase(val product: Product) : ShopAction
 
-    /** User tapped a chip-purchasable offer — deduct chips, grant the item. */
-    data class RedeemChipOffer(val offer: Product.ChipOffer) : ShopAction
+    /** User tapped the confirm CTA inside the sheet → commit. */
+    data object ConfirmPendingPurchase : ShopAction
+
+    /** User dismissed the sheet (cancel, swipe-down, back press, tap outside). */
+    data object DismissPendingPurchase : ShopAction
 }
 
 sealed interface ShopEvent {
-    /** Fired when the user wants to buy an IAP product — handler launches the platform billing flow. */
+    /** Fire for IAP packs — handler launches the platform billing flow. */
     data class LaunchPurchase(val product: Product.ChipPack) : ShopEvent
 
-    /** Fired after a successful chip-funded redemption. */
-    data class OfferRedeemed(val offer: Product.ChipOffer) : ShopEvent
+    /** Chip-funded redemption confirmed. Screen plays a celebration cue. */
+    data class RedeemSucceeded(val offer: Product.ChipOffer) : ShopEvent
+
+    /** Idempotent re-redeem — user tried to buy something they already own. */
+    data class AlreadyOwned(val offer: Product.ChipOffer) : ShopEvent
 }

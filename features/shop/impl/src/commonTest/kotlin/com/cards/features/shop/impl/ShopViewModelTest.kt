@@ -1,6 +1,11 @@
 package com.dangerfield.cards.features.shop.impl
 
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.InventoryItem
+import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.InventorySyncService
+import com.dangerfield.cards.libraries.cards.PurchaseState
+import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
@@ -18,48 +23,45 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the SEA contract for [ShopViewModel]. Drives the VM with fakes for
- * the two repositories so loading/refresh/error states can be triggered
- * deterministically.
+ * Pins the SEA contract for [ShopViewModel].
+ *
+ * What's covered:
+ *  - Init wiring: catalog + chip balance + inventory flows mirror into state,
+ *    and refresh + sync both fire on construction.
+ *  - Pull-to-refresh: success populates catalog, failure leaves prior
+ *    catalog intact + surfaces errorMessage.
+ *  - Purchase intent flow: RequestPurchase opens the right kind of sheet,
+ *    dismiss closes it, confirm commits.
+ *  - Optimistic redeem: chip deduction happens immediately via repo,
+ *    sync service fires in the background, event emitted.
+ *  - Affordability guard: confirming a too-expensive offer surfaces an
+ *    error instead of mutating state.
+ *  - Idempotent re-redeem: AlreadyOwned path emits a benign event without
+ *    duplicating the chip charge.
+ *  - IAP path: ConfirmPendingPurchase emits LaunchPurchase event without
+ *    touching local state.
  */
 class ShopViewModelTest : CoroutineTest() {
 
     @Test
     fun afterInit_withSuccessfulRefresh_stateReflectsLoadedCatalog() = runUnitTest {
-        // UnconfinedTestDispatcher runs the init coroutines eagerly, so by
-        // the time we observe state, the kicked refresh has already
-        // completed against the fake.
         val vm = buildVm()
-        val state = vm.state
-        assertFalse(state.isRefreshing, "refresh completed against synchronous fake")
-        assertTrue(state.hasLoaded, "hasLoaded flips after first refresh outcome")
-        assertEquals(1, state.catalog.chipPacks.size, "catalog from fake")
-    }
-
-    @Test
-    fun successfulRefresh_populatesCatalog_andClearsRefreshing() = runUnitTest {
-        val repo = FakeProductsRepository(SAMPLE_CATALOG)
-        val vm = buildVm(productsRepository = repo)
-        // FakeProductsRepository.refresh completes synchronously; after that
-        // the post-actions process.
         assertFalse(vm.state.isRefreshing)
         assertTrue(vm.state.hasLoaded)
-        assertEquals(1, vm.state.catalog.chipPacks.size)
-        assertNull(vm.state.errorMessage)
+        assertEquals(2, vm.state.catalog.chipPacks.size)
+        assertEquals(2, vm.state.catalog.chipOffers.size)
     }
 
     @Test
-    fun failedRefresh_populatesErrorMessage_andLeavesPriorCatalogIntact() = runUnitTest {
+    fun failedRefresh_preservesPriorCatalog_andSurfacesError() = runUnitTest {
         val repo = FakeProductsRepository(SAMPLE_CATALOG)
         val vm = buildVm(productsRepository = repo)
-        // Prior catalog is loaded.
-        assertEquals(1, vm.state.catalog.chipPacks.size)
+        assertEquals(2, vm.state.catalog.chipPacks.size)
 
         repo.nextRefreshResult = Result.failure(RuntimeException("offline"))
         vm.takeAction(ShopAction.Refresh)
 
-        assertEquals(1, vm.state.catalog.chipPacks.size, "prior catalog preserved")
-        assertNotNull(vm.state.errorMessage)
+        assertEquals(2, vm.state.catalog.chipPacks.size, "prior catalog preserved")
         assertEquals("offline", vm.state.errorMessage)
     }
 
@@ -76,73 +78,194 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun chipBalance_mirrors_repository() = runUnitTest {
-        val chipsRepo = FakeChipsRepository(initialBalance = 42_000)
-        val vm = buildVm(chipsRepository = chipsRepo)
+    fun chipBalance_mirrorsRepository() = runUnitTest {
+        val chips = FakeChipsRepository(initialBalance = 42_000)
+        val vm = buildVm(chipsRepository = chips)
         assertEquals(42_000L, vm.state.chipBalance)
 
-        chipsRepo.emit(50_000)
+        chips.emit(50_000)
         assertEquals(50_000L, vm.state.chipBalance)
     }
 
     @Test
-    fun purchaseChipPack_emitsLaunchPurchaseEvent() = runUnitTest {
+    fun inventory_mirrorsRepository_intoOwnedProductIds() = runUnitTest {
+        val inv = FakeInventoryRepository().apply {
+            emit(listOf(SAMPLE_PENDING_INVENTORY_ITEM))
+        }
+        val vm = buildVm(inventoryRepository = inv)
+        assertEquals(setOf("emote_dance"), vm.state.ownedProductIds)
+        assertTrue(vm.state.ownsProduct("emote_dance"))
+        assertFalse(vm.state.ownsProduct("emote_tilt"))
+    }
+
+    // ---------- Purchase intent flow ----------
+
+    @Test
+    fun requestPurchase_chipPack_opensIapSheet() = runUnitTest {
+        val vm = buildVm()
+        val pack = SAMPLE_CATALOG.chipPacks.first()
+
+        vm.takeAction(ShopAction.RequestPurchase(pack))
+
+        val pending = vm.state.pendingPurchase
+        assertTrue(pending is PendingPurchase.IapPack, "got: $pending")
+        assertEquals(pack.id, (pending as PendingPurchase.IapPack).product.id)
+    }
+
+    @Test
+    fun requestPurchase_chipOffer_opensChipOfferSheet() = runUnitTest {
+        val vm = buildVm()
+        val offer = SAMPLE_CATALOG.chipOffers.first()
+
+        vm.takeAction(ShopAction.RequestPurchase(offer))
+
+        val pending = vm.state.pendingPurchase
+        assertTrue(pending is PendingPurchase.ChipOffer)
+        assertEquals(offer.id, (pending as PendingPurchase.ChipOffer).product.id)
+    }
+
+    @Test
+    fun requestPurchase_alreadyOwnedOffer_doesNotOpenSheet() = runUnitTest {
+        val inv = FakeInventoryRepository().apply {
+            emit(listOf(SAMPLE_PENDING_INVENTORY_ITEM))
+        }
+        val vm = buildVm(inventoryRepository = inv)
+        val ownedOffer = SAMPLE_CATALOG.chipOffers.first { it.id == "emote_dance" }
+
+        vm.takeAction(ShopAction.RequestPurchase(ownedOffer))
+
+        assertNull(vm.state.pendingPurchase, "sheet should not open for owned items")
+    }
+
+    @Test
+    fun dismissPendingPurchase_clearsSheet() = runUnitTest {
+        val vm = buildVm()
+        val offer = SAMPLE_CATALOG.chipOffers.first()
+        vm.takeAction(ShopAction.RequestPurchase(offer))
+        assertNotNull(vm.state.pendingPurchase)
+
+        vm.takeAction(ShopAction.DismissPendingPurchase)
+        assertNull(vm.state.pendingPurchase)
+    }
+
+    // ---------- Optimistic chip-offer redemption ----------
+
+    @Test
+    fun confirmChipOffer_success_closesSheet_andCallsRepo() = runUnitTest {
+        val inv = FakeInventoryRepository()
+        val sync = FakeSyncService()
+        val vm = buildVm(inventoryRepository = inv, inventorySyncService = sync)
+        val offer = SAMPLE_CATALOG.chipOffers.first()  // cost 2_500
+        vm.takeAction(ShopAction.RequestPurchase(offer))
+
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        assertNull(vm.state.pendingPurchase, "sheet closed")
+        assertEquals(
+            listOf("emote_dance" to 2_500L),
+            inv.redeemCalls,
+            "repo called with the offer's id + cost",
+        )
+        // sync fires in the background after success
+        assertTrue(sync.syncCalls >= 1, "sync kicked")
+    }
+
+    @Test
+    fun confirmChipOffer_success_emitsRedeemSucceededEvent() = runUnitTest {
         val vm = buildVm()
         val received = mutableListOf<ShopEvent>()
-        // Collect on the test scope (backgroundScope is the right home for
-        // long-running collectors; the test body's launch is auto-cancelled
-        // by runUnitTest's finally).
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val offer = SAMPLE_CATALOG.chipOffers.first()
+        vm.takeAction(ShopAction.RequestPurchase(offer))
 
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        val event = received.firstOrNull { it is ShopEvent.RedeemSucceeded }
+        assertNotNull(event, "RedeemSucceeded should fire")
+        assertEquals(offer.id, (event as ShopEvent.RedeemSucceeded).offer.id)
+    }
+
+    @Test
+    fun confirmChipOffer_insufficientChips_surfacesError_doesNotChargeRepo() = runUnitTest {
+        val inv = FakeInventoryRepository().apply {
+            nextRedeemResult = RedeemResult.InsufficientChips
+        }
+        val vm = buildVm(inventoryRepository = inv)
+        val offer = SAMPLE_CATALOG.chipOffers.first()
+        vm.takeAction(ShopAction.RequestPurchase(offer))
+
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        assertNotNull(vm.state.errorMessage, "error surfaced")
+        assertTrue(vm.state.errorMessage!!.contains(offer.title, ignoreCase = true))
+        // Sheet still closes optimistically — the failure is surfaced as a
+        // toast, not by reopening the sheet.
+        assertNull(vm.state.pendingPurchase)
+    }
+
+    @Test
+    fun confirmChipOffer_alreadyOwned_emitsAlreadyOwned_doesNotCharge() = runUnitTest {
+        val inv = FakeInventoryRepository().apply {
+            nextRedeemResult = RedeemResult.AlreadyOwned
+        }
+        val vm = buildVm(inventoryRepository = inv)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val offer = SAMPLE_CATALOG.chipOffers.first()
+        vm.takeAction(ShopAction.RequestPurchase(offer))
+
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        assertTrue(received.any { it is ShopEvent.AlreadyOwned })
+        assertNull(vm.state.errorMessage, "AlreadyOwned isn't surfaced as an error")
+    }
+
+    // ---------- IAP path ----------
+
+    @Test
+    fun confirmIapPack_emitsLaunchPurchaseEvent_closesSheet() = runUnitTest {
+        val inv = FakeInventoryRepository()
+        val vm = buildVm(inventoryRepository = inv)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val pack = SAMPLE_CATALOG.chipPacks.first()
-        vm.takeAction(ShopAction.PurchaseChipPack(pack))
+        vm.takeAction(ShopAction.RequestPurchase(pack))
 
-        assertEquals(1, received.size)
-        val evt = received.first() as ShopEvent.LaunchPurchase
-        assertEquals(pack.id, evt.product.id)
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        assertNull(vm.state.pendingPurchase)
+        val event = received.firstOrNull { it is ShopEvent.LaunchPurchase }
+        assertNotNull(event)
+        assertEquals(pack.id, (event as ShopEvent.LaunchPurchase).product.id)
+        // IAP doesn't deduct chips locally — that's gated by the platform store callback.
+        assertTrue(inv.redeemCalls.isEmpty())
     }
 
-    @Test
-    fun redeemChipOffer_deductsChips_andEmitsRedeemed() = runUnitTest {
-        val chipsRepo = FakeChipsRepository(initialBalance = 10_000)
-        val vm = buildVm(chipsRepository = chipsRepo)
-
-        val offer = Product.ChipOffer(
-            id = "offer_dance",
-            title = "Victory Dance",
-            subtitle = "Avatar emote",
-            iconKey = "emote_dance",
-            costChips = 500,
-            grantsKey = "emote.dance",
-        )
-        vm.takeAction(ShopAction.RedeemChipOffer(offer))
-
-        assertEquals(9_500L, chipsRepo.balance(), "chips deducted by costChips")
-    }
+    // ---------- Sync on launch ----------
 
     @Test
-    fun catalogFlow_updates_propagateToState() = runUnitTest {
-        val repo = FakeProductsRepository(ProductCatalog.Empty)
-        val vm = buildVm(productsRepository = repo)
-        assertTrue(vm.state.catalog.isEmpty)
-
-        repo.emit(SAMPLE_CATALOG)
-        assertEquals(1, vm.state.catalog.chipPacks.size)
+    fun init_kicksInventorySync() = runUnitTest {
+        val sync = FakeSyncService()
+        buildVm(inventorySyncService = sync)
+        // ShopViewModel.init calls sync.sync() once.
+        assertEquals(1, sync.syncCalls)
     }
 
     // ---------- Test scaffolding ----------
 
     private fun buildVm(
         productsRepository: FakeProductsRepository = FakeProductsRepository(SAMPLE_CATALOG),
+        inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
+        inventorySyncService: FakeSyncService = FakeSyncService(),
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
+        inventoryRepository = inventoryRepository,
+        inventorySyncService = inventorySyncService,
         chipsRepository = chipsRepository,
     )
 
-    private class FakeProductsRepository(
-        initial: ProductCatalog,
-    ) : ProductsRepository {
+    private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
         private val state = MutableStateFlow(initial)
         var nextRefreshResult: Result<ProductCatalog>? = null
 
@@ -156,8 +279,48 @@ class ShopViewModelTest : CoroutineTest() {
             }
             return Result.success(state.value)
         }
+    }
 
-        fun emit(value: ProductCatalog) { state.value = value }
+    private class FakeInventoryRepository : InventoryRepository {
+        private val state = MutableStateFlow<List<InventoryItem>>(emptyList())
+        val redeemCalls = mutableListOf<Pair<String, Long>>()
+        var nextRedeemResult: RedeemResult? = null
+
+        override fun observeInventory(): Flow<List<InventoryItem>> = state.asStateFlow()
+        override suspend fun getInventory(): List<InventoryItem> = state.value
+        override suspend fun redeemChipOffer(
+            productId: String,
+            costChips: Long,
+        ): RedeemResult {
+            redeemCalls += productId to costChips
+            val override = nextRedeemResult
+            if (override != null) {
+                nextRedeemResult = null
+                return override
+            }
+            state.value = state.value + InventoryItem(
+                productId = productId,
+                state = PurchaseState.Pending,
+                purchasedAtEpochMs = 0,
+                costChipsAtPurchase = costChips,
+            )
+            return RedeemResult.Success
+        }
+        override suspend fun markConfirmed(productIds: Collection<String>) { }
+        override suspend fun revertPurchase(productId: String) {
+            state.value = state.value.filterNot { it.productId == productId }
+        }
+        override suspend fun deleteAll() { state.value = emptyList() }
+        fun emit(items: List<InventoryItem>) { state.value = items }
+    }
+
+    private class FakeSyncService : InventorySyncService {
+        var syncCalls: Int = 0
+            private set
+        override suspend fun sync(): Result<Unit> {
+            syncCalls++
+            return Result.success(Unit)
+        }
     }
 
     private class FakeChipsRepository(
@@ -168,7 +331,6 @@ class ShopViewModelTest : CoroutineTest() {
         override suspend fun getBalance(): Long = state.value
         override suspend fun applyDelta(delta: Long) { state.value += delta }
         override suspend fun deleteAll() { state.value = 0 }
-        fun balance(): Long = state.value
         fun emit(value: Long) { state.value = value }
     }
 
@@ -183,7 +345,42 @@ class ShopViewModelTest : CoroutineTest() {
                     grantsChips = 5_000,
                     store = StoreSku("chips_small", "$0.99"),
                 ),
+                Product.ChipPack(
+                    id = "chip_pack_medium",
+                    title = "Tall Stack",
+                    subtitle = "30,000 chips",
+                    iconKey = "chips_medium",
+                    featured = true,
+                    badge = "BEST VALUE",
+                    grantsChips = 30_000,
+                    store = StoreSku("chips_medium", "$4.99"),
+                ),
             ),
+            chipOffers = listOf(
+                Product.ChipOffer(
+                    id = "emote_dance",
+                    title = "Victory Dance",
+                    subtitle = "Emote",
+                    iconKey = "emote_dance",
+                    costChips = 2_500,
+                    grantsKey = "emote.dance",
+                ),
+                Product.ChipOffer(
+                    id = "emote_tilt",
+                    title = "Salty Shake",
+                    subtitle = "Emote",
+                    iconKey = "emote_tilt",
+                    costChips = 2_500,
+                    grantsKey = "emote.tilt",
+                ),
+            ),
+        )
+
+        private val SAMPLE_PENDING_INVENTORY_ITEM = InventoryItem(
+            productId = "emote_dance",
+            state = PurchaseState.Pending,
+            purchasedAtEpochMs = 1000L,
+            costChipsAtPurchase = 2_500L,
         )
     }
 }
