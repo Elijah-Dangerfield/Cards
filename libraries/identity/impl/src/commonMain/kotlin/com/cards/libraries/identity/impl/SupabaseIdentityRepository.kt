@@ -96,7 +96,7 @@ class SupabaseIdentityRepository(
         if (supabase.auth.currentSessionOrNull() == null) {
             supabase.auth.signInAnonymously()
         }
-        bootstrapProfileLocked(isAnonymous = true)
+        bootstrapProfileLocked()
     }
 
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = mutex.withLock {
@@ -107,7 +107,7 @@ class SupabaseIdentityRepository(
                 this.email = emailArg
                 this.password = passwordArg
             }
-            val identity = bootstrapProfileLocked(isAnonymous = false)
+            val identity = bootstrapProfileLocked()
             SignInOutcome.Success(identity)
         } catch (e: RestException) {
             mapSignInRestException(e, emailArg)
@@ -152,7 +152,7 @@ class SupabaseIdentityRepository(
             if (!emailConfirmed) {
                 RefreshOutcome.StillPending
             } else {
-                val identity = bootstrapProfileLocked(isAnonymous = false)
+                val identity = bootstrapProfileLocked()
                 RefreshOutcome.EmailConfirmed(identity)
             }
         } catch (e: RestException) {
@@ -206,8 +206,7 @@ class SupabaseIdentityRepository(
                 userId = updated.userId,
                 displayName = updated.displayName,
                 avatarEmoji = updated.avatarEmoji,
-                // Server doesn't change anon-ness on a profile patch.
-                isAnonymous = (_state.value as? IdentityState.SignedIn)?.identity?.isAnonymous ?: true,
+                isAnonymous = updated.isAnonymous,
             )
             identityCache.write(identity)
             _state.value = IdentityState.SignedIn(identity)
@@ -249,18 +248,17 @@ class SupabaseIdentityRepository(
     /**
      * Inside-the-mutex helper: assumes a valid Supabase session exists,
      * calls `/v1/me` to bootstrap the profile, updates cache + state,
-     * returns the identity.
+     * returns the identity. The server reads `is_anonymous` from the JWT
+     * claim on every request and reflects it on the response — we trust
+     * that rather than tracking it from the call site that signed in.
      */
-    private suspend fun bootstrapProfileLocked(isAnonymous: Boolean): Identity {
+    private suspend fun bootstrapProfileLocked(): Identity {
         val me = profileApi.me()
         val identity = Identity(
             userId = me.userId,
             displayName = me.displayName,
             avatarEmoji = me.avatarEmoji,
-            // V1: anonymous flag tracks the call site that created the
-            // session. When we expose `is_anonymous` from `/v1/me` (Phase 3.1),
-            // read it from there instead so it's always authoritative.
-            isAnonymous = isAnonymous,
+            isAnonymous = me.isAnonymous,
         )
         identityCache.write(identity)
         _state.value = IdentityState.SignedIn(identity)

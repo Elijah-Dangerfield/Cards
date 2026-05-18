@@ -4,6 +4,7 @@ import com.dangerfield.cards.server.domain.AvatarStarterPack
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
+import com.dangerfield.cards.server.plugins.isAnonymousUser
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
@@ -32,11 +33,12 @@ fun Route.meRoutes(repository: ProfileRepository) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val profile = repository.findOrCreate(userId)
-            call.respond(HttpStatusCode.OK, profile.toMeDto())
+            call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
         }
 
         patch("/v1/me") {
             val userId = call.userId() ?: return@patch call.respond(HttpStatusCode.Unauthorized)
+            val isAnonymous = call.isAnonymousUser()
             val body = call.receive<PatchMeRequest>()
 
             val cleanedName = body.displayName?.trim()
@@ -54,7 +56,7 @@ fun Route.meRoutes(repository: ProfileRepository) {
             }
 
             when (val outcome = repository.update(userId, cleanedName, body.avatarEmoji)) {
-                is UpdateProfileOutcome.Success -> call.respond(HttpStatusCode.OK, outcome.profile.toMeDto())
+                is UpdateProfileOutcome.Success -> call.respond(HttpStatusCode.OK, outcome.profile.toMeDto(isAnonymous = isAnonymous))
                 is UpdateProfileOutcome.DisplayNameTaken -> call.respond(
                     HttpStatusCode.Conflict,
                     problem("display_name_taken", "That display name is already in use."),

@@ -15,6 +15,14 @@ data class MeResponse(
     val userId: String,
     val displayName: String,
     val avatarEmoji: String,
+    /**
+     * Mirrors Supabase's `is_anonymous` JWT claim. Authoritative for "should
+     * we show the claim-your-account prompt." Flips to false on its own once
+     * the client calls `linkIdentity(provider)` and the next JWT refresh
+     * lands; the server doesn't need to persist this — it reads the live
+     * claim on every request.
+     */
+    val isAnonymous: Boolean,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
 )
@@ -34,10 +42,11 @@ data class PatchMeRequest(
 )
 
 @OptIn(ExperimentalTime::class)
-internal fun Profile.toMeDto(): MeResponse = MeResponse(
+internal fun Profile.toMeDto(isAnonymous: Boolean): MeResponse = MeResponse(
     userId = userId.value.toString(),
     displayName = displayName,
     avatarEmoji = avatarEmoji,
+    isAnonymous = isAnonymous,
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
     updatedAtEpochMs = updatedAt.toEpochMilliseconds(),
 )

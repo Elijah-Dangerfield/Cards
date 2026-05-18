@@ -12,6 +12,12 @@ data class MeDto(
     val userId: String,
     val displayName: String,
     val avatarEmoji: String,
+    /**
+     * Mirrors the server's response, which itself mirrors the Supabase
+     * JWT's `is_anonymous` claim. Authoritative — don't derive this from
+     * the call site that triggered the fetch; always read it from here.
+     */
+    val isAnonymous: Boolean,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
 )

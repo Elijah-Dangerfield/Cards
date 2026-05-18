@@ -51,6 +51,17 @@ class MeRoutesTest {
             assertEquals(userId.value.toString(), body.userId)
             assertEquals("FakeName", body.displayName)
             assertEquals("🦊", body.avatarEmoji)
+            assertEquals(false, body.isAnonymous)
+        }
+    }
+
+    @Test
+    fun me_marksProfileAnonymous_whenJwtCarriesIsAnonymousClaim() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callMe(repo, bearer = validJwt(isAnonymous = true)) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<MeResponse>()
+            assertEquals(true, body.isAnonymous)
         }
     }
 
@@ -145,13 +156,16 @@ class MeRoutesTest {
 
     // ---------- Test scaffolding ----------
 
-    private fun validJwt(): String = JWT.create()
-        .withIssuer(testIssuer)
-        .withAudience("authenticated")
-        .withSubject(userId.value.toString())
-        .withIssuedAt(Date())
-        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
-        .sign(Algorithm.HMAC256(testSecret))
+    private fun validJwt(isAnonymous: Boolean = false): String {
+        val builder = JWT.create()
+            .withIssuer(testIssuer)
+            .withAudience("authenticated")
+            .withSubject(userId.value.toString())
+            .withIssuedAt(Date())
+            .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+        if (isAnonymous) builder.withClaim("is_anonymous", true)
+        return builder.sign(Algorithm.HMAC256(testSecret))
+    }
 
     private val testVerifier = JWT.require(Algorithm.HMAC256(testSecret))
         .withIssuer(testIssuer)
