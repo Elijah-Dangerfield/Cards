@@ -22,8 +22,11 @@ import com.dangerfield.cards.libraries.gameplay.deterministicDeck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import kotlin.random.Random
 import kotlin.time.TimeSource
@@ -79,6 +82,28 @@ class LocalBotsSession(
      * after subsequent bets have moved the live seat stack.
      */
     private var humanStackAtHandStart: Long = 0L
+
+    /**
+     * UI-decoupled engine state. The new [PlayPokerViewModel] (Phase 0.2.e) reads
+     * this directly; the existing screen still reads [state] (TableUiState).
+     * `by lazy` dodges field-init ordering — the flow is created on first access
+     * by [setGameState], which happens during the inline `startNextHand()` call
+     * below.
+     */
+    private val _gameStateFlow: MutableStateFlow<GameState> by lazy(LazyThreadSafetyMode.NONE) {
+        MutableStateFlow(gameState)
+    }
+    val gameStateFlow: StateFlow<GameState> get() = _gameStateFlow
+
+    /**
+     * UI-decoupled engine events. New ViewModel layer subscribes for animations,
+     * achievement triggers, sound cues, telemetry. Replay 0 (state flow is the
+     * source of truth for "what's currently true"); buffer 64 (a hand fires at
+     * most ~30 events, generous headroom for non-suspending tryEmit).
+     */
+    private val _events = MutableSharedFlow<GameEvent>(extraBufferCapacity = 64)
+    val events: SharedFlow<GameEvent> get() = _events.asSharedFlow()
+
     private var gameState: GameState = startNextHand()
 
     // Rolling window of recent human decision durations. Bots subtly mirror
@@ -123,13 +148,13 @@ class LocalBotsSession(
             buttonSeatIndex = buttonIndex,
             deck = deterministicDeck(random.nextLong()),
         )
-        result.events.forEach(tracker::observe)
+        observeAndEmit(result.events)
         lastActionBySeat.clear()
         currentStreetLog.clear()
         preflopAggressorSeatIndex = null
         lastBotThoughts = emptyMap()
         lastWinners = null
-        gameState = result.state
+        setGameState(result.state)
         humanStackAtHandStart = result.state.seats
             .firstOrNull { it.index == humanSeatIndex }?.stack ?: 0L
         emit()
@@ -330,8 +355,8 @@ class LocalBotsSession(
         }
         val streetBefore = gameState.street
         val result = GameEngine.applyIntent(gameState, intent)
-        result.events.forEach(tracker::observe)
-        gameState = result.state
+        observeAndEmit(result.events)
+        setGameState(result.state)
         logger.d {
             "applyIntentAndEmit: applied. street=${gameState.street} " +
                 "actingAfter=${gameState.actingSeatIndex} events=${result.events.size}"
@@ -371,6 +396,28 @@ class LocalBotsSession(
             lastWinners = lastWinners,
             lastActionBySeat = lastActionBySeat.toMap(),
         )
+    }
+
+    /**
+     * Atomically update both the internal [gameState] var and the public
+     * [gameStateFlow]. Centralizing the write makes it impossible for the two
+     * to drift — every state mutation goes through here.
+     */
+    private fun setGameState(newState: GameState) {
+        gameState = newState
+        _gameStateFlow.value = newState
+    }
+
+    /**
+     * Fan out engine events to the opponent [tracker] (existing behavior) AND
+     * the public [events] flow (new — for the upcoming PlayPokerViewModel).
+     * tryEmit is safe with the 64-slot buffer for hand-bounded event volumes.
+     */
+    private fun observeAndEmit(events: List<GameEvent>) {
+        events.forEach {
+            tracker.observe(it)
+            _events.tryEmit(it)
+        }
     }
 
 }
