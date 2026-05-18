@@ -22,12 +22,21 @@ kotlin {
             implementation(libs.kermit)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.cards.storage)
+            implementation(projects.libraries.networking)
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.contentNegotiation)
         }
 
         commonTest.dependencies {
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.cards.storage)
+            implementation(projects.libraries.networking)
+            implementation(projects.libraries.flowroutines.testing)
+            implementation(libs.ktor.client.contentNegotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation("io.ktor:ktor-client-mock:3.3.3")
         }
 
         androidMain.dependencies {
