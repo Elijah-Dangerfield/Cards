@@ -1,15 +1,9 @@
 package com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetDefaults.DragHandle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,12 +18,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubble
+import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleNotchRadius
 import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.system.color.ProvideContentColor
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -44,10 +39,11 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *
  * Drag-handle selection happens via the typed [dragHandle] parameter
  * (see [BottomSheetDragHandle]). When the handle is
- * [BottomSheetDragHandle.Icon], the container's shape is replaced with a
- * [NotchedSheetShape] sized to match the bubble — so the bubble can sit
- * half-above the sheet's top edge. The clip uses the shape's outline,
- * which includes the bulge, so the bubble's upper half is visible.
+ * [BottomSheetDragHandle.Emoji], the container's shape is replaced with
+ * a [NotchedSheetShape] sized to match the emoji bubble so the bubble
+ * sits half-above the sheet's top edge. Look-and-feel for the bubble
+ * lives in [EmojiBubble] / [com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleDefaults]
+ * — sheets don't tune it.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -79,9 +75,9 @@ fun BottomSheet(
     }
 
     val sheetShape: Shape = when (dragHandle) {
-        is BottomSheetDragHandle.Icon -> NotchedSheetShape(
+        is BottomSheetDragHandle.Emoji -> NotchedSheetShape(
             cornerRadius = SheetCornerRadius,
-            notchRadius = dragHandle.bubbleSize / 2,
+            notchRadius = EmojiBubbleNotchRadius,
         )
         else -> RoundedTopSheetShape
     }
@@ -106,10 +102,11 @@ fun BottomSheet(
                     color = contentColor.color,
                 )
                 is BottomSheetDragHandle.Custom -> handle.render()
-                is BottomSheetDragHandle.Icon -> IconBubbleSlot(
-                    spec = handle,
-                    sheetBackground = backgroundColor,
-                    sheetContentColor = contentColor,
+                is BottomSheetDragHandle.Emoji -> EmojiBubble(
+                    emoji = handle.emoji,
+                    style = handle.style,
+                    surfaceColor = backgroundColor,
+                    contentColor = contentColor,
                 )
             }
         },
@@ -124,78 +121,8 @@ fun BottomSheet(
     }
 }
 
-/**
- * Renders the overhanging icon bubble inside Material3's drag-handle slot.
- *
- * Coordinate system inside the slot (slot-y, where slot-y=0 is the top of
- * the slot — which is also the top of the sheet's measured bounds and the
- * top of the bulge carved by [NotchedSheetShape]):
- *
- * ```
- *  slot-y=0          ← top of bulge (visible sheet edge curves up to here)
- *      ___
- *     /   \          ← bulge area, slot-y ∈ [0, bubbleSize/2]
- *  ──┘     └──       ← slot-y = bubbleSize/2 — visual "regular" sheet top
- *    │     │
- *    │     │         ← bubble's bottom half, lives inside sheet body
- *    └─────┘         ← slot-y = bubbleSize — bottom of slot
- * ```
- *
- * The slot's measured height = `bubbleSize`. The bubble is sized
- * `bubbleSize × bubbleSize` and aligned to the TOP of the slot, so its
- * top edge aligns with slot-y=0 (the bulge top) and its bottom edge
- * aligns with slot-y=bubbleSize (just inside the sheet body). Visually,
- * the bubble's vertical center lands exactly on the sheet's regular top
- * edge → half-on / half-off look.
- *
- * No `Modifier.offset` is needed — the math works out by sizing alone,
- * which keeps the bubble inside the slot's measured bounds and avoids
- * any GraphicsLayer clipping surprises.
- *
- * Bubble fill defaults to the sheet's [sheetBackground]. The intentional
- * effect is "the sheet's top edge flows into the bubble" — they merge.
- * Override [BottomSheetDragHandle.Icon.backgroundColor] for a contrasting
- * bubble.
- */
-@Composable
-private fun IconBubbleSlot(
-    spec: BottomSheetDragHandle.Icon,
-    sheetBackground: ColorResource,
-    sheetContentColor: ColorResource,
-) {
-    val bubbleSize = spec.bubbleSize
-    val bubbleColor = spec.backgroundColor ?: sheetBackground
-    val borderColor = spec.borderColor
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(bubbleSize),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(bubbleSize)
-                .clip(CircleShape)
-                .background(bubbleColor.color)
-                .let {
-                    if (borderColor != null) {
-                        it.border(width = 1.dp, color = borderColor.color, shape = CircleShape)
-                    } else {
-                        it
-                    }
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            ProvideContentColor(sheetContentColor) {
-                spec.content()
-            }
-        }
-    }
-}
-
 /** Standard rounded-top-corner sheet shape (no notch). Used when the drag
- *  handle is anything other than [BottomSheetDragHandle.Icon]. */
+ *  handle is anything other than [BottomSheetDragHandle.Emoji]. */
 private val RoundedTopSheetShape: Shape =
     RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
 

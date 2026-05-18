@@ -25,6 +25,7 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetValue
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.rememberBottomSheetState
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -71,26 +72,17 @@ internal fun PurchaseConfirmSheet(
     val sheetState = rememberBottomSheetState(BottomSheetValue.Expanded)
     var pendingTerminalAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
-    // Bubble icon = the product's own iconKey-mapped emoji, so the sheet's
-    // top icon matches what the user tapped in the grid. Decision: lean
-    // into emojis as the primary product art for V1 — the server only
-    // ships an `iconKey`, and `emojiForIconKey` is the single mapping
-    // table for the whole app. When real drawable assets land, we swap
-    // the helper to render an Image; the call sites here don't change.
-    val productEmoji = emojiForIconKey(
-        when (pending) {
-            is PendingPurchase.IapPack -> pending.product.iconKey
-            is PendingPurchase.ChipOffer -> pending.product.iconKey
-        }
-    )
-    val handle: BottomSheetDragHandle = BottomSheetDragHandle.Icon(
-        content = {
-            Text(
-                text = productEmoji,
-                typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.text,
-            )
-        },
+    // Bubble icon = the product's own emoji shipped from the server (or
+    // a client-side fallback derived from iconKey if the server didn't
+    // send one yet). Purchase sheets use the squircle style so the bubble
+    // doubles as an "app-icon-like" product callout.
+    val productEmoji = when (pending) {
+        is PendingPurchase.IapPack -> pending.product.iconEmoji ?: emojiForIconKey(pending.product.iconKey)
+        is PendingPurchase.ChipOffer -> pending.product.iconEmoji ?: emojiForIconKey(pending.product.iconKey)
+    }
+    val handle: BottomSheetDragHandle = BottomSheetDragHandle.Emoji(
+        emoji = productEmoji,
+        style = EmojiHandleStyle.Squircle,
     )
 
     BasicBottomSheet(

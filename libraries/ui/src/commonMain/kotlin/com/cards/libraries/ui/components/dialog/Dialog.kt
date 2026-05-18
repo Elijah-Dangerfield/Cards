@@ -17,9 +17,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.NotchedSheetShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +60,13 @@ import kotlin.random.Random
  * Public dialog entry point that mirrors Compose's windowed dialog API but renders
  * entirely inside our Compose hierarchy. Supply a [DialogState] if you need to trigger
  * animated dismissals from inside the dialog; otherwise a default state is provided.
+ *
+ * When [emoji] is non-null, the dialog gains the same notched-top + bubble
+ * treatment used by [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet]'s
+ * `BottomSheetDragHandle.Emoji`. Use it for hero / unlock / commerce
+ * dialogs where a glanceable cue should land before the user reads the
+ * title. Rendering goes through the same [EmojiBubble] primitive so
+ * sheets and dialogs stay in lockstep.
  */
 @Composable
 fun Dialog(
@@ -64,6 +77,7 @@ fun Dialog(
     animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
     scrimColor: Color = ModalDialogDefaults.scrimColor(),
     contentAlignment: Alignment = Alignment.Center,
+    emoji: DialogEmoji? = null,
     content: @Composable () -> Unit = {},
 ) {
     HostedDialog(
@@ -85,19 +99,56 @@ fun Dialog(
             val placeable = measurable.measure(capped)
             layout(placeable.width, placeable.height) { placeable.place(0, 0) }
         }
+        val surfaceShape: Shape = if (emoji != null) {
+            NotchedSheetShape(
+                cornerRadius = DialogCardCornerRadius,
+                notchRadius = EmojiBubbleNotchRadius,
+            )
+        } else {
+            Radii.Card.shape
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
                 .then(capModifier)
                 .animateContentSize()
                 .clipToBounds()
-                .background(AppTheme.colors.surfacePrimary.color, shape = Radii.Card.shape),
+                .background(AppTheme.colors.surfacePrimary.color, shape = surfaceShape),
             contentAlignment = Alignment.Center
         ) {
-            content()
+            if (emoji != null) {
+                Column {
+                    EmojiBubble(
+                        emoji = emoji.emoji,
+                        style = emoji.style,
+                        surfaceColor = AppTheme.colors.surfacePrimary,
+                        contentColor = AppTheme.colors.onSurfacePrimary,
+                    )
+                    content()
+                }
+            } else {
+                content()
+            }
         }
     }
 }
+
+/**
+ * Specifies the emoji bubble that overhangs the top of a [Dialog].
+ *
+ * Mirrors [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.Emoji]
+ * — same DS constants, same shape choices. Defaults to a circle
+ * bubble; pass [EmojiHandleStyle.Squircle] for commerce / equip dialogs.
+ */
+@Immutable
+data class DialogEmoji(
+    val emoji: String,
+    val style: EmojiHandleStyle = EmojiHandleStyle.Circle,
+)
+
+/** Dialog top-corner radius. Matches [Radii.Card] visually but expressed
+ *  as a Dp because [NotchedSheetShape] takes Dp directly. */
+private val DialogCardCornerRadius = 20.dp
 
 @Preview
 @Composable

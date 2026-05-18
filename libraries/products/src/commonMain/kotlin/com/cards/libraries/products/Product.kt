@@ -36,6 +36,14 @@ sealed interface Product {
         override val title: String,
         override val subtitle: String,
         override val iconKey: String,
+        /**
+         * Server-authoritative emoji char the UI renders as the product's
+         * primary visual. Preferred over deriving a placeholder from
+         * [iconKey] client-side. Nullable for forward compatibility with
+         * older servers that haven't started shipping it yet — client
+         * falls back to an iconKey-based mapping when null.
+         */
+        val iconEmoji: String? = null,
         val grantsChips: Long,
         val store: StoreSku,
         override val featured: Boolean = false,
@@ -48,6 +56,8 @@ sealed interface Product {
         override val title: String,
         override val subtitle: String,
         override val iconKey: String,
+        /** See [ChipPack.iconEmoji]. */
+        val iconEmoji: String? = null,
         val costChips: Long,
         val grantsKey: String,
         override val featured: Boolean = false,

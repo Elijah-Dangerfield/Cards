@@ -125,7 +125,7 @@ fun BasicBottomSheet(
  * need a small breath between the handle and the headline.
  */
 private fun defaultTopPaddingFor(handle: BottomSheetDragHandle): Dp = when (handle) {
-    is BottomSheetDragHandle.Icon -> 0.dp
+    is BottomSheetDragHandle.Emoji -> 0.dp
     else -> Dimension.D400
 }
 
@@ -192,59 +192,13 @@ private fun PreviewBasicBottomSheet_HandleNone() {
 
 @Preview
 @Composable
-private fun PreviewBasicBottomSheet_HandleIconCoin() {
+private fun PreviewBasicBottomSheet_EmojiCircle() {
     PreviewContent {
         BasicBottomSheet(
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
             backgroundColor = AppTheme.colors.surfacePrimary,
-            dragHandle = BottomSheetDragHandle.Icon(
-                content = {
-                    com.dangerfield.cards.libraries.ui.components.ChipCoin(
-                        size = 36.dp,
-                        textTypography = AppTheme.typography.Heading.H700,
-                    )
-                },
-            ),
-            stickyTopContent = {
-                Text(
-                    text = "Spend chips",
-                    typography = AppTheme.typography.Heading.H700,
-                )
-            },
-            content = {
-                Text(
-                    text = "The bubble's TOP half sits above the sheet edge — the sheet container shape has a circular notch carved out at the top so the overhang renders correctly.",
-                    typography = AppTheme.typography.Body.B500,
-                    textAlign = TextAlign.Center,
-                )
-            },
-            stickyBottomContent = {
-                Button(modifier = Modifier.fillMaxWidth(), onClick = {}) {
-                    Text(text = "Buy now")
-                }
-            },
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewBasicBottomSheet_HandleIconEmoji() {
-    PreviewContent {
-        BasicBottomSheet(
-            state = rememberBottomSheetState(BottomSheetValue.Expanded),
-            onDismissRequest = {},
-            backgroundColor = AppTheme.colors.surfacePrimary,
-            dragHandle = BottomSheetDragHandle.Icon(
-                bubbleSize = 64.dp,
-                content = {
-                    Text(
-                        text = "🎉",
-                        typography = AppTheme.typography.Heading.H800,
-                    )
-                },
-            ),
+            dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉"),
             stickyTopContent = {
                 Text(
                     text = "Achievement unlocked",
@@ -253,7 +207,7 @@ private fun PreviewBasicBottomSheet_HandleIconEmoji() {
             },
             content = {
                 Text(
-                    text = "Bigger bubble (64dp) for hero moments.",
+                    text = "Default circle bubble. Use for celebration, info, or any non-commerce sheet.",
                     typography = AppTheme.typography.Body.B500,
                     textAlign = TextAlign.Center,
                 )
@@ -264,34 +218,33 @@ private fun PreviewBasicBottomSheet_HandleIconEmoji() {
 
 @Preview
 @Composable
-private fun PreviewBasicBottomSheet_HandleIconWithBorder() {
+private fun PreviewBasicBottomSheet_EmojiSquircle() {
     PreviewContent {
         BasicBottomSheet(
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
             backgroundColor = AppTheme.colors.surfacePrimary,
-            dragHandle = BottomSheetDragHandle.Icon(
-                backgroundColor = AppTheme.colors.accentPrimary,
-                borderColor = AppTheme.colors.onAccentPrimary,
-                content = {
-                    Text(
-                        text = "🃏",
-                        typography = AppTheme.typography.Heading.H800,
-                    )
-                },
+            dragHandle = BottomSheetDragHandle.Emoji(
+                emoji = "💃",
+                style = EmojiHandleStyle.Squircle,
             ),
             stickyTopContent = {
                 Text(
-                    text = "Card back equipped",
+                    text = "Victory Dance",
                     typography = AppTheme.typography.Heading.H700,
                 )
             },
             content = {
                 Text(
-                    text = "Bubble can stand out from the sheet via a custom fill + border.",
+                    text = "Squircle bubble — reserved for commerce / purchase / equip sheets so the bubble doubles as a product callout.",
                     typography = AppTheme.typography.Body.B500,
                     textAlign = TextAlign.Center,
                 )
+            },
+            stickyBottomContent = {
+                Button(modifier = Modifier.fillMaxWidth(), onClick = {}) {
+                    Text(text = "Buy now")
+                }
             },
         )
     }

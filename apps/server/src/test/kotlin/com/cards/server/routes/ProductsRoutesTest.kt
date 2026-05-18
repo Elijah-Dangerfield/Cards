@@ -256,6 +256,7 @@ class ProductsRoutesTest {
                 titleByLocale = mapOf("en" to "Pocket Stack", "es" to "Pila de bolsillo"),
                 subtitleByLocale = mapOf("en" to "5,000 chips"),
                 iconKey = "chips_small",
+                iconEmoji = "🪙",
                 grantsChips = 5_000,
                 store = PlatformStore(
                     ios = PlatformStore.StoreSku("com.cards.iap.chips.small", "$0.99"),
@@ -269,6 +270,7 @@ class ProductsRoutesTest {
                         titleByLocale = mapOf("en" to "Android Special"),
                         subtitleByLocale = mapOf("en" to "1,000 chips"),
                         iconKey = "chips_android",
+                        iconEmoji = "🪙",
                         platforms = setOf(ClientContext.Platform.Android),
                         grantsChips = 1_000,
                         store = PlatformStore(

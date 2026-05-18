@@ -37,6 +37,13 @@ sealed interface Product {
         override val titleByLocale: Map<String, String>,
         override val subtitleByLocale: Map<String, String>,
         override val iconKey: String,
+        /**
+         * Single emoji (or short char like `$`) the client renders as the
+         * product's primary visual. Authoritative — the client doesn't
+         * need its own iconKey → emoji table when this is present. Falls
+         * back to a client-side default if null.
+         */
+        val iconEmoji: String,
         override val featured: Boolean = false,
         override val badgeByLocale: Map<String, String>? = null,
         override val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform> =
@@ -58,6 +65,8 @@ sealed interface Product {
         override val titleByLocale: Map<String, String>,
         override val subtitleByLocale: Map<String, String>,
         override val iconKey: String,
+        /** See [ChipPack.iconEmoji]. */
+        val iconEmoji: String,
         override val featured: Boolean = false,
         override val badgeByLocale: Map<String, String>? = null,
         override val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform> =

@@ -30,6 +30,9 @@ data class ChipPackDto(
     val title: String,
     val subtitle: String,
     val iconKey: String,
+    /** Server-authoritative emoji char rendered as the product's primary
+     *  visual. See server domain [com.dangerfield.cards.server.domain.Product.ChipPack.iconEmoji]. */
+    val iconEmoji: String,
     val grantsChips: Long,
     val store: StoreSkuDto,
     val featured: Boolean = false,
@@ -42,6 +45,8 @@ data class ChipOfferDto(
     val title: String,
     val subtitle: String,
     val iconKey: String,
+    /** See [ChipPackDto.iconEmoji]. */
+    val iconEmoji: String,
     val costChips: Long,
     val grantsKey: String,
     val featured: Boolean = false,
