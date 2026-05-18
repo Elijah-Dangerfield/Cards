@@ -21,6 +21,7 @@ dependencies {
     implementation("io.ktor:ktor-server-status-pages:3.3.3")
     implementation("io.ktor:ktor-server-call-logging:3.3.3")
     implementation("io.ktor:ktor-server-call-id:3.3.3")
+    implementation("io.ktor:ktor-server-rate-limit:3.3.3")
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation("ch.qos.logback:logback-classic:1.5.6")
     implementation(libs.ktor.serverAuth)

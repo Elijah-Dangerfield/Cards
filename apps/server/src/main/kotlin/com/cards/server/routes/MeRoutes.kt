@@ -5,11 +5,15 @@ import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
+import com.dangerfield.cards.server.plugins.DELETE_ACCOUNT_LIMIT
+import com.dangerfield.cards.server.plugins.PROFILE_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.isAnonymousUser
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -50,6 +54,7 @@ fun Route.meRoutes(repository: ProfileRepository, adminClient: SupabaseAdminClie
             call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
         }
 
+        rateLimit(RateLimitName(PROFILE_WRITE_LIMIT)) {
         patch("/v1/me") {
             val userId = call.userId() ?: return@patch call.respond(HttpStatusCode.Unauthorized)
             val isAnonymous = call.isAnonymousUser()
@@ -81,7 +86,9 @@ fun Route.meRoutes(repository: ProfileRepository, adminClient: SupabaseAdminClie
                 )
             }
         }
+        }
 
+        rateLimit(RateLimitName(DELETE_ACCOUNT_LIMIT)) {
         delete("/v1/me") {
             val userId = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
             when (val admin = adminClient.deleteUser(userId)) {
@@ -109,6 +116,7 @@ fun Route.meRoutes(repository: ProfileRepository, adminClient: SupabaseAdminClie
                     )
                 }
             }
+        }
         }
     }
 }

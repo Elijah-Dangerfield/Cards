@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.di.create
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installCors
 import com.dangerfield.cards.server.plugins.installObservability
+import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import com.dangerfield.cards.server.routes.appConfigRoutes
@@ -35,6 +36,7 @@ fun Application.module(config: ServerConfig) {
     installSerialization()
     installCors()
     installObservability()
+    installRateLimits()
     installStatusPages()
     installAuthentication(config.supabase)
 
