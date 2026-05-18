@@ -22,6 +22,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -93,6 +94,33 @@ fun SignInScreen(
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
         )
+
+        if (state.anyOAuthEnabled) {
+            Spacer(modifier = Modifier.height(Dimension.D800))
+            if (state.googleEnabled) {
+                Button(
+                    onClick = { onAction(SignInAction.SignInWithOAuth(OAuthProvider.Google)) },
+                    enabled = !state.isSubmitting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Continue with Google") }
+                Spacer(modifier = Modifier.height(Dimension.D400))
+            }
+            if (state.appleEnabled) {
+                Button(
+                    onClick = { onAction(SignInAction.SignInWithOAuth(OAuthProvider.Apple)) },
+                    enabled = !state.isSubmitting,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Continue with Apple") }
+            }
+            Spacer(modifier = Modifier.height(Dimension.D700))
+            Text(
+                text = "— or —",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.onSurfaceSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         Spacer(modifier = Modifier.height(Dimension.D900))
 

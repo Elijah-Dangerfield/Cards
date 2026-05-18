@@ -88,6 +88,52 @@ interface IdentityRepository {
      * onboarding root.
      */
     suspend fun deleteAccount(): DeleteAccountOutcome
+
+    /**
+     * Attach an Apple/Google identity to the current (typically anonymous)
+     * Supabase user. Preserves chips, XP, and history. Uses supabase-kt's
+     * `linkIdentity(provider)` which opens an OS browser for the OAuth
+     * dance and returns when the redirect resolves.
+     *
+     * Fails with [LinkIdentityOutcome.AlreadyOnAnotherAccount] when the
+     * OAuth identity is already attached to a different `auth.users` row;
+     * the UI should offer "sign in there instead" (see [signInWithOAuth]).
+     */
+    suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome
+
+    /**
+     * Switch sessions to an existing OAuth account. The current local
+     * session (anonymous or otherwise) is replaced; any guest progress
+     * tied to the previous session is orphaned by design (per the
+     * 2026-05-18 "Identity pivot (REVERSED)" decision).
+     *
+     * UI should explicitly confirm the loss-of-guest-progress trade-off
+     * before invoking this — pair with a "this will replace your current
+     * progress" dialog.
+     */
+    suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome
+}
+
+/**
+ * Third-party identity providers we surface in V1. Both go through
+ * Supabase Auth's OAuth flow (`supabase.auth.signInWith(provider)` and
+ * `linkIdentity(provider)`); the dashboard's Providers tab must enable
+ * each one and supply credentials before either flow works at runtime.
+ */
+enum class OAuthProvider { Google, Apple }
+
+sealed interface LinkIdentityOutcome {
+    data class Success(val identity: Identity) : LinkIdentityOutcome
+    /** The OAuth identity is already attached to another auth.users row. */
+    data object AlreadyOnAnotherAccount : LinkIdentityOutcome
+    /** The current local session was anonymous and Supabase rejected linking. */
+    data object NotSignedIn : LinkIdentityOutcome
+    /** The user dismissed the OAuth browser tab before completing the flow. */
+    data object Cancelled : LinkIdentityOutcome
+    /** Provider not enabled in the Supabase dashboard. */
+    data object ProviderNotEnabled : LinkIdentityOutcome
+    data class NetworkError(val cause: Throwable) : LinkIdentityOutcome
+    data class Unknown(val cause: Throwable) : LinkIdentityOutcome
 }
 
 sealed interface DeleteAccountOutcome {
@@ -121,6 +167,10 @@ sealed interface SignInOutcome {
     data object InvalidCredentials : SignInOutcome
     /** Email exists but `email_confirmed_at` is null — must verify first. */
     data class EmailNotConfirmed(val email: String) : SignInOutcome
+    /** User dismissed the OAuth browser tab before completing the flow. */
+    data object Cancelled : SignInOutcome
+    /** OAuth provider not enabled in the Supabase dashboard. */
+    data object ProviderNotEnabled : SignInOutcome
     /** Network down, Supabase unreachable, our server unreachable, etc. */
     data class NetworkError(val cause: Throwable) : SignInOutcome
     /** Anything we don't have a more specific bucket for. */

@@ -8,6 +8,8 @@ import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.OAuthProvider as IdentityOAuthProvider
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.ResendOutcome
 import com.dangerfield.cards.libraries.identity.SignInOutcome
@@ -16,11 +18,15 @@ import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Apple
+import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.OAuthProvider as SupabaseOAuthProvider
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -283,6 +289,76 @@ class SupabaseIdentityRepository(
             _state.value = IdentityState.Unknown
         }
         outcome
+    }
+
+    override suspend fun linkOAuthIdentity(provider: IdentityOAuthProvider): LinkIdentityOutcome = mutex.withLock {
+        if (supabase.auth.currentSessionOrNull() == null) {
+            return@withLock LinkIdentityOutcome.NotSignedIn
+        }
+        try {
+            supabase.auth.linkIdentity(provider.toSupabase())
+            // After the browser flow resolves, supabase-kt updates the
+            // session in place. Re-bootstrap /v1/me so the local identity
+            // reflects the (now non-anonymous) JWT.
+            val identity = bootstrapProfileLocked()
+            LinkIdentityOutcome.Success(identity)
+        } catch (e: RestException) {
+            mapLinkRestException(e)
+        } catch (e: HttpRequestException) {
+            LinkIdentityOutcome.NetworkError(e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Browser-dismissed cases throw various platform-specific
+            // exceptions; supabase-kt doesn't standardize. Best we can do
+            // is bucket the message.
+            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                LinkIdentityOutcome.Cancelled
+            } else LinkIdentityOutcome.Unknown(e)
+        }
+    }
+
+    override suspend fun signInWithOAuth(provider: IdentityOAuthProvider): SignInOutcome = mutex.withLock {
+        try {
+            supabase.auth.signInWith(provider.toSupabase())
+            val identity = bootstrapProfileLocked()
+            SignInOutcome.Success(identity)
+        } catch (e: RestException) {
+            mapOAuthSignInRestException(e)
+        } catch (e: HttpRequestException) {
+            SignInOutcome.NetworkError(e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                SignInOutcome.Cancelled
+            } else SignInOutcome.Unknown(e)
+        }
+    }
+
+    private fun mapLinkRestException(e: RestException): LinkIdentityOutcome {
+        val msg = (e.message ?: "").lowercase()
+        return when {
+            e.statusCode == 422 && msg.contains("already") ->
+                LinkIdentityOutcome.AlreadyOnAnotherAccount
+            e.statusCode == 400 && msg.contains("provider") && msg.contains("disabled") ->
+                LinkIdentityOutcome.ProviderNotEnabled
+            else -> LinkIdentityOutcome.Unknown(e)
+        }
+    }
+
+    private fun mapOAuthSignInRestException(e: RestException): SignInOutcome {
+        val msg = (e.message ?: "").lowercase()
+        return when {
+            e.statusCode == 400 && msg.contains("provider") && msg.contains("disabled") ->
+                SignInOutcome.ProviderNotEnabled
+            else -> SignInOutcome.Unknown(e)
+        }
+    }
+
+    private fun IdentityOAuthProvider.toSupabase(): SupabaseOAuthProvider = when (this) {
+        IdentityOAuthProvider.Google -> Google
+        IdentityOAuthProvider.Apple -> Apple
     }
 
     /**

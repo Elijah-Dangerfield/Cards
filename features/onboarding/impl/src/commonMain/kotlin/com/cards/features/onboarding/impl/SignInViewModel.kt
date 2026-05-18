@@ -1,8 +1,11 @@
 package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
 import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.identity.SignInOutcome
 import me.tatarka.inject.annotations.Inject
 
@@ -20,8 +23,15 @@ import me.tatarka.inject.annotations.Inject
 class SignInViewModel(
     private val identityRepository: IdentityRepository,
     private val appCache: AppCache,
+    appConfigMap: AppConfigMap,
 ) : SEAViewModel<SignInState, SignInEvent, SignInAction>(
-    initialStateArg = SignInState(),
+    initialStateArg = run {
+        val config = IdentityFeatureConfig(appConfigMap)
+        SignInState(
+            googleEnabled = config.googleSignInEnabled,
+            appleEnabled = config.appleSignInEnabled,
+        )
+    },
 ) {
 
     override suspend fun handleAction(action: SignInAction) {
@@ -39,32 +49,47 @@ class SignInViewModel(
                 if (!current.canSubmit) return@run
 
                 updateState { it.copy(isSubmitting = true, error = null) }
-
-                val outcome = identityRepository.signInWithEmail(
-                    email = current.email.trim(),
-                    password = current.password,
+                handleSignInOutcome(
+                    identityRepository.signInWithEmail(
+                        email = current.email.trim(),
+                        password = current.password,
+                    ),
                 )
+            }
 
-                when (outcome) {
-                    is SignInOutcome.Success -> {
-                        appCache.update { it.copy(hasUserOnboarded = true) }
-                        updateState { it.copy(isSubmitting = false) }
-                        sendEvent(SignInEvent.NavigateToHome)
-                    }
-                    is SignInOutcome.InvalidCredentials -> updateState {
-                        it.copy(isSubmitting = false, error = "Email or password is incorrect.")
-                    }
-                    is SignInOutcome.EmailNotConfirmed -> {
-                        updateState { it.copy(isSubmitting = false) }
-                        sendEvent(SignInEvent.NavigateToVerifyEmail(outcome.email))
-                    }
-                    is SignInOutcome.NetworkError -> updateState {
-                        it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
-                    }
-                    is SignInOutcome.Unknown -> updateState {
-                        it.copy(isSubmitting = false, error = "Sign in failed. Please try again.")
-                    }
-                }
+            is SignInAction.SignInWithOAuth -> action.run {
+                updateState { it.copy(isSubmitting = true, error = null) }
+                handleSignInOutcome(identityRepository.signInWithOAuth(action.provider))
+            }
+        }
+    }
+
+    /** Receiver is required so [updateState] (defined on `A`) resolves. */
+    private suspend fun SignInAction.handleSignInOutcome(outcome: SignInOutcome) {
+        when (outcome) {
+            is SignInOutcome.Success -> {
+                appCache.update { it.copy(hasUserOnboarded = true) }
+                updateState { it.copy(isSubmitting = false) }
+                sendEvent(SignInEvent.NavigateToHome)
+            }
+            is SignInOutcome.InvalidCredentials -> updateState {
+                it.copy(isSubmitting = false, error = "Email or password is incorrect.")
+            }
+            is SignInOutcome.EmailNotConfirmed -> {
+                updateState { it.copy(isSubmitting = false) }
+                sendEvent(SignInEvent.NavigateToVerifyEmail(outcome.email))
+            }
+            is SignInOutcome.NetworkError -> updateState {
+                it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+            }
+            is SignInOutcome.Cancelled -> updateState {
+                it.copy(isSubmitting = false)
+            }
+            is SignInOutcome.ProviderNotEnabled -> updateState {
+                it.copy(isSubmitting = false, error = "That sign-in option isn't available yet.")
+            }
+            is SignInOutcome.Unknown -> updateState {
+                it.copy(isSubmitting = false, error = "Sign in failed. Please try again.")
             }
         }
     }
@@ -75,10 +100,14 @@ data class SignInState(
     val password: String = "",
     val isSubmitting: Boolean = false,
     val error: String? = null,
+    val googleEnabled: Boolean = false,
+    val appleEnabled: Boolean = false,
 ) {
     /** Cheap client-side gate. Server is the canonical validator. */
     val canSubmit: Boolean
         get() = !isSubmitting && email.contains('@') && password.length >= MIN_PASSWORD_LENGTH
+
+    val anyOAuthEnabled: Boolean get() = googleEnabled || appleEnabled
 
     companion object {
         const val MIN_PASSWORD_LENGTH = 6
@@ -94,5 +123,6 @@ sealed interface SignInAction {
     data class EmailChanged(val value: String) : SignInAction
     data class PasswordChanged(val value: String) : SignInAction
     data object Submit : SignInAction
+    data class SignInWithOAuth(val provider: OAuthProvider) : SignInAction
     data object DismissError : SignInAction
 }

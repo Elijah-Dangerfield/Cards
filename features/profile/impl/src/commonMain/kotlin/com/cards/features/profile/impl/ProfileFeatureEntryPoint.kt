@@ -13,6 +13,9 @@ import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsAction
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsEvent
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsViewModel
+import com.dangerfield.cards.features.profile.impl.account.ClaimAccountEvent
+import com.dangerfield.cards.features.profile.impl.account.ClaimAccountScreen
+import com.dangerfield.cards.features.profile.impl.account.ClaimAccountViewModel
 import com.dangerfield.cards.features.profile.impl.account.DeleteAccountEvent
 import com.dangerfield.cards.features.profile.impl.account.DeleteAccountScreen
 import com.dangerfield.cards.features.profile.impl.account.DeleteAccountViewModel
@@ -67,6 +70,7 @@ class ProfileFeatureEntryPoint(
     private val accountActionsViewModelFactory: () -> AccountActionsViewModel,
     private val deleteAccountViewModelFactory: () -> DeleteAccountViewModel,
     private val editProfileViewModelFactory: () -> EditProfileViewModel,
+    private val claimAccountViewModelFactory: () -> ClaimAccountViewModel,
     private val userRepository: UserRepository,
     private val appCache: AppCache,
 ) : FeatureEntryPoint {
@@ -173,9 +177,20 @@ class ProfileFeatureEntryPoint(
         }
 
         screen<ClaimAccountRoute> {
-            PlaceholderScreen(
-                title = "Claim your account",
-                body = "Sign in with Apple or Google to save your XP and chips across devices, and unlock multiplayer. Coming with Phase 3 auth.",
+            val viewModel: ClaimAccountViewModel = viewModel { claimAccountViewModelFactory() }
+            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+            viewModel.ObserveEvents { event ->
+                when (event) {
+                    ClaimAccountEvent.Claimed -> router.goBack()
+                    ClaimAccountEvent.SwitchedAccounts -> router.navigate(
+                        OnboardingRoute(),
+                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
+                    )
+                }
+            }
+            ClaimAccountScreen(
+                state = state,
+                onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
             )
         }
