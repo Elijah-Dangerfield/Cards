@@ -78,9 +78,55 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
             ),
         ).filter { context.platform in it.platforms }
 
+        // Chip-purchasable items live in the same catalog as IAP packs (one
+        // API, one cache, one rendering pipeline). Each one joins to a
+        // client-bundled asset via `iconKey` (visual) and `grantsKey`
+        // (effect/inventory entry).
+        //
+        // V1 selection is intentionally small + cosmetic-only — no
+        // gameplay-affecting items, per the V1 product spec (no P2W).
+        // Real assets land in :libraries:ui when the design files are ready;
+        // until then the client falls back to a placeholder emoji.
+        val chipOffers = listOf(
+            Product.ChipOffer(
+                id = "emote_dance",
+                titleByLocale = mapOf("en" to "Victory Dance", "es" to "Baile de victoria"),
+                subtitleByLocale = mapOf("en" to "Avatar emote", "es" to "Emote de avatar"),
+                iconKey = "emote_dance",
+                costChips = 2_500,
+                grantsKey = "emote.dance",
+            ),
+            Product.ChipOffer(
+                id = "emote_tilt",
+                titleByLocale = mapOf("en" to "Salty Shake", "es" to "Sacudida salada"),
+                subtitleByLocale = mapOf("en" to "Avatar emote", "es" to "Emote de avatar"),
+                iconKey = "emote_tilt",
+                costChips = 2_500,
+                grantsKey = "emote.tilt",
+            ),
+            Product.ChipOffer(
+                id = "table_neon",
+                titleByLocale = mapOf("en" to "Neon Table", "es" to "Mesa de neón"),
+                subtitleByLocale = mapOf("en" to "Table theme", "es" to "Tema de mesa"),
+                iconKey = "table_neon",
+                featured = true,
+                badgeByLocale = mapOf("en" to "NEW", "es" to "NUEVO"),
+                costChips = 8_000,
+                grantsKey = "table.neon",
+            ),
+            Product.ChipOffer(
+                id = "title_bluff_master",
+                titleByLocale = mapOf("en" to "Bluff Master", "es" to "Maestro del farol"),
+                subtitleByLocale = mapOf("en" to "Player title", "es" to "Título de jugador"),
+                iconKey = "title_bluff_master",
+                costChips = 5_000,
+                grantsKey = "title.bluff_master",
+            ),
+        ).filter { context.platform in it.platforms }
+
         return ProductCatalog(
             chipPacks = chipPacks,
-            chipOffers = emptyList(),
+            chipOffers = chipOffers,
         )
     }
 }
