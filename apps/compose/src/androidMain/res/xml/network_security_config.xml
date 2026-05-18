@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Allow cleartext HTTP only for local development hosts.
+
+    The default Android policy (API 28+) blocks all http:// traffic. We need
+    an exception for the dev loop where the Ktor server runs on the host
+    machine and the emulator reaches it via 10.0.2.2 (Android emulator's
+    loopback alias for the host).
+
+    Anything NOT listed here still requires HTTPS — including the future
+    dev/staging/prod APIs. Adding a real domain here is a code review
+    flag: if it's not a localhost-equivalent, it shouldn't be cleartext.
+
+    Reference docs:
+    https://developer.android.com/training/articles/security-config
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Android emulator → host machine's localhost -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Direct localhost (occasionally useful with adb reverse) -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
