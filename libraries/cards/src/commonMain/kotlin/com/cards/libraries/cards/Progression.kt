@@ -61,5 +61,7 @@ data class XpEvent(
     val source: XpSource,
     val mode: XpMode,
     val handId: String?,
+    /** Free-text disambiguator — e.g. the achievement name for ACHIEVEMENT events. */
+    val description: String? = null,
     val createdAtEpochMs: Long,
 )

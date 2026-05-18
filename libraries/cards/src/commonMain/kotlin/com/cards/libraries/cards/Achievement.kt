@@ -21,6 +21,13 @@ data class Achievement(
     val xpReward: Int,
     val chipReward: Long = 0L,
     val mode: AchievementMode = AchievementMode.EITHER,
+    /**
+     * When true, the achievement is hidden behind a "?" treatment on the
+     * grid until the user earns it — a surprise, not a goal to grind. Default
+     * `false` keeps achievements visible so players can see what's available
+     * to chase.
+     */
+    val isMystery: Boolean = false,
 )
 
 /**
@@ -75,6 +82,7 @@ enum class AchievementId {
 
     // Stack swings
     COMEBACK_FROM_5BB,
+    DONT_CALL_IT_COMEBACK,
     DOUBLE_UP,
     TRIPLE_UP,
 

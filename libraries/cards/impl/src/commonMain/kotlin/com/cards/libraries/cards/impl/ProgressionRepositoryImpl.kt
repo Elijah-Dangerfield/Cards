@@ -87,7 +87,7 @@ class ProgressionRepositoryImpl(
         }
     }
 
-    override suspend fun applyAchievementXp(delta: Int): XpEvent {
+    override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent {
         require(delta > 0) { "Achievement XP delta must be positive (got $delta)" }
         val now = clock.now().toEpochMilliseconds()
         // Achievement XP bumps total_xp only — never touches hand counters.
@@ -101,6 +101,7 @@ class ProgressionRepositoryImpl(
             // a sensible mode.
             mode = XpMode.BOTS.name,
             handId = null,
+            description = description,
             createdAtEpochMs = now,
         )
         xpEventDao.insertAll(listOf(entity))
@@ -110,6 +111,7 @@ class ProgressionRepositoryImpl(
             source = XpSource.ACHIEVEMENT,
             mode = XpMode.BOTS,
             handId = null,
+            description = description,
             createdAtEpochMs = now,
         )
     }

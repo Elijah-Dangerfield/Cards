@@ -34,6 +34,14 @@ data class XpEventEntity(
     @ColumnInfo(name = "hand_id")
     val handId: String?,
 
+    /**
+     * Free-text label for the source. Used to disambiguate achievement events
+     * — the recent-XP feed shows "Achievement unlocked · {description}" so
+     * the user can tell which one popped instead of an opaque "unlocked".
+     */
+    @ColumnInfo(name = "description")
+    val description: String? = null,
+
     @ColumnInfo(name = "created_at_epoch_ms")
     val createdAtEpochMs: Long,
 )

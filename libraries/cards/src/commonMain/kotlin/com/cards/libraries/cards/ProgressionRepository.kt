@@ -79,8 +79,10 @@ interface ProgressionRepository {
      * Add `delta` XP from a non-hand source — typically an unlocked
      * achievement. Records one ledger row with [XpSource.ACHIEVEMENT] and
      * the current mode-agnostic timestamp. Hand counters are not touched.
+     * `description` is surfaced in the recent-XP feed so the user can tell
+     * which achievement minted the row.
      */
-    suspend fun applyAchievementXp(delta: Int): XpEvent
+    suspend fun applyAchievementXp(delta: Int, description: String? = null): XpEvent
 
     /** Reset all progression state. Used by "Fresh Start" / debug menus. */
     suspend fun deleteAll()

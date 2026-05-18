@@ -152,6 +152,7 @@ val AllAchievements: List<Achievement> = listOf(
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.StraightFlush),
         xpReward = AchievementRarity.LEGENDARY.defaultXpReward,
         chipReward = 2_000L,
+        isMystery = true,
     ),
     Achievement(
         id = AchievementId.SHOW_ROYAL_FLUSH,
@@ -162,6 +163,7 @@ val AllAchievements: List<Achievement> = listOf(
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.RoyalFlush),
         xpReward = AchievementRarity.LEGENDARY.defaultXpReward,
         chipReward = 5_000L,
+        isMystery = true,
     ),
 
     // Bot personality mastery — bot-only
@@ -249,6 +251,18 @@ val AllAchievements: List<Achievement> = listOf(
         criterion = Criterion.Custom(key = COMEBACK_5BB, target = 1),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
         chipReward = 500L,
+        isMystery = true,
+    ),
+    Achievement(
+        id = AchievementId.DONT_CALL_IT_COMEBACK,
+        name = "Don't call it a comeback",
+        description = "Drop below 100 chips at some point, then climb back to a full 1,000-chip stack.",
+        icon = "🔥",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = DONT_CALL_IT_COMEBACK_COUNTER, target = 1),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 500L,
+        isMystery = true,
     ),
 
     // Pot-size milestones — based on the total pot of the hand the human
@@ -280,6 +294,7 @@ val AllAchievements: List<Achievement> = listOf(
         criterion = Criterion.Custom(key = MAX_POT_SEEN, target = 5_000),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
         chipReward = 500L,
+        isMystery = true,
     ),
 
     // Tactical wins — based on outcome shape, not just frequency.
@@ -309,6 +324,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.COMMON,
         criterion = Criterion.Custom(key = GOOD_FOLD, target = 1),
         xpReward = AchievementRarity.COMMON.defaultXpReward,
+        isMystery = true,
     ),
     Achievement(
         id = AchievementId.GOOD_FOLD_25,
@@ -318,6 +334,7 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.RARE,
         criterion = Criterion.Custom(key = GOOD_FOLD, target = 25),
         xpReward = AchievementRarity.RARE.defaultXpReward,
+        isMystery = true,
     ),
     Achievement(
         id = AchievementId.FIRST_ALL_IN,
@@ -388,6 +405,15 @@ val AllAchievementsById: Map<AchievementId, Achievement> = AllAchievements.assoc
 const val NO_BUST_STREAK: String = "no_bust_streak"
 const val CHALLENGING_WINS: String = "challenging_wins"
 const val COMEBACK_5BB: String = "comeback_5bb"
+
+/** Recovered from <=100 chips back to a full 1,000-chip stack. Armed when
+ *  the stack first dips into the danger zone; triggers when the recovery
+ *  happens on a later hand. */
+const val DONT_CALL_IT_COMEBACK_COUNTER: String = "dont_call_it_comeback"
+
+/** Internal flag — set to 1 once the human's stack dips to <=100. Read by
+ *  the comeback check on each subsequent hand. */
+const val SHORT_STACK_ARMED: String = "short_stack_armed"
 
 /** Wins where everyone else folded (no showdown reached). */
 const val WIN_BY_FOLD: String = "win_by_fold"

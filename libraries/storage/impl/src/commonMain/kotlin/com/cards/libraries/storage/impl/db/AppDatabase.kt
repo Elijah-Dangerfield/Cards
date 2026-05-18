@@ -29,7 +29,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         AchievementEarnedEntity::class,
         AchievementCounterEntity::class,
     ],
-    version = 7, // v7: achievement_earned + achievement_counter tables
+    version = 8, // v8: xp_events.description column for achievement names
     exportSchema = true
 )
 @TypeConverters(CoreTypeConverters::class)
