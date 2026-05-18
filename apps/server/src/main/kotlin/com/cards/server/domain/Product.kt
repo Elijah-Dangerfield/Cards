@@ -39,6 +39,20 @@ sealed interface Product {
     /** Free-form short marker like "BEST VALUE" or "+20%". Null = no badge. */
     val badgeByLocale: Map<String, String>?
 
+    /**
+     * Wall-clock instant (UTC ms since epoch) after which this product
+     * stops being **purchasable**. Null = always purchasable.
+     *
+     * Once a player owns the product, ownership is permanent regardless
+     * of this field — only the *offer* expires, not the item.
+     *
+     * The route uses this to filter the catalog response by the server's
+     * own clock, so device clock manipulation can't make an expired offer
+     * visible. Authoritative purchase-time validation should also re-
+     * check this on the server side.
+     */
+    val availableUntilEpochMs: Long?
+
     /** Platforms this product is sold on. */
     val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform>
 
@@ -49,6 +63,7 @@ sealed interface Product {
         override val iconEmoji: String,
         override val featured: Boolean = false,
         override val badgeByLocale: Map<String, String>? = null,
+        override val availableUntilEpochMs: Long? = null,
         override val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform> =
             setOf(
                 com.dangerfield.cards.server.http.ClientContext.Platform.Android,
@@ -70,6 +85,7 @@ sealed interface Product {
         override val iconEmoji: String,
         override val featured: Boolean = false,
         override val badgeByLocale: Map<String, String>? = null,
+        override val availableUntilEpochMs: Long? = null,
         override val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform> =
             setOf(
                 com.dangerfield.cards.server.http.ClientContext.Platform.Android,

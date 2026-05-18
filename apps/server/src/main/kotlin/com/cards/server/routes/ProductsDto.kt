@@ -20,6 +20,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ProductCatalogResponse(
     val schemaVersion: Int = 1,
+    /**
+     * Server's wall clock at the moment this response was generated, in
+     * UTC milliseconds. Clients use this PLUS a local monotonic-clock
+     * anchor to derive effective server time without trusting their
+     * device clock — see [com.dangerfield.cards.libraries.products.CatalogTimeAnchor]
+     * on the client side. Required for sale-window countdown UIs that
+     * resist clock manipulation.
+     */
+    val serverNowEpochMs: Long = 0L,
     val chipPacks: List<ChipPackDto> = emptyList(),
     val chipOffers: List<ChipOfferDto> = emptyList(),
 )
@@ -36,6 +45,12 @@ data class ChipPackDto(
     val store: StoreSkuDto,
     val featured: Boolean = false,
     val badge: String? = null,
+    /**
+     * Wall-clock instant (UTC ms) after which this offer disappears from
+     * the shop. Null = no expiry. Compare against [ProductCatalogResponse.serverNowEpochMs]
+     * for a clock-spoof-resistant countdown.
+     */
+    val availableUntilEpochMs: Long? = null,
 )
 
 @Serializable
@@ -61,6 +76,8 @@ data class ChipOfferDto(
      * See server domain `Product.ChipOffer.unlockLevel`.
      */
     val unlockLevel: Int? = null,
+    /** See [ChipPackDto.availableUntilEpochMs]. */
+    val availableUntilEpochMs: Long? = null,
 )
 
 /**

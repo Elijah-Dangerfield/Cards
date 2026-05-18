@@ -6,9 +6,12 @@ import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.http.ClientContext
+import kotlin.time.Clock
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
 
 /**
  * Hardcoded catalog for the dev server. Edit, restart, the change is live on
@@ -25,7 +28,16 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(ServerScope::class)
 @ContributesBinding(ServerScope::class)
 @Inject
+@OptIn(kotlin.time.ExperimentalTime::class)
 class InMemoryProductCatalogSource : ProductCatalogSource {
+
+    // Sale-window anchors, captured once at server startup so dev demos
+    // see a stable countdown that doesn't slide. Restart the server to
+    // refresh the windows. Production swaps this whole source for a
+    // Postgres-backed one with proper time-aware queries.
+    private val startupNow = Clock.System.now()
+    private val flashSaleEndsEpochMs = startupNow.plus(3.hours).toEpochMilliseconds()
+    private val weekendSaleEndsEpochMs = startupNow.plus(3.days).toEpochMilliseconds()
 
     override suspend fun read(context: ClientContext): ProductCatalog {
         val chipPacks = listOf(
@@ -74,6 +86,24 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 store = PlatformStore(
                     ios = PlatformStore.StoreSku("com.cards.iap.chips.mega", "$19.99"),
                     android = PlatformStore.StoreSku("chips_mega", "$19.99"),
+                ),
+            ),
+            // --- Flash sale (time-limited IAP) ---
+            // Drops 10,000 chips for $0.99 — same price as the Pocket
+            // Stack but 10× chips. Sale window is 3 hours from server
+            // startup so the countdown UI is demoable in real time.
+            // Restart the server to reset the window.
+            Product.ChipPack(
+                id = "chip_pack_flash_sale",
+                titleByLocale = mapOf("en" to "Flash Sale", "es" to "Oferta relámpago"),
+                subtitleByLocale = mapOf("en" to "10,000 chips · 10×", "es" to "10.000 fichas · 10×"),
+                iconEmoji = "⚡",
+                badgeByLocale = mapOf("en" to "LIMITED", "es" to "LIMITADO"),
+                grantsChips = 10_000,
+                availableUntilEpochMs = flashSaleEndsEpochMs,
+                store = PlatformStore(
+                    ios = PlatformStore.StoreSku("com.cards.iap.chips.flash_sale", "$0.99"),
+                    android = PlatformStore.StoreSku("chips_flash_sale", "$0.99"),
                 ),
             ),
         ).filter { context.platform in it.platforms }
@@ -404,6 +434,25 @@ class InMemoryProductCatalogSource : ProductCatalogSource {
                 costChips = 20_000,
                 grantsKey = "tool.opponent_style",
                 unlockLevel = 15,
+            ),
+
+            // --- Weekend sale (time-limited chip offer) ---
+            // 50% off the Sunset Felt, only for the weekend. Same item;
+            // just the price/visibility window is the limited thing.
+            // Once owned, the player keeps the felt forever.
+            Product.ChipOffer(
+                id = "felt_sunset_weekend",
+                titleByLocale = mapOf("en" to "Sunset Felt", "es" to "Fieltro atardecer"),
+                subtitleByLocale = mapOf("en" to "Table felt · weekend sale", "es" to "Fieltro · oferta"),
+                descriptionByLocale = mapOf(
+                    "en" to "Warm sunset-orange felt. Weekend sale: half price. Once you own it, it's yours — the sale window only limits the discount.",
+                ),
+                iconEmoji = "🌅",
+                badgeByLocale = mapOf("en" to "50% OFF", "es" to "50% MENOS"),
+                costChips = 4_000,
+                grantsKey = "felt.sunset",
+                availableUntilEpochMs = weekendSaleEndsEpochMs,
+                unlockLevel = 1,
             ),
         ).filter { context.platform in it.platforms }
 

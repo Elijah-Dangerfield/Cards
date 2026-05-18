@@ -36,6 +36,21 @@ sealed interface Product {
     val featured: Boolean
     val badge: String?
 
+    /**
+     * Wall-clock instant (UTC ms) after which this product disappears
+     * from the shop. Null = always available. Once owned, ownership is
+     * permanent regardless of this field — only the offer's *purchase
+     * window* is time-limited.
+     *
+     * Critical: countdown UIs must NOT compare this against
+     * `Clock.System.now()` on the device — that trusts the device
+     * clock. Use [com.dangerfield.cards.libraries.products.CatalogTimeAnchor]
+     * which is anchored to the server's clock at fetch time and
+     * advances via the device's monotonic clock (resistant to wall-
+     * clock manipulation).
+     */
+    val availableUntilEpochMs: Long?
+
     @Serializable
     data class ChipPack(
         override val id: String,
@@ -46,6 +61,7 @@ sealed interface Product {
         val store: StoreSku,
         override val featured: Boolean = false,
         override val badge: String? = null,
+        override val availableUntilEpochMs: Long? = null,
     ) : Product
 
     @Serializable
@@ -58,6 +74,7 @@ sealed interface Product {
         val grantsKey: String,
         override val featured: Boolean = false,
         override val badge: String? = null,
+        override val availableUntilEpochMs: Long? = null,
         /**
          * Minimum player level required to purchase. 1 / null = no gate.
          * Locked products are still shown in the shop (as a "carrot") but

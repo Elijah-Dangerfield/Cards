@@ -18,6 +18,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ProductCatalogDto(
     val schemaVersion: Int = 1,
+    /** Server's wall clock at response time. See server's ProductCatalogResponse
+     *  and client's [com.dangerfield.cards.libraries.products.CatalogTimeAnchor]. */
+    val serverNowEpochMs: Long = 0L,
     val chipPacks: List<ChipPackDto> = emptyList(),
     val chipOffers: List<ChipOfferDto> = emptyList(),
 )
@@ -32,6 +35,7 @@ data class ChipPackDto(
     val store: StoreSkuDto,
     val featured: Boolean = false,
     val badge: String? = null,
+    val availableUntilEpochMs: Long? = null,
 )
 
 @Serializable
@@ -46,6 +50,7 @@ data class ChipOfferDto(
     val badge: String? = null,
     val description: String? = null,
     val unlockLevel: Int? = null,
+    val availableUntilEpochMs: Long? = null,
 )
 
 @Serializable
@@ -68,6 +73,7 @@ private fun ChipPackDto.toDomain(): Product.ChipPack = Product.ChipPack(
     store = store.toDomain(),
     featured = featured,
     badge = badge,
+    availableUntilEpochMs = availableUntilEpochMs,
 )
 
 private fun ChipOfferDto.toDomain(): Product.ChipOffer = Product.ChipOffer(
@@ -81,6 +87,7 @@ private fun ChipOfferDto.toDomain(): Product.ChipOffer = Product.ChipOffer(
     badge = badge,
     description = description,
     unlockLevel = unlockLevel,
+    availableUntilEpochMs = availableUntilEpochMs,
 )
 
 private fun StoreSkuDto.toDomain(): StoreSku = StoreSku(

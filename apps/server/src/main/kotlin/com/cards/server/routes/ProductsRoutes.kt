@@ -12,6 +12,7 @@ import io.ktor.server.response.cacheControl
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import kotlin.time.Clock
 
 /**
  * `GET /v1/products` — the shop catalog endpoint.
@@ -20,26 +21,63 @@ import io.ktor.server.routing.get
  * country, app version), pulls the catalog from [ProductCatalogSource], and
  * serializes it with strings localized to the caller's preferences.
  *
- * Caching: `Cache-Control: public, max-age=300` (5 min). Catalog rarely
- * changes within a session and the data isn't user-specific. CDN-friendly.
+ * Sale-window enforcement:
+ *  - Products with [Product.availableUntilEpochMs] are filtered against the
+ *    server's clock here. If a sale ended one second ago, server time, the
+ *    product is gone from the response. The client device clock has zero
+ *    influence — even a phone with its date rolled back gets the same
+ *    server-current catalog.
+ *  - The response includes the server's wall clock at generation time so
+ *    the client can run a clock-spoof-resistant countdown UI by combining
+ *    [ProductCatalogResponse.serverNowEpochMs] with a local monotonic
+ *    anchor. See `CatalogTimeAnchor` on the client.
  *
- * Platform filtering happens at the source (catalogs may have
- * platform-exclusive products), so by the time we serialize, every item is
- * applicable to the caller. The serializer surfaces only the matching
- * [PlatformStore.StoreSku] for the caller's platform — the other half is
- * never put on the wire.
+ * Caching: usually 5 min, but tightened to never serve past a known
+ * expiry. If the soonest-expiring product is 90s away, max-age drops to
+ * 90s. Keeps the CDN useful (cache hits during stable periods) while
+ * avoiding the "stale-by-15-minutes about-to-expire offer" footgun.
+ *
+ * Platform filtering happens at the source.
  */
+@OptIn(kotlin.time.ExperimentalTime::class)
 fun Route.productsRoutes(source: ProductCatalogSource) {
     get("/v1/products") {
         val ctx = call.clientContext()
-        val catalog = source.read(ctx)
-        call.response.cacheControl(CacheControl.MaxAge(maxAgeSeconds = 300))
-        call.respond(catalog.toDto(ctx))
+        val rawCatalog = source.read(ctx)
+        val nowEpochMs = Clock.System.now().toEpochMilliseconds()
+
+        // Filter out anything past its sale window per the server's clock.
+        val visibleCatalog = ProductCatalog(
+            chipPacks = rawCatalog.chipPacks.filter { it.availableUntilEpochMs == null || it.availableUntilEpochMs > nowEpochMs },
+            chipOffers = rawCatalog.chipOffers.filter { it.availableUntilEpochMs == null || it.availableUntilEpochMs > nowEpochMs },
+        )
+
+        // Cache-Control max-age = min(5 min, soonest expiry - now).
+        // Never serve a cached response past a known expiry.
+        val soonestExpiryMs = visibleCatalog.soonestExpiryEpochMs()
+        val secondsUntilSoonestExpiry = soonestExpiryMs?.let {
+            ((it - nowEpochMs) / 1000L).coerceAtLeast(1L)
+        }
+        val maxAgeSeconds = (secondsUntilSoonestExpiry ?: DEFAULT_MAX_AGE_SECONDS)
+            .coerceAtMost(DEFAULT_MAX_AGE_SECONDS)
+        call.response.cacheControl(CacheControl.MaxAge(maxAgeSeconds = maxAgeSeconds.toInt()))
+
+        call.respond(visibleCatalog.toDto(ctx, nowEpochMs))
     }
 }
 
-internal fun ProductCatalog.toDto(ctx: ClientContext): ProductCatalogResponse =
+private const val DEFAULT_MAX_AGE_SECONDS: Long = 300L
+
+private fun ProductCatalog.soonestExpiryEpochMs(): Long? {
+    val packExpiries = chipPacks.mapNotNull { it.availableUntilEpochMs }
+    val offerExpiries = chipOffers.mapNotNull { it.availableUntilEpochMs }
+    val all = packExpiries + offerExpiries
+    return all.minOrNull()
+}
+
+internal fun ProductCatalog.toDto(ctx: ClientContext, serverNowEpochMs: Long): ProductCatalogResponse =
     ProductCatalogResponse(
+        serverNowEpochMs = serverNowEpochMs,
         chipPacks = chipPacks.map { it.toDto(ctx) },
         chipOffers = chipOffers.map { it.toDto(ctx) },
     )
@@ -53,6 +91,7 @@ private fun Product.ChipPack.toDto(ctx: ClientContext): ChipPackDto = ChipPackDt
     store = store.forPlatform(ctx.platform).toDto(),
     featured = featured,
     badge = badgeByLocale?.let { pickLocalized(it, ctx.preferredLocales) }?.ifEmpty { null },
+    availableUntilEpochMs = availableUntilEpochMs,
 )
 
 private fun Product.ChipOffer.toDto(ctx: ClientContext): ChipOfferDto = ChipOfferDto(
@@ -66,6 +105,7 @@ private fun Product.ChipOffer.toDto(ctx: ClientContext): ChipOfferDto = ChipOffe
     badge = badgeByLocale?.let { pickLocalized(it, ctx.preferredLocales) }?.ifEmpty { null },
     description = descriptionByLocale?.let { pickLocalized(it, ctx.preferredLocales) }?.ifEmpty { null },
     unlockLevel = unlockLevel,
+    availableUntilEpochMs = availableUntilEpochMs,
 )
 
 private fun PlatformStore.forPlatform(platform: ClientContext.Platform): PlatformStore.StoreSku =

@@ -1,8 +1,10 @@
 package com.dangerfield.cards.libraries.products.impl
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.ProductsRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +29,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * successful catalog intact, so a flaky network doesn't blow away the user's
  * view of the shop.
  *
+ * Time anchor: every successful refresh also captures a [CatalogTimeAnchor]
+ * pairing the server's wall clock with the device's monotonic clock at
+ * fetch time. UI subscribes to [observeTimeAnchor] for clock-spoof-
+ * resistant countdowns on sale-window offers.
+ *
  * No on-disk caching in V1 — the catalog is small, the API is cheap, and a
  * cold launch with no network just shows the empty state. Adding offline
  * persistence is straightforward via [:libraries:storage] when needed.
@@ -39,13 +46,22 @@ class ProductsRepositoryImpl(
 ) : ProductsRepository {
 
     private val state = MutableStateFlow(ProductCatalog.Empty)
+    private val timeAnchor = MutableStateFlow<CatalogTimeAnchor?>(null)
     private val refreshMutex = Mutex()
 
     override fun observeCatalog(): StateFlow<ProductCatalog> = state.asStateFlow()
 
+    override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = timeAnchor.asStateFlow()
+
     override suspend fun refresh(): Result<ProductCatalog> = refreshMutex.withLock {
         Catching {
-            val catalog = dataSource.fetchCatalog().toDomain()
+            val dto = dataSource.fetchCatalog()
+            val catalog = dto.toDomain()
+            // Capture the anchor BEFORE updating the catalog flow so any
+            // synchronous UI subscriber sees both updates in a consistent
+            // order. Anchor uses serverNowEpochMs from the response paired
+            // with TimeSource.Monotonic.markNow() inside `capture()`.
+            timeAnchor.value = CatalogTimeAnchor.capture(serverNowEpochMs = dto.serverNowEpochMs)
             state.value = catalog
             catalog
         }

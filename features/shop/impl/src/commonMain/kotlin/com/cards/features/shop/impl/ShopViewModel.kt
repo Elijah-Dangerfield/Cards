@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.ProductsRepository
@@ -81,6 +82,16 @@ class ShopViewModel @Inject constructor(
                 takeAction(ShopAction.PlayerLevelChanged(level))
             }
         }
+        viewModelScope.launch {
+            // Time anchor tracks the server's wall clock at the moment of
+            // the latest catalog fetch, paired with a local monotonic
+            // mark. Used by the countdown badge UI for sale-window
+            // offers — see CatalogTimeAnchor for the clock-spoof-
+            // resistance logic.
+            productsRepository.observeTimeAnchor().collect { anchor ->
+                takeAction(ShopAction.TimeAnchorChanged(anchor))
+            }
+        }
         // Kick off catalog refresh + inventory sync (these run concurrently).
         takeAction(ShopAction.Refresh)
         viewModelScope.launch { inventorySyncService.sync() }
@@ -120,6 +131,9 @@ class ShopViewModel @Inject constructor(
             is ShopAction.PlayerLevelChanged -> action.updateState {
                 it.copy(playerLevel = action.level)
             }
+            is ShopAction.TimeAnchorChanged -> action.updateState {
+                it.copy(timeAnchor = action.anchor)
+            }
             is ShopAction.DismissError -> action.updateState {
                 it.copy(errorMessage = null)
             }
@@ -128,12 +142,20 @@ class ShopViewModel @Inject constructor(
 
             is ShopAction.RequestPurchase -> {
                 // Defense-in-depth: refuse to open the confirm sheet for
-                // owned / locked / unaffordable items. UI also gates these,
-                // but the action layer is the final fence.
+                // owned / locked / unaffordable / expired items. UI also
+                // gates these, but the action layer is the final fence.
                 val product = action.product
                 if (state.ownsProduct(product.id)) return
                 if (!state.isUnlocked(product)) return
                 if (product is Product.ChipOffer && !state.canAfford(product)) return
+                if (state.isExpired(product)) {
+                    // Offer expired between fetch and tap. Refresh so the
+                    // user sees the new state (it'll be filtered out
+                    // server-side), and surface a soft error toast.
+                    sendEvent(ShopEvent.OfferExpired(product.id))
+                    takeAction(ShopAction.Refresh)
+                    return
+                }
                 action.updateState { it.copy(pendingPurchase = PendingPurchase.from(product)) }
             }
             is ShopAction.DismissPendingPurchase -> action.updateState {
@@ -211,6 +233,12 @@ data class ShopState(
      * offers gated by [Product.ChipOffer.unlockLevel].
      */
     val playerLevel: Int = 1,
+    /**
+     * Time anchor for the latest successful catalog fetch. Null until
+     * the first fetch lands. Used by the UI to compute clock-spoof-
+     * resistant remaining time for sale-window offers.
+     */
+    val timeAnchor: CatalogTimeAnchor? = null,
     /** Non-null while the purchase confirmation sheet is up. */
     val pendingPurchase: PendingPurchase? = null,
 ) {
@@ -230,6 +258,21 @@ data class ShopState(
     fun isUnlocked(product: Product): Boolean = when (product) {
         is Product.ChipPack -> true // IAP packs aren't level-gated in V1.
         is Product.ChipOffer -> (product.unlockLevel ?: 1) <= playerLevel
+    }
+
+    /**
+     * Has the sale window for [product] elapsed, according to the
+     * effective server time? Returns false (not expired) when:
+     *  - The product doesn't have a sale window (always available).
+     *  - We don't have a time anchor yet (haven't fetched — assume good).
+     *
+     * NEVER trusts the device wall clock — always goes through
+     * [CatalogTimeAnchor].
+     */
+    fun isExpired(product: Product): Boolean {
+        val until = product.availableUntilEpochMs ?: return false
+        val anchor = timeAnchor ?: return false
+        return until <= anchor.effectiveServerNowMs()
     }
 
     /**
@@ -311,6 +354,7 @@ sealed interface ShopAction {
     data class ChipsChanged(val balance: Long) : ShopAction
     data class InventoryChanged(val inventory: List<InventoryItem>) : ShopAction
     data class PlayerLevelChanged(val level: Int) : ShopAction
+    data class TimeAnchorChanged(val anchor: CatalogTimeAnchor?) : ShopAction
     data object DismissError : ShopAction
 
     /** User tapped a product row → open the purchase confirmation sheet. */
@@ -332,4 +376,12 @@ sealed interface ShopEvent {
 
     /** Idempotent re-redeem — user tried to buy something they already own. */
     data class AlreadyOwned(val offer: Product.ChipOffer) : ShopEvent
+
+    /**
+     * Tap on an offer whose sale window expired between the catalog
+     * fetch and the user's tap (or whose countdown reached zero mid-
+     * scroll). The screen surfaces a soft toast and the VM auto-fires
+     * a refresh, after which the offer drops out of the catalog.
+     */
+    data class OfferExpired(val productId: String) : ShopEvent
 }

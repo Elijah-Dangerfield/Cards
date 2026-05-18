@@ -24,4 +24,14 @@ interface ProductsRepository {
 
     /** Force a network fetch. Caches the result on success. */
     suspend fun refresh(): Result<ProductCatalog>
+
+    /**
+     * Live feed of the time anchor associated with the most recent
+     * successful fetch. Null until the first successful fetch lands.
+     *
+     * Subscribers use this to convert `Product.availableUntilEpochMs`
+     * into clock-spoof-resistant remaining-time values. See
+     * [CatalogTimeAnchor] for the math.
+     */
+    fun observeTimeAnchor(): Flow<CatalogTimeAnchor?>
 }

@@ -269,9 +269,13 @@ class ShopViewModelTest : CoroutineTest() {
 
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
         private val state = MutableStateFlow(initial)
+        private val timeAnchor = MutableStateFlow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?>(null)
         var nextRefreshResult: Result<ProductCatalog>? = null
 
         override fun observeCatalog(): Flow<ProductCatalog> = state.asStateFlow()
+
+        override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> =
+            timeAnchor.asStateFlow()
 
         override suspend fun refresh(): Result<ProductCatalog> {
             val result = nextRefreshResult
@@ -279,6 +283,10 @@ class ShopViewModelTest : CoroutineTest() {
                 nextRefreshResult = null
                 return result
             }
+            // Mirror the impl: every successful refresh updates the time
+            // anchor so tests can exercise time-anchor-aware code paths.
+            timeAnchor.value = com.dangerfield.cards.libraries.products.CatalogTimeAnchor
+                .capture(serverNowEpochMs = 0L)
             return Result.success(state.value)
         }
     }

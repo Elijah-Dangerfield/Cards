@@ -162,6 +162,8 @@ private fun CatalogContent(
             ProductGrid(items = otherPacks) { pack ->
                 ChipPackCard(
                     pack = pack,
+                    timeAnchor = state.timeAnchor,
+                    onExpired = { onAction(ShopAction.Refresh) },
                     onClick = { onAction(ShopAction.RequestPurchase(pack)) },
                 )
             }
@@ -178,6 +180,8 @@ private fun CatalogContent(
                 ChipOfferCard(
                     offer = offer,
                     cardState = state.classify(offer),
+                    timeAnchor = state.timeAnchor,
+                    onExpired = { onAction(ShopAction.Refresh) },
                     onClick = { onAction(ShopAction.RequestPurchase(offer)) },
                 )
             }
@@ -364,7 +368,12 @@ private fun HeroProductIcon(emoji: String) {
  * handle the math means the same call site works on any grid.
  */
 @Composable
-private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
+private fun ChipPackCard(
+    pack: Product.ChipPack,
+    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
+    onExpired: () -> Unit,
+    onClick: () -> Unit,
+) {
     val card: @Composable () -> Unit = {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
@@ -410,19 +419,35 @@ private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
         }
     }
 
+    // Badge slot priority:
+    //   1. Sale-window countdown — most urgent info, beats marketing badges.
+    //   2. Marketing badge (e.g. "BEST VALUE").
+    //   3. No badge.
+    val saleEpochMs = pack.availableUntilEpochMs
     val packBadge = pack.badge
-    if (packBadge == null) {
+    val badgeContent: @Composable (() -> Unit)? = when {
+        saleEpochMs != null && timeAnchor != null -> {
+            {
+                CountdownBadge(
+                    timeAnchor = timeAnchor,
+                    availableUntilEpochMs = saleEpochMs,
+                    onExpired = onExpired,
+                )
+            }
+        }
+        packBadge != null -> {
+            { OverhangBadge(text = packBadge, accent = ColorResource.Amber600) }
+        }
+        else -> null
+    }
+    if (badgeContent == null) {
         Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) { card() }
     } else {
-        // EdgeAlignedTop: badge right-edge sits at the card's right edge,
-        // half-overhang on TOP only. Deterministic — scales correctly with
-        // badge text length and keeps the right-column cell from clipping
-        // against the screen's horizontal padding. No magic offsets.
         BadgedBox(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             contentRadius = Radii.Card,
             placement = BadgePlacement.EdgeAlignedTop,
-            badge = { OverhangBadge(text = packBadge, accent = ColorResource.Amber600) },
+            badge = { badgeContent() },
             content = { card() },
         )
     }
@@ -451,6 +476,8 @@ private fun ChipPackCard(pack: Product.ChipPack, onClick: () -> Unit) {
 private fun ChipOfferCard(
     offer: Product.ChipOffer,
     cardState: ChipOfferCardState,
+    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
+    onExpired: () -> Unit,
     onClick: () -> Unit,
 ) {
     // Locked + Insufficient both dim the card so it reads as "blocked";
@@ -524,21 +551,38 @@ private fun ChipOfferCard(
         }
     }
 
-    // Owned + Locked items skip the marketing badge: the icon-level
-    // overlay already says "this card is in a special state" and a
-    // second pill on top of that is clutter.
-    val offerBadge = offer.badge
-    val showBadge = offerBadge != null &&
-        cardState !is ChipOfferCardState.Owned &&
+    // Owned + Locked items skip ALL corner badges — the icon-level
+    // overlay already says "this card is in a special state."
+    //
+    // Otherwise the priority is countdown (sale window) > marketing badge.
+    val showAnyBadge = cardState !is ChipOfferCardState.Owned &&
         cardState !is ChipOfferCardState.Locked
-    if (!showBadge) {
+    val saleEpochMs = offer.availableUntilEpochMs
+    val offerBadge = offer.badge
+    val badgeContent: @Composable (() -> Unit)? = when {
+        !showAnyBadge -> null
+        saleEpochMs != null && timeAnchor != null -> {
+            {
+                CountdownBadge(
+                    timeAnchor = timeAnchor,
+                    availableUntilEpochMs = saleEpochMs,
+                    onExpired = onExpired,
+                )
+            }
+        }
+        offerBadge != null -> {
+            { OverhangBadge(text = offerBadge, accent = ColorResource.Red400) }
+        }
+        else -> null
+    }
+    if (badgeContent == null) {
         Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) { card() }
     } else {
         BadgedBox(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             contentRadius = Radii.Card,
             placement = BadgePlacement.EdgeAlignedTop,
-            badge = { OverhangBadge(text = offerBadge!!, accent = ColorResource.Red400) },
+            badge = { badgeContent() },
             content = { card() },
         )
     }
