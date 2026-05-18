@@ -12,6 +12,7 @@ data class ServerConfig(
     val supabase: SupabaseConfig,
     val http: HttpConfig,
     val sentry: SentryConfig,
+    val admin: AdminConfig,
 ) {
     companion object {
         fun fromEnv(env: Env = Env()): ServerConfig = ServerConfig(
@@ -19,6 +20,7 @@ data class ServerConfig(
             supabase = SupabaseConfig.fromEnv(env),
             http = HttpConfig.fromEnv(env),
             sentry = SentryConfig.fromEnv(env),
+            admin = AdminConfig.fromEnv(env),
         )
     }
 }
@@ -103,6 +105,26 @@ data class HttpConfig(
         fun fromEnv(env: Env): HttpConfig = HttpConfig(
             host = env.get("SERVER_HOST") ?: "0.0.0.0",
             port = env.int("SERVER_PORT", default = 8080),
+        )
+    }
+}
+
+/**
+ * Token-gated admin endpoints (currently only the anon-sweep). Separate
+ * env var instead of reusing SUPABASE_SERVICE_ROLE_KEY so an external
+ * scheduler can trigger sweeps without holding Supabase admin power.
+ *
+ * V1 cadence is "call the route on a cron." A future in-process scheduler
+ * could read [orphanAnonTtlDays] directly without going through HTTP.
+ */
+data class AdminConfig(
+    val apiToken: String?,
+    val orphanAnonTtlDays: Int,
+) {
+    companion object {
+        fun fromEnv(env: Env): AdminConfig = AdminConfig(
+            apiToken = env["ADMIN_API_TOKEN"],
+            orphanAnonTtlDays = env.int("ORPHAN_ANON_TTL_DAYS", default = 30),
         )
     }
 }

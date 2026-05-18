@@ -64,6 +64,44 @@ changes under `apps/server/**` triggers an auto-deploy via GitHub Actions
    # {"ok":true}
    ```
 
+## Anonymous user sweep (recommended once auth ships)
+
+Anon Supabase users who sign in once and never come back stay in
+`auth.users` forever — and on the OAuth-claim path, switching to a
+pre-existing account orphans the anon row by design. The server exposes
+a maintenance endpoint that lists + deletes anon users older than
+`ORPHAN_ANON_TTL_DAYS` (default 30):
+
+```
+fly secrets set \
+  ADMIN_API_TOKEN="$(openssl rand -hex 32)" \
+  ORPHAN_ANON_TTL_DAYS=30 \
+  -a cards-server-dev
+```
+
+Trigger once a day. Easiest path is a GitHub Actions cron in
+`.github/workflows/sweep-anon.yml`:
+
+```yaml
+on:
+  schedule:
+    - cron: '17 5 * * *'   # 05:17 UTC daily — odd minute so we miss the top-of-hour stampede.
+  workflow_dispatch:        # also runnable manually from the Actions tab
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl --fail-with-body -X POST \
+            -H "X-Admin-Token: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}" \
+            https://cards-server-dev.fly.dev/v1/admin/sweep-anonymous-users
+```
+
+(Equivalent prod workflow lives separately and points at
+`cards-server.fly.dev`.) Response body shows `candidatesFound / deleted
+/ failedToDelete`; a non-zero `failedToDelete` is worth investigating
+in Sentry.
+
 ## Day-to-day
 
 - **Tail logs**: `fly logs -a cards-server-dev`

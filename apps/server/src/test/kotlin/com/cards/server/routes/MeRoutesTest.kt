@@ -263,6 +263,7 @@ class MeRoutesTest {
 
     private object AlwaysSuccessAdmin : SupabaseAdminClient {
         override suspend fun deleteUser(userId: UserId): DeleteUserResult = DeleteUserResult.Success
+        override suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId> = emptyList()
     }
 
     private class StubAdmin(val result: DeleteUserResult) : SupabaseAdminClient {
@@ -273,6 +274,7 @@ class MeRoutesTest {
             calls++
             return result
         }
+        override suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId> = emptyList()
     }
 
     @Test

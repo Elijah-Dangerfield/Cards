@@ -37,6 +37,7 @@ dependencies {
     // small footprint, no extra native deps to ship in the Docker image.
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.contentNegotiation)
     testImplementation(libs.ktor.client.mock)
 
     // Auth — JWT verification. Auth0's java-jwt is what

@@ -15,6 +15,18 @@ package com.dangerfield.cards.server.domain
  */
 interface SupabaseAdminClient {
     suspend fun deleteUser(userId: UserId): DeleteUserResult
+
+    /**
+     * Enumerate anonymous Supabase users whose last sign-in is older than
+     * [olderThan]. Paginates internally until the upstream list is
+     * exhausted; returns an empty list when the service-role key isn't
+     * configured (callers should check ahead of time and skip the sweep).
+     *
+     * The full result lives in memory by design — V1 is small enough that
+     * a single sweep returns <10k users in the worst case. If we grow past
+     * that, stream via a Flow and run the delete loop on each emission.
+     */
+    suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId>
 }
 
 sealed interface DeleteUserResult {

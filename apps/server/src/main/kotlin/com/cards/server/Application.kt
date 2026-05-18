@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSentry
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
+import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
 import com.dangerfield.cards.server.routes.healthRoutes
@@ -56,6 +57,7 @@ fun Application.module(config: ServerConfig) {
         inventoryRoutes()
         meRoutes(component.profileRepository, component.supabaseAdminClient)
         avatarRoutes()
+        adminRoutes(config.admin, component.orphanAnonymousSweep)
     }
 }
 
