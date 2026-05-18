@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
+import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.call.body
@@ -186,6 +187,7 @@ class MeRoutesTest {
         testApplication {
             application {
                 installSerialization()
+                installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { meRoutes(repo, adminClient) }
@@ -209,6 +211,7 @@ class MeRoutesTest {
         testApplication {
             application {
                 installSerialization()
+                installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { meRoutes(repo, adminClient) }
