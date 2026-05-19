@@ -183,6 +183,7 @@ fun PlayPokerScreen(
                 } else {
                     ActiveTable(
                         table = active,
+                        humanWinPercent = state.humanWinPercent,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { raiseSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -373,6 +374,7 @@ private fun LoadingTable() {
 @Composable
 private fun ActiveTable(
     table: TableUiState.Active,
+    humanWinPercent: Int?,
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -414,6 +416,20 @@ private fun ActiveTable(
         // and the player row slides DOWN to occupy the freed space —
         // instead of sitting in place above an empty reserved slot.
         Column(modifier = Modifier.fillMaxWidth()) {
+            // Live-equity badge — visible only when the win-odds tool is
+            // owned + equipped. Sits centered just above the player area
+            // so the player can read it at a glance while staring at
+            // their own hole cards. No animations: the value updates
+            // when the inputs (hole/community/opponents) change, which
+            // is rare enough that a tick feels stable.
+            humanWinPercent?.let { percent ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    WinOddsBadge(winPercent = percent)
+                }
+            }
             PlayerArea(
                 table = table,
                 onBlindClick = onBlindClick,

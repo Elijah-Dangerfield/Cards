@@ -322,6 +322,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         achievementRepository = achievementRepository,
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
+        dispatcherProvider = dispatchers,
     )
 
     private fun testEarnedAchievement(): EarnedAchievement = EarnedAchievement(

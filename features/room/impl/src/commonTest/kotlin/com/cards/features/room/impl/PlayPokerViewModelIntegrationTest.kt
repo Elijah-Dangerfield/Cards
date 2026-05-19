@@ -209,6 +209,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             achievementRepository = achievements,
             appCache = appCache,
             equipmentRepository = FakeEquipmentRepository(),
+            dispatcherProvider = dispatchers,
         )
         return TestVm(
             vm = vm,
