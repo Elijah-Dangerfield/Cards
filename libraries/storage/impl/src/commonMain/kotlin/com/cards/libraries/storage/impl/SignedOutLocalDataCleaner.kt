@@ -37,6 +37,7 @@ internal suspend fun AppDatabase.clearAllUserData() {
     progressionDao().deleteAll()
     sessionDao().deleteAllSessions()
     userDao().deleteAll()
+    walletEventDao().deleteAll()
     xpEventDao().deleteAll()
 }
 

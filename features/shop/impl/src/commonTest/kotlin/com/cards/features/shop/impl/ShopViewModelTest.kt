@@ -469,9 +469,15 @@ class ShopViewModelTest : CoroutineTest() {
         initialBalance: Long = ChipsRepository.STARTING_GRANT,
     ) : ChipsRepository {
         private val state = MutableStateFlow(initialBalance)
+        val appliedDeltas = mutableListOf<Triple<Long, String, String?>>()
+
         override fun observeBalance(): Flow<Long> = state.asStateFlow()
         override suspend fun getBalance(): Long = state.value
-        override suspend fun applyDelta(delta: Long) { state.value += delta }
+        override suspend fun applyDelta(delta: Long, reason: String, idempotencyKey: String?) {
+            appliedDeltas += Triple(delta, reason, idempotencyKey)
+            state.value += delta
+        }
+        override suspend fun setBalance(authoritativeBalance: Long) { state.value = authoritativeBalance }
         override suspend fun deleteAll() { state.value = 0 }
         fun emit(value: Long) { state.value = value }
     }

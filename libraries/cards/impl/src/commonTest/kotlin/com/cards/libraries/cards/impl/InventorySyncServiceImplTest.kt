@@ -259,7 +259,12 @@ class InventorySyncServiceImplTest : CoroutineTest() {
         private val state = MutableStateFlow(0L)
         override fun observeBalance(): Flow<Long> = state.asStateFlow()
         override suspend fun getBalance(): Long = state.value
-        override suspend fun applyDelta(delta: Long) { deltas += delta }
+        override suspend fun applyDelta(delta: Long, reason: String, idempotencyKey: String?) {
+            deltas += delta
+        }
+        override suspend fun setBalance(authoritativeBalance: Long) {
+            state.value = authoritativeBalance
+        }
         override suspend fun deleteAll() { }
     }
 }

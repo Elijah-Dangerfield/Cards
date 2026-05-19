@@ -155,8 +155,19 @@ class AchievementRepositoryImpl(
                     )
                 }
             }
-            val chipDelta = newlyEarned.sumOf { it.achievement.chipReward }
-            if (chipDelta > 0L) chipsRepository.applyDelta(chipDelta)
+            for (earned in newlyEarned) {
+                if (earned.achievement.chipReward > 0L) {
+                    chipsRepository.applyDelta(
+                        delta = earned.achievement.chipReward,
+                        // achievementId+earnedAt is unique per user per
+                        // unlock — collapsing both into one key gives us
+                        // safe replay across the bounce-the-app-mid-grant
+                        // window without double-crediting.
+                        reason = "achievement.${earned.achievement.id.name}",
+                        idempotencyKey = "achievement.${earned.achievement.id.name}",
+                    )
+                }
+            }
         }
 
         return newlyEarned

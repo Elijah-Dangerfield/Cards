@@ -20,6 +20,8 @@ import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
 import com.dangerfield.cards.libraries.cards.storage.db.SessionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.UserDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserEntity
+import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
+import com.dangerfield.cards.libraries.cards.storage.db.WalletEventEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
 
@@ -34,8 +36,9 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         AchievementCounterEntity::class,
         InventoryEntity::class,
         EquipmentEntity::class,
+        WalletEventEntity::class,
     ],
-    version = 10, // v10: equipment table for equipped/unequipped intent + sync state
+    version = 11, // v11: wallet_events table for pending chip-delta sync receipts
     exportSchema = true
 )
 @TypeConverters(CoreTypeConverters::class)
@@ -49,6 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun achievementDao(): AchievementDao
     abstract fun inventoryDao(): InventoryDao
     abstract fun equipmentDao(): EquipmentDao
+    abstract fun walletEventDao(): WalletEventDao
 }
 
 @Suppress("KotlinNoActualForExpect")

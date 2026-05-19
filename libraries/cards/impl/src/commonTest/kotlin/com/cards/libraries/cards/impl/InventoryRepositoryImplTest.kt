@@ -1,10 +1,9 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
-import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
-import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryEntity
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -42,7 +41,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun redeem_insufficientChips_returnsInsufficient_doesNotInsertOrCharge() = runUnitTest {
         val inv = FakeInventoryDao()
-        val chips = FakeChipsDao(balance = 100)
+        val chips = FakeChipsRepository(balance = 100)
         val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 1_000))
 
         val result = repo.redeemChipOffer("emote_dance", costChips = 2_500)
@@ -55,7 +54,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun redeem_success_insertsPendingRow_andDeductsChips() = runUnitTest {
         val inv = FakeInventoryDao()
-        val chips = FakeChipsDao(balance = 10_000)
+        val chips = FakeChipsRepository(balance = 10_000)
         val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 5_000))
 
         val result = repo.redeemChipOffer("emote_dance", costChips = 2_500)
@@ -74,7 +73,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
         val inv = FakeInventoryDao().apply {
             insertReturnsDuplicate = true
         }
-        val chips = FakeChipsDao(balance = 10_000)
+        val chips = FakeChipsRepository(balance = 10_000)
         val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
 
         val result = repo.redeemChipOffer("emote_dance", costChips = 2_500)
@@ -86,7 +85,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun redeem_chipDeductionFails_compensatesByDeletingTheRow() = runUnitTest {
         val inv = FakeInventoryDao()
-        val chips = FakeChipsDao(balance = 10_000).apply {
+        val chips = FakeChipsRepository(balance = 10_000).apply {
             failOnNextApplyDelta = RuntimeException("disk full")
         }
         val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
@@ -107,7 +106,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun markConfirmed_flipsState() = runUnitTest {
         val inv = FakeInventoryDao()
-        val chips = FakeChipsDao(balance = 10_000)
+        val chips = FakeChipsRepository(balance = 10_000)
         val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
 
         repo.markConfirmed(listOf("a", "b"))
@@ -119,7 +118,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun markConfirmed_emptyList_isNoOp() = runUnitTest {
         val inv = FakeInventoryDao()
-        val chips = FakeChipsDao(balance = 10_000)
+        val chips = FakeChipsRepository(balance = 10_000)
         val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
 
         repo.markConfirmed(emptyList())
@@ -130,7 +129,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun revertPurchase_deletes() = runUnitTest {
         val inv = FakeInventoryDao()
-        val chips = FakeChipsDao(balance = 10_000)
+        val chips = FakeChipsRepository(balance = 10_000)
         val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
 
         repo.revertPurchase("emote_dance")
@@ -152,7 +151,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = InventoryRepositoryImpl(inv, FakeChipsDao(10_000), FixedClock(0))
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.observeInventory().test {
             val items = awaitItem()
@@ -179,7 +178,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = InventoryRepositoryImpl(inv, FakeChipsDao(10_000), FixedClock(0))
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.observeInventory().test {
             val item = awaitItem().single()
@@ -195,7 +194,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun deleteAll_clearsTable() = runUnitTest {
         val inv = FakeInventoryDao()
-        val repo = InventoryRepositoryImpl(inv, FakeChipsDao(10_000), FixedClock(0))
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.deleteAll()
 
@@ -208,25 +207,31 @@ class InventoryRepositoryImplTest : CoroutineTest() {
         override fun now(): Instant = Instant.fromEpochMilliseconds(now)
     }
 
-    private class FakeChipsDao(balance: Long) : ChipsDao {
-        private val state = MutableStateFlow(
-            ChipsEntity(balance = balance, updatedAtEpochMs = 0),
-        )
+    private class FakeChipsRepository(balance: Long) : ChipsRepository {
+        private val state = MutableStateFlow(balance)
         val deltas = mutableListOf<Long>()
+        val reasons = mutableListOf<String>()
+        val idempotencyKeys = mutableListOf<String?>()
         var failOnNextApplyDelta: Throwable? = null
 
-        override fun observeChips(): Flow<ChipsEntity?> = state.asStateFlow()
-        override suspend fun getChips(): ChipsEntity? = state.value
-        override suspend fun insertIfMissing(entity: ChipsEntity) { /* no-op */ }
-        override suspend fun applyDelta(delta: Long, updatedAtEpochMs: Long) {
+        override fun observeBalance(): Flow<Long> = state.asStateFlow()
+        override suspend fun getBalance(): Long = state.value
+
+        override suspend fun applyDelta(delta: Long, reason: String, idempotencyKey: String?) {
             failOnNextApplyDelta?.let { failOnNextApplyDelta = null; throw it }
             deltas += delta
-            state.value = state.value.copy(
-                balance = state.value.balance + delta,
-                updatedAtEpochMs = updatedAtEpochMs,
-            )
+            reasons += reason
+            idempotencyKeys += idempotencyKey
+            state.value = state.value + delta
         }
-        override suspend fun deleteAll() { state.value = state.value.copy(balance = 0) }
+
+        override suspend fun setBalance(authoritativeBalance: Long) {
+            state.value = authoritativeBalance
+        }
+
+        override suspend fun deleteAll() {
+            state.value = 0
+        }
     }
 
     private class FakeInventoryDao : InventoryDao {

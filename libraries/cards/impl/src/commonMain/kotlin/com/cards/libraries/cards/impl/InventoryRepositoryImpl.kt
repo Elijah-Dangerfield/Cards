@@ -1,10 +1,10 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
-import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryEntity
 import kotlinx.coroutines.flow.Flow
@@ -33,7 +33,7 @@ import kotlin.time.Clock
 @Inject
 class InventoryRepositoryImpl(
     private val inventoryDao: InventoryDao,
-    private val chipsDao: ChipsDao,
+    private val chipsRepository: ChipsRepository,
     private val clock: Clock,
 ) : InventoryRepository {
 
@@ -51,7 +51,7 @@ class InventoryRepositoryImpl(
 
         // Step 1: pre-check balance. Cheap read; if the user can't afford
         // it we return without touching state.
-        val balance = chipsDao.getChips()?.balance ?: 0L
+        val balance = chipsRepository.getBalance()
         if (balance < costChips) return RedeemResult.InsufficientChips
 
         // Step 2: optimistic insert. `INSERT OR IGNORE` returns -1 if the
@@ -67,14 +67,20 @@ class InventoryRepositoryImpl(
         val rowId = inventoryDao.insertIfMissing(entity)
         if (rowId == -1L) return RedeemResult.AlreadyOwned
 
-        // Step 3: deduct chips. If this throws (extremely rare — Room
-        // operation against a column that exists), compensate by deleting
-        // the row we just inserted. Without the compensation a crash here
-        // would leave the user with the item AND their chips intact —
-        // benign for users but creates phantom inventory on the server's
-        // sync side.
+        // Step 3: deduct chips through the wallet-aware repo so the
+        // server-side ledger sees the debit too. If this throws (extremely
+        // rare — Room write against a known schema), compensate by
+        // deleting the row we just inserted. Without the compensation a
+        // crash here would leave the user with the item AND their chips
+        // intact — benign for users but creates phantom inventory on the
+        // server's sync side. The reason/key tie the wallet event to
+        // this specific product so a re-attempt collapses cleanly.
         try {
-            chipsDao.applyDelta(delta = -costChips, updatedAtEpochMs = now)
+            chipsRepository.applyDelta(
+                delta = -costChips,
+                reason = "shop.$productId",
+                idempotencyKey = "shop.$productId",
+            )
         } catch (t: Throwable) {
             runCatching { inventoryDao.delete(productId) }
             throw t

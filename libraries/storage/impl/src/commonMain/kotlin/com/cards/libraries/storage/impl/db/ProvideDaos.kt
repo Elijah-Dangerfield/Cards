@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserDao
+import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -60,3 +61,9 @@ class ProvideInventoryDao @Inject constructor(
 class ProvideEquipmentDao @Inject constructor(
     provider: AppDatabaseProvider
 ) : EquipmentDao by provider.database.equipmentDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = WalletEventDao::class)
+class ProvideWalletEventDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : WalletEventDao by provider.database.walletEventDao()

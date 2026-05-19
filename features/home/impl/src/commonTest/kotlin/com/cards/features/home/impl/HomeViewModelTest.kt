@@ -190,8 +190,11 @@ class HomeViewModelTest : CoroutineTest() {
         val balance = MutableStateFlow(initial)
         override fun observeBalance(): Flow<Long> = balance
         override suspend fun getBalance(): Long = balance.value
-        override suspend fun applyDelta(delta: Long) {
+        override suspend fun applyDelta(delta: Long, reason: String, idempotencyKey: String?) {
             balance.value = balance.value + delta
+        }
+        override suspend fun setBalance(authoritativeBalance: Long) {
+            balance.value = authoritativeBalance
         }
         override suspend fun deleteAll() {
             balance.value = ChipsRepository.STARTING_GRANT

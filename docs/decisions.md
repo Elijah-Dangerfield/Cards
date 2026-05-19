@@ -1172,3 +1172,103 @@ batch as a hydrate-only call). Server test count: 181 (was 159).
 
 **Status:** Server piece landed. Client follow-up pending.
 
+---
+
+## 2026-05-19 — Client wallet sync (cache-with-flush)
+
+**Decision:** Wire the client to the V6 wallet server. The local Room
+chips row stays as the optimistic-write cache; a new
+`wallet_events` table (AppDatabase v11) holds outstanding sync receipts;
+`ChipsSyncService` flushes them and hydrates the local balance from the
+server's authoritative answer on cold boot + foreground.
+
+**Architecture:**
+
+- `ChipsRepository.applyDelta(delta, reason, idempotencyKey?)` is now
+  two-step: bump the singleton chips row AND insert a
+  `WalletEventEntity`. Callers that don't have a natural idempotency
+  key get a generated UUID v4.
+- `ChipsRepository.setBalance(authoritativeBalance)` is the inverse —
+  used only by the sync service to overwrite the local balance after a
+  successful round-trip. Other callers stay on `applyDelta`.
+- `ChipsSyncServiceImpl` POSTs all pending events to
+  `/v1/me/wallet/sync` (single-flight via mutex) and, per server
+  response:
+  - `Applied` / `AlreadyApplied` → drop the local row.
+  - `InsufficientChips` → drop the row too (no retry possible) and let
+    `setBalance` restore the authoritative value.
+  - `Unknown` → leave the row pending so a newer client can resolve it.
+- After every successful sync, `setBalance(response.balance)` overwrites
+  the local row regardless of which events resolved. That's where
+  cross-device grants converge — a chip pack purchased on iOS is visible
+  on Android after the first sync.
+- `ChipsSyncBootstrapper` (an `AppEventListener` multibinding) fires on
+  `ColdBoot` and warm `OnForeground` events. Same shape as
+  `InventorySyncBootstrapper`.
+
+**Caller-side idempotency keys (so retries don't double-apply):**
+
+| Caller | Key |
+|---|---|
+| `ShopViewModel.creditChipsFor(IAP)` | `iap.<packId>.<orderId>` |
+| `AchievementRepositoryImpl` reward | `achievement.<achievementId>` |
+| `InventorySyncServiceImpl` refund | `shop.refund.<productId>` |
+| `InventoryRepositoryImpl.redeemForChips` | `shop.<productId>` |
+| `ChipsRepositoryImpl.applyDelta` (no key) | generated UUID v4 |
+
+**Why "drop on InsufficientChips" instead of retry:** The optimistic
+local write already happened; the server says it can't accept the
+debit. Retrying with the same key is a no-op (server has the
+idempotency record) and the local balance is going to get reset to
+the server's value anyway. The user-visible reconciliation is "your
+balance dropped by X" — surfaced via a toast in a follow-up commit
+(not in this slice).
+
+**Why route `InventoryRepositoryImpl` debits through `ChipsRepository`
+instead of `ChipsDao`:** Previously the inventory repo bypassed the
+chips repo to talk directly to the DAO, which meant shop purchases
+never produced a wallet event — server-side balance diverged from
+client-side over time. Routing through `ChipsRepository.applyDelta`
+fixes that.
+
+**Migration model:** AppDatabase already uses
+`fallbackToDestructiveMigration(dropAllTables = true)` (see
+[RealAppDatabaseProvider.kt](libraries/storage/impl/.../RealAppDatabaseProvider.kt)),
+so the v10→v11 bump nukes local user data. Acceptable pre-launch; the
+server's authoritative balance is what survives. Post-launch the
+destructive default needs to flip to a real migration path — that's a
+sibling sharp edge already noted in the codebase.
+
+**Tests:** 7 new `ChipsSyncServiceImplTest` cases (empty-batch hydrate,
+all-Applied, AlreadyApplied replay, InsufficientChips, Unknown
+outcome, network failure, mixed outcomes). `FakeChipsRepository` /
+`FakeChips` test fakes across `InventoryRepositoryImplTest`,
+`InventorySyncServiceImplTest`, `HomeViewModelTest`, `ShopViewModelTest`
+all updated for the new interface.
+
+**What's still deferred (next slice):**
+
+- Server-side XP persistence — wallet schema is the template; the XP
+  path needs its own ledger table + sync service.
+- Toast / snackbar on `InsufficientChips` reconciliation. The local
+  balance reset is silent today; a user surface is appropriate but
+  belongs with the reconciliation copy work (see voice-and-copy.md).
+- Toast surface for cross-device chip changes. The
+  `setBalance(authoritativeBalance)` call after each sync silently
+  overwrites the local balance, which means a chip pack purchased on
+  another device shows up without a "+50 chips synced" affordance.
+  Belongs with the reconciliation copy work; cheap to add once the
+  copy is approved.
+
+**Auth note:** `ChipsSyncServiceImpl` uses
+`networkClient.authenticatedClient` (bearer token + 401 refresh), as
+the wallet endpoints are JWT-gated. `InventorySyncServiceImpl` is on
+the un-auth client today for the same JWT-gated `/v1/inventory/sync`
+endpoint — that's a pre-existing inconsistency (server returns 401
+for un-bearer requests; current behavior is "next launch retries").
+Out of scope here; flagged for a follow-up.
+
+**Status:** Landed. End-to-end wallet sync works: chip movement on
+device A → server ledger → device B's next sync picks up the new
+balance.
+

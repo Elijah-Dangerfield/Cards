@@ -79,7 +79,11 @@ class InventorySyncServiceImpl(
                         // matters — the refund mutation is the user-visible
                         // change, the row delete is the bookkeeping.
                         result.chipsToRefund?.takeIf { it > 0 }?.let { refund ->
-                            chipsRepository.applyDelta(refund)
+                            chipsRepository.applyDelta(
+                                delta = refund,
+                                reason = "shop.refund.${result.productId}",
+                                idempotencyKey = "shop.refund.${result.productId}",
+                            )
                             logger.i { "Reverted ${result.productId}; refunded $refund chips." }
                         }
                         inventoryRepository.revertPurchase(result.productId)

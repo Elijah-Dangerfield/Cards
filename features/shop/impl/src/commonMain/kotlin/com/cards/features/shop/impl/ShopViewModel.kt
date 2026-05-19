@@ -241,8 +241,15 @@ class ShopViewModel @Inject constructor(
         // V1 simplification: credit chips locally as soon as the platform
         // store confirms. Server-side receipt validation + chip ledger
         // (shop-roadmap §2) lands with the auth-gated `/v1/billing/redeem`
-        // endpoint; until then this is the source of truth.
-        chipsRepository.applyDelta(pack.grantsChips)
+        // endpoint; until then this is the source of truth. The order id
+        // doubles as the idempotency key so a duplicate purchase-confirmed
+        // signal (e.g. resume-after-restore) doesn't double-credit when
+        // the wallet sync flushes either copy of the event.
+        chipsRepository.applyDelta(
+            delta = pack.grantsChips,
+            reason = "iap.${pack.id}",
+            idempotencyKey = "iap.${pack.id}.${transaction.orderId}",
+        )
         logger.i { "Granted ${pack.grantsChips} chips for IAP order ${transaction.orderId}" }
     }
 

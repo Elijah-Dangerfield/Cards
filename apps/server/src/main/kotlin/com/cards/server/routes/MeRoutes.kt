@@ -66,88 +66,111 @@ fun Route.meRoutes(
         }
 
         rateLimit(RateLimitName(PROFILE_WRITE_LIMIT)) {
-        patch("/v1/me") {
-            val userId = call.userId() ?: return@patch call.respond(HttpStatusCode.Unauthorized)
-            val isAnonymous = call.isAnonymousUser()
-            val body = call.receive<PatchMeRequest>()
+            patch("/v1/me") {
+                val userId = call.userId() ?: return@patch call.respond(HttpStatusCode.Unauthorized)
+                val isAnonymous = call.isAnonymousUser()
+                val body = call.receive<PatchMeRequest>()
 
-            val cleanedName = body.displayName?.trim()
-            if (cleanedName != null && cleanedName.length !in NAME_LENGTH) {
-                return@patch call.respond(
-                    HttpStatusCode.BadRequest,
-                    problem("invalid_display_name", "Display name must be ${NAME_LENGTH.first}-${NAME_LENGTH.last} characters."),
-                )
-            }
-            if (body.avatarEmoji != null) {
-                val owned = inventory.listOwned(userId).map { it.productId }.toSet()
-                if (!AvatarPacks.isEmojiAvailable(body.avatarEmoji, owned)) {
+                val cleanedName = body.displayName?.trim()
+                if (cleanedName != null && cleanedName.length !in NAME_LENGTH) {
                     return@patch call.respond(
                         HttpStatusCode.BadRequest,
-                        problem("invalid_avatar_emoji", "Avatar emoji is not available on your account."),
+                        problem(
+                            "invalid_display_name",
+                            "Display name must be ${NAME_LENGTH.first}-${NAME_LENGTH.last} characters."
+                        ),
+                    )
+                }
+                if (body.avatarEmoji != null) {
+                    val owned = inventory.listOwned(userId).map { it.productId }.toSet()
+                    if (!AvatarPacks.isEmojiAvailable(body.avatarEmoji, owned)) {
+                        return@patch call.respond(
+                            HttpStatusCode.BadRequest,
+                            problem(
+                                "invalid_avatar_emoji",
+                                "Avatar emoji is not available on your account."
+                            ),
+                        )
+                    }
+                }
+                if (body.avatarBackgroundColor != null && !AvatarPalette.isValid(body.avatarBackgroundColor)) {
+                    return@patch call.respond(
+                        HttpStatusCode.BadRequest,
+                        problem(
+                            "invalid_avatar_background_color",
+                            "Avatar background color is not in the palette."
+                        ),
+                    )
+                }
+
+                when (val outcome = repository.update(
+                    userId = userId,
+                    displayName = cleanedName,
+                    avatarEmoji = body.avatarEmoji,
+                    avatarBackgroundColor = body.avatarBackgroundColor?.lowercase(),
+                    clearAvatarBackgroundColor = body.clearAvatarBackgroundColor,
+                )) {
+                    is UpdateProfileOutcome.Success -> call.respond(
+                        HttpStatusCode.OK,
+                        outcome.profile.toMeDto(isAnonymous = isAnonymous)
+                    )
+
+                    is UpdateProfileOutcome.DisplayNameTaken -> call.respond(
+                        HttpStatusCode.Conflict,
+                        problem("display_name_taken", "That display name is already in use."),
+                    )
+
+                    is UpdateProfileOutcome.NotFound -> call.respond(
+                        HttpStatusCode.NotFound,
+                        problem(
+                            "profile_not_found",
+                            "No profile for this user. Hit GET /v1/me first."
+                        ),
                     )
                 }
             }
-            if (body.avatarBackgroundColor != null && !AvatarPalette.isValid(body.avatarBackgroundColor)) {
-                return@patch call.respond(
-                    HttpStatusCode.BadRequest,
-                    problem("invalid_avatar_background_color", "Avatar background color is not in the palette."),
-                )
-            }
-
-            when (val outcome = repository.update(
-                userId = userId,
-                displayName = cleanedName,
-                avatarEmoji = body.avatarEmoji,
-                avatarBackgroundColor = body.avatarBackgroundColor?.lowercase(),
-                clearAvatarBackgroundColor = body.clearAvatarBackgroundColor,
-            )) {
-                is UpdateProfileOutcome.Success -> call.respond(HttpStatusCode.OK, outcome.profile.toMeDto(isAnonymous = isAnonymous))
-                is UpdateProfileOutcome.DisplayNameTaken -> call.respond(
-                    HttpStatusCode.Conflict,
-                    problem("display_name_taken", "That display name is already in use."),
-                )
-                is UpdateProfileOutcome.NotFound -> call.respond(
-                    HttpStatusCode.NotFound,
-                    problem("profile_not_found", "No profile for this user. Hit GET /v1/me first."),
-                )
-            }
-        }
         }
 
         rateLimit(RateLimitName(DELETE_ACCOUNT_LIMIT)) {
-        delete("/v1/me") {
-            val userId = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
-            when (val admin = adminClient.deleteUser(userId)) {
-                DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
-                    // Order: admin (revoke auth + sessions) first, then
-                    // local data. Each repo's delete is idempotent so a
-                    // mid-cascade crash leaves us with a recoverable
-                    // partial state, not stuck data.
-                    wallet.deleteAllForUser(userId)
-                    repository.delete(userId)
-                    call.respond(HttpStatusCode.NoContent)
-                }
-                DeleteUserResult.NotConfigured -> call.respond(
-                    HttpStatusCode.ServiceUnavailable,
-                    problem(
-                        "delete_not_configured",
-                        "Account deletion is not enabled on this server. Set SUPABASE_SERVICE_ROLE_KEY and redeploy.",
-                    ),
-                )
-                is DeleteUserResult.Failure -> {
-                    LoggerFactory.getLogger("MeRoutes").error(
-                        "Supabase admin delete failed for user {} (status={})",
-                        userId,
-                        admin.statusCode,
-                        admin.cause,
-                    )
-                    call.respond(
+            delete("/v1/me") {
+                val userId =
+                    call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                when (val admin = adminClient.deleteUser(userId)) {
+                    DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
+                        // Order: admin (revoke auth + sessions) first, then
+                        // local data. Each repo's delete is idempotent so a
+                        // mid-cascade crash leaves us with a recoverable
+                        // partial state, not stuck data.
+                        wallet.deleteAllForUser(userId)
+                        repository.delete(userId)
+                        call.respond(HttpStatusCode.NoContent)
+                    }
+
+                    DeleteUserResult.NotConfigured -> call.respond(
                         HttpStatusCode.ServiceUnavailable,
-                        problem("delete_failed", "Could not delete account right now. Please try again."),
+                        problem(
+                            "delete_not_configured",
+                            "Account deletion is not enabled on this server. Set SUPABASE_SERVICE_ROLE_KEY and redeploy.",
+                        ),
                     )
+
+                    is DeleteUserResult.Failure -> {
+                        LoggerFactory.getLogger("MeRoutes").error(
+                            "Supabase admin delete failed for user {} (status={})",
+                            userId,
+                            admin.statusCode,
+                            admin.cause,
+                        )
+                        call.respond(
+                            HttpStatusCode.ServiceUnavailable,
+                            problem(
+                                "delete_failed",
+                                "Could not delete account right now. Please try again."
+                            ),
+                        )
+                    }
                 }
             }
-        }
         }
     }
 }
