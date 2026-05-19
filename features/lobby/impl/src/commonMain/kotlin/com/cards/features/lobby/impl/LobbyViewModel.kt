@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.awaitIdentity
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
@@ -50,6 +51,14 @@ class LobbyViewModel(
     private var connectionJob: Job? = null
 
     init {
+        // Seed currentUserId so the UI knows who's host. awaitIdentity()
+        // returns immediately when bootstrap is done (the common path
+        // post-onboarding) and waits the brief cache-hydrate window
+        // otherwise.
+        viewModelScope.launch {
+            val id = identity.awaitIdentity().userId
+            takeAction(LobbyAction.IdentityResolved(id))
+        }
         // Deep-link join path: the route opens with a code already
         // populated. We attempt the join automatically so the user
         // doesn't have to tap twice.
@@ -183,6 +192,19 @@ class LobbyViewModel(
             }
 
             LobbyAction.DismissError -> action.updateState { it.copy(error = null) }
+
+            is LobbyAction.IdentityResolved -> action.updateState {
+                it.copy(currentUserId = action.userId)
+            }
+
+            LobbyAction.StartGame -> action.run {
+                // Multiplayer gameplay sync is Phase 4.2 — the per-room WS
+                // already exists for presence; plugging GameEngine into it
+                // is the next chunk. Until then, the host can see the
+                // start CTA but tapping it surfaces an honest "coming soon"
+                // message so this doesn't look like a black hole.
+                updateState { it.copy(error = "Multiplayer gameplay launches with the next update — invite your friends and stand by.") }
+            }
         }
     }
 
@@ -239,6 +261,8 @@ data class LobbyState(
     val room: Room? = null,
     val connectionStatus: ConnectionStatus = ConnectionStatus.Disconnected,
     val error: String? = null,
+    /** Filled at init from IdentityRepository so the UI can tell who's host. */
+    val currentUserId: String? = null,
 ) {
     val isBusy: Boolean get() = creating || joining || leaving
     val isInRoom: Boolean get() = room != null
@@ -246,6 +270,14 @@ data class LobbyState(
         get() = !isBusy && !isInRoom && codeInput.trim().length in MIN_CODE_LENGTH..MAX_CODE_LENGTH
     val canCreate: Boolean
         get() = !isBusy && !isInRoom
+
+    /** True when the current user owns this room (and a start-game CTA should appear). */
+    val isHost: Boolean
+        get() = room != null && currentUserId != null && room.hostUserId == currentUserId
+
+    /** Host can start once at least one other player has joined. */
+    val canStart: Boolean
+        get() = isHost && (room?.members?.size ?: 0) >= 2
 
     companion object {
         // Server uses 6 chars exactly; allow 4..8 client-side so we
@@ -269,7 +301,10 @@ sealed interface LobbyAction {
     data object CreateRoom : LobbyAction
     data object SubmitJoin : LobbyAction
     data object Leave : LobbyAction
+    data object StartGame : LobbyAction
     data object DismissError : LobbyAction
     /** Internal — fired by the WS collector. */
     data class ConnectionUpdated(val connection: RoomConnection) : LobbyAction
+    /** Internal — fired when bootstrap identity resolves. */
+    data class IdentityResolved(val userId: String) : LobbyAction
 }

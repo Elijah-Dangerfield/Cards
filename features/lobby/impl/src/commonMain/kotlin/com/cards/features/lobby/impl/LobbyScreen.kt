@@ -84,7 +84,7 @@ fun LobbyScreen(
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
                 Text(
-                    text = if (state.isInRoom) "Lobby" else "Play with friends",
+                    text = if (state.isInRoom) "Game room" else "Play with friends",
                     typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.onSurfacePrimary,
                 )
@@ -228,6 +228,30 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
+    // Host gets the primary CTA — disabled until at least one other
+    // player joins, with copy that tells them what they're waiting on.
+    // Non-hosts see a "Waiting for the host to start" hint instead so
+    // the room doesn't feel like everyone has the same role.
+    if (state.isHost) {
+        Button(
+            onClick = { onAction(LobbyAction.StartGame) },
+            enabled = state.canStart,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (state.canStart) "Start game" else "Waiting for players…")
+        }
+        Spacer(modifier = Modifier.height(Dimension.D400))
+    } else if (state.currentUserId != null) {
+        // Hide the hint for the brief pre-identity window so it doesn't
+        // flash to non-host viewers who are actually the host.
+        Text(
+            text = "Waiting for the host to start the game…",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D500))
+    }
+
     com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
         onClick = { onAction(LobbyAction.Leave) },
         enabled = !state.leaving,
@@ -280,10 +304,11 @@ private fun LobbyScreenPreview_Idle_WithCode() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun LobbyScreenPreview_InRoom_Connected() {
+private fun LobbyScreenPreview_InRoom_AsHost_Ready() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         LobbyScreen(
             state = LobbyState(
+                currentUserId = "u1",
                 room = com.dangerfield.cards.libraries.rooms.Room(
                     code = "ABC123",
                     hostUserId = "u1",
@@ -294,6 +319,57 @@ private fun LobbyScreenPreview_InRoom_Connected() {
                         RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
                         RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
                         RoomMember("u3", "Marcus", seatIndex = 2, joinedAtEpochMs = 0, isConnected = false),
+                    ),
+                ),
+                connectionStatus = ConnectionStatus.Connected,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_InRoom_AsHost_WaitingForPlayers() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                currentUserId = "u1",
+                room = com.dangerfield.cards.libraries.rooms.Room(
+                    code = "ABC123",
+                    hostUserId = "u1",
+                    createdAtEpochMs = 1_700_000_000_000,
+                    maxSeats = 4,
+                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    members = listOf(
+                        RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
+                    ),
+                ),
+                connectionStatus = ConnectionStatus.Connected,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_InRoom_AsGuest() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                currentUserId = "u2",
+                room = com.dangerfield.cards.libraries.rooms.Room(
+                    code = "ABC123",
+                    hostUserId = "u1",
+                    createdAtEpochMs = 1_700_000_000_000,
+                    maxSeats = 4,
+                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    members = listOf(
+                        RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
+                        RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
                     ),
                 ),
                 connectionStatus = ConnectionStatus.Connected,
