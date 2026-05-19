@@ -134,14 +134,31 @@ class InMemoryRoomService(
         val current = state.room
         if (current.memberFor(userId) == null) return@withLock LeaveResult.NotInRoom
 
-        val next = current.copy(members = current.members.filterNot { it.userId == userId })
-        if (next.members.isEmpty()) {
+        val remaining = current.members.filterNot { it.userId == userId }
+        if (remaining.isEmpty()) {
             // Last one out kills the lights. Drop the flow so any
             // stragglers observing get a final value through the
             // GC sweep on the caller side.
             rooms.remove(code)
             return@withLock LeaveResult.Success(roomGone = true)
         }
+
+        // Host migration: if the host is the one leaving, promote the
+        // longest-tenured remaining member (oldest `joinedAt`, ties
+        // broken by lowest seat). Without this the room would keep a
+        // stale `hostUserId` pointing at someone who's no longer a
+        // member — start-game permissions break, the UI shows a ghost
+        // host, the next leave loops.
+        val nextHostUserId = if (current.hostUserId == userId) {
+            remaining.minWith(compareBy({ it.joinedAt }, { it.seatIndex })).userId
+        } else {
+            current.hostUserId
+        }
+
+        val next = current.copy(
+            hostUserId = nextHostUserId,
+            members = remaining,
+        )
         state.update(next)
         LeaveResult.Success(roomGone = false)
     }

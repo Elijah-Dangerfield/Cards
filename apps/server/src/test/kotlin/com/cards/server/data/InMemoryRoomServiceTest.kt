@@ -163,6 +163,41 @@ class InMemoryRoomServiceTest {
     }
 
     @Test
+    fun leave_host_promotesLongestTenuredRemainingMember() = runTest {
+        // Host leaves a room with two other members. With FixedClock all
+        // joins share the same instant, so the tiebreak falls to seatIndex —
+        // Alice took seat 1, Bob took seat 2, so Alice becomes host. Either
+        // way (timestamp or seat), it's the longest-tenured remaining
+        // member; the test pins both via the AND in the comparator. The
+        // pre-fix behavior left hostUserId pointing at the departed host,
+        // which would have broken any host-only affordance (start-game).
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        service.join(room.code, alice, "Alice")
+        service.join(room.code, bob, "Bob")
+
+        val outcome = service.leave(room.code, host)
+        assertIs<LeaveResult.Success>(outcome)
+        val after = service.find(room.code)
+        assertNotNull(after)
+        assertEquals(alice, after.hostUserId, "longest-tenured remaining member should become host")
+        assertEquals(2, after.members.size)
+        assertEquals(setOf(alice, bob), after.members.map { it.userId }.toSet())
+    }
+
+    @Test
+    fun leave_nonHost_doesNotChangeHost() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        service.join(room.code, alice, "Alice")
+
+        service.leave(room.code, alice)
+        val after = service.find(room.code)
+        assertNotNull(after)
+        assertEquals(host, after.hostUserId, "non-host leaving must not reshuffle the host pointer")
+    }
+
+    @Test
     fun markConnected_flipsMemberPresence() = runTest {
         val service = newService()
         val room = service.createOrFail(host, "Host")
