@@ -50,6 +50,7 @@ import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
@@ -303,13 +304,13 @@ private fun PlayerInfoTile(
             )
         }
         VerticalSpacerD300()
-        Text(
-            text = formatCompactChips(seat.stack),
+        ChipCoinAmount(
+            amount = seat.stack,
+            coinSize = 14.dp,
             typography = AppTheme.typography.Body.B600,
             color = AppTheme.colors.text,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis,
+            gap = 5.dp,
+            formatter = ::formatCompactChips,
             modifier = Modifier.clickable(onClick = onStackClick),
         )
         // Show the chip contribution (gold pill) OR the last-action label, not

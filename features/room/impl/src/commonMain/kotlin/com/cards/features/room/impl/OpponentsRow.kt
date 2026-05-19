@@ -28,6 +28,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
@@ -153,13 +154,13 @@ private fun OpponentSeat(
             overflow = TextOverflow.Ellipsis,
             modifier = dimMod,
         )
-        Text(
-            text = formatCompactChips(seat.stack),
+        ChipCoinAmount(
+            amount = seat.stack,
+            coinSize = 12.dp,
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis,
+            gap = 4.dp,
+            formatter = ::formatCompactChips,
             modifier = dimMod,
         )
         if (seat.contributedThisStreet > 0) {

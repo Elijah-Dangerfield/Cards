@@ -57,7 +57,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Sound feedback doesn't work at all.** Already captured in [backlog.md](./backlog.md#audio-infrastructure-sound-cues-bgm). Setting persists, only Vibrate is wired (via Compose haptics); Sound is a no-op. Decision: either (a) build the `:libraries:audio` KMP module before V1 ships so the toggle is honest, or (b) hide the Sound option for V1 and ship Vibrate-only.
 
 ### Play screen — chrome
-- **More use of the coin component on the play screen.** Stack amounts on PlayerArea, pot total on BoardArea, raise-amount affordances — anywhere we're rendering a chip number, lean on `ChipCoinAmount` instead of plain `Text`.
 - **Hand-end dialogs could use the icon/emoji top affordance.** The bust + showdown dialogs are plain headers; the DS has an icon-or-emoji top slot used elsewhere — adopt it for visual congruence.
 
 ### Play screen — opponents row at MP scale

@@ -66,8 +66,10 @@ fun ChipCoin(
  * inline price/cost/balance rendering where the caller doesn't need fine
  * control over the inner Row.
  *
- * The amount uses [com.dangerfield.cards.libraries.ui.components.formatThousands] so callers don't have to think
- * about locale-free thousands separators.
+ * The amount goes through [formatter]; defaults to thousands-separated for
+ * roomy surfaces (shop, balance pills). Tight surfaces — a player's stack
+ * tile, an in-line table HUD — should pass `::formatCompactChips` so the
+ * "$1.2k" form keeps the layout from stretching.
  */
 @Composable
 fun ChipCoinAmount(
@@ -78,6 +80,7 @@ fun ChipCoinAmount(
     color: ColorResource = AppTheme.colors.text,
     gap: Dp = 6.dp,
     coinSymbolTypography: TypographyResource = coinSymbolTypographyFor(coinSize),
+    formatter: (Long) -> String = ::formatThousands,
 ) {
     Row(
         modifier = modifier,
@@ -86,7 +89,7 @@ fun ChipCoinAmount(
         ChipCoin(size = coinSize, textTypography = coinSymbolTypography)
         Spacer(modifier = Modifier.width(gap))
         Text(
-            text = formatThousands(amount),
+            text = formatter(amount),
             typography = typography,
             color = color,
         )
