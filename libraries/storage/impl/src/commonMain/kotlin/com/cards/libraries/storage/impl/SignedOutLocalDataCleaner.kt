@@ -5,12 +5,40 @@ import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.storage.impl.db.AppDatabase
 import com.dangerfield.cards.libraries.storage.impl.db.AppDatabaseProvider
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+
+/**
+ * Drops every user-scoped row in the local user-data [AppDatabase].
+ *
+ * Room's `clearAllTables()` would be the obvious one-liner, but it's
+ * Android-only in KMP Room 2.8.4 — common code can't see it. Until
+ * that gap closes (or we move to a separate JVM-only impl), this
+ * helper fans out to each DAO's `deleteAll()` sequentially. Each DAO
+ * call is its own SQL transaction; failing one logs + continues so
+ * one bad row can't block the rest.
+ *
+ * Add a new entity to [AppDatabase] → add its DAO call here. There's a
+ * compile-safe way to do this (iterate every DAO from a getter list)
+ * but the explicit list reads better and the cost of forgetting is
+ * one stale table at the next sign-in, not data loss.
+ */
+internal suspend fun AppDatabase.clearAllUserData() {
+    achievementDao().deleteAllEarned()
+    achievementDao().deleteAllCounters()
+    chipsDao().deleteAll()
+    equipmentDao().deleteAll()
+    inventoryDao().deleteAll()
+    progressionDao().deleteAll()
+    sessionDao().deleteAllSessions()
+    userDao().deleteAll()
+    xpEventDao().deleteAll()
+}
 
 /**
  * On [AppEvent.SignedOut], wipe every Room table in the user-data
@@ -37,8 +65,8 @@ class SignedOutLocalDataCleaner(
 ) : AppEventListener {
     override fun onSignedOut(event: AppEvent.SignedOut) {
         appScope.launch {
-            Catching { databaseProvider.database.clearAllTables() }
-                .onFailure { KLog.withTag("SignOutCleanup").w(it) { "clearAllTables failed" } }
+            Catching { databaseProvider.database.clearAllUserData() }
+                .onFailure { KLog.withTag("SignOutCleanup").w(it) { "clearAllUserData failed" } }
         }
     }
 }
