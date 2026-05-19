@@ -249,7 +249,8 @@ class LobbyViewModelTest : CoroutineTest() {
             avatarEmoji = "🃏",
             isAnonymous = true,
         )
-        override val state: Flow<IdentityState> = MutableStateFlow(IdentityState.SignedIn(identity)).asStateFlow()
+        override val state: kotlinx.coroutines.flow.StateFlow<IdentityState> =
+            MutableStateFlow(IdentityState.SignedIn(identity)).asStateFlow()
         override suspend fun ensureInitialized(): Identity = identity
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
             SignInOutcome.Success(identity)

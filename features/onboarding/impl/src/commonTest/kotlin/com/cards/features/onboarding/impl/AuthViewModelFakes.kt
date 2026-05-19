@@ -57,7 +57,7 @@ internal class FakeIdentityRepository(
     private val identityState =
         MutableStateFlow<IdentityState>(IdentityState.Unknown)
 
-    override val state: Flow<IdentityState> = identityState
+    override val state: kotlinx.coroutines.flow.StateFlow<IdentityState> = identityState
 
     override suspend fun ensureInitialized(): Identity =
         error("ensureInitialized not used by the auth ViewModels")

@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.identity
 
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 
 /**
  * Single source of truth for client-side identity state and the auth
@@ -22,7 +24,27 @@ import kotlinx.coroutines.flow.Flow
  * is a `:libraries:identity:impl` change.
  */
 interface IdentityRepository {
-    val state: Flow<IdentityState>
+    /**
+     * Hot, cached identity state. Always present (StateFlow has a value).
+     *
+     * Lifecycle:
+     *  - Briefly [IdentityState.Unknown] right after app construction,
+     *    before the disk-cache hydrate fires.
+     *  - Flips to [IdentityState.SignedIn] once either the cache or
+     *    [ensureInitialized] resolves — whichever comes first.
+     *  - Stays [SignedIn] for the rest of the process lifetime; a
+     *    successful [signOut] clears the local cache and the next
+     *    bootstrap mints a fresh anon identity. (There's no terminal
+     *    `SignedOut` state — anon-by-default means we're always
+     *    transitioning toward a new SignedIn rather than sitting in
+     *    a signed-out limbo.)
+     *
+     * Feature code that runs post-onboarding should treat [SignedIn] as
+     * the steady state. Use [awaitIdentity] / [currentIdentity] (in this
+     * file) rather than reinventing `.filterIsInstance<SignedIn>().first()`
+     * at the call site.
+     */
+    val state: StateFlow<IdentityState>
 
     /**
      * Onboarding "Get Started" path. Ensures a Supabase session exists
@@ -222,3 +244,34 @@ sealed interface ResendOutcome {
     data class NetworkError(val cause: Throwable) : ResendOutcome
     data class Unknown(val cause: Throwable) : ResendOutcome
 }
+
+/**
+ * Latest known identity, or `null` if the bootstrap hasn't resolved yet
+ * (a brief window on cold start before the disk cache hydrates). Synchronous —
+ * doesn't suspend, doesn't observe.
+ *
+ * Use this when you need identity "now" and are willing to handle null
+ * (typically: post-onboarding feature code that null-coalesces to defaults
+ * for the rare race-window frame).
+ */
+val IdentityRepository.currentIdentity: Identity?
+    get() = (state.value as? IdentityState.SignedIn)?.identity
+
+/**
+ * Suspend until [IdentityRepository.state] reaches [IdentityState.SignedIn]
+ * and return the [Identity]. Returns immediately if already signed in.
+ *
+ * Safe to call from any post-onboarding code: by construction, by the time
+ * a feature ViewModel constructs, either the cache has hydrated or
+ * [IdentityRepository.ensureInitialized] is mid-flight — both terminate in
+ * a `SignedIn` state. There is no scenario where this suspends forever
+ * absent process death mid-call.
+ *
+ * Note: `state` is a [StateFlow], so the underlying `.first()` never
+ * throws [NoSuchElementException] (StateFlow has no terminal state). It
+ * propagates [kotlinx.coroutines.CancellationException] cooperatively when
+ * the surrounding scope is torn down — which is the desired behavior, not
+ * an error.
+ */
+suspend fun IdentityRepository.awaitIdentity(): Identity =
+    state.filterIsInstance<IdentityState.SignedIn>().first().identity

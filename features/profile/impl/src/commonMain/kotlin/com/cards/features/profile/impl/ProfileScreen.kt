@@ -37,7 +37,6 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD1100
-import com.dangerfield.cards.system.VerticalSpacerD50
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
@@ -380,14 +379,6 @@ private fun ProfileHeader(settings: ProfileSettings) {
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
         )
-        if (settings.isAnonymous) {
-            VerticalSpacerD50()
-            Text(
-                text = "Guest",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
-            )
-        }
     }
 }
 

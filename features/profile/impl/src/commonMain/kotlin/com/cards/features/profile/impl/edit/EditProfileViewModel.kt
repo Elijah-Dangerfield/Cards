@@ -5,11 +5,9 @@ import com.dangerfield.cards.libraries.identity.AvatarPack
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.identity.awaitIdentity
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
@@ -32,13 +30,13 @@ class EditProfileViewModel(
 ) {
 
     init {
-        // Seed from the current identity. If state is Unknown (rare —
-        // user opened this before identity bootstrap), wait for it.
         viewModelScope.launch {
-            val current = identityRepository.state
-                .filterIsInstance<IdentityState.SignedIn>()
-                .first()
-            takeAction(EditProfileAction.SeedFromIdentity(current.identity))
+            // awaitIdentity returns immediately when bootstrap is done
+            // (the common path post-onboarding) and waits for the brief
+            // cache-hydrate window otherwise. See KDoc — `.first()` on a
+            // StateFlow is the right primitive here.
+            val identity = identityRepository.awaitIdentity()
+            takeAction(EditProfileAction.SeedFromIdentity(identity))
             takeAction(EditProfileAction.LoadAvatarPack)
         }
     }
