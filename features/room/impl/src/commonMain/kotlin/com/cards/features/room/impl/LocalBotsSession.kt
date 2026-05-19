@@ -266,13 +266,25 @@ class LocalBotsSession(
             // decision actually is, and the user's recent tempo. Computed
             // AFTER the decision so we have access to thought.handStrength /
             // potOdds for the complexity term.
+            //
+            // Zero out delays once the human has folded this hand — they're
+            // no longer in the action, and watching bots ponder against each
+            // other is a low-engagement state. Hand-end + showdown still
+            // resolve at normal pacing because they're outside this loop.
+            val humanFolded = gameState.seats
+                .firstOrNull { it.index == humanSeatIndex }
+                ?.handParticipation == HandParticipation.Folded
             val currentSpeed = botSpeedProvider()
-            val thinkDelay = BotTiming.thinkDelayMs(
-                personality = personality,
-                thought = decision.thought,
-                userPaceMs = humanPaceAverageMs(),
-                speed = currentSpeed,
-            )
+            val thinkDelay = if (humanFolded) {
+                0L
+            } else {
+                BotTiming.thinkDelayMs(
+                    personality = personality,
+                    thought = decision.thought,
+                    userPaceMs = humanPaceAverageMs(),
+                    speed = currentSpeed,
+                )
+            }
             delay(thinkDelay)
             // Re-check after the suspension points (`withContext`, `delay`): another
             // coroutine on Main may have advanced the state in the meantime. Without
@@ -289,8 +301,10 @@ class LocalBotsSession(
                 continue
             }
             applyIntentAndEmit(decision.intent)
-            // Action-tail delay also scales with user speed pref.
-            delay((botActionDelayMs * currentSpeed.multiplier).toLong())
+            // Action-tail delay also scales with user speed pref — and
+            // collapses to zero when the human folded, same rationale.
+            val tailDelay = if (humanFolded) 0L else (botActionDelayMs * currentSpeed.multiplier).toLong()
+            delay(tailDelay)
             if (gameState.street == BettingRound.Complete) break
         }
 

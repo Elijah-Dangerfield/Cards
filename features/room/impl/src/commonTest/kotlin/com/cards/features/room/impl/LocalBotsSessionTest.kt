@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlin.random.Random
 import kotlin.test.Test
@@ -120,6 +121,29 @@ class LocalBotsSessionTest : CoroutineTest() {
         assertEquals(BettingRound.Complete, session.gameStateFlow.value.street)
         assertEquals(1, handEndedEvents.size, "exactly one HandEnded event")
         assertTrue(handEndedEvents.first().winners.first().byFold)
+    }
+
+    @Test
+    fun humanFold_zerosBotThinkDelay_forRemainingBotTurns() = runUnitTest {
+        // 3-handed: human at seat 0 folds preflop. Seats 1 and 2 still need
+        // to play the hand out. Without the auto-skip, each bot decision
+        // sits on a BotTiming.thinkDelayMs floor (≥250ms even on Fast), so
+        // the post-fold tail would burn at least ~500ms of virtual time.
+        // With the auto-skip those delays collapse to zero.
+        val session = buildSession(seatsCount = 3, humanSeatIndex = 0)
+        launch { session.runUntilHumansTurnOrComplete() }
+        advanceUntilIdle()
+        val beforeFold = currentTime
+
+        launch { session.submitHumanIntent(PlayerIntent.Fold(seatIndex = 0)) }
+        advanceUntilIdle()
+
+        val postFoldElapsed = currentTime - beforeFold
+        assertEquals(BettingRound.Complete, session.gameStateFlow.value.street)
+        assertTrue(
+            postFoldElapsed < 100,
+            "post-fold bot loop should skip think delays — elapsed=${postFoldElapsed}ms",
+        )
     }
 
     @Test

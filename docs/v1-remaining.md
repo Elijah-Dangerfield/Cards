@@ -64,7 +64,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Animations / table polish
 - **Bust animation for other players.** Today we have the bust dialog for the human; need a visible bust treatment on a remote seat (avatar dims, "BUSTED" stamp, chip stack collapses).
-- **Skip-to-end / instant-bots after human fold.** When a human folds in a bot game, the rest of the hand is just bots — show a "Skip to end" affordance, and drop bot think-time to ~0ms so the skip-or-watch experience is fast either way.
 - **XP / coin earned distribution animation.** Today the showdown dialog overlays the XP/coin badges, so the user never sees the odometer count up. Idea: defer the XP/coin badge animation until *after* the showdown/bust dialog dismisses, then play it as a small "zip" — XP particle flying up to the XP badge, coin particle flying down to the chip badge, each landing into an odometer count-up. Open to pushback: the alternative is to render the earned values inside the dialog and skip the badge animation entirely.
 
 ### Table-side social
