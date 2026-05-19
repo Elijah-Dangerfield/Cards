@@ -19,6 +19,8 @@ import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -56,10 +58,21 @@ fun ClaimAccountScreen(
                 verticalArrangement = Arrangement.Top,
             ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
-                Button(onClick = onBack, style = ButtonStyle.Text, enabled = !state.isSubmitting) {
-                    Text("← Back")
-                }
+                IconButton(
+                    icon = Icons.ArrowBack("Back"),
+                    onClick = onBack,
+                    enabled = !state.isSubmitting,
+                    iconColor = AppTheme.colors.onSurfacePrimary,
+                )
                 Spacer(modifier = Modifier.height(Dimension.D700))
+
+                // Hero — frames the "save your stuff" promise visually
+                // before the user reads any copy.
+                Text(
+                    text = "🔐",
+                    typography = AppTheme.typography.Display.D800,
+                )
+                Spacer(modifier = Modifier.height(Dimension.D500))
 
                 Text(
                     text = "Claim your account",
@@ -68,8 +81,8 @@ fun ClaimAccountScreen(
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
-                    text = "Link Apple or Google so your chips, XP, and achievements " +
-                        "follow you across devices and survive reinstall.",
+                    text = "Save your chips, XP, and achievements across devices. " +
+                        "Sign in with Apple or Google.",
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                 )

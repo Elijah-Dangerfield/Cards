@@ -1,11 +1,17 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -14,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -34,6 +41,8 @@ import com.dangerfield.cards.libraries.identity.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -73,21 +82,35 @@ fun EditProfileScreen(
                     .padding(horizontal = Dimension.D800),
             ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
-                Button(onClick = onBack, style = ButtonStyle.Text) {
-                    Text("← Back")
-                }
+                IconButton(
+                    icon = Icons.ArrowBack("Back"),
+                    onClick = onBack,
+                    iconColor = AppTheme.colors.onSurfacePrimary,
+                )
+
+                Spacer(modifier = Modifier.height(Dimension.D500))
+
+                // Live preview: the chosen emoji blown up to "this is you"
+                // size, animated on each pick so the picker feels connected
+                // to a real artifact instead of an abstract grid.
+                AvatarPreviewHero(emoji = state.selectedAvatarEmoji)
+
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
                 Text(
                     text = "Edit profile",
                     typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.onSurfacePrimary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
-                    text = "Other players see this on the table and the leaderboard.",
+                    text = "Other players see this on the table.",
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 Spacer(modifier = Modifier.height(Dimension.D900))
@@ -149,6 +172,35 @@ fun EditProfileScreen(
                 }
 
                 Spacer(modifier = Modifier.height(Dimension.D800))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AvatarPreviewHero(emoji: String?) {
+    Row(
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(112.dp)
+                .clip(CircleShape)
+                .background(AppTheme.colors.surfaceSecondary.color),
+        ) {
+            AnimatedContent(
+                targetState = emoji ?: " ",
+                transitionSpec = {
+                    (fadeIn() + scaleIn(initialScale = 0.75f)) togetherWith fadeOut()
+                },
+                label = "avatar-preview",
+            ) { current ->
+                Text(
+                    text = current,
+                    typography = AppTheme.typography.Display.D800,
+                )
             }
         }
     }

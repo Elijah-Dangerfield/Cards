@@ -34,6 +34,8 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -73,9 +75,12 @@ fun LobbyScreen(
                     .padding(horizontal = Dimension.D800),
             ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
-                Button(onClick = onBack, style = ButtonStyle.Text, enabled = !state.isBusy) {
-                    Text("← Back")
-                }
+                IconButton(
+                    icon = Icons.ArrowBack("Back"),
+                    onClick = onBack,
+                    enabled = !state.isBusy,
+                    iconColor = AppTheme.colors.onSurfacePrimary,
+                )
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
                 Text(
@@ -161,19 +166,37 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     val room = state.room ?: return
 
-    // Code is the share-this-with-your-friends artefact. Render big +
-    // readable; a future enhancement adds a share-sheet affordance.
-    Text(
-        text = "Room code",
-        typography = AppTheme.typography.Body.B400,
-        color = AppTheme.colors.onSurfaceSecondary,
-    )
-    Spacer(modifier = Modifier.height(Dimension.D200))
-    Text(
-        text = room.code,
-        typography = AppTheme.typography.Display.D800,
-        color = AppTheme.colors.onSurfacePrimary,
-    )
+    // Code is the share-this-with-your-friends artefact. Big, centered,
+    // its own surface — it's the one thing the user is here to read
+    // aloud or type into another phone. A future enhancement adds a
+    // share-sheet + clipboard-copy affordance on tap.
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(AppTheme.colors.surfacePrimary.color)
+            .padding(vertical = Dimension.D900),
+    ) {
+        Text(
+            text = "Room code",
+            typography = AppTheme.typography.Label.L500,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D300))
+        Text(
+            text = room.code,
+            typography = AppTheme.typography.Display.D1000,
+            color = AppTheme.colors.onSurfacePrimary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D400))
+        Text(
+            text = "Share with your friends to invite",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
+    }
 
     Spacer(modifier = Modifier.height(Dimension.D500))
 
@@ -205,9 +228,10 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
-    Button(
+    com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
         onClick = { onAction(LobbyAction.Leave) },
         enabled = !state.leaving,
+        style = ButtonStyle.Outlined,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(if (state.leaving) "Leaving…" else "Leave room")

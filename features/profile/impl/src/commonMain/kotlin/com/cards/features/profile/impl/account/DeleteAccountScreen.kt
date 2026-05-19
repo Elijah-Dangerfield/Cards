@@ -23,6 +23,8 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -62,10 +64,22 @@ fun DeleteAccountScreen(
                 verticalArrangement = Arrangement.Top,
             ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
-                Button(onClick = onBack, style = ButtonStyle.Text, enabled = !state.isSubmitting) {
-                    Text("← Back")
-                }
+                IconButton(
+                    icon = Icons.ArrowBack("Back"),
+                    onClick = onBack,
+                    enabled = !state.isSubmitting,
+                    iconColor = AppTheme.colors.onSurfacePrimary,
+                )
                 Spacer(modifier = Modifier.height(Dimension.D700))
+
+                // Emoji-as-hero so the destructive screen reads as a
+                // real warning at a glance, before the user even parses
+                // the title.
+                Text(
+                    text = "⚠️",
+                    typography = AppTheme.typography.Display.D800,
+                )
+                Spacer(modifier = Modifier.height(Dimension.D500))
 
                 Text(
                     text = "Delete account",

@@ -26,6 +26,8 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -63,9 +65,11 @@ fun MyItemsScreen(
                 .padding(horizontal = Dimension.D800),
         ) {
             Spacer(modifier = Modifier.height(Dimension.D200))
-            Button(onClick = onBack, style = ButtonStyle.Text) {
-                Text("← Back")
-            }
+            IconButton(
+                icon = Icons.ArrowBack("Back"),
+                onClick = onBack,
+                iconColor = AppTheme.colors.onSurfacePrimary,
+            )
             Spacer(modifier = Modifier.height(Dimension.D700))
 
             Text(
@@ -75,7 +79,11 @@ fun MyItemsScreen(
             )
             Spacer(modifier = Modifier.height(Dimension.D300))
             Text(
-                text = "Everything you've unlocked. Tap to equip or unequip.",
+                text = if (state.ownedItems.isEmpty()) {
+                    "Pick up card backs, felts, and emotes in the shop."
+                } else {
+                    "${state.ownedItems.size} unlocked — tap to equip."
+                },
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
