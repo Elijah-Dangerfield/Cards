@@ -18,6 +18,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.update
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -173,20 +174,33 @@ class PostgresProfileRepository(
         displayName: String,
         avatarEmoji: String,
         now: java.time.Instant,
-    ): Boolean = try {
-        ProfilesTable.insert {
-            it[ProfilesTable.userId] = userId.value
-            it[ProfilesTable.displayName] = displayName
-            it[ProfilesTable.avatarEmoji] = avatarEmoji
-            it[createdAt] = now
-            it[updatedAt] = now
+    ): Boolean {
+        // Wrap the insert in a SAVEPOINT so a unique-constraint violation
+        // (SQLSTATE 23505) doesn't poison the surrounding transaction.
+        // Without this, Postgres aborts the whole transaction on the first
+        // failed insert and every subsequent statement — including retry
+        // inserts and the outer re-read SELECT in findOrCreate — fails with
+        // 25P02 "current transaction is aborted".
+        val connection = TransactionManager.current().connection
+        val savepoint = connection.setSavepoint("profile_insert_attempt")
+        return try {
+            ProfilesTable.insert {
+                it[ProfilesTable.userId] = userId.value
+                it[ProfilesTable.displayName] = displayName
+                it[ProfilesTable.avatarEmoji] = avatarEmoji
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
+            true
+        } catch (e: ExposedSQLException) {
+            connection.rollback(savepoint)
+            // display_name UQ → retry with a new name.
+            // user_id PK → bubble out; findOrCreate's catch re-reads.
+            if (e.isUniqueViolation() && e.violatesDisplayNameUq()) false
+            else throw e
+        } finally {
+            connection.releaseSavepoint(savepoint)
         }
-        true
-    } catch (e: ExposedSQLException) {
-        // Only treat displayName collisions as retry-able; bubble PK
-        // collisions (userId) to the caller, which re-reads.
-        if (e.isUniqueViolation() && e.cause?.message?.contains("display_name", ignoreCase = true) == true) false
-        else throw e
     }
 
     @OptIn(ExperimentalTime::class)
@@ -203,8 +217,19 @@ class PostgresProfileRepository(
         cause?.let { it is java.sql.SQLException && it.sqlState == POSTGRES_UNIQUE_VIOLATION_SQLSTATE } == true ||
             (this as java.sql.SQLException).sqlState == POSTGRES_UNIQUE_VIOLATION_SQLSTATE
 
+    /**
+     * True if this unique-violation references the `profiles_display_name_uq`
+     * constraint. The PG error message format is "duplicate key value violates
+     * unique constraint \"<name>\"", which is stable across driver versions.
+     */
+    private fun ExposedSQLException.violatesDisplayNameUq(): Boolean {
+        val msg = cause?.message ?: message ?: return false
+        return msg.contains(PROFILES_DISPLAY_NAME_UQ)
+    }
+
     companion object {
         private const val POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505"
+        private const val PROFILES_DISPLAY_NAME_UQ = "profiles_display_name_uq"
         private const val MAX_ATTEMPTS = 25
     }
 }
