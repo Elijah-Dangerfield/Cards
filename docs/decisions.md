@@ -938,4 +938,92 @@ that doesn't update. The fakes for `ProgressionRepository`,
 
 **Status:** Landed.
 
+---
+
+## 2026-05-19 — Billing: provider-agnostic interface, NoOp default, local-credit success path
+
+**Decision:** Introduce `:libraries:billing` (api) + `:libraries:billing:impl`
+as the V1 IAP foundation. The api exposes a `BillingClient`, `BillingProduct`,
+`PurchaseResult`, `PurchaseTransaction`, and `BillingAvailability`. Shop /
+catalog code never imports Play Billing or StoreKit — those plug in behind
+the interface per platform.
+
+**Default binding:** `NoOpBillingClient`, which reports `Unavailable` on
+connect and an empty product map. The catalog reconciliation pass in
+`ProductsRepositoryImpl` therefore drops every IAP pack from the surfaced
+catalog. This matches the pre-launch "store listings not yet provisioned"
+state — we hide IAP packs rather than render un-buyable ones.
+
+**Reconciliation contract (shop-roadmap §1 — closed):** After fetching the
+catalog DTO, `ProductsRepositoryImpl` calls
+`BillingAvailability.refresh(skus)`. The result drives two transformations
+on the in-memory catalog:
+
+1. ChipPacks whose `StoreSku.sku` is NOT in the store's response are
+   dropped.
+2. ChipPacks whose SKU IS in the response have their
+   `StoreSku.fallbackPriceDisplay` replaced with
+   `BillingProduct.displayPrice` (localized by the store).
+
+`NotConnected` and `Failed` outcomes are best-effort: they leave the
+cached snapshot in place rather than vaporizing every IAP pack on a
+transient network blip.
+
+**Purchase outcome routing:** `ShopViewModel.ConfirmPendingPurchase` for
+an IAP pack:
+
+1. Resolves the userId from `IdentityRepository.state`.
+2. Calls `billingClient.purchase(sku, userId)`.
+3. On `Success` / `AlreadyOwned`, credits chips locally via
+   `ChipsRepository.applyDelta(grantsChips)` and acknowledges the receipt.
+4. Emits a typed `IapPurchaseOutcome` via `ShopEvent.PurchaseFinished`.
+5. `ShopFeatureEntryPoint` observes that event and surfaces a snackbar
+   (skipped for `Cancelled`).
+
+**V1 simplification (intentional):** Chips are credited locally on
+success without server receipt validation. The roadmap §2 endpoint
+(`/v1/billing/redeem`) will move this to server-authoritative when
+Apple App Store Connect + Google Play Console accounts are wired. Until
+then, `FakeBillingClient` tags receipts with `BillingPlatform.Fake` so a
+future production server can reject unverified ones.
+
+**Rejected alternative:** A `PurchaseCoordinator` separate from the VM.
+Coupling-wise it's cleaner, but the VM already owns the screen-level
+state machine (pending sheet, error state, sync events) and adding an
+indirection class doubled the number of moving parts without adding
+testability — the same fakes work either way.
+
+**Tested:** 4 new `ProductsRepositoryImplTest` cases + 5 new
+`ShopViewModelTest` cases covering the reconciliation + purchase flows.
+
+**Status:** Landed. Real Play Billing + StoreKit impls are out of scope
+for V1 — they need provisioned store listings + native dependencies.
+Wire them via `@ContributesBinding(replaces = [NoOpBillingClient::class])`
+per platform when those land.
+
+---
+
+## 2026-05-19 — Onboarding: pattern-match the underlying error for diagnostics
+
+**Decision:** When `OnboardingViewModel.Finish` fails, route the
+underlying `Catching` exception through a `describeFailure()` mapper
+that surfaces a specific actionable line for the four common dev/staging
+failures: anonymous sign-ins disabled, captcha required, invalid anon
+key, network unreachable. Debug builds append the raw exception message
+to the toast.
+
+**Why:** The user-reported symptom "I'm not seeing any users in Supabase"
+collapses many failure modes into one logcat dive. The most common cause
+in fresh dev / staging environments is the dashboard's
+Authentication → Providers → "Allow anonymous sign-ins" toggle being off
+— the API responds with a 422 + "Anonymous sign-ins are disabled" but
+the OnboardingViewModel previously rendered a generic "Couldn't reach
+the server" toast, hiding the actionable bit.
+
+The mapper isn't a sealed type because the upstream throws plain
+exceptions; pattern-matching the message keeps the change local. If
+`IdentityRepository.ensureInitialized` ever moves to a sealed-outcome
+return shape, the mapper collapses into a `when` over the outcome.
+
+**Status:** Landed. `OnboardingViewModelTest` (5 tests) pins the routing.
 

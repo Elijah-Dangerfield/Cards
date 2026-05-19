@@ -3,26 +3,32 @@
 Living document. Captures work the shop will need post-V1 but doesn't
 yet have. Inline TODOs in code reference the section numbers here.
 
-## 1. IAP catalog × platform-store SKU reconciliation
+## 1. IAP catalog × platform-store SKU reconciliation — LANDED 2026-05-19
 
-Today the server returns IAP chip packs identified by `StoreSku.sku`.
-The client trusts the catalog and shows everything as buyable.
+The interface + reconciliation pipeline shipped:
 
-Real wiring needed:
+- `:libraries:billing` defines `BillingClient` (provider-agnostic) +
+  `BillingAvailability` (cached store snapshot).
+- `ProductsRepositoryImpl.refresh()` now calls
+  `BillingAvailability.refresh(skus)` after fetching the catalog DTO,
+  filters out `ChipPacks` whose SKU the store doesn't recognize, and
+  overlays `BillingProduct.displayPrice` on `StoreSku.fallbackPriceDisplay`.
+- Default binding `NoOpBillingClient` returns `Unavailable` →
+  reconciliation drops every IAP pack. Real platform impls
+  (`PlayBillingClient` on Android, `StoreKitBillingClient` on iOS) plug
+  in via `@ContributesBinding(replaces = [NoOpBillingClient::class])`.
+- `FakeBillingClient` in `:libraries:billing:impl` is the testing /
+  preview / QA-build double — same interface, configurable per-SKU
+  outcomes for the cancel / fail / already-owned branches.
 
-- On app start (or shop screen open), fetch the **set of SKUs the
-  platform store actually has available**:
-  - iOS: StoreKit 2 `Product.products(for: skus)`
-  - Android: `BillingClient.queryProductDetails`
-- Cross-reference with the backend catalog:
-  - Keep products where the platform store knows the SKU.
-  - Drop or hide products where the SKU isn't found (server config is
-    ahead of the store — should be rare in production, common in
-    staging / sandbox / unrolled releases).
-- Replace each `StoreSku.fallbackPriceDisplay` with the platform
-  store's actual localized price string (`StoreProduct.displayPrice`
-  on iOS, `pricingPhases` on Android). The fallback is for the brief
-  window before the store call resolves.
+What's still open in this section:
+
+- The real Android `PlayBillingClient` impl (Play Billing v6+).
+- The real iOS `StoreKitBillingClient` impl (StoreKit 2).
+- Both need provisioned store listings (App Store Connect + Google
+  Play Console) and signed builds before they can be smoke-tested end-
+  to-end. `FakeBillingClient` covers the catalog + purchase outcome
+  routing in the meantime.
 - Telemetry events:
   - `shop.iap.empty_store_response` — store returned 0 SKUs (network
     failure? sandbox config gap? rollout block?)
@@ -30,6 +36,28 @@ Real wiring needed:
   - `shop.iap.price_resolved` — successful local price replacement,
     one per SKU
   - `shop.iap.purchase_started` / `.completed` / `.failed` / `.refunded`
+
+## 1b. IAP purchase flow — V1 LANDED 2026-05-19
+
+`ShopViewModel.ConfirmPendingPurchase` for an IAP pack now drives:
+
+1. Resolve userId from `IdentityRepository.state` (block flow if `Unknown`).
+2. `billingClient.purchase(sku, userId)` → suspending platform store sheet.
+3. On `Success` / `AlreadyOwned`:
+   - Credit `pack.grantsChips` locally via `ChipsRepository.applyDelta`.
+   - `billingClient.acknowledge(purchaseToken)`.
+   - Emit `ShopEvent.PurchaseFinished(IapPurchaseOutcome.Success(...))`.
+4. On `UserCancelled` / `NotConnected` / `Failed`: no chip change, emit
+   the matching outcome.
+5. `ShopFeatureEntryPoint.ObserveEvents` renders a snackbar (skipped
+   for `Cancelled`, which is intentionally silent).
+
+V1 simplification (intentional): chips credit happens client-side
+without server receipt validation. The server endpoint
+`/v1/billing/redeem` (this section's §2 work) will move the credit to
+server-authoritative when the chip ledger ships. Until then,
+`FakeBillingClient` tags receipts with `BillingPlatform.Fake` so a future
+production server can reject unverified ones.
 
 ## 2. Owned-inventory sync (last-write-wins server reconciliation)
 
