@@ -48,28 +48,12 @@ class PlayPokerViewModelTest : CoroutineTest() {
     // ---------- Settings mirror (AppCache → state) ----------
 
     @Test
-    fun appCacheEmission_mirrorsSkipBustDialog() = runUnitTest {
-        val cache = FakeAppCache()
-        val vm = buildVm(appCache = cache)
-        assertEquals(false, vm.state.skipBustDialog)
-
-        cache.emit(AppData(skipBustDialog = true))
-        assertEquals(true, vm.state.skipBustDialog)
-    }
-
-    @Test
-    fun appCacheEmission_mirrorsTurnFeedbackAndSkipLeave() = runUnitTest {
+    fun appCacheEmission_mirrorsTurnFeedback() = runUnitTest {
         val cache = FakeAppCache()
         val vm = buildVm(appCache = cache)
 
-        cache.emit(
-            AppData(
-                turnFeedback = TurnFeedback.Vibrate,
-                skipLeaveBotsConfirm = true,
-            ),
-        )
+        cache.emit(AppData(turnFeedback = TurnFeedback.Vibrate))
         assertEquals(TurnFeedback.Vibrate, vm.state.turnFeedback)
-        assertEquals(true, vm.state.skipLeaveBotsConfirm)
     }
 
     @Test
@@ -197,27 +181,6 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
         vm.takeAction(PlayPokerAction.DismissEarnedToast)
         assertTrue(vm.state.recentlyEarned.isEmpty())
-    }
-
-    // ---------- Settings setters ----------
-
-    @Test
-    fun setSkipBustDialog_mutatesCache() = runUnitTest {
-        val cache = FakeAppCache()
-        val vm = buildVm(appCache = cache)
-        assertEquals(false, cache.get().skipBustDialog)
-
-        vm.takeAction(PlayPokerAction.SetSkipBustDialog(value = true))
-        assertEquals(true, cache.get().skipBustDialog)
-    }
-
-    @Test
-    fun setSkipLeaveConfirm_mutatesCache() = runUnitTest {
-        val cache = FakeAppCache()
-        val vm = buildVm(appCache = cache)
-
-        vm.takeAction(PlayPokerAction.SetSkipLeaveConfirm(value = true))
-        assertEquals(true, cache.get().skipLeaveBotsConfirm)
     }
 
     // ---------- Hand-end callback flow ----------

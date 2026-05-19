@@ -142,12 +142,12 @@ fun PlayPokerScreen(
         }
     }
 
-    // Confirm-leave gate. Skip the confirmation when:
-    //  - the user has previously opted out via "don't show this again", or
-    //  - the table is loading / no hand is in progress (no progress to lose).
+    // Confirm-leave gate. Skip the confirmation only when the table is
+    // loading or no hand is in progress — there's nothing to lose. When a
+    // hand is live, always show the confirmation; leaving costs the hand.
     val handInProgress = active != null && active.handResult == null
     val requestLeave: () -> Unit = {
-        if (state.skipLeaveBotsConfirm || !handInProgress) {
+        if (!handInProgress) {
             onBack()
         } else {
             leaveConfirmOpen = true
@@ -272,7 +272,6 @@ fun PlayPokerScreen(
                     leaveConfirmOpen = false
                     onBack()
                 },
-                onSetSkipLeaveConfirm = { onAction(PlayPokerAction.SetSkipLeaveConfirm(it)) },
             )
         }
 
@@ -285,23 +284,13 @@ fun PlayPokerScreen(
                 // a fresh stack" modal instead of the full showdown. Per the
                 // V1 decision (docs/decisions.md 2026-05-14) bot stacks
                 // auto-rebuy between hands; this dialog just makes that
-                // recovery visible so new players aren't confused.
-                //
-                // If the user has ticked "Don't show this again" previously,
-                // skip the modal entirely and advance straight to the next
-                // hand the moment we observe a bust.
-                if (state.skipBustDialog) {
-                    LaunchedEffect(handResult) {
-                        onAction(PlayPokerAction.RequestNextHand)
-                    }
-                } else {
-                    BustDialog(
-                        xpEarned = state.lastHandXpAwarded,
-                        earnedAchievements = state.recentlyEarned,
-                        onDealMeIn = { onAction(PlayPokerAction.RequestNextHand) },
-                        onSetSkipBustDialog = { onAction(PlayPokerAction.SetSkipBustDialog(it)) },
-                    )
-                }
+                // recovery visible so new players aren't confused. Always
+                // shows; busting is a real moment.
+                BustDialog(
+                    xpEarned = state.lastHandXpAwarded,
+                    earnedAchievements = state.recentlyEarned,
+                    onDealMeIn = { onAction(PlayPokerAction.RequestNextHand) },
+                )
             } else {
                 ShowdownDialog(
                     result = handResult,

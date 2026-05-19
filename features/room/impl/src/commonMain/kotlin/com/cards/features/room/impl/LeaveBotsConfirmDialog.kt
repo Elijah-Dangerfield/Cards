@@ -10,17 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.checkbox.Checkbox
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -28,21 +23,15 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Back-press confirmation for the bot table — surfaces "you'll lose this
- * hand" so the user doesn't drop a hand by accident swiping back. Includes
- * a "Don't show this again" affordance for users who'd rather just bail
- * fast once they've understood the cost.
+ * hand" so the user doesn't drop a hand by accident swiping back. Always
+ * shows when a hand is in progress; leaving is a real cost and warrants
+ * an explicit confirmation every time.
  */
 @Composable
 internal fun LeaveBotsConfirmDialog(
     onStay: () -> Unit,
     onLeave: () -> Unit,
-    onSetSkipLeaveConfirm: (Boolean) -> Unit,
 ) {
-    var dontShowAgain by remember { mutableStateOf(false) }
-    val confirmLeave: () -> Unit = {
-        if (dontShowAgain) onSetSkipLeaveConfirm(true)
-        onLeave()
-    }
     Dialog(onDismissRequest = onStay) {
         Column(
             modifier = Modifier
@@ -64,24 +53,6 @@ internal fun LeaveBotsConfirmDialog(
                 textAlign = TextAlign.Center,
             )
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { dontShowAgain = !dontShowAgain }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Checkbox(
-                    checked = dontShowAgain,
-                    onCheckedChange = { dontShowAgain = it },
-                )
-                Text(
-                    text = "Don't show this again",
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
-                )
-            }
-            Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -95,7 +66,7 @@ internal fun LeaveBotsConfirmDialog(
                     label = "Leave",
                     modifier = Modifier.weight(1f),
                     primary = true,
-                    onClick = confirmLeave,
+                    onClick = onLeave,
                 )
             }
         }
@@ -134,7 +105,6 @@ private fun LeaveBotsConfirmDialogPreview() {
         LeaveBotsConfirmDialog(
             onStay = {},
             onLeave = {},
-            onSetSkipLeaveConfirm = {},
         )
     }
 }

@@ -41,19 +41,6 @@ data class AppData(
     val feedbacksGiven: Int = 0,
     val bugsReported: Int = 0,
 
-    // One-time-dialog suppression flags. Add new flags as boolean fields here
-    // (rather than a generic Set<String>) so each flag is type-checked at the
-    // call site and documented by its field name.
-    /** When true, the bust dialog on the bot table is skipped — the player
-     *  goes straight to the next hand with no modal. Set when the user ticks
-     *  "Don't show me this again." */
-    val skipBustDialog: Boolean = false,
-
-    /** When true, the "leave bot game" confirmation is skipped — back press
-     *  exits the session immediately. Set when the user ticks "Don't show
-     *  this again" in the confirmation dialog. */
-    val skipLeaveBotsConfirm: Boolean = false,
-
     /** How fast the bots act. Multiplies all bot think/action delays. */
     val botSpeed: BotSpeed = BotSpeed.Normal,
 

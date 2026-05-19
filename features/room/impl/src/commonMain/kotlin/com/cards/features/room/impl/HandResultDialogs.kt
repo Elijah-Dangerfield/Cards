@@ -17,10 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,7 +35,6 @@ import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.describe
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.checkbox.Checkbox
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -199,14 +195,8 @@ internal fun BustDialog(
     xpEarned: Int?,
     earnedAchievements: List<EarnedAchievement>,
     onDealMeIn: () -> Unit,
-    onSetSkipBustDialog: (Boolean) -> Unit,
 ) {
-    var dontShowAgain by remember { mutableStateOf(false) }
-    val confirm: () -> Unit = {
-        if (dontShowAgain) onSetSkipBustDialog(true)
-        onDealMeIn()
-    }
-    Dialog(onDismissRequest = confirm) {
+    Dialog(onDismissRequest = onDealMeIn) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -249,32 +239,12 @@ internal fun BustDialog(
             earnedAchievements.forEach { earned ->
                 AchievementUnlockedCallout(earned = earned)
             }
-            // "Don't show again" — once acknowledged, the modal stops popping
-            // on future busts and the user goes straight to the next hand.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { dontShowAgain = !dontShowAgain }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Checkbox(
-                    checked = dontShowAgain,
-                    onCheckedChange = { dontShowAgain = it },
-                )
-                Text(
-                    text = "Don't show this again",
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
-                )
-            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(32.dp))
                     .background(AppTheme.colors.accentPrimary.color)
-                    .clickable(onClick = confirm)
+                    .clickable(onClick = onDealMeIn)
                     .padding(vertical = 18.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -500,7 +470,6 @@ private fun BustDialogPreview() {
             xpEarned = 25,
             earnedAchievements = emptyList(),
             onDealMeIn = {},
-            onSetSkipBustDialog = {},
         )
     }
 }
@@ -520,7 +489,6 @@ private fun BustDialogPreview_WithAchievement() {
                 ),
             ),
             onDealMeIn = {},
-            onSetSkipBustDialog = {},
         )
     }
 }

@@ -56,9 +56,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Sound
 - **Sound feedback doesn't work at all.** Already captured in [backlog.md](./backlog.md#audio-infrastructure-sound-cues-bgm). Setting persists, only Vibrate is wired (via Compose haptics); Sound is a no-op. Decision: either (a) build the `:libraries:audio` KMP module before V1 ships so the toggle is honest, or (b) hide the Sound option for V1 and ship Vibrate-only.
 
-### Always-show dialogs
-- **Remove "Don't show this again" from the busted dialog and the back-press leave-game confirm.** Those two moments are non-negotiable — busting out and leaving a hand both warrant an explicit confirmation every time, even for a power user. The toggle currently exists on both; rip it out (and clean the `skipBustDialog` / `skipLeaveBotsConfirm` state + AppData fields).
-
 ### Play screen — identity & chrome
 - **Play screen doesn't render the user's chosen avatar.** The seat the human occupies uses a default avatar instead of `IdentityRepository.state.avatar`. Wire it through.
 - **No name on the human seat.** Same fix surface — pull `displayName` from identity.

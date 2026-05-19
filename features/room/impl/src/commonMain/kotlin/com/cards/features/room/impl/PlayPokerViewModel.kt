@@ -117,8 +117,6 @@ class PlayPokerViewModel @Inject constructor(
         // Settings mirrors
         viewModelScope.launch {
             appCache.updates.collect { data ->
-                takeAction(PlayPokerAction.SkipBustChanged(data.skipBustDialog))
-                takeAction(PlayPokerAction.SkipLeaveConfirmChanged(data.skipLeaveBotsConfirm))
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
             }
@@ -313,18 +311,7 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(recentlyEarned = emptyList())
             }
 
-            is PlayPokerAction.SetSkipBustDialog ->
-                appCache.update { it.copy(skipBustDialog = action.value) }
-            is PlayPokerAction.SetSkipLeaveConfirm ->
-                appCache.update { it.copy(skipLeaveBotsConfirm = action.value) }
-
             is PlayPokerAction.XpChanged -> action.updateState { it.copy(xp = action.totalXp) }
-            is PlayPokerAction.SkipBustChanged -> action.updateState {
-                it.copy(skipBustDialog = action.value)
-            }
-            is PlayPokerAction.SkipLeaveConfirmChanged -> action.updateState {
-                it.copy(skipLeaveBotsConfirm = action.value)
-            }
             is PlayPokerAction.TurnFeedbackChanged -> action.updateState {
                 it.copy(turnFeedback = action.value)
             }
@@ -374,8 +361,6 @@ data class PlayPokerState(
     val xp: Long = 0,
     val lastHandXpAwarded: Int? = null,
     val recentlyEarned: List<EarnedAchievement> = emptyList(),
-    val skipBustDialog: Boolean = false,
-    val skipLeaveBotsConfirm: Boolean = false,
     val turnFeedback: TurnFeedback = TurnFeedback.Sound,
     val connection: ConnectionState = ConnectionState.Connected,
     /**
@@ -431,14 +416,8 @@ sealed interface PlayPokerAction {
     data object ToggleCheatSheet : PlayPokerAction
     data object DismissEarnedToast : PlayPokerAction
 
-    // Settings setters (UI → cache)
-    data class SetSkipBustDialog(val value: Boolean) : PlayPokerAction
-    data class SetSkipLeaveConfirm(val value: Boolean) : PlayPokerAction
-
     // Settings mirrors (cache flow → state)
     data class XpChanged(val totalXp: Long) : PlayPokerAction
-    data class SkipBustChanged(val value: Boolean) : PlayPokerAction
-    data class SkipLeaveConfirmChanged(val value: Boolean) : PlayPokerAction
     data class TurnFeedbackChanged(val value: TurnFeedback) : PlayPokerAction
 
     // Hand-end transients (internal — fired by hand-end callback)
