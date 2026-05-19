@@ -44,10 +44,9 @@ import com.dangerfield.cards.system.VerticalSpacerD900
 
 data class ProfileSettings(
     val displayName: String,
-    val handle: String,
+    val avatarEmoji: String?,
     val rank: Int,
     val xp: Long,
-    val handsPlayed: Long,
     val isAnonymous: Boolean,
     val botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
     val turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
@@ -121,12 +120,6 @@ fun ProfileScreen(
                         ),
                         onClick = onTapXp,
                     ),
-                    ListSectionItem(
-                        headlineText = "Hands played",
-                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
-                            text = settings.handsPlayed.toString(),
-                        ),
-                    ),
                 ),
             )
 
@@ -173,30 +166,30 @@ fun ProfileScreen(
                 ),
             )
 
-            VerticalSpacerD800()
-            ListSection(
-                items = buildList {
-                    add(
-                        ListSectionItem(
-                            headlineText = if (isSigningOut) "Signing out…" else "Sign out",
-                            supportingText = if (settings.isAnonymous) {
-                                "Drops your guest progress and returns to the welcome screen"
-                            } else {
-                                "You'll need to sign in again to see your progress"
-                            },
-                            onClick = { if (!isSigningOut) showSignOutDialog = true },
-                        ),
-                    )
-                    if (!settings.isAnonymous) {
-                        add(
-                            ListSectionItem(
-                                headlineText = "Delete account",
-                                onClick = onDeleteAccount,
-                            ),
-                        )
-                    }
-                },
-            )
+            // Anonymous "sign out" is meaningless — there's no account to
+            // sign back into, and we don't want to dangle "abandon progress"
+            // as a primary action. The Claim Account card above is the right
+            // path forward for guests. Claimed accounts get the red button
+            // pair below.
+            if (!settings.isAnonymous) {
+                VerticalSpacerD1100()
+                com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
+                    onClick = { if (!isSigningOut) showSignOutDialog = true },
+                    style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Outlined,
+                    enabled = !isSigningOut,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (isSigningOut) "Signing out…" else "Sign out")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
+                    onClick = onDeleteAccount,
+                    style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Text,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Delete account")
+                }
+            }
 
             if (settings.showQaMenu) {
                 VerticalSpacerD800()
@@ -374,10 +367,11 @@ private fun ProfileHeader(settings: ProfileSettings) {
             name = settings.displayName,
             size = Dimension.D1900,
             typography = AppTheme.typography.Heading.H1000,
-            // Guest accounts get a card emoji so they read as "you, the
-            // anonymous player" rather than a stranger named "G". Falls back
-            // to the initial once the user claims their account.
-            emoji = if (settings.isAnonymous) "🃏" else null,
+            // Avatar is server-authoritative — always prefer the user's
+            // picked emoji. Anonymous users still get an emoji from the
+            // starter pack at signup, so this should be present in both
+            // states; the null fallback covers the bootstrap window.
+            emoji = settings.avatarEmoji,
         )
         VerticalSpacerD500()
         Text(
@@ -386,12 +380,14 @@ private fun ProfileHeader(settings: ProfileSettings) {
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
         )
-        VerticalSpacerD50()
-        Text(
-            text = if (settings.isAnonymous) "Guest · ${settings.handle}" else "@${settings.handle}",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
-        )
+        if (settings.isAnonymous) {
+            VerticalSpacerD50()
+            Text(
+                text = "Guest",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+            )
+        }
     }
 }
 
@@ -440,10 +436,9 @@ private fun ProfileScreenPreview_Anonymous() {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Anon-1742",
-                handle = "anon-1742",
+                avatarEmoji = "🦊",
                 rank = 1200,
                 xp = 60,
-                handsPlayed = 0,
                 isAnonymous = true,
                 botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
                 turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Sound,
@@ -474,10 +469,9 @@ private fun ProfileScreenPreview_Claimed() {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Elijah",
-                handle = "edangerfield",
+                avatarEmoji = "🦄",
                 rank = 1820,
                 xp = 12_400,
-                handsPlayed = 412,
                 isAnonymous = false,
                 botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Fast,
                 turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
@@ -508,10 +502,9 @@ private fun ProfileScreenPreview_DebugBuild() {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Elijah",
-                handle = "edangerfield",
+                avatarEmoji = "🦄",
                 rank = 1820,
                 xp = 12_400,
-                handsPlayed = 412,
                 isAnonymous = false,
                 botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
                 turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Sound,

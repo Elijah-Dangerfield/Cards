@@ -40,8 +40,9 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
-import com.dangerfield.cards.libraries.cards.UserRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
@@ -75,7 +76,7 @@ class ProfileFeatureEntryPoint(
     private val editProfileViewModelFactory: () -> EditProfileViewModel,
     private val claimAccountViewModelFactory: () -> ClaimAccountViewModel,
     private val myItemsViewModelFactory: () -> MyItemsViewModel,
-    private val userRepository: UserRepository,
+    private val identityRepository: IdentityRepository,
     private val appCache: AppCache,
 ) : FeatureEntryPoint {
 
@@ -83,9 +84,14 @@ class ProfileFeatureEntryPoint(
         screen<ProfileRoute> {
             val progression by progressionRepository.observeProgression()
                 .collectAsStateWithLifecycle(initialValue = Progression.Empty)
-            val user by userRepository.observeUser()
-                .collectAsStateWithLifecycle(initialValue = null)
-            val isAnon = user?.isAnonymous ?: true
+            // Identity (display name + avatar + anon flag) is the canonical
+            // source. UserRepository holds local stats only; reading the
+            // name from there missed updates after Edit Profile saved
+            // (server pushed new identity, local user row stayed stale).
+            val identityState by identityRepository.state
+                .collectAsStateWithLifecycle(initialValue = IdentityState.Unknown)
+            val identity = (identityState as? IdentityState.SignedIn)?.identity
+            val isAnon = identity?.isAnonymous ?: true
             val appData by appCache.updates.collectAsState(initial = AppData())
             val scope = rememberCoroutineScope()
 
@@ -104,13 +110,12 @@ class ProfileFeatureEntryPoint(
 
             ProfileScreen(
                 settings = ProfileSettings(
-                    displayName = user?.name ?: "You",
-                    handle = "anon-1742",
+                    displayName = identity?.displayName ?: "You",
+                    avatarEmoji = identity?.avatarEmoji,
                     // Rank stays 0 ("Unranked") until the user claims their account
                     // and plays multiplayer — see docs/decisions.md (2026-05-14).
                     rank = if (isAnon) 0 else 1200,
                     xp = progression.totalXp,
-                    handsPlayed = progression.handsPlayed,
                     isAnonymous = isAnon,
                     botSpeed = appData.botSpeed,
                     turnFeedback = appData.turnFeedback,

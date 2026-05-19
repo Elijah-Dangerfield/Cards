@@ -37,10 +37,11 @@ import com.dangerfield.cards.system.Dimension
  *
  * The toggle is a small button that swaps label/style depending on the
  * current state — gives instant visual feedback when the optimistic
- * write lands, even before the server confirms. A "Syncing…" suffix
- * shows up briefly while a Pending purchase is mid-reconciliation; the
- * user can equip a pending purchase anyway (the equip op queues behind
- * its own sync).
+ * write lands, even before the server confirms. Pending sync state is
+ * intentionally hidden from the user: ownership is treated as final the
+ * moment the purchase row hits Room. If the server eventually rejects
+ * (insufficient chips, etc.) we'd surface that as a separate toast and
+ * undo locally, not as a "syncing…" affordance up front.
  *
  * Empty state: a friendly note + a back-to-shop affordance lives in the
  * empty container so the user has a path forward instead of a void.
@@ -130,7 +131,7 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = if (item.purchasePending) "${item.subtitle} · Syncing…" else item.subtitle,
+                text = item.subtitle,
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
             )

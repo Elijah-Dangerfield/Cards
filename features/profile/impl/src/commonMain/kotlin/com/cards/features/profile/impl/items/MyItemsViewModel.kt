@@ -6,7 +6,6 @@ import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncService
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
-import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.products.Product
@@ -118,7 +117,6 @@ data class OwnedItem(
     val description: String?,
     val iconEmoji: String,
     val isEquipped: Boolean,
-    val purchasePending: Boolean,
 )
 
 data class MyItemsState(
@@ -139,7 +137,6 @@ data class MyItemsState(
                     description = (product as? Product.ChipOffer)?.description,
                     iconEmoji = product?.iconEmoji ?: "🎁",
                     isEquipped = item.productId in equippedIds,
-                    purchasePending = item.state == PurchaseState.Pending,
                 )
             }
         }
