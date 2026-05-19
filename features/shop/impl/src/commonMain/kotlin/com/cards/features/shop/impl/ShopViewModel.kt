@@ -1,6 +1,9 @@
 package com.dangerfield.cards.features.shop.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.billing.BillingClient
+import com.dangerfield.cards.libraries.billing.PurchaseResult
+import com.dangerfield.cards.libraries.billing.PurchaseTransaction
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
@@ -10,6 +13,8 @@ import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
@@ -42,9 +47,11 @@ import me.tatarka.inject.annotations.Inject
  *  4. Best-effort fire [InventorySyncService.sync] in the background so
  *     the row flips Pending → Confirmed before the user closes the app.
  *
- * IAP packs ([ShopAction.ConfirmPendingPurchase] for a chip pack) emit a
- * [ShopEvent.LaunchPurchase] for the future PurchaseCoordinator to pick
- * up; nothing local changes until the platform store confirms.
+ * IAP packs ([ShopAction.ConfirmPendingPurchase] for a chip pack) drive
+ * [BillingClient.purchase] and emit a [ShopEvent.PurchaseFinished] once
+ * the store sheet resolves (success, cancel, failure). Chips are
+ * credited locally via [ChipsRepository.applyDelta] when the store
+ * confirms — server-side receipt validation lands later (shop-roadmap §2).
  */
 class ShopViewModel @Inject constructor(
     private val productsRepository: ProductsRepository,
@@ -52,6 +59,8 @@ class ShopViewModel @Inject constructor(
     private val inventorySyncService: InventorySyncService,
     private val chipsRepository: ChipsRepository,
     private val progressionRepository: ProgressionRepository,
+    private val billingClient: BillingClient,
+    private val identityRepository: IdentityRepository,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
@@ -177,19 +186,18 @@ class ShopViewModel @Inject constructor(
                 }
                 when (pending) {
                     is PendingPurchase.IapPack -> {
-                        // Hand off to the platform-IAP coordinator. Sheet
-                        // closes; no local mutation yet — that happens on
-                        // store callback (later chunk).
+                        // Close the sheet immediately — the platform store
+                        // sheet is its own modal flow. Then drive the purchase
+                        // through BillingClient and surface the outcome via
+                        // ShopEvent.PurchaseFinished, which the screen renders
+                        // as a toast / celebration cue.
                         //
-                        // TODO(shop-roadmap §1): server catalog × platform-
-                        //   store SKU reconciliation. Today we trust the
-                        //   server's SKU exists in the platform store; in
-                        //   practice we'll need to call StoreKit /
-                        //   BillingClient.queryProductDetails, drop
-                        //   missing-SKU products, and replace the
-                        //   fallback price. See docs/shop-roadmap.md.
+                        // Catalog reconciliation (shop-roadmap §1) already
+                        // dropped IAP packs the platform store doesn't
+                        // recognize, so by the time we get here we trust the
+                        // SKU exists in the store.
                         action.updateState { it.copy(pendingPurchase = null) }
-                        sendEvent(ShopEvent.LaunchPurchase(pending.product))
+                        launchIapPurchase(pending.product)
                     }
                     is PendingPurchase.ChipOffer -> {
                         confirmChipOfferRedeem(pending.product)
@@ -197,6 +205,45 @@ class ShopViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun launchIapPurchase(pack: Product.ChipPack) {
+        val userId = (identityRepository.state.value as? IdentityState.SignedIn)?.identity?.userId
+        if (userId == null) {
+            logger.w { "IAP purchase requested with no signed-in user" }
+            sendEvent(ShopEvent.PurchaseFinished(IapPurchaseOutcome.NotSignedIn))
+            return
+        }
+        val result = billingClient.purchase(sku = pack.store.sku, userId = userId)
+        val outcome = when (result) {
+            is PurchaseResult.Success -> {
+                creditChipsFor(pack, result.transaction)
+                billingClient.acknowledge(result.transaction.purchaseToken)
+                IapPurchaseOutcome.Success(grantedChips = pack.grantsChips)
+            }
+            is PurchaseResult.AlreadyOwned -> {
+                // Treat as idempotent — re-credit so a client that lost
+                // track of a previous purchase still gets its chips. Server-
+                // side validation will dedupe by orderId once /v1/billing/redeem
+                // ships; until then we accept the double-credit risk in V1.x.
+                creditChipsFor(pack, result.transaction)
+                billingClient.acknowledge(result.transaction.purchaseToken)
+                IapPurchaseOutcome.AlreadyOwned(grantedChips = pack.grantsChips)
+            }
+            PurchaseResult.UserCancelled -> IapPurchaseOutcome.Cancelled
+            is PurchaseResult.Failed -> IapPurchaseOutcome.Failed(result.reason)
+            PurchaseResult.NotConnected -> IapPurchaseOutcome.StoreUnavailable
+        }
+        sendEvent(ShopEvent.PurchaseFinished(outcome))
+    }
+
+    private suspend fun creditChipsFor(pack: Product.ChipPack, transaction: PurchaseTransaction) {
+        // V1 simplification: credit chips locally as soon as the platform
+        // store confirms. Server-side receipt validation + chip ledger
+        // (shop-roadmap §2) lands with the auth-gated `/v1/billing/redeem`
+        // endpoint; until then this is the source of truth.
+        chipsRepository.applyDelta(pack.grantsChips)
+        logger.i { "Granted ${pack.grantsChips} chips for IAP order ${transaction.orderId}" }
     }
 
     private suspend fun confirmChipOfferRedeem(offer: Product.ChipOffer) {
@@ -433,8 +480,13 @@ sealed interface ShopAction {
 }
 
 sealed interface ShopEvent {
-    /** Fire for IAP packs — handler launches the platform billing flow. */
-    data class LaunchPurchase(val product: Product.ChipPack) : ShopEvent
+    /**
+     * IAP purchase round-trip has completed (success, cancel, failure).
+     * Screen renders a toast / celebration based on [outcome]. The
+     * billing client has already been driven to completion before this
+     * event fires — the screen doesn't have to call any further APIs.
+     */
+    data class PurchaseFinished(val outcome: IapPurchaseOutcome) : ShopEvent
 
     /** Chip-funded redemption confirmed. Screen plays a celebration cue. */
     data class RedeemSucceeded(val offer: Product.ChipOffer) : ShopEvent
@@ -449,4 +501,32 @@ sealed interface ShopEvent {
      * a refresh, after which the offer drops out of the catalog.
      */
     data class OfferExpired(val productId: String) : ShopEvent
+}
+
+/**
+ * Result of an IAP purchase, emitted as [ShopEvent.PurchaseFinished]
+ * once the billing round-trip + chip credit completes.
+ *
+ * The screen dispatches on this to render the right user feedback — the
+ * VM doesn't decide on copy or animation. Cancellation is silent (no
+ * toast); failure is a single "couldn't complete" line; success is a
+ * chip-pile celebration with the granted amount.
+ */
+sealed interface IapPurchaseOutcome {
+    data class Success(val grantedChips: Long) : IapPurchaseOutcome
+
+    /** Store reports already-owned. We re-credit defensively. */
+    data class AlreadyOwned(val grantedChips: Long) : IapPurchaseOutcome
+
+    /** User backed out of the store sheet. Silent. */
+    data object Cancelled : IapPurchaseOutcome
+
+    /** Platform billing connection isn't established. Surface "store unavailable". */
+    data object StoreUnavailable : IapPurchaseOutcome
+
+    /** No signed-in user. Should be impossible from the shop screen, but defend. */
+    data object NotSignedIn : IapPurchaseOutcome
+
+    /** Generic transient error. [reason] is store-provided and not localized. */
+    data class Failed(val reason: String) : IapPurchaseOutcome
 }

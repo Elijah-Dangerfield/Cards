@@ -1,0 +1,89 @@
+package com.dangerfield.cards.libraries.billing.impl
+
+import com.dangerfield.cards.libraries.billing.BillingClient
+import com.dangerfield.cards.libraries.billing.BillingPlatform
+import com.dangerfield.cards.libraries.billing.BillingProduct
+import com.dangerfield.cards.libraries.billing.ConnectionState
+import com.dangerfield.cards.libraries.billing.PurchaseResult
+import com.dangerfield.cards.libraries.billing.PurchaseTransaction
+import com.dangerfield.cards.libraries.billing.QueryProductsResult
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Pretends to be a real platform store. Useful for:
+ *  - QA builds where we want to exercise the redemption flow without
+ *    provisioning sandbox accounts on Apple / Google.
+ *  - Compose previews + unit tests that need the IAP packs visible.
+ *  - Demo / screenshot builds.
+ *
+ * Construct with a static product catalog. Every purchase succeeds with
+ * a generated [PurchaseTransaction] tagged [BillingPlatform.Fake], so
+ * the server can drop these on the floor in production. Force specific
+ * outcomes per-SKU via [outcomesBySku] when testing the cancel /
+ * already-owned / failed branches.
+ *
+ * Not annotated with `@ContributesBinding` — wire it manually in
+ * QA-build flavors that want to override [NoOpBillingClient] without
+ * touching prod DI.
+ */
+class FakeBillingClient(
+    private val catalog: Map<String, BillingProduct>,
+    private val outcomesBySku: Map<String, FakeOutcome> = emptyMap(),
+    private val nowEpochMs: () -> Long = { 0L },
+) : BillingClient {
+
+    private val _connectionState = MutableStateFlow(ConnectionState.Disconnected)
+    override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
+
+    private var sequence = 0L
+
+    override suspend fun connect(): ConnectionState {
+        _connectionState.value = ConnectionState.Connected
+        return ConnectionState.Connected
+    }
+
+    override suspend fun queryProducts(skus: Set<String>): QueryProductsResult {
+        if (_connectionState.value != ConnectionState.Connected) {
+            return QueryProductsResult.NotConnected
+        }
+        val filtered = catalog.filterKeys { it in skus }
+        return QueryProductsResult.Success(products = filtered)
+    }
+
+    override suspend fun purchase(sku: String, userId: String): PurchaseResult {
+        if (_connectionState.value != ConnectionState.Connected) {
+            return PurchaseResult.NotConnected
+        }
+        val product = catalog[sku]
+            ?: return PurchaseResult.Failed("Unknown SKU: $sku")
+        return when (val forced = outcomesBySku[sku]) {
+            FakeOutcome.Cancel -> PurchaseResult.UserCancelled
+            FakeOutcome.AlreadyOwned -> PurchaseResult.AlreadyOwned(transactionFor(product))
+            is FakeOutcome.Fail -> PurchaseResult.Failed(forced.reason)
+            null, FakeOutcome.Succeed -> PurchaseResult.Success(transactionFor(product))
+        }
+    }
+
+    override suspend fun acknowledge(purchaseToken: String): Boolean = true
+
+    private fun transactionFor(product: BillingProduct): PurchaseTransaction {
+        sequence += 1
+        return PurchaseTransaction(
+            sku = product.sku,
+            orderId = "fake-order-${product.sku}-$sequence",
+            purchaseToken = "fake-token-${product.sku}-$sequence",
+            platform = BillingPlatform.Fake,
+            purchasedAtEpochMs = nowEpochMs(),
+            displayPrice = product.displayPrice,
+        )
+    }
+
+    sealed interface FakeOutcome {
+        data object Succeed : FakeOutcome
+        data object Cancel : FakeOutcome
+        data object AlreadyOwned : FakeOutcome
+        data class Fail(val reason: String) : FakeOutcome
+    }
+}

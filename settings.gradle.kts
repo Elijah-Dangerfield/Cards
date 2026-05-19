@@ -59,6 +59,8 @@ include(":features:upgrade:impl")
 
 
 // Libraries
+include(":libraries:billing")
+include(":libraries:billing:impl")
 include(":libraries:config")
 include(":libraries:config:impl")
 include(":libraries:core")

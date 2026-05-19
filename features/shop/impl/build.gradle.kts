@@ -14,6 +14,8 @@ kotlin {
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.products)
+            implementation(projects.libraries.billing)
+            implementation(projects.libraries.identity)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)
 
@@ -29,6 +31,8 @@ kotlin {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.products)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.billing)
+            implementation(projects.libraries.identity)
         }
     }
 }

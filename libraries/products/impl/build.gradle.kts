@@ -18,6 +18,7 @@ kotlin {
             implementation(projects.libraries.networking)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.billing)
 
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
@@ -30,6 +31,7 @@ kotlin {
             // their interfaces — make them available on the test classpath.
             implementation(projects.libraries.products)
             implementation(projects.libraries.networking)
+            implementation(projects.libraries.billing)
         }
     }
 }
