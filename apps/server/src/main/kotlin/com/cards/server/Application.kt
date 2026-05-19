@@ -19,6 +19,7 @@ import com.dangerfield.cards.server.routes.healthRoutes
 import com.dangerfield.cards.server.routes.inventoryRoutes
 import com.dangerfield.cards.server.routes.meRoutes
 import com.dangerfield.cards.server.routes.productsRoutes
+import com.dangerfield.cards.server.routes.roomRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
 import org.slf4j.LoggerFactory
@@ -59,6 +60,7 @@ fun Application.module(config: ServerConfig) {
         meRoutes(component.profileRepository, component.supabaseAdminClient)
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
+        roomRoutes(component.roomService, component.profileRepository)
         adminRoutes(config.admin, component.orphanAnonymousSweep)
     }
 }

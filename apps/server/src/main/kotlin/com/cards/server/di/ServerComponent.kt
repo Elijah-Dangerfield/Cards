@@ -8,6 +8,7 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.MergeComponent
@@ -47,6 +48,7 @@ abstract class ServerComponent(
     abstract val orphanAnonymousSweep: OrphanAnonymousSweep
     abstract val equipmentRepository: EquipmentRepository
     abstract val inventoryRepository: InventoryRepository
+    abstract val roomService: RoomService
 
     /**
      * Wall-clock source. Singleton so every component sees the same "now"
