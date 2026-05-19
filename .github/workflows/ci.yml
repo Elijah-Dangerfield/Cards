@@ -89,3 +89,29 @@ jobs:
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
+
+  server-test:
+    name: Server tests
+    # Runs in parallel with build-and-test on a cheap Ubuntu runner so the
+    # testcontainers Postgres can spin up — macOS runners don't ship with
+    # the Docker daemon.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Run server tests
+        run: ./gradlew :apps:server:test

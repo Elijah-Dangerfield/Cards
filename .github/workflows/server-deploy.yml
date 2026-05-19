@@ -37,6 +37,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Belt-and-suspenders: even if someone pushes a broken server past
+      # CI (force-push, branch-protection bypass, label-skipped checks),
+      # we run the suite here and refuse to deploy on failure. Postgres
+      # comes up via testcontainers, so Docker on the runner is required.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run server tests
+        run: ./gradlew :apps:server:test
+
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Deploy
