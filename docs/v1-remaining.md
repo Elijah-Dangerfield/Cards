@@ -124,15 +124,6 @@ Pull this audit in next time we're in the auth code. Note: the get-or-create pat
 ### Dead code: navigation tracker
 `AppNavigationTracker` increments per-route visit counters into `AppCache`, but nothing reads them. The infra is in [libraries/navigation/impl/.../AppNavigationTracker.kt](libraries/navigation/impl/src/commonMain/kotlin/com/cards/libraries/navigation/impl/AppNavigationTracker.kt), `NavigationTracker` interface, `TrackableRoute` marker, and the visit-counting fields in `AppData`. Delete the tracker, the interface, the trackable-route bookkeeping, and the AppData fields. If we ever want per-route analytics we'll wire something real.
 
-### Branch protection + required checks on `main`
-The repo (`Elijah-Dangerfield/Cards`) has no protection on `main` — PRs can merge without CI green, and direct pushes to `main` are allowed. CI itself is wired (`.github/workflows/ci.yml` runs `Build + test` on macOS and `Server tests` on ubuntu; `.github/workflows/server-deploy.yml` re-runs server tests as a safety net before `fly deploy`), so the rules are easy to add once we want them:
-
-- **Settings → Branches → Add rule for `main`**, then require status checks `Build + test` and `Server tests` to pass before merging, require branches to be up to date, and disallow force-pushes / deletions.
-- **Allow `release-please--branches--main`** to bypass the up-to-date requirement (or accept that release-please will rebase its PR) so the release workflow keeps flowing.
-- **Reconcile** with the `Auto-merge` workflow — it uses `gh pr merge --auto`, which already waits for required checks, so no change needed there once checks are required.
-
-Cheap to do; deferred so we can keep iterating without ceremony until the surface stabilizes.
-
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 **Problem:** `libraries/cards` was originally the "highly shared" dumping ground. It has grown to be too big. We now also have `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). The three overlap in confusing ways for new readers.
 
