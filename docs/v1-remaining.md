@@ -32,6 +32,17 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Auto-equip on purchase.** When a user buys a cosmetic, equip it by default unless a conflicting slot is already occupied. Currently the purchase confirms but the equip step is a separate trip to Your Items.
 - **Button color adaptation against felt.** When the user equips a colored felt, the play-screen action buttons can clash. Either pin the buttons to a felt-independent surface, or token the buttons against a `surfaceOnFelt` color that the felt defines.
 
+### Edit profile
+- **Drop the "Edit profile" button; pencil-badge the avatar.** The profile screen should let the user tap the avatar (with a small pencil/badge overlay) instead of a separate button. Same target, less UI.
+- **Avatar list scrollable + server-driven.** The avatar picker on Edit Profile is not scrollable; tall lists clip. Verify the list comes from the server (`GET /v1/avatars`) and not a client constant. Initial set should be intentionally small and **must not overlap** with avatar packs users can buy — the purchasable packs are the upgrade path.
+- **Color list scrollable.** Same issue — the last color is getting smushed because the row doesn't scroll horizontally.
+
+### Screen / chrome consistency
+- **Most screens should use the `Screen` component + the prebuilt header.** Home, Shop, and Profile have bespoke chrome on purpose; everything else (settings sub-pages, edit profile, achievements detail, rank detail, etc.) should run through the shared `Screen` + header so back button, title, and insets are uniform. Audit + sweep.
+
+### Privacy policy / terms of service
+- **Write the actual content.** The profile screen already deep-links to a web page; the page itself is empty/placeholder. Probably one of the last items before TestFlight. Hosting can stay on the existing web link target.
+
 ### Typography & DS consistency
 - **Audit text sizes across the app.** XP and Rank screens have copy at the bottom that's noticeably smaller than the rest of the UI. Sweep every screen and confirm: (1) only DS typography tokens are in use, (2) the default `Text` component picks a sensible body size when no `typography` is passed. If we have to override `typography = …` in 90% of call sites, the default is wrong.
 - **DS-first text component default.** Whatever `Text` resolves to when called without a typography argument should match what a screen wants in 95% of cases. Building DS-aware screens should mostly *just work*.
@@ -45,9 +56,26 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Sound
 - **Sound feedback doesn't work at all.** Already captured in [backlog.md](./backlog.md#audio-infrastructure-sound-cues-bgm). Setting persists, only Vibrate is wired (via Compose haptics); Sound is a no-op. Decision: either (a) build the `:libraries:audio` KMP module before V1 ships so the toggle is honest, or (b) hide the Sound option for V1 and ship Vibrate-only.
 
+### Always-show dialogs
+- **Remove "Don't show this again" from the busted dialog and the back-press leave-game confirm.** Those two moments are non-negotiable — busting out and leaving a hand both warrant an explicit confirmation every time, even for a power user. The toggle currently exists on both; rip it out (and clean the `skipBustDialog` / `skipLeaveBotsConfirm` state + AppData fields).
+
+### Play screen — identity & chrome
+- **Play screen doesn't render the user's chosen avatar.** The seat the human occupies uses a default avatar instead of `IdentityRepository.state.avatar`. Wire it through.
+- **No name on the human seat.** Same fix surface — pull `displayName` from identity.
+- **More use of the coin component on the play screen.** Stack amounts on PlayerArea, pot total on BoardArea, raise-amount affordances — anywhere we're rendering a chip number, lean on `ChipCoinAmount` instead of plain `Text`.
+- **Hand-end dialogs could use the icon/emoji top affordance.** The bust + showdown dialogs are plain headers; the DS has an icon-or-emoji top slot used elsewhere — adopt it for visual congruence.
+
+### Play screen — opponents row at MP scale
+- **Horizontal scroll + auto-scroll for >4 seats.** Already captured in [backlog.md](./backlog.md#multiplayer-table--opponents-row-overflow). Pulling forward: at 10-seat MP tables the current pack-and-shrink approach makes avatars unreadable. `LazyRow` once `count > 4`, auto-scroll to the active actor when their turn flips, fade gradients on both edges, respect manual user scroll for a few seconds.
+
 ### Animations / table polish
 - **Bust animation for other players.** Today we have the bust dialog for the human; need a visible bust treatment on a remote seat (avatar dims, "BUSTED" stamp, chip stack collapses).
 - **Skip-to-end / instant-bots after human fold.** When a human folds in a bot game, the rest of the hand is just bots — show a "Skip to end" affordance, and drop bot think-time to ~0ms so the skip-or-watch experience is fast either way.
+- **XP / coin earned distribution animation.** Today the showdown dialog overlays the XP/coin badges, so the user never sees the odometer count up. Idea: defer the XP/coin badge animation until *after* the showdown/bust dialog dismisses, then play it as a small "zip" — XP particle flying up to the XP badge, coin particle flying down to the chip badge, each landing into an odometer count-up. Open to pushback: the alternative is to render the earned values inside the dialog and skip the badge animation entirely.
+
+### Table-side social
+- **Emoji sending in games.** [product-spec.md §5.5](./product/product-spec.md#55-table-side-social) commits to emoji blasts (~12 base emojis, 8s cooldown, mute-this-player) as a V1 feature. Not built yet. Bottom-tray surface, full-screen 1.5s animation per emit.
+- **Swipe-up-to-fold.** Gesture on the user's hole cards = fold. First time it triggers, show a confirmation dialog *with* a "Don't show this again" — so the gesture stays discoverable then gets out of the way.
 
 ### Email & deep linking
 - **Email confirmation link points to `localhost`.** Supabase email template is on the default. Set the project's site URL + redirect URLs in the Supabase dashboard (dev *and* prod). While there, swap the default Supabase template for a Cards-branded one (copy in [voice-and-copy.md §5.x](./product/voice-and-copy.md)).
@@ -58,6 +86,10 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Achievements
 - **"Made another player bust" achievement.** Not in the registry today; add it.
 - **Bot-vs-human duplication.** Several existing achievements treat busting/wins against bots and humans the same; the prestige value is different. Audit `AchievementRegistry` and either (a) tag each entry as bot-eligible / human-eligible / both, or (b) duplicate the entries with separate ids ("bust 10 bots" + "bust 10 humans"). The duplication path is simpler; the tagging path is cleaner. Decide at the moment we touch the file.
+- **Progress on locked achievements.** For a quantitative achievement the user hasn't earned ("play 500 hands"), show their current progress ("50 / 500") on the locked tile. Today the locked state is mystery-silhouette only; a numeric goal type should reveal progress without revealing the unlock animation.
+
+### Rank screen
+- **Rank/league surface isn't built out.** XP screen exists; the rank page is a stub. Either build the V1 form (current tier, what unlocks at each tier, no league mechanic yet) or be explicit it's gated until V1.1 leagues. Decide before V1 ship.
 
 ### Admin tools
 - **Grant chips to a specific user.** When something goes wrong in production we need a supported way to credit chips. A small admin endpoint behind the existing admin token (`POST /v1/admin/grant-chips` taking `userId`, `delta`, `reason`) writes a `wallet_event` with reason `admin_grant`. Pairs naturally with the existing wallet ledger; no schema work.
@@ -121,8 +153,10 @@ Open critiques from the field log:
 
 Pull this audit in next time we're in the auth code. Note: the get-or-create pattern is correct, so the structural concern is style + consolidation, not correctness.
 
-### Dead code: navigation tracker
-`AppNavigationTracker` increments per-route visit counters into `AppCache`, but nothing reads them. The infra is in [libraries/navigation/impl/.../AppNavigationTracker.kt](libraries/navigation/impl/src/commonMain/kotlin/com/cards/libraries/navigation/impl/AppNavigationTracker.kt), `NavigationTracker` interface, `TrackableRoute` marker, and the visit-counting fields in `AppData`. Delete the tracker, the interface, the trackable-route bookkeeping, and the AppData fields. If we ever want per-route analytics we'll wire something real.
+### Authed calls firing before auth resolves
+**Problem:** Various repositories / services fire authed network calls in their `init` blocks or on `ColdBoot`. If the user is still moving through onboarding (anonymous sign-in pending), those calls hit an unauthenticated client and either fail loudly or silently no-op until a retry. The right shape: any authed call gated on `IdentityRepository.state` being a non-`Unknown` value. Either centralize via the proposed `authedCall { … }` (above) so this is impossible to forget, or sweep every existing `init { scope.launch { … } }` and add a `state.first { it is SignedIn }` guard.
+
+Audit + sweep. Anything `init {}`-launched in a repo that depends on identity needs this.
 
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 **Problem:** `libraries/cards` was originally the "highly shared" dumping ground. It has grown to be too big. We now also have `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). The three overlap in confusing ways for new readers.

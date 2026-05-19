@@ -1,7 +1,7 @@
 package com.dangerfield.cards.features.profile
 
 import com.dangerfield.cards.libraries.navigation.NavigableWhileBlocked
-import com.dangerfield.cards.libraries.navigation.TrackableRoute
+import com.dangerfield.cards.libraries.navigation.Route
 import kotlinx.serialization.Serializable
 
 /**
@@ -20,7 +20,7 @@ data class BugReportRoute(
     val logId: String? = null,
     val errorCode: Int? = null,
     val contextMessage: String? = null,
-) : TrackableRoute("bugReportScreenOpens"), NavigableWhileBlocked
+) : Route(), NavigableWhileBlocked
 
 @Serializable
-class FeedbackRoute : TrackableRoute("feedbackScreenOpens")
+class FeedbackRoute : Route()
