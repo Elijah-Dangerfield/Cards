@@ -206,8 +206,6 @@ private fun IapPackConfirmContent(
  *    inline (no chip cost shown) + disabled primary button.
  *  - [PurchaseSheetMode.Owned]       → "You own this" prompt + close-
  *    only buttons. The "manage in Your Items" hint is in the body copy.
- *    TODO(shop-roadmap §3): swap the close-only CTA for "Manage in
- *      Profile" → navigate to the Your Items page once that screen lands.
  */
 @Composable
 private fun ChipOfferConfirmContent(
@@ -302,7 +300,7 @@ private fun ChipOfferConfirmContent(
             is PurchaseSheetMode.Owned -> StatusPrompt(
                 emoji = "✓",
                 title = if (mode.pendingSync) "You own this · Syncing" else "You own this",
-                body = "Equip from Your Items in your profile. (Coming soon — see shop-roadmap.md §3.)",
+                body = "Equip from Your Items in your profile. (Coming soon.)",
             )
         }
         VerticalSpacerD700()

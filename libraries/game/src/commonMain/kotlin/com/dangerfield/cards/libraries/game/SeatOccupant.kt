@@ -9,8 +9,6 @@ package com.dangerfield.cards.libraries.game
  * Sealed so UI code can type-narrow only for the operations that actually differ between
  * bots and humans. For pure rendering (avatar, name, current bet, stack), no branch is
  * needed — read the shared fields.
- *
- * See `docs/architecture/game-session.md` §3.2.
  */
 sealed interface SeatOccupant {
     val seatIndex: Int

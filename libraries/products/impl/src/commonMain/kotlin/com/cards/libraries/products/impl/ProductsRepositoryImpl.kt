@@ -40,7 +40,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * fetch time. UI subscribes to [observeTimeAnchor] for clock-spoof-
  * resistant countdowns on sale-window offers.
  *
- * **Store reconciliation** (shop-roadmap §1): after fetching the catalog
+ * **Store reconciliation:** after fetching the catalog
  * we ask [BillingAvailability] which IAP SKUs the platform store actually
  * recognizes. Packs whose SKU isn't in the store response are dropped —
  * server config can be ahead of the store (staging, unrolled releases,

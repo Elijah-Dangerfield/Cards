@@ -19,8 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
  * **Lifespan:** scoped to this module on purpose. When we extract a real cross-feature
  * `GameSession` abstraction (Phase 4 + MP work, see `:libraries:game`), this internal
  * interface goes away. For now it's the minimum surface the VM needs.
- *
- * See [docs/architecture/game-session.md](../../../../../../../../../docs/architecture/game-session.md).
  */
 interface PokerSession {
 

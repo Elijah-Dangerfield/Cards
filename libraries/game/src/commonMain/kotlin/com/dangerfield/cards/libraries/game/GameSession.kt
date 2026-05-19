@@ -10,8 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
  * A live, stateful, event-emitting session of one poker game.
  *
  * The contract that lets the same screen play solo against bots OR multiplayer against
- * humans, without knowing which. See `docs/architecture/game-session.md` for the full
- * design rationale.
+ * humans, without knowing which.
  *
  * Implementations:
  * - `LocalGameSession` — owns a local `GameEngine` and drives bot decisions in-process

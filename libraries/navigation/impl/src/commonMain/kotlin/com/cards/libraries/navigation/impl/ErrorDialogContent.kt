@@ -77,10 +77,6 @@ internal fun ErrorDialog(
                     ) {
                         Text(text = reportActionTitle)
                     }
-
-                    VerticalSpacerD500()
-
-                    Text("(which is me cause I wrote myself)")
                 }
             }
         }

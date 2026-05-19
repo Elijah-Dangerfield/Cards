@@ -9,8 +9,6 @@ package com.dangerfield.cards.libraries.game
  * - For humans: populated from accumulated hand history (~50 shared hands per product
  *   spec §6.4). Until enough data accumulates, [style] = [PlayStyle.Unknown] and metrics
  *   are null.
- *
- * See `docs/architecture/game-session.md` §3.3.
  */
 data class Personality(
     /**

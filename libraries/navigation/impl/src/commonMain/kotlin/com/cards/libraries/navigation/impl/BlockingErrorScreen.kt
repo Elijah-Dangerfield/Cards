@@ -78,10 +78,6 @@ internal fun BlockingErrorScreen(
                     Text(text = "Report to developers")
                 }
 
-                VerticalSpacerD500()
-
-                Text("(which is me cause I wrote myself)")
-
                 VerticalSpacerD1600()
             }
         }
@@ -93,7 +89,7 @@ internal fun BlockingErrorScreen(
 private fun BlockingErrorScreenPreview() {
     PreviewContent {
         BlockingErrorScreen(
-            title = "Can't load apps",
+            title = "Can't load app",
             subtitle = "Double-check your connection and try again.",
             errorCode = 1001,
             onReportToDevelopers = {}

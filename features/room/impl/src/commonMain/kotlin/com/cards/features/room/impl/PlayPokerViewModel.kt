@@ -53,9 +53,6 @@ import me.tatarka.inject.annotations.Inject
  * - [PlayPokerState.table] is projected from raw [GameState] via the
  *   factory's `tableFor`; per-hand transients (winners, last-action pills)
  *   come from engine events the VM observes.
- *
- * See `docs/architecture/game-session.md` for the architecture overview and
- * the appendix for the locked MVI contract.
  */
 @OptIn(ExperimentalCoroutinesApi::class) // mapLatest — needed for cancel-in-flight equity math
 class PlayPokerViewModel @Inject constructor(

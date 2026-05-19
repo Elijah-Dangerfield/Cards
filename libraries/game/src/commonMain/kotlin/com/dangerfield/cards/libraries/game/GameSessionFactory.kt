@@ -10,8 +10,6 @@ package com.dangerfield.cards.libraries.game
  * Routing:
  * - [PlayMode.SoloVsBots] → `LocalGameSession`
  * - [PlayMode.FriendGame], [PlayMode.PublicGame] → `RemoteGameSession` (Phase 4)
- *
- * See `docs/architecture/game-session.md` §3.5.
  */
 interface GameSessionFactory {
     fun create(mode: PlayMode): GameSession

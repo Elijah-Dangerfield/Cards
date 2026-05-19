@@ -24,6 +24,7 @@ import io.github.jan.supabase.auth.providers.Apple
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.OAuthProvider as SupabaseOAuthProvider
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.signInAnonymously
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
 import io.ktor.client.plugins.ClientRequestException

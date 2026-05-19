@@ -51,7 +51,7 @@ import me.tatarka.inject.annotations.Inject
  * [BillingClient.purchase] and emit a [ShopEvent.PurchaseFinished] once
  * the store sheet resolves (success, cancel, failure). Chips are
  * credited locally via [ChipsRepository.applyDelta] when the store
- * confirms — server-side receipt validation lands later (shop-roadmap §2).
+ * confirms — server-side receipt validation is deferred.
  */
 class ShopViewModel @Inject constructor(
     private val productsRepository: ProductsRepository,
@@ -192,9 +192,9 @@ class ShopViewModel @Inject constructor(
                         // ShopEvent.PurchaseFinished, which the screen renders
                         // as a toast / celebration cue.
                         //
-                        // Catalog reconciliation (shop-roadmap §1) already
-                        // dropped IAP packs the platform store doesn't
-                        // recognize, so by the time we get here we trust the
+                        // Catalog reconciliation already dropped IAP packs the
+                        // platform store doesn't recognize, so by the time we
+                        // get here we trust the
                         // SKU exists in the store.
                         action.updateState { it.copy(pendingPurchase = null) }
                         launchIapPurchase(pending.product)
@@ -239,9 +239,9 @@ class ShopViewModel @Inject constructor(
 
     private suspend fun creditChipsFor(pack: Product.ChipPack, transaction: PurchaseTransaction) {
         // V1 simplification: credit chips locally as soon as the platform
-        // store confirms. Server-side receipt validation + chip ledger
-        // (shop-roadmap §2) lands with the auth-gated `/v1/billing/redeem`
-        // endpoint; until then this is the source of truth. The order id
+        // store confirms. Server-side receipt validation + chip ledger lands
+        // with the auth-gated `/v1/billing/redeem` endpoint; until then this
+        // is the source of truth. The order id
         // doubles as the idempotency key so a duplicate purchase-confirmed
         // signal (e.g. resume-after-restore) doesn't double-credit when
         // the wallet sync flushes either copy of the event.
