@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -83,6 +84,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
+import com.dangerfield.cards.libraries.ui.components.poker.LocalCardBackStyle
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSlot
@@ -159,6 +161,11 @@ fun PlayPokerScreen(
     // toggle felts in My Items and see the table change underneath them
     // without leaving the table.
     val tableSurface = feltSurfaceColor(state.equippedFelt)
+    // Ambient card-back style — every PlayingCardBack in the composition
+    // reads from this without prop-drilling. Same live-toggle story as
+    // the felt above; equip a card back from My Items and the opponents'
+    // hole-card backs swap underneath them mid-hand.
+    CompositionLocalProvider(LocalCardBackStyle provides state.equippedCardBack) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -304,6 +311,7 @@ fun PlayPokerScreen(
             }
         }
     }
+    } // close CompositionLocalProvider
 }
 
 @Composable

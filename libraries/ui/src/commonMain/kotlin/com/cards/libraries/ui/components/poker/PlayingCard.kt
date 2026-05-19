@@ -98,22 +98,33 @@ fun PlayingCard(
     }
 }
 
-/** A face-down card — back of deck. Use for community cards not yet dealt and opponent hole cards. */
+/**
+ * A face-down card — back of deck. Used for community cards not yet
+ * dealt and opponent hole cards.
+ *
+ * Style is read from the ambient [LocalCardBackStyle] (default = the
+ * stock blue back). Set once at the play-screen root via
+ * [androidx.compose.runtime.CompositionLocalProvider] so every face-down
+ * card in the composition picks up the equipped style automatically.
+ *
+ * Solid background by design — the back must obscure whatever's behind
+ * it (table felt, slot well) regardless of style.
+ */
 @Composable
 fun PlayingCardBack(
     size: PlayingCardSize,
     modifier: Modifier = Modifier,
+    style: CardBackStyle = LocalCardBackStyle.current,
 ) {
     val cornerRadius = cornerRadiusFor(size.width)
+    val palette = paletteFor(style)
     Box(
         modifier = modifier
             .size(width = size.width, height = size.height)
             .shadow(shadowElevation(size.width) - 1.dp, RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
-            // Solid (opaque) so the back doesn't reveal whatever is behind it
-            // (table felt, slot well, etc.).
-            .background(PokerPalette.CardBackBlue)
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(cornerRadius)),
+            .background(palette.baseBrush)
+            .border(1.dp, palette.borderColor, RoundedCornerShape(cornerRadius)),
     )
 }
 

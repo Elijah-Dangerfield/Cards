@@ -114,18 +114,22 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
             }
         }
-        // Equipped felt / table theme — observed so a mid-session toggle
-        // from the My Items screen repaints the table without re-entry.
-        // Picks the most recently equipped felt-eligible product so the
-        // user always sees their latest choice; ties broken by last-equip
-        // wins (the flow yields newest-first).
+        // Equipped felt + card back — observed so mid-session toggles
+        // from the My Items screen repaint without re-entry. Single
+        // subscription, two derived values: the flow yields newest-equip-
+        // first, so we pick the first non-Default per slot.
         viewModelScope.launch {
             equipmentRepository.observeEquipped().collect { entries ->
                 val felt = entries
                     .map { feltForProductId(it.productId) }
                     .firstOrNull { it != EquippedFelt.Default }
                     ?: EquippedFelt.Default
+                val cardBack = entries
+                    .map { cardBackForProductId(it.productId) }
+                    .firstOrNull { it != com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default }
+                    ?: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default
                 takeAction(PlayPokerAction.EquippedFeltChanged(felt))
+                takeAction(PlayPokerAction.EquippedCardBackChanged(cardBack))
             }
         }
     }
@@ -241,6 +245,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.EquippedFeltChanged -> action.updateState {
                 it.copy(equippedFelt = action.felt)
             }
+            is PlayPokerAction.EquippedCardBackChanged -> action.updateState {
+                it.copy(equippedCardBack = action.style)
+            }
         }
     }
 }
@@ -270,6 +277,14 @@ data class PlayPokerState(
      * stock app background (i.e. nothing equipped).
      */
     val equippedFelt: EquippedFelt = EquippedFelt.Default,
+    /**
+     * Which card-back style the player has equipped. Pushed into the
+     * composition via `LocalCardBackStyle` so every face-down card on
+     * the screen (opponent hole cards, deck stack, dealt-but-not-revealed
+     * community cards) picks it up without prop-drilling.
+     */
+    val equippedCardBack: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle =
+        com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default,
 )
 
 sealed interface PlayPokerAction {
@@ -302,6 +317,11 @@ sealed interface PlayPokerAction {
 
     /** Fired by the equipment subscription; repaints the table surface. */
     data class EquippedFeltChanged(val felt: EquippedFelt) : PlayPokerAction
+
+    /** Fired by the equipment subscription; flips the ambient card back style. */
+    data class EquippedCardBackChanged(
+        val style: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle,
+    ) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {

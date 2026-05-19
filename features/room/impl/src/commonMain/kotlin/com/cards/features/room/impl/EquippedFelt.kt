@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.system.AppTheme
 
 /**
@@ -53,4 +54,18 @@ fun feltSurfaceColor(felt: EquippedFelt): Color = when (felt) {
     EquippedFelt.Charcoal -> Color(0xFF15171A)
     EquippedFelt.Sunset -> Color(0xFF3B1F12)
     EquippedFelt.Neon -> Color(0xFF1A0D2E)
+}
+
+/**
+ * Catalog productId → [CardBackStyle]. Same shape as
+ * [feltForProductId] — single place to extend, fallback to
+ * [CardBackStyle.Default] on unknown ids so a server-side catalog
+ * addition before the client knows still renders.
+ */
+fun cardBackForProductId(productId: String?): CardBackStyle = when (productId) {
+    "cardback_marble" -> CardBackStyle.Marble
+    "cardback_gold" -> CardBackStyle.Gold
+    "cardback_neon" -> CardBackStyle.Neon
+    "cardback_diamond" -> CardBackStyle.Diamond
+    else -> CardBackStyle.Default
 }
