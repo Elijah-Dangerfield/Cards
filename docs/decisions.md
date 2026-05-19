@@ -779,3 +779,35 @@ The `Reverted` branch in `SyncOutcomeDto` is still reserved for the future serve
 - Gameplay sync (server-authoritative deal / bet / showdown) is Phase 4.2 — the lobby ships standalone.
 
 **Status:** Landed (commits `7a85fca`, `068b66e`, `98384a5`, `999fcad`). Server-authoritative gameplay sync is the next Phase 4 chunk.
+
+---
+
+## 2026-05-19 — Multiplayer: reconnect grace timer + seat sweep
+
+**Decision:** Per-room socket disconnects now stamp `RoomMember.disconnectedAt`; a new `RoomService.sweepDisconnected(maxIdle)` reaps members past the grace window. Exposed via `POST /v1/admin/sweep-disconnected-room-members` and triggered on a cron, matching the orphan-anon-sweep pattern. Default TTL is **5 minutes** (env: `ROOM_DISCONNECTED_MEMBER_TTL_MINUTES`).
+
+**Why now:** The Phase 4.1 sharp-edges note flagged "no reconnect grace timer — disconnected seats are held forever" as a must-fix before launching MP to real users. Mobile networks drop sockets constantly; without a sweep, a single bad day on cellular locks out a 6-seat friend room. The 5-minute default is long enough that a phone-reconnecting-to-Wi-Fi hop preserves the seat, short enough that an abandoned room is reusable within one cron cycle.
+
+**Shape:**
+
+| Piece | Where |
+| --- | --- |
+| `RoomMember.disconnectedAt: Instant?` | `apps/server/.../domain/Room.kt` — null when connected; set on every disconnect, cleared on every reconnect. Server-internal; never serialized over the wire. |
+| `RoomService.sweepDisconnected(maxIdle: Duration): RoomSweepResult` | `apps/server/.../domain/Room.kt` interface; impl in `InMemoryRoomService`. |
+| TTL env var | `AdminConfig.disconnectedRoomMemberTtlMinutes`, default 5. |
+| Admin route | `POST /v1/admin/sweep-disconnected-room-members`, token-gated like the anon sweep. Returns `{ membersReaped, roomsReaped, roomsSeen }`. |
+| Side effect | The room flow re-emits on member removal, so `RoomSocketRoutes` naturally broadcasts a `member_left` delta to every observing client. No new wire event needed. |
+
+**Subtle bits:**
+
+- `create()` and `join()` now stamp `disconnectedAt = now`, treating "joined-but-never-opened-a-socket" the same as a clean drop. Otherwise an abandoned `POST /v1/rooms/{code}/join` would camp a seat indefinitely. Reconnect (`markConnected(true)`) clears it.
+- Sweep is idempotent — second pass finds nothing left to reap, returns zero counts.
+- Sweep emptying a room GC's it the same as `leave()`'s last-out branch — future joins on the same code return `RoomNotFound`.
+- Cron cadence: every 1–5 minutes is recommended (GitHub Actions' minimum is 5 min; an external uptime monitor can hit per-minute). `DEPLOY.md` documents both paths.
+
+**Tested:**
+
+- `InMemoryRoomServiceTest`: stamp on disconnect, clear on reconnect, TTL boundary (3 min / 5 min / 7 min), never-connected reaping, empty-room GC, idempotence, multi-room `roomsSeen` count, flow propagation.
+- `AdminRoutesTest` (new file): 401 without token, 401 with wrong token, 401 when server has no token configured (fail-closed), 200 happy path counts, TTL boundary end-to-end through the route.
+
+**Status:** Landed. Sweep cadence wiring (cron workflow at `.github/workflows/sweep-rooms.yml`) is a pre-launch checklist item, not a code change.

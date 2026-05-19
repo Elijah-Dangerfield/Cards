@@ -102,6 +102,57 @@ jobs:
 / failedToDelete`; a non-zero `failedToDelete` is worth investigating
 in Sentry.
 
+## Disconnected-room-member sweep (required for MP launch)
+
+Per-room WebSocket disconnect holds the member's seat in case the client
+reconnects (mobile networks bounce all the time). Without a sweep, those
+seats sit forever and a single bad day at the cellular tower can lock
+out a friend group's room. The server exposes a maintenance endpoint
+that reaps members whose socket has been down for at least
+`ROOM_DISCONNECTED_MEMBER_TTL_MINUTES` (default 5). Empty rooms are
+GC'd as a side effect.
+
+```
+fly secrets set \
+  ROOM_DISCONNECTED_MEMBER_TTL_MINUTES=5 \
+  -a cards-server-dev
+```
+
+`ADMIN_API_TOKEN` is shared with the anon sweep (one token, multiple
+endpoints).
+
+Trigger frequently — every minute is reasonable, every 5 minutes is the
+floor. GitHub Actions' minimum cron cadence is 5 minutes; for tighter
+intervals use an external uptime monitor (UptimeRobot, Cronitor, the
+Fly's own scheduled-machines feature) that lets you call a URL with a
+custom header.
+
+GitHub Actions example (`.github/workflows/sweep-rooms.yml`):
+
+```yaml
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes
+  workflow_dispatch:
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl --fail-with-body -X POST \
+            -H "X-Admin-Token: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}" \
+            https://cards-server-dev.fly.dev/v1/admin/sweep-disconnected-room-members
+```
+
+Response body shows `membersReaped / roomsReaped / roomsSeen`. A spike
+in `membersReaped` correlates with network blips; a spike in
+`roomsReaped` correlates with abandoned room codes (host bailed without
+explicit leave).
+
+If the cron is offline for long enough that disconnects pile up, the
+next run still drains the backlog in one pass — the sweep is O(rooms ×
+members), bounded by the in-memory state.
+
 ## Multiplayer (Phase 4.1 — lobby + presence)
 
 The room HTTP + WebSocket surface ships with the standard server image
@@ -126,6 +177,11 @@ Rooms are in-memory; restarts wipe them. The `min_machines_running = 0`
 auto-stop in dev means an idle server WILL kill any open lobby
 sessions on cold-stop. Acceptable for dev; production fly.toml should
 pin `min_machines_running = 1` (already noted in DEPLOY footer below).
+
+**Seat sweep cadence matters.** Disconnects are common on mobile;
+without the sweep above wired up, abandoned seats block joiners. Make
+sure the disconnect-sweep cron is scheduled before inviting real
+users.
 
 ## Day-to-day
 
