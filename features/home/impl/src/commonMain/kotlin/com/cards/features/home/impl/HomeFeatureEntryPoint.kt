@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.home.HomeRoute
+import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.XpDetailsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
@@ -58,10 +59,13 @@ class HomeFeatureEntryPoint(
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),
                     )
                 },
-                onStartGame = { activeDialog = HomeDialog.StartGame },
-                onJoinGame = { activeDialog = HomeDialog.JoinGame },
+                onStartGame = { router.navigate(LobbyRoute()) },
+                onJoinGame = { router.navigate(LobbyRoute()) },
             )
 
+            // Coming-soon dialogs retired; ComingSoonDialog / HomeDialog
+            // stay declared for now in case the next phase wants to
+            // re-introduce them for unbuilt features.
             if (activeDialog != null) {
                 ComingSoonDialog(
                     dialog = activeDialog!!,

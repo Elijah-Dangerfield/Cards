@@ -48,6 +48,8 @@ kotlin {
 
             implementation(projects.features.home)
             implementation(projects.features.home.impl)
+            implementation(projects.features.lobby)
+            implementation(projects.features.lobby.impl)
             implementation(projects.features.onboarding)
             implementation(projects.features.onboarding.impl)
             implementation(projects.features.profile)
