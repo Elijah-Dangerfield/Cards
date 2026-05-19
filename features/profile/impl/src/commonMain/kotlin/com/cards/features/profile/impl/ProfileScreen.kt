@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -386,38 +383,41 @@ private fun ProfileHeader(settings: ProfileSettings) {
 
 @Composable
 private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-            .background(AppTheme.colors.accentPrimary.color)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    com.dangerfield.cards.libraries.ui.components.Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = AppTheme.colors.accentPrimary,
+        contentColor = AppTheme.colors.text,
+        radius = com.dangerfield.cards.system.Radii.Card,
+        onClick = onClaimAccount,
+        bounceScale = 0.97f,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
     ) {
-        Text(
-            text = "Claim your account",
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.text,
-        )
-        Text(
-            text = "Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
-        )
-        VerticalSpacerD100()
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.15f))
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Get started",
-                typography = AppTheme.typography.Body.B500,
+                text = "Claim your account",
+                typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.text,
             )
+            Text(
+                text = "Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.text,
+            )
+            VerticalSpacerD100()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Get started",
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.text,
+                )
+            }
         }
     }
 }
