@@ -102,6 +102,31 @@ jobs:
 / failedToDelete`; a non-zero `failedToDelete` is worth investigating
 in Sentry.
 
+## Multiplayer (Phase 4.1 — lobby + presence)
+
+The room HTTP + WebSocket surface ships with the standard server image
+— no extra Fly config needed. WebSocket upgrades work out of the box
+behind Fly's edge proxy (it speaks HTTP/1.1 upgrade transparently).
+
+To validate the WS path post-deploy:
+
+```bash
+# JWT-authenticated room create + join + observe via wscat:
+TOKEN=$(...your fresh Supabase JWT...)
+curl -X POST https://cards-server-dev.fly.dev/v1/rooms \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}'
+# → returns room.code, e.g. "AB3KP9"
+
+# Open the socket — should immediately receive a Snapshot frame.
+wscat -c "wss://cards-server-dev.fly.dev/v1/rooms/AB3KP9/socket" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Rooms are in-memory; restarts wipe them. The `min_machines_running = 0`
+auto-stop in dev means an idle server WILL kill any open lobby
+sessions on cold-stop. Acceptable for dev; production fly.toml should
+pin `min_machines_running = 1` (already noted in DEPLOY footer below).
+
 ## Day-to-day
 
 - **Tail logs**: `fly logs -a cards-server-dev`

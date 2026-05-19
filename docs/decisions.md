@@ -719,3 +719,63 @@ Sharp edges to track when it lands:
 - iOS App Attest has Sandbox vs Production environments — TestFlight is Production, Xcode local builds are Sandbox. The server has to pick the right Apple root cert chain per environment.
 
 **Status:** Planned. Scaffolding (`AppIntegrityVerifier` + `NoOpAppIntegrityVerifier`) landed alongside this entry; enforcement and real verifiers land before first invited release.
+
+---
+
+## 2026-05-19 — Server-side inventory persistence
+
+**Decision:** Inventory now persists in Postgres alongside profiles + equipment. `POST /v1/inventory/sync` is JWT-authenticated and idempotently records each pending purchase via `PostgresInventoryRepository` (first-purchase-wins on the `(user_id, product_id)` composite PK). Previously the endpoint just echoed Confirmed without storing anything.
+
+**Why now:** Server-side ownership unlocks two things the client previously couldn't do honestly:
+1. Cross-device purchase consistency — buy a card back on Android, see it on iOS after sign-in.
+2. Server-side validation of avatar-pack emoji choices on `PATCH /v1/me` — the validator can resolve "does this user own avatars.fantasy?" against persisted state instead of trusting the client.
+
+The `Reverted` branch in `SyncOutcomeDto` is still reserved for the future server-side chip ledger — once spend gets validated, an unaffordable purchase surfaces as Reverted with `chipsToRefund` and the client credits it back.
+
+**Status:** Landed (commit `3c415cb`). V3 Flyway migration; full route + idempotency tests with a JWT-authenticated fake repo. Postgres-backed repo gets its own Testcontainers test when CI next runs.
+
+---
+
+## 2026-05-19 — Multiplayer foundation: rooms + WebSocket presence (Phase 4.1)
+
+**Decision:** Ship a lobby-only multiplayer foundation in V1.x: clients can create rooms, join by 6-char code, see live presence + reconnects, and leave. Server-authoritative gameplay sync (the hand state machine over WebSocket) is Phase 4.2 — out of this slice. The reason to ship 4.1 alone is to bank the auth + transport + reconnect work against the gameplay layer later.
+
+**Architecture:**
+
+| Concern | Choice |
+|---|---|
+| Server-side room storage | In-memory `InMemoryRoomService`, mutex-guarded. No Postgres yet — rooms are ephemeral and GC when the last member leaves. |
+| Room codes | 6-char unambiguous alphabet (no 0/O/1/I/L). ~32^6 ≈ 1B combos, retry on conflict up to 50 attempts. |
+| HTTP routes | `POST /v1/rooms`, `GET /v1/rooms/{code}`, `POST /v1/rooms/{code}/join`, `DELETE /v1/rooms/{code}/me`. All behind Supabase JWT. Host name comes from the profile (not the body) so clients can't spoof. |
+| WebSocket | `GET /v1/rooms/{code}/socket` upgrade. Same JWT auth. Membership required (must POST /join first — the socket route refuses non-members). |
+| Ktor plugin | `installWebSockets()` with 15s ping / 30s timeout. Dead-peer detection is implicit; no hand-rolled heartbeat. |
+| Wire format | Sealed `RoomSocketEventDto` with `type` class discriminator: `snapshot`, `member_joined`, `member_left`, `member_presence_changed`, `room_closed`. Server always sends Snapshot + delta so a client that misses one delta still recovers from the next Snapshot. |
+| Reconnect | Server-side: seat is held when socket drops (`isConnected=false`); the same userId reopening another socket gets the same `seatIndex`. Client-side: exponential backoff `250ms × 2^(attempt-1)` capped at 16s, jittered ±50%. |
+| Forward-compat | Server adds a new event variant → client decode fails → frame dropped with a warning; Snapshot baseline keeps state correct. |
+
+**Why no persistence yet:**
+- Rooms are by definition ephemeral in V1 (no "reconnect after closing the app for an hour" expectation).
+- In-memory + the per-room mutex + StateFlow gives us the right shape for free.
+- Persistence becomes load-bearing the moment gameplay state needs to survive across cold starts. Phase 4.2.
+
+**Critical lifecycle detail in the WebSocket route:** the room-flow collector runs in a child coroutine while the main `webSocket{}` body drains `incoming` until it closes. Without that split, a quiet room (no upstream emissions) blocks the collector indefinitely and the `markConnected(false)` finally block never fires. Caught by the test that asserts post-disconnect `isConnected == false`. Recorded here because it's an easy gun-to-the-foot for future contributors.
+
+**Client surface:** `:libraries:rooms` (api) + `:libraries:rooms:impl`. Repo exposes one API surface — `createRoom() / joinRoom() / leaveRoom() / observeRoom()`. `RoomConnection` sealed type (`Connecting / Connected(room) / Reconnecting(attempt) / Closed(reason)`) is what the UI subscribes to; the underlying HTTP + WS split is invisible upstream. `NetworkClient` got the WebSockets plugin installed on the authenticated HttpClient so the bearer-token chain is reused for free.
+
+**UI:** `:features:lobby` with a single `LobbyScreen` that switches between "Idle" (create + join forms) and "InRoom" (share-this code + presence-dotted member list + leave). Wired to HomeScreen — Start / Join Game CTAs navigate to LobbyRoute. `LobbyRoute(prefilledCode: String?)` is the deep-link entry point: `cards://join/ABC123` → auto-attempt join.
+
+**Tested:**
+- `InMemoryRoomServiceTest` (10 invariants including concurrent-join no-duplicate-seats, observe emits on mutation, last-leave reap, idempotent join).
+- `RoomRoutesTest` (HTTP + JWT auth + serialization end-to-end, error-code mappings, lowercase code normalization, host name from profile).
+- `RoomSocketRoutesTest` (six load-bearing WS invariants: connect → Snapshot, non-member rejected, second join broadcasts, presence flip on disconnect, **reconnect by same userId preserves seatIndex**).
+- `RoomRepositoryImplTest` (every HTTP status → outcome mapping).
+- `ReconnectingRoomSocketTest` (Connecting → Reconnecting(attempt=1) on handshake failure, transport errors surface as Reconnecting, cancellation stops the loop).
+- `LobbyViewModelTest` (codeInput upcasing, gates, create-success enters in-room, create-network-error stays idle, join-full surfaces, blank-code short-circuits, prefilledCode auto-joins, leave returns to idle).
+
+**Sharp edges to address before launching MP to real users:**
+- In-memory rooms vanish on server restart. Fly deploys = lost rooms. Acceptable for V1.x soft launch; revisit if room sessions average > 30 min.
+- No reconnect grace timer — disconnected seats are held forever (until the user explicitly leaves or the host leaves and the room is GC'd). A sweep that frees seats after N minutes of disconnect should land before public launch.
+- Friend discovery, public lobbies, spectator mode all deferred. V1 MP is invite-only by code.
+- Gameplay sync (server-authoritative deal / bet / showdown) is Phase 4.2 — the lobby ships standalone.
+
+**Status:** Landed (commits `7a85fca`, `068b66e`, `98384a5`, `999fcad`). Server-authoritative gameplay sync is the next Phase 4 chunk.
