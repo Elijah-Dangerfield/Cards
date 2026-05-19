@@ -1,0 +1,253 @@
+package com.dangerfield.cards.features.onboarding.impl
+
+import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.OAuthProvider
+import com.dangerfield.cards.libraries.identity.SignInOutcome
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * Pins [SignInViewModel]'s outcome → state mapping. The VM is a thin
+ * orchestrator over [com.dangerfield.cards.libraries.identity.IdentityRepository],
+ * so the assertions stay on the branching: which error message renders,
+ * when `isSubmitting` clears, when `hasUserOnboarded` flips, when an
+ * event fires.
+ *
+ * What we pin:
+ *  - canSubmit gates on email containing '@' AND password ≥ 6 chars
+ *  - Submit with !canSubmit short-circuits before any network call
+ *  - InvalidCredentials surfaces a specific error + clears isSubmitting
+ *  - NetworkError surfaces a network-specific message
+ *  - EmailNotConfirmed emits NavigateToVerifyEmail and does NOT mark onboarded
+ *  - Success marks onboarded and emits NavigateToHome
+ *  - SignInWithOAuth threads through; ProviderNotEnabled surfaces an error
+ *  - Email is trimmed before the network call
+ *  - typing on email after an error clears the error
+ *  - OAuth Success marks onboarded and emits NavigateToHome
+ */
+class SignInViewModelTest : CoroutineTest() {
+
+    @Test
+    fun canSubmit_isFalseUntilEmailAndPasswordValid() = runUnitTest {
+        val vm = buildVm()
+        // Initial state — both empty, can't submit.
+        assertEquals(false, vm.state.canSubmit)
+
+        vm.takeAction(SignInAction.EmailChanged("nope"))
+        vm.takeAction(SignInAction.PasswordChanged("short"))
+        assertEquals(false, vm.state.canSubmit, "no '@' and password < 6")
+
+        vm.takeAction(SignInAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignInAction.PasswordChanged("123456"))
+        assertEquals(true, vm.state.canSubmit)
+    }
+
+    @Test
+    fun submit_whenCantSubmit_doesNotCallRepo() = runUnitTest {
+        val identity = FakeIdentityRepository()
+        val vm = buildVm(identity = identity)
+        vm.takeAction(SignInAction.Submit) // both fields blank
+        assertEquals(0, identity.signInCalls, "submit short-circuits without valid inputs")
+    }
+
+    @Test
+    fun submit_invalidCredentials_surfacesError_andClearsSubmitting() = runUnitTest {
+        val vm = buildVm(
+            identity = FakeIdentityRepository(signInOutcome = SignInOutcome.InvalidCredentials),
+        )
+        vm.takeAction(SignInAction.EmailChanged("a@b.com"))
+        vm.takeAction(SignInAction.PasswordChanged("password"))
+        vm.takeAction(SignInAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(false, last.isSubmitting, "isSubmitting clears on failure")
+            assertTrue(last.error!!.contains("incorrect"))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun submit_networkError_surfacesNetworkMessage() = runUnitTest {
+        val vm = buildVm(
+            identity = FakeIdentityRepository(
+                signInOutcome = SignInOutcome.NetworkError(RuntimeException("nope")),
+            ),
+        )
+        vm.takeAction(SignInAction.EmailChanged("a@b.com"))
+        vm.takeAction(SignInAction.PasswordChanged("password"))
+        vm.takeAction(SignInAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertTrue(
+                last.error!!.contains("reach", ignoreCase = true) ||
+                    last.error!!.contains("connection", ignoreCase = true),
+                "expected a network-shaped error, got: ${last.error}",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun submit_emailNotConfirmed_emitsNavigateToVerify_andDoesNotOnboard() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(
+            identity = FakeIdentityRepository(
+                signInOutcome = SignInOutcome.EmailNotConfirmed("user@example.com"),
+            ),
+            appCache = cache,
+        )
+        vm.takeAction(SignInAction.EmailChanged("user@example.com"))
+        vm.takeAction(SignInAction.PasswordChanged("password"))
+        vm.takeAction(SignInAction.Submit)
+
+        vm.eventFlow.test {
+            val event = awaitItem()
+            val verify = assertIs<SignInEvent.NavigateToVerifyEmail>(event)
+            assertEquals("user@example.com", verify.email)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(
+            false, cache.get().hasUserOnboarded,
+            "unverified email must not flip onboarding done",
+        )
+    }
+
+    @Test
+    fun submit_success_marksOnboarded_andEmitsNavigateToHome() = runUnitTest {
+        val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
+        val identity = FakeIdentityRepository(
+            signInOutcome = SignInOutcome.Success(sampleIdentity),
+        )
+        val vm = buildVm(identity = identity, appCache = cache)
+        vm.takeAction(SignInAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignInAction.PasswordChanged("password"))
+        vm.takeAction(SignInAction.Submit)
+
+        vm.eventFlow.test {
+            assertIs<SignInEvent.NavigateToHome>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(true, cache.get().hasUserOnboarded)
+    }
+
+    @Test
+    fun submit_trimsEmail_beforeNetworkCall() = runUnitTest {
+        val identity = FakeIdentityRepository(
+            signInOutcome = SignInOutcome.Success(sampleIdentity),
+        )
+        val vm = buildVm(identity = identity)
+        // Note: leading and trailing whitespace; canSubmit still passes
+        // because the raw string contains '@'.
+        vm.takeAction(SignInAction.EmailChanged("  ok@example.com  "))
+        vm.takeAction(SignInAction.PasswordChanged("password"))
+        vm.takeAction(SignInAction.Submit)
+
+        vm.eventFlow.test {
+            awaitItem() // NavigateToHome
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(
+            "ok@example.com",
+            identity.lastSignInArgs?.first,
+            "email passed to the repo must be trimmed",
+        )
+    }
+
+    @Test
+    fun emailChanged_clearsExistingError() = runUnitTest {
+        val vm = buildVm(
+            identity = FakeIdentityRepository(signInOutcome = SignInOutcome.InvalidCredentials),
+        )
+        vm.takeAction(SignInAction.EmailChanged("a@b.com"))
+        vm.takeAction(SignInAction.PasswordChanged("password"))
+        vm.takeAction(SignInAction.Submit)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+        // Typing into the email field should clear the error so the
+        // form looks "fresh" before the next submit.
+        vm.takeAction(SignInAction.EmailChanged("a@b.co"))
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error != null) last = awaitItem()
+            assertNull(last.error, "typing into email clears the inline error")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun signInWithOAuth_providerNotEnabled_surfacesError() = runUnitTest {
+        val identity = FakeIdentityRepository(
+            oauthSignInOutcome = SignInOutcome.ProviderNotEnabled,
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(SignInAction.SignInWithOAuth(OAuthProvider.Google))
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertTrue(last.error!!.contains("isn't available", ignoreCase = true))
+            assertEquals(false, last.isSubmitting)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(OAuthProvider.Google, identity.lastOAuthProvider)
+    }
+
+    @Test
+    fun signInWithOAuth_success_marksOnboarded_andNavigates() = runUnitTest {
+        val cache = FakeAppCache()
+        val identity = FakeIdentityRepository(
+            oauthSignInOutcome = SignInOutcome.Success(sampleIdentity),
+        )
+        val vm = buildVm(identity = identity, appCache = cache)
+        vm.takeAction(SignInAction.SignInWithOAuth(OAuthProvider.Apple))
+
+        vm.eventFlow.test {
+            assertIs<SignInEvent.NavigateToHome>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(true, cache.get().hasUserOnboarded)
+    }
+
+    @Test
+    fun signInWithOAuth_cancelled_clearsSubmitting_andNoError() = runUnitTest {
+        // The user dismissing the OAuth tab is not a "failure" from
+        // their perspective — UI should not show a red error banner.
+        val vm = buildVm(
+            identity = FakeIdentityRepository(
+                oauthSignInOutcome = SignInOutcome.Cancelled,
+            ),
+        )
+        vm.takeAction(SignInAction.SignInWithOAuth(OAuthProvider.Google))
+
+        // Pump state until isSubmitting clears.
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.isSubmitting) last = awaitItem()
+            assertNull(last.error, "cancelled OAuth must not surface an error")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // ---------- scaffolding ----------
+
+    private fun buildVm(
+        identity: FakeIdentityRepository = FakeIdentityRepository(),
+        appCache: FakeAppCache = FakeAppCache(),
+    ): SignInViewModel = SignInViewModel(
+        identityRepository = identity,
+        appCache = appCache,
+        appConfigMap = EmptyAppConfigMap(),
+    )
+}

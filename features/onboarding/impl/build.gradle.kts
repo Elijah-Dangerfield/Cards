@@ -30,6 +30,10 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.features.onboarding)
+            implementation(projects.libraries.identity)
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.config)
+            implementation(libs.turbine)
         }
     }
 }
