@@ -61,9 +61,15 @@ jobs:
         if: steps.first_release.outputs.is_first_release == 'true' && steps.release.outputs.pr != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ fromJson(steps.release.outputs.pr).number }}
+          # Pass the raw JSON and parse inside the script. Putting
+          # `fromJson(...)` in env evaluates at job-prep time and fails
+          # with "Error reading JToken from JsonReader" when the upstream
+          # output is empty — even if the `if` guard above would skip the
+          # step.
+          PR_JSON: ${{ steps.release.outputs.pr }}
         run: |
           set -e
+          PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r .number)
           CURRENT=$(gh pr view "$PR_NUMBER" --json body -q .body || echo "")
           BANNER=$(cat <<'EOF'
           > **!!! FIRST RELEASE — MANUAL ACTION REQUIRED !!!**
