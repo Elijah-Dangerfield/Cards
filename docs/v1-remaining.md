@@ -151,9 +151,11 @@ Open critiques from the field log:
 Pull this audit in next time we're in the auth code. Note: the get-or-create pattern is correct, so the structural concern is style + consolidation, not correctness.
 
 ### Authed calls firing before auth resolves
-**Problem:** Various repositories / services fire authed network calls in their `init` blocks or on `ColdBoot`. If the user is still moving through onboarding (anonymous sign-in pending), those calls hit an unauthenticated client and either fail loudly or silently no-op until a retry. The right shape: any authed call gated on `IdentityRepository.state` being a non-`Unknown` value. Either centralize via the proposed `authedCall { … }` (above) so this is impossible to forget, or sweep every existing `init { scope.launch { … } }` and add a `state.first { it is SignedIn }` guard.
+**Problem:** Various repositories / services fire authed network calls on `ColdBoot` / `OnForeground`. If the user is still moving through onboarding (anonymous sign-in pending), those calls hit an unauthenticated client and either fail loudly or silently no-op until a retry.
 
-Audit + sweep. Anything `init {}`-launched in a repo that depends on identity needs this.
+**Sync bootstrappers (closed):** `ChipsSyncBootstrapper`, `InventorySyncBootstrapper`, and `EquipmentSyncBootstrapper` now suspend on `IdentityRepository.awaitIdentity()` before invoking their sync services. Lazy provider breaks the `IdentityRepository → AppEventBus → AppEventDispatcher → bootstrapper` DI cycle, same pattern `NetworkClientImpl` uses for `AuthTokenProvider`.
+
+**Still open — broader audit:** the same fragility exists anywhere a class fires an authed call without first waiting for identity. The structural fix is either (a) make `NetworkClient.authenticatedClient` itself block until a token is available (instead of falling through and 401'ing), or (b) introduce a `NetworkClient.authedCall { client -> … }` helper that does the await + standard retry classification + logging. Either way, the goal is "auth-required network calls can't accidentally race onboarding." Sweep candidate after V1 ships.
 
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 **Problem:** `libraries/cards` was originally the "highly shared" dumping ground. It has grown to be too big. We now also have `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). The three overlap in confusing ways for new readers.

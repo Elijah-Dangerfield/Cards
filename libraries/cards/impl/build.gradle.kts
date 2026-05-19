@@ -23,6 +23,7 @@ kotlin {
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.cards.storage)
             implementation(projects.libraries.networking)
+            implementation(projects.libraries.identity)
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
