@@ -905,3 +905,37 @@ outstanding) and the V1 polish layer.
 
 **Status:** Landed.
 
+---
+
+## 2026-05-19 — ViewModel coverage sweep: progression + home
+
+**Decision:** Backfill tests for the four feature ViewModels that were
+shipping untested: `AchievementsViewModel`, `RankDetailSheetViewModel`,
+`XpDetailSheetViewModel`, and `HomeViewModel`. All four are thin
+"subscribe and map" orchestrators wired to repositories the user touches
+every session; a regression on any one ships silently because the wider
+test suite doesn't fan out into feature-level state.
+
+**Why now:** With the V1 progression UX shipped and the home screen as
+the 60-second-rule entry point, the cost of a silent regression here is
+disproportionate — a stale chip count, the wrong anon flag, an XP badge
+that doesn't update. The fakes for `ProgressionRepository`,
+`XpEventRepository`, `AchievementRepository`, `UserRepository`, and
+`ChipsRepository` now live in `features/progression/impl/.../ProgressionFakes.kt`
+(reusable across the progression VMs) and inline in `HomeViewModelTest.kt`
+(slightly different repository surface).
+
+**Pinned invariants:**
+
+| ViewModel | Invariants pinned |
+|---|---|
+| `RankDetailSheetViewModel` | rank stays at 0 for anon; flips to V1 placeholder 1200 on claim; reverts to 0 on sign-out / delete-account |
+| `AchievementsViewModel` | `isLoading=true` pre-first-emission (NeverEmitting repo); progress updates propagate; load flag clears on first emission |
+| `XpDetailSheetViewModel` | the 3-way `combine` waits for all upstreams before clearing `isLoading`; a single-flow change re-emits the merged state |
+| `HomeViewModel` | init loads user; null user → `isAnonymous=true`; chips + XP updates propagate; `Refresh` re-reads `getUser()` so a `PATCH /v1/me` edit surfaces before cache fan-out |
+
+**Totals:** 11 progression-impl tests (was 0) + 6 home-impl tests (was 0).
+
+**Status:** Landed.
+
+
