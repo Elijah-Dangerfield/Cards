@@ -47,8 +47,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  - **Earned**: full color, slow shimmer sweep over the rarity tint. Tap
  *    flips to the back to read description + earned date.
  *  - **Locked (non-mystery)**: same layout as earned but dimmed (0.4 alpha)
- *    and no shimmer — the player can see *what* the achievement is and tap
- *    to read *how to earn it*. The chase-goal state.
+ *    and no shimmer — the player can see *what* the achievement is, *how
+ *    far along they are* (e.g. "47 / 500" for a quantitative criterion),
+ *    and tap to read *how to earn it*. The chase-goal state.
  *  - **Mystery** (`isMystery = true` and not earned): "?" + "Locked", no flip.
  *    Pure surprise — discoverable only by playing.
  */
@@ -56,7 +57,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun AchievementMedallion(
     achievement: Achievement,
     earnedAtEpochMs: Long?,
-    @Suppress("UNUSED_PARAMETER") progress: Int,
+    progress: Int,
     modifier: Modifier = Modifier,
 ) {
     val isEarned = earnedAtEpochMs != null
@@ -85,6 +86,7 @@ fun AchievementMedallion(
                 achievement = achievement,
                 isEarned = isEarned,
                 isMysteryLocked = isMysteryLocked,
+                progress = progress,
             )
         } else {
             Box(
@@ -106,6 +108,7 @@ private fun MedallionFront(
     achievement: Achievement,
     isEarned: Boolean,
     isMysteryLocked: Boolean,
+    progress: Int,
 ) {
     val rarityColor = achievement.rarity.color()
     val rarityColorResource = remember(rarityColor) {
@@ -156,12 +159,26 @@ private fun MedallionFront(
             )
             if (!isMysteryLocked) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "+${achievement.xpReward} XP",
-                    typography = AppTheme.typography.Label.L400,
-                    color = rarityColorResource,
-                    textAlign = TextAlign.Center,
-                )
+                // For locked quantitative achievements (target > 1) we show
+                // "current / target" so the user has a real chase number.
+                // Earned tiles show the reward instead — the progress count
+                // would just read as "target / target" once they're past it.
+                val target = achievement.criterion.target
+                if (!isEarned && target > 1) {
+                    Text(
+                        text = "$progress / $target",
+                        typography = AppTheme.typography.Label.L400,
+                        color = rarityColorResource,
+                        textAlign = TextAlign.Center,
+                    )
+                } else {
+                    Text(
+                        text = "+${achievement.xpReward} XP",
+                        typography = AppTheme.typography.Label.L400,
+                        color = rarityColorResource,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         }
     }
@@ -262,6 +279,28 @@ private fun MedallionPreview_LockedVisible() {
                 .first { !it.isMystery },
             earnedAtEpochMs = null,
             progress = 0,
+            modifier = Modifier.padding(8.dp),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MedallionPreview_LockedInProgress() {
+    // Pins the locked-quantitative state: a non-mystery, non-earned tile
+    // with a real partial-progress counter — should render "47 / 500"
+    // instead of the XP reward label.
+    val handsAchievement = com.dangerfield.cards.libraries.cards.AllAchievements
+        .first {
+            !it.isMystery &&
+                it.criterion is com.dangerfield.cards.libraries.cards.Criterion.HandsPlayed &&
+                it.criterion.target == 500
+        }
+    PreviewContent {
+        AchievementMedallion(
+            achievement = handsAchievement,
+            earnedAtEpochMs = null,
+            progress = 47,
             modifier = Modifier.padding(8.dp),
         )
     }

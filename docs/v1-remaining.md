@@ -83,7 +83,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Achievements
 - **"Made another player bust" achievement.** Not in the registry today; add it.
 - **Bot-vs-human duplication.** Several existing achievements treat busting/wins against bots and humans the same; the prestige value is different. Audit `AchievementRegistry` and either (a) tag each entry as bot-eligible / human-eligible / both, or (b) duplicate the entries with separate ids ("bust 10 bots" + "bust 10 humans"). The duplication path is simpler; the tagging path is cleaner. Decide at the moment we touch the file.
-- **Progress on locked achievements.** For a quantitative achievement the user hasn't earned ("play 500 hands"), show their current progress ("50 / 500") on the locked tile. Today the locked state is mystery-silhouette only; a numeric goal type should reveal progress without revealing the unlock animation.
 
 ### Rank screen
 - **Rank/league surface isn't built out.** XP screen exists; the rank page is a stub. Either build the V1 form (current tier, what unlocks at each tier, no league mechanic yet) or be explicit it's gated until V1.1 leagues. Decide before V1 ship.

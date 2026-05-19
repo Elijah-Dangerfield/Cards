@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
+import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -52,7 +53,7 @@ fun AchievementsScreen(
                     AchievementMedallion(
                         achievement = achievement,
                         earnedAtEpochMs = state.progress.earned[achievement.id],
-                        progress = state.progress.counters[achievement.id] ?: 0,
+                        progress = achievement.currentProgress(state.progress),
                     )
                 }
             }

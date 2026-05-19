@@ -3,6 +3,9 @@ package com.dangerfield.cards.features.progression.impl
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AllAchievements
+import com.dangerfield.cards.libraries.cards.Criterion
+import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -69,6 +72,57 @@ class AchievementsViewModelTest : CoroutineTest() {
             assertEquals(updated, last.progress)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // ---------- currentProgress helper ----------
+
+    @Test
+    fun currentProgress_simpleCriterion_readsFromCounters() {
+        val hands500 = AllAchievements.first {
+            it.criterion is Criterion.HandsPlayed && it.criterion.target == 500
+        }
+        val progress = AchievementProgress(
+            earned = emptyMap(),
+            counters = mapOf(hands500.id to 47),
+            customCounters = emptyMap(),
+        )
+        assertEquals(47, hands500.currentProgress(progress))
+    }
+
+    @Test
+    fun currentProgress_customCriterion_readsFromCustomCounters() {
+        val custom = AllAchievements.first { it.criterion is Criterion.Custom }
+        val key = (custom.criterion as Criterion.Custom).key
+        val progress = AchievementProgress(
+            earned = emptyMap(),
+            counters = emptyMap(),
+            customCounters = mapOf(key to 3),
+        )
+        assertEquals(3, custom.currentProgress(progress))
+    }
+
+    @Test
+    fun currentProgress_missingEntry_isZero() {
+        val hands500 = AllAchievements.first {
+            it.criterion is Criterion.HandsPlayed && it.criterion.target == 500
+        }
+        assertEquals(0, hands500.currentProgress(AchievementProgress.Empty))
+    }
+
+    @Test
+    fun currentProgress_clampsToTarget_whenCounterOverruns() {
+        // Once earned the underlying counter often keeps ticking past the
+        // threshold. Display should still cap at target so the tile renders
+        // "500 / 500", not "847 / 500".
+        val hands500 = AllAchievements.first {
+            it.criterion is Criterion.HandsPlayed && it.criterion.target == 500
+        }
+        val progress = AchievementProgress(
+            earned = mapOf(hands500.id to 1L),
+            counters = mapOf(hands500.id to 847),
+            customCounters = emptyMap(),
+        )
+        assertEquals(500, hands500.currentProgress(progress))
     }
 
     /** A repository whose Flow never emits — used to pin the initial-state

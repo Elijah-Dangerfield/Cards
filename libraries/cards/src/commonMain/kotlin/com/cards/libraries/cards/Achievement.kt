@@ -181,3 +181,21 @@ val AchievementRarity.defaultXpReward: Int
         AchievementRarity.EPIC -> 500
         AchievementRarity.LEGENDARY -> 2_000
     }
+
+/**
+ * Current progress count for [this] achievement given the player's [progress]
+ * snapshot. Reads the right map for the criterion type:
+ *  - [Criterion.Custom] reads from `customCounters` keyed by the custom key.
+ *  - All other criteria read from `counters` keyed by the achievement id.
+ *
+ * Clamped at [Criterion.target] so an earned achievement (counter often
+ * keeps ticking past the threshold) renders as "target / target" rather
+ * than the larger raw count.
+ */
+fun Achievement.currentProgress(progress: AchievementProgress): Int {
+    val raw = when (val c = criterion) {
+        is Criterion.Custom -> progress.customCounters[c.key] ?: 0
+        else -> progress.counters[id] ?: 0
+    }
+    return raw.coerceAtMost(criterion.target)
+}
