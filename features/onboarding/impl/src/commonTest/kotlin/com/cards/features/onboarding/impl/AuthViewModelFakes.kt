@@ -122,6 +122,46 @@ internal class FakeAppCache(initial: AppData = AppData()) : AppCache {
     override suspend fun clear() { state.value = AppData() }
 }
 
+/**
+ * Base class for test doubles that override exactly the method under
+ * test and leave everything else stubbed. Avoids 100+ lines of boilerplate
+ * in every test that only needs one method.
+ *
+ * Each suspend method calls `error("not used in this test")` — if a
+ * future refactor reaches for one that isn't overridden the test fails
+ * loudly with a precise message.
+ */
+internal open class NoOpIdentityRepository : IdentityRepository {
+    override val state: kotlinx.coroutines.flow.StateFlow<IdentityState> =
+        MutableStateFlow(IdentityState.Unknown)
+
+    override suspend fun ensureInitialized(): Identity =
+        error("ensureInitialized not stubbed in this test")
+    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
+        error("signInWithEmail not stubbed in this test")
+    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
+        error("signUpWithEmail not stubbed in this test")
+    override suspend fun refreshSession(): RefreshOutcome =
+        error("refreshSession not stubbed in this test")
+    override suspend fun resendVerificationEmail(email: String): ResendOutcome =
+        error("resendVerificationEmail not stubbed in this test")
+    override suspend fun signOut() { /* no-op */ }
+    override suspend fun updateProfile(
+        displayName: String?,
+        avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
+    ): UpdateProfileOutcome = error("updateProfile not stubbed in this test")
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome =
+        error("fetchAvatarPack not stubbed in this test")
+    override suspend fun deleteAccount(): DeleteAccountOutcome =
+        error("deleteAccount not stubbed in this test")
+    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
+        error("linkOAuthIdentity not stubbed in this test")
+    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
+        error("signInWithOAuth not stubbed in this test")
+}
+
 /** Empty [AppConfigMap] — keeps IdentityFeatureConfig at its defaults
  *  (both OAuth flags off) so the SignIn ViewModel's initial state has
  *  predictable values across tests. */
