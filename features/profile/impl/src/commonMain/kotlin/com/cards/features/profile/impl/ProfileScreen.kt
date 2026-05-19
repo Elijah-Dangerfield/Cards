@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.profile.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,8 +10,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -22,6 +27,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.BasicDropdownMenuItem
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.DropdownMenu
@@ -80,7 +88,7 @@ fun ProfileScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
-            ProfileHeader(settings = settings)
+            ProfileHeader(settings = settings, onEditProfile = onEditProfile)
             VerticalSpacerD900()
 
             if (settings.isAnonymous) {
@@ -91,11 +99,6 @@ fun ProfileScreen(
             ListSection(
                 title = "Account",
                 items = listOf(
-                    ListSectionItem(
-                        headlineText = "Edit profile",
-                        supportingText = "Name and avatar",
-                        onClick = onEditProfile,
-                    ),
                     ListSectionItem(
                         headlineText = "My items",
                         supportingText = "Owned card backs, felts, emotes, titles",
@@ -355,22 +358,58 @@ private fun <T> DropdownAccessory(
 }
 
 @Composable
-private fun ProfileHeader(settings: ProfileSettings) {
+private fun ProfileHeader(
+    settings: ProfileSettings,
+    onEditProfile: () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AvatarCircle(
-            name = settings.displayName,
-            size = Dimension.D1900,
-            typography = AppTheme.typography.Heading.H1000,
-            // Avatar is server-authoritative — always prefer the user's
-            // picked emoji. Anonymous users still get an emoji from the
-            // starter pack at signup, so this should be present in both
-            // states; the null fallback covers the bootstrap window.
-            emoji = settings.avatarEmoji,
-            backgroundColorHex = settings.avatarBackgroundColor,
-        )
+        // Tap-target = avatar + pencil badge. Replaces the separate
+        // "Edit profile" list row; the affordance is the avatar itself.
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(onClick = onEditProfile),
+            contentAlignment = Alignment.Center,
+        ) {
+            AvatarCircle(
+                name = settings.displayName,
+                size = Dimension.D1900,
+                typography = AppTheme.typography.Heading.H1000,
+                // Avatar is server-authoritative — always prefer the user's
+                // picked emoji. Anonymous users still get an emoji from the
+                // starter pack at signup, so this should be present in both
+                // states; the null fallback covers the bootstrap window.
+                emoji = settings.avatarEmoji,
+                backgroundColorHex = settings.avatarBackgroundColor,
+            )
+            // Pencil badge tucked in the bottom-right corner. Sized small
+            // so it reads as a corner badge rather than competing with the
+            // emoji for visual weight, and bordered against the background
+            // so it lifts cleanly off the avatar disc.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 2.dp, y = 2.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .border(
+                        width = 2.dp,
+                        color = AppTheme.colors.background.color,
+                        shape = CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    icon = Icons.Pencil("Edit profile"),
+                    size = IconSize.Small,
+                    color = AppTheme.colors.onSurfaceSecondary,
+                )
+            }
+        }
         VerticalSpacerD500()
         Text(
             text = settings.displayName,

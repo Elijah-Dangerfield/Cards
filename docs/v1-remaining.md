@@ -33,7 +33,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Button color adaptation against felt.** When the user equips a colored felt, the play-screen action buttons can clash. Either pin the buttons to a felt-independent surface, or token the buttons against a `surfaceOnFelt` color that the felt defines.
 
 ### Edit profile
-- **Drop the "Edit profile" button; pencil-badge the avatar.** The profile screen should let the user tap the avatar (with a small pencil/badge overlay) instead of a separate button. Same target, less UI.
 - **Starter avatar pack content review (server-side).** Confirmed the picker reads from `IdentityRepository.fetchAvatarPack()` (server-driven). What still needs review is the *content* of the starter pack returned by `GET /v1/avatars` — the initial set should be intentionally small and must not overlap with packs users can buy. That's a server-config decision, not a client change.
 - **Avatar grid — confirm scrolls on small screens.** The outer column wraps the grid in `verticalScroll`, and the grid sizes itself to `ceil(emojis / 4) * tileHeight`, so all rows should reach. Worth a manual pass on a small-screen device with a long pack to confirm nothing's clipping under the IME or the Save button.
 
