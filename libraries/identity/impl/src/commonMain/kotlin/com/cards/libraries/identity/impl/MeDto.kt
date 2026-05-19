@@ -12,6 +12,8 @@ data class MeDto(
     val userId: String,
     val displayName: String,
     val avatarEmoji: String,
+    /** Hex color from the server's palette; null = use theme default. */
+    val avatarBackgroundColor: String? = null,
     /**
      * Mirrors the server's response, which itself mirrors the Supabase
      * JWT's `is_anonymous` claim. Authoritative — don't derive this from

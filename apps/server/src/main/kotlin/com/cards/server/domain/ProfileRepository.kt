@@ -27,10 +27,19 @@ interface ProfileRepository {
      *  - `avatarEmoji` membership in the curated starter pack (the route
      *    layer validates before reaching here).
      */
+    /**
+     * Patch a profile. `null` for a field = leave alone. Sentinel for
+     * "clear back to default" is [ClearAvatarBackgroundColor] in the
+     * `avatarBackgroundColor` slot — null in that slot means "don't touch",
+     * the sentinel means "set the column to NULL." Keeps the route layer
+     * honest about intent without using a wrapper type for one field.
+     */
     suspend fun update(
         userId: UserId,
         displayName: String?,
         avatarEmoji: String?,
+        avatarBackgroundColor: String? = null,
+        clearAvatarBackgroundColor: Boolean = false,
     ): UpdateProfileOutcome
 
     /**

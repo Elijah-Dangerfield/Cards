@@ -13,6 +13,12 @@ data class Identity(
     val displayName: String,
     val avatarEmoji: String,
     /**
+     * Server-issued hex color (`#rrggbb`) shown behind the avatar emoji.
+     * Null = use the theme default (the client renders surfaceSecondary
+     * in that case). Picker is fed via [AvatarPackOutcome.Success.palette].
+     */
+    val avatarBackgroundColor: String?,
+    /**
      * Whether the user is signed in anonymously (Supabase's `is_anonymous`
      * claim). Drives UI like the "claim your account" prompt; doesn't
      * affect access to most features.

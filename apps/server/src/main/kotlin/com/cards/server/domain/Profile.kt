@@ -35,12 +35,17 @@ value class UserId(val value: UUID) {
  *
  * `avatarEmoji` holds a single emoji codepoint sequence. Future avatar
  * unlocks live alongside this; emoji stays as the V1 default.
+ *
+ * `avatarBackgroundColor` is a hex string from [AvatarPalette]. NULL =
+ * "use the theme default" — the client renders surface-secondary in
+ * that case.
  */
 @OptIn(ExperimentalTime::class)
 data class Profile(
     val userId: UserId,
     val displayName: String,
     val avatarEmoji: String,
+    val avatarBackgroundColor: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

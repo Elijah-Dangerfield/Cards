@@ -112,6 +112,7 @@ class ProfileFeatureEntryPoint(
                 settings = ProfileSettings(
                     displayName = identity?.displayName ?: "You",
                     avatarEmoji = identity?.avatarEmoji,
+                    avatarBackgroundColor = identity?.avatarBackgroundColor,
                     // Rank stays 0 ("Unranked") until the user claims their account
                     // and plays multiplayer — see docs/decisions.md (2026-05-14).
                     rank = if (isAnon) 0 else 1200,

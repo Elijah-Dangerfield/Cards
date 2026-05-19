@@ -53,11 +53,19 @@ interface ProfileApi {
 data class PatchMeRequest(
     val displayName: String? = null,
     val avatarEmoji: String? = null,
+    val avatarBackgroundColor: String? = null,
+    /**
+     * Tri-state on the wire: setting a non-null `avatarBackgroundColor`
+     * picks it; setting `clearAvatarBackgroundColor=true` clears it back
+     * to the theme default. Both fields can't usefully be set together.
+     */
+    val clearAvatarBackgroundColor: Boolean = false,
 )
 
 @Serializable
 data class AvatarPackResponseDto(
     val packs: List<AvatarPackDto>,
+    val backgroundPalette: List<String> = emptyList(),
 )
 
 @Serializable

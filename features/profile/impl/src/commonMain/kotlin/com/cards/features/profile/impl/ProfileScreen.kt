@@ -44,6 +44,7 @@ import com.dangerfield.cards.system.VerticalSpacerD900
 data class ProfileSettings(
     val displayName: String,
     val avatarEmoji: String?,
+    val avatarBackgroundColor: String?,
     val rank: Int,
     val xp: Long,
     val isAnonymous: Boolean,
@@ -371,6 +372,7 @@ private fun ProfileHeader(settings: ProfileSettings) {
             // starter pack at signup, so this should be present in both
             // states; the null fallback covers the bootstrap window.
             emoji = settings.avatarEmoji,
+            backgroundColorHex = settings.avatarBackgroundColor,
         )
         VerticalSpacerD500()
         Text(
@@ -428,6 +430,7 @@ private fun ProfileScreenPreview_Anonymous() {
             settings = ProfileSettings(
                 displayName = "Anon-1742",
                 avatarEmoji = "🦊",
+                avatarBackgroundColor = null,
                 rank = 1200,
                 xp = 60,
                 isAnonymous = true,
@@ -461,6 +464,7 @@ private fun ProfileScreenPreview_Claimed() {
             settings = ProfileSettings(
                 displayName = "Elijah",
                 avatarEmoji = "🦄",
+                avatarBackgroundColor = "#7555ff",
                 rank = 1820,
                 xp = 12_400,
                 isAnonymous = false,
@@ -494,6 +498,7 @@ private fun ProfileScreenPreview_DebugBuild() {
             settings = ProfileSettings(
                 displayName = "Elijah",
                 avatarEmoji = "🦄",
+                avatarBackgroundColor = "#7555ff",
                 rank = 1820,
                 xp = 12_400,
                 isAnonymous = false,

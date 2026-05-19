@@ -209,17 +209,27 @@ class SupabaseIdentityRepository(
     override suspend fun updateProfile(
         displayName: String?,
         avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
     ): UpdateProfileOutcome = mutex.withLock {
         if (supabase.auth.currentSessionOrNull() == null) {
             return@withLock UpdateProfileOutcome.NotSignedIn
         }
 
         try {
-            val updated = profileApi.patchMe(PatchMeRequest(displayName, avatarEmoji))
+            val updated = profileApi.patchMe(
+                PatchMeRequest(
+                    displayName = displayName,
+                    avatarEmoji = avatarEmoji,
+                    avatarBackgroundColor = avatarBackgroundColor,
+                    clearAvatarBackgroundColor = clearAvatarBackgroundColor,
+                ),
+            )
             val identity = Identity(
                 userId = updated.userId,
                 displayName = updated.displayName,
                 avatarEmoji = updated.avatarEmoji,
+                avatarBackgroundColor = updated.avatarBackgroundColor,
                 isAnonymous = updated.isAnonymous,
             )
             identityCache.write(identity)
@@ -230,12 +240,15 @@ class SupabaseIdentityRepository(
                 409 -> UpdateProfileOutcome.DisplayNameTaken
                 401 -> UpdateProfileOutcome.NotSignedIn
                 400 -> {
-                    // Server returns 400 for both invalid_display_name and
-                    // invalid_avatar_emoji; we infer which based on what
-                    // the caller submitted. UI shows a single field's
-                    // error message either way.
-                    if (displayName != null) UpdateProfileOutcome.InvalidDisplayName
-                    else UpdateProfileOutcome.InvalidAvatarEmoji
+                    // Server returns 400 for invalid_display_name,
+                    // invalid_avatar_emoji, or invalid_avatar_background_color.
+                    // We infer which based on what the caller submitted. UI
+                    // shows a single field's error message either way.
+                    when {
+                        displayName != null -> UpdateProfileOutcome.InvalidDisplayName
+                        avatarEmoji != null -> UpdateProfileOutcome.InvalidAvatarEmoji
+                        else -> UpdateProfileOutcome.InvalidAvatarBackgroundColor
+                    }
                 }
                 else -> UpdateProfileOutcome.Unknown(e)
             }
@@ -258,6 +271,7 @@ class SupabaseIdentityRepository(
                     emojis = dto.emojis,
                 )
             },
+            palette = response.backgroundPalette,
         )
     } catch (e: ClientRequestException) {
         AvatarPackOutcome.Unknown(e)
@@ -394,6 +408,7 @@ class SupabaseIdentityRepository(
             userId = me.userId,
             displayName = me.displayName,
             avatarEmoji = me.avatarEmoji,
+            avatarBackgroundColor = me.avatarBackgroundColor,
             isAnonymous = me.isAnonymous,
         )
         identityCache.write(identity)

@@ -90,6 +90,8 @@ internal class FakeIdentityRepository(
     override suspend fun updateProfile(
         displayName: String?,
         avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
     ): UpdateProfileOutcome = error("updateProfile not used by the auth ViewModels")
 
     override suspend fun fetchAvatarPack(): AvatarPackOutcome =
@@ -131,5 +133,6 @@ internal val sampleIdentity = Identity(
     userId = "11111111-1111-1111-1111-111111111111",
     displayName = "QuietAce72",
     avatarEmoji = "🃏",
+    avatarBackgroundColor = null,
     isAnonymous = false,
 )

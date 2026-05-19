@@ -89,9 +89,19 @@ interface IdentityRepository {
      * alone). On success the local cache + [state] flow flip to the new
      * values immediately.
      */
+    /**
+     * Patch the profile on the server. Each field is independent:
+     * - `null` for a string field = leave it alone.
+     * - Setting [avatarBackgroundColor] to a non-null hex sets it.
+     * - Setting [clearAvatarBackgroundColor] = true clears the color
+     *   back to the theme default. Tri-state via two args because JSON
+     *   can't distinguish "missing" from "null" on the wire.
+     */
     suspend fun updateProfile(
         displayName: String? = null,
         avatarEmoji: String? = null,
+        avatarBackgroundColor: String? = null,
+        clearAvatarBackgroundColor: Boolean = false,
     ): UpdateProfileOutcome
 
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
@@ -172,6 +182,7 @@ sealed interface UpdateProfileOutcome {
     data object DisplayNameTaken : UpdateProfileOutcome
     data object InvalidDisplayName : UpdateProfileOutcome
     data object InvalidAvatarEmoji : UpdateProfileOutcome
+    data object InvalidAvatarBackgroundColor : UpdateProfileOutcome
     data object NotSignedIn : UpdateProfileOutcome
     data class NetworkError(val cause: Throwable) : UpdateProfileOutcome
     data class Unknown(val cause: Throwable) : UpdateProfileOutcome
@@ -194,8 +205,15 @@ sealed interface AvatarPackOutcome {
      * Packs available to this user, in server-determined order. The
      * starter pack is always first; premium packs follow as they're
      * unlocked.
+     *
+     * [palette] is the curated set of avatar-background hex colors the
+     * picker can render. Empty list = "no per-user color customization
+     * available" (the client should hide the color picker section).
      */
-    data class Success(val packs: List<AvatarPack>) : AvatarPackOutcome
+    data class Success(
+        val packs: List<AvatarPack>,
+        val palette: List<String> = emptyList(),
+    ) : AvatarPackOutcome
     data class NetworkError(val cause: Throwable) : AvatarPackOutcome
     data class Unknown(val cause: Throwable) : AvatarPackOutcome
 }

@@ -49,6 +49,8 @@ class EditProfileViewModel(
                     displayName = action.identity.displayName,
                     initialAvatarEmoji = action.identity.avatarEmoji,
                     selectedAvatarEmoji = action.identity.avatarEmoji,
+                    initialAvatarBackgroundColor = action.identity.avatarBackgroundColor,
+                    selectedAvatarBackgroundColor = action.identity.avatarBackgroundColor,
                 )
             }
 
@@ -60,6 +62,7 @@ class EditProfileViewModel(
                         is AvatarPackOutcome.Success -> it.copy(
                             isLoadingAvatars = false,
                             avatarPacks = outcome.packs,
+                            backgroundPalette = outcome.palette,
                         )
                         is AvatarPackOutcome.NetworkError,
                         is AvatarPackOutcome.Unknown,
@@ -86,6 +89,10 @@ class EditProfileViewModel(
                 it.copy(selectedAvatarEmoji = action.emoji, error = null)
             }
 
+            is EditProfileAction.AvatarBackgroundColorSelected -> action.updateState {
+                it.copy(selectedAvatarBackgroundColor = action.color, error = null)
+            }
+
             is EditProfileAction.DismissError -> action.updateState { it.copy(error = null) }
 
             is EditProfileAction.Submit -> action.run {
@@ -94,12 +101,16 @@ class EditProfileViewModel(
 
                 updateState { it.copy(isSubmitting = true, error = null) }
 
+                val colorChanged = current.selectedAvatarBackgroundColor != current.initialAvatarBackgroundColor
                 val outcome = identityRepository.updateProfile(
                     displayName = current.displayName
                         .takeIf { it.trim() != current.initialDisplayName?.trim() }
                         ?.trim(),
                     avatarEmoji = current.selectedAvatarEmoji
                         .takeIf { it != current.initialAvatarEmoji },
+                    avatarBackgroundColor = current.selectedAvatarBackgroundColor
+                        ?.takeIf { colorChanged },
+                    clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null,
                 )
 
                 when (outcome) {
@@ -115,6 +126,9 @@ class EditProfileViewModel(
                     }
                     is UpdateProfileOutcome.InvalidAvatarEmoji -> updateState {
                         it.copy(isSubmitting = false, error = "That avatar isn't in the starter pack. Pick another.")
+                    }
+                    is UpdateProfileOutcome.InvalidAvatarBackgroundColor -> updateState {
+                        it.copy(isSubmitting = false, error = "That color isn't available. Pick another.")
                     }
                     is UpdateProfileOutcome.NotSignedIn -> updateState {
                         it.copy(isSubmitting = false, error = "Sign in first to edit your profile.")
@@ -136,7 +150,10 @@ data class EditProfileState(
     val displayName: String = "",
     val initialAvatarEmoji: String? = null,
     val selectedAvatarEmoji: String? = null,
+    val initialAvatarBackgroundColor: String? = null,
+    val selectedAvatarBackgroundColor: String? = null,
     val avatarPacks: List<AvatarPack> = emptyList(),
+    val backgroundPalette: List<String> = emptyList(),
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
@@ -150,7 +167,8 @@ data class EditProfileState(
 
     val isDirty: Boolean
         get() = displayName.trim() != initialDisplayName?.trim() ||
-            selectedAvatarEmoji != initialAvatarEmoji
+            selectedAvatarEmoji != initialAvatarEmoji ||
+            selectedAvatarBackgroundColor != initialAvatarBackgroundColor
 
     val canSubmit: Boolean
         get() = !isSubmitting && isNameValid && isDirty && selectedAvatarEmoji != null
@@ -171,6 +189,8 @@ sealed interface EditProfileAction {
     data object LoadAvatarPack : EditProfileAction
     data class DisplayNameChanged(val value: String) : EditProfileAction
     data class AvatarSelected(val emoji: String) : EditProfileAction
+    /** Null = pick "default" (clear back to theme color). */
+    data class AvatarBackgroundColorSelected(val color: String?) : EditProfileAction
     data object Submit : EditProfileAction
     data object DismissError : EditProfileAction
 }

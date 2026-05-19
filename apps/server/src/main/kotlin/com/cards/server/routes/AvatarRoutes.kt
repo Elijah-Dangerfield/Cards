@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.AvatarPacks
+import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
@@ -36,7 +37,13 @@ fun Route.avatarRoutes(inventory: InventoryRepository) {
                 .toSet()
             val packs = AvatarPacks.availableFor(owned).map { it.toDto() }
             call.response.cacheControl(CacheControl.MaxAge(maxAgeSeconds = 60, visibility = CacheControl.Visibility.Private))
-            call.respond(HttpStatusCode.OK, AvatarPackResponse(packs = packs))
+            call.respond(
+                HttpStatusCode.OK,
+                AvatarPackResponse(
+                    packs = packs,
+                    backgroundPalette = AvatarPalette.values,
+                ),
+            )
         }
     }
 }
@@ -44,6 +51,13 @@ fun Route.avatarRoutes(inventory: InventoryRepository) {
 @Serializable
 data class AvatarPackResponse(
     val packs: List<AvatarPackDto>,
+    /**
+     * Allowed background color swatches for the avatar circle. Server-
+     * authoritative so adding a swatch later is server-only. Empty list
+     * is a legitimate response (= "no per-user color customization
+     * available").
+     */
+    val backgroundPalette: List<String> = emptyList(),
 )
 
 @Serializable

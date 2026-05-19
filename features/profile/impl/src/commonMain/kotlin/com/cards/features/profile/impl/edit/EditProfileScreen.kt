@@ -92,8 +92,12 @@ fun EditProfileScreen(
 
                 // Live preview: the chosen emoji blown up to "this is you"
                 // size, animated on each pick so the picker feels connected
-                // to a real artifact instead of an abstract grid.
-                AvatarPreviewHero(emoji = state.selectedAvatarEmoji)
+                // to a real artifact instead of an abstract grid. The
+                // background tracks the selected color (or theme default).
+                AvatarPreviewHero(
+                    emoji = state.selectedAvatarEmoji,
+                    backgroundColorHex = state.selectedAvatarBackgroundColor,
+                )
 
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
@@ -152,6 +156,22 @@ fun EditProfileScreen(
                     onSelect = { onAction(EditProfileAction.AvatarSelected(it)) },
                 )
 
+                if (state.backgroundPalette.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Dimension.D900))
+                    Text(
+                        text = "Avatar color",
+                        typography = AppTheme.typography.Heading.H500,
+                        color = AppTheme.colors.onSurfacePrimary,
+                    )
+                    Spacer(modifier = Modifier.height(Dimension.D400))
+                    BackgroundColorPicker(
+                        palette = state.backgroundPalette,
+                        selected = state.selectedAvatarBackgroundColor,
+                        enabled = !state.isSubmitting,
+                        onSelect = { onAction(EditProfileAction.AvatarBackgroundColorSelected(it)) },
+                    )
+                }
+
                 state.error?.let {
                     Spacer(modifier = Modifier.height(Dimension.D500))
                     Text(
@@ -178,7 +198,11 @@ fun EditProfileScreen(
 }
 
 @Composable
-private fun AvatarPreviewHero(emoji: String?) {
+private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
+    val parsedColor = backgroundColorHex?.let {
+        runCatching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
+    }
+    val bg = parsedColor ?: AppTheme.colors.surfaceSecondary.color
     Row(
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier.fillMaxWidth(),
@@ -188,7 +212,7 @@ private fun AvatarPreviewHero(emoji: String?) {
             modifier = Modifier
                 .size(112.dp)
                 .clip(CircleShape)
-                .background(AppTheme.colors.surfaceSecondary.color),
+                .background(bg),
         ) {
             AnimatedContent(
                 targetState = emoji ?: " ",
@@ -316,6 +340,70 @@ private fun AvatarTile(
 
 private const val GRID_COLUMNS = 4
 private const val TILE_HEIGHT_DP = 72
+
+@Composable
+private fun BackgroundColorPicker(
+    palette: List<String>,
+    selected: String?,
+    enabled: Boolean,
+    onSelect: (String?) -> Unit,
+) {
+    // First swatch represents "no override" / theme default — null in
+    // state. Subsequent swatches are server-supplied hex strings.
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        ColorSwatch(
+            colorHex = null,
+            isSelected = selected == null,
+            enabled = enabled,
+            onClick = { onSelect(null) },
+        )
+        palette.forEach { hex ->
+            ColorSwatch(
+                colorHex = hex,
+                isSelected = selected?.equals(hex, ignoreCase = true) == true,
+                enabled = enabled,
+                onClick = { onSelect(hex) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColorSwatch(
+    colorHex: String?,
+    isSelected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val parsed = colorHex?.let {
+        runCatching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
+    }
+    val swatchColor = parsed ?: AppTheme.colors.surfaceSecondary.color
+    val borderColor = if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
+    val borderWidth = if (isSelected) 3.dp else 1.dp
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(swatchColor)
+            .border(borderWidth, borderColor, CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+    ) {
+        // The "default" swatch shows a subtle dot to signal "no override"
+        // — otherwise it could read as a missing tile against the surface.
+        if (colorHex == null) {
+            Text(
+                text = "—",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+        }
+    }
+}
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable

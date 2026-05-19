@@ -36,9 +36,22 @@ fun AvatarCircle(
     // feels like the avatar, not a punctuation mark sitting in it.
     emojiTypography: TypographyResource = AppTheme.typography.Display.D1100,
     emoji: String? = null,
+    /**
+     * Server-driven user choice. `#rrggbb` (palette-validated server-side
+     * via [com.dangerfield.cards.server.domain.AvatarPalette]). Null =
+     * fall back to the legacy name-seeded hue so anonymous / un-customized
+     * avatars still feel distinct. Pass `Color.Unspecified` (via the
+     * String null path) to mean "use default."
+     */
+    backgroundColorHex: String? = null,
 ) {
-    val seed = name.hashCode()
-    val bg = avatarHues[((seed % avatarHues.size) + avatarHues.size) % avatarHues.size]
+    val parsedBg = backgroundColorHex?.let { runCatching { parseHexColor(it) }.getOrNull() }
+    val bg = if (parsedBg != null) {
+        parsedBg
+    } else {
+        val seed = name.hashCode()
+        avatarHues[((seed % avatarHues.size) + avatarHues.size) % avatarHues.size]
+    }
     val initial = name.firstOrNull()?.uppercase() ?: "?"
     Box(
         modifier = modifier
@@ -54,4 +67,22 @@ fun AvatarCircle(
             color = AppTheme.colors.text,
         )
     }
+}
+
+/**
+ * Parse a `#rrggbb` hex string into a [Color]. Throws on malformed input
+ * so callers wrapping in runCatching can fall back to a default; we want
+ * loud failures in dev and graceful fallbacks in release.
+ *
+ * Lives next to AvatarCircle because that's the only consumer that
+ * matters today, but exported (not `internal`) so feature screens can
+ * reuse the same parser for live previews of the swatch they're picking.
+ */
+fun parseHexColor(hex: String): Color {
+    val cleaned = hex.removePrefix("#")
+    require(cleaned.length == 6) { "Expected #rrggbb, got: $hex" }
+    val r = cleaned.substring(0, 2).toInt(16)
+    val g = cleaned.substring(2, 4).toInt(16)
+    val b = cleaned.substring(4, 6).toInt(16)
+    return Color(red = r, green = g, blue = b)
 }

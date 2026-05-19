@@ -231,6 +231,7 @@ class MeRoutesTest {
             userId = userId,
             displayName = "FakeName",
             avatarEmoji = "🦊",
+            avatarBackgroundColor = null,
             createdAt = now,
             updatedAt = now,
         )
@@ -250,6 +251,7 @@ class MeRoutesTest {
                 userId = userId,
                 displayName = "GeneratedName",
                 avatarEmoji = "🦊",
+                avatarBackgroundColor = null,
                 createdAt = Instant.fromEpochMilliseconds(1_700_000_000_000),
                 updatedAt = Instant.fromEpochMilliseconds(1_700_000_000_000),
             )
@@ -259,6 +261,8 @@ class MeRoutesTest {
             userId: UserId,
             displayName: String?,
             avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
         ): com.dangerfield.cards.server.domain.UpdateProfileOutcome = error("not used in this test")
 
         override suspend fun delete(userId: UserId) {

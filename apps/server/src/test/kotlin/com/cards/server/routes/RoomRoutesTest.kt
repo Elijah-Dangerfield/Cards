@@ -303,6 +303,7 @@ class RoomRoutesTest {
             userId = userId,
             displayName = nameFor(userId),
             avatarEmoji = "🃏",
+            avatarBackgroundColor = null,
             createdAt = Instant.fromEpochMilliseconds(0),
             updatedAt = Instant.fromEpochMilliseconds(0),
         )
@@ -311,6 +312,8 @@ class RoomRoutesTest {
             userId: UserId,
             displayName: String?,
             avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
         ): UpdateProfileOutcome = error("not used in this test")
 
         override suspend fun delete(userId: UserId) { /* no-op for route tests */ }

@@ -44,6 +44,7 @@ class IdentityCache(
             userId = record.userId,
             displayName = record.displayName,
             avatarEmoji = record.avatarEmoji,
+            avatarBackgroundColor = record.avatarBackgroundColor,
             isAnonymous = record.isAnonymous,
         )
     }
@@ -54,6 +55,7 @@ class IdentityCache(
                 userId = identity.userId,
                 displayName = identity.displayName,
                 avatarEmoji = identity.avatarEmoji,
+                avatarBackgroundColor = identity.avatarBackgroundColor,
                 isAnonymous = identity.isAnonymous,
             ),
         )
@@ -68,10 +70,17 @@ class IdentityCache(
         val userId: String,
         val displayName: String,
         val avatarEmoji: String,
+        val avatarBackgroundColor: String? = null,
         val isAnonymous: Boolean,
     ) {
         companion object {
-            fun empty() = IdentityRecord("", "", "", isAnonymous = true)
+            fun empty() = IdentityRecord(
+                userId = "",
+                displayName = "",
+                avatarEmoji = "",
+                avatarBackgroundColor = null,
+                isAnonymous = true,
+            )
         }
     }
 }

@@ -23,6 +23,8 @@ object ProfilesTable : Table("profiles") {
     val userId = uuid("user_id")
     val displayName = text("display_name").uniqueIndex("profiles_display_name_uq")
     val avatarEmoji = text("avatar_emoji")
+    /** Nullable — NULL means "use theme default" on the client. */
+    val avatarBackgroundColor = text("avatar_background_color").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(userId)

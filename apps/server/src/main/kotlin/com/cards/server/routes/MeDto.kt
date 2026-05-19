@@ -15,6 +15,8 @@ data class MeResponse(
     val userId: String,
     val displayName: String,
     val avatarEmoji: String,
+    /** Hex color from the palette, or null = use theme default. */
+    val avatarBackgroundColor: String? = null,
     /**
      * Mirrors Supabase's `is_anonymous` JWT claim. Authoritative for "should
      * we show the claim-your-account prompt." Flips to false on its own once
@@ -28,17 +30,25 @@ data class MeResponse(
 )
 
 /**
- * Both fields are optional. Sending `{}` is a valid no-op; sending one
- * field updates only that field; sending both updates both.
+ * All fields are optional. Sending `{}` is a valid no-op; sending one
+ * field updates only that field.
+ *
+ * For `avatarBackgroundColor`, a JSON `null` is indistinguishable from
+ * "not present" on the wire after the framework deserializes. To express
+ * "clear this back to the default" the client sets `clearAvatarBackgroundColor`
+ * to true. Annoying but unambiguous; the alternative (a tri-state nullable
+ * wrapper) read worse for one field.
  *
  * Validation lives at the route layer (length checks, emoji-in-pack
- * check). The DB constraint provides the last line of defense on
- * `displayName` uniqueness.
+ * check, palette membership). The DB constraint provides the last line
+ * of defense on `displayName` uniqueness.
  */
 @Serializable
 data class PatchMeRequest(
     val displayName: String? = null,
     val avatarEmoji: String? = null,
+    val avatarBackgroundColor: String? = null,
+    val clearAvatarBackgroundColor: Boolean = false,
 )
 
 @OptIn(ExperimentalTime::class)
@@ -46,6 +56,7 @@ internal fun Profile.toMeDto(isAnonymous: Boolean): MeResponse = MeResponse(
     userId = userId.value.toString(),
     displayName = displayName,
     avatarEmoji = avatarEmoji,
+    avatarBackgroundColor = avatarBackgroundColor,
     isAnonymous = isAnonymous,
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
     updatedAtEpochMs = updatedAt.toEpochMilliseconds(),

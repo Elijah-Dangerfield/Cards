@@ -66,9 +66,14 @@ class PostgresProfileRepository(
         userId: UserId,
         displayName: String?,
         avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
     ): UpdateProfileOutcome = database.transaction {
-        // No-op if neither field changed — read current state and return.
-        if (displayName == null && avatarEmoji == null) {
+        val nothingToChange = displayName == null &&
+            avatarEmoji == null &&
+            avatarBackgroundColor == null &&
+            !clearAvatarBackgroundColor
+        if (nothingToChange) {
             val current = ProfilesTable
                 .selectAll()
                 .where { ProfilesTable.userId eq userId.value }
@@ -85,6 +90,11 @@ class PostgresProfileRepository(
             ProfilesTable.update({ ProfilesTable.userId eq userId.value }) { stmt ->
                 displayName?.let { stmt[ProfilesTable.displayName] = it }
                 avatarEmoji?.let { stmt[ProfilesTable.avatarEmoji] = it }
+                if (clearAvatarBackgroundColor) {
+                    stmt[ProfilesTable.avatarBackgroundColor] = null
+                } else {
+                    avatarBackgroundColor?.let { stmt[ProfilesTable.avatarBackgroundColor] = it }
+                }
                 stmt[ProfilesTable.updatedAt] = nowJava
             }
         } catch (e: ExposedSQLException) {
@@ -149,6 +159,7 @@ class PostgresProfileRepository(
                     userId = userId,
                     displayName = name,
                     avatarEmoji = emoji,
+                    avatarBackgroundColor = null,
                     createdAt = now,
                     updatedAt = now,
                 )
@@ -183,6 +194,7 @@ class PostgresProfileRepository(
         userId = UserId(this[ProfilesTable.userId]),
         displayName = this[ProfilesTable.displayName],
         avatarEmoji = this[ProfilesTable.avatarEmoji],
+        avatarBackgroundColor = this[ProfilesTable.avatarBackgroundColor],
         createdAt = this[ProfilesTable.createdAt].toKotlinInstant(),
         updatedAt = this[ProfilesTable.updatedAt].toKotlinInstant(),
     )

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.AvatarPacks
+import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -84,8 +85,20 @@ fun Route.meRoutes(
                     )
                 }
             }
+            if (body.avatarBackgroundColor != null && !AvatarPalette.isValid(body.avatarBackgroundColor)) {
+                return@patch call.respond(
+                    HttpStatusCode.BadRequest,
+                    problem("invalid_avatar_background_color", "Avatar background color is not in the palette."),
+                )
+            }
 
-            when (val outcome = repository.update(userId, cleanedName, body.avatarEmoji)) {
+            when (val outcome = repository.update(
+                userId = userId,
+                displayName = cleanedName,
+                avatarEmoji = body.avatarEmoji,
+                avatarBackgroundColor = body.avatarBackgroundColor?.lowercase(),
+                clearAvatarBackgroundColor = body.clearAvatarBackgroundColor,
+            )) {
                 is UpdateProfileOutcome.Success -> call.respond(HttpStatusCode.OK, outcome.profile.toMeDto(isAnonymous = isAnonymous))
                 is UpdateProfileOutcome.DisplayNameTaken -> call.respond(
                     HttpStatusCode.Conflict,

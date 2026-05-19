@@ -247,6 +247,7 @@ class LobbyViewModelTest : CoroutineTest() {
             userId = "11111111-1111-1111-1111-111111111111",
             displayName = "You",
             avatarEmoji = "🃏",
+            avatarBackgroundColor = null,
             isAnonymous = true,
         )
         override val state: kotlinx.coroutines.flow.StateFlow<IdentityState> =
@@ -259,8 +260,12 @@ class LobbyViewModelTest : CoroutineTest() {
         override suspend fun refreshSession(): RefreshOutcome = RefreshOutcome.EmailConfirmed(identity)
         override suspend fun resendVerificationEmail(email: String): ResendOutcome = ResendOutcome.Sent
         override suspend fun signOut() { /* no-op */ }
-        override suspend fun updateProfile(displayName: String?, avatarEmoji: String?): UpdateProfileOutcome =
-            UpdateProfileOutcome.Success(identity)
+        override suspend fun updateProfile(
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ): UpdateProfileOutcome = UpdateProfileOutcome.Success(identity)
         override suspend fun fetchAvatarPack(): AvatarPackOutcome = AvatarPackOutcome.Success(emptyList())
         override suspend fun deleteAccount(): DeleteAccountOutcome = DeleteAccountOutcome.Success
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
