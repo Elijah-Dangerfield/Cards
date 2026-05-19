@@ -13,11 +13,13 @@ import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.assertIs
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
@@ -207,6 +209,166 @@ class InMemoryRoomServiceTest {
         assertEquals(listOf(0, 1, 2, 3, 4, 5), seatIndices.sorted(), "seats fill 0..5")
     }
 
+    // ---------- sweepDisconnected ----------
+
+    @Test
+    fun markConnected_false_stampsDisconnectedAt() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host")
+        service.markConnected(room.code, host, connected = true)
+
+        val before = clock.now()
+        clock.advance(1.minutes)
+        service.markConnected(room.code, host, connected = false)
+
+        val member = service.find(room.code)!!.memberFor(host)!!
+        assertEquals(false, member.isConnected)
+        assertNotNull(member.disconnectedAt)
+        assertTrue(
+            member.disconnectedAt!! >= before,
+            "disconnectedAt stamped at-or-after the disconnect",
+        )
+    }
+
+    @Test
+    fun markConnected_true_clearsDisconnectedAt() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host")
+        // create() stamps disconnectedAt = now so the seat-grace clock
+        // ticks even for never-connected members.
+        assertNotNull(service.find(room.code)!!.memberFor(host)!!.disconnectedAt)
+
+        clock.advance(1.minutes)
+        service.markConnected(room.code, host, connected = true)
+        assertNull(
+            service.find(room.code)!!.memberFor(host)!!.disconnectedAt,
+            "reconnect clears the grace timer",
+        )
+    }
+
+    @Test
+    fun sweepDisconnected_reapsMembersPastTtl() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host", maxSeats = 4)
+        service.markConnected(room.code, host, connected = true)
+        service.join(room.code, alice, "Alice")
+        service.markConnected(room.code, alice, connected = true)
+
+        // Alice drops. Sweep at TTL boundary should not reap her yet.
+        service.markConnected(room.code, alice, connected = false)
+        clock.advance(2.minutes)
+        var result = service.sweepDisconnected(maxIdle = 5.minutes)
+        assertEquals(0, result.membersReaped, "still within grace window")
+        assertEquals(2, service.find(room.code)!!.members.size)
+
+        // Past TTL — Alice is reaped, room survives (host still in).
+        clock.advance(4.minutes)
+        result = service.sweepDisconnected(maxIdle = 5.minutes)
+        assertEquals(1, result.membersReaped)
+        assertEquals(0, result.roomsReaped)
+        val survivors = service.find(room.code)!!.members
+        assertEquals(1, survivors.size)
+        assertEquals(host, survivors.single().userId)
+    }
+
+    @Test
+    fun sweepDisconnected_preservesConnectedMembers_regardlessOfClock() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host")
+        service.markConnected(room.code, host, connected = true)
+
+        clock.advance(60.minutes)
+        val result = service.sweepDisconnected(maxIdle = 1.minutes)
+        assertEquals(0, result.membersReaped, "connected members never reaped")
+        assertEquals(host, service.find(room.code)!!.members.single().userId)
+    }
+
+    @Test
+    fun sweepDisconnected_neverConnectedMember_isReapedAfterTtl() = runTest {
+        // Joins-but-never-opens-a-socket is the same shape as a clean drop;
+        // both stamp disconnectedAt at the moment-of-join. This pins that
+        // an abandoned join doesn't camp a seat forever.
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host")
+        service.markConnected(room.code, host, connected = true)
+        service.join(room.code, alice, "Alice")
+        // alice never calls markConnected.
+
+        clock.advance(10.minutes)
+        val result = service.sweepDisconnected(maxIdle = 5.minutes)
+        assertEquals(1, result.membersReaped)
+        assertNull(service.find(room.code)!!.memberFor(alice), "alice's seat freed")
+    }
+
+    @Test
+    fun sweepDisconnected_emptiedRoom_isGCd() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host")
+        // Host never opens socket; create() stamped them.
+
+        clock.advance(10.minutes)
+        val result = service.sweepDisconnected(maxIdle = 5.minutes)
+        assertEquals(1, result.membersReaped)
+        assertEquals(1, result.roomsReaped)
+        assertNull(service.find(room.code), "empty room GC'd same as last-out leave")
+    }
+
+    @Test
+    fun sweepDisconnected_isIdempotent() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host")
+        service.markConnected(room.code, host, connected = true)
+        service.join(room.code, alice, "Alice")
+        service.markConnected(room.code, alice, connected = false)
+        clock.advance(10.minutes)
+
+        val first = service.sweepDisconnected(maxIdle = 5.minutes)
+        val second = service.sweepDisconnected(maxIdle = 5.minutes)
+        assertEquals(1, first.membersReaped)
+        assertEquals(0, second.membersReaped, "second pass finds nothing left to reap")
+    }
+
+    @Test
+    fun sweepDisconnected_reportsRoomsSeen() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val r1 = service.create(host, "Host A")
+        service.markConnected(r1.code, host, connected = true)
+        val r2 = service.create(alice, "Host B")
+        service.markConnected(r2.code, alice, connected = true)
+        assertNotEquals(r1.code, r2.code, "distinct codes — sanity")
+
+        val result = service.sweepDisconnected(maxIdle = 5.minutes)
+        assertEquals(2, result.roomsSeen, "both rooms inspected")
+        assertEquals(0, result.membersReaped, "everybody still connected")
+    }
+
+    @Test
+    fun sweepDisconnected_emitsRoomUpdate_throughObserveFlow() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.create(host, "Host")
+        service.markConnected(room.code, host, connected = true)
+        service.join(room.code, alice, "Alice")
+        service.markConnected(room.code, alice, connected = false)
+        clock.advance(10.minutes)
+
+        // Observe before the sweep: snapshot has 2 members.
+        val flow = service.observe(room.code)!!
+        assertEquals(2, flow.first().members.size)
+
+        service.sweepDisconnected(maxIdle = 5.minutes)
+        // Sweep mutated state through the flow — subscribers see 1.
+        assertEquals(1, flow.first().members.size)
+    }
+
     // ---------- scaffolding ----------
 
     private fun newService(seed: Long = 0L): InMemoryRoomService = InMemoryRoomService(
@@ -216,6 +378,19 @@ class InMemoryRoomServiceTest {
 
     private class FixedClock(private val ms: Long = 1_700_000_000_000) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(ms)
+    }
+
+    /**
+     * Mutable wall-clock for sweep tests — production code only reads
+     * `now()`, so a single setter on the test side is enough to time-
+     * travel without coordinating coroutine dispatchers.
+     */
+    private class AdvanceableClock(startMs: Long = 1_700_000_000_000) : Clock {
+        private var current: Instant = Instant.fromEpochMilliseconds(startMs)
+        override fun now(): Instant = current
+        fun advance(by: kotlin.time.Duration) {
+            current = current + by
+        }
     }
 
 }

@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
+import com.dangerfield.cards.server.domain.RoomSweepResult
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +19,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
 
 /**
@@ -37,6 +39,13 @@ import kotlin.time.ExperimentalTime
  * 10k concurrent rooms is < 1 / 100k creations. Retry on conflict
  * caps at [MAX_CODE_RETRIES] before giving up (would only fire under
  * pathological RNG misalignment).
+ *
+ * Reconnect grace: a member's `disconnectedAt` field stamps the moment
+ * their socket dropped (or, for fresh joins, the join time itself). The
+ * sweep [sweepDisconnected] reaps anyone past the configured TTL,
+ * freeing their seat and (if it empties the room) GC'ing the room. The
+ * sweep is exposed via `POST /v1/admin/sweep-disconnected-room-members`
+ * and triggered on a cron, matching the orphan-anon-sweep pattern.
  */
 @SingleIn(ServerScope::class)
 @ContributesBinding(ServerScope::class)
@@ -70,6 +79,10 @@ class InMemoryRoomService(
             seatIndex = 0,
             joinedAt = now,
             isConnected = false,
+            // Stamped at join so the sweep treats "never-connected" the
+            // same as "disconnected": the seat-grace clock starts now.
+            // Cleared by markConnected(true) when the socket opens.
+            disconnectedAt = now,
         )
         val room = Room(
             code = code,
@@ -92,12 +105,16 @@ class InMemoryRoomService(
         if (current.isFull) return@withLock JoinResult.Full
 
         val seatIndex = nextFreeSeat(current)
+        val now = clock.now()
         val newMember = RoomMember(
             userId = userId,
             displayName = name,
             seatIndex = seatIndex,
-            joinedAt = clock.now(),
+            joinedAt = now,
             isConnected = false,
+            // See `create` — stamp disconnectedAt so the sweep treats
+            // "joined-but-never-opened-a-socket" the same as a clean drop.
+            disconnectedAt = now,
         )
         val next = current.copy(members = (current.members + newMember).sortedBy { it.seatIndex })
         state.update(next)
@@ -126,9 +143,17 @@ class InMemoryRoomService(
         val current = state.room
         val member = current.memberFor(userId) ?: return@withLock current
         if (member.isConnected == connected) return@withLock current
+        val now = clock.now()
         val next = current.copy(
             members = current.members.map { m ->
-                if (m.userId == userId) m.copy(isConnected = connected) else m
+                if (m.userId == userId) {
+                    // Stamp disconnectedAt on disconnect; clear it on reconnect.
+                    // The sweep reads this stamp to decide grace-window expiry.
+                    m.copy(
+                        isConnected = connected,
+                        disconnectedAt = if (connected) null else now,
+                    )
+                } else m
             },
         )
         state.update(next)
@@ -139,6 +164,49 @@ class InMemoryRoomService(
 
     override suspend fun observe(code: String): Flow<Room>? = mutex.withLock {
         rooms[code]?.flow?.asStateFlow()
+    }
+
+    override suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult = mutex.withLock {
+        val cutoff = clock.now() - maxIdle
+        val roomsSeen = rooms.size
+        var membersReaped = 0
+        var roomsReaped = 0
+
+        // Iterate via a snapshot of entries — we may remove entries mid-loop.
+        val codes = rooms.keys.toList()
+        for (code in codes) {
+            val state = rooms[code] ?: continue
+            val current = state.room
+            // A member is sweepable iff they're currently disconnected
+            // AND the stamp on the disconnect is older than the cutoff.
+            // Note: create() and join() both stamp disconnectedAt = now,
+            // so "joined-but-never-opened-a-socket" is treated the same
+            // as a clean drop — both age into sweep eligibility at the
+            // same rate. The null-check is belt-and-braces; markConnected
+            // is the only path that clears the field.
+            val toReap = current.members.filter { member ->
+                val droppedAt = member.disconnectedAt
+                !member.isConnected && droppedAt != null && droppedAt <= cutoff
+            }
+            if (toReap.isEmpty()) continue
+
+            val survivors = current.members - toReap.toSet()
+            membersReaped += toReap.size
+            if (survivors.isEmpty()) {
+                // Sweep emptied the room. GC same as last-out leave().
+                rooms.remove(code)
+                roomsReaped++
+                // No flow update — the room is gone and any straggling
+                // subscribers will simply stop receiving emissions.
+            } else {
+                state.update(current.copy(members = survivors))
+            }
+        }
+        RoomSweepResult(
+            membersReaped = membersReaped,
+            roomsReaped = roomsReaped,
+            roomsSeen = roomsSeen,
+        )
     }
 
     private fun generateUniqueCode(): String {

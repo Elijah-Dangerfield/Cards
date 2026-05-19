@@ -39,10 +39,13 @@ import org.slf4j.LoggerFactory
  *     Seat is held; other clients see the presence flip. The user can
  *     reopen another socket to resume — same userId, same seat.
  *
- * Reconnect grace: there's no explicit timer here. The seat stays
- * forever (until the user explicitly POSTs /me leave or the room is
- * GC'd by its host leaving). A future grace-sweep can reap stale
- * disconnected members; V1 trusts the user to clean up.
+ * Reconnect grace: there's no explicit timer here. On disconnect we
+ * stamp the member with `disconnectedAt = now`; the cron-triggered
+ * `RoomService.sweepDisconnected` reaps anyone past the configured
+ * grace window. That keeps this handler stateless w.r.t. timers — the
+ * cleanup runs out of band. Same broadcast machinery handles the
+ * sweep's effect: the room flow re-emits and subscribers see a
+ * `member_left` delta for each reaped seat.
  *
  * Delta computation: we keep the previous snapshot per-subscription
  * and diff against the new one to emit the right delta events. The
@@ -128,9 +131,9 @@ fun Route.roomSocketRoutes(rooms: RoomService) {
                     .warn("Socket for room=$code user=$userId died reading", e)
             } finally {
                 publisher.cancel()
-                // Mark disconnected regardless of close cause. The
-                // sweep that decides whether to actually free the seat
-                // is a future concern; today we just flip the flag.
+                // Mark disconnected regardless of close cause. The seat
+                // is held for the configured grace window; the cron-
+                // triggered sweep decides when it's stale enough to free.
                 rooms.markConnected(code, userId, connected = false)
             }
         }

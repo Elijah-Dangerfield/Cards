@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
+import com.dangerfield.cards.server.domain.RoomService
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.header
 import io.ktor.server.response.respond
@@ -10,6 +11,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Token-gated cleanup + maintenance endpoints. Not part of the public
@@ -23,7 +25,11 @@ import kotlin.time.Duration.Companion.days
  * style GitHub Actions workflow at the repo root is the easiest path —
  * see DEPLOY.md.
  */
-fun Route.adminRoutes(config: AdminConfig, sweep: OrphanAnonymousSweep) {
+fun Route.adminRoutes(
+    config: AdminConfig,
+    sweep: OrphanAnonymousSweep,
+    rooms: RoomService,
+) {
     route("/v1/admin") {
         post("/sweep-anonymous-users") {
             if (!call.authenticatedAsAdmin(config)) {
@@ -40,6 +46,37 @@ fun Route.adminRoutes(config: AdminConfig, sweep: OrphanAnonymousSweep) {
                     deleted = result.deleted,
                     failedToDelete = result.failedToDelete,
                     notConfigured = result.notConfigured,
+                ),
+            )
+        }
+
+        /**
+         * Frees seats whose socket has been dropped for at least
+         * [AdminConfig.disconnectedRoomMemberTtlMinutes]. Intended to be
+         * called frequently — every 1-5 minutes from an external cron —
+         * because room seats unlike anon users are short-lived and a
+         * blocked seat hurts UX immediately. Safe to call concurrently;
+         * the room mutex serializes.
+         *
+         * Returns 200 with the sweep summary regardless of whether any
+         * members got reaped — the caller logs the counts.
+         */
+        post("/sweep-disconnected-room-members") {
+            if (!call.authenticatedAsAdmin(config)) {
+                return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                )
+            }
+            val result = rooms.sweepDisconnected(
+                maxIdle = config.disconnectedRoomMemberTtlMinutes.minutes,
+            )
+            call.respond(
+                HttpStatusCode.OK,
+                RoomSweepResponse(
+                    membersReaped = result.membersReaped,
+                    roomsReaped = result.roomsReaped,
+                    roomsSeen = result.roomsSeen,
                 ),
             )
         }
@@ -64,6 +101,13 @@ private data class SweepResponse(
     val deleted: Int,
     val failedToDelete: Int,
     val notConfigured: Boolean,
+)
+
+@Serializable
+private data class RoomSweepResponse(
+    val membersReaped: Int,
+    val roomsReaped: Int,
+    val roomsSeen: Int,
 )
 
 private fun problemEnvelope(code: String, message: String): Map<String, Map<String, String>> =
