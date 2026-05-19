@@ -153,6 +153,42 @@ If the cron is offline for long enough that disconnects pile up, the
 next run still drains the backlog in one pass — the sweep is O(rooms ×
 members), bounded by the in-memory state.
 
+## Inspecting live rooms (ops dashboard)
+
+Same admin token gates `GET /v1/admin/rooms` — returns one summary per
+live room (code, host, status, seat counts, connected vs disconnected).
+Useful for verifying the sweep ran, spotting abandoned rooms between
+cron ticks, and answering "how busy is MP right now."
+
+```
+curl -H "X-Admin-Token: $ADMIN_TOKEN" \
+     https://cards-server-dev.fly.dev/v1/admin/rooms | jq
+```
+
+Output:
+
+```json
+{
+  "rooms": [
+    {
+      "code": "AB3KP9",
+      "hostUserId": "11111111-…",
+      "createdAtEpochMs": 1715000000000,
+      "status": "Lobby",
+      "maxSeats": 6,
+      "memberCount": 3,
+      "connectedCount": 2,
+      "disconnectedCount": 1
+    }
+  ]
+}
+```
+
+No PII beyond what the lobby socket already exposes (display names live
+on socket frames, not in this summary). Member-level detail is summary-
+only — full member lists scale quadratically with concurrent rooms and
+aren't needed for triage; jump to the lobby socket if you need names.
+
 ## Multiplayer (Phase 4.1 — lobby + presence)
 
 The room HTTP + WebSocket surface ships with the standard server image

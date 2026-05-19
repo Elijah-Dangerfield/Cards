@@ -196,6 +196,25 @@ class RoomRoutesTest {
     }
 
     @Test
+    fun create_returns409_whenHostExceedsRoomCap() = runTest {
+        withRooms { client ->
+            // Burn the cap with successive successful creates.
+            repeat(com.dangerfield.cards.server.domain.RoomService.MAX_ROOMS_PER_HOST) {
+                val resp = client.createRoom(asUser = host)
+                assertEquals(HttpStatusCode.OK, resp.status)
+            }
+            // One past the cap surfaces as 409 with `too_many_rooms` so
+            // the client UI can show a tailored message.
+            val refused = client.createRoom(asUser = host)
+            assertEquals(HttpStatusCode.Conflict, refused.status)
+            assertTrue(
+                refused.bodyAsText().contains("too_many_rooms"),
+                "expected too_many_rooms problem code, got ${refused.bodyAsText()}",
+            )
+        }
+    }
+
+    @Test
     fun lowercaseCode_isAcceptedViaUppercasing() = runTest {
         // The URL might roll back through some pathway in lowercase; the
         // route normalizes by uppercasing.

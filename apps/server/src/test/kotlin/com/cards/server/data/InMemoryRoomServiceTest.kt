@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.RoomService
@@ -54,7 +55,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun create_returnsRoomInLobby_withHostInSeat0() = runTest {
         val service = newService()
-        val room = service.create(host, hostName = "Host", maxSeats = 4)
+        val room = service.createOrFail(host, hostName = "Host", maxSeats = 4)
         assertEquals(RoomStatus.Lobby, room.status)
         assertEquals(4, room.maxSeats)
         assertEquals(host, room.hostUserId)
@@ -69,7 +70,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun create_codeMatchesAlphabet_andIsCorrectLength() = runTest {
         val service = newService()
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         assertEquals(InMemoryRoomService.CODE_LENGTH, room.code.length)
         assertTrue(
             room.code.all { it in InMemoryRoomService.CODE_ALPHABET },
@@ -80,7 +81,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun join_isIdempotent_forSameUser() = runTest {
         val service = newService()
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
 
         val first = service.join(room.code, alice, "Alice")
         val second = service.join(room.code, alice, "Alice")
@@ -98,7 +99,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun join_seatsInLowestFreeIndex_afterMidRoomLeave() = runTest {
         val service = newService()
-        val room = service.create(host, "Host", maxSeats = 4)
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
         service.join(room.code, alice, "Alice") // seat 1
         service.join(room.code, bob, "Bob")     // seat 2
 
@@ -117,7 +118,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun join_returnsFull_atCapacity() = runTest {
         val service = newService()
-        val room = service.create(host, "Host", maxSeats = 2)
+        val room = service.createOrFail(host, "Host", maxSeats = 2)
         service.join(room.code, alice, "Alice")
         val outcome = service.join(room.code, bob, "Bob")
         assertIs<JoinResult.Full>(outcome)
@@ -133,7 +134,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun leave_lastMember_reapsRoom() = runTest {
         val service = newService()
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         val outcome = service.leave(room.code, host)
         val success = assertIs<LeaveResult.Success>(outcome)
         assertTrue(success.roomGone)
@@ -143,7 +144,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun leave_nonHost_keepsRoomAlive() = runTest {
         val service = newService()
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         service.join(room.code, alice, "Alice")
 
         val outcome = service.leave(room.code, alice)
@@ -156,7 +157,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun leave_nonMember_returnsNotInRoom() = runTest {
         val service = newService()
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         val outcome = service.leave(room.code, alice)
         assertIs<LeaveResult.NotInRoom>(outcome)
     }
@@ -164,7 +165,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun markConnected_flipsMemberPresence() = runTest {
         val service = newService()
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         assertEquals(false, service.find(room.code)!!.memberFor(host)!!.isConnected)
 
         service.markConnected(room.code, host, connected = true)
@@ -177,7 +178,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun observe_emitsCurrentRoom_onSubscribe_andOnEveryMutation() = runTest {
         val service = newService()
-        val room = service.create(host, "Host", maxSeats = 4)
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
         val flow = service.observe(room.code)!!
 
         // Subscribe-time read — StateFlow's first() is immediate.
@@ -193,7 +194,7 @@ class InMemoryRoomServiceTest {
     @Test
     fun concurrentJoins_neverDuplicateSeats() = runTest {
         val service = newService()
-        val room = service.create(host, "Host", maxSeats = 6)
+        val room = service.createOrFail(host, "Host", maxSeats = 6)
         val joiners = (1..5).map { i -> UserId(UUID.randomUUID()) to "P$i" }
         // Fire all five joins concurrently. The mutex should serialize
         // them; the resulting seats must all be unique and in [1, 5].
@@ -215,7 +216,7 @@ class InMemoryRoomServiceTest {
     fun markConnected_false_stampsDisconnectedAt() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         service.markConnected(room.code, host, connected = true)
 
         val before = clock.now()
@@ -235,7 +236,7 @@ class InMemoryRoomServiceTest {
     fun markConnected_true_clearsDisconnectedAt() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         // create() stamps disconnectedAt = now so the seat-grace clock
         // ticks even for never-connected members.
         assertNotNull(service.find(room.code)!!.memberFor(host)!!.disconnectedAt)
@@ -252,7 +253,7 @@ class InMemoryRoomServiceTest {
     fun sweepDisconnected_reapsMembersPastTtl() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host", maxSeats = 4)
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
         service.markConnected(room.code, host, connected = true)
         service.join(room.code, alice, "Alice")
         service.markConnected(room.code, alice, connected = true)
@@ -278,7 +279,7 @@ class InMemoryRoomServiceTest {
     fun sweepDisconnected_preservesConnectedMembers_regardlessOfClock() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         service.markConnected(room.code, host, connected = true)
 
         clock.advance(60.minutes)
@@ -294,7 +295,7 @@ class InMemoryRoomServiceTest {
         // an abandoned join doesn't camp a seat forever.
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         service.markConnected(room.code, host, connected = true)
         service.join(room.code, alice, "Alice")
         // alice never calls markConnected.
@@ -309,7 +310,7 @@ class InMemoryRoomServiceTest {
     fun sweepDisconnected_emptiedRoom_isGCd() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         // Host never opens socket; create() stamped them.
 
         clock.advance(10.minutes)
@@ -323,7 +324,7 @@ class InMemoryRoomServiceTest {
     fun sweepDisconnected_isIdempotent() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         service.markConnected(room.code, host, connected = true)
         service.join(room.code, alice, "Alice")
         service.markConnected(room.code, alice, connected = false)
@@ -339,9 +340,9 @@ class InMemoryRoomServiceTest {
     fun sweepDisconnected_reportsRoomsSeen() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val r1 = service.create(host, "Host A")
+        val r1 = service.createOrFail(host, "Host A")
         service.markConnected(r1.code, host, connected = true)
-        val r2 = service.create(alice, "Host B")
+        val r2 = service.createOrFail(alice, "Host B")
         service.markConnected(r2.code, alice, connected = true)
         assertNotEquals(r1.code, r2.code, "distinct codes — sanity")
 
@@ -350,11 +351,91 @@ class InMemoryRoomServiceTest {
         assertEquals(0, result.membersReaped, "everybody still connected")
     }
 
+    // ---------- create cap + snapshot ----------
+
+    @Test
+    fun create_rejectsHostBeyondMaxRoomsPerHost() = runTest {
+        val service = newService()
+        // First MAX_ROOMS_PER_HOST creates all succeed.
+        repeat(RoomService.MAX_ROOMS_PER_HOST) {
+            val outcome = service.create(host, "Host")
+            assertIs<CreateResult.Success>(outcome)
+        }
+        // One past the cap fails — surfaces the count so the caller can
+        // be specific in their error copy.
+        val refused = service.create(host, "Host")
+        val tooMany = assertIs<CreateResult.TooManyRooms>(refused)
+        assertEquals(RoomService.MAX_ROOMS_PER_HOST, tooMany.activeCount)
+    }
+
+    @Test
+    fun create_capIsPerHost_otherUsersUnaffected() = runTest {
+        val service = newService()
+        repeat(RoomService.MAX_ROOMS_PER_HOST) {
+            assertIs<CreateResult.Success>(service.create(host, "Host"))
+        }
+        // A different user can still create — cap is per-user, not global.
+        assertIs<CreateResult.Success>(service.create(alice, "Alice"))
+    }
+
+    @Test
+    fun create_capIsReclaimable_afterLeavingARoom() = runTest {
+        val service = newService()
+        val first = assertIs<CreateResult.Success>(service.create(host, "Host"))
+        repeat(RoomService.MAX_ROOMS_PER_HOST - 1) {
+            assertIs<CreateResult.Success>(service.create(host, "Host"))
+        }
+        // At cap.
+        assertIs<CreateResult.TooManyRooms>(service.create(host, "Host"))
+
+        // Leave one — it was a solo room so the room itself gets GC'd
+        // and the host frees a slot for a new create.
+        service.leave(first.room.code, host)
+        assertIs<CreateResult.Success>(service.create(host, "Host"))
+    }
+
+    @Test
+    fun create_capIsReclaimable_afterSweep() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        // Three rooms abandoned right at create — the host never opens a
+        // socket. After the sweep TTL elapses, all three get GC'd and the
+        // slot opens up.
+        repeat(RoomService.MAX_ROOMS_PER_HOST) {
+            assertIs<CreateResult.Success>(service.create(host, "Host"))
+        }
+        assertIs<CreateResult.TooManyRooms>(service.create(host, "Host"))
+
+        clock.advance(10.minutes)
+        val swept = service.sweepDisconnected(maxIdle = 5.minutes)
+        assertEquals(RoomService.MAX_ROOMS_PER_HOST, swept.roomsReaped)
+        assertIs<CreateResult.Success>(service.create(host, "Host"))
+    }
+
+    @Test
+    fun snapshot_listsLiveRoomsInStableOrder_andIsEmptyAfterSweep() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val r1 = assertIs<CreateResult.Success>(service.create(host, "A"))
+        val r2 = assertIs<CreateResult.Success>(service.create(alice, "B"))
+
+        val initial = service.snapshot()
+        assertEquals(2, initial.size)
+        // Same instant from FixedClock-style stepping — ties break on code,
+        // so the order is fully deterministic for ops scans.
+        assertEquals(initial.sortedBy { it.code }, initial)
+
+        // Drain everyone — last-out reaps the room.
+        service.leave(r1.room.code, host)
+        service.leave(r2.room.code, alice)
+        assertEquals(emptyList(), service.snapshot())
+    }
+
     @Test
     fun sweepDisconnected_emitsRoomUpdate_throughObserveFlow() = runTest {
         val clock = AdvanceableClock()
         val service = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = service.create(host, "Host")
+        val room = service.createOrFail(host, "Host")
         service.markConnected(room.code, host, connected = true)
         service.join(room.code, alice, "Alice")
         service.markConnected(room.code, alice, connected = false)

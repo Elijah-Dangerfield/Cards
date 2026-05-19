@@ -7,11 +7,13 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.header
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.ExperimentalTime
 
 /**
  * Token-gated cleanup + maintenance endpoints. Not part of the public
@@ -25,6 +27,7 @@ import kotlin.time.Duration.Companion.minutes
  * style GitHub Actions workflow at the repo root is the easiest path —
  * see DEPLOY.md.
  */
+@OptIn(ExperimentalTime::class)
 fun Route.adminRoutes(
     config: AdminConfig,
     sweep: OrphanAnonymousSweep,
@@ -80,6 +83,46 @@ fun Route.adminRoutes(
                 ),
             )
         }
+
+        /**
+         * Operational dashboard for live rooms. Returns one entry per
+         * room — code, host, seat occupancy, presence counts — so an
+         * operator can spot abandoned rooms before the sweep ticks,
+         * answer "how busy is MP right now," and verify that the sweep
+         * is doing its job between cron runs.
+         *
+         * No PII beyond what's already public over the lobby socket
+         * (display names + presence). Member-level detail is
+         * intentionally summary-only — full member lists go up
+         * quadratically with concurrent rooms and aren't needed for
+         * ops triage.
+         */
+        get("/rooms") {
+            if (!call.authenticatedAsAdmin(config)) {
+                return@get call.respond(
+                    HttpStatusCode.Unauthorized,
+                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                )
+            }
+            val snapshot = rooms.snapshot()
+            call.respond(
+                HttpStatusCode.OK,
+                AdminRoomListResponse(
+                    rooms = snapshot.map { room ->
+                        AdminRoomSummary(
+                            code = room.code,
+                            hostUserId = room.hostUserId.value.toString(),
+                            createdAtEpochMs = room.createdAt.toEpochMilliseconds(),
+                            status = room.status.name,
+                            maxSeats = room.maxSeats,
+                            memberCount = room.members.size,
+                            connectedCount = room.members.count { it.isConnected },
+                            disconnectedCount = room.members.count { !it.isConnected },
+                        )
+                    },
+                ),
+            )
+        }
     }
 }
 
@@ -108,6 +151,26 @@ private data class RoomSweepResponse(
     val membersReaped: Int,
     val roomsReaped: Int,
     val roomsSeen: Int,
+)
+
+@Serializable
+private data class AdminRoomListResponse(
+    val rooms: List<AdminRoomSummary>,
+) {
+    val totalRooms: Int get() = rooms.size
+    val totalConnectedMembers: Int get() = rooms.sumOf { it.connectedCount }
+}
+
+@Serializable
+private data class AdminRoomSummary(
+    val code: String,
+    val hostUserId: String,
+    val createdAtEpochMs: Long,
+    val status: String,
+    val maxSeats: Int,
+    val memberCount: Int,
+    val connectedCount: Int,
+    val disconnectedCount: Int,
 )
 
 private fun problemEnvelope(code: String, message: String): Map<String, Map<String, String>> =

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.Room
@@ -70,7 +71,14 @@ class InMemoryRoomService(
         }
     }
 
-    override suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int): Room = mutex.withLock {
+    override suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int): CreateResult = mutex.withLock {
+        val activeHosted = rooms.values.count { it.room.hostUserId == hostUserId }
+        if (activeHosted >= RoomService.MAX_ROOMS_PER_HOST) {
+            // Soft cap — see `RoomService.MAX_ROOMS_PER_HOST`. Honest
+            // workflows can always leave a prior room and try again; the
+            // sweep will eventually free abandoned ones too.
+            return@withLock CreateResult.TooManyRooms(activeCount = activeHosted)
+        }
         val now = clock.now()
         val code = generateUniqueCode()
         val host = RoomMember(
@@ -93,7 +101,7 @@ class InMemoryRoomService(
             members = listOf(host),
         )
         rooms[code] = RoomState(room = room)
-        room
+        CreateResult.Success(room)
     }
 
     override suspend fun join(code: String, userId: UserId, name: String): JoinResult = mutex.withLock {
@@ -164,6 +172,14 @@ class InMemoryRoomService(
 
     override suspend fun observe(code: String): Flow<Room>? = mutex.withLock {
         rooms[code]?.flow?.asStateFlow()
+    }
+
+    override suspend fun snapshot(): List<Room> = mutex.withLock {
+        // Stable order by creation time keeps the admin dashboard scan
+        // predictable; ties (same instant from FixedClock) fall back to
+        // code so the output is fully deterministic.
+        rooms.values.map { it.room }
+            .sortedWith(compareBy({ it.createdAt }, { it.code }))
     }
 
     override suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult = mutex.withLock {

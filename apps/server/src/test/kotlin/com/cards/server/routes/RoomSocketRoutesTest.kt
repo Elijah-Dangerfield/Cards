@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.routes
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.data.InMemoryRoomService
+import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installSerialization
@@ -72,7 +73,7 @@ class RoomSocketRoutesTest {
     @Test
     fun connect_firstFrameIsSnapshot_andMarksMemberConnected() = runTest {
         val rooms = newRoomService()
-        val room = rooms.create(host, "Host")
+        val room = rooms.createOrFail(host, "Host")
         withApp(rooms) { client ->
             client.openSocket(room.code, asUser = host) { session ->
                 val event = session.receiveOne()
@@ -92,7 +93,7 @@ class RoomSocketRoutesTest {
     @Test
     fun nonMember_socketIsRejected() = runTest {
         val rooms = newRoomService()
-        val room = rooms.create(host, "Host")
+        val room = rooms.createOrFail(host, "Host")
         withApp(rooms) { client ->
             client.openSocket(room.code, asUser = alice) { session ->
                 // We expect the server to close the socket immediately.
@@ -115,7 +116,7 @@ class RoomSocketRoutesTest {
     @Test
     fun secondJoin_broadcastsToFirstSocket() = runTest {
         val rooms = newRoomService()
-        val room = rooms.create(host, "Host", maxSeats = 4)
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         withApp(rooms) { client ->
             client.openSocket(room.code, asUser = host) { hostSession ->
                 // Drain the initial snapshot.
@@ -142,7 +143,7 @@ class RoomSocketRoutesTest {
     @Test
     fun disconnect_broadcastsPresenceFlip_toOtherSockets() = runTest {
         val rooms = newRoomService()
-        val room = rooms.create(host, "Host", maxSeats = 4)
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
         withApp(rooms) { client ->
             client.openSocket(room.code, asUser = host) { hostSession ->
@@ -172,7 +173,7 @@ class RoomSocketRoutesTest {
     @Test
     fun reconnectSameUser_preservesSeat_andDoesNotDuplicateMember() = runTest {
         val rooms = newRoomService()
-        val room = rooms.create(host, "Host", maxSeats = 4)
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
         val originalSeatIndex = rooms.find(room.code)!!.memberFor(alice)!!.seatIndex
 

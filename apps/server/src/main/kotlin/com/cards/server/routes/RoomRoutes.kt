@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -39,7 +40,7 @@ import io.ktor.server.routing.route
  * Status codes:
  *  - 200 — happy path
  *  - 404 — room code unknown / GC'd
- *  - 409 — room is full or no longer joinable (e.g. status moved past Lobby)
+ *  - 409 — room is full / no longer joinable / caller hosts too many rooms
  *  - 400 — malformed body (e.g. maxSeats out of range)
  *  - 401 — missing / invalid JWT (the auth plugin handles this for us)
  */
@@ -60,12 +61,23 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                     )
                 }
                 val profile = profiles.findOrCreate(userId)
-                val room = rooms.create(
+                when (val outcome = rooms.create(
                     hostUserId = userId,
                     hostName = profile.displayName,
                     maxSeats = maxSeats,
-                )
-                call.respond(HttpStatusCode.OK, CreateRoomResponse(room = room.toDto()))
+                )) {
+                    is CreateResult.Success -> call.respond(
+                        HttpStatusCode.OK,
+                        CreateRoomResponse(room = outcome.room.toDto()),
+                    )
+                    is CreateResult.TooManyRooms -> call.respond(
+                        HttpStatusCode.Conflict,
+                        problemEnvelope(
+                            "too_many_rooms",
+                            "You already host ${outcome.activeCount} rooms. Leave one before creating another.",
+                        ),
+                    )
+                }
             }
 
             get("/{code}") {

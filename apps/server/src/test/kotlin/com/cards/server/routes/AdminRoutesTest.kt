@@ -2,12 +2,14 @@ package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.InMemoryRoomService
+import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.SweepResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
@@ -17,6 +19,7 @@ import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.UUID
@@ -45,6 +48,8 @@ import kotlin.time.Instant
  *  - 200 with sweep counts on the happy path
  *  - The TTL the route uses matches AdminConfig (boundary check: a
  *    7-min disconnect with a 5-min TTL gets reaped; a 3-min one doesn't)
+ *  - GET /v1/admin/rooms — token-gated like the sweeps, returns one
+ *    summary per live room with connected / disconnected counts.
  */
 @OptIn(ExperimentalTime::class)
 class AdminRoutesTest {
@@ -97,7 +102,7 @@ class AdminRoutesTest {
         val clock = AdvanceableClock()
         val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
         // Seed: two rooms, one with a sweepable member.
-        val room = rooms.create(host, "Host")
+        val room = rooms.createOrFail(host, "Host")
         rooms.markConnected(room.code, host, connected = true)
         rooms.join(room.code, alice, "Alice")
         rooms.markConnected(room.code, alice, connected = false)
@@ -119,7 +124,7 @@ class AdminRoutesTest {
     fun sweepRoomMembers_respectsConfiguredTtl_boundary() = runTest {
         val clock = AdvanceableClock()
         val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
-        val room = rooms.create(host, "Host")
+        val room = rooms.createOrFail(host, "Host")
         rooms.markConnected(room.code, host, connected = true)
         rooms.join(room.code, alice, "Alice")
         rooms.markConnected(room.code, alice, connected = false)
@@ -142,6 +147,84 @@ class AdminRoutesTest {
             }
             val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
             assertEquals(1, body["membersReaped"]!!.jsonPrimitive.content.toInt())
+        }
+    }
+
+    // ---------- GET /v1/admin/rooms ----------
+
+    @Test
+    fun listRooms_returnsUnauthorized_withoutToken() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val resp = client.get("/v1/admin/rooms")
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    @Test
+    fun listRooms_returnsUnauthorized_whenServerHasNoToken() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms, configuredToken = null) { client ->
+            val resp = client.get("/v1/admin/rooms") {
+                header("X-Admin-Token", "anything")
+            }
+            assertEquals(
+                HttpStatusCode.Unauthorized,
+                resp.status,
+                "unset ADMIN_API_TOKEN must fail closed on the list endpoint too",
+            )
+        }
+    }
+
+    @Test
+    fun listRooms_returnsEmpty_whenNoRooms() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val resp = client.get("/v1/admin/rooms") {
+                header("X-Admin-Token", token)
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals(0, body["rooms"]!!.jsonArray.size)
+        }
+    }
+
+    @Test
+    fun listRooms_summarizesEachRoom_withCounts() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val r1 = rooms.createOrFail(host, "Host")
+        rooms.markConnected(r1.code, host, connected = true)
+        rooms.join(r1.code, alice, "Alice")
+        rooms.markConnected(r1.code, alice, connected = false)
+        // Second room with a different host.
+        val r2 = rooms.createOrFail(alice, "Alice", maxSeats = 4)
+        rooms.markConnected(r2.code, alice, connected = true)
+
+        withApp(rooms) { client ->
+            val resp = client.get("/v1/admin/rooms") {
+                header("X-Admin-Token", token)
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            val list = body["rooms"]!!.jsonArray.map { it.jsonObject }
+            assertEquals(2, list.size)
+            // Find r1 in the list — order is by createdAt then code; both
+            // rooms share createdAt in this test so we look up by code.
+            val r1Summary = list.first { it["code"]!!.jsonPrimitive.content == r1.code }
+            assertEquals(2, r1Summary["memberCount"]!!.jsonPrimitive.content.toInt())
+            assertEquals(1, r1Summary["connectedCount"]!!.jsonPrimitive.content.toInt())
+            assertEquals(1, r1Summary["disconnectedCount"]!!.jsonPrimitive.content.toInt())
+            assertEquals("Lobby", r1Summary["status"]!!.jsonPrimitive.content)
+            assertEquals(host.value.toString(), r1Summary["hostUserId"]!!.jsonPrimitive.content)
+
+            val r2Summary = list.first { it["code"]!!.jsonPrimitive.content == r2.code }
+            assertEquals(1, r2Summary["memberCount"]!!.jsonPrimitive.content.toInt())
+            assertEquals(1, r2Summary["connectedCount"]!!.jsonPrimitive.content.toInt())
+            assertEquals(4, r2Summary["maxSeats"]!!.jsonPrimitive.content.toInt())
         }
     }
 

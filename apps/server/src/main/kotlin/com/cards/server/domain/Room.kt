@@ -82,9 +82,17 @@ interface RoomService {
     /**
      * Create a fresh room. Picks a unique code, places the host in
      * seat 0 (connected=false until they open their socket), returns
-     * the populated [Room].
+     * the populated [Room] inside [CreateResult.Success] — or refuses
+     * with [CreateResult.TooManyRooms] when the caller already hosts
+     * [MAX_ROOMS_PER_HOST] live rooms.
+     *
+     * The per-host cap is a soft abuse stop: a user who creates rooms
+     * faster than they leave them is either a bot or a buggy client.
+     * The cap is liberal enough that no honest workflow hits it
+     * (re-create after a crash is fine — the old rooms get GC'd by
+     * the sweep or by the last-out leave).
      */
-    suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int = MAX_SEATS): Room
+    suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int = MAX_SEATS): CreateResult
 
     /**
      * Idempotent join. If the user is already a member, returns
@@ -131,9 +139,34 @@ interface RoomService {
      */
     suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult
 
+    /**
+     * Lightweight summary of every live room, ordered for stable display.
+     * Powers the token-gated `GET /v1/admin/rooms` endpoint — used by ops
+     * to verify the sweep is doing its job, spot abandoned rooms before
+     * the next sweep tick, and answer "how many people are in MP right
+     * now." Never exposed to authenticated clients; the room socket is
+     * the only public room-discovery surface.
+     */
+    suspend fun snapshot(): List<Room>
+
     companion object {
         const val MAX_SEATS = 6
+
+        /**
+         * Soft cap on concurrent rooms a single user can host. Set high
+         * enough that no honest workflow hits it (re-create after a
+         * crash, leave + create, etc.) but low enough that a malicious
+         * client can't hoard codes and exhaust the in-memory map.
+         */
+        const val MAX_ROOMS_PER_HOST = 3
     }
+}
+
+sealed interface CreateResult {
+    data class Success(val room: Room) : CreateResult
+    /** The host already hosts [RoomService.MAX_ROOMS_PER_HOST] live rooms;
+     *  leaving one frees the slot. */
+    data class TooManyRooms(val activeCount: Int) : CreateResult
 }
 
 /**
