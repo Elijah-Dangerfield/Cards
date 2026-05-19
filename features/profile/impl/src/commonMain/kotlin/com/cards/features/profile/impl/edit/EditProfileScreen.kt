@@ -45,6 +45,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.horizontalScrollWithBar
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 
@@ -349,10 +350,13 @@ private fun BackgroundColorPicker(
     onSelect: (String?) -> Unit,
 ) {
     // First swatch represents "no override" / theme default — null in
-    // state. Subsequent swatches are server-supplied hex strings.
+    // state. Subsequent swatches are server-supplied hex strings. Scrolls
+    // horizontally so a wide palette can't clip the last swatch off-screen.
     Row(
         horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScrollWithBar(rememberScrollState()),
     ) {
         ColorSwatch(
             colorHex = null,
@@ -461,6 +465,34 @@ private fun EditProfileScreenPreview_Loading() {
                 initialAvatarEmoji = "🦊",
                 selectedAvatarEmoji = "🦊",
                 isLoadingAvatars = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_LongPalette() {
+    // Pins the horizontal-scroll fix on BackgroundColorPicker — a palette
+    // wider than the screen must scroll rather than clip the last swatch.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "Elijah",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🦊",
+                avatarPacks = listOf(
+                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯", "🦄", "🐲", "🦁", "🐸")),
+                ),
+                backgroundPalette = listOf(
+                    "#E45858", "#E48A58", "#E4B458", "#A8E458", "#58E47C",
+                    "#58E4D2", "#5894E4", "#7458E4", "#C658E4", "#E458B0",
+                    "#E4585A", "#E4A0B4",
+                ),
+                selectedAvatarBackgroundColor = "#58E47C",
             ),
             onAction = {},
             onBack = {},
