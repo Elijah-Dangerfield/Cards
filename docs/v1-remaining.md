@@ -77,8 +77,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Email/password missing from Claim flow.** The Claim screen only surfaces Apple / Google buttons. We ship email/password auth too, so the Claim screen needs to route to the same email sign-up / sign-in surface as new-user onboarding does — otherwise an anonymous user who only has email can't claim.
 
 ### Achievements
-- **"Made another player bust" achievement.** Not in the registry today; add it.
-- **Bot-vs-human duplication.** Several existing achievements treat busting/wins against bots and humans the same; the prestige value is different. Audit `AchievementRegistry` and either (a) tag each entry as bot-eligible / human-eligible / both, or (b) duplicate the entries with separate ids ("bust 10 bots" + "bust 10 humans"). The duplication path is simpler; the tagging path is cleaner. Decide at the moment we touch the file.
+- **Bot-vs-human duplication for the rest of the registry.** `FIRST_BUST_DEALT` / `BUST_DEALT_5` (added) are bot-only via `mode = BOTS` — same pattern needs to be applied to the rest of the registry when MP ships in Phase 4.2+. The "Beat Jane 10 times" entries are already bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`, which is fine until MP arrives. Decide at MP-launch time whether prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) deserve human-only variants with separate ids.
 
 ### Rank screen
 - **Rank/league surface isn't built out.** XP screen exists; the rank page is a stub. Either build the V1 form (current tier, what unlocks at each tier, no league mechanic yet) or be explicit it's gated until V1.1 leagues. Decide before V1 ship.

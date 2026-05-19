@@ -86,6 +86,10 @@ enum class AchievementId {
     DOUBLE_UP,
     TRIPLE_UP,
 
+    // Busting opponents (bot-only for V1; MP variants land with Phase 4.2+)
+    FIRST_BUST_DEALT,
+    BUST_DEALT_5,
+
     // Level milestones
     REACH_LEVEL_5,
     REACH_LEVEL_10,

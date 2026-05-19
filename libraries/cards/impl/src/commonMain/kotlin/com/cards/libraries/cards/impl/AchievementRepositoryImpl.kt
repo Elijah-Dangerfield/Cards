@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.ALL_IN_HANDS
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
+import com.dangerfield.cards.libraries.cards.BUSTS_DEALT
 import com.dangerfield.cards.libraries.cards.CHALLENGING_WINS
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.COMEBACK_5BB
@@ -101,6 +102,7 @@ class AchievementRepositoryImpl(
         updateAllInCounter(summary)
         updateMaxPotSeen(summary)
         updateStackSwingCounters(context)
+        updateBustsDealtCounter(summary, context)
         updateCurrentLevel()
 
         // 3) Re-read counters once, then check every un-earned achievement.
@@ -284,6 +286,20 @@ class AchievementRepositoryImpl(
                 AchievementCounterEntity(key = MAX_POT_SEEN, value = summary.totalPot.toInt()),
             )
         }
+    }
+
+    private suspend fun updateBustsDealtCounter(
+        summary: HandResultSummary,
+        context: AchievementHandContext,
+    ) {
+        // Attribute busts to the human only on hands where the human won at
+        // least one pot share. Otherwise an opponent who busted to a third
+        // player would still credit the human's "Eliminator" progress —
+        // wrong. Cheap, correct-enough heuristic for the common case.
+        if (!summary.wonPot) return
+        val busts = context.bustedOpponentNames.size
+        if (busts <= 0) return
+        achievementDao.incrementCounter(BUSTS_DEALT, busts)
     }
 
     private suspend fun updateStackSwingCounters(context: AchievementHandContext) {

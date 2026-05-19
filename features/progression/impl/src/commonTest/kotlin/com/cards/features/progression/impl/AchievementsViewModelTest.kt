@@ -2,8 +2,11 @@ package com.dangerfield.cards.features.progression.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AchievementId
+import com.dangerfield.cards.libraries.cards.AchievementMode
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
+import com.dangerfield.cards.libraries.cards.AllAchievementsById
+import com.dangerfield.cards.libraries.cards.BUSTS_DEALT
 import com.dangerfield.cards.libraries.cards.Criterion
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -123,6 +126,41 @@ class AchievementsViewModelTest : CoroutineTest() {
             customCounters = emptyMap(),
         )
         assertEquals(500, hands500.currentProgress(progress))
+    }
+
+    // ---------- Bust-an-opponent achievement wiring ----------
+
+    @Test
+    fun bustAchievements_areRegistered_botMode_withBustsDealtCriterion() {
+        val first = AllAchievementsById.getValue(AchievementId.FIRST_BUST_DEALT)
+        val fifth = AllAchievementsById.getValue(AchievementId.BUST_DEALT_5)
+
+        // Both criteria read from the same custom-counter key so they tick
+        // together as the user busts more opponents.
+        assertEquals(BUSTS_DEALT, (first.criterion as Criterion.Custom).key)
+        assertEquals(BUSTS_DEALT, (fifth.criterion as Criterion.Custom).key)
+        assertEquals(1, first.criterion.target)
+        assertEquals(5, fifth.criterion.target)
+
+        // Bot-only for V1; MP variants will get their own ids when MP ships.
+        assertEquals(AchievementMode.BOTS, first.mode)
+        assertEquals(AchievementMode.BOTS, fifth.mode)
+    }
+
+    @Test
+    fun bustAchievement_currentProgress_readsFromCustomCounter() {
+        val first = AllAchievementsById.getValue(AchievementId.FIRST_BUST_DEALT)
+        val progress = AchievementProgress(
+            earned = emptyMap(),
+            counters = emptyMap(),
+            customCounters = mapOf(BUSTS_DEALT to 3),
+        )
+        // currentProgress clamps at criterion target, so the FIRST achievement
+        // (target = 1) reads as 1 even when the underlying counter is 3.
+        assertEquals(1, first.currentProgress(progress))
+        // Same counter feeds the 5-bust threshold without clamping (3 < 5).
+        val fifth = AllAchievementsById.getValue(AchievementId.BUST_DEALT_5)
+        assertEquals(3, fifth.currentProgress(progress))
     }
 
     /** A repository whose Flow never emits — used to pin the initial-state

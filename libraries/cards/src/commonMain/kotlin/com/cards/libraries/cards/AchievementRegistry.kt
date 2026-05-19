@@ -367,6 +367,30 @@ val AllAchievements: List<Achievement> = listOf(
         chipReward = 250L,
     ),
 
+    // Busting opponents — bot-only for V1; the MP equivalents will land
+    // as separate ids when Phase 4.2 ships ("the prestige of busting a
+    // real human is materially different from busting a bot").
+    Achievement(
+        id = AchievementId.FIRST_BUST_DEALT,
+        name = "Dealer's choice",
+        description = "Knock another player out of a hand. Their chips, your win.",
+        icon = "💀",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = BUSTS_DEALT, target = 1),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+        mode = AchievementMode.BOTS,
+    ),
+    Achievement(
+        id = AchievementId.BUST_DEALT_5,
+        name = "Eliminator",
+        description = "Bust five opponents.",
+        icon = "🪦",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = BUSTS_DEALT, target = 5),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+        mode = AchievementMode.BOTS,
+    ),
+
     // Level milestones
     Achievement(
         id = AchievementId.REACH_LEVEL_5,
@@ -427,6 +451,12 @@ const val ALL_IN_HANDS: String = "all_in_hands"
 /** Times the human's stack grew to ≥ 2× / 3× the starting stack within a hand. */
 const val DOUBLED_UP: String = "doubled_up"
 const val TRIPLED_UP: String = "tripled_up"
+
+/**
+ * Opponents the human has knocked out (`stack ≤ 0` at hand end on a hand
+ * the human won the pot). Multi-bust hands count each busted opponent.
+ */
+const val BUSTS_DEALT: String = "busts_dealt"
 
 /** Max pot the human has been a part of (sticky high-water mark). */
 const val MAX_POT_SEEN: String = "max_pot_seen"
