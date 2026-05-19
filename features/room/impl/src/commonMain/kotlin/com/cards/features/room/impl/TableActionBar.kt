@@ -30,12 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -138,7 +136,7 @@ internal fun QuickActionBar(
                             modifier = Modifier
                                 .size(60.dp)
                                 .clip(RoundedCornerShape(28.dp))
-                                .background(Color.White.copy(alpha = 0.14f))
+                                .background(AppTheme.colors.surfaceSecondary.color)
                                 .clickable(onClick = onExpandRaise),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -163,12 +161,14 @@ private fun PrimaryPill(
     onDisabledTap: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    val faded = remember { ColorResource.FromColor(Color.White.copy(alpha = 0.4f), "disabled-text") }
     Box(
         modifier = modifier
             .height(60.dp)
             .clip(RoundedCornerShape(28.dp))
-            .background(Color.White.copy(alpha = if (enabled) 0.14f else 0.06f))
+            .background(
+                if (enabled) AppTheme.colors.surfaceSecondary.color
+                else AppTheme.colors.surfaceDisabled.color,
+            )
             .clickable(
                 onClick = if (enabled) onClick else (onDisabledTap ?: {}),
             ),
@@ -177,7 +177,7 @@ private fun PrimaryPill(
         Text(
             text = label,
             typography = AppTheme.typography.Body.B600,
-            color = if (enabled) AppTheme.colors.text else faded,
+            color = if (enabled) AppTheme.colors.text else AppTheme.colors.textDisabled,
         )
     }
 }

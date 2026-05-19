@@ -94,7 +94,7 @@ private fun BoardWell(width: androidx.compose.ui.unit.Dp, height: androidx.compo
             .clip(RoundedCornerShape(16.dp))
             .border(
                 width = 1.5.dp,
-                color = Color.White.copy(alpha = 0.10f),
+                color = PokerPalette.CardSlotOutline,
                 shape = RoundedCornerShape(16.dp),
             ),
     )

@@ -240,7 +240,7 @@ private fun PlayerInfoTile(
             .background(AppTheme.colors.surfacePrimary.color)
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.08f),
+                color = AppTheme.colors.border.color,
                 shape = RoundedCornerShape(16.dp),
             )
             .padding(horizontal = 10.dp, vertical = 4.dp),

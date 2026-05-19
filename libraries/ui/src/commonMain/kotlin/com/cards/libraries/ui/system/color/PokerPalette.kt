@@ -34,4 +34,8 @@ object PokerPalette {
 
     /** Fill for an empty card slot — reads as a card-shaped "well" the next card will land in. */
     val CardSlot: Color = Color(0x14F4F1E8)
+
+    /** 1.5dp outline color for the community-board "well" — sits on top of the
+     *  felt, intentionally subtle so dealt cards visually fill the outline. */
+    val CardSlotOutline: Color = Color(0x1AFFFFFF)
 }
