@@ -143,9 +143,13 @@ class PlayPokerViewModel @Inject constructor(
                     .firstOrNull { it != com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default }
                     ?: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default
                 val winOddsTool = entries.any { it.productId == TOOL_WIN_ODDS_PRODUCT_ID }
+                // Newest-equipped-title wins so a freshly-equipped title
+                // takes over from a prior one without an explicit unequip.
+                val title = entries.firstNotNullOfOrNull { titleForProductId(it.productId) }
                 takeAction(PlayPokerAction.EquippedFeltChanged(felt))
                 takeAction(PlayPokerAction.EquippedCardBackChanged(cardBack))
                 takeAction(PlayPokerAction.WinOddsToolEquippedChanged(winOddsTool))
+                takeAction(PlayPokerAction.EquippedTitleChanged(title))
             }
         }
         // Live win-odds — only computes when the user owns + equips the
@@ -351,6 +355,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.WinPercentChanged -> action.updateState {
                 it.copy(humanWinPercent = action.percent)
             }
+            is PlayPokerAction.EquippedTitleChanged -> action.updateState {
+                it.copy(equippedTitle = action.title)
+            }
         }
     }
 }
@@ -406,6 +413,11 @@ data class PlayPokerState(
      * opponents-still-in-hand count), not every state tick.
      */
     val humanWinPercent: Int? = null,
+    /**
+     * Equipped vanity title (e.g. "The Shark") rendered under the
+     * player's name. Null when nothing's equipped — UI hides the row.
+     */
+    val equippedTitle: String? = null,
 )
 
 sealed interface PlayPokerAction {
@@ -449,6 +461,9 @@ sealed interface PlayPokerAction {
 
     /** Fired by the equity flow after a fresh Monte Carlo run resolves. */
     data class WinPercentChanged(val percent: Int?) : PlayPokerAction
+
+    /** Fired by the equipment subscription; flips the equipped title shown under the name. */
+    data class EquippedTitleChanged(val title: String?) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {

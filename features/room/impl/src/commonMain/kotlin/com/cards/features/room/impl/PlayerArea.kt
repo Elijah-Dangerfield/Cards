@@ -70,6 +70,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 internal fun PlayerArea(
     table: TableUiState.Active,
+    humanTitle: String? = null,
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit = { _, _ -> },
@@ -120,6 +121,7 @@ internal fun PlayerArea(
             seat = human,
             handLabel = table.humanHandLabel,
             isWinner = isWinner,
+            title = humanTitle,
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
@@ -216,6 +218,7 @@ private fun PlayerInfoTile(
     seat: SeatView,
     handLabel: String?,
     isWinner: Boolean,
+    title: String?,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit,
@@ -268,6 +271,20 @@ private fun PlayerInfoTile(
                     // breathing room between the marker and the stack number
                     // below so the two tap targets don't crowd each other.
                     .offset(x = (-2).dp, y = (-8).dp),
+            )
+        }
+        // Equipped title — "Bluff Master", "The Shark", "High Roller".
+        // Renders between avatar + stack, kept to a single line via
+        // maxLines + ellipsis so a future longer title doesn't blow
+        // the locked tile height.
+        if (title != null) {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Body.B400,
+                color = com.dangerfield.cards.libraries.ui.system.color.ColorResource.FromColor(PokerPalette.ChipGold, "ChipGold"),
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         VerticalSpacerD300()

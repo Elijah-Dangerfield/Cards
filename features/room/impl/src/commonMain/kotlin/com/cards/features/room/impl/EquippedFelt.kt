@@ -69,3 +69,19 @@ fun cardBackForProductId(productId: String?): CardBackStyle = when (productId) {
     "cardback_diamond" -> CardBackStyle.Diamond
     else -> CardBackStyle.Default
 }
+
+/**
+ * Catalog productId → display title string. Null for unknown / non-title
+ * ids. The title shows under the player's name at the table when
+ * equipped — pure vanity flex, no gameplay effect.
+ *
+ * V1 ships English-only; localization can swap this lookup for a
+ * server-provided `titleLabel` field on the product when the catalog
+ * grows multi-locale.
+ */
+fun titleForProductId(productId: String?): String? = when (productId) {
+    "title_bluff_master" -> "Bluff Master"
+    "title_shark" -> "The Shark"
+    "title_high_roller" -> "High Roller"
+    else -> null
+}

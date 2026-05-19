@@ -184,6 +184,7 @@ fun PlayPokerScreen(
                     ActiveTable(
                         table = active,
                         humanWinPercent = state.humanWinPercent,
+                        humanTitle = state.equippedTitle,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { raiseSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -375,6 +376,7 @@ private fun LoadingTable() {
 private fun ActiveTable(
     table: TableUiState.Active,
     humanWinPercent: Int?,
+    humanTitle: String?,
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -432,6 +434,7 @@ private fun ActiveTable(
             }
             PlayerArea(
                 table = table,
+                humanTitle = humanTitle,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,
