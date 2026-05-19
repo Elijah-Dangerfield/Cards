@@ -55,7 +55,7 @@ fun Application.module(config: ServerConfig) {
         healthRoutes()
         appConfigRoutes(component.appConfigSource)
         productsRoutes(component.productCatalogSource)
-        inventoryRoutes()
+        inventoryRoutes(component.inventoryRepository)
         meRoutes(component.profileRepository, component.supabaseAdminClient)
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)

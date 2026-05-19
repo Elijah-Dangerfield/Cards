@@ -39,3 +39,14 @@ object EquipmentTable : Table("equipment") {
     val updatedAt = timestamp("updated_at")
     override val primaryKey = PrimaryKey(userId, productId)
 }
+
+/**
+ * One row per (user, owned product). See `V3__inventory.sql`.
+ */
+object InventoryTable : Table("inventory") {
+    val userId = uuid("user_id")
+    val productId = text("product_id")
+    val costChipsAtPurchase = long("cost_chips_at_purchase")
+    val purchasedAt = timestamp("purchased_at")
+    override val primaryKey = PrimaryKey(userId, productId)
+}

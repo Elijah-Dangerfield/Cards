@@ -4,6 +4,7 @@ import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.EquipmentRepository
+import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -45,6 +46,7 @@ abstract class ServerComponent(
     abstract val supabaseAdminClient: SupabaseAdminClient
     abstract val orphanAnonymousSweep: OrphanAnonymousSweep
     abstract val equipmentRepository: EquipmentRepository
+    abstract val inventoryRepository: InventoryRepository
 
     /**
      * Wall-clock source. Singleton so every component sees the same "now"

@@ -1,50 +1,54 @@
 package com.dangerfield.cards.server.routes
 
-import com.dangerfield.cards.server.http.clientContext
+import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
+import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.auth.authenticate
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
- * `POST /v1/inventory/sync` — reconcile a client's local pending purchases
- * with the server's authoritative ledger.
+ * `POST /v1/inventory/sync` — reconciles a client's locally-pending
+ * purchases with the server's authoritative ledger.
  *
- * V1 behavior (pre-auth): no real reconciliation possible — the server has
- * no concept of *who* is purchasing or what their balance is. We echo every
- * submitted purchase back as [SyncOutcomeDto.Confirmed]. The contract is in
- * place so once auth + a per-user ledger lands, the client requires no
- * change: it sees Confirmed/Reverted outcomes uniformly.
+ * For each submitted purchase, the server records it idempotently via
+ * [InventoryRepository.recordPurchase] (first-purchase-wins on the
+ * (userId, productId) key) and echoes [SyncOutcomeDto.Confirmed]. The
+ * `Reverted` branch is reserved for the future server-side chip ledger
+ * — once spend gets validated, an unaffordable purchase will surface as
+ * Reverted with chipsToRefund and the client will credit it back.
  *
- * When auth lands, this endpoint will:
- *  1. Identify the user from the bearer token (already plumbed through
- *     NetworkClient.authenticatedClient).
- *  2. Replay each submitted purchase against the server-side chip ledger.
- *  3. For each: if the user could afford it at the time of purchase, mark
- *     Confirmed. Otherwise mark Reverted + return chipsToRefund.
- *  4. The client trusts the server's response — last-write-wins.
+ * Empty request is valid: returns an empty result list without touching
+ * the DB. Idempotent on the wire: re-syncing the same purchases produces
+ * the same response without bumping anything.
  *
- * Empty request is valid and returns an empty result list. Idempotent on
- * the wire: re-syncing the same set of purchases produces the same response.
+ * Requires a valid Supabase JWT. The userId comes from the `sub` claim;
+ * clients never pass it in the body.
  */
-fun Route.inventoryRoutes() {
-    post("/v1/inventory/sync") {
-        // ClientContext lets the future-auth path know the platform / app
-        // version / locale of the requester — useful for diagnostics even
-        // before we use it for filtering.
-        @Suppress("UNUSED_VARIABLE")
-        val ctx = call.clientContext()
-
-        val request = call.receive<InventorySyncRequest>()
-        val results = request.purchases.map { pending ->
-            InventorySyncResultDto(
-                productId = pending.productId,
-                outcome = SyncOutcomeDto.Confirmed,
-                // Real reconciliation lands with auth — for now everything
-                // is Confirmed and chipsToRefund stays null.
-            )
+@OptIn(ExperimentalTime::class)
+fun Route.inventoryRoutes(repository: InventoryRepository) {
+    authenticate(SUPABASE_JWT_AUTH) {
+        post("/v1/inventory/sync") {
+            val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+            val request = call.receive<InventorySyncRequest>()
+            val results = request.purchases.map { pending ->
+                repository.recordPurchase(
+                    userId = userId,
+                    productId = pending.productId,
+                    costChipsAtPurchase = pending.costChipsAtPurchase,
+                    purchasedAt = Instant.fromEpochMilliseconds(pending.purchasedAtEpochMs),
+                )
+                InventorySyncResultDto(
+                    productId = pending.productId,
+                    outcome = SyncOutcomeDto.Confirmed,
+                )
+            }
+            call.respond(HttpStatusCode.OK, InventorySyncResponse(results = results))
         }
-        call.respond(HttpStatusCode.OK, InventorySyncResponse(results = results))
     }
 }
