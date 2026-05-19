@@ -12,10 +12,10 @@ import com.dangerfield.cards.system.AppTheme
  * Color resolves at render time through [feltSurfaceColor].
  *
  * Catalog productId → style mapping lives in [feltForProductId] (single
- * source of truth, kept tight to the catalog in
- * InMemoryProductCatalogSource on the server). Anything unrecognized
- * falls back to [Default], so a new server-side felt before the client
- * knows it renders sanely instead of crashing or going black.
+ * source of truth, kept tight to the catalog seed in the server's
+ * `V5__products.sql` migration). Anything unrecognized falls back to
+ * [Default], so a new server-side felt before the client knows it
+ * renders sanely instead of crashing or going black.
  */
 enum class EquippedFelt { Default, RoyalRed, MidnightBlue, Charcoal, Sunset, Neon }
 

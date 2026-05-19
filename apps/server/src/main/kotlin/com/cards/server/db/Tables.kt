@@ -52,3 +52,42 @@ object InventoryTable : Table("inventory") {
     val purchasedAt = timestamp("purchased_at")
     override val primaryKey = PrimaryKey(userId, productId)
 }
+
+/**
+ * Shop catalog. One row per product (chip pack or chip offer). See
+ * `V5__products.sql` for the schema authority + seeding strategy.
+ *
+ * Localized strings (`title_by_locale`, `subtitle_by_locale`, `badge_by_locale`,
+ * `description_by_locale`) are JSONB on the DB side; we read them as text and
+ * parse with kotlinx-serialization so the Exposed surface stays small (no
+ * extra JSONB column-type dependency). Same trick for the `platforms` TEXT[] —
+ * we read it as a Postgres array via raw SQL in the repository.
+ */
+object ProductsTable : Table("products") {
+    val id = text("id")
+    val kind = text("kind")
+    val sortOrder = integer("sort_order")
+    val iconEmoji = text("icon_emoji")
+    val featured = bool("featured")
+    val availableUntilEpochMs = long("available_until_epoch_ms").nullable()
+
+    // JSONB columns surfaced as text — JSON parsing happens in the repo.
+    val titleByLocale = text("title_by_locale")
+    val subtitleByLocale = text("subtitle_by_locale")
+    val badgeByLocale = text("badge_by_locale").nullable()
+    val descriptionByLocale = text("description_by_locale").nullable()
+
+    // ChipPack-only.
+    val grantsChips = long("grants_chips").nullable()
+    val iosSku = text("ios_sku").nullable()
+    val iosFallbackPrice = text("ios_fallback_price").nullable()
+    val androidSku = text("android_sku").nullable()
+    val androidFallbackPrice = text("android_fallback_price").nullable()
+
+    // ChipOffer-only.
+    val grantsKey = text("grants_key").nullable()
+    val costChips = long("cost_chips").nullable()
+    val unlockLevel = integer("unlock_level").nullable()
+
+    override val primaryKey = PrimaryKey(id)
+}

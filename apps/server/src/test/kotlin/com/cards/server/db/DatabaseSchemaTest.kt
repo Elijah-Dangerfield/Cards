@@ -22,8 +22,14 @@ class DatabaseSchemaTest : DatabaseTest() {
         database.blockingTransaction {
             // Selecting all rows from each empty table proves both that
             // Flyway created the table and that the Exposed columns map
-            // 1:1 with what Postgres actually has.
+            // 1:1 with what Postgres actually has. `products` is seeded by
+            // V5 so we just assert the read succeeds — non-empty proves the
+            // seed ran AND the Exposed projection lines up with the schema.
             assertEquals(0, ProfilesTable.selectAll().count())
+            assertTrue(
+                ProductsTable.selectAll().count() > 0L,
+                "V5 should have seeded the products table",
+            )
         }
     }
 

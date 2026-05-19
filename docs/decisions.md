@@ -1027,3 +1027,72 @@ return shape, the mapper collapses into a `when` over the outcome.
 
 **Status:** Landed. `OnboardingViewModelTest` (5 tests) pins the routing.
 
+---
+
+## 2026-05-19 — Product catalog: Postgres-seeded, in-memory source deleted
+
+**Decision:** Move the shop catalog out of the hardcoded
+`InMemoryProductCatalogSource` and into a `products` table seeded by
+`V5__products.sql`. `PostgresProductCatalogSource` becomes the single
+binding for `ProductCatalogSource`; the in-memory class is deleted (no
+fallback, no DI conditional).
+
+**Why:** The server already owns Postgres for profiles, equipment, and
+inventory; the catalog was the lone "fake data" source still living as
+in-code constants. Moving it lets an admin re-price, re-name, or stage
+a sale by `UPDATE products SET …` — no server redeploy, no client
+update. The `Cache-Control: max-age=300` envelope on `GET /v1/products`
+already absorbs the per-request DB round-trip.
+
+**Schema choices:**
+
+- One `products` table with a `kind` discriminator (`chip_pack` vs
+  `chip_offer`). Two `CHECK` constraints enforce kind-specific NOT NULL
+  rules at the DB layer so a half-populated row can't ship. Single table
+  beats two-table inheritance because the catalog reads the entire
+  surface in one shot per request — denormalizing is the natural fit.
+- Localized strings stored as JSONB maps keyed by BCP-47 tag (`{"en":
+  "Pocket Stack", "es": "Pila de bolsillo"}`). The existing
+  `LocaleMatch.kt` matcher already operates on the same shape, so the
+  repo just decodes the column straight into the domain model. Exposed
+  surfaces the JSONB as `text()` and we parse with
+  `kotlinx-serialization-json` — zero new dependencies.
+- Platforms as Postgres `TEXT[]`. Exposed has no first-class array
+  column type for our version, so the repo runs a single raw SELECT for
+  `id, platforms` and decodes the JDBC `Array` ourselves. The catalog
+  is tiny enough that the extra round-trip cost is irrelevant.
+- `sort_order` (integer) drives display order. Each category gets a
+  decade (chip packs 100s, felts 200s, emotes 300s, …) so reordering
+  inside a category is `sort_order = 215` without an enum dance.
+
+**Seed parity:** Every productId from the previous in-memory source is
+in the seed, including the previously time-limited demo offers
+(`chip_pack_flash_sale`, `felt_sunset_weekend`). The startup-relative
+`availableUntilEpochMs` synthesis is gone — both rows are seeded with
+NULL availability, and a real sale window now needs an admin
+`UPDATE products SET available_until_epoch_ms = …` against a real
+wall-clock epoch. A regression test pins the set of `grantsKey` values
+the client depends on, so a future seed drift that renames or removes
+a row breaks loudly at build time.
+
+**What didn't change:** The wire format
+(`routes/ProductsDto.kt`), the locale matcher, the time-based offer
+filtering in the route layer, and the client. Switching the source is
+invisible to the consumer.
+
+**Tests:** 13 new `PostgresProductCatalogSourceTest` cases pinning
+JSON decoding, kind discrimination, store-SKU surfacing, sort order, and
+the grantsKey contract. `DatabaseSchemaTest` extended to assert the V5
+table exists and is seeded after migrations run.
+
+**Status:** Landed. Future work (out of scope here):
+
+- An admin endpoint or CLI to write into `products` directly without
+  hand-rolling SQL.
+- Server-side validation of the kind-vs-fields invariant in the repo
+  (it's currently in DB constraints — if a future code path bypasses
+  the constraint, the route surfaces `error` from `requireNotNull`).
+- Achievement catalog migration (parallel story: ~36 hand-coded
+  achievements still live in `:libraries:cards/AchievementRegistry.kt`
+  because the `Criterion` evaluator is logic-bearing, not data).
+
