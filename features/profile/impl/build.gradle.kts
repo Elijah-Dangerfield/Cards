@@ -31,5 +31,12 @@ kotlin {
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
         }
+        commonTest.dependencies {
+            implementation(projects.libraries.flowroutines.testing)
+            implementation(projects.libraries.identity)
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.config)
+            implementation(libs.turbine)
+        }
     }
 }
