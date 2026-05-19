@@ -125,11 +125,17 @@ class RoomRepositoryImplTest {
 
     @Test
     fun joinRoom_transportError_returnsNetworkError() = runTest {
-        val repo = newRepo(MockEngine { throw java.io.IOException("connection refused") })
+        val repo = newRepo(MockEngine { throw SimulatedNetworkError("connection refused") })
         val outcome = repo.joinRoom("ABC123")
         val networkError = assertIs<JoinRoomOutcome.NetworkError>(outcome)
-        assertTrue(networkError.cause is java.io.IOException)
+        assertTrue(networkError.cause is SimulatedNetworkError)
     }
+
+    /**
+     * Cross-platform stand-in for `java.io.IOException` — see the sibling
+     * comment in `ReconnectingRoomSocketTest`.
+     */
+    private class SimulatedNetworkError(message: String) : RuntimeException(message)
 
     // ---------- scaffolding ----------
 

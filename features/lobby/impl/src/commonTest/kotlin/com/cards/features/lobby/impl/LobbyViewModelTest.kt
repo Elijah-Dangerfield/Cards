@@ -110,7 +110,7 @@ class LobbyViewModelTest : CoroutineTest() {
     @Test
     fun create_networkError_staysIdle_andSurfacesMessage() = runUnitTest {
         val rooms = FakeRoomRepository(
-            createOutcome = CreateRoomOutcome.NetworkError(java.io.IOException()),
+            createOutcome = CreateRoomOutcome.NetworkError(RuntimeException("simulated network error")),
         )
         val vm = buildVm(rooms = rooms)
         vm.takeAction(LobbyAction.CreateRoom)
@@ -226,8 +226,8 @@ class LobbyViewModelTest : CoroutineTest() {
     )
 
     private class FakeRoomRepository(
-        private val createOutcome: CreateRoomOutcome = CreateRoomOutcome.NetworkError(java.io.IOException()),
-        private val joinOutcome: JoinRoomOutcome = JoinRoomOutcome.NetworkError(java.io.IOException()),
+        private val createOutcome: CreateRoomOutcome = CreateRoomOutcome.NetworkError(RuntimeException("simulated network error")),
+        private val joinOutcome: JoinRoomOutcome = JoinRoomOutcome.NetworkError(RuntimeException("simulated network error")),
         private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success,
         private val observe: (String) -> Flow<RoomConnection> = { flow {} },
     ) : RoomRepository {

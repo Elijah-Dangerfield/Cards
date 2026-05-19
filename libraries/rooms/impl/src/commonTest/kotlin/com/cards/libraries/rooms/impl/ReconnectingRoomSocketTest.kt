@@ -56,19 +56,19 @@ class ReconnectingRoomSocketTest {
 
     @Test
     fun transportException_alsoSurfacesReconnecting() = runTest {
-        val socket = newSocket(MockEngine { throw java.io.IOException("connection refused") })
+        val socket = newSocket(MockEngine { throw SimulatedNetworkError("connection refused") })
 
         socket.observe("ABC123").test {
             assertEquals(RoomConnection.Connecting, awaitItem())
             val reconnecting = assertIs<RoomConnection.Reconnecting>(awaitItem())
-            assertTrue(reconnecting.cause is java.io.IOException)
+            assertTrue(reconnecting.cause is SimulatedNetworkError)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
     fun cancellation_propagates_andStopsLoop() = runTest {
-        val socket = newSocket(MockEngine { throw java.io.IOException("nope") })
+        val socket = newSocket(MockEngine { throw SimulatedNetworkError("nope") })
 
         socket.observe("ABC123").test {
             assertEquals(RoomConnection.Connecting, awaitItem())
@@ -93,4 +93,12 @@ class ReconnectingRoomSocketTest {
         override val client: HttpClient get() = httpClient
         override val authenticatedClient: HttpClient get() = httpClient
     }
+
+    /**
+     * Cross-platform stand-in for `java.io.IOException`. The reconnect
+     * loop only cares that *something* threw — the exact type is matched
+     * via `is` so the assertion stays meaningful while the test stays
+     * iOS-compatible.
+     */
+    private class SimulatedNetworkError(message: String) : RuntimeException(message)
 }
