@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.identity.impl
 
+import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventBus
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
@@ -72,6 +74,7 @@ class SupabaseIdentityRepository(
     private val supabase: SupabaseClient,
     private val profileApi: ProfileApi,
     private val identityCache: IdentityCache,
+    private val appEventBus: AppEventBus,
     appScope: AppCoroutineScope,
 ) : IdentityRepository {
 
@@ -197,6 +200,10 @@ class SupabaseIdentityRepository(
             .logOnFailure { "Supabase signOut failed; clearing local state anyway" }
         identityCache.clear()
         _state.value = IdentityState.Unknown
+        // Fan out to every device-local repo (chips/XP/inventory/etc.)
+        // via the AppEvent bus — each repo owns its own clear so the
+        // identity layer doesn't have to know about them.
+        appEventBus.dispatch(AppEvent.SignedOut)
     }
 
     override suspend fun updateProfile(
@@ -287,6 +294,11 @@ class SupabaseIdentityRepository(
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
             identityCache.clear()
             _state.value = IdentityState.Unknown
+            // Same fan-out as the sign-out path: every device-local repo
+            // wipes itself. For delete-account the cleanup is even more
+            // load-bearing — the user explicitly asked for "leave nothing
+            // behind."
+            appEventBus.dispatch(AppEvent.SignedOut)
         }
         outcome
     }

@@ -20,6 +20,8 @@ kotlin {
             implementation(projects.libraries.storage)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            // For AppEvent + AppEventBus — needed to dispatch SignedOut.
+            implementation(projects.libraries.cards)
 
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)

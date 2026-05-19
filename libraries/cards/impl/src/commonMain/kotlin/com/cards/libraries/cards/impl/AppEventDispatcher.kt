@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventBus
 import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.AppLifecycle
 import com.dangerfield.cards.libraries.cards.AppLifecycleObserver
@@ -11,15 +12,17 @@ import kotlinx.coroutines.internal.SynchronizedObject
 import kotlinx.coroutines.internal.synchronized
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
+import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.concurrent.Volatile
 
 @SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = AppEventBus::class)
 @Inject
 class AppEventDispatcher(
     private val listeners: Set<AppEventListener>,
     appLifecycle: AppLifecycle,
-) {
+) : AppEventBus {
     private val logger = KLog.withTag("AppEventDispatcher")
     private val lifecycleObserver = object : AppLifecycleObserver {
         override fun onEnterForeground() = handleForegroundEntry()
@@ -34,7 +37,7 @@ class AppEventDispatcher(
         appLifecycle.addObserver(lifecycleObserver)
     }
 
-    fun dispatch(event: AppEvent) {
+    override fun dispatch(event: AppEvent) {
         KLog.i("App Event: $event")
         notifyListeners(event)
     }
@@ -69,6 +72,7 @@ class AppEventDispatcher(
                     is AppEvent.WarmBoot -> listener.onWarmBoot(event)
                     is AppEvent.OnForeground -> listener.onForeground(event)
                     is AppEvent.OnBackground -> listener.onBackground(event)
+                    is AppEvent.SignedOut -> listener.onSignedOut(event)
                 }
             }.onFailure { throwable ->
                 logger.e(throwable) {
