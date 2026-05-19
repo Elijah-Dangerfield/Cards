@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Orphan anonymous-user sweep (dev).
+#
+# Calls POST /v1/admin/sweep-anonymous-users on cards-server-dev once a day.
+# The server deletes anon Supabase users older than ORPHAN_ANON_TTL_DAYS
+# (default 30) — see DefaultOrphanAnonymousSweep + apps/server/DEPLOY.md.
+#
+# Auth: bearer-style X-Admin-Token (the server's ADMIN_API_TOKEN env var).
+# Cadence: 05:17 UTC daily — odd minute so we miss top-of-hour stampedes.
+#
+# Run manually from the Actions tab via workflow_dispatch for ad-hoc sweeps.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sweep anonymous users (dev)
+
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sweep-anon-dev
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Sweep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call admin sweep endpoint
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}
+        run: |
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::error::CARDS_ADMIN_API_TOKEN_DEV secret is not set"
+            exit 1
+          fi
+          response=$(
+            curl --fail-with-body --silent --show-error \
+                 --max-time 30 \
+                 -X POST \
+                 -H "X-Admin-Token: $ADMIN_TOKEN" \
+                 https://cards-server-dev.fly.dev/v1/admin/sweep-anonymous-users
+          )
+          echo "Response: $response"
+          # `failedToDelete > 0` is worth investigating in Sentry; surface
+          # it as a workflow warning so it appears in the run summary.
+          failed=$(printf '%s' "$response" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("failedToDelete", 0))')
+          if [ "$failed" != "0" ]; then
+            echo "::warning::Sweep had $failed delete failures — check Sentry"
+          fi

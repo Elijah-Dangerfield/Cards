@@ -1,0 +1,54 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Disconnected-room-member sweep (dev).
+#
+# Calls POST /v1/admin/sweep-disconnected-room-members every 5 minutes
+# (GitHub Actions' minimum cron cadence). The server reaps members whose
+# socket has been down for ROOM_DISCONNECTED_MEMBER_TTL_MINUTES (default 5);
+# empty rooms are GC'd as a side effect.
+#
+# Without this cron, abandoned seats sit forever — a single bad cellular
+# day locks out a friend group's room. See apps/server/DEPLOY.md for the
+# operational walkthrough.
+#
+# Auth: shares ADMIN_API_TOKEN with the anon sweep (one token, multiple
+# endpoints; same secret on the GitHub side).
+#
+# Note: GitHub's free cron is best-effort and can lag during high load —
+# for a tighter heartbeat use an external uptime monitor (UptimeRobot,
+# Cronitor) hitting the same endpoint with the same auth header.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sweep disconnected room members (dev)
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sweep-rooms-dev
+  # Don't cancel — if one run is slow, let the next one start anyway.
+  # The sweep is idempotent so two simultaneous calls are safe.
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Sweep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call admin sweep endpoint
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}
+        run: |
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::error::CARDS_ADMIN_API_TOKEN_DEV secret is not set"
+            exit 1
+          fi
+          response=$(
+            curl --fail-with-body --silent --show-error \
+                 --max-time 30 \
+                 -X POST \
+                 -H "X-Admin-Token: $ADMIN_TOKEN" \
+                 https://cards-server-dev.fly.dev/v1/admin/sweep-disconnected-room-members
+          )
+          echo "Response: $response"
