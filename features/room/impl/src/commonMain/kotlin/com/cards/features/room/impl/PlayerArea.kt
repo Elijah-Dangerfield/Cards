@@ -258,7 +258,11 @@ private fun PlayerInfoTile(
         }
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(52.dp)) {
             if (isWinner) WinnerGlow(modifier = Modifier.size(48.dp))
-            AvatarCircle(name = "You", size = 44.dp, emoji = AnonymousAvatarEmoji)
+            AvatarCircle(
+                name = seat.displayName,
+                size = 44.dp,
+                emoji = seat.emoji ?: AnonymousAvatarEmoji,
+            )
             BlindMarker(
                 isDealer = seat.isDealer,
                 isSmallBlind = seat.isSmallBlind,
@@ -273,8 +277,19 @@ private fun PlayerInfoTile(
                     .offset(x = (-2).dp, y = (-8).dp),
             )
         }
+        // Display name — sourced from the user's identity via the SeatView
+        // projection. Single line + ellipsis so a long handle can't blow
+        // the locked tile height.
+        Text(
+            text = seat.displayName,
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.text,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
         // Equipped title — "Bluff Master", "The Shark", "High Roller".
-        // Renders between avatar + stack, kept to a single line via
+        // Renders between name + stack, kept to a single line via
         // maxLines + ellipsis so a future longer title doesn't blow
         // the locked tile height.
         if (title != null) {

@@ -183,6 +183,64 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertTrue(vm.state.recentlyEarned.isEmpty())
     }
 
+    // ---------- Identity → human-seat projection ----------
+
+    @Test
+    fun signedInIdentity_drivesHumanSeatNameAndEmoji() = runUnitTest {
+        val identity = com.dangerfield.cards.libraries.identity.Identity(
+            userId = "u-1",
+            displayName = "QuietAce72",
+            avatarEmoji = "🦊",
+            avatarBackgroundColor = null,
+            isAnonymous = true,
+        )
+        val identityRepo = FakeIdentityRepository(
+            initial = com.dangerfield.cards.libraries.identity.IdentityState.SignedIn(identity),
+        )
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory, identityRepository = identityRepo)
+
+        // Re-emit so the projection runs against the identity captured at init.
+        session.emitGameState(
+            stubGameState(
+                seats = listOf(
+                    testSeat(0, "You", isBot = false, playerId = "human"),
+                    testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                ),
+            ),
+        )
+
+        val table = vm.state.table as TableUiState.Active
+        val humanSeat = table.seats.first { it.isHuman }
+        assertEquals("QuietAce72", humanSeat.displayName)
+        assertEquals("🦊", humanSeat.emoji)
+        // Bot seat unaffected.
+        val botSeat = table.seats.first { it.isBot }
+        assertEquals("Steve", botSeat.displayName)
+    }
+
+    @Test
+    fun unknownIdentity_keepsEngineSeatName() = runUnitTest {
+        // Default FakeIdentityRepository is Unknown — projection should fall
+        // back to the engine seat's own displayName.
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        session.emitGameState(
+            stubGameState(
+                seats = listOf(
+                    testSeat(0, "You", isBot = false, playerId = "human"),
+                    testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                ),
+            ),
+        )
+
+        val table = vm.state.table as TableUiState.Active
+        assertEquals("You", table.seats.first { it.isHuman }.displayName)
+    }
+
     // ---------- Hand-end callback flow ----------
 
     @Test
@@ -279,12 +337,14 @@ class PlayPokerViewModelTest : CoroutineTest() {
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
         achievementRepository: FakeAchievementRepository = FakeAchievementRepository(),
         appCache: FakeAppCache = FakeAppCache(),
+        identityRepository: FakeIdentityRepository = FakeIdentityRepository(),
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
         progressionRepository = progressionRepository,
         achievementRepository = achievementRepository,
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
+        identityRepository = identityRepository,
         dispatcherProvider = dispatchers,
     )
 

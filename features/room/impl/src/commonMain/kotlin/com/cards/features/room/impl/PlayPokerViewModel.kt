@@ -27,6 +27,9 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.IdentityState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -61,6 +64,7 @@ class PlayPokerViewModel @Inject constructor(
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
     private val equipmentRepository: EquipmentRepository,
+    private val identityRepository: IdentityRepository,
     private val dispatcherProvider: DispatcherProvider,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
     initialStateArg = PlayPokerState(),
@@ -80,6 +84,13 @@ class PlayPokerViewModel @Inject constructor(
     // start of each hand.
     private var lastWinners: GameEvent.HandEnded? = null
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
+
+    // Latest known identity. Captured here so the [tableFor] projection can
+    // render the human seat with the user's chosen display name + avatar
+    // emoji instead of the engine-side "You" / null placeholders. Null
+    // until the first SignedIn emission lands; re-projects when it does.
+    private var latestHumanIdentity: Identity? = null
+    private var lastGameState: GameState? = null
 
     // Session created lazily so the hand-end lambda below can reference `viewModelScope`.
     private val session: PokerSession = sessionFactory.create(
@@ -119,6 +130,15 @@ class PlayPokerViewModel @Inject constructor(
             appCache.updates.collect { data ->
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
+            }
+        }
+        // Identity → re-project the table so the human seat picks up the
+        // user's chosen display name + avatar emoji.
+        viewModelScope.launch {
+            identityRepository.state.collect { st ->
+                val id = (st as? IdentityState.SignedIn)?.identity ?: return@collect
+                latestHumanIdentity = id
+                lastGameState?.let { takeAction(PlayPokerAction.GameStateUpdated(it)) }
             }
         }
         // Equipped felt + card back — observed so mid-session toggles
@@ -264,14 +284,18 @@ class PlayPokerViewModel @Inject constructor(
 
     override suspend fun handleAction(action: PlayPokerAction) {
         when (action) {
-            is PlayPokerAction.GameStateUpdated -> action.updateState {
-                it.copy(
-                    table = sessionFactory.tableFor(
-                        state = action.state,
-                        lastWinners = lastWinners,
-                        lastActionBySeat = lastActionBySeat.toMap(),
-                    ),
-                )
+            is PlayPokerAction.GameStateUpdated -> {
+                lastGameState = action.state
+                action.updateState {
+                    it.copy(
+                        table = sessionFactory.tableFor(
+                            state = action.state,
+                            lastWinners = lastWinners,
+                            lastActionBySeat = lastActionBySeat.toMap(),
+                            humanIdentity = latestHumanIdentity,
+                        ),
+                    )
+                }
             }
             is PlayPokerAction.OccupantsUpdated -> action.updateState {
                 it.copy(occupants = action.occupants)
@@ -495,6 +519,7 @@ interface PokerSessionFactory {
         state: GameState,
         lastWinners: GameEvent.HandEnded? = null,
         lastActionBySeat: Map<Int, PlayerAction> = emptyMap(),
+        humanIdentity: com.dangerfield.cards.libraries.identity.Identity? = null,
     ): TableUiState
 }
 

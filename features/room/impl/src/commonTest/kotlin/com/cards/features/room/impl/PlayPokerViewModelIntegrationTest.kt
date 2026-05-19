@@ -209,6 +209,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             achievementRepository = achievements,
             appCache = appCache,
             equipmentRepository = FakeEquipmentRepository(),
+            identityRepository = FakeIdentityRepository(),
             dispatcherProvider = dispatchers,
         )
         return TestVm(
@@ -284,12 +285,14 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             state: GameState,
             lastWinners: GameEvent.HandEnded?,
             lastActionBySeat: Map<Int, com.dangerfield.cards.libraries.gameplay.PlayerAction>,
+            humanIdentity: com.dangerfield.cards.libraries.identity.Identity?,
         ): TableUiState = TableUiState.fromGameState(
             gameState = state,
             humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
             personalitiesBySeat = emptyMap(),
             lastWinners = lastWinners,
             lastActionBySeat = lastActionBySeat,
+            humanIdentity = humanIdentity,
         )
     }
 }

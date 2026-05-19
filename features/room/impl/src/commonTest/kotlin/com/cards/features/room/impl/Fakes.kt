@@ -110,12 +110,14 @@ class FakePokerSessionFactory(
         state: GameState,
         lastWinners: GameEvent.HandEnded?,
         lastActionBySeat: Map<Int, PlayerAction>,
+        humanIdentity: com.dangerfield.cards.libraries.identity.Identity?,
     ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
         personalitiesBySeat = emptyMap(),
         lastWinners = lastWinners,
         lastActionBySeat = lastActionBySeat,
+        humanIdentity = humanIdentity,
     )
 }
 
@@ -269,3 +271,48 @@ fun bizzaroPersonality(label: String = "Tight Aggressive"): Personality = Person
     vpip = 0.22,
     pfr = 0.18,
 )
+
+// ---------- IdentityRepository ----------
+
+/**
+ * Minimal [com.dangerfield.cards.libraries.identity.IdentityRepository] fake
+ * for VM tests. Only [state] is meaningfully implemented — every other
+ * method throws because the play-poker VM only reads the state flow.
+ *
+ * Defaults to [com.dangerfield.cards.libraries.identity.IdentityState.Unknown]
+ * so existing tests (which don't care about identity-driven projection)
+ * pin the engine-side "You" displayName. Tests that need to assert on the
+ * identity-driven seat shape can flip the state via [emit].
+ */
+class FakeIdentityRepository(
+    initial: com.dangerfield.cards.libraries.identity.IdentityState =
+        com.dangerfield.cards.libraries.identity.IdentityState.Unknown,
+) : com.dangerfield.cards.libraries.identity.IdentityRepository {
+    private val _state = MutableStateFlow(initial)
+    override val state: StateFlow<com.dangerfield.cards.libraries.identity.IdentityState> = _state
+
+    fun emit(state: com.dangerfield.cards.libraries.identity.IdentityState) {
+        _state.value = state
+    }
+
+    override suspend fun ensureInitialized() = error("ensureInitialized not used by PlayPokerViewModel")
+    override suspend fun signInWithEmail(email: String, password: String) =
+        error("signInWithEmail not used")
+    override suspend fun signUpWithEmail(email: String, password: String) =
+        error("signUpWithEmail not used")
+    override suspend fun refreshSession() = error("refreshSession not used")
+    override suspend fun resendVerificationEmail(email: String) = error("resendVerificationEmail not used")
+    override suspend fun signOut() = error("signOut not used")
+    override suspend fun updateProfile(
+        displayName: String?,
+        avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
+    ) = error("updateProfile not used")
+    override suspend fun fetchAvatarPack() = error("fetchAvatarPack not used")
+    override suspend fun deleteAccount() = error("deleteAccount not used")
+    override suspend fun linkOAuthIdentity(provider: com.dangerfield.cards.libraries.identity.OAuthProvider) =
+        error("linkOAuthIdentity not used")
+    override suspend fun signInWithOAuth(provider: com.dangerfield.cards.libraries.identity.OAuthProvider) =
+        error("signInWithOAuth not used")
+}
