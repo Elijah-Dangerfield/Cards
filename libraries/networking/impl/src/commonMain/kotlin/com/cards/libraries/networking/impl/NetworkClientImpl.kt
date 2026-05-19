@@ -19,6 +19,8 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.websocket.WebSockets
+import kotlin.time.Duration.Companion.seconds
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import me.tatarka.inject.annotations.Inject
@@ -65,6 +67,13 @@ class NetworkClientImpl(
                     }
                     sendWithoutRequest { true }
                 }
+            }
+            // WebSocket plugin so callers like :libraries:rooms:impl can
+            // open room sockets via the same authenticated client (the
+            // Auth bearer is attached on the WS handshake). The plugin
+            // is additive — existing HTTP calls don't notice it.
+            install(WebSockets) {
+                pingIntervalMillis = 15.seconds.inWholeMilliseconds
             }
         }
     }

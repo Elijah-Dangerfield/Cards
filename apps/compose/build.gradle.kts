@@ -43,6 +43,8 @@ kotlin {
             implementation(projects.libraries.products.impl)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.identity.impl)
+            implementation(projects.libraries.rooms)
+            implementation(projects.libraries.rooms.impl)
 
             implementation(projects.features.home)
             implementation(projects.features.home.impl)
