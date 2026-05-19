@@ -838,3 +838,70 @@ The `Reverted` branch in `SyncOutcomeDto` is still reserved for the future serve
 - Auth viewmodels — 27 tests across SignIn / SignUp / VerifyEmail covering every outcome variant + side-effect gates (`hasUserOnboarded` flips only on confirmed paths).
 
 **Status:** Landed. Server tests: 73 (was 64). Onboarding-impl tests: 27 (was 0).
+
+---
+
+## 2026-05-19 — V1 cleanup bundle: account VM tests, small-routes tests, table DS sweep
+
+**Decision:** Bundled cleanup pass closing three known sharp-edge items in
+one cohesive sweep. No behavioral changes — coverage + visual consistency
+only. Pure additive.
+
+**Pieces:**
+
+1. **`DeleteAccountViewModel` + `ClaimAccountViewModel` tests.** Closes the
+   sharp-edge note "DeleteAccountViewModel + ClaimAccountViewModel still
+   untested." 22 tests across both VMs pinning outcome→state→event mapping
+   for every `DeleteAccountOutcome` / `LinkIdentityOutcome` variant plus
+   the load-bearing **no-auto-switch invariant**: `AlreadyOnAnotherAccount`
+   stashes the provider and surfaces the guest-progress-loss warning but
+   does NOT call `signInWithOAuth` — only `ConfirmSwitchToExisting` does
+   that. Reusable fakes in `AccountViewModelFakes.kt` mirror the
+   onboarding-impl pattern so future profile tests have scaffolding.
+
+2. **Small server routes pinned.** `/_health`, `/v1/app-config`, and
+   `/v1/avatars` were the three server routes still untested. They're
+   tiny but load-bearing:
+   - `/_health` is the Fly liveness probe — a regression knocks the app
+     offline. Pin the un-versioned path + 200 JSON.
+   - `/v1/app-config` is the kill-switch surface. Pin shape + the "empty
+     object means use defaults" branch documented in the route header.
+   - `/v1/avatars` must stay JWT-gated (per-user rate limiting), must
+     serve `AvatarStarterPack.values` verbatim, and must set 1-day
+     cache-control. 7 tests in `SmallRoutesTest`.
+
+3. **DS sweep on the bot-table surfaces.** The known-sharp-edges memory
+   flagged remaining `Color.White.copy(alpha = X)` usage on the table
+   chrome. The remaining instances were in `TableActionBar.kt`,
+   `PlayerArea.kt`, and `BoardArea.kt` (the memory's PlayBotsScreen
+   reference is stale — that screen was renamed to PlayPokerScreen and
+   already swept).
+   - `TableActionBar`: QuickActionBar pills + the ↑ more-options button
+     now use `surfaceSecondary` (enabled) / `surfaceDisabled` (disabled),
+     matching the RaiseSheet convention. Disabled text uses
+     `textDisabled` instead of `ColorResource.FromColor(Color.White.copy(...))`.
+   - `PlayerArea`: player-tile border uses the `border` token.
+   - `BoardArea`: the BoardWell outline gets a named
+     `PokerPalette.CardSlotOutline` sibling of the existing `CardSlot`
+     fill — same poker-table-artifact intent.
+
+**Why now:** All three items were "fix opportunistically" entries in the
+known-sharp-edges memory. Bundling them keeps the cadence steady between
+larger Phase 4.2 work (which has the JVM-target prerequisite, still
+outstanding) and the V1 polish layer.
+
+**Tested:**
+
+- `DeleteAccountViewModelTest` — 10 tests covering canSubmit gating, the
+  NotSignedIn-treated-as-success branch, every error outcome, error
+  clear-on-edit.
+- `ClaimAccountViewModelTest` — 12 tests covering provider-flag gates,
+  the no-auto-switch invariant, every link/sign-in outcome, conflict
+  resolution flow.
+- `SmallRoutesTest` — 7 tests (health 200 + un-versioned path,
+  app-config verbatim tree + empty-object branch, avatar JWT gate +
+  pack pass-through + cache-control).
+- Server-side test counts: 80 (was 73). Profile-impl tests: 22 (was 0).
+
+**Status:** Landed.
+
