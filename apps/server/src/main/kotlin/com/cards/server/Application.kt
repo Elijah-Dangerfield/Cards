@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSentry
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
+import com.dangerfield.cards.server.plugins.installWebSockets
 import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
@@ -20,6 +21,7 @@ import com.dangerfield.cards.server.routes.inventoryRoutes
 import com.dangerfield.cards.server.routes.meRoutes
 import com.dangerfield.cards.server.routes.productsRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
+import com.dangerfield.cards.server.routes.roomSocketRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.routing.routing
 import org.slf4j.LoggerFactory
@@ -44,6 +46,7 @@ fun Application.module(config: ServerConfig) {
     installCors()
     installObservability()
     installRateLimits()
+    installWebSockets()
     installStatusPages()
     installAuthentication(config.supabase)
 
@@ -61,6 +64,7 @@ fun Application.module(config: ServerConfig) {
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
         roomRoutes(component.roomService, component.profileRepository)
+        roomSocketRoutes(component.roomService)
         adminRoutes(config.admin, component.orphanAnonymousSweep)
     }
 }

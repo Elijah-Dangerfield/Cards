@@ -22,6 +22,10 @@ dependencies {
     implementation("io.ktor:ktor-server-call-logging:3.3.3")
     implementation("io.ktor:ktor-server-call-id:3.3.3")
     implementation("io.ktor:ktor-server-rate-limit:3.3.3")
+    // WebSockets for the per-room presence channel + future server-
+    // authoritative gameplay sync. Ktor's built-in ping/timeout handles
+    // dead-peer detection without us hand-rolling a heartbeat.
+    implementation("io.ktor:ktor-server-websockets:3.3.3")
 
     // Error reporting. SDK initialises only when SENTRY_DSN is set,
     // so the dependency is paid (in jar size) but stays a no-op for
