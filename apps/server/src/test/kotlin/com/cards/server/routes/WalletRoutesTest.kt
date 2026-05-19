@@ -1,0 +1,316 @@
+package com.dangerfield.cards.server.routes
+
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
+import com.dangerfield.cards.server.domain.WalletEvent
+import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
+import com.dangerfield.cards.server.plugins.installRateLimits
+import com.dangerfield.cards.server.plugins.installSerialization
+import com.dangerfield.cards.server.plugins.installStatusPages
+import io.ktor.client.call.body
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.routing.routing
+import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import java.util.Date
+import java.util.UUID
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
+
+/**
+ * Route-level tests for `/v1/me/wallet` and `/v1/me/wallet/sync`. The
+ * repository is faked so the focus is on the HTTP/JSON layer + JWT
+ * gating; the Postgres repo has its own integration tests.
+ *
+ * Tests mint HS256 JWTs against a controlled secret + matching
+ * verifier, mirroring the pattern in [MeRoutesTest].
+ */
+@OptIn(ExperimentalTime::class)
+class WalletRoutesTest {
+
+    private val testIssuer = "https://test-project.supabase.co/auth/v1"
+    private val testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef"
+    private val userId = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
+
+    @Test
+    fun get_returnsBalance_andLazyCreatesWallet() = runTest {
+        val repo = FakeWalletRepo()
+        callGet(repo, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletResponse>()
+            assertEquals(Wallet.STARTER_GRANT, body.balance)
+            assertEquals(1, repo.findOrCreateCalls)
+        }
+    }
+
+    @Test
+    fun get_returns401_whenAuthHeaderMissing() = runTest {
+        val repo = FakeWalletRepo()
+        callGet(repo, bearer = null) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+            assertEquals(0, repo.findOrCreateCalls)
+        }
+    }
+
+    @Test
+    fun sync_appliesNewEvents_andReturnsAuthoritativeBalance() = runTest {
+        val repo = FakeWalletRepo()
+        callSync(
+            repo,
+            request = WalletSyncRequest(
+                events = listOf(
+                    WalletEventDto(idempotencyKey = "a", delta = 250, reason = "iap"),
+                    WalletEventDto(idempotencyKey = "b", delta = 100, reason = "achievement"),
+                ),
+            ),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletSyncResponse>()
+            assertEquals(Wallet.STARTER_GRANT + 350, body.balance)
+            assertEquals(2, body.results.size)
+            assertTrue(body.results.all { it.outcome == WalletEventOutcomeDto.Applied })
+        }
+    }
+
+    @Test
+    fun sync_returnsAlreadyApplied_forReplayedEvents() = runTest {
+        val repo = FakeWalletRepo().apply {
+            // Pre-seed the duplicate key so the next apply is a replay.
+            applied["dupe"] = ApplyOutcome.Applied(
+                balance = Wallet.STARTER_GRANT,
+                wasAlreadyApplied = false,
+            )
+        }
+        callSync(
+            repo,
+            request = WalletSyncRequest(
+                events = listOf(WalletEventDto(idempotencyKey = "dupe", delta = 50, reason = "test")),
+            ),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletSyncResponse>()
+            assertEquals(WalletEventOutcomeDto.AlreadyApplied, body.results.first().outcome)
+            assertEquals(Wallet.STARTER_GRANT, body.balance)
+        }
+    }
+
+    @Test
+    fun sync_returnsInsufficientChips_forDebitBelowZero() = runTest {
+        val repo = FakeWalletRepo()
+        callSync(
+            repo,
+            request = WalletSyncRequest(
+                events = listOf(
+                    WalletEventDto(idempotencyKey = "drain", delta = -20_000, reason = "shop.x"),
+                ),
+            ),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletSyncResponse>()
+            assertEquals(WalletEventOutcomeDto.InsufficientChips, body.results.first().outcome)
+            assertEquals(Wallet.STARTER_GRANT, body.balance, "balance must not move on rejected debit")
+        }
+    }
+
+    @Test
+    fun sync_continuesProcessing_afterInsufficientChipsRejection() = runTest {
+        // A failing debit in the middle must not abort the batch — later
+        // events still apply. This mirrors how the client batches mixed
+        // grants + debits and we want at-most-one stuck event, not a
+        // cascade.
+        val repo = FakeWalletRepo()
+        callSync(
+            repo,
+            request = WalletSyncRequest(
+                events = listOf(
+                    WalletEventDto(idempotencyKey = "g1", delta = 100, reason = "grant"),
+                    WalletEventDto(idempotencyKey = "d1", delta = -1_000_000, reason = "bad debit"),
+                    WalletEventDto(idempotencyKey = "g2", delta = 200, reason = "grant"),
+                ),
+            ),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletSyncResponse>()
+            assertEquals(3, body.results.size)
+            assertEquals(WalletEventOutcomeDto.Applied, body.results[0].outcome)
+            assertEquals(WalletEventOutcomeDto.InsufficientChips, body.results[1].outcome)
+            assertEquals(WalletEventOutcomeDto.Applied, body.results[2].outcome)
+            assertEquals(Wallet.STARTER_GRANT + 300, body.balance)
+        }
+    }
+
+    @Test
+    fun sync_acceptsEmptyEvents_andReturnsCurrentBalance() = runTest {
+        // Empty sync = "what's my balance?" — useful as a foreground hydrate
+        // pulse when the client has no pending events.
+        val repo = FakeWalletRepo()
+        callSync(
+            repo,
+            request = WalletSyncRequest(events = emptyList()),
+            bearer = validJwt(),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletSyncResponse>()
+            assertEquals(Wallet.STARTER_GRANT, body.balance)
+            assertEquals(0, body.results.size)
+        }
+    }
+
+    @Test
+    fun sync_returns401_whenAuthHeaderMissing() = runTest {
+        val repo = FakeWalletRepo()
+        callSync(repo, request = WalletSyncRequest(), bearer = null) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+            assertEquals(0, repo.applyCalls)
+        }
+    }
+
+    // ---------- Test scaffolding ----------
+
+    private fun validJwt(): String = JWT.create()
+        .withIssuer(testIssuer)
+        .withAudience("authenticated")
+        .withSubject(userId.value.toString())
+        .withIssuedAt(Date())
+        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+        .sign(Algorithm.HMAC256(testSecret))
+
+    private val testVerifier = JWT.require(Algorithm.HMAC256(testSecret))
+        .withIssuer(testIssuer)
+        .withAudience("authenticated")
+        .build()
+
+    private suspend fun callGet(
+        repo: WalletRepository,
+        bearer: String?,
+        assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
+    ) {
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing { walletRoutes(repo) }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val resp = client.get("/v1/me/wallet") {
+                bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+            }
+            assert(resp)
+        }
+    }
+
+    private suspend fun callSync(
+        repo: WalletRepository,
+        request: WalletSyncRequest,
+        bearer: String?,
+        assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
+    ) {
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing { walletRoutes(repo) }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val resp = client.post("/v1/me/wallet/sync") {
+                bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            assert(resp)
+        }
+    }
+
+    /**
+     * Deterministic in-memory wallet impl. Tracks one wallet per UserId
+     * starting at [Wallet.STARTER_GRANT] and applies events in-process.
+     * The `applied` map doubles as an idempotency record + an injection
+     * point: pre-populate it to simulate "the server already saw this
+     * key" in a replay scenario.
+     */
+    private class FakeWalletRepo : WalletRepository {
+        var findOrCreateCalls: Int = 0
+            private set
+        var applyCalls: Int = 0
+            private set
+
+        private val balances = mutableMapOf<UserId, Long>()
+        val applied: MutableMap<String, ApplyOutcome.Applied> = mutableMapOf()
+
+        override suspend fun findOrCreate(userId: UserId): Wallet {
+            findOrCreateCalls++
+            val balance = balances.getOrPut(userId) { Wallet.STARTER_GRANT }
+            return Wallet(
+                userId = userId,
+                balance = balance,
+                createdAt = Instant.fromEpochMilliseconds(0),
+                updatedAt = Instant.fromEpochMilliseconds(0),
+            )
+        }
+
+        override suspend fun find(userId: UserId): Wallet? = balances[userId]?.let {
+            Wallet(
+                userId = userId,
+                balance = it,
+                createdAt = Instant.fromEpochMilliseconds(0),
+                updatedAt = Instant.fromEpochMilliseconds(0),
+            )
+        }
+
+        override suspend fun apply(
+            userId: UserId,
+            idempotencyKey: String,
+            delta: Long,
+            reason: String,
+        ): ApplyOutcome {
+            applyCalls++
+            val current = balances.getOrPut(userId) { Wallet.STARTER_GRANT }
+            applied[idempotencyKey]?.let {
+                return ApplyOutcome.Applied(
+                    balance = current,
+                    wasAlreadyApplied = true,
+                )
+            }
+            val next = current + delta
+            if (next < 0) return ApplyOutcome.InsufficientChips(balance = current)
+            balances[userId] = next
+            val outcome = ApplyOutcome.Applied(balance = next, wasAlreadyApplied = false)
+            applied[idempotencyKey] = outcome
+            return outcome
+        }
+
+        override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
+        override suspend fun deleteAllForUser(userId: UserId) {
+            balances.remove(userId)
+        }
+    }
+}

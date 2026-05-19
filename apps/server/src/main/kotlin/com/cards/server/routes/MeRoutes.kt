@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.DELETE_ACCOUNT_LIMIT
 import com.dangerfield.cards.server.plugins.PROFILE_WRITE_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
@@ -55,6 +56,7 @@ fun Route.meRoutes(
     repository: ProfileRepository,
     adminClient: SupabaseAdminClient,
     inventory: InventoryRepository,
+    wallet: WalletRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
@@ -117,6 +119,11 @@ fun Route.meRoutes(
             val userId = call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
             when (val admin = adminClient.deleteUser(userId)) {
                 DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
+                    // Order: admin (revoke auth + sessions) first, then
+                    // local data. Each repo's delete is idempotent so a
+                    // mid-cascade crash leaves us with a recoverable
+                    // partial state, not stuck data.
+                    wallet.deleteAllForUser(userId)
                     repository.delete(userId)
                     call.respond(HttpStatusCode.NoContent)
                 }

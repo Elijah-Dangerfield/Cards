@@ -91,3 +91,29 @@ object ProductsTable : Table("products") {
 
     override val primaryKey = PrimaryKey(id)
 }
+
+/**
+ * Server-authoritative chip balance, one row per user. Lazy-created on
+ * first `GET /v1/me/wallet` with the starter grant. See `V6__wallets.sql`.
+ */
+object WalletsTable : Table("wallets") {
+    val userId = uuid("user_id")
+    val balance = long("balance")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(userId)
+}
+
+/**
+ * Append-only ledger of chip movements. `(user_id, idempotency_key)`
+ * is the dedup boundary — retried sync requests collapse to a single
+ * row. See `V6__wallets.sql`.
+ */
+object WalletEventsTable : Table("wallet_events") {
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val delta = long("delta")
+    val reason = text("reason")
+    val appliedAt = timestamp("applied_at")
+    override val primaryKey = PrimaryKey(userId, idempotencyKey)
+}

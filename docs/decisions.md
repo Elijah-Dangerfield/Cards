@@ -1096,3 +1096,79 @@ table exists and is seeded after migrations run.
   achievements still live in `:libraries:cards/AchievementRegistry.kt`
   because the `Criterion` evaluator is logic-bearing, not data).
 
+---
+
+## 2026-05-19 — Server-authoritative chip wallet (V6 migration)
+
+**Decision:** Chip balance moves out of the client's Room cache and
+into a Postgres `wallets` table on the server. V6 migration adds:
+
+- `wallets(user_id PK, balance, created_at, updated_at, CHECK balance >= 0)` —
+  one row per user. Lazy-created on first read with [Wallet.STARTER_GRANT]
+  (10K).
+- `wallet_events(user_id, idempotency_key, delta, reason, applied_at)` —
+  append-only ledger keyed by `(user_id, idempotency_key)`. The dedup
+  boundary that lets the client retry a sync without double-applying a
+  chip movement.
+
+**Why:** Closes the V1 MVP must-have "Server-side XP / chip persistence
+via Supabase" + "Starter grant deduplication" lines from `docs/product/
+v1-mvp.md`. Pre-V6 a reinstall granted a fresh 10K because the seed
+lived in Room; V6 ties the grant to the userId so the second device /
+reinstall sees the same wallet. The CHECK on `balance >= 0` is
+defense-in-depth — the application layer's [ApplyOutcome.InsufficientChips]
+path is the first line of refusal, the constraint is the floor.
+
+**Sync contract (`POST /v1/me/wallet/sync`):** Client posts a batch of
+locally-applied `WalletEventDto { idempotencyKey, delta, reason }`.
+Server iterates in order, applying each:
+
+| Outcome | Trigger | Wallet effect |
+|---|---|---|
+| `Applied` | First time the server sees this key | `balance += delta`; ledger row written |
+| `AlreadyApplied` | Duplicate idempotency key on the ledger | none |
+| `InsufficientChips` | Debit that would dip below zero | none; client surfaces toast |
+
+A failing event does NOT abort the batch — later events still apply.
+The response carries the post-batch authoritative balance plus a
+per-event result row, mirroring the inventory-sync envelope so the
+client's existing sync-result-handling pattern transfers.
+
+**`GET /v1/me/wallet`** returns the current balance, lazy-creating the
+row with the starter grant on first contact. Useful as a cheap
+foreground hydrate when the client has no pending events to flush.
+
+**Rate limit:** `WALLET_WRITE_LIMIT = 480 / hour / IP`. A heavy user
+playing 200 hands could realistically batch ~250 syncs/hour; 480
+covers them with ~2× headroom while still capping sustained abuse at
+one batch every 7.5 seconds. Per-IP keying mirrors the policy on the
+other write endpoints — moving to per-user keying would mean running
+the limiter inside the `authenticate` block (Ktor supports it; not
+worth the plumbing for V1).
+
+**Delete cascade:** `DELETE /v1/me` now calls
+`walletRepository.deleteAllForUser(userId)` before
+`profileRepository.delete(userId)`. Order matters: admin call first
+(revokes auth + sessions), then local data. Each step is idempotent so
+a mid-cascade crash leaves recoverable state. Inventory + equipment
+cleanup on delete are a separate sharp edge — they're not wired in
+yet, this PR is scoped to wallet.
+
+**What's deferred to a follow-up commit:**
+
+- Client integration. `ChipsRepositoryImpl` still reads/writes Room
+  only. A future `ChipsSyncService` will hydrate the local cache on
+  cold boot + foreground and flush local deltas to
+  `/v1/me/wallet/sync` (same pattern as `InventorySyncService`).
+- Server-side XP persistence (the sibling V1 MVP item). The wallet
+  schema is the template; XP needs a parallel `xp_ledger` table.
+
+**Tests:** 14 new `PostgresWalletRepositoryTest` cases (testcontainers
+Postgres — pins idempotency, starter-grant seeding, the non-negative
+balance invariant, per-user key scoping, ordered ledger reads, delete
+cascade). 8 new `WalletRoutesTest` cases (JWT-gated route layer —
+pins outcome routing, batch continuation past rejected debits, empty-
+batch as a hydrate-only call). Server test count: 181 (was 159).
+
+**Status:** Server piece landed. Client follow-up pending.
+

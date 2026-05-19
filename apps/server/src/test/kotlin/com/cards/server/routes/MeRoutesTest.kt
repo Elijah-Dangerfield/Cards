@@ -7,8 +7,12 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
+import com.dangerfield.cards.server.domain.WalletEvent
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
@@ -192,7 +196,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -216,7 +220,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -348,6 +352,20 @@ class MeRoutesTest {
             purchasedAt: kotlin.time.Instant,
         ): OwnedItem = error("unused")
 
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyWallet : WalletRepository {
+        override suspend fun findOrCreate(userId: UserId): Wallet = error("unused")
+        override suspend fun find(userId: UserId): Wallet? = null
+        override suspend fun apply(
+            userId: UserId,
+            idempotencyKey: String,
+            delta: Long,
+            reason: String,
+        ): ApplyOutcome = error("unused")
+
+        override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 }

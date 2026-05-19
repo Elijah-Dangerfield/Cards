@@ -28,6 +28,7 @@ import kotlin.time.Duration.Companion.minutes
  */
 const val DELETE_ACCOUNT_LIMIT = "delete-account"
 const val PROFILE_WRITE_LIMIT = "profile-write"
+const val WALLET_WRITE_LIMIT = "wallet-write"
 
 fun Application.installRateLimits() {
     install(RateLimit) {
@@ -54,6 +55,20 @@ fun Application.installRateLimits() {
             // 30/hour gives the user plenty of retries while making
             // name-squatting bots expensive.
             rateLimiter(limit = 30, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(WALLET_WRITE_LIMIT)) {
+            // POST /v1/me/wallet/sync runs once per cold boot, once on
+            // foreground resume, plus opportunistically after each chip
+            // movement. A heavy user playing 200 hands could plausibly
+            // hit 250+ syncs in an hour; 480/hour gives ~8 syncs/minute
+            // headroom while still capping abuse at one batch every
+            // 7.5 seconds sustained. Per-IP keying mirrors the rest of
+            // the policy — a future per-user-id refinement (see file
+            // header) would let one user on a shared NAT not exhaust
+            // the bucket for everyone else.
+            rateLimiter(limit = 480, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
     }

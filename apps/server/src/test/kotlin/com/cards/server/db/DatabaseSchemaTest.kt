@@ -30,6 +30,10 @@ class DatabaseSchemaTest : DatabaseTest() {
                 ProductsTable.selectAll().count() > 0L,
                 "V5 should have seeded the products table",
             )
+            // V6 wallet tables are created empty — `findOrCreate` in the
+            // repo lazy-seeds the row on first read, not via the migration.
+            assertEquals(0, WalletsTable.selectAll().count())
+            assertEquals(0, WalletEventsTable.selectAll().count())
         }
     }
 
