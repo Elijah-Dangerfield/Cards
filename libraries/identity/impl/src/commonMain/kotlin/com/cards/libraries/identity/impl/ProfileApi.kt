@@ -34,8 +34,12 @@ interface ProfileApi {
      */
     suspend fun patchMe(request: PatchMeRequest): MeDto
 
-    /** `GET /v1/avatars` — starter emoji pack for the picker. */
-    suspend fun avatars(): AvatarPackDto
+    /**
+     * `GET /v1/avatars` — emoji packs available to the caller.
+     * Always includes the starter pack; premium packs appear once the
+     * matching product is in inventory.
+     */
+    suspend fun avatars(): AvatarPackResponseDto
 
     /**
      * `DELETE /v1/me` — permanent account deletion. Returns the raw
@@ -52,8 +56,15 @@ data class PatchMeRequest(
 )
 
 @Serializable
+data class AvatarPackResponseDto(
+    val packs: List<AvatarPackDto>,
+)
+
+@Serializable
 data class AvatarPackDto(
-    val starter: List<String>,
+    val id: String,
+    val name: String,
+    val emojis: List<String>,
 )
 
 @SingleIn(AppScope::class)
@@ -71,7 +82,7 @@ class HttpProfileApi(
             setBody(request)
         }.body()
 
-    override suspend fun avatars(): AvatarPackDto =
+    override suspend fun avatars(): AvatarPackResponseDto =
         networkClient.authenticatedClient.get("/v1/avatars").body()
 
     override suspend fun deleteMe(): HttpResponse =

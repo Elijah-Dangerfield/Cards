@@ -9,6 +9,12 @@ application {
     mainClass.set("com.dangerfield.cards.server.MainKt")
 }
 
+tasks.named<JavaExec>("run") {
+    // Resolve env paths (apps/server/.env) from the repo root so `./gradlew :apps:server:run`
+    // finds the local dev secrets instead of the subproject dir.
+    workingDir = rootDir
+}
+
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)

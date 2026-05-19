@@ -1,7 +1,8 @@
 package com.dangerfield.cards.server.routes
 
-import com.dangerfield.cards.server.domain.AvatarStarterPack
+import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.DeleteUserResult
+import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
@@ -37,8 +38,11 @@ import org.slf4j.LoggerFactory
  *  - `displayName`: 1..MAX_NAME_LEN chars after trim. Server-side uniqueness
  *    enforced by the `profiles_display_name_uq` constraint; we surface
  *    409 on conflict.
- *  - `avatarEmoji`: must be a member of [AvatarStarterPack]. Lets us
- *    treat the starter pack as a closed enum without trusting the client.
+ *  - `avatarEmoji`: must be in one of the caller's available
+ *    [AvatarPacks] (starter + owned premium packs). Joining inventory
+ *    here keeps "owning the pack permits picking its emojis" enforced
+ *    server-side; clients can't sidestep by patching with a random
+ *    emoji string.
  *
  * DELETE ordering: admin call first (revokes the user's sessions immediately,
  * so even if the local profile delete fails the user can't come back via
@@ -46,7 +50,11 @@ import org.slf4j.LoggerFactory
  * recoverable by a future sweep; an orphan auth.users with a live JWT is
  * a security problem.
  */
-fun Route.meRoutes(repository: ProfileRepository, adminClient: SupabaseAdminClient) {
+fun Route.meRoutes(
+    repository: ProfileRepository,
+    adminClient: SupabaseAdminClient,
+    inventory: InventoryRepository,
+) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
@@ -67,11 +75,14 @@ fun Route.meRoutes(repository: ProfileRepository, adminClient: SupabaseAdminClie
                     problem("invalid_display_name", "Display name must be ${NAME_LENGTH.first}-${NAME_LENGTH.last} characters."),
                 )
             }
-            if (body.avatarEmoji != null && !AvatarStarterPack.contains(body.avatarEmoji)) {
-                return@patch call.respond(
-                    HttpStatusCode.BadRequest,
-                    problem("invalid_avatar_emoji", "Avatar emoji is not in the starter pack."),
-                )
+            if (body.avatarEmoji != null) {
+                val owned = inventory.listOwned(userId).map { it.productId }.toSet()
+                if (!AvatarPacks.isEmojiAvailable(body.avatarEmoji, owned)) {
+                    return@patch call.respond(
+                        HttpStatusCode.BadRequest,
+                        problem("invalid_avatar_emoji", "Avatar emoji is not available on your account."),
+                    )
+                }
             }
 
             when (val outcome = repository.update(userId, cleanedName, body.avatarEmoji)) {

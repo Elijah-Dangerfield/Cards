@@ -3,7 +3,10 @@ package com.dangerfield.cards.server.routes
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.AppConfigSource
-import com.dangerfield.cards.server.domain.AvatarStarterPack
+import com.dangerfield.cards.server.domain.AvatarPacks
+import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.OwnedItem
+import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -155,7 +158,7 @@ class SmallRoutesTest {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes() }
+                routing { avatarRoutes(EmptyInventory) }
             }
             val resp = createClient { }.get("/v1/avatars")
             assertEquals(
@@ -166,13 +169,13 @@ class SmallRoutesTest {
     }
 
     @Test
-    fun avatars_returnsStarterPack_withBearer() = runTest {
+    fun avatars_returnsStarterPack_forUserWithNoOwnedPacks() = runTest {
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes() }
+                routing { avatarRoutes(EmptyInventory) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -182,26 +185,31 @@ class SmallRoutesTest {
             }
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
-            val starter = body["starter"]!!.jsonArray.map { it.jsonPrimitive.content }
-            // The route serves AvatarStarterPack.values verbatim. Asserting
-            // size + a few sentinel entries pins the contract without
-            // brittling on every catalog tweak.
-            assertEquals(AvatarStarterPack.values.size, starter.size)
-            assertEquals(AvatarStarterPack.values, starter)
+            val packs = body["packs"]!!.jsonArray
+            // No owned premium packs → exactly the starter pack, with its
+            // emojis. Pins the wire shape + the inventory-join contract.
+            assertEquals(1, packs.size)
+            val starter = packs[0].jsonObject
+            assertEquals(AvatarPacks.Starter.id, starter["id"]!!.jsonPrimitive.content)
+            assertEquals(
+                AvatarPacks.Starter.emojis,
+                starter["emojis"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
         }
     }
 
     @Test
-    fun avatars_setsCacheControl_forOneDay() = runTest {
-        // The avatar pack is static within a release. A long max-age keeps
-        // the picker snappy and avoids burning quota when the user reopens
-        // the edit-profile screen. 1 day is what the route's contract says.
+    fun avatars_setsPrivateCache_so_packsDontBleedAcrossUsers() = runTest {
+        // Per-user payload (we join inventory), so a `private` cache
+        // directive is required — otherwise a CDN could serve user A's
+        // owned packs to user B. A short TTL keeps a new purchase
+        // visible quickly without burning the picker on every open.
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes() }
+                routing { avatarRoutes(EmptyInventory) }
             }
             val resp = createClient { }.get("/v1/avatars") {
                 header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
@@ -209,9 +217,25 @@ class SmallRoutesTest {
             assertEquals(HttpStatusCode.OK, resp.status)
             val cacheControl = resp.headers[HttpHeaders.CacheControl] ?: ""
             assertTrue(
-                cacheControl.contains("max-age=86400"),
-                "expected max-age=86400 (1 day), got: $cacheControl",
+                cacheControl.contains("private"),
+                "expected `private` directive, got: $cacheControl",
+            )
+            assertTrue(
+                cacheControl.contains("max-age=60"),
+                "expected max-age=60, got: $cacheControl",
             )
         }
+    }
+
+    private object EmptyInventory : InventoryRepository {
+        override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
+        override suspend fun recordPurchase(
+            userId: UserId,
+            productId: String,
+            costChipsAtPurchase: Long,
+            purchasedAt: kotlin.time.Instant,
+        ): OwnedItem = error("unused")
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 }

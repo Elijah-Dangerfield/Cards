@@ -249,8 +249,16 @@ class SupabaseIdentityRepository(
     }
 
     override suspend fun fetchAvatarPack(): AvatarPackOutcome = try {
-        val pack = profileApi.avatars()
-        AvatarPackOutcome.Success(pack.starter)
+        val response = profileApi.avatars()
+        AvatarPackOutcome.Success(
+            packs = response.packs.map { dto ->
+                com.dangerfield.cards.libraries.identity.AvatarPack(
+                    id = dto.id,
+                    name = dto.name,
+                    emojis = dto.emojis,
+                )
+            },
+        )
     } catch (e: ClientRequestException) {
         AvatarPackOutcome.Unknown(e)
     } catch (e: ServerResponseException) {

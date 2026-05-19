@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.identity.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -119,8 +120,8 @@ fun EditProfileScreen(
                 )
                 Spacer(modifier = Modifier.height(Dimension.D400))
 
-                AvatarGrid(
-                    pack = state.avatarPack,
+                AvatarPicker(
+                    packs = state.avatarPacks,
                     selected = state.selectedAvatarEmoji,
                     isLoading = state.isLoadingAvatars,
                     loadError = state.avatarLoadError,
@@ -154,15 +155,15 @@ fun EditProfileScreen(
 }
 
 @Composable
-private fun AvatarGrid(
-    pack: List<String>,
+private fun AvatarPicker(
+    packs: List<AvatarPack>,
     selected: String?,
     isLoading: Boolean,
     loadError: Boolean,
     enabled: Boolean,
     onSelect: (String) -> Unit,
 ) {
-    if (isLoading && pack.isEmpty()) {
+    if (isLoading && packs.isEmpty()) {
         Text(
             text = "Loading…",
             typography = AppTheme.typography.Body.B500,
@@ -173,7 +174,7 @@ private fun AvatarGrid(
         return
     }
 
-    if (loadError && pack.size <= 1) {
+    if (loadError) {
         Text(
             text = "Avatars couldn't load. You can still save your current avatar.",
             typography = AppTheme.typography.Body.B400,
@@ -182,20 +183,49 @@ private fun AvatarGrid(
         )
     }
 
-    // 5-wide grid with intrinsic height — the outer Column is scrollable,
+    packs.forEachIndexed { index, pack ->
+        if (index > 0) Spacer(modifier = Modifier.height(Dimension.D700))
+        // Only show the pack name when there's more than one — a single
+        // "Starter pack" header would be visual noise for the common case
+        // (no premium packs owned yet).
+        if (packs.size > 1) {
+            Text(
+                text = pack.name,
+                typography = AppTheme.typography.Label.L500,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D300))
+        }
+        AvatarGrid(
+            emojis = pack.emojis,
+            selected = selected,
+            enabled = enabled,
+            onSelect = onSelect,
+        )
+    }
+}
+
+@Composable
+private fun AvatarGrid(
+    emojis: List<String>,
+    selected: String?,
+    enabled: Boolean,
+    onSelect: (String) -> Unit,
+) {
+    // 4-wide grid with intrinsic height — the outer Column is scrollable,
     // so this grid renders all its rows at once. Compose can't have a
     // scrolling LazyVerticalGrid inside a verticalScroll, so we size by
-    // row count: ceil(pack.size / 5) × tileHeight.
+    // row count: ceil(emojis.size / 4) × tileHeight.
     LazyVerticalGrid(
         columns = GridCells.Fixed(GRID_COLUMNS),
         userScrollEnabled = false,
         modifier = Modifier
             .fillMaxWidth()
-            .height(((pack.size + GRID_COLUMNS - 1) / GRID_COLUMNS * TILE_HEIGHT_DP).dp),
+            .height(((emojis.size + GRID_COLUMNS - 1) / GRID_COLUMNS * TILE_HEIGHT_DP).dp),
         verticalArrangement = Arrangement.spacedBy(Dimension.D300),
         horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
     ) {
-        items(pack) { emoji ->
+        items(emojis) { emoji ->
             AvatarTile(
                 emoji = emoji,
                 isSelected = emoji == selected,
@@ -232,5 +262,5 @@ private fun AvatarTile(
     }
 }
 
-private const val GRID_COLUMNS = 5
-private const val TILE_HEIGHT_DP = 60
+private const val GRID_COLUMNS = 4
+private const val TILE_HEIGHT_DP = 72

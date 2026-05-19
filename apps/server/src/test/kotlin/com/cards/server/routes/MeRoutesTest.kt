@@ -3,6 +3,8 @@ package com.dangerfield.cards.server.routes
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.DeleteUserResult
+import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
@@ -190,7 +192,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient) }
+                routing { meRoutes(repo, adminClient, EmptyInventory) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -214,7 +216,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient) }
+                routing { meRoutes(repo, adminClient, EmptyInventory) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -331,5 +333,17 @@ class MeRoutesTest {
             assertEquals(0, admin.calls)
             assertEquals(0, repo.deleteCalls)
         }
+    }
+
+    private object EmptyInventory : InventoryRepository {
+        override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
+        override suspend fun recordPurchase(
+            userId: UserId,
+            productId: String,
+            costChipsAtPurchase: Long,
+            purchasedAt: kotlin.time.Instant,
+        ): OwnedItem = error("unused")
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 }

@@ -1,43 +1,80 @@
 package com.dangerfield.cards.server.domain
 
 /**
- * The curated emoji set every new user picks an avatar from, and the only
- * set we accept as a valid `avatar_emoji` on profile updates.
+ * Curated emoji packs the avatar picker can render. The wire is a list
+ * of [Pack]s so the client groups by name and the server can add new
+ * packs without a UI release.
  *
- * Curation rules:
+ * `Pack.unlockProductId`:
+ *  - `null` → starter pack, always available.
+ *  - non-null → premium pack, granted via shop purchase. The avatar
+ *    endpoint joins the caller's inventory and includes the pack only
+ *    if the matching product ID appears there. Validation on
+ *    `PATCH /v1/me` uses the same join — owning the pack is what
+ *    permits picking one of its emojis.
+ *
+ * Curation rules for [Starter] emojis:
  *  - No person / face emojis. Random assignment of skin tone or gendered
  *    emoji is a problem we don't need to take on.
- *  - No emojis that depend on ZWJ sequences for rendering (broader font
- *    support, especially on older Android builds).
- *  - Variety across animals / food / nature / objects so the pack feels
- *    playful instead of skewed.
+ *  - No ZWJ sequences (broader font support, especially on older
+ *    Android builds).
+ *  - 16 entries — a clean 4×4 grid that fits without scroll.
  *
- * Single source of truth: the random-assignment generator
- * ([com.dangerfield.cards.server.data.EmojiAvatarGenerator]) picks from
- * this list, and `PATCH /v1/me` validates against it. Future "premium"
- * avatar packs unlocked via `:libraries:products` are tracked
- * separately — those live in the shop catalog, not here.
+ * Future packs live as siblings to [Starter]. To add one: define a
+ * Pack with the matching `unlockProductId`, add it to [all]. Server
+ * picks it up; the picker renders a new section.
  */
-object AvatarStarterPack {
+object AvatarPacks {
 
-    val values: List<String> = listOf(
-        // Animals
-        "🦊", "🐱", "🐶", "🐯", "🐼", "🐻", "🦁", "🐸", "🐵",
-        "🐺", "🦝", "🦓", "🦒", "🦄", "🐹", "🐰", "🐢", "🐙",
-        "🦉", "🦅", "🦆", "🐧", "🦦", "🦔", "🐨", "🦘", "🐲",
-        // Sea
-        "🐳", "🐬", "🦈", "🦑", "🦞", "🦀", "🐡", "🐠", "🐟",
-        // Food
-        "🍕", "🍔", "🌮", "🍣", "🍩", "🥑", "🍇", "🍓",
-        "🥨", "🥐", "🍪", "🍫", "🥕", "🌽", "🍑", "🍒", "🍋",
-        // Nature / weather
-        "🌵", "🍄", "🌻", "🌸", "🌲", "🌴", "🌊", "🔥", "⚡",
-        "🌈", "🌙", "⭐", "🌍",
-        // Objects
-        "🎲", "🎰", "🎯", "🪙", "🃏", "♠️", "♥️", "♣️", "♦️",
-        "🎨", "🎭", "🎺", "🎸", "🥁", "🎤", "🎮", "🚀",
+    data class Pack(
+        val id: String,
+        val name: String,
+        val emojis: List<String>,
+        /**
+         * If non-null, the user must own this product (per the inventory
+         * table) for the pack to appear and for its emojis to validate.
+         */
+        val unlockProductId: String? = null,
     )
 
-    /** Set membership check for `PATCH /v1/me` validation. O(N) for ~80 entries; fine. */
-    fun contains(emoji: String): Boolean = values.contains(emoji)
+    val Starter: Pack = Pack(
+        id = "starter",
+        name = "Starter pack",
+        emojis = listOf(
+            "🦊", "🐱", "🐼", "🐯",
+            "🦄", "🐲", "🦁", "🐸",
+            "🌵", "🌻", "🔥", "⚡",
+            "🃏", "🎲", "🎯", "🚀",
+        ),
+    )
+
+    val all: List<Pack> = listOf(Starter)
+
+    /**
+     * Packs accessible to a caller given their owned product IDs.
+     * Always includes [Starter]; premium packs are included only when
+     * the user owns the matching product. Order is stable so the picker
+     * renders sections in the same order across sessions.
+     */
+    fun availableFor(ownedProductIds: Set<String>): List<Pack> = all.filter { pack ->
+        pack.unlockProductId == null || pack.unlockProductId in ownedProductIds
+    }
+
+    /**
+     * Set membership check for `PATCH /v1/me` validation against the
+     * caller's currently-available pack union. O(packs × emojis) for a
+     * tiny constant N; fine.
+     */
+    fun isEmojiAvailable(emoji: String, ownedProductIds: Set<String>): Boolean =
+        availableFor(ownedProductIds).any { emoji in it.emojis }
+}
+
+/**
+ * Legacy alias kept for the random-assignment path. The starter pack is
+ * always the pool we pick from — premium-pack ownership at signup time
+ * is by definition zero.
+ */
+object AvatarStarterPack {
+    val values: List<String> get() = AvatarPacks.Starter.emojis
+    fun contains(emoji: String): Boolean = emoji in values
 }

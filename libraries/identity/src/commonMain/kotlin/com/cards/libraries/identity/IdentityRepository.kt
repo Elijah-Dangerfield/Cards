@@ -155,8 +155,25 @@ sealed interface UpdateProfileOutcome {
     data class Unknown(val cause: Throwable) : UpdateProfileOutcome
 }
 
+/**
+ * An emoji pack the user can pick avatars from. Always includes a
+ * starter pack (`unlockProductId == null`); premium packs appear once
+ * the matching product is in inventory. The server is authoritative —
+ * the client never invents a pack.
+ */
+data class AvatarPack(
+    val id: String,
+    val name: String,
+    val emojis: List<String>,
+)
+
 sealed interface AvatarPackOutcome {
-    data class Success(val starter: List<String>) : AvatarPackOutcome
+    /**
+     * Packs available to this user, in server-determined order. The
+     * starter pack is always first; premium packs follow as they're
+     * unlocked.
+     */
+    data class Success(val packs: List<AvatarPack>) : AvatarPackOutcome
     data class NetworkError(val cause: Throwable) : AvatarPackOutcome
     data class Unknown(val cause: Throwable) : AvatarPackOutcome
 }

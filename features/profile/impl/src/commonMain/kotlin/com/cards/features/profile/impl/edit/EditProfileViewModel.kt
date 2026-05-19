@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.AvatarPack
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
@@ -60,16 +61,19 @@ class EditProfileViewModel(
                     when (outcome) {
                         is AvatarPackOutcome.Success -> it.copy(
                             isLoadingAvatars = false,
-                            avatarPack = outcome.starter,
+                            avatarPacks = outcome.packs,
                         )
                         is AvatarPackOutcome.NetworkError,
                         is AvatarPackOutcome.Unknown,
                             -> it.copy(
                             isLoadingAvatars = false,
                             // If the pack didn't load, fall back to letting
-                            // the user see at least their current emoji
-                            // and keep it. Slot-fill with the current.
-                            avatarPack = listOfNotNull(it.selectedAvatarEmoji),
+                            // the user see at least their current emoji and
+                            // keep it. Wrap it in a synthetic "current"
+                            // pack so the picker still renders something.
+                            avatarPacks = listOfNotNull(it.selectedAvatarEmoji).takeIf { it.isNotEmpty() }
+                                ?.let { listOf(AvatarPack("current", "Current", it)) }
+                                ?: emptyList(),
                             avatarLoadError = true,
                         )
                     }
@@ -134,7 +138,7 @@ data class EditProfileState(
     val displayName: String = "",
     val initialAvatarEmoji: String? = null,
     val selectedAvatarEmoji: String? = null,
-    val avatarPack: List<String> = emptyList(),
+    val avatarPacks: List<AvatarPack> = emptyList(),
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
