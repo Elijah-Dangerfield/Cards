@@ -6,8 +6,9 @@ import com.dangerfield.cards.libraries.identity.IdentityRepository
 import me.tatarka.inject.annotations.Inject
 
 /**
- * The "destructive account actions" VM that sits behind the Profile screen:
- * sign out (V1), delete account (Phase 3.1 — currently a sharp-edge stub).
+ * The "destructive account actions" VM that sits behind the Profile screen.
+ * Owns sign-out; delete-account has its own VM ([DeleteAccountViewModel])
+ * because it lives on a dedicated type-to-confirm screen.
  *
  * Lives in its own file rather than on a hypothetical full `ProfileViewModel`
  * because Profile's read state is composed from observed flows directly in

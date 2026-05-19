@@ -26,8 +26,9 @@ class RankDetailSheetViewModel(
         when (action) {
             is RankDetailAction.UserChanged -> action.updateState {
                 // V1: rank stays at 0 for anon users (no auth → no MP → no Elo).
-                // Once Phase 3 lands and a claimed user starts multiplayer, this
-                // will read from a real rank repo.
+                // When the MP gameplay layer lands, this reads from a real
+                // rank repo backed by per-hand Elo deltas. The 1200 default
+                // is the placeholder a claimed user sees until they've played.
                 it.copy(isAnonymous = action.isAnonymous, rank = if (action.isAnonymous) 0 else 1200)
             }
         }

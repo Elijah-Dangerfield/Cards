@@ -39,15 +39,18 @@ import kotlinx.coroutines.launch
 
 /**
  * Three-page intro pager + a "Sign in" affordance in the top-right that
- * opens a "Coming Soon" sheet (Apple/Google claim ships in Phase 3.1; the
- * affordance exists in V1 to set expectations).
+ * routes into the sign-in screen. Apple/Google providers are gated behind
+ * `IdentityFeatureConfig` flags until OAuth credentials are provisioned;
+ * when off, the sign-in screen shows email/password + a "coming soon"
+ * notice for the social providers.
  *
  * Pager pages: hardcoded — keep V1 small and predictable. When the
  * content needs to be localized + AB-testable, lift the slides into a
  * `:libraries:config` value.
  *
- * Final page "Get Started" calls the VM, which posts /v1/identity, flips
- * `hasUserOnboarded`, and emits [OnboardingEvent.NavigateToHome].
+ * Final page "Get Started" calls the VM, which establishes an anonymous
+ * Supabase session, flips `hasUserOnboarded`, and emits
+ * [OnboardingEvent.NavigateToHome].
  */
 @Composable
 fun OnboardingScreen(

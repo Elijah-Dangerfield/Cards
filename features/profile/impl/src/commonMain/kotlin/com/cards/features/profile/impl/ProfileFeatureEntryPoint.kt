@@ -56,10 +56,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Profile + every sub-route reachable from it. Sub-routes that aren't built
- * yet (edit profile, gameplay speed, delete account, claim account) register
- * a [PlaceholderScreen] so navigation works end-to-end. Privacy + terms hand
- * off to the system browser via [Router.openWebLink].
+ * Profile + every sub-route reachable from it (edit profile, my items,
+ * delete account, claim account, feedback, bug report, QA menu). Bot speed
+ * + turn-feedback toggles live inline on [ProfileScreen] — no sub-route.
+ * Privacy + terms hand off to the system browser via [Router.openWebLink].
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
