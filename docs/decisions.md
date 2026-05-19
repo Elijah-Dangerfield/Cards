@@ -811,3 +811,30 @@ The `Reverted` branch in `SyncOutcomeDto` is still reserved for the future serve
 - `AdminRoutesTest` (new file): 401 without token, 401 with wrong token, 401 when server has no token configured (fail-closed), 200 happy path counts, TTL boundary end-to-end through the route.
 
 **Status:** Landed. Sweep cadence wiring (cron workflow at `.github/workflows/sweep-rooms.yml`) is a pre-launch checklist item, not a code change.
+
+---
+
+## 2026-05-19 — MP foundation hardening: cron workflows, host-room cap, admin ops endpoint, auth viewmodel tests
+
+**Decision:** Bundled hardening pass closing four V1.x pre-launch checklist items at once. Pure additive — no behavioral changes for existing callers beyond an extra `Conflict` branch on `POST /v1/rooms`.
+
+**Pieces:**
+
+1. **Cron workflows committed.** `.github/workflows/sweep-anon.yml` and `.github/workflows/sweep-rooms.yml` were documented in DEPLOY.md but lived nowhere on disk. Both now exist as runnable workflows (daily at 05:17 UTC for the anon sweep; every 5 min for the room sweep, GitHub's cron floor). Each fails closed when `CARDS_ADMIN_API_TOKEN_DEV` is unset and surfaces a workflow-summary warning on `failedToDelete > 0` for the anon sweep. Prod equivalents will sit alongside once `cards-server` (prod) is provisioned.
+
+2. **Per-host room cap (`MAX_ROOMS_PER_HOST = 3`).** `RoomService.create` now returns a sealed `CreateResult` (`Success` | `TooManyRooms(activeCount)`). Limits abuse where a single user creates rooms in a loop and exhausts the in-memory code map. Honest workflows are unaffected — three concurrent rooms is well above realistic friend-game patterns; an abandoned room is freed by either the next `leave()` or the disconnect sweep. The HTTP route translates `TooManyRooms` → `409` with `too_many_rooms` problem code so the client UI can render a tailored message ("Leave one before creating another").
+
+3. **`GET /v1/admin/rooms` operational endpoint.** Token-gated, same `X-Admin-Token` header as the sweeps. Returns one summary per live room — code, host, status, seat counts, connected vs disconnected. Used to verify the sweep is doing its job between cron ticks, spot abandoned rooms, answer "how busy is MP right now." Summary-only (no member-level detail), so payload size is bounded.
+
+4. **Client-side auth ViewModel tests.** Closes the sharp-edge note "No client-side tests for the auth screens." 27 new tests across `SignInViewModelTest` / `SignUpViewModelTest` / `VerifyEmailViewModelTest` pinning outcome→state→event mapping for every `SignInOutcome` / `SignUpOutcome` / `RefreshOutcome` / `ResendOutcome` variant. Reusable fakes in `AuthViewModelFakes.kt` model the repository surface; future auth-screen tests can build on the same scaffolding.
+
+**Why now:** All four were marked "before launching MP to real users" in the known-sharp-edges memory. Bundling them keeps the V1 cleanup sweep cohesive — and the room-cap change touches the same `RoomService.create` surface that the admin endpoint introspects, so they cluster naturally.
+
+**Tested:**
+
+- `InMemoryRoomServiceTest` — added 5 tests (cap-enforced, per-host scoping, reclaimable after leave, reclaimable after sweep, snapshot ordering).
+- `RoomRoutesTest` — added 1 test (HTTP 409 + `too_many_rooms` envelope).
+- `AdminRoutesTest` — added 4 tests for `GET /v1/admin/rooms` (auth gates + happy-path summary counts).
+- Auth viewmodels — 27 tests across SignIn / SignUp / VerifyEmail covering every outcome variant + side-effect gates (`hasUserOnboarded` flips only on confirmed paths).
+
+**Status:** Landed. Server tests: 73 (was 64). Onboarding-impl tests: 27 (was 0).
