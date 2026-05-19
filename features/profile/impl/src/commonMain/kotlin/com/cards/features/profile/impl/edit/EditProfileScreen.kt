@@ -316,3 +316,66 @@ private fun AvatarTile(
 
 private const val GRID_COLUMNS = 4
 private const val TILE_HEIGHT_DP = 72
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_Loaded() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "Elijah",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🦄",
+                avatarPacks = listOf(
+                    AvatarPack(
+                        id = "starter",
+                        name = "Starter pack",
+                        emojis = listOf("🦊", "🐱", "🐼", "🐯", "🦄", "🐲", "🦁", "🐸"),
+                    ),
+                ),
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_TwoPacksOwned() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "ElijahNew",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🚀",
+                avatarPacks = listOf(
+                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
+                    AvatarPack("space", "Space pack", listOf("🚀", "🛸", "🌙", "⭐", "🪐", "☄️")),
+                ),
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_Loading() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "Elijah",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🦊",
+                isLoadingAvatars = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}

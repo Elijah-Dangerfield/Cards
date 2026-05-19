@@ -146,6 +146,43 @@ private fun ProviderButton(label: String, enabled: Boolean, onClick: () -> Unit)
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ClaimAccountScreenPreview_ComingSoon() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ClaimAccountScreen(state = ClaimAccountState(), onAction = {}, onBack = {})
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ClaimAccountScreenPreview_BothEnabled() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ClaimAccountScreen(
+            state = ClaimAccountState(googleEnabled = true, appleEnabled = true),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ClaimAccountScreenPreview_Conflict() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ClaimAccountScreen(
+            state = ClaimAccountState(
+                googleEnabled = true,
+                appleEnabled = true,
+                conflictingProvider = OAuthProvider.Google,
+                error = "That Google account is already linked to another player.",
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 @Composable
 private fun ComingSoonNotice() {
     Text(

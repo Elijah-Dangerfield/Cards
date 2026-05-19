@@ -262,6 +262,72 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_Idle() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(state = LobbyState(), onAction = {}, onBack = {})
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_Idle_WithCode() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(state = LobbyState(codeInput = "ABC123"), onAction = {}, onBack = {})
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_InRoom_Connected() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                room = com.dangerfield.cards.libraries.rooms.Room(
+                    code = "ABC123",
+                    hostUserId = "u1",
+                    createdAtEpochMs = 1_700_000_000_000,
+                    maxSeats = 4,
+                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    members = listOf(
+                        RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
+                        RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
+                        RoomMember("u3", "Marcus", seatIndex = 2, joinedAtEpochMs = 0, isConnected = false),
+                    ),
+                ),
+                connectionStatus = ConnectionStatus.Connected,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_InRoom_Reconnecting() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                room = com.dangerfield.cards.libraries.rooms.Room(
+                    code = "PREFIL",
+                    hostUserId = "u1",
+                    createdAtEpochMs = 1_700_000_000_000,
+                    maxSeats = 6,
+                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    members = listOf(
+                        RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
+                    ),
+                ),
+                connectionStatus = ConnectionStatus.Reconnecting(attempt = 2),
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 @Composable
 private fun MemberRow(member: RoomMember) {
     Row(

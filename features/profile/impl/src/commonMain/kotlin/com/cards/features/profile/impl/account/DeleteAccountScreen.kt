@@ -156,6 +156,41 @@ fun DeleteAccountScreen(
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun DeleteAccountScreenPreview_Empty() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        DeleteAccountScreen(state = DeleteAccountState(), onAction = {}, onBack = {})
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun DeleteAccountScreenPreview_Confirmed() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        DeleteAccountScreen(
+            state = DeleteAccountState(confirmationInput = "delete"),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun DeleteAccountScreenPreview_Error() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        DeleteAccountScreen(
+            state = DeleteAccountState(
+                confirmationInput = "delete",
+                error = "Couldn't reach the server. Check your connection.",
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 @Composable
 private fun BulletItem(text: String) {
     Text(

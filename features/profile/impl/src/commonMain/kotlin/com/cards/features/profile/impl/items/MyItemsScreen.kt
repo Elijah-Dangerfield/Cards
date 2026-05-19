@@ -198,3 +198,49 @@ private fun EmptyState() {
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun MyItemsScreenPreview_Empty() {
+    // The full screen, no items. Exercises the empty-state hero path.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        MyItemsScreen(state = MyItemsState(), onAction = {}, onBack = {})
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OwnedItemRowPreview_Equipped_AndUnequipped() {
+    // Row-only previews because MyItemsState.ownedItems is a derived
+    // join over inventory + catalog — we'd need to fake both to seed
+    // the screen with items. Pinning the row visual is what matters.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(Dimension.D400),
+            modifier = Modifier.padding(Dimension.D500),
+        ) {
+            OwnedItemRow(
+                item = OwnedItem(
+                    productId = "ck.gold",
+                    title = "Gold card backs",
+                    subtitle = "Card back",
+                    description = "Luxe deck back with subtle gradient.",
+                    iconEmoji = "🃏",
+                    isEquipped = true,
+                ),
+                onToggle = {},
+            )
+            OwnedItemRow(
+                item = OwnedItem(
+                    productId = "felt.marble",
+                    title = "Marble felt",
+                    subtitle = "Felt",
+                    description = null,
+                    iconEmoji = "🟢",
+                    isEquipped = false,
+                ),
+                onToggle = {},
+            )
+        }
+    }
+}
