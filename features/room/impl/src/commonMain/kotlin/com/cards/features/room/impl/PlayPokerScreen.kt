@@ -153,7 +153,13 @@ fun PlayPokerScreen(
     }
     BackHandler(enabled = true) { requestLeave() }
 
-    Screen(modifier = modifier) { padding ->
+    // Background paint is driven by the equipped felt — Default keeps the
+    // app's stock background; every other style picks a per-felt color.
+    // Repaints the moment the equipment flow re-emits, so the user can
+    // toggle felts in My Items and see the table change underneath them
+    // without leaving the table.
+    val tableSurface = feltSurfaceColor(state.equippedFelt)
+    Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                 TopBar(

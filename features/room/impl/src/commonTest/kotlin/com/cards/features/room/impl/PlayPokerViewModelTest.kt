@@ -321,6 +321,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         progressionRepository = progressionRepository,
         achievementRepository = achievementRepository,
         appCache = appCache,
+        equipmentRepository = FakeEquipmentRepository(),
     )
 
     private fun testEarnedAchievement(): EarnedAchievement = EarnedAchievement(

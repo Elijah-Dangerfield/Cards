@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -51,6 +52,7 @@ class PlayPokerViewModel @Inject constructor(
     private val progressionRepository: ProgressionRepository,
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
+    private val equipmentRepository: EquipmentRepository,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
     initialStateArg = PlayPokerState(),
 ) {
@@ -110,6 +112,20 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.SkipLeaveConfirmChanged(data.skipLeaveBotsConfirm))
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
+            }
+        }
+        // Equipped felt / table theme — observed so a mid-session toggle
+        // from the My Items screen repaints the table without re-entry.
+        // Picks the most recently equipped felt-eligible product so the
+        // user always sees their latest choice; ties broken by last-equip
+        // wins (the flow yields newest-first).
+        viewModelScope.launch {
+            equipmentRepository.observeEquipped().collect { entries ->
+                val felt = entries
+                    .map { feltForProductId(it.productId) }
+                    .firstOrNull { it != EquippedFelt.Default }
+                    ?: EquippedFelt.Default
+                takeAction(PlayPokerAction.EquippedFeltChanged(felt))
             }
         }
     }
@@ -222,6 +238,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.AchievementsEarned -> action.updateState {
                 it.copy(recentlyEarned = action.earned)
             }
+            is PlayPokerAction.EquippedFeltChanged -> action.updateState {
+                it.copy(equippedFelt = action.felt)
+            }
         }
     }
 }
@@ -245,6 +264,12 @@ data class PlayPokerState(
     val skipLeaveBotsConfirm: Boolean = false,
     val turnFeedback: TurnFeedback = TurnFeedback.Sound,
     val connection: ConnectionState = ConnectionState.Connected,
+    /**
+     * Which felt / table-theme the player has currently equipped. Drives
+     * the screen's background paint via [feltSurfaceColor]. Default = the
+     * stock app background (i.e. nothing equipped).
+     */
+    val equippedFelt: EquippedFelt = EquippedFelt.Default,
 )
 
 sealed interface PlayPokerAction {
@@ -274,6 +299,9 @@ sealed interface PlayPokerAction {
     // Hand-end transients (internal — fired by hand-end callback)
     data class HandXpAwarded(val amount: Int) : PlayPokerAction
     data class AchievementsEarned(val earned: List<EarnedAchievement>) : PlayPokerAction
+
+    /** Fired by the equipment subscription; repaints the table surface. */
+    data class EquippedFeltChanged(val felt: EquippedFelt) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {

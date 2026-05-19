@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * Test fakes for [PlayPokerViewModel]. Hand-rolled rather than mock-library because
@@ -181,6 +183,37 @@ class FakeAchievementRepository(
     }
 
     override suspend fun deleteAll() { state.value = AchievementProgress.Empty }
+}
+
+// ---------- EquipmentRepository ----------
+
+class FakeEquipmentRepository(
+    initial: List<com.dangerfield.cards.libraries.cards.EquipmentEntry> = emptyList(),
+) : com.dangerfield.cards.libraries.cards.EquipmentRepository {
+    private val state = MutableStateFlow(initial)
+
+    fun emit(entries: List<com.dangerfield.cards.libraries.cards.EquipmentEntry>) {
+        state.value = entries
+    }
+
+    override fun observeEquipped(): Flow<List<com.dangerfield.cards.libraries.cards.EquipmentEntry>> =
+        state.asStateFlow().map { list -> list.filter { it.isEquipped } }
+
+    override suspend fun getAll(): List<com.dangerfield.cards.libraries.cards.EquipmentEntry> = state.value
+
+    override suspend fun equip(productId: String): com.dangerfield.cards.libraries.cards.EquipmentToggleResult {
+        return com.dangerfield.cards.libraries.cards.EquipmentToggleResult.Success
+    }
+
+    override suspend fun unequip(productId: String): com.dangerfield.cards.libraries.cards.EquipmentToggleResult {
+        return com.dangerfield.cards.libraries.cards.EquipmentToggleResult.Success
+    }
+
+    override suspend fun applyServerSnapshot(authoritative: List<com.dangerfield.cards.libraries.cards.EquipmentEntry>) {
+        state.value = authoritative
+    }
+
+    override suspend fun deleteAll() { state.value = emptyList() }
 }
 
 // ---------- Test data builders ----------
