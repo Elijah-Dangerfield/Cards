@@ -25,6 +25,20 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-05-20 — Table felts switch to private (visible only to the owner)
+
+**Decision:** Table felts are visible only to their owner on the local play surface, not broadcast to other players at the table. The shop and My Items copy reflect "your table" framing rather than "high social signal."
+
+**Why:** A single shared table can't honestly satisfy "two players each see their own felt" without duplicating the render per player, which we won't do. Private felts preserve the cosmetic value (you see your purchase every hand) without the rendering impossibility, and side-step the "whose felt wins?" decision-fatigue moment at table start.
+
+**Alternatives considered:**
+- Public felts (the original spec direction). Rejected: ambiguous which felt to render when >1 player owns one.
+- Host-chosen or voted felt per room. Rejected: friction at table start; also undermines the "your felt" ownership feel.
+
+**Status:** Locked. Supersedes the public-felt direction previously in product-spec.md §4.3 (now updated). The "high social signal" framing for the felt category in the original §4.3 is replaced by the broader social-signal mechanics (avatar frames, emote packs, name flair) which *are* visible table-wide.
+
+---
+
 ## 2026-05-13 — V1 product positioning
 
 **Decision:** Cards V1 ships as a focused **Texas Hold'em poker-with-friends** app. Marketed entirely as a poker app despite the generic name; other card games are post-V1.

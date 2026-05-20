@@ -26,23 +26,55 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
-## Multiplayer table — opponents-row overflow
+## Daily / return-visit reward (non-streak)
 
-**Idea:** With 6–10 players, the current `OpponentsRow` (BoxWithConstraints + Row + weight) packs avatars in until they're too small to be legible. For multiplayer, scroll instead of shrinking.
+**Idea:** A small, optional reward for returning to the app — *without* the daily-streak loss-aversion framing we explicitly rejected ([product-spec.md Appendix C.1](./product/product-spec.md#c1-daily-login-streak-rejected-2026-05-16)). The motivation isn't "punish you for skipping a day"; it's "be warm when you come back."
 
-**Sketch:**
-- Replace the Row with a `LazyRow` once `count > N` (probably 4, since at 5+ the current avatar scaling already drops below 56dp).
-- Auto-scroll to the active actor when their turn flips, with a smooth animation. Otherwise the user has no idea where to look at a 10-handed table.
-- Horizontal fading edges (gradient overlay on both sides) signal there's more off-screen.
-- Optionally a "X folded · Y to act" peripheral tally above the row so the user keeps overview context even when most of the table is scrolled out.
+**Sketch directions to consider (pick one — they're not additive):**
+- **Variable surprise.** Every Nth return visit (probabilistically) drops a small chip bonus + a custom message. No counter shown — surprise, not obligation.
+- **Weekly play-streak** (already in product-spec.md Appendix B item 17). Consecutive *weeks* with ≥1 hand played. Lower-pressure than daily.
+- **"Welcome back" only after gaps.** Reward triggers if it's been ≥7 days since last play — re-engagement, not retention pressure.
+- **First-hand-of-the-day chip-coin.** Tiny bonus on your first hand played each calendar day. No counter, no streak number, just a one-time "+50" badge that hand. Easy to add, easy to remove.
 
 **Guardrails:**
-- Keep the existing pack-and-shrink behavior for `count <= 4` so casual bot tables still show everyone at once.
-- Don't auto-scroll if the user has manually scrolled in the last few seconds — respect their context, snap back when their turn comes.
+- **No counter, no streak number, no "you'll lose your X if you skip."** That framing is the exact thing we said no to.
+- **No notification spam.** Reward is discovered when you open the app, never pushed to your lock screen.
+- **Reward small enough to not affect economy balance.** This is warmth, not a chip faucet.
 
-**Tradeoff:** At 6+ players you lose the "everyone at once" overview, which makes the table harder to read at a glance. The fading edges and the auto-scroll-to-actor pattern mitigate this, but it'll never be as legible as 4-handed.
+**Tradeoff:** Even the gentlest version drifts toward daily-obligation framing if scoped wrong. The decision math is whether retention numbers justify the risk to the brand. Revisit after V1 ships and we have D2/D7 data — if retention is healthy without it, leave it alone.
 
-**Status:** Backlog. Implement when multiplayer feature work begins — no value until there are actually >4 seats in production.
+**Status:** Backlog. Considered + deferred 2026-05-20.
+
+---
+
+## Felt-aware button color adaptation
+
+**Idea:** When the user equips a colored felt, the play-screen action buttons can clash. Either pin the buttons to a felt-independent surface, or token the buttons against a `surfaceOnFelt` color that the felt itself defines.
+
+**Sketch:**
+- Each felt declares its own `surfaceOnFelt` + `onSurfaceOnFelt` pair in its catalog entry.
+- The play screen's action button strip reads from `LocalCurrentFelt.surfaceOnFelt` (composition local set at the play screen root) instead of `AppTheme.colors.surfacePrimary`.
+- Fallback to surface tokens when no felt is equipped or the felt doesn't declare an override.
+
+**Tradeoff:** Right now the play surface is dark enough that the clash is mild. The fix isn't expensive but it's tokens + catalog metadata, not a one-line change. Worth doing when we have time to extend the catalog schema, or when we ship a brighter felt that makes the clash actually painful.
+
+**Status:** Backlog. Deferred 2026-05-20 — not a V1 blocker; current felt palette is forgiving.
+
+---
+
+## Emojis-cost-chips as a chip sink
+
+**Idea (raised 2026-05-20):** Make each table-side emoji blast cost a small chip amount, so emojis become a chip sink that drives buying.
+
+**Dissent (recorded 2026-05-20):** I'd push back. Emojis are the social-signal feature that makes the table feel alive. Adding cost suppresses usage, which suppresses the social experience, which suppresses the loss-aversion-on-busts loop that actually drives chip purchases. The chip-sink instinct is right — the lever is wrong.
+
+**Better chip sinks to consider first:**
+- **MP buy-in / ante** (already on todo.md as a separate item). This is the natural chip sink in a poker game.
+- **Tip the dealer** at hand end (already in [product-spec.md §4.1.5](./product/product-spec.md#41-currency--chips)).
+- **Profile rename / title change cost.**
+- **Custom avatar slots, name color, name glow, profile decoration** — already in shop catalog (§4.3).
+
+**Status:** Backlog. Revisit only if the other sinks (especially MP buy-in) prove insufficient to keep chips a flowing resource. Default position: do not charge for emojis.
 
 ---
 

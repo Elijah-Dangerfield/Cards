@@ -349,7 +349,7 @@ This is the structural anti-P2W mechanism: the items players see on rival profil
 **Categories** (all chip-priced):
 
 1. **Card backs** — workhorse. Common variants (500–2,000), seasonal variants (chip-priced but time-limited)
-2. **Table felts** — visible to whole table, high social signal
+2. **Table felts** — visible **only to you** on your own play surface (private cosmetic; one shared table can't honestly show two players' felts at once — see [decisions.md 2026-05-20 — Table felts switch to private](../decisions.md))
 3. **Emote packs** — bundled sets of ~6 themed reactions
 4. **Avatar frames** — static frames; animated frames are unlock-only (§4.2)
 5. **Name color / glow** — display name flair (a few simple options chip-priced; exotic variants unlock-only)

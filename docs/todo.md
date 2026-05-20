@@ -2,7 +2,7 @@
 
 **Last reviewed:** 2026-05-20 · **Companion to:** [product/v1-mvp.md](./product/v1-mvp.md), [backlog.md](./backlog.md)
 
-The live punch list of actionable engineering work — V1 ship items today, post-V1 items as they arise. Append, check off, and move done items into the decision log when they land. Most other docs (`product-spec.md`, `decisions.md`, `voice-and-copy.md`) are reference; this one is the working sheet.
+The live punch list of actionable engineering work. Append, check off, and **delete** done items — they don't need to live here as history. Add a [decisions.md](./decisions.md) entry **only** when an item resolved a non-trivial architectural call worth not re-litigating (see decisions.md header for what qualifies). Most items just get crossed off and removed.
 
 When an item points at a file path or system, the assumption is that path/system already exists — the work is the gap, not a greenfield build.
 
@@ -19,16 +19,9 @@ Anything in §A is **off-limits to automated workers** — those items need a hu
 
 ## A. 🚫 Blocked — needs human decision
 
-**Do not pick these up in any automated run.** These items contradict the locked spec or require an executive call before engineering can start.
+**Do not pick these up in any automated run.** Contradicts the locked spec or requires an executive call before engineering can start.
 
-1. **Felt visibility.** Note in the field log: *"only you can see your felt."* This conflicts with [product-spec.md §4.3](./product/product-spec.md#43-shop), which lists table felts as *"visible to whole table, high social signal."* The spec direction was deliberate (cosmetics-as-social-signal is the brand). If we're flipping to private felts, update §4.3 + §4.2 first; the engineering follows. If felts stay public, the work is **clearer UI copy that felts are seen by the table** (probably on the equip confirmation).
-
-2. **Daily streak.** Note in the field log: *"one coin per day of streak starting at 5 days, opening the app continues the streak."* This conflicts with [product-spec.md Appendix C.1](./product/product-spec.md#c1-daily-login-streak-rejected-2026-05-16) (login streaks rejected on-brand). The rejection was load-bearing — streaks were explicitly called out as the canonical Zynga / Duolingo pattern we don't want. Options:
-   - **No.** Keep the rejection; the "first-week welcome chips" (§4.1) already gives the early-days warmth without daily-obligation framing.
-   - **Yes, narrow form.** *Weekly* play-streak (consecutive weeks with ≥1 MP hand) is already on the table in Appendix B item 17 — that's the on-brand version.
-   - **Yes, the full form.** Reverse the C.1 rejection. Update the spec, the voice guide, and Appendix C before any engineering.
-
-I'm not going to silently ship either of these against the spec. Both want an executive call.
+1. **MP buy-in / ante mechanic.** Multiplayer needs a chip sink at the table — otherwise chips are a one-way faucet and there's no economic loop. Open questions before engineering: (a) flat buy-in to enter the room (returned on graceful leave?) or per-hand ante? (b) host-set or fixed? (c) does the bot table mirror this so the mechanic is discoverable, or are bot tables explicitly chip-free? (d) refund behavior on disconnect / forfeit. Lands in product-spec.md §5 once decided.
 
 ---
 
@@ -36,18 +29,13 @@ I'm not going to silently ship either of these against the spec. Both want an ex
 
 These are bugs / polish items found playing the app or scanning the code. Cheap individually; collectively the V1 quality bar.
 
-### Equip / cosmetics
-- ~~**Single-equip felt invariant.**~~ ✅ The data model *doesn't* enforce single-equip — the comment on `EquipmentRepository` explicitly defers to the rendering layer. The picker (`MyItemsViewModel.ToggleEquipped`) now retires any same-slot equipped product before turning on the new one, using the new `cosmeticSlotFor` helper in `:libraries:cards`. Same enforcement applies to card backs, titles, and tools. Pinned by `MyItemsViewModelTest`.
-- ~~**Auto-equip on purchase.**~~ ✅ `ShopViewModel.confirmChipOfferRedeem` now calls `equipmentRepository.equip(...)` after a successful redeem, *if* the product occupies a recognized cosmetic slot AND no other product in that slot is currently equipped (we don't silently steal an in-use felt; the user keeps control via My Items). Non-slot purchases (avatar packs, emote packs) skip auto-equip. Pinned by three new tests in `ShopViewModelTest`.
-- **Button color adaptation against felt.** When the user equips a colored felt, the play-screen action buttons can clash. Either pin the buttons to a felt-independent surface, or token the buttons against a `surfaceOnFelt` color that the felt defines.
+### Cosmetics / shop / felts
+- **Switch felt visibility to private (per [decisions.md 2026-05-20](./decisions.md)).** Each player only sees their own equipped felt on the table render. Tasks: (a) audit the play-screen render path to confirm felts are local-only — if any code paths broadcast a felt id over the wire or read another player's felt, remove that. (b) Update user-facing copy in the shop tile and My Items detail for felts — drop any "visible to the table" framing, replace with "your table" or similar. Check `:libraries:ui` shop components, `features/shop/impl/`, `features/profile/impl/items/`. (c) `voice-and-copy.md` may need a one-line addition near the shop section if there's canonical copy for felt tiles.
 
 ### Edit profile
-- **Starter avatar pack content review (server-side).** Confirmed the picker reads from `IdentityRepository.fetchAvatarPack()` (server-driven). What still needs review is the *content* of the starter pack returned by `GET /v1/avatars` — the initial set should be intentionally small and must not overlap with packs users can buy. That's a server-config decision, not a client change.
-- **Avatar grid — confirm scrolls on small screens.** The outer column wraps the grid in `verticalScroll`, and the grid sizes itself to `ceil(emojis / 4) * tileHeight`, so all rows should reach. Worth a manual pass on a small-screen device with a long pack to confirm nothing's clipping under the IME or the Save button.
+- **Offline-first reads for profile-editable data.** When the user opens Edit Profile, the avatar picker fetches the pack fresh from the server every time — slow, and impossible offline. Drive the picker (and similar profile-editable surfaces) from the local DB; reconcile to the server in the background. Edits should write locally first, queue a sync, and trust eventual consistency. **Out of scope:** server-authoritative things that need server confirmation before they're real (products / purchases / chip wallet — those keep their current server-roundtrip semantics).
 
 ### Screen / chrome consistency
-- ~~**Most screens should use the `Screen` component + the prebuilt header.**~~ ✅ Audited. Every Screen-level composable now wraps in `Screen` (home/shop/profile keep bespoke chrome on purpose). For the title+back header, the canonical component is `libraries/ui/components/header/TopBar`; `AchievementsScreen`, `XpDetailSheet`, `RankDetailSheet` migrated off the module-local `DetailTopBar` (deleted) onto `TopBar`, matching `FeedbackScreen` / `BugReportScreen`. The remaining "inline back button" screens (`EditProfileScreen`, `MyItemsScreen`, `ClaimAccountScreen`, `DeleteAccountScreen`) are an intentional pattern — they have a centered hero/heading mid-content and don't want a top-bar title competing with it; the inline `IconButton(ArrowBack)` is treated as part of the content surface.
-- ~~**Wire `TopBar.scrollState` for lift-on-scroll across all `TopBar` users.**~~ ✅ `TopBar.scrollState` now takes `ScrollableState?` (the common supertype of `ScrollState`, `LazyListState`, `LazyGridState`), so any scrollable surface plugs in. All five callsites hoist and pass it: `FeedbackScreen`, `BugReportScreen`, `XpDetailSheet`, `RankDetailSheet` (all `ScrollState`), and `AchievementsScreen` (`LazyGridState`). Elevation still keys on `canScrollBackward`, which is defined on `ScrollableState` itself — no per-type branching needed.
 - **Previews on every user-facing composable.** Rough rule: every public/internal screen-level composable should have at least one `@Preview`. Private helpers don't need their own preview unless the parent doesn't already exercise the visual. First sweep landed previews on the obvious gaps — `OnboardingScreen`, `SignInScreen`, `SignUpScreen`, `VerifyEmailScreen`, `BotTableSetupDialog`, `WinOddsBadge`, `CountdownBadge`, `ProductIcon` / `BadgePill` / `OverhangBadge` (shop helpers). Future contributions should add a preview alongside any new screen-level composable; CI doesn't enforce yet (no static-analysis lint plugged in), so this is a convention.
 
 ### Privacy policy / terms of service
@@ -61,17 +49,17 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Bouncing to onboarding when app-config changes.** When AppConfig refreshes, the app appears to recompose from the root and lands a previously-onboarded user back on onboarding. Fix root cause (likely a `key()` or remember not surviving the config-change recomposition), then add a hard guard: `hasUserOnboarded` flag in `AppData` (already exists) should short-circuit any path that would send a returning user to onboarding. Verify the guard runs *before* the nav graph evaluates the start destination.
 
 ### App guard chrome
-- ~~**Maintenance banner placement — pushes content down.**~~ ✅ Verified the wiring: `AppGuardLayer` only renders blocking states (`UpgradeRequired`, `MaintenanceBlocking`) as a `Box` overlay; the non-blocking `MaintenanceBanner` state passes through to `AppGuardBanner` which `App.kt:160` slots into `AppNavigation`'s Scaffold `topBar`. That's a real `Scaffold.topBar`, so content pushes down. Nothing to fix here.
+- **Maintenance banner overlays content instead of pushing it down.** Earlier sweep concluded this was wired through Scaffold.topBar, but live behavior shows the banner laying on top of the topBar / content. Re-verify: is the banner actually slotted into Scaffold.topBar, or is it absolutely positioned somewhere upstream? Acceptance: banner sits above topBar, pushes the rest of the chrome and content down, no overlap with anything. Check `AppGuardLayer`, `AppGuardBanner`, and the `App.kt` slotting around line 160.
 - **Blocking states intentionally overlay (not in topBar).** `UpgradeRequired` / `MaintenanceBlocking` use a full-screen `Box` overlay inside `AppGuardLayer` so they cover the entire app surface — including any topBar / bottomBar. That's the right model for "stop everything" states; don't refactor to a Column.
 
 ### Sound
-- **Sound feedback doesn't work at all.** Already captured in [backlog.md](./backlog.md#audio-infrastructure-sound-cues-bgm). Setting persists, only Vibrate is wired (via Compose haptics); Sound is a no-op. Decision: either (a) build the `:libraries:audio` KMP module before V1 ships so the toggle is honest, or (b) hide the Sound option for V1 and ship Vibrate-only.
+- **Hide the Sound option for V1.** The setting persists but only Vibrate is actually wired (via Compose haptics) — Sound is a no-op. Honest move for V1 is to remove the Sound option from the picker entirely, leaving Vibrate / Mute. The audio infrastructure to make Sound real lives in [backlog.md](./backlog.md#audio-infrastructure-sound-cues-bgm); restore the option when that ships.
 
-### Play screen — chrome
-- ~~**Hand-end dialogs could use the icon/emoji top affordance.**~~ ✅ `BustDialog`, `ShowdownDialog`, `LeaveBotsConfirmDialog`, `BlindRolesExplainer`, `HandLabelExplainer`, `LastActionExplainer`, `BotTableSetupDialog`, and `SignOutConfirmDialog` all adopt `DialogEmoji` now. ShowdownDialog picks per outcome (🏆 win / 🫳 fold-out / 🃏 showdown); LastActionExplainer picks per action. Chip-coin explainers (`StackExplainer`, `PotExplainer`, `BetPillExplainer`) kept their gold `ChipCoin` on purpose — the chip-coin's "this is chips" meaning is load-bearing across the app.
+### Play screen — bots context
+- **Bot-table setup dialog should call out "playing against bots, not real chips."** The table-size selection dialog (`BotTableSetupDialog`) doesn't make it obvious to new users that bot tables are practice / sandbox. Add a line of copy somewhere on the dialog (subtitle under the title, or a small note above the start button) along the lines of *"Practice table — your chips don't move here."* Verify against voice-and-copy.md before settling on final wording.
 
 ### Play screen — opponents row at MP scale
-- **Horizontal scroll + auto-scroll for >4 seats.** Already captured in [backlog.md](./backlog.md#multiplayer-table--opponents-row-overflow). Pulling forward: at 10-seat MP tables the current pack-and-shrink approach makes avatars unreadable. `LazyRow` once `count > 4`, auto-scroll to the active actor when their turn flips, fade gradients on both edges, respect manual user scroll for a few seconds.
+- **Horizontal scroll + auto-scroll for >4 seats.** At 10-seat MP tables the current pack-and-shrink approach makes avatars unreadable. `LazyRow` once `count > 4`, auto-scroll to the active actor when their turn flips, fade gradients on both edges, respect manual user scroll for a few seconds. Keep pack-and-shrink for `count ≤ 4` so casual bot tables show everyone at once.
 
 ### Animations / table polish
 - **Bust animation for other players.** Today we have the bust dialog for the human; need a visible bust treatment on a remote seat (avatar dims, "BUSTED" stamp, chip stack collapses).
@@ -85,14 +73,19 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Email confirmation link points to `localhost`.** Supabase email template is on the default. Set the project's site URL + redirect URLs in the Supabase dashboard (dev *and* prod). While there, swap the default Supabase template for a Cards-branded one (copy in [voice-and-copy.md §5.x](./product/voice-and-copy.md)).
 
 ### Claim Account screen
-- ~~**Email/password missing from Claim flow.**~~ ✅ Claim screen now surfaces a "Continue with email" button (always visible — many users have no OAuth account). Tap routes to `SignInRoute` in onboarding, same surface a new user sees.
 - **Email-claim semantics — link vs. sign-in.** OAuth claim uses `linkOAuthIdentity`, which attaches the OAuth identity to the *current* (anonymous) user and preserves guest progress. Email/password has no equivalent — `IdentityRepository.signInWithEmail` replaces the session, so claiming with email currently orphans guest chips/XP. That mirrors `ConfirmSwitchToExisting`'s OAuth-conflict semantics, but it's *every* email claim instead of the rare conflict path. Honest fix: add `linkEmailIdentity` to `IdentityRepository` (Supabase exposes `updateUser(email = ...)` on an anonymous user) and a confirmation-style claim flow on the email signup surface. Pre-V1 if email-claiming guest users is a meaningful share of the funnel; otherwise V1.x.
 
 ### Achievements
-- **Bot-vs-human duplication for the rest of the registry.** `FIRST_BUST_DEALT` / `BUST_DEALT_5` (added) are bot-only via `mode = BOTS` — same pattern needs to be applied to the rest of the registry when MP ships in Phase 4.2+. The "Beat Jane 10 times" entries are already bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`, which is fine until MP arrives. Decide at MP-launch time whether prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) deserve human-only variants with separate ids.
+- **Bot-vs-human duplication for the rest of the registry.** `FIRST_BUST_DEALT` / `BUST_DEALT_5` are bot-only via `mode = BOTS` — same pattern needs to be applied to the rest of the registry when MP ships in Phase 4.2+. The "Beat Jane 10 times" entries are already bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`, which is fine until MP arrives. Decide at MP-launch time whether prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) deserve human-only variants with separate ids.
 
 ### Rank screen
 - **Rank/league surface isn't built out.** XP screen exists; the rank page is a stub. Either build the V1 form (current tier, what unlocks at each tier, no league mechanic yet) or be explicit it's gated until V1.1 leagues. Decide before V1 ship.
+
+### Stats page (renamed from XP)
+- **Rebrand the XP page as the Stats page.** The screen currently framed as "XP" should evolve into a broader player Stats page — XP + Rank + lifetime numbers (hands played, biggest pot, biggest comeback, etc.) in one surface, with XP one section among several. Tasks: rename the route + screen + entry + navigation strings, restructure the screen content into Stats sections with XP as the lead section, update any references in voice-and-copy.md. Don't widen the scope to add new stats *yet* — first land the rebrand cleanly, then add stats sections in follow-ups.
+
+### Home screen redesign
+- **Whole-screen redesign of Home.** The current Home doesn't match the brand — feels generic compared to the Card Hall positioning in [product-spec.md](./product/product-spec.md). Direction: "Duolingo big-surface energy, but more elegant, less kiddy" — large primary CTAs (Play with bots, future Play with friends / Find a room), prominent progression visibility (XP, Rank, daily/seasonal pull), but never feel like a casino skin or a kids' app. **Needs design pass first** — pull from product-spec.md §3 (the Card Hall positioning) and §7 (Home as the entry point), the existing voice-and-copy.md, and the brand notes in §3.1 ("dark mode, muted accents, type-driven moments, never saturated casino-green"). Out of scope until the design pass is done — engineering follows. **Future state to keep in mind during design:** Home eventually has two MP entry points — "Play with friends" (room code / direct invite) and "Find a room" (public matchmaking). Even if those aren't wired in V1, the design should accommodate them without restructuring.
 
 ### Admin tools
 - **Grant chips to a specific user.** When something goes wrong in production we need a supported way to credit chips. A small admin endpoint behind the existing admin token (`POST /v1/admin/grant-chips` taking `userId`, `delta`, `reason`) writes a `wallet_event` with reason `admin_grant`. Pairs naturally with the existing wallet ledger; no schema work.
@@ -103,6 +96,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 The lobby + reconnect-grace foundation landed (per project memory); these are the gaps before we trust strangers to share a room.
 
+- **MP games don't actually work end-to-end.** Reported 2026-05-20 by the human: joining a multiplayer room doesn't produce a playable game. **Needs human reproduction first** before an automated worker should touch this — the failure mode isn't documented (does the room create, do players join, does the deal happen, do actions propagate?). Reproduction steps + a concrete failure signature need to live in this item before it's worker-pickable. Likely intersects with `RemotePokerSessionFactory` / `RemoteGameSession`, which were scaffolded for Phase 4.2 but may not be fully wired.
 - **Orphaned room policy — robust, simple.**
   - Last human leaves → kill the room.
   - User taps back → leave the room (currently the WS may stay attached; verify the back path tears down).
@@ -110,7 +104,6 @@ The lobby + reconnect-grace foundation landed (per project memory); these are th
   - On app launch, before allowing a Join → check `GET /v1/me/active-rooms` (doesn't exist yet; needs a one-line query on the in-memory room store). If the user has an active membership, offer rejoin / forfeit. Don't silently strand them.
   - The reconnecting-while-mid-hand path inside `ReconnectingRoomSocket` already exists; that's not the gap. The gap is the *user surface* for "you have an ongoing game."
 - **Forfeit-then-spectator behavior after timeout.** Today the sweep evicts and the seat opens. Alternative: after timeout, auto-fold the user's hand for the rest of the session, leave them subscribed read-only, let them reconnect into spectate. That's a Phase 4.2 question — note it here so we don't re-derive it.
-- ~~**Connection-lost UX.**~~ ✅ `PokerSession.connectionState` now flows into `PlayPokerState.connection` (no-op for solo — `LocalBotsSession` is pinned `Connected`). The play screen renders a slim push-down banner above the TopBar whenever it isn't `Connected`, using the canonical copy from [voice-and-copy.md §4.3](./product/voice-and-copy.md#43-error-messages): *"Connection lost. We're keeping your seat warm — back in a moment."* Pinned by `PlayPokerViewModelTest.sessionConnectionState_mirrorsIntoVmState`. When `RemotePokerSessionFactory` lands in Phase 4.2, it surfaces the underlying `RemoteGameSession.connectionState` via the same `PokerSession.connectionState` field — no screen changes required.
 
 ---
 
@@ -119,7 +112,6 @@ The lobby + reconnect-grace foundation landed (per project memory); these are th
 Quality issues the user has flagged across the codebase. None are blockers, but they compound. Track them here; pull each in when the surrounding area is open.
 
 ### Sign-out data clearing
-- ~~**DAO sweep relies on an explicit list.**~~ ✅ `ClearableDao` interface lives in `:libraries:cards:storage`; every `@Dao` extends it (`AchievementDao.deleteAll()` is a `@Transaction` default that combines `deleteAllEarned` + `deleteAllCounters`; `SessionDao.deleteAllSessions` renamed to `deleteAll`). Each `ProvideXxxDao` in `:libraries:storage:impl` carries a second `@ContributesBinding(multibinding = true, boundType = ClearableDao::class)`. `SignedOutLocalDataCleaner` now consumes `Set<ClearableDao>` and iterates with per-DAO `Catching {}` so one stuck row can't strand the rest. Adding a new entity is two wire-ups: (1) extend `ClearableDao` on the DAO interface, and (2) add the second `@ContributesBinding(multibinding = true, boundType = ClearableDao::class)` on the new `Provide*` class — forget the second and the DAO silently drops out of the wipe. Pinned by `SignedOutLocalDataCleanerTest` on the consumer side; the wire-up itself isn't compile-time enforced. A runtime DI-graph assertion ("multibound set size == number of `@Dao`-bearing classes on `AppDatabase`") would close that gap if the footgun bites.
 - **File-side cleanup on sign-out is still ad-hoc.** Originally the proposal had `SignOutDataDeleter` co-own file deletion (app caches, downloaded avatars). Nothing in the codebase deletes files on sign-out today, and no concrete leak path is on fire. Defer until we have actual on-disk caches to clear; the `AppEventListener.onSignedOut` hook is already in place to wire one in.
 
 ### Config plumbing — `featureValue` vs DI-bound `ConfiguredValue`
@@ -142,7 +134,6 @@ Not blocking V1, but worth deciding before we add more repos.
 
 ### `SupabaseIdentityRepository` review
 Open critiques from the field log:
-- ~~Uses `try { } catch` throughout instead of `Catching { }`.~~ ✅ Migrated to `Catching { … }.fold(onSuccess, onFailure)` across every entry point (`signInWithEmail`, `signUpWithEmail`, `refreshSession`, `resendVerificationEmail`, `updateProfile`, `fetchAvatarPack`, `deleteAccount`, `linkOAuthIdentity`, `signInWithOAuth`). The explicit `catch (e: CancellationException) { throw e }` rethrows the OAuth flows used are now unnecessary — `Catching` already rethrows cooperative cancellation via `shouldNotBeCaught`. No behavior change; all outcome mappings preserved 1:1.
 - **No tests yet.** The impl has no commonTest sources — a real test pass would need fakes for `SupabaseClient`, `ProfileApi`, `IdentityCache`, and `AppEventBus`. Worth doing before any further changes to the outcome-mapping logic; downstream feature tests use the `IdentityRepository` interface via fakes so they don't exercise these mappings.
 - Maintains its own cache; supabase-kt has its own session cache. Are we double-caching? Should we trust theirs?
 - An identity-as-DI question: rather than each consumer awaiting `IdentityRepository.state`, inject a `Lazy<Identity>` (the way `AppConfig` is treated) that *should* be initialized at boot, with `runBlocking` as the worst-case fallback. Makes consumer code straight-line and removes a class of "what if the state isn't ready" bugs.
