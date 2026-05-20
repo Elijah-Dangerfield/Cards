@@ -299,7 +299,7 @@ private fun ChipOfferConfirmContent(
             )
             is PurchaseSheetMode.Owned -> StatusPrompt(
                 emoji = "✓",
-                title = if (mode.pendingSync) "You own this · Syncing" else "You own this",
+                title = "You own this",
                 body = "Equip from Your Items in your profile. (Coming soon.)",
             )
         }
@@ -589,7 +589,7 @@ private fun PurchaseConfirmSheetPreview_ChipOfferOwned() {
                     grantsKey = "cardback.marble",
                 ),
             ),
-            mode = PurchaseSheetMode.Owned(pendingSync = false),
+            mode = PurchaseSheetMode.Owned,
             chipBalance = 12_450,
             timeAnchor = null,
             onConfirm = {},

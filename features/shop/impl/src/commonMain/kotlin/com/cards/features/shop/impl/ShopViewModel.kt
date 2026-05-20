@@ -382,12 +382,7 @@ data class ShopState(
      * level lock, no chip cost — for V1).
      */
     fun sheetModeFor(product: Product): PurchaseSheetMode = when {
-        ownsProduct(product.id) -> {
-            val pendingSync = inventory
-                .firstOrNull { it.productId == product.id }
-                ?.state == com.dangerfield.cards.libraries.cards.PurchaseState.Pending
-            PurchaseSheetMode.Owned(pendingSync = pendingSync)
-        }
+        ownsProduct(product.id) -> PurchaseSheetMode.Owned
         !isUnlocked(product) -> PurchaseSheetMode.Locked(
             requiredLevel = (product as? Product.ChipOffer)?.unlockLevel ?: 1,
         )
@@ -403,12 +398,7 @@ data class ShopState(
      * `when`. Priority: owned > locked > insufficient > available.
      */
     fun classify(offer: Product.ChipOffer): ChipOfferCardState = when {
-        ownsProduct(offer.id) -> {
-            val pendingSync = inventory
-                .firstOrNull { it.productId == offer.id }
-                ?.state == com.dangerfield.cards.libraries.cards.PurchaseState.Pending
-            ChipOfferCardState.Owned(pendingSync = pendingSync)
-        }
+        ownsProduct(offer.id) -> ChipOfferCardState.Owned
         !isUnlocked(offer) -> ChipOfferCardState.Locked(
             requiredLevel = offer.unlockLevel ?: 1,
         )
@@ -440,7 +430,7 @@ sealed interface PurchaseSheetMode {
     data class Locked(val requiredLevel: Int) : PurchaseSheetMode
 
     /** User already owns this. No buy CTA — close + "manage in profile" hint. */
-    data class Owned(val pendingSync: Boolean) : PurchaseSheetMode
+    data object Owned : PurchaseSheetMode
 }
 
 /**
@@ -462,9 +452,8 @@ sealed interface ChipOfferCardState {
     /** Locked by level. Show lock overlay + "Unlocks at Level N" footer. */
     data class Locked(val requiredLevel: Int) : ChipOfferCardState
 
-    /** User already owns this. [pendingSync] true while the local row
-     *  hasn't been confirmed by the server yet. */
-    data class Owned(val pendingSync: Boolean) : ChipOfferCardState
+    /** User already owns this. */
+    data object Owned : ChipOfferCardState
 }
 
 /**
