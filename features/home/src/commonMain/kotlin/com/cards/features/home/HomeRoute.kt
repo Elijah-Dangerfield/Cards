@@ -11,7 +11,3 @@ class HomeRoute : Route(
     exit = AnimationType.FadeOut,
     popExit = AnimationType.FadeOut,
 ), TabRoute
-
-@Serializable
-class SettingsRoute : Route()
-
