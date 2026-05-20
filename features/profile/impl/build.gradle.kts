@@ -36,6 +36,7 @@ kotlin {
             implementation(projects.libraries.identity)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.config)
+            implementation(projects.libraries.products)
             implementation(libs.turbine)
         }
     }

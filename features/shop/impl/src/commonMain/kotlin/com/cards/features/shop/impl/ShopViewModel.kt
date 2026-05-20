@@ -5,11 +5,14 @@ import com.dangerfield.cards.libraries.billing.BillingClient
 import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.PurchaseTransaction
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.EquipmentSyncService
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.InventorySyncService
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.RedeemResult
+import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -61,6 +64,8 @@ class ShopViewModel @Inject constructor(
     private val progressionRepository: ProgressionRepository,
     private val billingClient: BillingClient,
     private val identityRepository: IdentityRepository,
+    private val equipmentRepository: EquipmentRepository,
+    private val equipmentSyncService: EquipmentSyncService,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
@@ -266,6 +271,7 @@ class ShopViewModel @Inject constructor(
         )
         when (result) {
             is RedeemResult.Success -> {
+                autoEquipIfSlotFree(offer.id)
                 sendEvent(ShopEvent.RedeemSucceeded(offer))
                 // Fire-and-forget server reconcile so the Pending row flips
                 // to Confirmed before the user closes the app. Failures
@@ -286,6 +292,22 @@ class ShopViewModel @Inject constructor(
                 sendEvent(ShopEvent.AlreadyOwned(offer))
             }
         }
+    }
+
+    private suspend fun autoEquipIfSlotFree(productId: String) {
+        // Skip non-slot products (avatar packs, emote packs, anything the
+        // helper doesn't classify) — those don't have a "currently
+        // equipped" notion and equipping them on purchase doesn't change
+        // a render-layer pick.
+        val slot = cosmeticSlotFor(productId) ?: return
+        // Honor any cosmetic the user has *already* picked in this slot;
+        // we don't want a fresh purchase to silently steal an in-use felt
+        // / card back. The user can flip later from My Items.
+        val occupied = equipmentRepository.getAll()
+            .any { entry -> entry.isEquipped && cosmeticSlotFor(entry.productId) == slot }
+        if (occupied) return
+        equipmentRepository.equip(productId)
+        viewModelScope.launch { equipmentSyncService.sync() }
     }
 }
 

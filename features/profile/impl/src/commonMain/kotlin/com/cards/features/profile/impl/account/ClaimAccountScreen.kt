@@ -40,6 +40,7 @@ fun ClaimAccountScreen(
     state: ClaimAccountState,
     onAction: (ClaimAccountAction) -> Unit,
     onBack: () -> Unit,
+    onContinueWithEmail: () -> Unit,
 ) {
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
@@ -81,32 +82,42 @@ fun ClaimAccountScreen(
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
-                    text = "Save your chips, XP, and achievements across devices. " +
-                        "Sign in with Apple or Google.",
+                    text = "Save your chips, XP, and achievements across devices.",
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                 )
 
                 Spacer(modifier = Modifier.height(Dimension.D900))
 
+                if (state.googleEnabled) {
+                    ProviderButton(
+                        label = "Continue with Google",
+                        enabled = !state.isSubmitting,
+                        onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google)) },
+                    )
+                    Spacer(modifier = Modifier.height(Dimension.D400))
+                }
+                if (state.appleEnabled) {
+                    ProviderButton(
+                        label = "Continue with Apple",
+                        enabled = !state.isSubmitting,
+                        onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Apple)) },
+                    )
+                    Spacer(modifier = Modifier.height(Dimension.D400))
+                }
+                // Email is always offered — users may not have any OAuth
+                // account, and it's also the only path that goes through
+                // an existing-account sign-in (no Supabase link API for
+                // email/password on an anonymous user yet).
+                ProviderButton(
+                    label = "Continue with email",
+                    enabled = !state.isSubmitting,
+                    onClick = onContinueWithEmail,
+                    style = if (state.anyProviderEnabled) ButtonStyle.Outlined else ButtonStyle.Filled,
+                )
                 if (!state.anyProviderEnabled) {
+                    Spacer(modifier = Modifier.height(Dimension.D400))
                     ComingSoonNotice()
-                } else {
-                    if (state.googleEnabled) {
-                        ProviderButton(
-                            label = "Continue with Google",
-                            enabled = !state.isSubmitting,
-                            onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google)) },
-                        )
-                        Spacer(modifier = Modifier.height(Dimension.D400))
-                    }
-                    if (state.appleEnabled) {
-                        ProviderButton(
-                            label = "Continue with Apple",
-                            enabled = !state.isSubmitting,
-                            onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Apple)) },
-                        )
-                    }
                 }
 
                 state.error?.let {
@@ -136,10 +147,16 @@ fun ClaimAccountScreen(
 }
 
 @Composable
-private fun ProviderButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+private fun ProviderButton(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    style: ButtonStyle = ButtonStyle.Filled,
+) {
     Button(
         onClick = onClick,
         enabled = enabled,
+        style = style,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(label)
@@ -150,7 +167,7 @@ private fun ProviderButton(label: String, enabled: Boolean, onClick: () -> Unit)
 @Composable
 private fun ClaimAccountScreenPreview_ComingSoon() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
-        ClaimAccountScreen(state = ClaimAccountState(), onAction = {}, onBack = {})
+        ClaimAccountScreen(state = ClaimAccountState(), onAction = {}, onBack = {}, onContinueWithEmail = {})
     }
 }
 
@@ -162,6 +179,7 @@ private fun ClaimAccountScreenPreview_BothEnabled() {
             state = ClaimAccountState(googleEnabled = true, appleEnabled = true),
             onAction = {},
             onBack = {},
+            onContinueWithEmail = {},
         )
     }
 }
@@ -179,6 +197,7 @@ private fun ClaimAccountScreenPreview_Conflict() {
             ),
             onAction = {},
             onBack = {},
+            onContinueWithEmail = {},
         )
     }
 }
@@ -186,8 +205,7 @@ private fun ClaimAccountScreenPreview_Conflict() {
 @Composable
 private fun ComingSoonNotice() {
     Text(
-        text = "Sign in with Apple and Google are coming soon. " +
-            "Your progress is already safe on this device — we'll let you back it up to the cloud here.",
+        text = "Apple and Google sign-in are coming soon.",
         typography = AppTheme.typography.Body.B500,
         color = AppTheme.colors.onSurfaceSecondary,
         textAlign = TextAlign.Center,

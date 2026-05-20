@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
+import com.dangerfield.cards.features.onboarding.SignInRoute
 import com.dangerfield.cards.features.profile.BugReportRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsAction
@@ -213,6 +214,7 @@ class ProfileFeatureEntryPoint(
                 state = state,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
+                onContinueWithEmail = { router.navigate(SignInRoute()) },
             )
         }
 

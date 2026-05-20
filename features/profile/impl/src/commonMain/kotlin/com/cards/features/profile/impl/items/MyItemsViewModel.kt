@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncService
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.products.Product
@@ -90,6 +91,17 @@ class MyItemsViewModel(
                 if (currentlyEquipped) {
                     equipmentRepository.unequip(action.productId)
                 } else {
+                    // Single-equip per slot: if the user picks a new felt /
+                    // card back / title, retire any previously-equipped item
+                    // in the same slot first. The rendering layer used to
+                    // pick the first-equipped one, so leaving both equipped
+                    // meant the new pick wouldn't take effect.
+                    val slot = cosmeticSlotFor(action.productId)
+                    if (slot != null) {
+                        state.equippedIds
+                            .filter { it != action.productId && cosmeticSlotFor(it) == slot }
+                            .forEach { equipmentRepository.unequip(it) }
+                    }
                     equipmentRepository.equip(action.productId)
                 }
                 // Fire-and-forget reconcile so Pending → Synced flips

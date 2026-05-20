@@ -28,8 +28,8 @@ I'm not going to silently ship either of these against the spec. Both want an ex
 These are bugs / polish items found playing the app or scanning the code. Cheap individually; collectively the V1 quality bar.
 
 ### Equip / cosmetics
-- **Single-equip felt invariant.** Verify only one felt can be equipped at a time end-to-end (data model already enforces single-equip per category; the worry is whether the picker UI honors it). Same check for card backs and titles.
-- **Auto-equip on purchase.** When a user buys a cosmetic, equip it by default unless a conflicting slot is already occupied. Currently the purchase confirms but the equip step is a separate trip to Your Items.
+- ~~**Single-equip felt invariant.**~~ ✅ The data model *doesn't* enforce single-equip — the comment on `EquipmentRepository` explicitly defers to the rendering layer. The picker (`MyItemsViewModel.ToggleEquipped`) now retires any same-slot equipped product before turning on the new one, using the new `cosmeticSlotFor` helper in `:libraries:cards`. Same enforcement applies to card backs, titles, and tools. Pinned by `MyItemsViewModelTest`.
+- ~~**Auto-equip on purchase.**~~ ✅ `ShopViewModel.confirmChipOfferRedeem` now calls `equipmentRepository.equip(...)` after a successful redeem, *if* the product occupies a recognized cosmetic slot AND no other product in that slot is currently equipped (we don't silently steal an in-use felt; the user keeps control via My Items). Non-slot purchases (avatar packs, emote packs) skip auto-equip. Pinned by three new tests in `ShopViewModelTest`.
 - **Button color adaptation against felt.** When the user equips a colored felt, the play-screen action buttons can clash. Either pin the buttons to a felt-independent surface, or token the buttons against a `surfaceOnFelt` color that the felt defines.
 
 ### Edit profile
@@ -73,7 +73,8 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Email confirmation link points to `localhost`.** Supabase email template is on the default. Set the project's site URL + redirect URLs in the Supabase dashboard (dev *and* prod). While there, swap the default Supabase template for a Cards-branded one (copy in [voice-and-copy.md §5.x](./product/voice-and-copy.md)).
 
 ### Claim Account screen
-- **Email/password missing from Claim flow.** The Claim screen only surfaces Apple / Google buttons. We ship email/password auth too, so the Claim screen needs to route to the same email sign-up / sign-in surface as new-user onboarding does — otherwise an anonymous user who only has email can't claim.
+- ~~**Email/password missing from Claim flow.**~~ ✅ Claim screen now surfaces a "Continue with email" button (always visible — many users have no OAuth account). Tap routes to `SignInRoute` in onboarding, same surface a new user sees.
+- **Email-claim semantics — link vs. sign-in.** OAuth claim uses `linkOAuthIdentity`, which attaches the OAuth identity to the *current* (anonymous) user and preserves guest progress. Email/password has no equivalent — `IdentityRepository.signInWithEmail` replaces the session, so claiming with email currently orphans guest chips/XP. That mirrors `ConfirmSwitchToExisting`'s OAuth-conflict semantics, but it's *every* email claim instead of the rare conflict path. Honest fix: add `linkEmailIdentity` to `IdentityRepository` (Supabase exposes `updateUser(email = ...)` on an anonymous user) and a confirmation-style claim flow on the email signup surface. Pre-V1 if email-claiming guest users is a meaningful share of the funnel; otherwise V1.x.
 
 ### Achievements
 - **Bot-vs-human duplication for the rest of the registry.** `FIRST_BUST_DEALT` / `BUST_DEALT_5` (added) are bot-only via `mode = BOTS` — same pattern needs to be applied to the rest of the registry when MP ships in Phase 4.2+. The "Beat Jane 10 times" entries are already bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`, which is fine until MP arrives. Decide at MP-launch time whether prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) deserve human-only variants with separate ids.

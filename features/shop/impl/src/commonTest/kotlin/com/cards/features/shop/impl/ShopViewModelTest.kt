@@ -7,6 +7,11 @@ import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.PurchaseTransaction
 import com.dangerfield.cards.libraries.billing.QueryProductsResult
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.EquipmentEntry
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.EquipmentSyncService
+import com.dangerfield.cards.libraries.cards.EquipmentSyncState
+import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.InventorySyncService
@@ -70,7 +75,7 @@ class ShopViewModelTest : CoroutineTest() {
         assertFalse(vm.state.isRefreshing)
         assertTrue(vm.state.hasLoaded)
         assertEquals(2, vm.state.catalog.chipPacks.size)
-        assertEquals(2, vm.state.catalog.chipOffers.size)
+        assertEquals(4, vm.state.catalog.chipOffers.size)
     }
 
     @Test
@@ -264,6 +269,64 @@ class ShopViewModelTest : CoroutineTest() {
         assertNull(vm.state.errorMessage, "AlreadyOwned isn't surfaced as an error")
     }
 
+    // ---------- Auto-equip on purchase ----------
+
+    @Test
+    fun confirmChipOffer_success_autoEquipsCosmetic_whenSlotEmpty() = runUnitTest {
+        val equipment = FakeEquipmentRepository()
+        val equipSync = FakeEquipmentSyncService()
+        val vm = buildVm(
+            equipmentRepository = equipment,
+            equipmentSyncService = equipSync,
+        )
+        val felt = SAMPLE_CATALOG.chipOffers.first { it.id == "felt_royal_red" }
+        vm.takeAction(ShopAction.RequestPurchase(felt))
+
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        assertEquals(listOf("felt_royal_red"), equipment.equipCalls)
+        assertTrue(equipSync.syncCalls >= 1, "equipment sync should fire after auto-equip")
+    }
+
+    @Test
+    fun confirmChipOffer_success_doesNotAutoEquip_whenSlotIsOccupied() = runUnitTest {
+        // User already has a felt equipped — buying a *different* felt
+        // shouldn't silently steal that pick. The user can flip in
+        // My Items if they want the new one.
+        val equipment = FakeEquipmentRepository(
+            initial = listOf(
+                EquipmentEntry(
+                    productId = "felt_midnight_blue",
+                    isEquipped = true,
+                    syncState = EquipmentSyncState.Synced,
+                    updatedAtEpochMs = 0L,
+                ),
+            ),
+        )
+        val vm = buildVm(equipmentRepository = equipment)
+        val felt = SAMPLE_CATALOG.chipOffers.first { it.id == "felt_royal_red" }
+        vm.takeAction(ShopAction.RequestPurchase(felt))
+
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        assertTrue(equipment.equipCalls.isEmpty(), "should not auto-equip when slot already occupied")
+    }
+
+    @Test
+    fun confirmChipOffer_success_doesNotAutoEquip_forNonSlotProduct() = runUnitTest {
+        // Emotes don't claim a single-equip slot — auto-equip is a no-op
+        // for them. (Users still pick which emotes to surface in the
+        // emote tray separately.)
+        val equipment = FakeEquipmentRepository()
+        val vm = buildVm(equipmentRepository = equipment)
+        val emote = SAMPLE_CATALOG.chipOffers.first { it.id == "emote_dance" }
+        vm.takeAction(ShopAction.RequestPurchase(emote))
+
+        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+
+        assertTrue(equipment.equipCalls.isEmpty(), "non-slot products should not auto-equip")
+    }
+
     // ---------- IAP path ----------
 
     @Test
@@ -389,6 +452,8 @@ class ShopViewModelTest : CoroutineTest() {
         identityRepository: FakeIdentityRepository = FakeIdentityRepository(
             initialState = IdentityState.SignedIn(SAMPLE_IDENTITY),
         ),
+        equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
+        equipmentSyncService: FakeEquipmentSyncService = FakeEquipmentSyncService(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
         inventoryRepository = inventoryRepository,
@@ -397,6 +462,8 @@ class ShopViewModelTest : CoroutineTest() {
         progressionRepository = progressionRepository,
         billingClient = billingClient,
         identityRepository = identityRepository,
+        equipmentRepository = equipmentRepository,
+        equipmentSyncService = equipmentSyncService,
     )
 
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
@@ -457,6 +524,44 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     private class FakeSyncService : InventorySyncService {
+        var syncCalls: Int = 0
+            private set
+        override suspend fun sync(): Result<Unit> {
+            syncCalls++
+            return Result.success(Unit)
+        }
+    }
+
+    private class FakeEquipmentRepository(
+        initial: List<EquipmentEntry> = emptyList(),
+    ) : EquipmentRepository {
+        private val state = MutableStateFlow(initial)
+        val equipCalls = mutableListOf<String>()
+        val unequipCalls = mutableListOf<String>()
+
+        override fun observeEquipped(): Flow<List<EquipmentEntry>> = state.asStateFlow()
+        override suspend fun getAll(): List<EquipmentEntry> = state.value
+        override suspend fun equip(productId: String): EquipmentToggleResult {
+            equipCalls += productId
+            state.value = state.value
+                .filterNot { it.productId == productId } +
+                EquipmentEntry(
+                    productId = productId,
+                    isEquipped = true,
+                    syncState = EquipmentSyncState.Pending,
+                    updatedAtEpochMs = 0L,
+                )
+            return EquipmentToggleResult.Success
+        }
+        override suspend fun unequip(productId: String): EquipmentToggleResult {
+            unequipCalls += productId
+            return EquipmentToggleResult.Success
+        }
+        override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) { }
+        override suspend fun deleteAll() { state.value = emptyList() }
+    }
+
+    private class FakeEquipmentSyncService : EquipmentSyncService {
         var syncCalls: Int = 0
             private set
         override suspend fun sync(): Result<Unit> {
@@ -581,6 +686,22 @@ class ShopViewModelTest : CoroutineTest() {
                     iconEmoji = "🧂",
                     costChips = 2_500,
                     grantsKey = "emote.tilt",
+                ),
+                Product.ChipOffer(
+                    id = "felt_royal_red",
+                    title = "Royal Red",
+                    subtitle = "Felt",
+                    iconEmoji = "🟥",
+                    costChips = 5_000,
+                    grantsKey = "felt.royal_red",
+                ),
+                Product.ChipOffer(
+                    id = "felt_midnight_blue",
+                    title = "Midnight Blue",
+                    subtitle = "Felt",
+                    iconEmoji = "🟦",
+                    costChips = 5_000,
+                    grantsKey = "felt.midnight_blue",
                 ),
             ),
         )
