@@ -21,7 +21,7 @@ Cards is a gamified social poker app for the 18–34 player who plays poker for 
 
 | | |
 | --- | --- |
-| **Gamified** | Three meta-systems carry progression: **Today's Quests** (3 small daily challenges, no obligation), **Weekly Leagues** (30-player groups ranked by this week's MP XP, top promote / bottom demote, resets Monday), **Seasonal Battle Pass** (6-week themed cosmetic tracks — V1.3). Each is detailed in §3. |
+| **Gamified** | Two meta-systems carry progression: **Weekly Leagues** (30-player groups ranked by this week's MP XP, top promote / bottom demote, resets Monday — V1.1) and **Seasonal Battle Pass** (6-week themed cosmetic tracks — V1.3). Achievements (§3.3) carry the lifetime-arc work alongside them. Each is detailed in §3. |
 | **Social-by-default** | Room codes, deep links, friends, "recently played with" — the spine, not a feature. |
 | **Cosmetically expressive** | Card backs, table felts, frames, emote packs. Marvel Snap's "slow collection" applied to poker visuals. |
 | **Aesthetically grown-up** | Dark, considered, type-driven. Closer to Linear than to a Vegas casino. |
@@ -34,7 +34,7 @@ Cards is a gamified social poker app for the 18–34 player who plays poker for 
 - **Not a generic card-game platform.** V1 is poker. We earn the right to add Blackjack/Hearts/etc. by being great at poker first.
 - **Not Discord.** Chat is ephemeral and table-scoped. No persistent DMs, no friend feeds.
 - **Not Pokerrrr 2.** No espionage theme. No 4-hour table expirations. We're for *modern* phone users.
-- **Not MP-exclusionary.** Solo / bot play is supported and rewarded. See §3.7.
+- **Not MP-exclusionary.** Solo / bot play is supported and rewarded. See §3.6.
 
 ### 1.4 Voice & visual language
 
@@ -64,10 +64,10 @@ The user is at a poker table within 60 seconds of tapping the app icon. No excep
 4. Land on home screen (§2.4). **"Play Bots" CTA is pulse-animated** with one-time tooltip: *"Start here — meet the bots."* Disappears after first tap.
 5. First bot game starts within ~10 seconds.
 6. First hand ends → showdown dialog with XP. Possible achievement unlock animation.
-7. Today's first quest appears. League assignment deferred until first MP hand.
+7. League assignment deferred until first MP hand.
 8. After ~10 hands: soft "Invite a friend" prompt with deep link.
 
-**Smart claim prompts** fire at meaningful moments throughout the journey (not at first launch). Triggers: first MP hand won, first Epic/Legendary achievement, chip balance crosses 5K, first shop interaction, reaching Level 10. Each fires once, ever, dismissible. Full table in §6.1; copy in [voice-and-copy.md §5.11](./voice-and-copy.md#511-smart-claim-prompts-anonymous-users).
+**Claim is opt-in, never pushed.** We don't prompt anonymous users to claim. The option is always available (static card on Profile; inline prompt when the user tries to do something that *requires* claim — host a public room, add a friend). See §6.1 for the full rationale.
 
 **Returning-user path** (re-install or new device):
 - Tap "Sign in." Auth completes. Skip explainer, skip onboarding. Land on home screen with their existing identity, level, achievements, chips, friends. Familiar territory.
@@ -77,10 +77,10 @@ The user is at a poker table within 60 seconds of tapping the app icon. No excep
 ### 2.2 Day-7 cadence
 
 1. Event-driven push (e.g., "*Your league resets in 2 days — you're 4 spots from promotion.*"). Notifications fire on real events; never on modeled "you usually play around now."
-2. Open app. Home shows: league position, today's quest progress, friends online.
+2. Open app. Home shows: league position, recent achievement progress, friends online.
 3. One-tap join a friend's table.
 4. 15–30 hand session, ~10 minutes.
-5. Session recap: hands won, XP earned, quests complete, league position change, any unlocks.
+5. Session recap: hands won, XP earned, league position change, any unlocks.
 
 ### 2.3 Weekly & seasonal rhythm
 
@@ -98,14 +98,13 @@ The home screen is brand-load-bearing. Its job is to communicate *"this is a liv
 
 1. **Identity strip** — avatar, display name, level badge, current league tier (or "Unranked"). Tap to open profile.
 2. **Live activity ticker** — rotating real signals: *"RoyalQueen86 just promoted to Diamond"* · *"182 players online right now"* · *"Steve won 4 hands in a row at the table"* · *"Season 2 ends in 5 days."* Honest data only; never fake.
-3. **Today's Quests tray** — 3 quests with progress bars. Tap to expand.
-4. **Play routes** — the meat of the screen, four primary CTAs:
+3. **Play routes** — the meat of the screen, four primary CTAs:
    - **Practice** (vs bots) — pulse-animated for first-time users
    - **Quick Match** (find a public room with strangers, one tap)
    - **Friend Game** (create with code, or paste a code to join)
    - **Tournament** — grayed in V1, "Coming in V2" tooltip
-5. **Friends strip** — "3 friends online" with avatars; tap to see what tables they're at and join
-6. **Featured cosmetic** — current limited-time item or featured shop drop. Tap to open shop.
+4. **Friends strip** — "3 friends online" with avatars; tap to see what tables they're at and join
+5. **Featured cosmetic** — current limited-time item or featured shop drop. Tap to open shop.
 
 **What the home does *not* show:**
 - Login bonuses (we don't have them)
@@ -114,20 +113,47 @@ The home screen is brand-load-bearing. Its job is to communicate *"this is a liv
 - "Almost out of chips!" nudges
 - Anything pop-up-y, urgent, or beggy
 
-The home is *busy* with information the user actually wants (friends, leagues, quests, what's happening) and *quiet* on promotion. The ecosystem sells itself by being visible, not by interrupting.
+The home is *busy* with information the user actually wants (friends, leagues, achievements, what's happening) and *quiet* on promotion. The ecosystem sells itself by being visible, not by interrupting.
 
 ### 2.5 The solo player's parallel journey
 
 A pure-solo player (never invites a friend, never joins a public room) has a fully supported parallel cadence:
 
 - **Day 1** — identical to §2.1. Bot table within 60 seconds.
-- **Day 7** — notifications are quest- and achievement-based. No "your quest expires" pings.
-- **Weekly** — no league reset (Unranked). Today's quests refresh each midnight without urgency.
+- **Day 7** — notifications are achievement- and friend-based. No daily-obligation pings.
+- **Weekly** — no league reset (Unranked). Achievement progression and seasonal cosmetics pull the cadence.
 - **Seasonal** — free-track battle pass progresses on solo play at 0.5×. They earn the season's headline cosmetic.
 
 They get: full progression loop, achievement unlocks, common cosmetics, seasonal headline rewards. They don't get: league standing, the Royal Flush Tournament. **The app feels complete to them, not crippled.**
 
 **Bridge to MP, when they want it:** Quick Match (§5.3) places them in a public room within seconds. The door is always one tap away.
+
+### 2.6 App-store review prompts
+
+When we ask for a review, ask at a *positive, low-friction* moment. When we don't, never beg.
+
+**Use the native platform APIs** — [SKStoreReviewController](https://developer.apple.com/documentation/storekit/skstorereviewcontroller) (iOS) and [Google Play In-App Review](https://developer.android.com/guide/playcore/in-app-review) (Android). Both APIs handle their own throttling on top of whatever we do — iOS caps at 3 prompts/year per user; Android similar. We tell the OS *"now would be a good moment"* and it decides whether to actually surface. **No fallback to a self-built sheet.** If the OS chooses not to show, we don't second-guess.
+
+**Eligibility gate** (all must be true before *any* trigger fires):
+- App-install age ≥ 7 days
+- ≥ 3 distinct play sessions completed
+- No prompt fired in the last 90 days (belt-and-suspenders on top of OS throttling)
+- Last hand outcome was *not* a bust or loss
+
+**Trigger moments — call the API when:**
+- User unlocks an Epic or Legendary achievement (proud moment, positive valence)
+- User reaches Level 10 (committed, sunk time)
+- Session ends with the user net-positive in chips (calm exit moment, on their way out)
+
+**Never call the API when:**
+- Onboarding or first session — no investment yet
+- Mid-hand, mid-action, or any in-game moment — interruption
+- After a bust, all-in loss, or any losing hand — wrong emotional state
+- After any error, sync failure, reconnect recovery, or crash recovery — wrong association
+- Inside the app's first 7 days — too early to ask
+- The user just dismissed a different prompt (claim card, invite-a-friend, etc.) — don't stack asks
+
+**Why this and not "rate us!" modals:** the native APIs are throttled, lightweight, and dismissible without a star-rating commitment. Self-built rating sheets erode trust and the App Store explicitly discourages them. The brand-fit principle: we make it easy to say nice things when the user is already feeling nice things — and otherwise we leave them alone.
 
 ---
 
@@ -199,36 +225,7 @@ Shipped via [`AchievementRegistry`](../../libraries/cards/src/commonMain/kotlin/
 
 **V2 additions** (when MP exists): MP mastery, tournament achievements, social achievements (play with N different friends), seasonal achievements.
 
-### 3.4 Today's Quests
-
-Three quests per day. Refresh at local midnight.
-
-**Framing matters.** These are "Today's Quests," not "Daily Quests." Today's signals *here's something fun if you play today.* Daily implies obligation. Missing a day costs nothing; fresh quests appear next time you play.
-
-#### Quests vs achievements — both, on purpose
-
-| | **Achievement** | **Today's Quest** |
-| --- | --- | --- |
-| Scope | Lifetime | Today only |
-| Repeat? | One-time, permanent | New ones tomorrow |
-| Arc | Months/years | One session |
-| Role | Pull you across weeks ("only 50 hands until Felt Veteran") | Give you a reason to play *right now* ("5 hands and I get the bonus") |
-| Cost of missing | Nothing — you're never behind | Nothing — tomorrow's quests appear next time you play |
-
-The two reinforce each other. Achievements without quests = no daily hook. Quests without achievements = no long-term arc. Marvel Snap, Duolingo, and Clash Royale all run both. We do too.
-
-**Three slots, one of each flavor:**
-1. **Effort:** "Play X hands" / "Play for X minutes"
-2. **Variety:** "See 10 flops" / "Reach showdown 3 times"
-3. **Skill:** "Win a hand with two pair or better" / "Win an all-in"
-
-**Rewards:** chips (small) + XP (small) per quest. Completing all three = bonus chips + possible cosmetic shop credit.
-
-**No streak / consecutive-day bonus.** Quests are episodic, not chained. See Appendix C for why login streaks were rejected.
-
-Reference: Marvel Snap daily missions, *not* Duolingo daily-XP-goal. The former is opt-in via play; the latter creates daily-obligation anxiety we don't want.
-
-### 3.5 Weekly leagues (V1.1)
+### 3.4 Weekly leagues (V1.1)
 
 **The retention engine.** Modeled directly on Duolingo's leagues.
 
@@ -251,7 +248,7 @@ Reference: Marvel Snap daily missions, *not* Duolingo daily-XP-goal. The former 
 **Royal Flush Tournament (apex):** Top 10 of Royal Flush tier play a 3-week bracket each week. Winners get a unique seasonal title, profile flair, and exclusive cosmetic — **unlock-only, not for sale ever**. Cinematic moment on home screen.
 
 **Integrity provisions:**
-- **Bot games don't feed league XP** (§3.7). League XP is MP-only, tracked separately via the `XpEvent` ledger.
+- **Bot games don't feed league XP** (§3.6). League XP is MP-only, tracked separately via the `XpEvent` ledger.
 - **Soft floor:** once you've reached Hearts tier, you can't fall below Diamonds even on consecutive bottom-5 weeks.
 - **Time-zone matchmaking** prevents off-hours uncontested exploits.
 - **Multi-accounting detection** via device + auth signals.
@@ -260,7 +257,7 @@ Reference: Marvel Snap daily missions, *not* Duolingo daily-XP-goal. The former 
 
 **Confidence basis:** Duolingo's launch data showed +25% lesson completion after leagues. The mechanic pairs attainable competition (30 people) with consistent risk (demotion threat). Single most-studied gamification mechanic in 2020s consumer apps.
 
-### 3.6 Seasons & battle pass (V1.3)
+### 3.5 Seasons & battle pass (V1.3)
 
 **Note: V1 ships occasional limited-time cosmetic drops without the full season framework.** Halloween card back available 2 weeks each October, Valentine's emote pack, etc. The structured **Battle Pass** ships in V1.3 only if early limited-time drops demonstrate they drive engagement. If they don't, we stay with episodic limited-time items and skip the season framework entirely. This preserves flexibility — we're not committed to LiveOps content treadmill from day one.
 
@@ -280,7 +277,7 @@ Why 6 weeks: Marvel Snap's 4 weeks generates review-bombs from casual players wh
 
 **Season-end:** all premium items remain in inventory. Catalog removed from shop. "Season X" badge on profile signals "I was there."
 
-### 3.7 Solo / MP participation matrix
+### 3.6 Solo / MP participation matrix
 
 **Principle: solo earns, multiplayer ranks.** Bots feed progression systems but not competitive ones.
 
@@ -288,7 +285,6 @@ Why 6 weeks: Marvel Snap's 4 weeks generates review-bombs from casual players wh
 | --- | --- | --- |
 | Level / total XP | ✅ Yes | 0.5× of MP rate (shipped) |
 | Achievements | ✅ Yes | Most V1 entries bot-compatible; V2 MP-mastery entries are clearly labeled |
-| Today's Quests | ✅ Yes | Engagement-flavored |
 | Chip balance | ✅ Yes (via achievements + gameplay) | Common cosmetics fully accessible |
 | Battle pass — free track | ✅ Yes | 0.5× tier progress. Solo players get the headline cosmetic. |
 | Battle pass — premium track | ✅ Yes once unlocked | Unlock via chips or a bot-achievable legendary during the season |
@@ -311,7 +307,6 @@ Cards uses a **single-currency** model. There is one wallet, one set of earn pat
 **Earn paths:**
 - Game wins (gameplay)
 - Achievement rewards (Rare / Epic / Legendary tiers)
-- Today's Quest rewards (200–500/quest + ~1,000 all-three-complete bonus)
 - League placement rewards (top 3 large, top 7 medium, middle/bottom small)
 - Battle pass tier rewards (chips appear at most free-track tiers)
 - **First-week welcome chips:** 500/day for the first 7 days, no streak required, no expiry. A friendly hand to new users — generous, on-brand, no obligation.
@@ -321,10 +316,39 @@ Cards uses a **single-currency** model. There is one wallet, one set of earn pat
 - Table buy-ins (gameplay)
 - Tournament entries (V2+)
 - Shop cosmetics — common tier (see §4.3)
-- Battle pass premium unlock (see §3.6)
+- Battle pass premium unlock (see §3.5)
 - "Tip the dealer" (50–500 — pure flavor chip sink at hand end)
 
 **Critical rule:** chips never disappear unless the user voluntarily spends or loses them. No expiration, no "inactive — here's a small bonus to come back" hook. The Offsuit principle: chips feel sacred.
+
+#### Wallet, stack & buy-ins
+
+Two separate buckets for chips, matching how real-poker players think:
+
+- **Wallet** — your total chip balance. Persists across sessions; lives on your account. Shown on home, profile, shop.
+- **Stack** — the chips currently in front of you *at a specific table*. Starts at the buy-in amount when you sit down. Grows / shrinks as you play. Shown on the play screen.
+
+When you sit down, the **buy-in moves from wallet to stack** (reserved, not spent). When you leave — graceful stand-up, room ends, or sweep-evict after disconnect — **whatever's left in your stack returns to your wallet**. Buy-in is a gate, not a fee. Chips are never lost to "the house" because there is no house — chips only move between players at the table.
+
+**Per-hand chip flow = blinds, not antes.** Each hand, the two players in the small-blind and big-blind positions post forced bets (auto-deducted from their stacks). The blind positions rotate clockwise after every hand, so each player posts on the same cadence. This is the standard No-Limit Hold'em mechanic — players don't "confirm" the blind, sitting down at the table is the agreement to post when it's your turn.
+
+- **No antes in V1.** Antes are a tournament flavor; cash-game blinds are enough churn. Revisit only if play-data shows tables stagnating.
+- **No rake in V1.** Cards is play money — siphoning chips to a non-existent "house" is punitive without justification. The chip sink is *losing to other players plus variance*; the chip faucet (purchases) balances it on the human side.
+
+**Stake tiers map to a fixed buy-in + blind pair** — see [§5.3](#53-public-rooms) for the table. Within a tier, blinds and buy-in are fixed (no per-room customization in V1); host-customizable blinds are a V1.x option once we know the V1 presets are wrong.
+
+**Re-buy on bust.** When your stack hits 0 mid-game:
+
+1. **Wallet ≥ tier buy-in** → "Re-buy 1,000 chips?" sheet. One tap, chips move wallet → stack, you're seated for the next hand. Free, no IAP involved.
+2. **Wallet < tier buy-in, but ≥ 1,000** → "Move to a lower tier?" prompt — keeps the user playing instead of forcing IAP.
+3. **Wallet < 1,000** → Soft bust protection grants 1,000 chips ("Welcome back to the table"), then re-buy at Practice tier. See [§4.1 earn paths above](#41-chips--the-only-currency).
+4. **User wants to top up regardless** → quick-purchase sheet (IAP chip packs) is always accessible from the bust dialog as a secondary action. The bust moment is the canonical re-purchase prompt in every poker app and we should honor it — but never *force* it; bust protection always offers a free path.
+
+**Sit-out toggle.** Per-hand "I'm in / I'm out" confirmation would gridlock a multiplayer table. Instead: at any time, a player can toggle **Sit out** on their seat. While sat out, they keep their seat and stack, but the dealer skips them — they aren't dealt cards and don't post blinds. Toggle back on to rejoin from the next hand. (More generous than real poker, where sit-outs still owe blinds; we choose friendliness here.)
+
+**Bot tables mirror the model.** Bot tables also have buy-in + blinds + stack. Solo bot play is where users *learn* the buy-in mechanic without social pressure, which is the discoverability path into multiplayer. Bot table picker = pick stakes (which determines blinds + buy-in); your stack at the bot table starts at the buy-in and returns to wallet on leave. (Stack persistence across bot sessions remains a known sharp edge — see project memory.)
+
+**Disconnect / forfeit refund.** Sweep-evict (the existing grace-timer mechanic in [§5.6](#56-reconnect-handling)) returns the remaining stack to wallet when it removes the seat. Graceful "leave room" returns the stack immediately. Voluntary forfeit (V1.x — not a V1 surface) would do the same. Buy-ins are never forfeited to "the house."
 
 ### 4.2 The unlock-only catalog
 
@@ -440,15 +464,17 @@ Game creation surfaces one binary up front: **Friend Game** or **Open Game**. Em
 
 **Stake tiers (matchmaking buckets):**
 
-| Tier | Buy-in | Audience |
-| --- | --- | --- |
-| Practice | 100 chips | First MP sessions |
-| Casual | 500 chips | Default tier |
-| Standard | 2,500 chips | Bulk of engaged players |
-| High | 10,000 chips | Higher-skill willing-to-risk |
-| Premium | 50,000+ chips | Top end, gated by min balance |
+Each tier is one fixed (blind, buy-in) pair. Buy-in is 100× big blind (standard "deep stack" in real poker), so each player sits with enough chips for ~100 hands of average pressure before bust-and-rebuy. See [§4.1 Wallet, stack & buy-ins](#wallet-stack--buy-ins) for the underlying mechanic.
 
-**Anti-smurf:** can't enter a tier with buy-in > 25% of chip balance. Prevents whales sandbagging in Practice.
+| Tier | Blinds (SB / BB) | Buy-in | Wallet to enter (anti-smurf) | Audience |
+| --- | --- | --- | --- | --- |
+| Practice | 1 / 2 | 200 chips | ≥ 800 chips | First MP sessions |
+| Casual | 5 / 10 | 1,000 chips | ≥ 4,000 chips | Default tier |
+| Standard | 25 / 50 | 5,000 chips | ≥ 20,000 chips | Bulk of engaged players |
+| High | 100 / 200 | 20,000 chips | ≥ 80,000 chips | Higher-skill willing-to-risk |
+| Premium | 500 / 1,000 | 100,000 chips | ≥ 400,000 chips | Top end |
+
+**Anti-smurf:** can't enter a tier with buy-in > 25% of chip balance (the "wallet to enter" column above). Prevents whales sandbagging in Practice. Starter grant (10,000 chips) gates entry to Practice + Casual only — players earn into the higher tiers.
 
 **Anonymous users in public rooms:**
 - Can **join** public rooms — play, earn league credit, all of it
@@ -465,6 +491,7 @@ Game creation surfaces one binary up front: **Friend Game** or **Open Game**. Em
 - Bot personality matches difficulty selected (Casual / Standard / Challenging — same as solo)
 - No quality penalty for short-handed tables — short-handed poker is a legitimate format
 - Bots are always visibly labeled as bots at the table. We never disguise bots as humans.
+- Bots use the same buy-in mechanic as humans (stack = tier buy-in at sit-down). Wins / losses against bots route through the same wallet flow — there's no separate "bot pool" of chips. Chip movement to / from bots is real-from-the-player's-perspective. See [§4.1 Wallet, stack & buy-ins](#wallet-stack--buy-ins).
 
 #### MP credit by table composition
 
@@ -476,7 +503,7 @@ Game creation surfaces one binary up front: **Friend Game** or **Open Game**. Em
 | 2H + 4B | ❌ Solo-only credit | Bots outnumber humans — exploit vector ("2 friends + 4 bots = chip farm") |
 | 1H + Xb | ❌ Routed to solo flow | One human is solo mode regardless of bots |
 
-**Why majority human:** without this rule, 2 friends could create a 6-seat game with 4 bots and farm chip wins + league XP against weaker bot opposition. The rule preserves the "leagues reflect competition against humans" principle (§3.5) without breaking short-handed friend games (2H+2B = fine).
+**Why majority human:** without this rule, 2 friends could create a 6-seat game with 4 bots and farm chip wins + league XP against weaker bot opposition. The rule preserves the "leagues reflect competition against humans" principle (§3.4) without breaking short-handed friend games (2H+2B = fine).
 
 ### 5.5 Table-side social
 
@@ -510,8 +537,9 @@ When chat ships in V1.x:
 ### 5.6 Reconnect handling
 
 - Human disconnects mid-hand → seat plays out the current hand with a stand-in bot using their current stack and a passive personality. Mandate: *preserve the stack*, not *play to win*.
-- Reconnects within 5 min → resume with whatever stack the bot left them
-- Beyond timeout → host-setting determines whether the seat formally converts to a bot continuation or vacates (room's "drop policy" toggle, defaulted to "continue as bot" for friend games)
+- Reconnects within 5 min → resume with whatever stack the bot left them.
+- Beyond timeout → host-setting determines whether the seat formally converts to a bot continuation or vacates (room's "drop policy" toggle, defaulted to "continue as bot" for friend games).
+- On vacate (whether via sweep-evict or host setting), the remaining stack flows back to the user's wallet — see [§4.1 Wallet, stack & buy-ins](#wallet-stack--buy-ins). The user's next launch surfaces a "you were removed from a room — here's your stack" toast so the chip movement isn't silent (currently a gap — see [todo.md](../todo.md) §C).
 
 This is not a "play for me on purpose" feature. It's "life happens, the game continues."
 
@@ -561,17 +589,19 @@ The risk we accept: a small percentage of anonymous users will lose progress in 
 
 Device fingerprinting is privacy-sensitive. We use only the minimum signals necessary for account recovery and anti-farming (device class, OS version, language, region, network indicators) — **not** user identifiers, advertising IDs, or persistent hardware IDs that would survive a factory reset. Data is used solely for account-matching, never sold, never shared with third parties. Surfaced in the privacy section of settings (§5.12 voice-and-copy).
 
-#### Smart claim prompts (not gating)
+#### Claim is opt-in (no proactive prompts)
 
-We never block gameplay behind sign-in. Instead, we surface the claim option at moments when the user has something worth saving. Each prompt fires **once, ever, dismissible**. No begging, no "ARE YOU SURE" friction.
+We don't ask anonymous users to claim. The original case for prompting was anti-farming on the starter grant, but that's handled by device fingerprinting (above) — claim adds nothing to it. The other benefits of claim (durability, friends, leaderboards, public-room hosting) are real but mostly *for the user*, not for us, and the device-fingerprint + platform-keychain recovery path already covers the common case for durability. Pushing users to claim would be begging for something they don't need to do today, in service of a metric that isn't load-bearing — exactly the anti-pattern §10 brand checks reject.
 
-| Trigger moment | Why it matters |
+**Where claim still surfaces — passively, inline:**
+
+| Surface | Behavior |
 | --- | --- |
-| First MP hand won | First time chips have real provenance (earned from a human, not bots) |
-| First Epic or Legendary achievement | First "this took effort to get" moment |
-| Chip balance crosses 5,000 | Threshold where loss would feel meaningful |
-| First shop interaction | About to spend chips on something durable (a cosmetic survives if claimed) |
-| Reaching Level 10 | Milestone moment — user has invested time |
+| Profile screen | Static "Claim your account" card with the durability pitch. Always visible, never modal. |
+| Try to host a public room (anon-only restriction, §5.3) | Inline "Sign in to host a room — strangers need a real account on the other side." Blocks only that action; everything else keeps working. |
+| Try to add a friend (claim required, §6.3) | Inline "Sign in to add friends — friend lists need a stable account." Same shape. |
+
+**No** proactive prompts at achievement unlocks, level-ups, chip-balance milestones, shop visits, or post-MP-win moments. Those are *good* moments — and we use them for app-store review prompts (§2.6), not for asking the user to sign in.
 
 Specific copy in [voice-and-copy.md §5.11](./voice-and-copy.md#511-smart-claim-prompts-anonymous-users).
 
@@ -706,7 +736,7 @@ Block is for personal comfort (one-tap, immediate, reversible from settings). Re
 
 **Explicitly never:**
 - Streak notifications (no streak mechanic — Appendix C)
-- "Your quests expire in 1 hour" reminders (quests are episodic, not chained)
+- Daily-quest reminders / daily-challenge pings (no quest mechanic — see Appendix C)
 - Time-of-day pings based on usual play time (stalker-coded)
 - "Come back, we miss you" / "Your chips are getting lonely" / any psychological-pressure copy
 - More than 2 notifications per day, ever
@@ -724,7 +754,7 @@ Phases 1 (game engine) and 2 (defensive infra) are done. V1 progression UX is sh
 | **3** | Auth & server persistence | Anonymous-by-default Supabase sign-in, Apple/Google claim, account deletion, server-side XP/chip persistence | ✅ |
 | **4** | Multiplayer foundation | Server-authoritative dealer, Friend Games (room codes + deep links + bot fill + reconnect) | ✅ |
 | **5** | Public rooms + table-side social + moderation | **Public rooms + Quick Match + Browse + stake tiers.** Emoji blasts + reactive emoji, tap-avatar preview. Block / report + manual human review (no auto-bans). Chat deferred to V1.x. | ✅ |
-| **6** | Quests + notifications | Today's Quests (3/day), event-driven push notifications | ✅ |
+| **6** | Notifications | Event-driven push notifications (league / friend / battle pass / Rare+ achievement) | ✅ |
 | **7** | Weekly leagues | 10 tiers, 30-player cohorts, top-7/mid-18/bottom-5, Monday reset, Royal Flush Tournament | V1.1 |
 | **8** | Shop + chip IAP | Catalog by category, three chip packs, common cosmetics + unlock-only trophy case | ✅ |
 | **9** | Seasonal battle pass | 6-week seasons, free + premium tracks, themed rotation, vault mechanic | V1.3 |
@@ -738,7 +768,7 @@ Phase 3 (auth)
    ↓
 Phase 4 (MP) ─┬─► Phase 5 (table-social + public rooms)
               │
-              └─► Phase 6 (quests + notifications) ─► Phase 7 (leagues) ─┬─► Phase 8 (shop + IAP)
+              └─► Phase 6 (notifications) ─► Phase 7 (leagues) ─┬─► Phase 8 (shop + IAP)
                                                                           │
                                                                           └─► Phase 9 (seasons)
 
@@ -751,12 +781,12 @@ Phase 11+ — gated on retention data from 7/8/9.
 ### 9.2 Module map
 
 **Existing modules (extended):**
-- [`libraries/cards/`](../../libraries/cards) — domain. Add `DailyQuestRepository`, `LeagueRepository`, `SeasonRepository`.
+- [`libraries/cards/`](../../libraries/cards) — domain. Add `LeagueRepository`, `SeasonRepository`.
 - [`libraries/cards/impl/`](../../libraries/cards/impl) — corresponding impls
 - [`libraries/cards/storage/`](../../libraries/cards/storage) — new Room entities per phase, following `XpEventEntity` append-only-ledger pattern
 - [`features/progression/`](../../features/progression) — XP / Rank / Achievements pages. Expand for league surfaces.
 - [`features/profile/impl/`](../../features/profile/impl) — Phase 10 expansion for heat map + history
-- [`features/home/impl/HomeScreen.kt`](../../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/HomeScreen.kt) — league standing card, Today's Quests tray
+- [`features/home/impl/HomeScreen.kt`](../../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/HomeScreen.kt) — league standing card, friends strip
 - [`features/shop/impl/`](../../features/shop/impl) — currently placeholder; built out in Phase 8
 - [`features/room/impl/`](../../features/room/impl) — Phase 4 MP work + Phase 5 table-social extension
 - `:server` — Phase 4 work begins; subsequent phases add league snapshot job, season config
@@ -812,7 +842,7 @@ Deferred questions to be answered when their phase comes up:
 3. **Friends list capacity** — probably 200 hard cap, no warning until 150. Validate in Phase 5.
 4. **Profanity filter for V1.x free-text chat** — allow-list first, then filter (Discord pattern). Phase 5+.
 5. **App store compliance** — 17+ rating, geo-restriction in regulated markets (Korea, China). Confirm with Apple's reviewer guidance before Phase 8 submission.
-6. **Quiet Felt Mode toggle** — option to hide leagues/quests/seasons for power users. Settings toggle in Phase 10.
+6. **Quiet Felt Mode toggle** — option to hide leagues/seasons for power users. Settings toggle in Phase 10.
 7. **External billing migration trigger** — native StoreKit / Play Billing in V1.5. Revisit at $100K/yr annualized IAP. RevenueCat-mediated on Android first.
 8. **Display-name uniqueness** — enforce on user-edited names; allow collisions on auto-generated with suffix counter for table display. Phase 3.
 9. **Display-name word list curation** — poker-flavored, brand-safe. Block-list for offensive combinations. Phase 3.
@@ -848,7 +878,7 @@ Originally planned (Phase 6) as a Duolingo-pattern daily-XP streak with freeze a
 - **Comparable entertainment apps don't ship login streaks.** Marvel Snap, Clash Royale, Hearthstone don't. Login streaks are a daily-conceptual-product pattern (Duolingo, Snapchat, BeReal).
 - **Leagues already provide weekly urgency.** Real cadence, real urgency.
 
-**What replaces it:** nothing in V1. V1 retention: Today's Quests + achievement progression + cosmetic anticipation + friend pings. V1.1 adds weekly leagues, which carry the heavy retention work.
+**What replaces it:** nothing in V1. V1 retention: achievement progression + cosmetic anticipation + friend pings. V1.1 adds weekly leagues, which carry the heavy retention work. (Today's Quests, originally planned as part of this story, were also rejected — see [C.7](#c7-todays-quests-rejected-2026-05-20).)
 
 **Open option:** a low-pressure **"weekly play streak"** (consecutive weeks with at least one MP hand, profile flex stat only, no notifications, no freezes) is on the table for V1.x. Listed in Appendix B item 17.
 
@@ -906,3 +936,17 @@ Considered populating public rooms or leagues with synthetic human-presenting ac
 - **Bot fill in tables** is *labeled* — bots are visibly bots, never disguised as humans (§5.4)
 - **Quick Match** prefers all-human tables; falls back to bot-fill tables with explicit "Practice tier · bots present" label (§5.3)
 - **Leagues** scale cohort size with population (§Appendix B item 18) — small honest cohorts beat fake-populated large ones
+
+### C.7 Today's Quests (rejected 2026-05-20)
+
+Originally planned (Phase 6) as 3 quests per day — one effort-flavored ("play X hands"), one variety-flavored ("see 10 flops"), one skill-flavored ("win a hand with two pair+"). Refresh at local midnight, small chip + XP rewards per quest, ~1,000 chip all-three-complete bonus, no streak mechanic.
+
+**Why rejected:**
+- **Genre mismatch.** Duolingo-style daily quests work because the activity is variance-free — if you do it, you progress. In poker, every quest is broken by variance: "Win 3 hands today" punishes skilled play that ran cold; "play 5 hands" is a pure activity gate (the dark pattern we already rejected in C.1); "make 3 bluffs today" actively encourages worse poker. There's no quest formulation that's *both* completable in one short session *and* not gameable / not punishing variance / not nudging away from sound play.
+- **Achievements already do the job better.** Achievements pull on a longer arc that variance can't sabotage in a single sitting, and they're already shipped. Adding quests = duplicate progress surface with a worse-fit cadence.
+- **Daily-quest reminders are a notification pattern we explicitly rejected** (§8: no "your quest expires" pings, no time-of-day modeling). Shipping a daily-quest mechanic without daily-quest notifications is a half-mechanic; shipping both contradicts the spec.
+- **No peer is doing it well for poker.** Pokerrrr 2 / Offsuit / Zynga Poker all skip the daily-quest tray. The pattern is CCG / language-learning, not poker.
+
+**What replaces it:** nothing — V1 retention rests on achievements + cosmetic anticipation + friend pings, with weekly leagues (V1.1) carrying the real cadence work. The home screen is one less tray; that's a feature.
+
+**Open option:** if achievement-progression analytics show users aren't getting enough "fast wins" in their first sessions, consider adding more *low-bar achievements* rather than reintroducing a quest layer. Achievements were the right shape all along.

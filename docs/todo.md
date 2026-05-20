@@ -21,7 +21,7 @@ Anything in §A is **off-limits to automated workers** — those items need a hu
 
 **Do not pick these up in any automated run.** Contradicts the locked spec or requires an executive call before engineering can start.
 
-1. **MP buy-in / ante mechanic.** Multiplayer needs a chip sink at the table — otherwise chips are a one-way faucet and there's no economic loop. Open questions before engineering: (a) flat buy-in to enter the room (returned on graceful leave?) or per-hand ante? (b) host-set or fixed? (c) does the bot table mirror this so the mechanic is discoverable, or are bot tables explicitly chip-free? (d) refund behavior on disconnect / forfeit. Lands in product-spec.md §5 once decided.
+*(No open items at this time.)*
 
 ---
 
@@ -38,8 +38,38 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
    **Out of scope:** the underlying animation / scrim / sizing behavior — that stays. This is naming, layering, and emoji-bubble theme-awareness only.
 
+### Economy — chip flow promises not yet built
+Surfaced 2026-05-20 by a spec-vs-build audit. All three are spec promises in [product-spec.md §4.1](./product/product-spec.md#41-chips--the-only-currency) with zero implementation. None are in catastrophic territory on their own, but together they're load-bearing for the "chips feel sacred / we're generous, not punitive" economy narrative.
+
+- **Soft bust protection** — when a user's wallet hits 0, auto-grant 1,000 chips with copy *"Welcome back to the table."* No timer, no claim prompt. Hooks into `ChipsRepository` / wallet bootstrap; trigger on transition-to-zero, not on every zero state (otherwise users get re-granted every time they reload the app at zero). **V1-blocker** for the chip-economy story — without this, a new player who busts their starter grant has no free path back. **Files:** likely a new method on `ChipsRepository` + a server-side ledger event with reason `BUST_PROTECTION`.
+- **First-week welcome chips** — 500/day × 7 silent grants for the first 7 days post-install / sign-up. No claim prompt; chips just appear in the wallet. No streak, no expiry, no "you missed yesterday" copy. **Files:** server-side scheduled grant tied to account creation timestamp; client just observes the wallet delta. **V1-polish** rather than blocker — the 10K starter covers immediate play; this is retention sweetener.
+- **Tip the dealer** — 50–500 chip post-hand action as flavor sink. Lives on the showdown / hand-end dialog. **V1-polish.** Pure flavor; not load-bearing. Worth doing for the chip-sink narrative but skippable if scope tightens.
+
+### Catalog gating — unlock-only vs purchasable
+- **`unlock_only` flag on products + Trophy Case surface.** [product-spec.md §4.2](./product/product-spec.md#42-the-unlock-only-catalog) is structurally load-bearing: legendary achievement cosmetics, league-tier cosmetics, RFT cosmetics, achievement-chain cosmetics are **never in the shop, ever.** The shop catalog and the unlock catalog must be *disjoint sets.* Today the `products` table has no `unlock_only` (or equivalent) column, the shop has no gating logic to hide unlock-only entries, and there's no Trophy Case UI to display unlock-only items. This collapses the "no pay-to-win prestige" principle ([§4.5](./product/product-spec.md#45-no-pay-to-win--the-hard-rule)) the moment an achievement-tier cosmetic ships.
+   - **Server:** add `unlock_only BOOLEAN` to `products` (migration V7+). Shop catalog query filters `WHERE unlock_only = FALSE`. Inventory-grant path for unlocks goes via achievement reward / league finish hooks (already partially wired for chip rewards on achievements).
+   - **Client:** Trophy Case screen as a peer to Shop / My Items (probably under Profile or as a tab on the existing My Items surface). Shows owned unlock-only items, display-only, with the achievement / league that earned each. Locked entries shown as silhouettes (already the pattern for achievements themselves).
+   - **V1-blocker** for any prestige cosmetic. Acceptable to ship V1 if the unlock-only catalog is *empty for V1* and Trophy Case is deferred — but that's a content decision. Flag now.
+
 ### Edit profile
-- **Offline-first reads for profile-editable data.** When the user opens Edit Profile, the avatar picker fetches the pack fresh from the server every time — slow, and impossible offline. Drive the picker (and similar profile-editable surfaces) from the local DB; reconcile to the server in the background. Edits should write locally first, queue a sync, and trust eventual consistency. **Out of scope:** server-authoritative things that need server confirmation before they're real (products / purchases / chip wallet — those keep their current server-roundtrip semantics).
+- **Offline-first reads AND writes for profile-editable data.**
+   - **Reads:** when the user opens Edit Profile, the avatar picker fetches the pack fresh from the server every time — slow, and impossible offline. Drive the picker (and similar profile-editable surfaces) from the local DB; reconcile to the server in the background.
+   - **Writes:** avatar and display-name updates today await the server before reflecting in UI ([EditProfileViewModel.kt:98](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/edit/EditProfileViewModel.kt#L98)). Should be optimistic: apply locally, queue the network call, and on failure roll back + surface a snackbar. Display-name conflicts (`DisplayNameTaken`, server-enforced via 409) still need to roll back; that's the one rollback path with a user-facing reason.
+   - **Out of scope:** server-authoritative things that need server confirmation before they're real (products / purchases / chip wallet — those keep their current server-roundtrip semantics).
+- **Newly purchased avatars don't land in the Edit Profile picker.** Bought a food avatar pack, equipped it, opened Edit Profile — the new avatars weren't in the picker grid. Picker drives off `identityRepository.fetchAvatarPack()` which doesn't include the user's purchased inventory. Open question while fixing: is "equip an avatar" even the right model for *every* purchase, or are some purchases (consumables, decorations) inherently not equippable? Sort the catalog into equippable vs. non-equippable before rebuilding the picker so the UI matches the data model.
+
+### Purchases / shop feedback
+- **Drop the "syncing" indicator on purchase — go fully optimistic.** When the user buys a product, background work shouldn't surface as a "syncing" affordance. Optimistic UI should look like it worked instantly; only surface state if the backend rejects or we give up retrying. Find whatever today is rendering "syncing" on the purchase path and remove it; replace with the success snackbar (already present).
+- **Purchase snackbar polish.** Today's success snackbar ([ShopFeatureEntryPoint.kt:30](../features/shop/impl/src/commonMain/kotlin/com/cards/features/shop/impl/ShopFeatureEntryPoint.kt#L30)) is plain text ("Unlocked! …", "+X chips"). Make it more delightful: small emoji bubble pinned on the right side of the snackbar (not the over-the-lip dialog style — a contained right-aligned bubble), and where the item is equippable, an inline "Equip" action. Reuses the snackbar action slot we already have. Decide-while-doing which products are equippable (see avatar picker item above).
+
+### Home / Shop chrome
+- **Chip balance pill positioned identically on Home and Shop top-right.** Today the layouts differ — Home wraps Rank + XP + Chips in a flex row left-aligned ([HomeScreen.kt:100](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/HomeScreen.kt#L100)); Shop has title + subtitle on the left and Chips on the right ([ShopScreen.kt:223](../features/shop/impl/src/commonMain/kotlin/com/cards/features/shop/impl/ShopScreen.kt#L223)). The chip pill should land in the *exact* same screen coordinates on both surfaces so it reads as a shared element — eventually a real `SharedTransitionScope` element when we cross-navigate, but for V1 just pin the position. Likely means lifting a small `BalancePillSlot` composable into a shared top-bar primitive that both screens render in the same trailing position.
+
+### Navigation animations
+- **Back animation should mirror forward.** [Route.kt:44](../libraries/navigation/src/commonMain/kotlin/com/cards/libraries/navigation/Route.kt#L44) defines an `opposite()` mapping (SlideUp → SlideDown, etc.) but the pop-exit transition isn't actually using it — both forward enter and back exit currently slide the *same* direction. Desired model: a screen pushed with `SlideUp` slides up *over* the current screen (current stays put); on back, the pushed screen slides back *down* to reveal the unmoved underneath. That's the standard "cover and uncover" pattern (matches platform sheet semantics). Audit the `NavHost` enter/exit/popEnter/popExit wiring and make popExit = `opposite(enter)` while keeping the previous screen's exit/popEnter as `EnterTransition.None` / `ExitTransition.None` so it doesn't budge.
+
+### QA menu
+- **Show the current user id.** Useful for support / log correlation. Add it near the top of the QA menu screen, above the config list ([QaMenuScreen.kt:52](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/QaMenuScreen.kt#L52)). Long-press to copy.
 
 ### Screen / chrome consistency
 - **Previews on every user-facing composable.** Rough rule: every public/internal screen-level composable should have at least one `@Preview`. Private helpers don't need their own preview unless the parent doesn't already exercise the visual. First sweep landed previews on the obvious gaps — `OnboardingScreen`, `SignInScreen`, `SignUpScreen`, `VerifyEmailScreen`, `BotTableSetupDialog`, `WinOddsBadge`, `CountdownBadge`, `ProductIcon` / `BadgePill` / `OverhangBadge` (shop helpers). Future contributions should add a preview alongside any new screen-level composable; CI doesn't enforce yet (no static-analysis lint plugged in), so this is a convention.
@@ -68,7 +98,20 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Emoji sending in games.** [product-spec.md §5.5](./product/product-spec.md#55-table-side-social) commits to emoji blasts (~12 base emojis, 8s cooldown, mute-this-player) as a V1 feature. Not built yet. Bottom-tray surface, full-screen 1.5s animation per emit.
 - **Swipe-up-to-fold.** Gesture on the user's hole cards = fold. First time it triggers, show a confirmation dialog *with* a "Don't show this again" — so the gesture stays discoverable then gets out of the way.
 
+### App-store review prompts
+- **Wire native review APIs at positive moments.** New must-have ([spec §2.6](./product/product-spec.md#26-app-store-review-prompts), [v1-mvp.md §2.6](./product/v1-mvp.md)). Shape:
+  - New `:libraries:review` (api + impl) with a KMP `ReviewPromptCoordinator` and platform `expect`/`actual` calling `SKStoreReviewController.requestReview()` on iOS and `ReviewManager.launchReviewFlow()` on Android.
+  - Hook into existing event streams — achievement unlock (`AchievementRepository`), level-up (`ProgressionRepository`), session-end (the play-screen ViewModel emits a session-summary event). Coordinator checks the eligibility gate (install age, session count, last-prompt date, last-hand outcome) and only then signals the OS.
+  - Persist `lastPromptAt` + `sessionCount` + `installAt` locally. No server round-trip — purely a client concern.
+  - **Important:** never write a self-built rating dialog as a fallback. If the OS declines to show the prompt, that's the system working as designed — see [spec §2.6](./product/product-spec.md#26-app-store-review-prompts).
+  - **V1-must-have** — small but load-bearing for ASO. Ship before TestFlight.
+
+### Notifications — Phase 6, not started
+- **§8 opt-in event-driven push notifications.** League placement, friend activity, battle-pass tier, Rare/Legendary achievement unlock. Never time-of-day modeled, never "your chips are lonely," never "come back" pings — see [product-spec.md §8](./product/product-spec.md#8-notifications) for the bright lines. Includes opt-in granularity (per-category toggle, not just global on/off). **Not a hidden gap** — explicitly Phase 6 on the roadmap — but worth listing so it doesn't slip after Phase 4.2.
+
 ### Email & deep linking
+- **Friend-game link previews.** [product-spec.md §5.2](./product/product-spec.md#52-friend-games) promises iMessage/WhatsApp previews showing a Cards-branded card with stakes + seat count. Needs (a) iOS Universal Links + Android App Links configured for the friend-code URL, (b) a small web endpoint serving Open Graph meta (`og:title`, `og:image`, `og:description`) keyed by the code, (c) image rendering for the preview card (can be static-with-placeholders for V1 — full dynamic rendering is overkill). **V1-polish** — friend games work today via copy-code; the rich preview is a social-virality nicety, not a blocker.
+
 - **Email confirmation link points to `localhost`.** Supabase email template is on the default. Set the project's site URL + redirect URLs in the Supabase dashboard (dev *and* prod). While there, swap the default Supabase template for a Cards-branded one (copy in [voice-and-copy.md §5.x](./product/voice-and-copy.md)).
 
 ### Claim Account screen
@@ -92,6 +135,14 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 The lobby + reconnect-grace foundation landed (per project memory); these are the gaps before we trust strangers to share a room.
 
+- **Implement buy-in / stack / re-buy mechanic.** Spec landed in [product-spec.md §4.1 → Wallet, stack & buy-ins](./product/product-spec.md#wallet-stack--buy-ins); engineering still needs to do it. Sketch of the work:
+  - **Server:** new "table reservations" concept — buy-in moves wallet → table-held balance on sit; reverses on stand / sweep-evict. Hand resolution moves chips between table-held balances (no wallet touch mid-hand). Wallet sync is unchanged.
+  - **Client:** play screen shows *stack* (not wallet); home / shop / profile keep showing wallet. Re-buy dialog on stack=0 (auto-prompt, free if wallet covers). Bust-protection path remains as-is. Sit-out toggle in seat menu.
+  - **Bot tables:** mirror the same flow so the mechanic is discoverable solo. The existing local-only `BotTableSetupDialog` should grow a stake-tier picker (Practice / Casual / Standard / High / Premium) rather than the current free-form "starting stack" field.
+  - **Toast on sweep-evict refund:** "your stack came home — N chips returned to your wallet." Currently a gap noted in product-spec.md §5.6.
+  - **Anti-smurf gate** ([§5.3](./product/product-spec.md#53-public-rooms)): server rejects sit-down if buy-in > 25% of wallet. Client surfaces the "you need ≥ N chips for this tier" message before the network call.
+  - **Out of scope for V1:** host-customizable blinds (V1.x), antes, rake, voluntary forfeit surface (V1.x).
+- **MP credit by table composition** ([§5.4 table](./product/product-spec.md#mp-credit-by-table-composition)). The "≥2 humans AND humans ≥ bots" rule for granting MP XP / league credit / achievements is documented but not enforced anywhere. Without it, two friends + four bots is a chip-farm exploit. Enforcement lives wherever post-hand XP / progression hooks fire — likely in the server's hand-resolution path, gating which progression events get emitted for which seats. Client also needs the visible "Practice tier · bots present" label per [§5.3](./product/product-spec.md#53-public-rooms). **V1-blocker** for integrity once MP is end-to-end playable.
 - **MP games don't actually work end-to-end.** Reported 2026-05-20 by the human: joining a multiplayer room doesn't produce a playable game. **Needs human reproduction first** before an automated worker should touch this — the failure mode isn't documented (does the room create, do players join, does the deal happen, do actions propagate?). Reproduction steps + a concrete failure signature need to live in this item before it's worker-pickable. Likely intersects with `RemotePokerSessionFactory` / `RemoteGameSession`, which were scaffolded for Phase 4.2 but may not be fully wired.
 - **Orphaned room policy — robust, simple.**
   - Last human leaves → kill the room.
@@ -142,6 +193,24 @@ Note: the get-or-create pattern is correct, so the remaining structural concerns
 **Sync bootstrappers (closed):** `ChipsSyncBootstrapper`, `InventorySyncBootstrapper`, and `EquipmentSyncBootstrapper` now suspend on `IdentityRepository.awaitIdentity()` before invoking their sync services. Lazy provider breaks the `IdentityRepository → AppEventBus → AppEventDispatcher → bootstrapper` DI cycle, same pattern `NetworkClientImpl` uses for `AuthTokenProvider`.
 
 **Still open — broader audit:** the same fragility exists anywhere a class fires an authed call without first waiting for identity. The structural fix is either (a) make `NetworkClient.authenticatedClient` itself block until a token is available (instead of falling through and 401'ing), or (b) introduce a `NetworkClient.authedCall { client -> … }` helper that does the await + standard retry classification + logging. Either way, the goal is "auth-required network calls can't accidentally race onboarding." Sweep candidate after V1 ships.
+
+### Identity cold-boot resilience
+**Problem:** Anonymous sign-in roundtrips Supabase, and on a fresh install with poor / no network the `/auth/v1/token` call times out (`HttpRequestException`, 10s default) and the user is stranded in a `SessionState.Unknown` — they can't even play bots. Repro: fresh install on a heavily throttled connection.
+
+This is a poker app. A user shouldn't need internet to play bots, even on first launch.
+
+**Sketch — pick one or layer them:**
+1. **Cached-identity fallback.** If we have a previously-cached identity from a prior session, fall back to it and treat sign-in as a background reconciliation. Doesn't help true first-launch.
+2. **Local `ErrorIdentity` / `OfflineIdentity`.** Generate a local-only id so bot play is fully unlocked. On next successful auth, migrate any local progress (chips, XP, achievements) into the real account. Riskier — needs a real migration story.
+3. **Defer anon sign-in until we actually need it.** Bots don't strictly need a server-side identity; only purchase / MP / leaderboard surfaces do. Treat anon-auth as a *prerequisite for those surfaces*, not for app launch. Boot offers bots immediately; sign-in happens lazily before the first networked feature.
+
+**Lean:** option 3 is the most honest — it matches what the app actually needs from a server identity. Option 2 is technically possible but introduces a non-trivial reconciliation surface we'd otherwise avoid.
+
+**Files / hints:** [SupabaseIdentityRepository.kt:113](../libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/SupabaseIdentityRepository.kt#L113) (`ensureInitialized`), [SplashGate](../libraries/identity/api/src/commonMain/kotlin/com/cards/libraries/identity/api/SessionState.kt) wiring. **Discuss approach with the human before implementing** — this is an executive decision call, not a worker pickup.
+
+### CI — cache & artifacts
+- **Gradle cache is already wired** via `gradle/actions/setup-gradle@v4` with `cache-read-only` on PRs, plus a `~/.konan` cache for Kotlin/Native ([ci.yml:71](../.github/workflows/ci.yml#L71)). That's the right shape; no change needed there.
+- **Worth adding — artifact uploads:** test reports (JUnit XML / HTML) and built APK / IPA on green main. Today nothing is uploaded, so post-mortem on a CI failure means re-running locally. Use `actions/upload-artifact@v4` with sane retention (7–14 days for test reports, 30 days for release-train APKs).
 
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 **Problem:** `libraries/cards` was originally the "highly shared" dumping ground. It has grown to be too big. We now also have `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). The three overlap in confusing ways for new readers.

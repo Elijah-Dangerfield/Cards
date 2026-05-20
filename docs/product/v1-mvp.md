@@ -15,12 +15,12 @@ Success is *the flywheel starting*, not just "the app ships."
 | Metric | Target | Why |
 | --- | --- | --- |
 | App store rating | ≥ 4.3 | Polish floor. Below this, ASO grinds. Offsuit hit 4.6. |
-| Day-2 retention | ≥ 40% | Tests the lightweight loop (Today's Quests + achievement progression). No streak mechanic by design (see [spec Appendix C.1](./product-spec.md#c1-daily-login-streak-rejected-2026-05-16)). |
+| Day-2 retention | ≥ 40% | Tests the lightweight loop (achievement progression + cosmetic anticipation + friend pings). No streak or daily-quest mechanic by design (see [spec Appendix C.1](./product-spec.md#c1-daily-login-streak-rejected-2026-05-16) and [C.7](./product-spec.md#c7-todays-quests-rejected-2026-05-20)). |
 | Day-7 retention | ≥ 25% | Tests the social hook — engaged users have invited a friend or joined a public room. |
 | Day-30 retention | ≥ 10% | Tests whether the meta-game has legs *without* leagues (which ship V1.1). |
 | First-session → first-game time | < 60 sec | The hard rule from [spec §2.1](./product-spec.md#21-first-session--the-60-second-rule). |
 | Friend invite rate | ≥ 25% of installs | Virality measure. Friend network = compounding growth. |
-| Anonymous → claimed conversion | ≥ 20% | Tests whether the claim flow is friction-free. |
+| Anonymous → claimed conversion | *Directional only* | Tracked but not load-bearing. Claim is opt-in by design (no proactive prompts) — see [spec §6.1](./product-spec.md#claim-is-opt-in-no-proactive-prompts). Conversion is a downstream effect of users naturally needing claim (host a public room, add a friend), not a metric we optimize toward. |
 | First chip-pack purchase | ≥ 3% of D30-retained | First revenue signal. |
 
 Calibrate against real data after 4 weeks post-launch.
@@ -44,7 +44,7 @@ Day-to-day status lives in [project memory](~/.claude/projects/-Users-elijahdang
 - **Best-effort account revival on reinstall** — fingerprint match + platform keychain (iCloud Keychain on iOS, Block Store on Android) to recover anonymous accounts when the user comes back. "Welcome back" flow if match found. See [spec §6.1](./product-spec.md#best-effort-account-revival-on-reinstall).
 - Server-side XP / chip persistence via Supabase
 - Account claim (Apple / Google) — anonymous is default, claim is optional but smooth
-- **Smart claim prompts** at meaningful moments (first MP win, first Epic/Legendary achievement, chip balance 5K, first shop interaction, Level 10). Each fires once, dismissible. Copy in [voice-and-copy.md §5.11](./voice-and-copy.md#511-smart-claim-prompts-anonymous-users).
+- **Claim is opt-in, no proactive prompts.** Profile screen has a static claim card; inline prompts surface only when the user tries to do something that requires claim (host a public room, add a friend). See [spec §6.1](./product-spec.md#claim-is-opt-in-no-proactive-prompts) for the rationale (anti-farming is handled by device fingerprint, so claim prompts have no load-bearing job).
 - **Starter grant deduplication** — 10K starter is one-per-device-fingerprint, closes the uninstall-reinstall exploit
 - Account deletion
 
@@ -75,12 +75,17 @@ Day-to-day status lives in [project memory](~/.claude/projects/-Users-elijahdang
 - **In-game chat** (canned or free-text) — friends already have external chat channels; public rooms with stranger chat is the highest-moderation / lowest-value surface. Defer until moderation infra matures. See [spec §5.5](./product-spec.md#55-table-side-social).
 - **Auto-ban triggers** — V1 is manual review only. Automated suspension at scale is V2+.
 
-### 2.5 Phase 6 — Today's Quests + notifications
+### 2.5 Phase 6 — Notifications
 
-- Today's Quests: 3/day, three flavors (effort / variety / skill), refresh at local midnight. No streak mechanic; missing a day costs nothing.
 - Event-driven push notifications only. Never time-of-day pings, never beg-copy. ([spec §8](./product-spec.md#8-notifications))
+- Categories: league position, friend activity, battle pass tier, Rare/Legendary achievement unlock. Opt-in per category.
+- (Today's Quests were originally part of this phase; rejected — see [spec C.7](./product-spec.md#c7-todays-quests-rejected-2026-05-20).)
 
-### 2.6 Phase 8 — Shop + IAP
+### 2.6 App-store review prompts
+
+A small but load-bearing health feature. Use the native platform APIs (SKStoreReviewController on iOS, Google Play In-App Review on Android) at *positive* moments — Epic/Legendary achievement unlock, Level 10, session-end-net-positive — gated on install-age ≥ 7 days + ≥ 3 sessions + no prompt in last 90 days + last hand not a bust. Never call the API at onboarding, mid-hand, after a loss, or after errors. Full trigger / never-trigger lists in [spec §2.6](./product-spec.md#26-app-store-review-prompts).
+
+### 2.7 Phase 8 — Shop + IAP
 
 - Cosmetic shop with categories: card backs, table felts, emote packs, avatar frames
 - All shop items chip-priced (single-currency model — [spec §4.1](./product-spec.md#41-chips--the-only-currency))
@@ -98,7 +103,7 @@ Strongly recommended; first to descope if scope tightens.
 
 - "Recently played with" surface on home / profile
 - Explicit friend list (separate from recently-played-with)
-- End-of-session recap ("8 hands won, 240 XP, today's quests complete, level up to 7")
+- End-of-session recap ("8 hands won, 240 XP, level up to 7")
 - Subtle sound design (default off, opt-in, real-recorded, never casino-loud)
 - Live activity ticker on home screen (§2.4 of spec)
 
@@ -122,7 +127,8 @@ The most important section.
 
 | Cut feature | When | Why deferred |
 | --- | --- | --- |
-| Weekly leagues | **V1.1, 6–8 weeks post-launch** | The retention multiplier — adds 4–6 weeks (matchmaking telemetry, integrity sweep, reward calibration). V1 retention rests on quests + achievements + friend hooks; intentionally lighter than streak-heavy alternatives ([spec Appendix C.1](./product-spec.md#c1-daily-login-streak-rejected-2026-05-16)). Leagues without V1 calibration data would launch broken. |
+| Weekly leagues | **V1.1, 6–8 weeks post-launch** | The retention multiplier — adds 4–6 weeks (matchmaking telemetry, integrity sweep, reward calibration). V1 retention rests on achievements + cosmetic anticipation + friend hooks; intentionally lighter than streak-heavy alternatives ([spec Appendix C.1](./product-spec.md#c1-daily-login-streak-rejected-2026-05-16)). Leagues without V1 calibration data would launch broken. |
+| Today's Quests (daily challenges) | **Never** | Genre mismatch — variance breaks every formulation. [spec Appendix C.7](./product-spec.md#c7-todays-quests-rejected-2026-05-20). |
 | Royal Flush Tournament | V1.2 | Requires Royal Flush tier with stable population. |
 | Seasonal battle pass | V1.3 | Needs a season's cosmetic content, vault mechanics. Limited-time cosmetic drops can ship before the full season framework. |
 | In-game chat (canned or free) | V1.x | Friends have external chat; public-room stranger chat is highest-moderation / lowest-value. Emoji blasts cover the table-side social moment. |
@@ -173,7 +179,7 @@ Assumes one focused full-time engineer (more = faster). Phases can overlap on de
 | 1 | Phase 3 — Auth + persistence | 3–4 wk | Yes — blocks all below |
 | 2 | Phase 4 — MP foundation | 6–8 wk | Yes |
 | 3 | Phase 5 — Public rooms + social + moderation | 4–6 wk | Yes for public rooms; some social can parallel Phase 4 |
-| 4 | Phase 6 subset — Quests + push | 2 wk | Can parallel late Phase 5 |
+| 4 | Phase 6 — Notifications | 1 wk | Can parallel late Phase 5 |
 | 5 | Phase 8 — Shop + chip IAP | 4–5 wk | Final; cosmetic asset design can parallel earlier phases |
 
 **Estimated total: 5–6 months.**
