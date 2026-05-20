@@ -43,6 +43,26 @@ on:
         required: false
         type: string
         default: ''
+      messageEmoji:
+        description: 'Optional in-app dialog: emoji (e.g. 🎁). Leave all four message fields blank to skip the dialog.'
+        required: false
+        type: string
+        default: ''
+      messageTitle:
+        description: 'Optional in-app dialog: title (max 80 chars).'
+        required: false
+        type: string
+        default: ''
+      messageBody:
+        description: 'Optional in-app dialog: body (max 500 chars).'
+        required: false
+        type: string
+        default: ''
+      messageDeepLink:
+        description: 'Optional in-app dialog: deep link the CTA opens (e.g. cards://shop). Blank = plain dismiss button.'
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   # Serialize grants per (user, key) — two operators clicking "Run workflow"
@@ -63,6 +83,10 @@ jobs:
           DELTA: ${{ inputs.delta }}
           REASON: ${{ inputs.reason }}
           IDEMPOTENCY_KEY: ${{ inputs.idempotencyKey }}
+          MSG_EMOJI: ${{ inputs.messageEmoji }}
+          MSG_TITLE: ${{ inputs.messageTitle }}
+          MSG_BODY: ${{ inputs.messageBody }}
+          MSG_DEEP_LINK: ${{ inputs.messageDeepLink }}
         run: |
           set -euo pipefail
 
@@ -89,13 +113,43 @@ jobs:
             exit 1
           fi
 
+          # Build the optional message subobject. All-or-nothing: title and
+          # body must BOTH be set to attach a dialog. Setting one without the
+          # other is almost always a typo, and the server would reject it
+          # anyway — catch it before the round-trip.
+          trimmed_title="$(echo -n "$MSG_TITLE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          trimmed_body="$(echo -n "$MSG_BODY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          if [ -n "$trimmed_title" ] && [ -z "$trimmed_body" ]; then
+            echo "::error::messageTitle is set but messageBody is empty. Both required to attach a dialog."
+            exit 1
+          fi
+          if [ -z "$trimmed_title" ] && [ -n "$trimmed_body" ]; then
+            echo "::error::messageBody is set but messageTitle is empty. Both required to attach a dialog."
+            exit 1
+          fi
+
+          if [ -n "$trimmed_title" ]; then
+            message=$(jq -nc \
+              --arg emoji "$MSG_EMOJI" \
+              --arg title "$trimmed_title" \
+              --arg body "$trimmed_body" \
+              --arg deepLink "$MSG_DEEP_LINK" \
+              '{title: $title, body: $body}
+               + (if $emoji == "" then {} else {emoji: $emoji} end)
+               + (if $deepLink == "" then {} else {deepLink: $deepLink} end)')
+          else
+            message="null"
+          fi
+
           body=$(jq -nc \
             --arg userId "$USER_ID" \
             --argjson delta "$DELTA" \
             --arg reason "$trimmed_reason" \
             --arg key "$IDEMPOTENCY_KEY" \
+            --argjson message "$message" \
             '{userId: $userId, delta: $delta, reason: $reason}
-             + (if $key == "" then {} else {idempotencyKey: $key} end)')
+             + (if $key == "" then {} else {idempotencyKey: $key} end)
+             + (if $message == null then {} else {message: $message} end)')
 
           response_file="$(mktemp)"
           status=$(curl --silent --show-error --max-time 30 \
