@@ -654,6 +654,112 @@ class AdminRoutesTest {
     }
 
     @Test
+    fun sendMessage_acceptsInboxKind() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"userId":"$alice","kind":"inbox","message":{"title":"Maintenance","body":"Sunday 9pm"}}""",
+                )
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(UserMessageKind.Inbox, messages.createCalls.single().kind)
+        }
+    }
+
+    @Test
+    fun sendMessage_defaultsToDialogKind_whenOmitted() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","message":{"title":"T","body":"B"}}""")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(UserMessageKind.Dialog, messages.createCalls.single().kind)
+        }
+    }
+
+    @Test
+    fun sendMessage_returns400_onUnknownKind() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"userId":"$alice","kind":"banner","message":{"title":"T","body":"B"}}""",
+                )
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, messages.createCalls.size)
+        }
+    }
+
+    @Test
+    fun sendMessage_passesExpiresAt_throughToRepo() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        val futureMs = 2_000_000_000_000L
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"userId":"$alice","message":{"title":"T","body":"B","expiresAtEpochMs":$futureMs}}""",
+                )
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(
+                Instant.fromEpochMilliseconds(futureMs),
+                messages.createCalls.single().expiresAt,
+            )
+        }
+    }
+
+    // ---------- POST /v1/admin/sweep-expired-messages ----------
+
+    @Test
+    fun sweepExpiredMessages_returnsUnauthorized_withoutToken() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val resp = client.post("/v1/admin/sweep-expired-messages")
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    @Test
+    fun sweepExpiredMessages_returnsCounts_onHappyPath() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = object : FakeMessageRepository() {
+            override suspend fun sweepExpiredAndAcked(now: Instant): MessageSweepResult =
+                MessageSweepResult(ackedPurged = 4, expiredUnackedPurged = 1)
+        }
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/sweep-expired-messages") {
+                header("X-Admin-Token", token)
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals(4, body["ackedPurged"]!!.jsonPrimitive.content.toInt())
+            assertEquals(1, body["expiredUnackedPurged"]!!.jsonPrimitive.content.toInt())
+            assertEquals(5, body["total"]!!.jsonPrimitive.content.toInt())
+        }
+    }
+
+    @Test
     fun sendMessage_returns400_onOversizedFields() = runTest {
         val clock = AdvanceableClock()
         val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
@@ -694,6 +800,9 @@ class AdminRoutesTest {
                         rooms = rooms,
                         wallets = wallets,
                         messages = messages,
+                        clock = object : Clock {
+                            override fun now(): Instant = Instant.fromEpochMilliseconds(1_700_000_000_000L)
+                        },
                     )
                 }
             }
@@ -788,7 +897,7 @@ class AdminRoutesTest {
      * the Postgres impl: a duplicate (userId, idempotencyKey) returns
      * the original row with `wasAlreadyCreated = true`.
      */
-    private class FakeMessageRepository : UserMessageRepository {
+    private open class FakeMessageRepository : UserMessageRepository {
         /** Inserts only — replays don't append here, matching the Postgres
          *  impl's "one row per (userId, key)" semantics. Use [invocationCount]
          *  if you specifically want raw call counts. */

@@ -21,6 +21,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import java.util.UUID
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
@@ -44,6 +45,7 @@ fun Route.adminRoutes(
     rooms: RoomService,
     wallets: WalletRepository,
     messages: UserMessageRepository,
+    clock: Clock,
 ) {
     route("/v1/admin") {
         post("/sweep-anonymous-users") {
@@ -132,6 +134,37 @@ fun Route.adminRoutes(
                             disconnectedCount = room.members.count { !it.isConnected },
                         )
                     },
+                ),
+            )
+        }
+
+        /**
+         * Storage hygiene for `user_messages`. Removes:
+         *   - Every acked row (regardless of age) — once the user has
+         *     seen + acked a message, the row is dead weight.
+         *   - Unacked rows whose `expires_at` has passed — the unread-
+         *     fetch filter already hides these, so deletion is cleanup,
+         *     not a behavior change.
+         *
+         * Intended to run on a slow cron (nightly is plenty). Two
+         * counts come back so the caller can log them; a spike in
+         * `expiredUnackedPurged` is worth a look — it means users
+         * weren't seeing their notices in time.
+         */
+        post("/sweep-expired-messages") {
+            if (!call.authenticatedAsAdmin(config)) {
+                return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                )
+            }
+            val result = messages.sweepExpiredAndAcked(clock.now())
+            call.respond(
+                HttpStatusCode.OK,
+                MessageSweepResponse(
+                    ackedPurged = result.ackedPurged,
+                    expiredUnackedPurged = result.expiredUnackedPurged,
+                    total = result.total,
                 ),
             )
         }
@@ -408,6 +441,13 @@ private data class RoomSweepResponse(
     val membersReaped: Int,
     val roomsReaped: Int,
     val roomsSeen: Int,
+)
+
+@Serializable
+data class MessageSweepResponse(
+    val ackedPurged: Int,
+    val expiredUnackedPurged: Int,
+    val total: Int,
 )
 
 @Serializable

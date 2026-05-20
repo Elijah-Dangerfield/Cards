@@ -81,6 +81,7 @@ fun Application.module(config: ServerConfig) {
             rooms = component.roomService,
             wallets = component.walletRepository,
             messages = component.userMessageRepository,
+            clock = component.provideClock(),
         )
     }
 }
