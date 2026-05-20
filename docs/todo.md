@@ -29,6 +29,16 @@ Anything in §A is **off-limits to automated workers** — those items need a hu
 
 These are bugs / polish items found playing the app or scanning the code. Cheap individually; collectively the V1 quality bar.
 
+### Design system — dialog & sheet primitives
+- **Reshape Dialog / BottomSheet primitives around a `Base*` escape hatch + opinionated default, and force theme-awareness on emoji bubbles.** Today's layering doesn't match the names: `Dialog` is already DS-opinionated (surface, animation, emoji affordance baked in), `BasicDialog` adds *more* opinions (title/body/buttons slots), and the truly raw escape (`HostedDialog`) is hidden as `internal`. Bottom sheets invert the convention — `BottomSheet` is raw, `BasicBottomSheet` is the opinionated one — so the parallel doesn't hold either. Plan:
+   1. **Flatten `BasicDialog` into `Dialog` as overloads.** Delete `BasicDialog`. Add `Dialog(title=, description=, primaryButton=, ...)` for the title/body/button case, and `Dialog(topContent=, content=, bottomContent=)` for the slotted case. ~4 `:libraries:ui` callsites to update.
+   2. **Promote `HostedDialog` to public as `BaseDialog` behind a `@LowLevelDialogApi` opt-in.** Same body, just published. Opt-in annotation is the discoverable signal that the caller is deliberately escaping DS defaults.
+   3. **Rename bottom sheets to match:** `BottomSheet` → `BaseBottomSheet` (also gated by `@LowLevelDialogApi`); `BasicBottomSheet` → `BottomSheet`. ~5 callsites.
+   4. **Force theme-awareness on bubbles.** Make `DialogEmoji` `internal`; expose only the composable factory `dialogEmoji(...)`. Update 7 `DialogEmoji(...)` callsites to `dialogEmoji(...)`. Same treatment for the bottom-sheet emoji handle equivalent. Pin both to the same surface token (today they differ — dialogs default to `surfacePrimary`, the factory defaults to `surfaceTertiary`) so dialogs and sheets visually agree.
+   5. **Document in AGENTS.md → Design system.** One paragraph naming the layers: "for 99% of dialogs, use `Dialog(...)`; for raw escape opt into `@LowLevelDialogApi` and use `BaseDialog`. Bubbles are created via `dialogEmoji(...)` so theme defaults always apply." Then future callsites have a single decision tree.
+
+   **Out of scope:** the underlying animation / scrim / sizing behavior — that stays. This is naming, layering, and emoji-bubble theme-awareness only.
+
 ### Cosmetics / shop / felts
 - **Switch felt visibility to private (per [decisions.md 2026-05-20](./decisions.md)).** Each player only sees their own equipped felt on the table render. Tasks: (a) audit the play-screen render path to confirm felts are local-only — if any code paths broadcast a felt id over the wire or read another player's felt, remove that. (b) Update user-facing copy in the shop tile and My Items detail for felts — drop any "visible to the table" framing, replace with "your table" or similar. Check `:libraries:ui` shop components, `features/shop/impl/`, `features/profile/impl/items/`. (c) `voice-and-copy.md` may need a one-line addition near the shop section if there's canonical copy for felt tiles.
 
