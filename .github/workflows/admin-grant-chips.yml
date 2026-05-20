@@ -63,6 +63,11 @@ on:
         required: false
         type: string
         default: ''
+      messageExpiresInDays:
+        description: 'Optional in-app dialog: days until it stops being delivered. 0 = never. Default 30.'
+        required: false
+        type: string
+        default: '30'
 
 concurrency:
   # Serialize grants per (user, key) — two operators clicking "Run workflow"
@@ -87,6 +92,7 @@ jobs:
           MSG_TITLE: ${{ inputs.messageTitle }}
           MSG_BODY: ${{ inputs.messageBody }}
           MSG_DEEP_LINK: ${{ inputs.messageDeepLink }}
+          MSG_EXPIRES_IN_DAYS: ${{ inputs.messageExpiresInDays }}
         run: |
           set -euo pipefail
 
@@ -129,14 +135,25 @@ jobs:
           fi
 
           if [ -n "$trimmed_title" ]; then
+            if ! [[ "$MSG_EXPIRES_IN_DAYS" =~ ^[0-9]+$ ]]; then
+              echo "::error::messageExpiresInDays must be a non-negative integer (or 0 for never)"; exit 1
+            fi
+            if [ "$MSG_EXPIRES_IN_DAYS" = "0" ]; then
+              expires_ms=""
+            else
+              now_ms=$(date +%s%3N)
+              expires_ms=$((now_ms + MSG_EXPIRES_IN_DAYS * 86400000))
+            fi
             message=$(jq -nc \
               --arg emoji "$MSG_EMOJI" \
               --arg title "$trimmed_title" \
               --arg body "$trimmed_body" \
               --arg deepLink "$MSG_DEEP_LINK" \
+              --arg expires "$expires_ms" \
               '{title: $title, body: $body}
                + (if $emoji == "" then {} else {emoji: $emoji} end)
-               + (if $deepLink == "" then {} else {deepLink: $deepLink} end)')
+               + (if $deepLink == "" then {} else {deepLink: $deepLink} end)
+               + (if $expires == "" then {} else {expiresAtEpochMs: ($expires|tonumber)} end)')
           else
             message="null"
           fi

@@ -26,17 +26,25 @@ on:
         description: 'Target user UUID (Supabase auth.users.id)'
         required: true
         type: string
+      kind:
+        description: 'Surface — dialog (modal pop on next foreground) or inbox (passive entry + badge)'
+        required: true
+        type: choice
+        default: 'dialog'
+        options:
+          - dialog
+          - inbox
       emoji:
-        description: 'Optional emoji for the dialog bubble (e.g. ⚠️). Leave blank for no bubble.'
+        description: 'Optional emoji (dialog bubble or inbox row accent). Leave blank for none.'
         required: false
         type: string
         default: ''
       title:
-        description: 'Dialog title (max 80 chars)'
+        description: 'Title (max 80 chars)'
         required: true
         type: string
       body:
-        description: 'Dialog body (max 500 chars)'
+        description: 'Body (max 500 chars)'
         required: true
         type: string
       deepLink:
@@ -44,6 +52,11 @@ on:
         required: false
         type: string
         default: ''
+      expiresInDays:
+        description: 'Days until the message stops being delivered. 0 = never expires. Default 30.'
+        required: false
+        type: string
+        default: '30'
       idempotencyKey:
         description: 'Optional. Pass the same key to retry safely. Leave blank and the server fills one.'
         required: false
@@ -63,10 +76,12 @@ jobs:
         env:
           ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}
           USER_ID: ${{ inputs.userId }}
+          KIND: ${{ inputs.kind }}
           EMOJI: ${{ inputs.emoji }}
           TITLE: ${{ inputs.title }}
           BODY: ${{ inputs.body }}
           DEEP_LINK: ${{ inputs.deepLink }}
+          EXPIRES_IN_DAYS: ${{ inputs.expiresInDays }}
           IDEMPOTENCY_KEY: ${{ inputs.idempotencyKey }}
         run: |
           set -euo pipefail
@@ -93,21 +108,38 @@ jobs:
           if [ ${#trimmed_body} -gt 500 ]; then
             echo "::error::body is too long (max 500 chars)"; exit 1
           fi
+          if ! [[ "$EXPIRES_IN_DAYS" =~ ^[0-9]+$ ]]; then
+            echo "::error::expiresInDays must be a non-negative integer (or 0 for never)"; exit 1
+          fi
+
+          # Compute absolute expiry epoch-ms if days > 0. The server
+          # stores absolute timestamps; converting client-side keeps
+          # the API simple and lets the operator see the exact UTC
+          # cutoff in their run log.
+          if [ "$EXPIRES_IN_DAYS" = "0" ]; then
+            expires_ms=""
+          else
+            now_ms=$(date +%s%3N)
+            expires_ms=$((now_ms + EXPIRES_IN_DAYS * 86400000))
+          fi
 
           message=$(jq -nc \
             --arg emoji "$EMOJI" \
             --arg title "$trimmed_title" \
             --arg body "$trimmed_body" \
             --arg deepLink "$DEEP_LINK" \
+            --arg expires "$expires_ms" \
             '{title: $title, body: $body}
              + (if $emoji == "" then {} else {emoji: $emoji} end)
-             + (if $deepLink == "" then {} else {deepLink: $deepLink} end)')
+             + (if $deepLink == "" then {} else {deepLink: $deepLink} end)
+             + (if $expires == "" then {} else {expiresAtEpochMs: ($expires|tonumber)} end)')
 
           payload=$(jq -nc \
             --arg userId "$USER_ID" \
+            --arg kind "$KIND" \
             --arg key "$IDEMPOTENCY_KEY" \
             --argjson message "$message" \
-            '{userId: $userId, message: $message}
+            '{userId: $userId, kind: $kind, message: $message}
              + (if $key == "" then {} else {idempotencyKey: $key} end)')
 
           response_file="$(mktemp)"
