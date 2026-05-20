@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
@@ -27,6 +28,13 @@ interface PokerSession {
 
     /** Raw engine events — hand started, action taken, hand ended, etc. Hot flow. */
     val events: SharedFlow<GameEvent>
+
+    /**
+     * Connection health. Local sessions stay pinned to [ConnectionState.Connected];
+     * remote sessions transition as the underlying socket lifecycle dictates. Drives
+     * the play-screen connection banner.
+     */
+    val connectionState: StateFlow<ConnectionState>
 
     /**
      * Submit the local player's intent. Suspends because the local-bots implementation

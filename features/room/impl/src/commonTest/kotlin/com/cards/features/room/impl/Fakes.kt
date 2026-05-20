@@ -13,6 +13,7 @@ import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
+import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.Personality
 import com.dangerfield.cards.libraries.game.PlayStyle
 import com.dangerfield.cards.libraries.game.SeatOccupant
@@ -59,6 +60,9 @@ class FakePokerSession(
     private val _events = MutableSharedFlow<GameEvent>(extraBufferCapacity = 64)
     override val events: SharedFlow<GameEvent> = _events.asSharedFlow()
 
+    private val _connectionState = MutableStateFlow(ConnectionState.Connected)
+    override val connectionState: StateFlow<ConnectionState> = _connectionState
+
     val submittedIntents = mutableListOf<PlayerIntent>()
     var requestNextHandCount: Int = 0
 
@@ -68,6 +72,10 @@ class FakePokerSession(
 
     fun emitEvent(event: GameEvent) {
         _events.tryEmit(event)
+    }
+
+    fun emitConnectionState(connection: ConnectionState) {
+        _connectionState.value = connection
     }
 
     override suspend fun submit(intent: PlayerIntent) {

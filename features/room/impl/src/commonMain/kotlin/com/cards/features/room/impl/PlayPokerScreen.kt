@@ -63,6 +63,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
@@ -169,6 +170,7 @@ fun PlayPokerScreen(
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                ConnectionBanner(connection = state.connection)
                 TopBar(
                     handNumber = active?.handNumber,
                     street = active?.street,
@@ -303,6 +305,34 @@ fun PlayPokerScreen(
         }
     }
     } // close CompositionLocalProvider
+}
+
+/**
+ * Slim banner that surfaces non-[ConnectionState.Connected] states. Sits at
+ * the top of the screen column so it pushes the rest of the play surface
+ * down (rather than overlaying it), matching the rest of the app's banner
+ * convention. Copy from voice-and-copy.md §4.3. Local solo sessions never
+ * leave [Connected], so this is a no-op for the bot table.
+ */
+@Composable
+private fun ConnectionBanner(connection: ConnectionState) {
+    if (connection == ConnectionState.Connected) return
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppTheme.colors.danger.color.copy(alpha = 0.18f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "Connection lost. We're keeping your seat warm — back in a moment.",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.text,
+            textAlign = TextAlign.Center,
+        )
+    }
 }
 
 @Composable
@@ -887,6 +917,23 @@ private fun PlayPokerScreenPreview_HandEndedWithXpAndAchievement() {
                 ),
                 lastHandXpAwarded = 47,
                 recentlyEarned = earned,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Reconnecting() {
+    // Connection banner showing while the socket retries — bot table never
+    // hits this in practice (local sessions stay [Connected]), but MP does.
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(),
+                connection = ConnectionState.Reconnecting,
             ),
             onAction = {},
             onBack = {},

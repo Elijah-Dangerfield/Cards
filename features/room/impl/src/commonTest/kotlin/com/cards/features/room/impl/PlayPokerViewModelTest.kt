@@ -13,6 +13,7 @@ import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
@@ -71,6 +72,27 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     // ---------- XP mirror (ProgressionRepository → state) ----------
+
+    // ---------- Connection state mirror (PokerSession → state) ----------
+
+    @Test
+    fun sessionConnectionState_mirrorsIntoVmState() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        // Default — local sessions stay Connected.
+        assertEquals(ConnectionState.Connected, vm.state.connection)
+
+        session.emitConnectionState(ConnectionState.Reconnecting)
+        assertEquals(ConnectionState.Reconnecting, vm.state.connection)
+
+        session.emitConnectionState(ConnectionState.Disconnected)
+        assertEquals(ConnectionState.Disconnected, vm.state.connection)
+
+        session.emitConnectionState(ConnectionState.Connected)
+        assertEquals(ConnectionState.Connected, vm.state.connection)
+    }
 
     @Test
     fun progressionEmission_mirrorsTotalXp() = runUnitTest {

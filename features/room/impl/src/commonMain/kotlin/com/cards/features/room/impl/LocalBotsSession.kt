@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.bots.buildHandContext
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.DefaultDispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
+import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEngine
 import com.dangerfield.cards.libraries.gameplay.GameEvent
@@ -124,6 +125,11 @@ class LocalBotsSession(
         extraBufferCapacity = 64,
     )
     override val events: SharedFlow<GameEvent> get() = _events.asSharedFlow()
+
+    // Local sessions can't lose their connection — they're in-process. Pinned
+    // [Connected] so the play-screen banner observer is a no-op for solo.
+    private val _connectionState = MutableStateFlow(ConnectionState.Connected)
+    override val connectionState: StateFlow<ConnectionState> get() = _connectionState
 
     private var gameState: GameState = startNextHand()
 

@@ -119,6 +119,15 @@ class PlayPokerViewModel @Inject constructor(
         viewModelScope.launch {
             sessionFactory.bootstrap(session)
         }
+        // Connection health → state. Local sessions stay pinned to
+        // [ConnectionState.Connected]; remote sessions transition as the
+        // socket lifecycle dictates. The screen renders a banner whenever
+        // this isn't [Connected].
+        viewModelScope.launch {
+            session.connectionState.collect { conn ->
+                takeAction(PlayPokerAction.ConnectionChanged(conn))
+            }
+        }
         // XP mirror
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
@@ -371,6 +380,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.EquippedTitleChanged -> action.updateState {
                 it.copy(equippedTitle = action.title)
             }
+            is PlayPokerAction.ConnectionChanged -> action.updateState {
+                it.copy(connection = action.connection)
+            }
         }
     }
 }
@@ -469,6 +481,9 @@ sealed interface PlayPokerAction {
 
     /** Fired by the equipment subscription; flips the equipped title shown under the name. */
     data class EquippedTitleChanged(val title: String?) : PlayPokerAction
+
+    /** Fired by the session's connection-state subscription. */
+    data class ConnectionChanged(val connection: ConnectionState) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {
