@@ -51,15 +51,22 @@ fun XpDetailSheet(
     val levelProgress = remember(state.progression.totalXp) {
         levelProgressFor(state.progression.totalXp)
     }
+    val scrollState = rememberScrollState()
     Screen(
-        topBar = { TopBar(title = "XP", onNavigateBack = onBack) },
+        topBar = {
+            TopBar(
+                title = "XP",
+                onNavigateBack = onBack,
+                scrollState = scrollState,
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
         ) {
             XpHero(progress = levelProgress)
             Spacer(modifier = Modifier.height(24.dp))

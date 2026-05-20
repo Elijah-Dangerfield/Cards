@@ -46,7 +46,8 @@ fun FeedbackScreen(
         topBar = {
             TopBar(
                  title = "Share Your Feedback",
-                onNavigateBack = { onAction(FeedbackAction.Back) }
+                onNavigateBack = { onAction(FeedbackAction.Back) },
+                scrollState = scrollState,
             )
         }
     ) { paddingValues ->

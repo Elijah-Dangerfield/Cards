@@ -48,7 +48,8 @@ fun BugReportScreen(
         topBar = {
             TopBar(
                 title = "Report a Bug",
-                onNavigateBack = { onAction(BugReportAction.Back) }
+                onNavigateBack = { onAction(BugReportAction.Back) },
+                scrollState = scrollState,
             )
         }
     ) { paddingValues ->

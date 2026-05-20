@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -29,9 +30,16 @@ fun AchievementsScreen(
 ) {
     val earned = state.progress.earned.size
     val total = AllAchievements.size
+    val gridState = rememberLazyGridState()
 
     Screen(
-        topBar = { TopBar(title = "Achievements", onNavigateBack = onBack) },
+        topBar = {
+            TopBar(
+                title = "Achievements",
+                onNavigateBack = onBack,
+                scrollState = gridState,
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -46,6 +54,7 @@ fun AchievementsScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

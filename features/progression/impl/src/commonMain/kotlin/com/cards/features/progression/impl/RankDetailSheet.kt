@@ -36,15 +36,22 @@ fun RankDetailSheet(
     onBack: () -> Unit,
     onClaimAccount: () -> Unit,
 ) {
+    val scrollState = rememberScrollState()
     Screen(
-        topBar = { TopBar(title = "Rank", onNavigateBack = onBack) },
+        topBar = {
+            TopBar(
+                title = "Rank",
+                onNavigateBack = onBack,
+                scrollState = scrollState,
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState),
         ) {
             RankHero(rank = state.rank, isAnonymous = state.isAnonymous)
             Spacer(modifier = Modifier.height(24.dp))

@@ -1,8 +1,8 @@
 package com.dangerfield.cards.libraries.ui.components.header
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -38,7 +38,7 @@ fun TopBar(
     typographyToken: TypographyResource = AppTheme.typography.Display.D900,
     backgroundColor: Color = AppTheme.colors.background.color,
     actions: @Composable () -> Unit = {},
-    scrollState: ScrollState? = null,
+    scrollState: ScrollableState? = null,
     liftOnScroll: Boolean = scrollState != null,
 ) {
     Row(
@@ -81,11 +81,11 @@ fun TopBar(
 }
 
 private fun Modifier.elevateOnScroll(
-    scrollState: ScrollState?,
+    scrollState: ScrollableState?,
 ): Modifier {
 
     checkNotNull(scrollState) {
-        "ScrollState should not be null when liftOnScroll is true"
+        "scrollState should not be null when liftOnScroll is true"
     }
 
     return this.composed {
