@@ -1,6 +1,6 @@
 # V1 — What's Left
 
-**Last reviewed:** 2026-05-19 · **Status:** Active punch list · **Companion to:** [product/v1-mvp.md](./product/v1-mvp.md)
+**Last reviewed:** 2026-05-20 · **Status:** Active punch list · **Companion to:** [product/v1-mvp.md](./product/v1-mvp.md)
 
 This is the live list of everything still standing between us and V1 ship. Append, check off, and move done items into the decision log when they land. Most other docs (`product-spec.md`, `decisions.md`, `voice-and-copy.md`) are reference; this one is the working sheet.
 
@@ -140,11 +140,12 @@ Not blocking V1, but worth deciding before we add more repos.
 
 ### `SupabaseIdentityRepository` review
 Open critiques from the field log:
-- Uses `try { } catch` throughout instead of [`Catching { }`](AGENTS.md#coding-guidelines) — repo convention is `Catching`.
+- ~~Uses `try { } catch` throughout instead of `Catching { }`.~~ ✅ Migrated to `Catching { … }.fold(onSuccess, onFailure)` across every entry point (`signInWithEmail`, `signUpWithEmail`, `refreshSession`, `resendVerificationEmail`, `updateProfile`, `fetchAvatarPack`, `deleteAccount`, `linkOAuthIdentity`, `signInWithOAuth`). The explicit `catch (e: CancellationException) { throw e }` rethrows the OAuth flows used are now unnecessary — `Catching` already rethrows cooperative cancellation via `shouldNotBeCaught`. No behavior change; all outcome mappings preserved 1:1.
+- **No tests yet.** The impl has no commonTest sources — a real test pass would need fakes for `SupabaseClient`, `ProfileApi`, `IdentityCache`, and `AppEventBus`. Worth doing before any further changes to the outcome-mapping logic; downstream feature tests use the `IdentityRepository` interface via fakes so they don't exercise these mappings.
 - Maintains its own cache; supabase-kt has its own session cache. Are we double-caching? Should we trust theirs?
 - An identity-as-DI question: rather than each consumer awaiting `IdentityRepository.state`, inject a `Lazy<Identity>` (the way `AppConfig` is treated) that *should* be initialized at boot, with `runBlocking` as the worst-case fallback. Makes consumer code straight-line and removes a class of "what if the state isn't ready" bugs.
 
-Pull this audit in next time we're in the auth code. Note: the get-or-create pattern is correct, so the structural concern is style + consolidation, not correctness.
+Note: the get-or-create pattern is correct, so the remaining structural concerns are consolidation, not correctness.
 
 ### Authed calls firing before auth resolves
 **Problem:** Various repositories / services fire authed network calls on `ColdBoot` / `OnForeground`. If the user is still moving through onboarding (anonymous sign-in pending), those calls hit an unauthenticated client and either fail loudly or silently no-op until a retry.

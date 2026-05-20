@@ -29,7 +29,6 @@ import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -84,9 +83,6 @@ class SupabaseIdentityRepository(
     override val state: StateFlow<IdentityState> = _state.asStateFlow()
 
     init {
-        // Fire-and-forget cache hydration. If the user has signed in before,
-        // their cached profile appears in [state] within the first frame
-        // post-launch — features render with real data instead of skeletons.
         appScope.launch {
             val cached = Catching { identityCache.read() }
                 .logOnFailure { "Failed to read cached identity" }
@@ -111,99 +107,96 @@ class SupabaseIdentityRepository(
     }
 
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = mutex.withLock {
-        val emailArg = email
-        val passwordArg = password
-        try {
+        Catching {
             supabase.auth.signInWith(Email) {
-                this.email = emailArg
-                this.password = passwordArg
+                this.email = email
+                this.password = password
             }
-            val identity = bootstrapProfileLocked()
-            SignInOutcome.Success(identity)
-        } catch (e: RestException) {
-            mapSignInRestException(e, emailArg)
-        } catch (e: HttpRequestException) {
-            SignInOutcome.NetworkError(e)
-        } catch (e: Throwable) {
-            SignInOutcome.Unknown(e)
-        }
+            bootstrapProfileLocked()
+        }.fold(
+            onSuccess = { identity -> SignInOutcome.Success(identity) },
+            onFailure = { e ->
+                when (e) {
+                    is RestException -> mapSignInRestException(e, email)
+                    is HttpRequestException -> SignInOutcome.NetworkError(e)
+                    else -> SignInOutcome.Unknown(e)
+                }
+            },
+        )
     }
 
     override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = mutex.withLock {
-        val emailArg = email
-        val passwordArg = password
-        try {
+        Catching {
             supabase.auth.signUpWith(Email) {
-                this.email = emailArg
-                this.password = passwordArg
+                this.email = email
+                this.password = password
             }
-            // Supabase's response shape varies by project config:
-            //  - "Confirm email" ON  → returns user, no session, sends email.
-            //  - "Confirm email" OFF → returns user + session immediately.
-            // Our project has email confirmation ON for V1, so we always
-            // expect the verification flow. The verify screen calls
-            // refreshSession() once the user clicks the email link.
-            SignUpOutcome.VerificationRequired(emailArg)
-        } catch (e: RestException) {
-            mapSignUpRestException(e)
-        } catch (e: HttpRequestException) {
-            SignUpOutcome.NetworkError(e)
-        } catch (e: Throwable) {
-            SignUpOutcome.Unknown(e)
-        }
+        }.fold(
+            onSuccess = {
+                // Supabase's response shape varies by project config: with
+                // confirm-email ON (our V1 setup) the user must click the
+                // verification link before we have a usable session. Verify
+                // screen calls refreshSession() once that happens.
+                SignUpOutcome.VerificationRequired(email)
+            },
+            onFailure = { e ->
+                when (e) {
+                    is RestException -> mapSignUpRestException(e)
+                    is HttpRequestException -> SignUpOutcome.NetworkError(e)
+                    else -> SignUpOutcome.Unknown(e)
+                }
+            },
+        )
     }
 
     override suspend fun refreshSession(): RefreshOutcome = mutex.withLock {
-        try {
+        Catching {
             supabase.auth.refreshCurrentSession()
             val session = supabase.auth.currentSessionOrNull()
-                ?: return@withLock RefreshOutcome.SessionExpired
+                ?: return@Catching RefreshOutcome.SessionExpired
             val emailConfirmed = session.user?.emailConfirmedAt != null
 
             if (!emailConfirmed) {
                 RefreshOutcome.StillPending
             } else {
-                val identity = bootstrapProfileLocked()
-                RefreshOutcome.EmailConfirmed(identity)
+                RefreshOutcome.EmailConfirmed(bootstrapProfileLocked())
             }
-        } catch (e: RestException) {
-            // 401 / 403 here means the session is gone or revoked. Anything
-            // else (5xx, unexpected) goes to Unknown.
-            if (e.statusCode == 401 || e.statusCode == 403) RefreshOutcome.SessionExpired
-            else RefreshOutcome.Unknown(e)
-        } catch (e: HttpRequestException) {
-            RefreshOutcome.NetworkError(e)
-        } catch (e: Throwable) {
-            RefreshOutcome.Unknown(e)
-        }
+        }.fold(
+            onSuccess = { it },
+            onFailure = { e ->
+                when (e) {
+                    is RestException ->
+                        if (e.statusCode == 401 || e.statusCode == 403) RefreshOutcome.SessionExpired
+                        else RefreshOutcome.Unknown(e)
+                    is HttpRequestException -> RefreshOutcome.NetworkError(e)
+                    else -> RefreshOutcome.Unknown(e)
+                }
+            },
+        )
     }
 
-    override suspend fun resendVerificationEmail(email: String): ResendOutcome {
-        // No mutex — resend doesn't mutate session state.
-        return try {
+    // Intentionally no mutex — resend doesn't mutate session state.
+    override suspend fun resendVerificationEmail(email: String): ResendOutcome =
+        Catching {
             supabase.auth.resendEmail(OtpType.Email.SIGNUP, email = email)
-            ResendOutcome.Sent
-        } catch (e: RestException) {
-            // Supabase returns 429 when its rate-limiter throttles. We
-            // don't parse the retry-after hint for V1 — the UI shows a
-            // generic "try again in a minute" message.
-            if (e.statusCode == 429) ResendOutcome.RateLimited(retryAfterSeconds = null)
-            else ResendOutcome.Unknown(e)
-        } catch (e: HttpRequestException) {
-            ResendOutcome.NetworkError(e)
-        } catch (e: Throwable) {
-            ResendOutcome.Unknown(e)
-        }
-    }
+        }.fold(
+            onSuccess = { ResendOutcome.Sent },
+            onFailure = { e ->
+                when (e) {
+                    is RestException ->
+                        if (e.statusCode == 429) ResendOutcome.RateLimited(retryAfterSeconds = null)
+                        else ResendOutcome.Unknown(e)
+                    is HttpRequestException -> ResendOutcome.NetworkError(e)
+                    else -> ResendOutcome.Unknown(e)
+                }
+            },
+        )
 
     override suspend fun signOut(): Unit = mutex.withLock {
         Catching { supabase.auth.signOut() }
             .logOnFailure { "Supabase signOut failed; clearing local state anyway" }
         identityCache.clear()
         _state.value = IdentityState.Unknown
-        // Fan out to every device-local repo (chips/XP/inventory/etc.)
-        // via the AppEvent bus — each repo owns its own clear so the
-        // identity layer doesn't have to know about them.
         appEventBus.dispatch(AppEvent.SignedOut)
     }
 
@@ -217,8 +210,8 @@ class SupabaseIdentityRepository(
             return@withLock UpdateProfileOutcome.NotSignedIn
         }
 
-        try {
-            val updated = profileApi.patchMe(
+        Catching {
+            profileApi.patchMe(
                 PatchMeRequest(
                     displayName = displayName,
                     avatarEmoji = avatarEmoji,
@@ -226,101 +219,101 @@ class SupabaseIdentityRepository(
                     clearAvatarBackgroundColor = clearAvatarBackgroundColor,
                 ),
             )
-            val identity = Identity(
-                userId = updated.userId,
-                displayName = updated.displayName,
-                avatarEmoji = updated.avatarEmoji,
-                avatarBackgroundColor = updated.avatarBackgroundColor,
-                isAnonymous = updated.isAnonymous,
-            )
-            identityCache.write(identity)
-            _state.value = IdentityState.SignedIn(identity)
-            UpdateProfileOutcome.Success(identity)
-        } catch (e: ClientRequestException) {
-            when (e.response.status.value) {
-                409 -> UpdateProfileOutcome.DisplayNameTaken
-                401 -> UpdateProfileOutcome.NotSignedIn
-                400 -> {
-                    // Server returns 400 for invalid_display_name,
-                    // invalid_avatar_emoji, or invalid_avatar_background_color.
-                    // We infer which based on what the caller submitted. UI
-                    // shows a single field's error message either way.
-                    when {
-                        displayName != null -> UpdateProfileOutcome.InvalidDisplayName
-                        avatarEmoji != null -> UpdateProfileOutcome.InvalidAvatarEmoji
-                        else -> UpdateProfileOutcome.InvalidAvatarBackgroundColor
+        }.fold(
+            onSuccess = { updated ->
+                val identity = Identity(
+                    userId = updated.userId,
+                    displayName = updated.displayName,
+                    avatarEmoji = updated.avatarEmoji,
+                    avatarBackgroundColor = updated.avatarBackgroundColor,
+                    isAnonymous = updated.isAnonymous,
+                )
+                identityCache.write(identity)
+                _state.value = IdentityState.SignedIn(identity)
+                UpdateProfileOutcome.Success(identity)
+            },
+            onFailure = { e ->
+                when (e) {
+                    is ClientRequestException -> when (e.response.status.value) {
+                        409 -> UpdateProfileOutcome.DisplayNameTaken
+                        401 -> UpdateProfileOutcome.NotSignedIn
+                        400 -> when {
+                            // Server returns 400 for invalid_display_name,
+                            // invalid_avatar_emoji, or invalid_avatar_background_color.
+                            // Infer which based on what the caller submitted.
+                            displayName != null -> UpdateProfileOutcome.InvalidDisplayName
+                            avatarEmoji != null -> UpdateProfileOutcome.InvalidAvatarEmoji
+                            else -> UpdateProfileOutcome.InvalidAvatarBackgroundColor
+                        }
+                        else -> UpdateProfileOutcome.Unknown(e)
                     }
+                    is ServerResponseException -> UpdateProfileOutcome.Unknown(e)
+                    else -> UpdateProfileOutcome.NetworkError(e)
                 }
-                else -> UpdateProfileOutcome.Unknown(e)
-            }
-        } catch (e: ServerResponseException) {
-            UpdateProfileOutcome.Unknown(e)
-        } catch (e: Throwable) {
-            // Network failures, timeouts, no DNS, no host, etc. all land
-            // here. V1 doesn't drill in; UI shows "couldn't reach server."
-            UpdateProfileOutcome.NetworkError(e)
-        }
+            },
+        )
     }
 
-    override suspend fun fetchAvatarPack(): AvatarPackOutcome = try {
-        val response = profileApi.avatars()
-        AvatarPackOutcome.Success(
-            packs = response.packs.map { dto ->
-                com.dangerfield.cards.libraries.identity.AvatarPack(
-                    id = dto.id,
-                    name = dto.name,
-                    emojis = dto.emojis,
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome =
+        Catching { profileApi.avatars() }.fold(
+            onSuccess = { response ->
+                AvatarPackOutcome.Success(
+                    packs = response.packs.map { dto ->
+                        com.dangerfield.cards.libraries.identity.AvatarPack(
+                            id = dto.id,
+                            name = dto.name,
+                            emojis = dto.emojis,
+                        )
+                    },
+                    palette = response.backgroundPalette,
                 )
             },
-            palette = response.backgroundPalette,
+            onFailure = { e ->
+                when (e) {
+                    is ClientRequestException -> AvatarPackOutcome.Unknown(e)
+                    is ServerResponseException -> AvatarPackOutcome.Unknown(e)
+                    else -> AvatarPackOutcome.NetworkError(e)
+                }
+            },
         )
-    } catch (e: ClientRequestException) {
-        AvatarPackOutcome.Unknown(e)
-    } catch (e: ServerResponseException) {
-        AvatarPackOutcome.Unknown(e)
-    } catch (e: Throwable) {
-        AvatarPackOutcome.NetworkError(e)
-    }
 
     override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
         if (supabase.auth.currentSessionOrNull() == null) {
             return@withLock DeleteAccountOutcome.NotSignedIn
         }
 
-        val outcome = try {
-            val response = profileApi.deleteMe()
-            when (response.status.value) {
-                204, 200, 404 -> DeleteAccountOutcome.Success
-                401 -> DeleteAccountOutcome.NotSignedIn
-                503 -> DeleteAccountOutcome.NotConfigured
-                else -> DeleteAccountOutcome.Unknown(IllegalStateException("Unexpected status ${response.status.value}"))
-            }
-        } catch (e: ClientRequestException) {
-            when (e.response.status.value) {
-                401 -> DeleteAccountOutcome.NotSignedIn
-                else -> DeleteAccountOutcome.Unknown(e)
-            }
-        } catch (e: ServerResponseException) {
-            // 503 from our server flows here because Ktor treats 5xx as
-            // server-response errors. Map it back to NotConfigured before
-            // we get to the catch-all.
-            if (e.response.status.value == 503) DeleteAccountOutcome.NotConfigured
-            else DeleteAccountOutcome.Unknown(e)
-        } catch (e: Throwable) {
-            DeleteAccountOutcome.NetworkError(e)
-        }
+        val outcome = Catching { profileApi.deleteMe() }.fold(
+            onSuccess = { response ->
+                when (response.status.value) {
+                    204, 200, 404 -> DeleteAccountOutcome.Success
+                    401 -> DeleteAccountOutcome.NotSignedIn
+                    503 -> DeleteAccountOutcome.NotConfigured
+                    else -> DeleteAccountOutcome.Unknown(
+                        IllegalStateException("Unexpected status ${response.status.value}"),
+                    )
+                }
+            },
+            onFailure = { e ->
+                when (e) {
+                    is ClientRequestException -> when (e.response.status.value) {
+                        401 -> DeleteAccountOutcome.NotSignedIn
+                        else -> DeleteAccountOutcome.Unknown(e)
+                    }
+                    // 503 from our server flows here because Ktor treats 5xx as
+                    // server-response errors. Map it back to NotConfigured.
+                    is ServerResponseException ->
+                        if (e.response.status.value == 503) DeleteAccountOutcome.NotConfigured
+                        else DeleteAccountOutcome.Unknown(e)
+                    else -> DeleteAccountOutcome.NetworkError(e)
+                }
+            },
+        )
 
         if (outcome is DeleteAccountOutcome.Success) {
-            // Tear down the local session regardless of which success path
-            // we took. We hold the mutex, so we can flip cache + state safely.
             Catching { supabase.auth.signOut() }
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
             identityCache.clear()
             _state.value = IdentityState.Unknown
-            // Same fan-out as the sign-out path: every device-local repo
-            // wipes itself. For delete-account the cleanup is even more
-            // load-bearing — the user explicitly asked for "leave nothing
-            // behind."
             appEventBus.dispatch(AppEvent.SignedOut)
         }
         outcome
@@ -330,45 +323,47 @@ class SupabaseIdentityRepository(
         if (supabase.auth.currentSessionOrNull() == null) {
             return@withLock LinkIdentityOutcome.NotSignedIn
         }
-        try {
+        Catching {
             supabase.auth.linkIdentity(provider.toSupabase())
             // After the browser flow resolves, supabase-kt updates the
             // session in place. Re-bootstrap /v1/me so the local identity
             // reflects the (now non-anonymous) JWT.
-            val identity = bootstrapProfileLocked()
-            LinkIdentityOutcome.Success(identity)
-        } catch (e: RestException) {
-            mapLinkRestException(e)
-        } catch (e: HttpRequestException) {
-            LinkIdentityOutcome.NetworkError(e)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            // Browser-dismissed cases throw various platform-specific
-            // exceptions; supabase-kt doesn't standardize. Best we can do
-            // is bucket the message.
-            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
-                LinkIdentityOutcome.Cancelled
-            } else LinkIdentityOutcome.Unknown(e)
-        }
+            bootstrapProfileLocked()
+        }.fold(
+            onSuccess = { identity -> LinkIdentityOutcome.Success(identity) },
+            onFailure = { e ->
+                when (e) {
+                    is RestException -> mapLinkRestException(e)
+                    is HttpRequestException -> LinkIdentityOutcome.NetworkError(e)
+                    // Browser-dismissed cases throw various platform-specific
+                    // exceptions; supabase-kt doesn't standardize. Bucket by
+                    // message. Catching already rethrows CancellationException.
+                    else ->
+                        if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                            LinkIdentityOutcome.Cancelled
+                        } else LinkIdentityOutcome.Unknown(e)
+                }
+            },
+        )
     }
 
     override suspend fun signInWithOAuth(provider: IdentityOAuthProvider): SignInOutcome = mutex.withLock {
-        try {
+        Catching {
             supabase.auth.signInWith(provider.toSupabase())
-            val identity = bootstrapProfileLocked()
-            SignInOutcome.Success(identity)
-        } catch (e: RestException) {
-            mapOAuthSignInRestException(e)
-        } catch (e: HttpRequestException) {
-            SignInOutcome.NetworkError(e)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
-                SignInOutcome.Cancelled
-            } else SignInOutcome.Unknown(e)
-        }
+            bootstrapProfileLocked()
+        }.fold(
+            onSuccess = { identity -> SignInOutcome.Success(identity) },
+            onFailure = { e ->
+                when (e) {
+                    is RestException -> mapOAuthSignInRestException(e)
+                    is HttpRequestException -> SignInOutcome.NetworkError(e)
+                    else ->
+                        if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                            SignInOutcome.Cancelled
+                        } else SignInOutcome.Unknown(e)
+                }
+            },
+        )
     }
 
     private fun mapLinkRestException(e: RestException): LinkIdentityOutcome {
