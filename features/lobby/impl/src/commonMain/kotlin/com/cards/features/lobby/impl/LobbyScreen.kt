@@ -40,6 +40,7 @@ import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 
 /**
  * Multiplayer lobby. Two-mode layout:
@@ -410,7 +411,7 @@ private fun MemberRow(member: RoomMember) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(Radii.R500.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
     ) {

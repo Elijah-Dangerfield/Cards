@@ -28,6 +28,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -161,7 +162,7 @@ private fun ClaimAccountCard(onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(Radii.R500.shape)
                 .background(Color.White.copy(alpha = 0.18f))
                 .padding(vertical = 12.dp),
             contentAlignment = Alignment.Center,

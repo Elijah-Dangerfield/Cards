@@ -45,6 +45,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD1100
 import com.dangerfield.cards.system.VerticalSpacerD500
@@ -500,7 +501,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         color = AppTheme.colors.accentPrimary,
         contentColor = AppTheme.colors.text,
-        radius = com.dangerfield.cards.system.Radii.Card,
+        radius = Radii.Card,
         onClick = onClaimAccount,
         bounceScale = 0.97f,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
@@ -520,7 +521,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .clip(Radii.R500.shape)
                     .background(AppTheme.colors.surfaceSecondary.color)
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,

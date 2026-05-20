@@ -41,6 +41,7 @@ object Radii {
     val Round = Radius(CornerSize(percent = 50))
     val R300 = Radius(CornerSize(DimensionResource.D300.dp))
     val R400 = Radius(CornerSize(DimensionResource.D400.dp))
+    val R500 = Radius(CornerSize(DimensionResource.D500.dp))
     val R600 = Radius(CornerSize(DimensionResource.D600.dp))
     val None = Radius(SquareCornerSize)
 
@@ -48,6 +49,7 @@ object Radii {
     val Button get() = Radius(CornerSize(percent = 25))
     val IconButton get() = Round
     val Banner get() = R400
+    val Callout get() = R500
     val Header get() = None
     val Card get() = R400
 }

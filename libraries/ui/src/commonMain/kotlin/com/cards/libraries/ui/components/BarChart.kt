@@ -36,6 +36,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.thenIf
@@ -107,7 +108,7 @@ fun <ID, Payload> BarChart(
         visualFraction: Float,
         modifier: Modifier
     ) -> Unit)? = null,
-    barShape: Shape = RoundedCornerShape(12.dp),
+    barShape: Shape = Radii.R500.shape,
     barColors: @Composable (BarChartEntry<ID, Payload>, Boolean) -> Color = { _, isSelected ->
         if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.surfaceDisabled.color
     }
