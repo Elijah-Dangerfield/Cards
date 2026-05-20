@@ -75,6 +75,7 @@ import kotlin.random.Random
  * title. Rendering goes through the same [EmojiBubble] primitive so
  * sheets and dialogs stay in lockstep.
  */
+@OptIn(LowLevelDialogApi::class)
 @Composable
 fun Dialog(
     state: DialogState = rememberDialogState(),
@@ -87,7 +88,7 @@ fun Dialog(
     emoji: DialogEmoji? = null,
     content: @Composable () -> Unit = {},
 ) {
-    HostedDialog(
+    BaseDialog(
         state = state,
         modifier = modifier,
         onDismissRequest = onDismissRequest,
@@ -272,16 +273,22 @@ private fun PreviewDialog() {
 }
 
 /**
- * Window-free dialog host that handles scrim + content animations and dismissal behaviour entirely
- * in Compose Multiplatform.
+ * Low-level dialog primitive — registers the provided [content] with
+ * [DialogHostState] so it renders on top of the app, handles scrim +
+ * content animations + dismissal, but **does not** apply any DS surface,
+ * shape, padding, or emoji-bubble treatment.
+ *
+ * For 99% of dialogs use [Dialog] — it wraps [BaseDialog] with the DS
+ * surface, max-height cap, and emoji affordance. Reach for [BaseDialog]
+ * only when the caller is deliberately escaping the defaults (custom
+ * animation, non-DS marketing surface, one-off shape). The
+ * [LowLevelDialogApi] opt-in is the discoverable signal that this is the
+ * escape hatch, not the standard path.
  */
-/**
- * Lower-level alternative used when callers want to provide their own dialog surface.
- * Registers the provided [content] with [DialogHostState] so it renders on top of the app.
- */
+@LowLevelDialogApi
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal fun HostedDialog(
+fun BaseDialog(
     state: DialogState = rememberDialogState(),
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
