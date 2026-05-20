@@ -9,9 +9,11 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.MessageSweepResult
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
@@ -377,18 +379,28 @@ class MeRoutesTest {
             id: UUID,
             userId: UserId,
             idempotencyKey: String,
+            kind: UserMessageKind,
             emoji: String?,
             title: String,
             body: String,
             deepLink: String?,
+            expiresAt: kotlin.time.Instant?,
         ): CreateMessageOutcome = error("unused")
 
-        override suspend fun unreadFor(userId: UserId, limit: Int): List<UserMessage> = emptyList()
-        override suspend fun ack(
+        override suspend fun unreadFor(
             userId: UserId,
-            id: UUID,
+            now: kotlin.time.Instant,
+            limit: Int,
+        ): List<UserMessage> = emptyList()
+
+        override suspend fun ackMany(
+            userId: UserId,
+            ids: List<UUID>,
             at: kotlin.time.Instant,
-        ): Boolean = false
+        ): Int = 0
+
+        override suspend fun sweepExpiredAndAcked(now: kotlin.time.Instant): MessageSweepResult =
+            MessageSweepResult(0, 0)
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }

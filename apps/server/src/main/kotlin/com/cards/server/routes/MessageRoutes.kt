@@ -1,14 +1,16 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock
@@ -16,21 +18,24 @@ import kotlin.time.ExperimentalTime
 import java.util.UUID
 
 /**
- * User-facing surface for in-app messages.
+ * User-facing surface for in-app messages, modeled on the chips +
+ * inventory sync endpoints.
  *
- * `GET /v1/me/messages` returns the caller's unread messages (acked
- * filtered out at the SQL level via a partial index). Empty array is
- * the steady state — fetching is cheap.
+ * `POST /v1/me/messages/sync` is the single round-trip:
+ *  - Body: `{ackedIds: [uuid, ...]}` — the client tells the server
+ *    what it acked locally since the previous sync.
+ *  - Response: every unread + unexpired message for the caller (both
+ *    dialog and inbox kinds). The client diff-and-deletes anything in
+ *    its local DB that didn't come back.
  *
- * `POST /v1/me/messages/{id}/ack` flips the row's `acked_at`. Returns
- * 204 whether or not the row was actually flipped (idempotent; the
- * server doesn't distinguish "already acked" from "doesn't exist /
- * doesn't belong to you" — same response either way so callers can't
- * probe for IDs).
+ * Why a single sync endpoint instead of GET + per-id POST: one round-
+ * trip, atomic ack-then-fetch, and the response IS the truth — the
+ * client doesn't need to know whether each ack landed because the
+ * next response tells it ("this id isn't here anymore → drop it
+ * locally").
  *
- * Both endpoints require a Supabase JWT. The authoring side
- * (`/v1/admin/messages` + the chip-grant attach path) lives in
- * `AdminRoutes.kt`.
+ * Acks are idempotent: an id that was already acked (or never existed,
+ * or belongs to another user) is silently skipped.
  */
 @OptIn(ExperimentalTime::class)
 fun Route.messageRoutes(
@@ -38,32 +43,46 @@ fun Route.messageRoutes(
     clock: Clock,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
-        get("/v1/me/messages") {
-            val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-            val unread = repository.unreadFor(userId)
+        post("/v1/me/messages/sync") {
+            val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+            val body = try {
+                call.receive<MessageSyncRequest>()
+            } catch (_: BadRequestException) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    mapOf("error" to mapOf(
+                        "code" to "invalid_body",
+                        "message" to "Malformed JSON body.",
+                    )),
+                )
+            }
+            val now = clock.now()
+
+            val parsedIds = body.ackedIds.mapNotNull { raw ->
+                runCatching { UUID.fromString(raw) }.getOrNull()
+            }
+            // Silently drop malformed UUIDs — the client may include
+            // legacy ids it can't migrate; rejecting the whole batch
+            // would block its progress.
+
+            repository.ackMany(userId = userId, ids = parsedIds, at = now)
+            val unread = repository.unreadFor(userId = userId, now = now)
+
             call.respond(
                 HttpStatusCode.OK,
-                MessagesResponse(messages = unread.map { it.toDto() }),
+                MessageSyncResponse(messages = unread.map { it.toDto() }),
             )
-        }
-
-        post("/v1/me/messages/{id}/ack") {
-            val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
-            val rawId = call.parameters["id"]
-                ?: return@post call.respond(HttpStatusCode.BadRequest)
-            val id = try {
-                UUID.fromString(rawId)
-            } catch (_: IllegalArgumentException) {
-                return@post call.respond(HttpStatusCode.BadRequest)
-            }
-            repository.ack(userId = userId, id = id, at = clock.now())
-            call.respond(HttpStatusCode.NoContent)
         }
     }
 }
 
 @Serializable
-data class MessagesResponse(
+data class MessageSyncRequest(
+    val ackedIds: List<String> = emptyList(),
+)
+
+@Serializable
+data class MessageSyncResponse(
     val schemaVersion: Int = 1,
     val messages: List<UserMessageDto>,
 )
@@ -71,18 +90,22 @@ data class MessagesResponse(
 @Serializable
 data class UserMessageDto(
     val id: String,
+    val kind: String,
     val emoji: String?,
     val title: String,
     val body: String,
     val deepLink: String?,
     val createdAtEpochMs: Long,
+    val expiresAtEpochMs: Long?,
 )
 
 private fun UserMessage.toDto(): UserMessageDto = UserMessageDto(
     id = id.toString(),
+    kind = kind.wire,
     emoji = emoji,
     title = title,
     body = body,
     deepLink = deepLink,
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
+    expiresAtEpochMs = expiresAt?.toEpochMilliseconds(),
 )

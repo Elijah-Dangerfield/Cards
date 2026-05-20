@@ -6,8 +6,10 @@ import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
+import kotlin.time.Instant
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.request.header
@@ -215,10 +217,16 @@ fun Route.adminRoutes(
                     id = UUID.randomUUID(),
                     userId = parsedUserId,
                     idempotencyKey = "grant-chips:$key",
+                    // Chip grants attach as Dialog only — a fresh chip
+                    // arrival is a moment, not a log entry. If the
+                    // operator wants an inbox follow-up, they should
+                    // send a separate /v1/admin/messages call.
+                    kind = UserMessageKind.Dialog,
                     emoji = attachedMessage.emoji,
                     title = attachedMessage.title.trim(),
                     body = attachedMessage.body.trim(),
                     deepLink = attachedMessage.deepLink?.takeUnless { it.isBlank() },
+                    expiresAt = attachedMessage.expiresAtEpochMs?.let { Instant.fromEpochMilliseconds(it) },
                 )
                 result.message.toAdminDto()
             } else {
@@ -286,6 +294,14 @@ fun Route.adminRoutes(
             }
             val validation = validateMessagePayload(body.message)
             if (validation != null) return@post call.respond(validation.first, validation.second)
+            val kind = try {
+                body.kind?.let { UserMessageKind.parse(it) } ?: UserMessageKind.Dialog
+            } catch (_: IllegalStateException) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    problemEnvelope("invalid_kind", "kind must be 'dialog' or 'inbox'."),
+                )
+            }
 
             val idempotencyKey = body.idempotencyKey?.takeIf { it.isNotBlank() }
                 ?: UUID.randomUUID().toString()
@@ -293,10 +309,12 @@ fun Route.adminRoutes(
                 id = UUID.randomUUID(),
                 userId = parsedUserId,
                 idempotencyKey = idempotencyKey,
+                kind = kind,
                 emoji = body.message.emoji,
                 title = body.message.title.trim(),
                 body = body.message.body.trim(),
                 deepLink = body.message.deepLink?.takeUnless { it.isBlank() },
+                expiresAt = body.message.expiresAtEpochMs?.let { Instant.fromEpochMilliseconds(it) },
             )
             call.respond(
                 HttpStatusCode.OK,
@@ -356,11 +374,13 @@ private const val MAX_MESSAGE_EMOJI_LEN = 16
 private fun UserMessage.toAdminDto(): AdminMessageDto = AdminMessageDto(
     id = id.toString(),
     userId = userId.value.toString(),
+    kind = kind.wire,
     emoji = emoji,
     title = title,
     body = body,
     deepLink = deepLink,
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
+    expiresAtEpochMs = expiresAt?.toEpochMilliseconds(),
 )
 
 private fun io.ktor.server.application.ApplicationCall.authenticatedAsAdmin(config: AdminConfig): Boolean {
@@ -432,6 +452,13 @@ data class SendMessageRequest(
     val userId: String,
     val message: AdminMessagePayload,
     val idempotencyKey: String? = null,
+    /**
+     * `"dialog"` (default) or `"inbox"`. Determines whether the
+     * message pops as a modal on next foreground (`dialog`) or sits
+     * passively in the Notifications screen with a bottom-bar badge
+     * (`inbox`).
+     */
+    val kind: String? = null,
 )
 
 @Serializable
@@ -455,17 +482,25 @@ data class AdminMessagePayload(
     val title: String,
     val body: String,
     val deepLink: String? = null,
+    /**
+     * Absolute epoch-ms when the message stops being delivered to the
+     * user. Null = never expires. Reach for this on time-sensitive
+     * notices (maintenance windows, day-of events).
+     */
+    val expiresAtEpochMs: Long? = null,
 )
 
 @Serializable
 data class AdminMessageDto(
     val id: String,
     val userId: String,
+    val kind: String,
     val emoji: String?,
     val title: String,
     val body: String,
     val deepLink: String?,
     val createdAtEpochMs: Long,
+    val expiresAtEpochMs: Long?,
 )
 
 @Serializable

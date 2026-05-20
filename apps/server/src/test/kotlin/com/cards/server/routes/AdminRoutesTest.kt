@@ -5,10 +5,12 @@ import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.MessageSweepResult
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.SweepResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
@@ -773,10 +775,12 @@ class AdminRoutesTest {
     private data class CreateMessageCall(
         val userId: UserId,
         val idempotencyKey: String,
+        val kind: UserMessageKind,
         val emoji: String?,
         val title: String,
         val body: String,
         val deepLink: String?,
+        val expiresAt: Instant?,
     )
 
     /**
@@ -798,34 +802,49 @@ class AdminRoutesTest {
             id: UUID,
             userId: UserId,
             idempotencyKey: String,
+            kind: UserMessageKind,
             emoji: String?,
             title: String,
             body: String,
             deepLink: String?,
+            expiresAt: Instant?,
         ): CreateMessageOutcome {
             invocationCount++
             val key = userId to idempotencyKey
             byKey[key]?.let { return CreateMessageOutcome(message = it, wasAlreadyCreated = true) }
-            createCalls += CreateMessageCall(userId, idempotencyKey, emoji, title, body, deepLink)
+            createCalls += CreateMessageCall(userId, idempotencyKey, kind, emoji, title, body, deepLink, expiresAt)
             val message = UserMessage(
                 id = id,
                 userId = userId,
                 idempotencyKey = idempotencyKey,
+                kind = kind,
                 emoji = emoji,
                 title = title,
                 body = body,
                 deepLink = deepLink,
                 createdAt = Instant.fromEpochMilliseconds(0),
+                expiresAt = expiresAt,
                 ackedAt = null,
             )
             byKey[key] = message
             return CreateMessageOutcome(message = message, wasAlreadyCreated = false)
         }
 
-        override suspend fun unreadFor(userId: UserId, limit: Int): List<UserMessage> =
+        override suspend fun unreadFor(
+            userId: UserId,
+            now: Instant,
+            limit: Int,
+        ): List<UserMessage> =
             byKey.values.filter { it.userId == userId && it.ackedAt == null }.take(limit)
 
-        override suspend fun ack(userId: UserId, id: UUID, at: Instant): Boolean = false
+        override suspend fun ackMany(
+            userId: UserId,
+            ids: List<UUID>,
+            at: Instant,
+        ): Int = 0
+
+        override suspend fun sweepExpiredAndAcked(now: Instant): MessageSweepResult =
+            MessageSweepResult(0, 0)
 
         override suspend fun deleteAllForUser(userId: UserId) {
             byKey.keys.removeAll { it.first == userId }
