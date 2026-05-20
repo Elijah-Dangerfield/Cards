@@ -30,3 +30,20 @@ Kept `Sound` in the enum (rather than removing it) because persisted JSON may ca
 **Approach:** Added a small note above the Start button: "Bot tables don't move your chip balance." Placed it directly above the CTA so the reassurance is the last thing the user reads before tapping. Tone matches the existing subtitle copy on the dialog (declarative, no exclamation marks, no "practice" — `voice-and-copy.md §4.1` explicitly rejects "Practice mode" as too clinical, so the todo's suggested phrasing was reworded to lead with "Bot tables" instead).
 
 **Reviewer notes:** Voice check — `voice-and-copy.md` doesn't have a canonical line for this surface yet, so the wording is my call. Reviewer: if you want a stricter house style here, propose an alternate line and I'll swap it in a follow-up commit.
+
+## feat(server): admin grant-chips endpoint
+
+**Problem:** Production-support gap: when something goes wrong (chargeback, payout error, lost-chips ticket), there was no supported way to credit chips on a specific user's wallet — only the user-authenticated `POST /v1/me/wallet/sync` path existed, which can't be safely impersonated. The todo asked for `POST /v1/admin/grant-chips` behind the existing admin token, writing a `wallet_event` with reason `admin_grant`.
+
+**Approach:** Added the route to `AdminRoutes.kt`, gated by the same `X-Admin-Token` check the other admin endpoints use. The handler calls `WalletRepository.apply(...)` directly — the existing apply path is already idempotent, transactional, and non-negative-balance-checked, so the admin path inherits all of that for free.
+- `delta` is signed; negative values debit. An over-debit returns `409 Conflict` + `InsufficientChips` so on-call sees the soft failure rather than mistaking it for a 5xx.
+- Ledger reason is stored as `"admin_grant:<reason>"` so `wallet_events.reason LIKE 'admin_grant:%'` filters cleanly while still preserving the operator's free-form note.
+- `idempotencyKey` is optional in the body; absent → server fills a UUID. Letting the caller pass one means a retry after a network blip is a safe no-op.
+- Validation: 400 on non-UUID userId, blank reason, or zero delta (zero-delta would otherwise consume an idempotency key while doing nothing — easier to surface that upfront).
+
+Tests cover: 401 without/with bad token / with no token configured, 200 Applied + ledger reason stamping, 409 on insufficient chips, idempotency-key passthrough + echo, server-generated key when omitted, AlreadyApplied on replay, 400 validation cases, and that two omitted-key calls produce distinct generated keys (so two genuine grants don't collapse).
+
+**Reviewer notes:** Three calls worth flagging —
+1. Stored reason format is `admin_grant:<reason>` (colon-prefixed), not bare `admin_grant`. The todo wording was "writes a `wallet_event` with reason `admin_grant`"; I read that as "stamp the admin_grant namespace on the ledger" rather than "literally store the string 'admin_grant' and drop the operator's note." If the reviewer wants the literal-`admin_grant` form (dropping the operator note), it's a one-line change.
+2. Insufficient-chips returns 409 Conflict (matches "request conflicts with current state" semantics) rather than the 200-with-`InsufficientChips`-outcome shape that `/v1/me/wallet/sync` uses. Sync's 200 is right because it's a *batch* that can have mixed outcomes; grant is single-event so a non-200 makes the failure obvious in `curl` / on-call dashboards. Different shape; both intentional.
+3. No rate limit on the endpoint. The admin token is already the gate, and we don't expect bulk volume here — adding a rate-limit bucket felt like over-engineering. If we ever script `grant-chips` from a cron, revisit.

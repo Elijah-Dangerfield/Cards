@@ -72,7 +72,12 @@ fun Application.module(config: ServerConfig) {
         equipmentRoutes(component.equipmentRepository)
         roomRoutes(component.roomService, component.profileRepository)
         roomSocketRoutes(component.roomService)
-        adminRoutes(config.admin, component.orphanAnonymousSweep, component.roomService)
+        adminRoutes(
+            config = config.admin,
+            sweep = component.orphanAnonymousSweep,
+            rooms = component.roomService,
+            wallets = component.walletRepository,
+        )
     }
 }
 

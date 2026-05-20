@@ -3,17 +3,24 @@ package com.dangerfield.cards.server.routes
 import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.data.createOrFail
+import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.SweepResult
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
+import com.dangerfield.cards.server.domain.WalletEvent
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
@@ -26,6 +33,8 @@ import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
@@ -228,12 +237,225 @@ class AdminRoutesTest {
         }
     }
 
+    // ---------- POST /v1/admin/grant-chips ----------
+
+    @Test
+    fun grantChips_returnsUnauthorized_withoutToken() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","delta":500,"reason":"support"}""")
+            }
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    @Test
+    fun grantChips_returnsUnauthorized_whenServerHasNoToken() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms, configuredToken = null) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", "anything")
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","delta":500,"reason":"support"}""")
+            }
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    @Test
+    fun grantChips_credits_walletAndStampsLedgerWithAdminGrantReason() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        withApp(rooms, wallets = wallets) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","delta":750,"reason":"chargeback refund"}""")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals("Applied", body["outcome"]!!.jsonPrimitive.content)
+            assertEquals(Wallet.STARTER_GRANT + 750, body["balance"]!!.jsonPrimitive.content.toLong())
+            assertEquals(1, wallets.applyCalls.size)
+            val applied = wallets.applyCalls.single()
+            assertEquals(alice, applied.userId)
+            assertEquals(750L, applied.delta)
+            assertEquals("admin_grant:chargeback refund", applied.reason)
+        }
+    }
+
+    @Test
+    fun grantChips_acceptsNegativeDelta_andReturnsConflictWhenInsufficient() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        withApp(rooms, wallets = wallets) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","delta":-99999999,"reason":"clawback"}""")
+            }
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals("InsufficientChips", body["outcome"]!!.jsonPrimitive.content)
+            assertEquals(Wallet.STARTER_GRANT, body["balance"]!!.jsonPrimitive.content.toLong())
+        }
+    }
+
+    @Test
+    fun grantChips_passesIdempotencyKeyThrough_andEchoesBack() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        val key = "support-ticket-1234"
+        withApp(rooms, wallets = wallets) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"userId":"$alice","delta":250,"reason":"refund","idempotencyKey":"$key"}""",
+                )
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals(key, body["idempotencyKey"]!!.jsonPrimitive.content)
+            assertEquals(key, wallets.applyCalls.single().idempotencyKey)
+        }
+    }
+
+    @Test
+    fun grantChips_generatesIdempotencyKey_whenAbsent() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        withApp(rooms, wallets = wallets) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","delta":250,"reason":"refund"}""")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            val echoed = body["idempotencyKey"]!!.jsonPrimitive.content
+            assertTrue(echoed.isNotBlank(), "server should fill an idempotency key when caller omits one")
+            assertEquals(echoed, wallets.applyCalls.single().idempotencyKey)
+        }
+    }
+
+    @Test
+    fun grantChips_replayedKey_returnsAlreadyApplied() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        val key = "support-ticket-1234"
+        withApp(rooms, wallets = wallets) { client ->
+            val first = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"userId":"$alice","delta":300,"reason":"refund","idempotencyKey":"$key"}""",
+                )
+            }
+            assertEquals(HttpStatusCode.OK, first.status)
+            val firstBalance = json.parseToJsonElement(first.bodyAsText())
+                .jsonObject["balance"]!!.jsonPrimitive.content.toLong()
+
+            val second = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"userId":"$alice","delta":300,"reason":"refund","idempotencyKey":"$key"}""",
+                )
+            }
+            assertEquals(HttpStatusCode.OK, second.status)
+            val body = json.parseToJsonElement(second.bodyAsText()).jsonObject
+            assertEquals("AlreadyApplied", body["outcome"]!!.jsonPrimitive.content)
+            assertEquals(firstBalance, body["balance"]!!.jsonPrimitive.content.toLong())
+        }
+    }
+
+    @Test
+    fun grantChips_returnsBadRequest_onInvalidUserId() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        withApp(rooms, wallets = wallets) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"not-a-uuid","delta":250,"reason":"refund"}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, wallets.applyCalls.size)
+        }
+    }
+
+    @Test
+    fun grantChips_returnsBadRequest_onZeroDelta() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        withApp(rooms, wallets = wallets) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","delta":0,"reason":"refund"}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, wallets.applyCalls.size)
+        }
+    }
+
+    @Test
+    fun grantChips_returnsBadRequest_onBlankReason() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        withApp(rooms, wallets = wallets) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","delta":100,"reason":"   "}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, wallets.applyCalls.size)
+        }
+    }
+
+    @Test
+    fun grantChips_generatedKeysVary_acrossCallsThatOmitTheKey() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        withApp(rooms, wallets = wallets) { client ->
+            repeat(2) {
+                client.post("/v1/admin/grant-chips") {
+                    header("X-Admin-Token", token)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"userId":"$alice","delta":50,"reason":"refund"}""")
+                }
+            }
+            assertEquals(2, wallets.applyCalls.size)
+            assertNotEquals(
+                wallets.applyCalls[0].idempotencyKey,
+                wallets.applyCalls[1].idempotencyKey,
+                "two omitted-key calls must produce distinct server-generated keys",
+            )
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private suspend fun withApp(
         rooms: InMemoryRoomService,
         configuredToken: String? = token,
         ttlMinutes: Int = 5,
+        wallets: WalletRepository = FakeWalletRepository(),
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) {
         testApplication {
@@ -249,6 +471,7 @@ class AdminRoutesTest {
                         ),
                         sweep = NoopSweep,
                         rooms = rooms,
+                        wallets = wallets,
                     )
                 }
             }
@@ -262,6 +485,69 @@ class AdminRoutesTest {
     private object NoopSweep : OrphanAnonymousSweep {
         override suspend fun run(maxInactiveAge: Duration): SweepResult =
             SweepResult(candidatesFound = 0, deleted = 0, failedToDelete = 0, notConfigured = false)
+    }
+
+    private data class AppliedCall(
+        val userId: UserId,
+        val idempotencyKey: String,
+        val delta: Long,
+        val reason: String,
+    )
+
+    /**
+     * In-memory wallet impl matching the production semantics: lazy
+     * create with [Wallet.STARTER_GRANT], non-negative balance invariant,
+     * replay-detection on the per-user idempotency key. Exposes
+     * [applyCalls] so tests can inspect what was forwarded.
+     */
+    private class FakeWalletRepository : WalletRepository {
+        private val balances = mutableMapOf<UserId, Long>()
+        private val keys = mutableMapOf<UserId, MutableSet<String>>()
+        val applyCalls: MutableList<AppliedCall> = mutableListOf()
+
+        override suspend fun findOrCreate(userId: UserId): Wallet {
+            val balance = balances.getOrPut(userId) { Wallet.STARTER_GRANT }
+            return Wallet(
+                userId = userId,
+                balance = balance,
+                createdAt = Instant.fromEpochMilliseconds(0),
+                updatedAt = Instant.fromEpochMilliseconds(0),
+            )
+        }
+
+        override suspend fun find(userId: UserId): Wallet? = balances[userId]?.let {
+            Wallet(
+                userId = userId,
+                balance = it,
+                createdAt = Instant.fromEpochMilliseconds(0),
+                updatedAt = Instant.fromEpochMilliseconds(0),
+            )
+        }
+
+        override suspend fun apply(
+            userId: UserId,
+            idempotencyKey: String,
+            delta: Long,
+            reason: String,
+        ): ApplyOutcome {
+            applyCalls += AppliedCall(userId, idempotencyKey, delta, reason)
+            val current = balances.getOrPut(userId) { Wallet.STARTER_GRANT }
+            val seen = keys.getOrPut(userId) { mutableSetOf() }
+            if (idempotencyKey in seen) {
+                return ApplyOutcome.Applied(balance = current, wasAlreadyApplied = true)
+            }
+            val next = current + delta
+            if (next < 0) return ApplyOutcome.InsufficientChips(balance = current)
+            balances[userId] = next
+            seen += idempotencyKey
+            return ApplyOutcome.Applied(balance = next, wasAlreadyApplied = false)
+        }
+
+        override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
+        override suspend fun deleteAllForUser(userId: UserId) {
+            balances.remove(userId)
+            keys.remove(userId)
+        }
     }
 
     /** Minute-grained mutable clock — tests step by integer minutes. */

@@ -1,16 +1,22 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.config.AdminConfig
+import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.WalletRepository
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.plugins.BadRequestException
 import io.ktor.server.request.header
+import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
+import java.util.UUID
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
@@ -32,6 +38,7 @@ fun Route.adminRoutes(
     config: AdminConfig,
     sweep: OrphanAnonymousSweep,
     rooms: RoomService,
+    wallets: WalletRepository,
 ) {
     route("/v1/admin") {
         post("/sweep-anonymous-users") {
@@ -123,6 +130,88 @@ fun Route.adminRoutes(
                 ),
             )
         }
+
+        /**
+         * Credits (or debits) chips on a specific user's wallet. The
+         * primary use is "support needs to make a player whole after
+         * something went wrong in prod."
+         *
+         * Body: [GrantChipsRequest]. `userId` must be a UUID. `delta` is
+         * signed — negative values debit. `reason` is a free-form short
+         * string that gets stored on the ledger row prefixed with
+         * `admin_grant:` so the audit trail groups cleanly when querying
+         * `wallet_events.reason LIKE 'admin_grant:%'`.
+         *
+         * Idempotency: if the caller omits [GrantChipsRequest.idempotencyKey],
+         * the server generates one. Passing a stable key lets a retry
+         * (e.g. the operator's network blipped) be a safe no-op.
+         *
+         * Outcomes mirror the wallet sync route — Applied (first time or
+         * replay) or InsufficientChips (negative delta would dip below
+         * zero; ledger row is NOT written, balance unchanged).
+         */
+        post("/grant-chips") {
+            if (!call.authenticatedAsAdmin(config)) {
+                return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                )
+            }
+            val body = try {
+                call.receive<GrantChipsRequest>()
+            } catch (_: BadRequestException) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    problemEnvelope("invalid_body", "Malformed JSON body."),
+                )
+            }
+            val parsedUserId = try {
+                UserId(UUID.fromString(body.userId))
+            } catch (_: IllegalArgumentException) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    problemEnvelope("invalid_user_id", "userId must be a UUID."),
+                )
+            }
+            val trimmedReason = body.reason.trim()
+            if (trimmedReason.isEmpty()) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    problemEnvelope("invalid_reason", "reason must be a non-empty string."),
+                )
+            }
+            if (body.delta == 0L) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    problemEnvelope("invalid_delta", "delta must be non-zero."),
+                )
+            }
+            val key = body.idempotencyKey?.takeIf { it.isNotBlank() }
+                ?: UUID.randomUUID().toString()
+            val outcome = wallets.apply(
+                userId = parsedUserId,
+                idempotencyKey = key,
+                delta = body.delta,
+                reason = "admin_grant:$trimmedReason",
+            )
+            val (status, response) = when (outcome) {
+                is ApplyOutcome.Applied -> HttpStatusCode.OK to GrantChipsResponse(
+                    balance = outcome.balance,
+                    outcome = if (outcome.wasAlreadyApplied) {
+                        GrantChipsOutcomeDto.AlreadyApplied
+                    } else {
+                        GrantChipsOutcomeDto.Applied
+                    },
+                    idempotencyKey = key,
+                )
+                is ApplyOutcome.InsufficientChips -> HttpStatusCode.Conflict to GrantChipsResponse(
+                    balance = outcome.balance,
+                    outcome = GrantChipsOutcomeDto.InsufficientChips,
+                    idempotencyKey = key,
+                )
+            }
+            call.respond(status, response)
+        }
     }
 }
 
@@ -159,6 +248,28 @@ private data class AdminRoomListResponse(
 ) {
     val totalRooms: Int get() = rooms.size
     val totalConnectedMembers: Int get() = rooms.sumOf { it.connectedCount }
+}
+
+@Serializable
+data class GrantChipsRequest(
+    val userId: String,
+    val delta: Long,
+    val reason: String,
+    val idempotencyKey: String? = null,
+)
+
+@Serializable
+data class GrantChipsResponse(
+    val balance: Long,
+    val outcome: GrantChipsOutcomeDto,
+    val idempotencyKey: String,
+)
+
+@Serializable
+enum class GrantChipsOutcomeDto {
+    Applied,
+    AlreadyApplied,
+    InsufficientChips,
 }
 
 @Serializable
