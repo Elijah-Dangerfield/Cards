@@ -79,6 +79,65 @@ class ReconnectingRoomSocketTest {
         }
     }
 
+    @Test
+    fun httpsBaseUrl_upgradesToWss_inHandshakeRequest() = runTest {
+        // Pins the production-broke-iOS-MP fix: the Darwin engine wouldn't
+        // upgrade `ws://` to `wss://` on its own, and Fly/Cloudflare reject
+        // the plaintext handshake. Use the configured base URL's scheme
+        // directly instead of reading the URLBuilder's protocol (which
+        // hasn't been merged with the base yet at this point in the pipeline).
+        val requests = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            requests += request.url.toString()
+            respond(content = "", status = HttpStatusCode.InternalServerError)
+        }
+        val client = HttpClient(engine) {
+            install(WebSockets)
+            install(io.ktor.client.plugins.DefaultRequest) { url("https://example.com") }
+        }
+        val socket = ReconnectingRoomSocket(
+            networkClient = FakeNetworkClient(client),
+            networkConfig = FakeNetworkConfig(baseUrl = "https://example.com"),
+        )
+
+        socket.observe("ABC123").test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            assertIs<RoomConnection.Reconnecting>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(
+            requests.any { it.startsWith("wss://") },
+            "request should upgrade to wss when base is https; got: $requests",
+        )
+    }
+
+    @Test
+    fun httpBaseUrl_keepsWs_inHandshakeRequest() = runTest {
+        val requests = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            requests += request.url.toString()
+            respond(content = "", status = HttpStatusCode.InternalServerError)
+        }
+        val client = HttpClient(engine) {
+            install(WebSockets)
+            install(io.ktor.client.plugins.DefaultRequest) { url("http://localhost:8080") }
+        }
+        val socket = ReconnectingRoomSocket(
+            networkClient = FakeNetworkClient(client),
+            networkConfig = FakeNetworkConfig(baseUrl = "http://localhost:8080"),
+        )
+
+        socket.observe("ABC123").test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            assertIs<RoomConnection.Reconnecting>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(
+            requests.any { it.startsWith("ws://") },
+            "request should stay on ws when base is http; got: $requests",
+        )
+    }
+
     // ---------- scaffolding ----------
 
     private fun newSocket(engine: MockEngine): ReconnectingRoomSocket {
@@ -86,13 +145,20 @@ class ReconnectingRoomSocketTest {
             install(WebSockets)
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
-        return ReconnectingRoomSocket(FakeNetworkClient(client))
+        return ReconnectingRoomSocket(
+            networkClient = FakeNetworkClient(client),
+            networkConfig = FakeNetworkConfig(),
+        )
     }
 
     private class FakeNetworkClient(private val httpClient: HttpClient) : NetworkClient {
         override val client: HttpClient get() = httpClient
         override val authenticatedClient: HttpClient get() = httpClient
     }
+
+    private class FakeNetworkConfig(
+        override val baseUrl: String = "https://example.com",
+    ) : com.dangerfield.cards.libraries.networking.NetworkConfig
 
     /**
      * Cross-platform stand-in for `java.io.IOException`. The reconnect

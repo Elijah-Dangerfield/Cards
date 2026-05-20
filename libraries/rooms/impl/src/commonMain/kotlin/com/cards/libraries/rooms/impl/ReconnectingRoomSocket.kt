@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.rooms.impl
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
@@ -10,7 +11,6 @@ import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.http.HttpMethod
 import io.ktor.http.URLProtocol
-import io.ktor.http.isSecure
 import io.ktor.http.path
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
@@ -55,6 +55,7 @@ interface RoomSocket {
 @Inject
 class ReconnectingRoomSocket(
     private val networkClient: NetworkClient,
+    private val networkConfig: NetworkConfig,
 ) : RoomSocket {
 
     private val logger = KLog.withTag("RoomSocket")
@@ -137,15 +138,17 @@ class ReconnectingRoomSocket(
 
     private fun HttpRequestBuilder.socketRequest(code: String) {
         // Auth bearer rides on the authenticated client's Auth plugin —
-        // no need to set Authorization here. The base URL (config-driven)
-        // is HTTP; the URLProtocol upgrade flips ws/wss based on whether
-        // the base is http/https.
+        // no need to set Authorization here.
+        //
+        // Protocol is sourced from [NetworkConfig.baseUrl] directly rather
+        // than `URLBuilder.protocol`: the DefaultRequest plugin merges the
+        // base URL *after* this block runs, so reading the builder's
+        // protocol here always sees the default HTTP and produced a `ws://`
+        // URL even when the base was `https://` (handshake fails against
+        // Fly/Cloudflare which require TLS).
+        val useWss = networkConfig.baseUrl.startsWith("https://", ignoreCase = true)
         url {
-            // Promote the base scheme to its WebSocket equivalent.
-            // ContentNegotiation isn't part of WS handshake so we don't
-            // touch headers further.
-            val httpsBase = protocol.isSecure()
-            protocol = if (httpsBase) URLProtocol.WSS else URLProtocol.WS
+            protocol = if (useWss) URLProtocol.WSS else URLProtocol.WS
             path("v1", "rooms", code.uppercase(), "socket")
         }
         method = HttpMethod.Get
