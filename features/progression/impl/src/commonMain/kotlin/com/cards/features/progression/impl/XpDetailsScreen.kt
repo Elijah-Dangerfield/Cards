@@ -37,6 +37,7 @@ import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -51,7 +52,7 @@ fun XpDetailSheet(
         levelProgressFor(state.progression.totalXp)
     }
     Screen(
-        topBar = { DetailTopBar(title = "XP", onBack = onBack) },
+        topBar = { TopBar(title = "XP", onNavigateBack = onBack) },
     ) { padding ->
         Column(
             modifier = Modifier

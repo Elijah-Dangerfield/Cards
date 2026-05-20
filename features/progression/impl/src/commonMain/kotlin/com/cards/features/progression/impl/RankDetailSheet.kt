@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -36,7 +37,7 @@ fun RankDetailSheet(
     onClaimAccount: () -> Unit,
 ) {
     Screen(
-        topBar = { DetailTopBar(title = "Rank", onBack = onBack) },
+        topBar = { TopBar(title = "Rank", onNavigateBack = onBack) },
     ) { padding ->
         Column(
             modifier = Modifier

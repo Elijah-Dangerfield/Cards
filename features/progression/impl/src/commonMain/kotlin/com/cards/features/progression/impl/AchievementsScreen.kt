@@ -17,6 +17,7 @@ import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -30,7 +31,7 @@ fun AchievementsScreen(
     val total = AllAchievements.size
 
     Screen(
-        topBar = { DetailTopBar(title = "Achievements", onBack = onBack) },
+        topBar = { TopBar(title = "Achievements", onNavigateBack = onBack) },
     ) { padding ->
         Column(
             modifier = Modifier
