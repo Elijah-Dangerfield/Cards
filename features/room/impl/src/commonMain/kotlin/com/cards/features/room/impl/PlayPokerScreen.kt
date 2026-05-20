@@ -128,16 +128,17 @@ fun PlayPokerScreen(
         if (active?.isHumanTurn != true) {
             raiseSheetOpen = false
         } else {
-            // Fire the configured "your turn" cue. Vibrate uses platform
-            // haptics (Compose handles Android natively; iOS no-ops in
-            // older versions, ok). Sound is wired in the data but the
-            // KMP audio path isn't built yet — see docs/backlog.md.
+            // Fire the configured "your turn" cue. Both Vibrate and the
+            // legacy Sound value perform haptics — Sound is hidden from
+            // the picker until the KMP audio path lands (docs/backlog.md),
+            // so until then it behaves like Vibrate to match what the
+            // settings UI advertises to legacy users.
             when (state.turnFeedback) {
-                com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate ->
+                com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
+                com.dangerfield.cards.libraries.cards.TurnFeedback.Sound ->
                     haptics.performHapticFeedback(
                         androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress,
                     )
-                com.dangerfield.cards.libraries.cards.TurnFeedback.Sound -> Unit
                 com.dangerfield.cards.libraries.cards.TurnFeedback.Mute -> Unit
             }
         }

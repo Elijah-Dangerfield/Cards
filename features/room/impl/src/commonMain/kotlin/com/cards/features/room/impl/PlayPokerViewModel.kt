@@ -402,7 +402,7 @@ data class PlayPokerState(
     val xp: Long = 0,
     val lastHandXpAwarded: Int? = null,
     val recentlyEarned: List<EarnedAchievement> = emptyList(),
-    val turnFeedback: TurnFeedback = TurnFeedback.Sound,
+    val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
     val connection: ConnectionState = ConnectionState.Connected,
     /**
      * Which felt / table-theme the player has currently equipped. Drives

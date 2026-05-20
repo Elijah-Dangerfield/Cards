@@ -26,7 +26,11 @@ enum class BotSpeed(val label: String, val multiplier: Double) {
 enum class TurnFeedback(val label: String) {
     /** No cue when it becomes the user's turn. */
     Mute(label = "Mute"),
-    /** A short tone when it becomes the user's turn. */
+    /**
+     * Legacy: audio cue. The KMP audio path isn't wired in V1, so this
+     * value is hidden from the picker and behaves like [Vibrate] until
+     * sound support lands. See docs/backlog.md → audio infrastructure.
+     */
     Sound(label = "Sound"),
     /** A short haptic pulse when it becomes the user's turn. */
     Vibrate(label = "Vibrate"),
@@ -45,7 +49,7 @@ data class AppData(
     val botSpeed: BotSpeed = BotSpeed.Normal,
 
     /** Cue played when it becomes the user's turn during a hand. */
-    val turnFeedback: TurnFeedback = TurnFeedback.Sound,
+    val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
 )
 
 interface AppCache : Cache<AppData>
