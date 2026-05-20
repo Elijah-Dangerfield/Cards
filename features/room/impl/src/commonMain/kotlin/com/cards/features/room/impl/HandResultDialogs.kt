@@ -36,6 +36,7 @@ import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.describe
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.DialogEmoji
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -69,8 +70,16 @@ internal fun ShowdownDialog(
     val byFold = result.winners.all { it.byFold }
     val totalPot = result.winners.sumOf { it.amount }
     val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    val heroEmoji = when {
+        humanWon -> "🏆"
+        byFold -> "🫳"
+        else -> "🃏"
+    }
 
-    Dialog(onDismissRequest = onNextHand) {
+    Dialog(
+        onDismissRequest = onNextHand,
+        emoji = DialogEmoji(emoji = heroEmoji),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -196,27 +205,17 @@ internal fun BustDialog(
     earnedAchievements: List<EarnedAchievement>,
     onDealMeIn: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDealMeIn) {
+    Dialog(
+        onDismissRequest = onDealMeIn,
+        emoji = DialogEmoji(emoji = "💸"),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 32.dp),
+                .padding(horizontal = 24.dp, vertical = 28.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(AppTheme.colors.surfaceSecondary.color),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "💸",
-                    typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.text,
-                )
-            }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),

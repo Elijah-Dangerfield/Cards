@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.DialogEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -27,7 +28,10 @@ internal fun LastActionExplainer(
     action: PlayerAction,
     onDismiss: () -> Unit,
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        emoji = DialogEmoji(emoji = emojiFor(action)),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -64,6 +68,15 @@ private fun headline(seatName: String, action: PlayerAction): String = when (act
     is PlayerAction.Bet -> "$seatName bet ${action.amount}"
     is PlayerAction.Raise -> "$seatName raised to ${action.totalStreetContribution}"
     is PlayerAction.AllIn -> "$seatName went all in"
+}
+
+private fun emojiFor(action: PlayerAction): String = when (action) {
+    is PlayerAction.Fold -> "🏳️"
+    is PlayerAction.Check -> "👌"
+    is PlayerAction.Call -> "🤝"
+    is PlayerAction.Bet -> "💰"
+    is PlayerAction.Raise -> "📈"
+    is PlayerAction.AllIn -> "🔥"
 }
 
 private fun explainer(action: PlayerAction): String = when (action) {

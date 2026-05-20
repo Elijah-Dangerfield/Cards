@@ -243,7 +243,10 @@ private fun SignOutConfirmDialog(
     } else {
         "You'll be returned to the welcome screen. Your account stays — sign in again any time to come back."
     }
-    com.dangerfield.cards.libraries.ui.components.dialog.Dialog(onDismissRequest = onDismiss) {
+    com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
+        onDismissRequest = onDismiss,
+        emoji = com.dangerfield.cards.libraries.ui.components.dialog.DialogEmoji(emoji = "👋"),
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 text = title,
