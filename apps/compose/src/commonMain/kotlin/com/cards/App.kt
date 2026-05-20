@@ -1,7 +1,11 @@
 package com.dangerfield.cards
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -14,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDeepLinkRequest
 import androidx.navigation.NavHostController
 import androidx.navigation.NavUri
@@ -158,11 +163,17 @@ fun App(appComponent: AppComponent) {
                             startDestination = route,
                             router = router,
                             topBar = { AppGuardBanner(state = guardState) },
+                            userMessageRepository = appComponent.userMessageRepository,
                         )
                     }
                 }
 
                 SplashGate()
+
+                UserMessageOverlay(
+                    manager = appComponent.inAppMessageManager,
+                    router = router,
+                )
 
                 DialogHost(
                     modifier = Modifier.matchParentSize(),
@@ -180,12 +191,15 @@ private fun AppNavigation(
     featureEntryPoints: Set<FeatureEntryPoint>,
     startDestination: Route,
     router: DelegatingRouter,
+    userMessageRepository: com.dangerfield.cards.libraries.cards.UserMessageRepository,
     topBar: @Composable () -> Unit = {},
 ) {
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navController.currentDestination
     val shouldHideBottomBar = currentBackStackEntry?.tabString() == null
+    val unreadNotifications by userMessageRepository.observeUnreadInboxCount()
+        .collectAsState(initial = 0)
 
     Screen(
         topBar = topBar,
@@ -202,7 +216,10 @@ private fun AppNavigation(
                     items = listOf(
                         BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
                         BottomBarItem.Shop(isSelected = currentDestination?.hasRoute<ShopRoute>() == true),
-                        BottomBarItem.Profile(isSelected = currentDestination?.hasRoute<ProfileRoute>() == true),
+                        BottomBarItem.Profile(
+                            isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
+                            badgeAmount = unreadNotifications,
+                        ),
                     ),
                     onItemClick = { item ->
                         val (isAlreadySelected, route) = when (item) {
@@ -228,8 +245,16 @@ private fun AppNavigation(
                 )
             }
         },
-        content = {
+        content = { scaffoldPadding ->
+            val statusBarTop = WindowInsets.statusBars
+                .asPaddingValues()
+                .calculateTopPadding()
+            val chromeTopPadding = (scaffoldPadding.calculateTopPadding() - statusBarTop)
+                .coerceAtLeast(0.dp)
             NavHost(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = chromeTopPadding),
                 navController = navController,
                 startDestination = startDestination,
                 //To make this more readable consider Screens A and B

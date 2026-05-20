@@ -8,8 +8,13 @@ import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.MessageSweepResult
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
@@ -196,7 +201,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -220,7 +225,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -366,6 +371,37 @@ class MeRoutesTest {
         ): ApplyOutcome = error("unused")
 
         override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyMessages : UserMessageRepository {
+        override suspend fun create(
+            id: UUID,
+            userId: UserId,
+            idempotencyKey: String,
+            kind: UserMessageKind,
+            emoji: String?,
+            title: String,
+            body: String,
+            deepLink: String?,
+            expiresAt: kotlin.time.Instant?,
+        ): CreateMessageOutcome = error("unused")
+
+        override suspend fun unreadFor(
+            userId: UserId,
+            now: kotlin.time.Instant,
+            limit: Int,
+        ): List<UserMessage> = emptyList()
+
+        override suspend fun ackMany(
+            userId: UserId,
+            ids: List<UUID>,
+            at: kotlin.time.Instant,
+        ): Int = 0
+
+        override suspend fun sweepExpiredAndAcked(now: kotlin.time.Instant): MessageSweepResult =
+            MessageSweepResult(0, 0)
+
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 }

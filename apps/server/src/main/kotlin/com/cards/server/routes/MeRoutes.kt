@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.DELETE_ACCOUNT_LIMIT
 import com.dangerfield.cards.server.plugins.PROFILE_WRITE_LIMIT
@@ -57,6 +58,7 @@ fun Route.meRoutes(
     adminClient: SupabaseAdminClient,
     inventory: InventoryRepository,
     wallet: WalletRepository,
+    messages: UserMessageRepository,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
@@ -142,6 +144,7 @@ fun Route.meRoutes(
                         // mid-cascade crash leaves us with a recoverable
                         // partial state, not stuck data.
                         wallet.deleteAllForUser(userId)
+                        messages.deleteAllForUser(userId)
                         repository.delete(userId)
                         call.respond(HttpStatusCode.NoContent)
                     }

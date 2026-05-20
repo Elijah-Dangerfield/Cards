@@ -19,6 +19,7 @@ import com.dangerfield.cards.server.routes.equipmentRoutes
 import com.dangerfield.cards.server.routes.healthRoutes
 import com.dangerfield.cards.server.routes.inventoryRoutes
 import com.dangerfield.cards.server.routes.meRoutes
+import com.dangerfield.cards.server.routes.messageRoutes
 import com.dangerfield.cards.server.routes.productsRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
@@ -67,12 +68,21 @@ fun Application.module(config: ServerConfig) {
             component.supabaseAdminClient,
             component.inventoryRepository,
             component.walletRepository,
+            component.userMessageRepository,
         )
+        messageRoutes(component.userMessageRepository, component.provideClock())
         avatarRoutes(component.inventoryRepository)
         equipmentRoutes(component.equipmentRepository)
         roomRoutes(component.roomService, component.profileRepository)
         roomSocketRoutes(component.roomService)
-        adminRoutes(config.admin, component.orphanAnonymousSweep, component.roomService)
+        adminRoutes(
+            config = config.admin,
+            sweep = component.orphanAnonymousSweep,
+            rooms = component.roomService,
+            wallets = component.walletRepository,
+            messages = component.userMessageRepository,
+            clock = component.provideClock(),
+        )
     }
 }
 

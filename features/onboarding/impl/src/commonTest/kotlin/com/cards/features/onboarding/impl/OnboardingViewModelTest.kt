@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.onboarding.impl
 
+import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.Identity
 import kotlinx.coroutines.launch
@@ -97,6 +98,35 @@ class OnboardingViewModelTest : CoroutineTest() {
         val msg = vm.state.error ?: error("expected an error message")
         assertTrue(msg.contains("anon key", ignoreCase = true), "got: $msg")
         assertTrue(msg.contains("IdentityConfig", ignoreCase = true), "should name the file; got: $msg")
+    }
+
+    @Test
+    fun init_alreadyOnboarded_immediatelyNavigatesHome() = runUnitTest {
+        val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
+        val repo = FinishIdentityRepository(outcome = FinishOutcome.Success(SAMPLE_IDENTITY))
+        val received = mutableListOf<OnboardingEvent>()
+
+        val vm = OnboardingViewModel(cache, repo)
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        assertEquals(
+            OnboardingEvent.NavigateToHome,
+            received.firstOrNull(),
+            "returning user landing on OnboardingRoute should bounce to home",
+        )
+        assertEquals(0, repo.calls, "guard must not trigger identity init")
+    }
+
+    @Test
+    fun init_notOnboarded_doesNotFireNavigateHome() = runUnitTest {
+        val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
+        val repo = FinishIdentityRepository(outcome = FinishOutcome.Success(SAMPLE_IDENTITY))
+        val received = mutableListOf<OnboardingEvent>()
+
+        val vm = OnboardingViewModel(cache, repo)
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        assertTrue(received.isEmpty(), "brand-new user must see the pager, got: $received")
     }
 
     @Test

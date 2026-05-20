@@ -189,6 +189,116 @@ on socket frames, not in this summary). Member-level detail is summary-
 only — full member lists scale quadratically with concurrent rooms and
 aren't needed for triage; jump to the lobby socket if you need names.
 
+## Granting chips (production support)
+
+When something goes wrong in prod and a user needs to be made whole —
+chargeback refund, payout error, lost-chips ticket — the supported path
+is `POST /v1/admin/grant-chips` behind the same `ADMIN_API_TOKEN`.
+
+Don't curl it directly. Use the GitHub Actions wrapper:
+
+1. Repo → **Actions** → **Admin · Grant chips (dev)** → **Run workflow**.
+2. Fill the form: `userId` (Supabase auth UUID), `delta` (signed; negative
+   debits), `reason` (free-form note for the audit log), optionally
+   `idempotencyKey` (omit and the server fills one).
+3. **Optionally attach an in-app dialog** by filling `messageTitle` +
+   `messageBody` (both required if either is set). `messageEmoji`
+   populates the dialog's bubble; `messageDeepLink` makes the CTA
+   button open a URL instead of plain-dismissing. The dialog is
+   scheduled only if the grant actually moves chips — a replay or
+   insufficient-balance outcome doesn't double-attach.
+4. Submit. The run's **Summary** tab shows the post-apply balance and
+   the server's outcome (`Applied` / `AlreadyApplied` / `InsufficientChips`),
+   plus the scheduled message id when applicable.
+
+Why the wrapper instead of curl: `ADMIN_API_TOKEN` never leaves GitHub,
+every grant is a workflow run tagged with the operator's GitHub identity,
+and the input form validates the obvious typos before they hit the
+server. Implementation: `.github/workflows/admin-grant-chips.yml`.
+
+Ledger trail: each grant writes a `wallet_events` row with reason
+`admin_grant:<your note>`. Filter the table with
+`reason LIKE 'admin_grant:%'` to see every admin grant ever applied.
+
+## Sending an in-app message (no chips)
+
+For maintenance heads-ups, season launches, "we fixed the bug" support
+outreach, or anything else that should reach the user but isn't a chip
+event:
+
+1. Repo → **Actions** → **Admin · Send message (dev)** → **Run workflow**.
+2. Fill the form:
+   - `userId` — Supabase auth UUID.
+   - `kind` — **dialog** pops modally on next foreground (one per
+     foreground; the user dismisses to see the next); **inbox** sits
+     passively in the in-app Notifications screen with a bottom-bar
+     badge until the user opens it.
+   - `title` (max 80 chars), `body` (max 500 chars).
+   - `emoji` (optional) — populates the bubble.
+   - `deepLink` (optional) — turns the CTA / row tap into a navigate.
+   - `expiresInDays` (default 30) — TTL after which the message stops
+     being delivered. `0` = never expires.
+3. Submit. The run's **Summary** tab shows the scheduled message id.
+
+For broadcasts (a Christmas drop to everyone, an upgrade-required
+notice to a specific cohort), call the workflow N times — V1
+deliberately does NOT have a fan-out endpoint, so a single typo can't
+spam the whole user base.
+
+### When to pick dialog vs inbox
+
+Lean **dialog** when the message is time-sensitive ("we're going down
+in 1 hour"), celebratory ("you won the seasonal jackpot"), or wants
+the user's hand on the screen before they keep playing.
+
+Lean **inbox** when the message is informational ("we fixed the bug
+that ate your hand last week"), a digest ("here's what's new this
+patch"), or anything you're sending to a wide audience where dialogs
+would feel pushy.
+
+Chip grants attached via `admin-grant-chips` are always dialog — a
+chip arrival is a moment, not a log entry. Send a separate inbox
+follow-up if you want a permanent record.
+
+## Storage + sweeping `user_messages`
+
+Schema: one row per recipient. `kind` is `'dialog'` or `'inbox'`;
+`acked_at` flips when the user dismisses (dialog) or views the
+inbox screen with the row visible. The partial unread index
+(`acked_at IS NULL`) keeps the hot read path tight even as history
+grows.
+
+`expires_at` is the absolute UTC cutoff. The unread-fetch endpoint
+filters expired rows out so a stale notice never reaches the client
+even if the sweep cron is lagging.
+
+The nightly cron `Sweep expired messages (dev)` calls
+`POST /v1/admin/sweep-expired-messages` at 04:23 UTC and purges:
+  - Every acked row (regardless of age).
+  - Unacked rows whose `expires_at` has passed.
+
+A spike in `expiredUnackedPurged` is worth a look — it means users
+weren't seeing their notices in time (TTL too short, or app
+engagement dropped). The endpoint returns counts in the response;
+the workflow surfaces them in the run summary.
+
+### Rotating `ADMIN_API_TOKEN`
+
+If the token leaks, rotate **both sides at once** — anything mismatched
+breaks the sweeps. From the repo root:
+
+```bash
+NEW_TOKEN="$(openssl rand -hex 32)"
+fly secrets set ADMIN_API_TOKEN="$NEW_TOKEN" -a cards-server-dev
+gh secret set CARDS_ADMIN_API_TOKEN_DEV --body "$NEW_TOKEN"
+unset NEW_TOKEN
+```
+
+The `fly secrets set` triggers a redeploy; the GitHub secret update
+takes effect on the next workflow run. Verify by manually triggering
+`Sweep disconnected room members` from the Actions tab — a 401 means
+the values drifted.
+
 ## Multiplayer (Phase 4.1 — lobby + presence)
 
 The room HTTP + WebSocket surface ships with the standard server image

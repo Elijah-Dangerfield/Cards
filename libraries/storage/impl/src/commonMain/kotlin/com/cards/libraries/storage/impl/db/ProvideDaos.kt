@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserDao
+import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import me.tatarka.inject.annotations.Inject
@@ -77,3 +78,10 @@ class ProvideEquipmentDao @Inject constructor(
 class ProvideWalletEventDao @Inject constructor(
     provider: AppDatabaseProvider
 ) : WalletEventDao by provider.database.walletEventDao()
+
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = UserMessageDao::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = ClearableDao::class)
+class ProvideUserMessageDao @Inject constructor(
+    provider: AppDatabaseProvider
+) : UserMessageDao by provider.database.userMessageDao()

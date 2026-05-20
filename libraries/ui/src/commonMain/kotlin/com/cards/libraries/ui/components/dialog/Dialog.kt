@@ -18,8 +18,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.layout
@@ -48,8 +51,12 @@ import androidx.compose.ui.semantics.dialog
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.roundToInt
@@ -158,6 +165,95 @@ fun dialogEmoji(
     style: EmojiHandleStyle = EmojiHandleStyle.Circle,
     surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
 ) = DialogEmoji(emoji, style, surface)
+
+@Composable
+fun Dialog(
+    onDismissRequest: () -> Unit,
+    topContent: @Composable () -> Unit,
+    bottomContent: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    state: DialogState = rememberDialogState(),
+    properties: ModalDialogProperties = ModalDialogProperties(),
+    animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
+    scrimColor: Color = ModalDialogDefaults.scrimColor(),
+    contentAlignment: Alignment = Alignment.Center,
+) {
+    Dialog(
+        state = state,
+        modifier = modifier,
+        onDismissRequest = onDismissRequest,
+        properties = properties,
+        animationSpec = animationSpec,
+        scrimColor = scrimColor,
+        contentAlignment = contentAlignment,
+    ) {
+        ModalContent(
+            modifier = modifier.padding(
+                top = Dimension.D800,
+                start = Dimension.D800,
+                end = Dimension.D800,
+                bottom = Dimension.D800,
+            ),
+            topContent = topContent,
+            content = content,
+            bottomContent = bottomContent,
+        )
+    }
+}
+
+@Composable
+fun Dialog(
+    title: String,
+    description: String,
+    primaryButtonText: String,
+    onDismissRequest: () -> Unit,
+    onPrimaryButtonClicked: () -> Unit,
+    modifier: Modifier = Modifier,
+    state: DialogState = rememberDialogState(),
+    secondaryButtonText: String? = null,
+    onSecondaryButtonClicked: (() -> Unit)? = null,
+    properties: ModalDialogProperties = ModalDialogProperties(),
+    animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
+    scrimColor: Color = ModalDialogDefaults.scrimColor(),
+    contentAlignment: Alignment = Alignment.Center,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        state = state,
+        properties = properties,
+        animationSpec = animationSpec,
+        scrimColor = scrimColor,
+        contentAlignment = contentAlignment,
+        topContent = { Text(text = title) },
+        content = { Text(text = description) },
+        bottomContent = {
+            Column(
+                modifier = Modifier.padding(horizontal = Dimension.D1000),
+            ) {
+                Button(
+                    size = ButtonSize.Medium,
+                    onClick = onPrimaryButtonClicked,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = primaryButtonText)
+                }
+                if (secondaryButtonText != null && onSecondaryButtonClicked != null) {
+                    Spacer(modifier = Modifier.height(Dimension.D600))
+                    Button(
+                        size = ButtonSize.Medium,
+                        type = ButtonType.Tertiary,
+                        onClick = onSecondaryButtonClicked,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(text = secondaryButtonText)
+                    }
+                }
+            }
+        },
+    )
+}
 
 /** Dialog top-corner radius. Matches [Radii.Card] visually but expressed
  *  as a Dp because [NotchedSheetShape] takes Dp directly. */

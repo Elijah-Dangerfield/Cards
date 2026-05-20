@@ -79,7 +79,15 @@ internal fun BotTableSetupDialog(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
-            VerticalSpacerD800()
+            VerticalSpacerD500()
+            Text(
+                text = "Bot tables don't move your chip balance.",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.onSurfaceSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            VerticalSpacerD500()
             ConfirmPill(label = "Start") { onStart(seatCount) }
         }
     }

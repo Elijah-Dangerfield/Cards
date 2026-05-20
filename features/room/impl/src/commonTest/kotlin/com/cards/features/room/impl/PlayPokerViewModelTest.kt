@@ -45,7 +45,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals(0L, state.xp)
         assertEquals(null, state.lastHandXpAwarded)
         assertTrue(state.recentlyEarned.isEmpty())
-        assertEquals(TurnFeedback.Sound, state.turnFeedback)
+        assertEquals(TurnFeedback.Vibrate, state.turnFeedback)
     }
 
     // ---------- Settings mirror (AppCache → state) ----------

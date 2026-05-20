@@ -117,3 +117,25 @@ object WalletEventsTable : Table("wallet_events") {
     val appliedAt = timestamp("applied_at")
     override val primaryKey = PrimaryKey(userId, idempotencyKey)
 }
+
+/**
+ * Per-user in-app messages. Authored by admins, delivered as either a
+ * dialog (modal pop on foreground) or an inbox row (passive entry in
+ * the Notifications screen). Acked exactly once; expiry filters out
+ * stale notices before delivery. See `V8__user_messages.sql` +
+ * `V9__user_messages_kind_and_expiry.sql`.
+ */
+object UserMessagesTable : Table("user_messages") {
+    val id = uuid("id")
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val kind = text("kind")
+    val emoji = text("emoji").nullable()
+    val title = text("title")
+    val body = text("body")
+    val deepLink = text("deep_link").nullable()
+    val createdAt = timestamp("created_at")
+    val expiresAt = timestamp("expires_at").nullable()
+    val ackedAt = timestamp("acked_at").nullable()
+    override val primaryKey = PrimaryKey(id)
+}

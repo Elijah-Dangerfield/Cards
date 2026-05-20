@@ -29,10 +29,12 @@ import com.dangerfield.cards.features.profile.impl.feedback.FeedbackScreen
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.impl.items.MyItemsScreen
 import com.dangerfield.cards.features.profile.impl.items.MyItemsViewModel
+import com.dangerfield.cards.features.profile.impl.notifications.NotificationsScreen
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
 import com.dangerfield.cards.features.profile.MyItemsRoute
+import com.dangerfield.cards.features.profile.NotificationsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
@@ -41,6 +43,7 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
@@ -79,12 +82,15 @@ class ProfileFeatureEntryPoint(
     private val myItemsViewModelFactory: () -> MyItemsViewModel,
     private val identityRepository: IdentityRepository,
     private val appCache: AppCache,
+    private val userMessageRepository: UserMessageRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<ProfileRoute> {
             val progression by progressionRepository.observeProgression()
                 .collectAsStateWithLifecycle(initialValue = Progression.Empty)
+            val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
+                .collectAsStateWithLifecycle(initialValue = 0)
             // Identity (display name + avatar + anon flag) is the canonical
             // source. UserRepository holds local stats only; reading the
             // name from there missed updates after Edit Profile saved
@@ -122,11 +128,13 @@ class ProfileFeatureEntryPoint(
                     botSpeed = appData.botSpeed,
                     turnFeedback = appData.turnFeedback,
                     appVersion = "0.1.0",
+                    unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
                 ),
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },
                 onOpenMyItems = { router.navigate(MyItemsRoute()) },
+                onOpenNotifications = { router.navigate(NotificationsRoute()) },
                 onBotSpeedChange = { speed ->
                     scope.launch { appCache.update { it.copy(botSpeed = speed) } }
                 },
@@ -185,6 +193,14 @@ class ProfileFeatureEntryPoint(
                 state = state,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
+            )
+        }
+
+        screen<NotificationsRoute> {
+            NotificationsScreen(
+                repository = userMessageRepository,
+                onBack = { router.goBack() },
+                onDeepLinkTap = { url -> router.openWebLink(url) },
             )
         }
 

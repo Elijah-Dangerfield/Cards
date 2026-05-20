@@ -1,0 +1,208 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Admin: grant (or debit) chips on a specific user's wallet.
+#
+# Operator-triggered only — no schedule. Surfaces POST /v1/admin/grant-chips
+# behind a workflow_dispatch form so support can credit chips without
+# carrying ADMIN_API_TOKEN on a laptop. Token lives only in GH Secrets;
+# every grant is a workflow run with the operator's GitHub identity in
+# the audit trail.
+#
+# Inputs are validated client-side before the curl so an obvious typo
+# (non-UUID, zero delta, blank reason) doesn't burn a network round-trip
+# or, worse, consume an idempotency key on the server.
+#
+# Outcomes the server can return:
+#   - HTTP 200 + outcome=Applied        → chips moved, new balance shown.
+#   - HTTP 200 + outcome=AlreadyApplied → idempotency key was a replay; balance unchanged.
+#   - HTTP 409 + outcome=InsufficientChips → debit would have driven balance < 0; nothing applied.
+#   - HTTP 400 → validation failed server-side (shouldn't happen if the client checks below pass).
+#   - HTTP 401 → CARDS_ADMIN_API_TOKEN_DEV doesn't match the server's ADMIN_API_TOKEN. Rotate both together.
+#
+# See apps/server/DEPLOY.md → "Granting chips (production support)".
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Admin · Grant chips (dev)
+
+on:
+  workflow_dispatch:
+    inputs:
+      userId:
+        description: 'Target user UUID (Supabase auth.users.id)'
+        required: true
+        type: string
+      delta:
+        description: 'Signed chip amount. Positive = credit, negative = debit.'
+        required: true
+        type: string
+      reason:
+        description: 'Short human-readable note for the audit log (e.g. "chargeback refund #1234")'
+        required: true
+        type: string
+      idempotencyKey:
+        description: 'Optional. Pass the same key to retry safely. Leave blank and the server fills one.'
+        required: false
+        type: string
+        default: ''
+      messageEmoji:
+        description: 'Optional in-app dialog: emoji (e.g. 🎁). Leave all four message fields blank to skip the dialog.'
+        required: false
+        type: string
+        default: ''
+      messageTitle:
+        description: 'Optional in-app dialog: title (max 80 chars).'
+        required: false
+        type: string
+        default: ''
+      messageBody:
+        description: 'Optional in-app dialog: body (max 500 chars).'
+        required: false
+        type: string
+        default: ''
+      messageDeepLink:
+        description: 'Optional in-app dialog: deep link the CTA opens (e.g. cards://shop). Blank = plain dismiss button.'
+        required: false
+        type: string
+        default: ''
+      messageExpiresInDays:
+        description: 'Optional in-app dialog: days until it stops being delivered. 0 = never. Default 30.'
+        required: false
+        type: string
+        default: '30'
+
+concurrency:
+  # Serialize grants per (user, key) — two operators clicking "Run workflow"
+  # twice on the same idempotencyKey is still safe because the server is
+  # idempotent, but serializing avoids confusing dual-success logs.
+  group: admin-grant-chips-${{ inputs.userId }}-${{ inputs.idempotencyKey }}
+  cancel-in-progress: false
+
+jobs:
+  grant:
+    name: Grant
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate inputs and call grant-chips endpoint
+        env:
+          ADMIN_TOKEN: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}
+          USER_ID: ${{ inputs.userId }}
+          DELTA: ${{ inputs.delta }}
+          REASON: ${{ inputs.reason }}
+          IDEMPOTENCY_KEY: ${{ inputs.idempotencyKey }}
+          MSG_EMOJI: ${{ inputs.messageEmoji }}
+          MSG_TITLE: ${{ inputs.messageTitle }}
+          MSG_BODY: ${{ inputs.messageBody }}
+          MSG_DEEP_LINK: ${{ inputs.messageDeepLink }}
+          MSG_EXPIRES_IN_DAYS: ${{ inputs.messageExpiresInDays }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$ADMIN_TOKEN" ]; then
+            echo "::error::CARDS_ADMIN_API_TOKEN_DEV secret is not set"
+            exit 1
+          fi
+          if ! [[ "$USER_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::userId must be a UUID, got: $USER_ID"
+            exit 1
+          fi
+          if ! [[ "$DELTA" =~ ^-?[0-9]+$ ]]; then
+            echo "::error::delta must be an integer, got: $DELTA"
+            exit 1
+          fi
+          if [ "$DELTA" -eq 0 ]; then
+            echo "::error::delta must be non-zero"
+            exit 1
+          fi
+          # Trim whitespace from reason to mirror the server's check.
+          trimmed_reason="$(echo -n "$REASON" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          if [ -z "$trimmed_reason" ]; then
+            echo "::error::reason must be a non-empty string"
+            exit 1
+          fi
+
+          # Build the optional message subobject. All-or-nothing: title and
+          # body must BOTH be set to attach a dialog. Setting one without the
+          # other is almost always a typo, and the server would reject it
+          # anyway — catch it before the round-trip.
+          trimmed_title="$(echo -n "$MSG_TITLE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          trimmed_body="$(echo -n "$MSG_BODY" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+          if [ -n "$trimmed_title" ] && [ -z "$trimmed_body" ]; then
+            echo "::error::messageTitle is set but messageBody is empty. Both required to attach a dialog."
+            exit 1
+          fi
+          if [ -z "$trimmed_title" ] && [ -n "$trimmed_body" ]; then
+            echo "::error::messageBody is set but messageTitle is empty. Both required to attach a dialog."
+            exit 1
+          fi
+
+          if [ -n "$trimmed_title" ]; then
+            if ! [[ "$MSG_EXPIRES_IN_DAYS" =~ ^[0-9]+$ ]]; then
+              echo "::error::messageExpiresInDays must be a non-negative integer (or 0 for never)"; exit 1
+            fi
+            if [ "$MSG_EXPIRES_IN_DAYS" = "0" ]; then
+              expires_ms=""
+            else
+              now_ms=$(date +%s%3N)
+              expires_ms=$((now_ms + MSG_EXPIRES_IN_DAYS * 86400000))
+            fi
+            message=$(jq -nc \
+              --arg emoji "$MSG_EMOJI" \
+              --arg title "$trimmed_title" \
+              --arg body "$trimmed_body" \
+              --arg deepLink "$MSG_DEEP_LINK" \
+              --arg expires "$expires_ms" \
+              '{title: $title, body: $body}
+               + (if $emoji == "" then {} else {emoji: $emoji} end)
+               + (if $deepLink == "" then {} else {deepLink: $deepLink} end)
+               + (if $expires == "" then {} else {expiresAtEpochMs: ($expires|tonumber)} end)')
+          else
+            message="null"
+          fi
+
+          body=$(jq -nc \
+            --arg userId "$USER_ID" \
+            --argjson delta "$DELTA" \
+            --arg reason "$trimmed_reason" \
+            --arg key "$IDEMPOTENCY_KEY" \
+            --argjson message "$message" \
+            '{userId: $userId, delta: $delta, reason: $reason}
+             + (if $key == "" then {} else {idempotencyKey: $key} end)
+             + (if $message == null then {} else {message: $message} end)')
+
+          response_file="$(mktemp)"
+          status=$(curl --silent --show-error --max-time 30 \
+            -o "$response_file" -w "%{http_code}" \
+            -X POST \
+            -H "X-Admin-Token: $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$body" \
+            https://cards-server-dev.fly.dev/v1/admin/grant-chips)
+
+          echo "HTTP $status"
+          cat "$response_file"
+          echo
+
+          {
+            echo "### Grant chips result"
+            echo
+            echo "- **User:** \`$USER_ID\`"
+            echo "- **Delta:** \`$DELTA\`"
+            echo "- **Reason:** $trimmed_reason"
+            if [ -n "$IDEMPOTENCY_KEY" ]; then
+              echo "- **Idempotency key (caller):** \`$IDEMPOTENCY_KEY\`"
+            fi
+            echo "- **HTTP:** $status"
+            echo
+            echo '```json'
+            jq . < "$response_file" 2>/dev/null || cat "$response_file"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$status" = "200" ]; then
+            exit 0
+          fi
+          if [ "$status" = "409" ]; then
+            echo "::warning::Insufficient chips — balance unchanged. See response body above."
+            exit 1
+          fi
+          echo "::error::Endpoint returned HTTP $status — see response body above"
+          exit 1

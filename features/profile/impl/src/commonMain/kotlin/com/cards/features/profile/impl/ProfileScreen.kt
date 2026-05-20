@@ -62,6 +62,7 @@ data class ProfileSettings(
     val botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
     val turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
     val appVersion: String,
+    val unreadNotificationCount: Int = 0,
     val showQaMenu: Boolean = false,
 )
 
@@ -71,6 +72,7 @@ fun ProfileScreen(
     onClaimAccount: () -> Unit,
     onEditProfile: () -> Unit,
     onOpenMyItems: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
     onTapRank: () -> Unit,
@@ -105,6 +107,15 @@ fun ProfileScreen(
             ListSection(
                 title = "Account",
                 items = listOf(
+                    ListSectionItem(
+                        headlineText = "Notifications",
+                        supportingText = if (settings.unreadNotificationCount > 0) {
+                            "${settings.unreadNotificationCount} new"
+                        } else {
+                            "Heads-ups and announcements"
+                        },
+                        onClick = onOpenNotifications,
+                    ),
                     ListSectionItem(
                         headlineText = "My items",
                         supportingText = "Owned card backs, felts, emotes, titles",
@@ -284,6 +295,18 @@ private fun SignOutConfirmDialog(
     }
 }
 
+private val turnFeedbackPickerOptions: List<com.dangerfield.cards.libraries.cards.TurnFeedback> =
+    com.dangerfield.cards.libraries.cards.TurnFeedback.entries
+        .filter { it != com.dangerfield.cards.libraries.cards.TurnFeedback.Sound }
+
+private fun com.dangerfield.cards.libraries.cards.TurnFeedback.pickerDisplayValue():
+    com.dangerfield.cards.libraries.cards.TurnFeedback =
+    if (this == com.dangerfield.cards.libraries.cards.TurnFeedback.Sound) {
+        com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate
+    } else {
+        this
+    }
+
 @Composable
 private fun GameplaySection(
     botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
@@ -319,11 +342,12 @@ private fun GameplaySection(
                 headlineText = "Your turn feedback",
                 supportingText = "Cue when it becomes your turn",
                 accessory = ListItemAccessory.Custom {
+                    val displayed = turnFeedback.pickerDisplayValue()
                     DropdownAccessory(
-                        text = turnFeedback.label,
+                        text = displayed.label,
                         expanded = turnFeedbackExpanded,
                         onDismiss = { turnFeedbackExpanded = false },
-                        options = com.dangerfield.cards.libraries.cards.TurnFeedback.entries.toList(),
+                        options = turnFeedbackPickerOptions,
                         label = { it.label },
                         onSelect = {
                             turnFeedbackExpanded = false
@@ -549,13 +573,14 @@ private fun ProfileScreenPreview_Anonymous() {
                 xp = 60,
                 isAnonymous = true,
                 botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Sound,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                 appVersion = "0.1.0",
                 showQaMenu = false,
             ),
             onClaimAccount = {},
             onEditProfile = {},
             onOpenMyItems = {},
+            onOpenNotifications = {},
             onBotSpeedChange = {},
             onTurnFeedbackChange = {},
             onTapRank = {},
@@ -590,6 +615,7 @@ private fun ProfileScreenPreview_Claimed() {
             onClaimAccount = {},
             onEditProfile = {},
             onOpenMyItems = {},
+            onOpenNotifications = {},
             onBotSpeedChange = {},
             onTurnFeedbackChange = {},
             onTapRank = {},
@@ -617,13 +643,14 @@ private fun ProfileScreenPreview_DebugBuild() {
                 xp = 12_400,
                 isAnonymous = false,
                 botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Sound,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Mute,
                 appVersion = "0.1.0-debug",
                 showQaMenu = true,
             ),
             onClaimAccount = {},
             onEditProfile = {},
             onOpenMyItems = {},
+            onOpenNotifications = {},
             onBotSpeedChange = {},
             onTurnFeedbackChange = {},
             onTapRank = {},
