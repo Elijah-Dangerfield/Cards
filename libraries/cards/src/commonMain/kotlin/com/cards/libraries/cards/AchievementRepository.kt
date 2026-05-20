@@ -24,13 +24,13 @@ data class AchievementHandContext(
     /** Big blind for the hand — used to translate stack sizes into BB-equivalents. */
     val bigBlind: Long,
     /**
-     * Display names of opponents whose stack ended this hand at zero — i.e.
-     * the players who got knocked out. The achievement engine attributes
-     * busts to the human only when the human also won the pot this hand
-     * (cheap, slightly-liberal attribution that's correct in the common
-     * heads-up + short-handed-vs-bots cases).
+     * Number of opponents whose stack ended this hand at zero — i.e. the
+     * players who got knocked out. The achievement engine attributes busts
+     * to the human only when the human also won the pot this hand (cheap,
+     * slightly-liberal attribution that's correct in the common heads-up
+     * + short-handed-vs-bots cases).
      */
-    val bustedOpponentNames: List<String> = emptyList(),
+    val bustedOpponentCount: Int = 0,
 )
 
 /**

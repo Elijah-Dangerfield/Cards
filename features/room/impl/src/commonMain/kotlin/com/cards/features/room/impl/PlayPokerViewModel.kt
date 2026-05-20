@@ -265,12 +265,11 @@ class PlayPokerViewModel @Inject constructor(
             humanEndingStack = state.seats
                 .firstOrNull { it.index == humanSeatIndex }?.stack ?: 0L,
             bigBlind = state.settings.bigBlind,
-            // Opponents whose stack hit zero this hand. Detected post-hand-end
-            // and pre-rebuy — bots auto-rebuy at the start of the *next*
-            // hand, so the end-of-hand snapshot still shows their bust.
-            bustedOpponentNames = state.seats
-                .filter { it.index != humanSeatIndex && it.stack <= 0 }
-                .map { it.displayName },
+            // Opponents whose stack hit zero this hand. Bots auto-rebuy at
+            // the start of the *next* hand, so the end-of-hand snapshot
+            // still shows their bust at attribution time.
+            bustedOpponentCount = state.seats
+                .count { it.index != humanSeatIndex && it.stack <= 0 },
         )
         viewModelScope.launch {
             Catching {

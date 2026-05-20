@@ -332,6 +332,52 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals(10L, context.bigBlind)
     }
 
+    @Test
+    fun handEnded_countsBustedOpponents_byEndOfHandStack() = runUnitTest {
+        val achievements = FakeAchievementRepository()
+        val factory = FakePokerSessionFactory()
+        buildVm(factory = factory, achievementRepository = achievements)
+
+        // Steve busted (stack 0), Jane survived. Human stack is irrelevant
+        // to the count — bots only.
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(0, "You", isBot = false, playerId = "human", stack = 2_500),
+                testSeat(1, "Steve", isBot = true, playerId = "bot-1", stack = 0),
+                testSeat(2, "Jane", isBot = true, playerId = "bot-2", stack = 800),
+            ),
+        )
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            state,
+            /* humanStartingStack = */ 1_500L,
+        )
+
+        assertEquals(1, achievements.recordedHands.single().second.bustedOpponentCount)
+    }
+
+    @Test
+    fun handEnded_zeroBustedOpponents_whenAllSurvive() = runUnitTest {
+        val achievements = FakeAchievementRepository()
+        val factory = FakePokerSessionFactory()
+        buildVm(factory = factory, achievementRepository = achievements)
+
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(0, "You", isBot = false, playerId = "human", stack = 1_000),
+                testSeat(1, "Steve", isBot = true, playerId = "bot-1", stack = 1_000),
+                testSeat(2, "Jane", isBot = true, playerId = "bot-2", stack = 1_000),
+            ),
+        )
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            state,
+            /* humanStartingStack = */ 1_000L,
+        )
+
+        assertEquals(0, achievements.recordedHands.single().second.bustedOpponentCount)
+    }
+
     // ---------- Helpers ----------
 
     private fun buildVm(

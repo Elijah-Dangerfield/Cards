@@ -297,8 +297,8 @@ class AchievementRepositoryImpl(
         // player would still credit the human's "Eliminator" progress —
         // wrong. Cheap, correct-enough heuristic for the common case.
         if (!summary.wonPot) return
-        val busts = context.bustedOpponentNames.size
-        if (busts <= 0) return
+        val busts = context.bustedOpponentCount
+        if (busts == 0) return
         achievementDao.incrementCounter(BUSTS_DEALT, busts)
     }
 
