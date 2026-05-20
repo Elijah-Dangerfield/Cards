@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.identity.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -200,7 +202,11 @@ private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
     val parsedColor = backgroundColorHex?.let {
         runCatching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
     }
+    // Hero uses an explicit neutral fallback (not the name-seeded hue
+    // AvatarCircle defaults to) so the disc doesn't flicker through
+    // random colors while the emoji animates between picks.
     val bg = parsedColor ?: AppTheme.colors.surfaceSecondary.color
+    val previewSize = 112.dp
     Row(
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier.fillMaxWidth(),
@@ -208,7 +214,7 @@ private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(112.dp)
+                .size(previewSize)
                 .clip(CircleShape)
                 .background(bg),
         ) {
@@ -221,7 +227,7 @@ private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
             ) { current ->
                 Text(
                     text = current,
-                    typography = AppTheme.typography.Display.D800,
+                    typography = avatarEmojiTypographyFor(previewSize),
                 )
             }
         }
@@ -329,7 +335,11 @@ private fun AvatarTile(
 ) {
     val borderColor = if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
     val borderWidth = if (isSelected) 3.dp else 1.dp
-    Box(
+    // BoxWithConstraints so the emoji typography scales with the actual
+    // measured tile width (depends on screen size + column count). Keeps
+    // the picker's emoji-to-tile ratio aligned with the rest of the
+    // avatar surfaces.
+    BoxWithConstraints(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .aspectRatio(1f)
@@ -340,7 +350,7 @@ private fun AvatarTile(
     ) {
         Text(
             text = emoji,
-            typography = AppTheme.typography.Heading.H700,
+            typography = avatarEmojiTypographyFor(maxWidth),
         )
     }
 }

@@ -31,10 +31,11 @@ fun AvatarCircle(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
     typography: TypographyResource = AppTheme.typography.Body.B600,
-    // Emojis are visually denser than letters at the same point size and read
-    // smaller inside the circle. Default to a larger token so an avatar emoji
-    // feels like the avatar, not a punctuation mark sitting in it.
-    emojiTypography: TypographyResource = AppTheme.typography.Display.D1100,
+    // Emoji typography scales with [size] so the emoji-to-circle ratio
+    // stays consistent across surfaces (44 dp seat avatar, 100 dp profile
+    // header, 112 dp edit-profile hero). See [avatarEmojiTypographyFor].
+    // Override only for special-case rendering.
+    emojiTypography: TypographyResource = avatarEmojiTypographyFor(size),
     emoji: String? = null,
     /**
      * Server-driven user choice. `#rrggbb` (palette-validated server-side
@@ -67,6 +68,27 @@ fun AvatarCircle(
             color = AppTheme.colors.text,
         )
     }
+}
+
+/**
+ * Pick an emoji typography sized for an [AvatarCircle] of [size]. Targets
+ * roughly a 0.6–0.75 emoji-to-circle ratio across the scale — emojis feel
+ * visually denser than letters at the same point size, so we lean toward
+ * the upper end of that band rather than literal half-the-circle.
+ *
+ * Exported so screens that render their own avatar surfaces (the edit-
+ * profile hero preview, the picker grid) can call into the same scale
+ * instead of hand-picking a typography token per surface — without that,
+ * the emoji ratio drifts surface to surface (which is what we just fixed).
+ */
+@Composable
+fun avatarEmojiTypographyFor(size: Dp): TypographyResource = when {
+    size <= 28.dp -> AppTheme.typography.Display.D800
+    size <= 40.dp -> AppTheme.typography.Display.D900
+    size <= 52.dp -> AppTheme.typography.Display.D1100
+    size <= 72.dp -> AppTheme.typography.Display.D1200
+    size <= 96.dp -> AppTheme.typography.Display.D1300
+    else -> AppTheme.typography.Display.D1500
 }
 
 /**
