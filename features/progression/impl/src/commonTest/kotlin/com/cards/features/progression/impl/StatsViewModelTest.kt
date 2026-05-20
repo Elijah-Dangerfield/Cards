@@ -12,21 +12,21 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Pins [XpDetailSheetViewModel]'s `combine`-based fan-in. The VM merges
+ * Pins [StatsViewModel]'s `combine`-based fan-in. The VM merges
  * three upstream flows (progression, recent XP events, achievement
  * progress) into one state. The interesting cases:
  *  - isLoading flips to false once ALL three flows have emitted at least
  *    once (combine waits for the slowest one).
  *  - A change on any single flow re-emits the combined state.
  */
-class XpDetailSheetViewModelTest : CoroutineTest() {
+class StatsViewModelTest : CoroutineTest() {
 
     @Test
     fun initialState_isLoading_beforeAnyFlowEmits() = runUnitTest {
         // combine waits for ALL three upstreams; if any one hasn't emitted
         // the merged state never fires and the VM stays in its initial
         // (loading) shape.
-        val vm = XpDetailSheetViewModel(
+        val vm = StatsViewModel(
             progressionRepository = NeverEmittingProgressionRepository,
             xpEventRepository = NeverEmittingXpEventRepository,
             achievementRepository = NeverEmittingAchievementRepository,
@@ -57,7 +57,7 @@ class XpDetailSheetViewModelTest : CoroutineTest() {
             customCounters = emptyMap(),
         )
 
-        val vm = XpDetailSheetViewModel(
+        val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(initial = seedProgression),
             xpEventRepository = FakeXpEventRepository(initial = seedEvents),
             achievementRepository = FakeAchievementRepository(initial = seedAchievements),
@@ -79,7 +79,7 @@ class XpDetailSheetViewModelTest : CoroutineTest() {
         val progression = FakeProgressionRepository(
             initial = Progression.Empty.copy(totalXp = 100L),
         )
-        val vm = XpDetailSheetViewModel(
+        val vm = StatsViewModel(
             progressionRepository = progression,
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
@@ -104,7 +104,7 @@ class XpDetailSheetViewModelTest : CoroutineTest() {
     @Test
     fun newXpEvent_appearsInRecentEvents() = runUnitTest {
         val events = FakeXpEventRepository()
-        val vm = XpDetailSheetViewModel(
+        val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(),
             xpEventRepository = events,
             achievementRepository = FakeAchievementRepository(),

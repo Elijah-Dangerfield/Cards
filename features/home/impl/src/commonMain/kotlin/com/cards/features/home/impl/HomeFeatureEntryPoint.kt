@@ -9,7 +9,7 @@ import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
-import com.dangerfield.cards.features.progression.XpDetailsRoute
+import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -40,7 +40,7 @@ class HomeFeatureEntryPoint(
                 viewModel = viewModel,
                 onPlayBots = { difficulty -> setupDifficulty = difficulty },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
-                onTapXp = { router.navigate(XpDetailsRoute()) },
+                onTapXp = { router.navigate(StatsRoute()) },
                 onTapCash = {
                     router.navigate(
                         ShopRoute(),

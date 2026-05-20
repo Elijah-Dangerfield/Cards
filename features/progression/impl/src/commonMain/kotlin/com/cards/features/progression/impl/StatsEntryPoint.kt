@@ -5,7 +5,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.progression.AchievementsRoute
-import com.dangerfield.cards.features.progression.XpDetailsRoute
+import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -17,16 +17,16 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
-class XpDetailsEntryPoint(
-    private val viewModelFactory: () -> XpDetailSheetViewModel,
+class StatsEntryPoint(
+    private val viewModelFactory: () -> StatsViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
-        screen<XpDetailsRoute> {
-            val viewModel: XpDetailSheetViewModel = viewModel { viewModelFactory() }
+        screen<StatsRoute> {
+            val viewModel: StatsViewModel = viewModel { viewModelFactory() }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 
-            XpDetailSheet(
+            StatsScreen(
                 state = state,
                 onBack = router::goBack,
                 onSeeAllAchievements = { router.navigate(AchievementsRoute()) },
