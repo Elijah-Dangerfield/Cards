@@ -257,11 +257,11 @@ private fun PlayerInfoTile(
             )
             VerticalSpacerD100()
         }
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(52.dp)) {
-            if (isWinner) WinnerGlow(modifier = Modifier.size(48.dp))
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
+            if (isWinner) WinnerGlow(modifier = Modifier.size(44.dp))
             AvatarCircle(
                 name = seat.displayName,
-                size = 44.dp,
+                size = 40.dp,
                 emoji = seat.emoji ?: AnonymousAvatarEmoji,
                 backgroundColorHex = seat.avatarBackgroundColorHex,
             )
@@ -279,9 +279,11 @@ private fun PlayerInfoTile(
                     .offset(x = (-2).dp, y = (-8).dp),
             )
         }
-        VerticalSpacerD300()
+        VerticalSpacerD100()
         // Single line + ellipsis so a long handle can't blow the locked
-        // tile height.
+        // tile height. Spacers around the name + title block are tight
+        // (D100, 4dp) because the column has to fit inside the locked
+        // hole-card row height (142dp) without clipping the bottom pill.
         Text(
             text = seat.displayName,
             typography = AppTheme.typography.Body.B400,
@@ -291,8 +293,6 @@ private fun PlayerInfoTile(
             overflow = TextOverflow.Ellipsis,
         )
         // Equipped title — "Bluff Master", "The Shark", "High Roller".
-        // Single line + ellipsis so a future longer title can't blow the
-        // locked tile height.
         if (title != null) {
             Text(
                 text = title,
@@ -303,7 +303,7 @@ private fun PlayerInfoTile(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        VerticalSpacerD300()
+        VerticalSpacerD100()
         ChipCoinAmount(
             amount = seat.stack,
             coinSize = 14.dp,
