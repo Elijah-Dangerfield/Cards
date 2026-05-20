@@ -366,8 +366,6 @@ private fun ProfileHeader(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Tap-target = avatar + pencil badge. Replaces the separate
-        // "Edit profile" list row; the affordance is the avatar itself.
         Box(
             modifier = Modifier
                 .clip(CircleShape)
@@ -385,10 +383,8 @@ private fun ProfileHeader(
                 emoji = settings.avatarEmoji,
                 backgroundColorHex = settings.avatarBackgroundColor,
             )
-            // Pencil badge tucked in the bottom-right corner. Sized small
-            // so it reads as a corner badge rather than competing with the
-            // emoji for visual weight, and bordered against the background
-            // so it lifts cleanly off the avatar disc.
+            // Border matches the page background so the badge reads as
+            // lifted off the avatar disc rather than embedded in it.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
