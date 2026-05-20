@@ -23,7 +23,8 @@ import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.LowLevelDialogApi
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BaseBottomSheet
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -158,6 +159,7 @@ private val rankings: List<RankingEntry> = listOf(
     ),
 )
 
+@OptIn(LowLevelDialogApi::class)
 @Composable
 fun HandRankingsCheatSheet(
     onDismiss: () -> Unit,
@@ -165,7 +167,7 @@ fun HandRankingsCheatSheet(
     street: BettingRound? = null,
     pot: Long? = null,
 ) {
-    BottomSheet(
+    BaseBottomSheet(
         onDismissRequest = onDismiss,
         dragHandle = com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.None,
         backgroundColor = AppTheme.colors.surfacePrimary,

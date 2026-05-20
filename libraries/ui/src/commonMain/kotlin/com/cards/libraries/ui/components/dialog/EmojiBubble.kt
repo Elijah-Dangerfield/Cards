@@ -29,7 +29,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Single source of truth for the "emoji bubble" treatment shared by
- * [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet]
+ * [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet]
  * and [Dialog] — the chunky icon bubble that sits half-on / half-off a
  * modal surface's top edge.
  *

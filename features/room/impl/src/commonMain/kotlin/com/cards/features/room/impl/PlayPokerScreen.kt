@@ -79,7 +79,7 @@ import com.dangerfield.cards.libraries.ui.components.Slider
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
@@ -207,7 +207,7 @@ fun PlayPokerScreen(
         // and a built-in title + close X — without rolling those ourselves.
         val legal = active?.humanLegalActions
         if (raiseSheetOpen && active?.isHumanTurn == true && legal != null) {
-            BasicBottomSheet(
+            BottomSheet(
                 onDismissRequest = { raiseSheetOpen = false },
                 backgroundColor = AppTheme.colors.surfacePrimary,
                 showCloseButton = true,

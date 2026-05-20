@@ -69,7 +69,7 @@ import kotlin.random.Random
  * animated dismissals from inside the dialog; otherwise a default state is provided.
  *
  * When [emoji] is non-null, the dialog gains the same notched-top + bubble
- * treatment used by [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet]'s
+ * treatment used by [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet]'s
  * `BottomSheetDragHandle.Emoji`. Use it for hero / unlock / commerce
  * dialogs where a glanceable cue should land before the user reads the
  * title. Rendering goes through the same [EmojiBubble] primitive so

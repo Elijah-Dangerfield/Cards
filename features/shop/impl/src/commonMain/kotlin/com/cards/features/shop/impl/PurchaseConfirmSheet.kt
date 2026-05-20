@@ -22,7 +22,7 @@ import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetValue
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
@@ -91,7 +91,7 @@ internal fun PurchaseConfirmSheet(
         surface = productBubbleSurface(product),
     )
 
-    BasicBottomSheet(
+    BottomSheet(
         state = sheetState,
         onDismissRequest = {
             // Animation has completed by the time we land here. Fire whichever
