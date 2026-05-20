@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,8 +25,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
@@ -113,8 +118,8 @@ fun ProfileScreen(
                         onClick = onTapRank,
                     ),
                     ListSectionItem(
-                        headlineText = "XP",
-                        supportingText = "Lifetime · bots earn at 0.5×",
+                        headlineText = "Stats",
+                        supportingText = "XP, hands played, achievements",
                         accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
                             text = settings.xp.toString(),
                         ),
@@ -416,7 +421,77 @@ private fun ProfileHeader(
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
         )
+        VerticalSpacerD500()
+        LevelSummary(
+            progress = remember(settings.xp) { levelProgressFor(settings.xp) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
+}
+
+/**
+ * Compact level summary for the profile header: "Level N · X XP", a slim
+ * progress bar, and "X XP to level N+1". Mirrors the visual treatment of
+ * [com.dangerfield.cards.features.progression.impl.XpDetailSheet]'s hero
+ * so the same level state reads identically across both surfaces.
+ */
+@Composable
+private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = "Level ${progress.level} · ${formatThousands(progress.totalXp)} XP",
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.text,
+        )
+        LevelProgressBar(
+            fraction = progress.fraction,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
+    }
+}
+
+@Composable
+private fun LevelProgressBar(fraction: Float, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .height(8.dp)
+            .clip(RoundedCornerShape(50))
+            .background(AppTheme.colors.surfacePrimary.color),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction)
+                .height(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(LevelProgressGradient),
+        )
+    }
+}
+
+/** Cyan-to-green gradient — same swatches the XP details hero uses, so
+ *  the same level state reads identically across both surfaces. */
+private val LevelProgressGradient: Brush = Brush.linearGradient(
+    listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
+)
+
+private fun formatThousands(value: Long): String {
+    val s = value.toString()
+    val sb = StringBuilder()
+    val len = s.length
+    for (i in 0 until len) {
+        if (i > 0 && (len - i) % 3 == 0) sb.append(',')
+        sb.append(s[i])
+    }
+    return sb.toString()
 }
 
 @Composable
