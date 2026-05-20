@@ -151,6 +151,14 @@ data class DialogEmoji(
     val surface: BubbleSurface? = null,
 )
 
+
+@Composable
+fun dialogEmoji(
+    emoji: String,
+    style: EmojiHandleStyle = EmojiHandleStyle.Circle,
+    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
+) = DialogEmoji(emoji, style, surface)
+
 /** Dialog top-corner radius. Matches [Radii.Card] visually but expressed
  *  as a Dp because [NotchedSheetShape] takes Dp directly. */
 private val DialogCardCornerRadius = 20.dp
