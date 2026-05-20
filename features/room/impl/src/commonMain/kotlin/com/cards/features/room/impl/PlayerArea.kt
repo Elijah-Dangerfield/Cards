@@ -263,6 +263,7 @@ private fun PlayerInfoTile(
                 name = seat.displayName,
                 size = 44.dp,
                 emoji = seat.emoji ?: AnonymousAvatarEmoji,
+                backgroundColorHex = seat.avatarBackgroundColorHex,
             )
             BlindMarker(
                 isDealer = seat.isDealer,

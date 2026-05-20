@@ -122,6 +122,13 @@ data class SeatView(
     val isBot: Boolean,
     val avatarKey: String?,
     val emoji: String?,
+    /**
+     * Avatar background color (`#rrggbb`) for this seat. Currently only
+     * populated for the human seat from the user's chosen palette swatch;
+     * null seats (bots, pre-identity-load human) fall back to
+     * [AvatarCircle]'s name-seeded hue so they still feel distinct.
+     */
+    val avatarBackgroundColorHex: String? = null,
     val holeCards: List<Card>,
     val showHoleCardBacks: Boolean,
     val participation: HandParticipation,
@@ -169,6 +176,7 @@ data class SeatView(
                 isHuman && humanIdentity != null -> humanIdentity.avatarEmoji
                 else -> personality?.emoji
             }
+            val avatarBackgroundColorHex = if (isHuman) humanIdentity?.avatarBackgroundColor else null
             return SeatView(
                 index = seat.index,
                 displayName = displayName,
@@ -179,6 +187,7 @@ data class SeatView(
                 isBot = seat.isBot,
                 avatarKey = personality?.avatarKey,
                 emoji = emoji,
+                avatarBackgroundColorHex = avatarBackgroundColorHex,
                 holeCards = visibleHole,
                 showHoleCardBacks = backs,
                 participation = seat.handParticipation,

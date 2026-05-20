@@ -110,7 +110,12 @@ private fun OpponentSeat(
             Box(modifier = Modifier.size(ringSize).then(dimMod), contentAlignment = Alignment.Center) {
                 if (seat.isActing) PulsingActiveRing(modifier = Modifier.size(ringSize))
                 if (isWinner) WinnerGlow(modifier = Modifier.size(ringSize))
-                AvatarCircle(name = seat.displayName, size = avatarSize, emoji = seat.emoji)
+                AvatarCircle(
+                    name = seat.displayName,
+                    size = avatarSize,
+                    emoji = seat.emoji,
+                    backgroundColorHex = seat.avatarBackgroundColorHex,
+                )
             }
 
             // Active-turn chevron — floats just above the avatar's outer ring.

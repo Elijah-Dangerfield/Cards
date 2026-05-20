@@ -188,12 +188,12 @@ class PlayPokerViewModelTest : CoroutineTest() {
     // ---------- Identity → human-seat projection ----------
 
     @Test
-    fun signedInIdentity_drivesHumanSeatNameAndEmoji() = runUnitTest {
+    fun signedInIdentity_drivesHumanSeatNameEmojiAndBackgroundColor() = runUnitTest {
         val identity = Identity(
             userId = "u-1",
             displayName = "QuietAce72",
             avatarEmoji = "🦊",
-            avatarBackgroundColor = null,
+            avatarBackgroundColor = "#58E47C",
             isAnonymous = true,
         )
         val identityRepo = FakeIdentityRepository(
@@ -217,9 +217,11 @@ class PlayPokerViewModelTest : CoroutineTest() {
         val humanSeat = table.seats.first { it.isHuman }
         assertEquals("QuietAce72", humanSeat.displayName)
         assertEquals("🦊", humanSeat.emoji)
-        // Bot seat unaffected.
+        assertEquals("#58E47C", humanSeat.avatarBackgroundColorHex)
+        // Bot seat unaffected — engine name, no identity-driven background.
         val botSeat = table.seats.first { it.isBot }
         assertEquals("Steve", botSeat.displayName)
+        assertEquals(null, botSeat.avatarBackgroundColorHex)
     }
 
     @Test
