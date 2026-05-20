@@ -9,3 +9,22 @@
 **Problem:** Owned-state UI (purchase sheet title + grid footer) leaked a "Syncing" affordance while the local pending-inventory row awaited server confirmation, contradicting the optimistic-purchase intent in docs/todo.md.
 **Approach:** Removed the `pendingSync` field from both `PurchaseSheetMode.Owned` and `ChipOfferCardState.Owned` (both become `data object`). Dropped the pending-row inventory lookup in `ShopViewModel.sheetModeFor` / `classify`. Simplified `PurchaseConfirmSheet`'s owned title to "You own this" and `OwnedFooter` to always render "OWNED". Success path is unchanged — the snackbar already covers it.
 **Reviewer notes:** No tests asserted on `pendingSync`, so no test churn beyond constructor calls. If the backend rejects an optimistic purchase, the current path surfaces the failure via `ShopEvent` / error snackbar — that remains untouched. Re-introducing a backend-rejected UI state would be additive on top.
+
+## feat(ui): expose BaseDialog with @LowLevelDialogApi opt-in
+
+**Problem:** `HostedDialog` was the raw dialog primitive but gated `internal`, so callers who needed an escape hatch had to hand-roll their own `Box { background, clip }` instead. Step 1 of the dialog/sheet primitive reshape in docs/todo.md.
+**Approach:** New `@LowLevelDialogApi` annotation (`RequiresOptIn(level = WARNING)` per the docs/todo.md spec — error-level friction pushes callers back to hand-rolling). Renamed `HostedDialog` → `BaseDialog`, dropped the `internal` modifier, gated it with the opt-in. The opinionated `Dialog(...)` overloads now call `BaseDialog` via a function-level `@OptIn(LowLevelDialogApi::class)` so consumer callsites are unchanged.
+**Reviewer notes:** None — this is purely an API surface expansion; no behavior change. The annotation lives in `libraries/ui/.../components/dialog/LowLevelDialogApi.kt` so future opt-in needs (e.g. bubble factory escape hatches) can reuse it.
+
+## refactor(ui): rename sheets — BottomSheet is the DS default, BaseBottomSheet is the escape hatch
+
+**Problem:** Bottom-sheet naming inverted the dialog convention — `BasicBottomSheet` was the opinionated wrapper, `BottomSheet` was the raw primitive. After step 1 landed `BaseDialog` as the escape hatch, the families weren't symmetric anymore. Step 2 of docs/todo.md.
+**Approach:** `git mv BottomSheet.kt BaseBottomSheet.kt` (raw, now `@LowLevelDialogApi`-gated) + `git mv BasicBottomSheet.kt BottomSheet.kt` (DS default, opts in internally to call `BaseBottomSheet`). Three external callsites migrated: `PlayPokerScreen` raise sheet + `PurchaseConfirmSheet` both move from `BasicBottomSheet` to the new `BottomSheet` (no behavior change); `HandRankingsCheatSheet` was using the raw `BottomSheet` deliberately (owns its own padding / scroll), so it moves to `BaseBottomSheet` with `@OptIn(LowLevelDialogApi::class)`.
+**Reviewer notes:** Renames preserve git history via `git mv` — `git log --follow` still works. Docstring references in `BottomSheetDragHandle`, `EmojiBubble`, and `Dialog` updated for the new names.
+
+## docs: name the dialog/sheet layers in AGENTS.md
+
+**Problem:** AGENTS.md had stale `BasicBottomSheet` references and didn't document the new two-layer model. Step 4 of the docs/todo.md dialog/sheet reshape — also clears the path for future callers to make the right `Dialog` vs `BaseDialog` choice without re-deriving the rule.
+**Approach:** Added a "Dialog & bottom-sheet layers" subsection under "Design system (DS-first rule)" that names the layers: `Dialog`/`BottomSheet` are the 99% path, `BaseDialog`/`BaseBottomSheet` are the `@LowLevelDialogApi`-gated escape hatch, warning level not error so the hatch stays reachable. Updated two `BasicBottomSheet` mentions earlier in the file to `BottomSheet`. Also folded the now-completed steps 1/2/4 out of the docs/todo.md item — step 3 (force-theme-aware emoji bubbles, with the explicit "bring to human before flipping the surface default" note) remains the open work.
+**Reviewer notes:** Skipped step 3 deliberately — docs/todo.md flagged it as needing a human design call before a worker touches the surface-token default.
+

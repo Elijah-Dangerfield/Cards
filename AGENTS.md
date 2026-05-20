@@ -262,18 +262,26 @@ Resolution cascade: debug override → server override → QA override → defau
 
 **Every screen must lean on the design system. Don't hand-tune one-off styling.**
 
-The DS lives in `:libraries:ui` — colors, surface tokens, typography, spacing, and primitive components (`ChipBadge`, `XpBadge`, `LastActionPill`, `ListSection`, `BasicBottomSheet`, etc.). Surface colors come from `AppTheme.colors.{surfacePrimary, surfaceSecondary, surfaceTertiary, surfaceDisabled, accentPrimary, danger, ...}`. Typography from `AppTheme.typography.{Heading, Body, Display}`.
+The DS lives in `:libraries:ui` — colors, surface tokens, typography, spacing, and primitive components (`ChipBadge`, `XpBadge`, `LastActionPill`, `ListSection`, `BottomSheet`, etc.). Surface colors come from `AppTheme.colors.{surfacePrimary, surfaceSecondary, surfaceTertiary, surfaceDisabled, accentPrimary, danger, ...}`. Typography from `AppTheme.typography.{Heading, Body, Display}`.
 
 **Concrete rules:**
 
 1. **No raw `Color.White.copy(alpha = X)` for surface backgrounds.** Use a `surface*` token. The alpha-on-white pattern produces a one-off shade per call site; the screens drift apart and the DS becomes nominal rather than load-bearing. Surfaces, pills, cards, callout boxes — all `AppTheme.colors.surface*`. The hand-tuned alphas we used in early V1 (chip pills, action pills, info cards) caused real bugs: the chip-pill cutoff and the action-pill-overlap were symptoms of the same "hand-tuned tile" mindset.
-2. **Reuse the existing primitives before writing a new one.** `ChipBadge` / `XpBadge` / `RankBadge` for chip-style affordances. `ListSection` / `ListSectionItem` for settings rows. `BasicBottomSheet` for slide-up sheets. `Dialog` for modals (with `maxHeightFraction` for tall scrollable content). `Screen` for the outer scaffold. If you're about to write a `Box { background, clip, padding, Text }` for the third time, lift it to `:libraries/ui` first.
+2. **Reuse the existing primitives before writing a new one.** `ChipBadge` / `XpBadge` / `RankBadge` for chip-style affordances. `ListSection` / `ListSectionItem` for settings rows. `BottomSheet` for slide-up sheets. `Dialog` for modals (with `maxHeightFraction` for tall scrollable content). `Screen` for the outer scaffold. If you're about to write a `Box { background, clip, padding, Text }` for the third time, lift it to `:libraries/ui` first.
 3. **Borders, dividers, and emphasis lines** use `AppTheme.colors.border` / `borderSecondary` — not hand-tuned white alpha.
 4. **Pokemon-game-specific visual artifacts** (chip-gold, card-back-blue, suits) live in `PokerPalette` in `:libraries:ui/system/color/`. Anything semantic (background, surface, accent, text) uses the theme tokens.
 5. **Spacing comes from `Dimension`** tokens (`Dimension.D200`, `D400`, `D800`, etc.) when you have several values at once; one-off `dp` literals are fine for small offsets. Corner radii come from `Radii` tokens — numeric scale `R300/R400/R500/R600`, semantic aliases `Banner/Callout/Card/Button`. Pass `Radii.X.shape` to `Modifier.clip` / `border` / `Shape` parameters (the `.shape` accessor is the de-facto convention; there's also a `Modifier.clip(radius)` overload).
 6. **The DS isn't frozen — extend it when the existing tokens don't fit.** If you reach for `RoundedCornerShape(12.dp)` or `Color(0xFF...)` or `Box { background, clip, padding }` because nothing in `:libraries:ui` matches, the right move is to *add the missing token/primitive* in `:libraries:ui` and use it from the callsite — not hand-tune a one-off. Same for `Dimension`, `Radii`, `AppTheme.colors`, `AppTheme.typography`. New tokens are cheap; drift is not.
 
 **The DS-first instinct is what keeps screens from feeling like a-grab-bag-of-Compose.** When in doubt, ask "could I drop this into another screen and have it look at home?" If the answer is "only if I retune the alpha values" — extract it to the DS first.
+
+### Dialog & bottom-sheet layers
+
+Two layers, one decision tree. **For 99% of dialogs use `Dialog(...)`**; for 99% of bottom sheets use `BottomSheet(...)`. Both are the DS-opinionated wrappers — surface, animation, padding, drag-handle / emoji-bubble affordance — and most callers only choose between them on slide-up vs. center-modal.
+
+The raw escape hatches are `BaseDialog` and `BaseBottomSheet`, gated by `@LowLevelDialogApi` (a `RequiresOptIn` warning). Reach for them only when deliberately escaping a DS default — custom animation, full-bleed surface, one-off shape that doesn't fit the standard padding model. The opt-in annotation is the discoverable signal that this is the escape hatch, not the standard path; the warning level is intentional (not error) so the hatch stays reachable rather than pushing people back to hand-rolled `Box { background, clip, padding }`.
+
+Top-edge emoji bubbles attach to both layers (dialogs via `emoji = dialogEmoji("🎉")`, sheets via `dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉")`). Construct the dialog variant via the `dialogEmoji(...)` factory so the theme defaults always apply — the raw `DialogEmoji` ctor exists but theme-aware construction goes through the factory.
 
 ## Coding Guidelines
 
