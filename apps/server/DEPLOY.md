@@ -189,6 +189,47 @@ on socket frames, not in this summary). Member-level detail is summary-
 only — full member lists scale quadratically with concurrent rooms and
 aren't needed for triage; jump to the lobby socket if you need names.
 
+## Granting chips (production support)
+
+When something goes wrong in prod and a user needs to be made whole —
+chargeback refund, payout error, lost-chips ticket — the supported path
+is `POST /v1/admin/grant-chips` behind the same `ADMIN_API_TOKEN`.
+
+Don't curl it directly. Use the GitHub Actions wrapper:
+
+1. Repo → **Actions** → **Admin · Grant chips (dev)** → **Run workflow**.
+2. Fill the form: `userId` (Supabase auth UUID), `delta` (signed; negative
+   debits), `reason` (free-form note for the audit log), optionally
+   `idempotencyKey` (omit and the server fills one).
+3. Submit. The run's **Summary** tab shows the post-apply balance and
+   the server's outcome (`Applied` / `AlreadyApplied` / `InsufficientChips`).
+
+Why the wrapper instead of curl: `ADMIN_API_TOKEN` never leaves GitHub,
+every grant is a workflow run tagged with the operator's GitHub identity,
+and the input form validates the obvious typos before they hit the
+server. Implementation: `.github/workflows/admin-grant-chips.yml`.
+
+Ledger trail: each grant writes a `wallet_events` row with reason
+`admin_grant:<your note>`. Filter the table with
+`reason LIKE 'admin_grant:%'` to see every admin grant ever applied.
+
+### Rotating `ADMIN_API_TOKEN`
+
+If the token leaks, rotate **both sides at once** — anything mismatched
+breaks the sweeps. From the repo root:
+
+```bash
+NEW_TOKEN="$(openssl rand -hex 32)"
+fly secrets set ADMIN_API_TOKEN="$NEW_TOKEN" -a cards-server-dev
+gh secret set CARDS_ADMIN_API_TOKEN_DEV --body "$NEW_TOKEN"
+unset NEW_TOKEN
+```
+
+The `fly secrets set` triggers a redeploy; the GitHub secret update
+takes effect on the next workflow run. Verify by manually triggering
+`Sweep disconnected room members` from the Actions tab — a 401 means
+the values drifted.
+
 ## Multiplayer (Phase 4.1 — lobby + presence)
 
 The room HTTP + WebSocket surface ships with the standard server image
