@@ -158,6 +158,7 @@ fun App(appComponent: AppComponent) {
                             startDestination = route,
                             router = router,
                             topBar = { AppGuardBanner(state = guardState) },
+                            userMessageRepository = appComponent.userMessageRepository,
                         )
                     }
                 }
@@ -185,12 +186,15 @@ private fun AppNavigation(
     featureEntryPoints: Set<FeatureEntryPoint>,
     startDestination: Route,
     router: DelegatingRouter,
+    userMessageRepository: com.dangerfield.cards.libraries.cards.UserMessageRepository,
     topBar: @Composable () -> Unit = {},
 ) {
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navController.currentDestination
     val shouldHideBottomBar = currentBackStackEntry?.tabString() == null
+    val unreadNotifications by userMessageRepository.observeUnreadInboxCount()
+        .collectAsState(initial = 0)
 
     Screen(
         topBar = topBar,
@@ -207,7 +211,10 @@ private fun AppNavigation(
                     items = listOf(
                         BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
                         BottomBarItem.Shop(isSelected = currentDestination?.hasRoute<ShopRoute>() == true),
-                        BottomBarItem.Profile(isSelected = currentDestination?.hasRoute<ProfileRoute>() == true),
+                        BottomBarItem.Profile(
+                            isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
+                            badgeAmount = unreadNotifications,
+                        ),
                     ),
                     onItemClick = { item ->
                         val (isAlreadySelected, route) = when (item) {

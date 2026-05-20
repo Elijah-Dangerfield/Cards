@@ -62,6 +62,7 @@ data class ProfileSettings(
     val botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
     val turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
     val appVersion: String,
+    val unreadNotificationCount: Int = 0,
     val showQaMenu: Boolean = false,
 )
 
@@ -71,6 +72,7 @@ fun ProfileScreen(
     onClaimAccount: () -> Unit,
     onEditProfile: () -> Unit,
     onOpenMyItems: () -> Unit,
+    onOpenNotifications: () -> Unit,
     onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
     onTapRank: () -> Unit,
@@ -105,6 +107,15 @@ fun ProfileScreen(
             ListSection(
                 title = "Account",
                 items = listOf(
+                    ListSectionItem(
+                        headlineText = "Notifications",
+                        supportingText = if (settings.unreadNotificationCount > 0) {
+                            "${settings.unreadNotificationCount} new"
+                        } else {
+                            "Heads-ups and announcements"
+                        },
+                        onClick = onOpenNotifications,
+                    ),
                     ListSectionItem(
                         headlineText = "My items",
                         supportingText = "Owned card backs, felts, emotes, titles",
@@ -569,6 +580,7 @@ private fun ProfileScreenPreview_Anonymous() {
             onClaimAccount = {},
             onEditProfile = {},
             onOpenMyItems = {},
+            onOpenNotifications = {},
             onBotSpeedChange = {},
             onTurnFeedbackChange = {},
             onTapRank = {},
@@ -603,6 +615,7 @@ private fun ProfileScreenPreview_Claimed() {
             onClaimAccount = {},
             onEditProfile = {},
             onOpenMyItems = {},
+            onOpenNotifications = {},
             onBotSpeedChange = {},
             onTurnFeedbackChange = {},
             onTapRank = {},
@@ -637,6 +650,7 @@ private fun ProfileScreenPreview_DebugBuild() {
             onClaimAccount = {},
             onEditProfile = {},
             onOpenMyItems = {},
+            onOpenNotifications = {},
             onBotSpeedChange = {},
             onTurnFeedbackChange = {},
             onTapRank = {},
