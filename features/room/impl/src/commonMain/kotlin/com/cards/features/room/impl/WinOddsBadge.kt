@@ -65,3 +65,27 @@ fun WinOddsBadge(
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun WinOddsBadgePreview_Strong() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        WinOddsBadge(winPercent = 73)
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun WinOddsBadgePreview_Coin() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        WinOddsBadge(winPercent = 52)
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun WinOddsBadgePreview_Weak() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        WinOddsBadge(winPercent = 12)
+    }
+}

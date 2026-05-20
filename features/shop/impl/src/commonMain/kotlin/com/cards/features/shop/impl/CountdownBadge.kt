@@ -188,3 +188,39 @@ internal fun formatCountdown(remainingMs: Long): String {
         else -> "${seconds}s"
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun CountdownBadgePreview_Comfortable() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        CountdownBadge(
+            timeAnchor = CatalogTimeAnchor.capture(serverNowEpochMs = 0L),
+            availableUntilEpochMs = 3L * 86_400_000L,
+            onExpired = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun CountdownBadgePreview_Urgent() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        CountdownBadge(
+            timeAnchor = CatalogTimeAnchor.capture(serverNowEpochMs = 0L),
+            availableUntilEpochMs = 45L * 60_000L,
+            onExpired = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun CountdownBadgePreview_Critical() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        CountdownBadge(
+            timeAnchor = CatalogTimeAnchor.capture(serverNowEpochMs = 0L),
+            availableUntilEpochMs = 30L * 1_000L,
+            onExpired = {},
+        )
+    }
+}

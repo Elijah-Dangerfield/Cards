@@ -379,3 +379,86 @@ private fun BannerText(banner: VerifyEmailState.Banner) {
         modifier = Modifier.fillMaxWidth(),
     )
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun SignInScreenPreview_EmailOnly() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        SignInScreen(
+            state = SignInState(email = "elijah@example.com", password = "••••••••"),
+            onAction = {},
+            onBack = {},
+            onCreateAccount = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun SignInScreenPreview_AllProvidersEnabled() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        SignInScreen(
+            state = SignInState(googleEnabled = true, appleEnabled = true),
+            onAction = {},
+            onBack = {},
+            onCreateAccount = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun SignInScreenPreview_Error() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        SignInScreen(
+            state = SignInState(
+                email = "elijah@example.com",
+                password = "wrongpass",
+                error = "That email or password didn't match.",
+            ),
+            onAction = {},
+            onBack = {},
+            onCreateAccount = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun SignUpScreenPreview() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        SignUpScreen(
+            state = SignUpState(email = "elijah@example.com", password = "hunter22ish"),
+            onAction = {},
+            onBack = {},
+            onSignIn = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun VerifyEmailScreenPreview() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        VerifyEmailScreen(
+            state = VerifyEmailState(email = "elijah@example.com"),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun VerifyEmailScreenPreview_StillPending() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        VerifyEmailScreen(
+            state = VerifyEmailState(
+                email = "elijah@example.com",
+                banner = VerifyEmailState.Banner.StillPending,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}

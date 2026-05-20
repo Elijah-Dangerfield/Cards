@@ -38,6 +38,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Screen / chrome consistency
 - **Most screens should use the `Screen` component + the prebuilt header.** Home, Shop, and Profile have bespoke chrome on purpose; everything else (settings sub-pages, edit profile, achievements detail, rank detail, etc.) should run through the shared `Screen` + header so back button, title, and insets are uniform. Audit + sweep.
+- **Previews on every user-facing composable.** Rough rule: every public/internal screen-level composable should have at least one `@Preview`. Private helpers don't need their own preview unless the parent doesn't already exercise the visual. First sweep landed previews on the obvious gaps — `OnboardingScreen`, `SignInScreen`, `SignUpScreen`, `VerifyEmailScreen`, `BotTableSetupDialog`, `DetailTopBar`, `WinOddsBadge`, `CountdownBadge`, `ProductIcon` / `BadgePill` / `OverhangBadge` (shop helpers). Future contributions should add a preview alongside any new screen-level composable; CI doesn't enforce yet (no static-analysis lint plugged in), so this is a convention.
 
 ### Privacy policy / terms of service
 - **Write the actual content.** The profile screen already deep-links to a web page; the page itself is empty/placeholder. Probably one of the last items before TestFlight. Hosting can stay on the existing web link target.
@@ -49,14 +50,15 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Onboarding / app-config
 - **Bouncing to onboarding when app-config changes.** When AppConfig refreshes, the app appears to recompose from the root and lands a previously-onboarded user back on onboarding. Fix root cause (likely a `key()` or remember not surviving the config-change recomposition), then add a hard guard: `hasUserOnboarded` flag in `AppData` (already exists) should short-circuit any path that would send a returning user to onboarding. Verify the guard runs *before* the nav graph evaluates the start destination.
 
-### Maintenance banner placement
-- **Banner overlaps content instead of pushing it down.** `AppGuardBanner` already exists [features/upgrade/impl/.../AppGuardLayer.kt:91](features/upgrade/impl/src/commonMain/kotlin/com/dangerfield/cards/features/upgrade/impl/AppGuardLayer.kt) and is *designed* to sit in a Scaffold `topBar` slot ("Place this in a Scaffold's topBar slot so the Scaffold owns status-bar inset propagation"). If it's currently overlaying, the wiring at the call site is wrong — find it and move the banner from `Box`-overlay into the `topBar` slot, or wrap a Column around the nav graph and put the banner above.
+### App guard chrome
+- ~~**Maintenance banner placement — pushes content down.**~~ ✅ Verified the wiring: `AppGuardLayer` only renders blocking states (`UpgradeRequired`, `MaintenanceBlocking`) as a `Box` overlay; the non-blocking `MaintenanceBanner` state passes through to `AppGuardBanner` which `App.kt:160` slots into `AppNavigation`'s Scaffold `topBar`. That's a real `Scaffold.topBar`, so content pushes down. Nothing to fix here.
+- **Blocking states intentionally overlay (not in topBar).** `UpgradeRequired` / `MaintenanceBlocking` use a full-screen `Box` overlay inside `AppGuardLayer` so they cover the entire app surface — including any topBar / bottomBar. That's the right model for "stop everything" states; don't refactor to a Column.
 
 ### Sound
 - **Sound feedback doesn't work at all.** Already captured in [backlog.md](./backlog.md#audio-infrastructure-sound-cues-bgm). Setting persists, only Vibrate is wired (via Compose haptics); Sound is a no-op. Decision: either (a) build the `:libraries:audio` KMP module before V1 ships so the toggle is honest, or (b) hide the Sound option for V1 and ship Vibrate-only.
 
 ### Play screen — chrome
-- **Hand-end dialogs could use the icon/emoji top affordance.** The bust + showdown dialogs are plain headers; the DS has an icon-or-emoji top slot used elsewhere — adopt it for visual congruence.
+- ~~**Hand-end dialogs could use the icon/emoji top affordance.**~~ ✅ `BustDialog`, `ShowdownDialog`, `LeaveBotsConfirmDialog`, `BlindRolesExplainer`, `HandLabelExplainer`, `LastActionExplainer`, `BotTableSetupDialog`, and `SignOutConfirmDialog` all adopt `DialogEmoji` now. ShowdownDialog picks per outcome (🏆 win / 🫳 fold-out / 🃏 showdown); LastActionExplainer picks per action. Chip-coin explainers (`StackExplainer`, `PotExplainer`, `BetPillExplainer`) kept their gold `ChipCoin` on purpose — the chip-coin's "this is chips" meaning is load-bearing across the app.
 
 ### Play screen — opponents row at MP scale
 - **Horizontal scroll + auto-scroll for >4 seats.** Already captured in [backlog.md](./backlog.md#multiplayer-table--opponents-row-overflow). Pulling forward: at 10-seat MP tables the current pack-and-shrink approach makes avatars unreadable. `LazyRow` once `count > 4`, auto-scroll to the active actor when their turn flips, fade gradients on both edges, respect manual user scroll for a few seconds.

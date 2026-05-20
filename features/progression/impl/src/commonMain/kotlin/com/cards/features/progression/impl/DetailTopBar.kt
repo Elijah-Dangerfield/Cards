@@ -13,8 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Shared back-button + title top bar for the XP and Rank detail screens.
@@ -47,5 +49,13 @@ internal fun DetailTopBar(title: String, onBack: () -> Unit) {
             typography = AppTheme.typography.Heading.H700,
             color = AppTheme.colors.text,
         )
+    }
+}
+
+@Preview
+@Composable
+private fun DetailTopBarPreview() {
+    PreviewContent {
+        DetailTopBar(title = "XP", onBack = {})
     }
 }

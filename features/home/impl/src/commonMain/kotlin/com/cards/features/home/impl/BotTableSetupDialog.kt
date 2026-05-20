@@ -110,3 +110,15 @@ private fun ConfirmPill(label: String, onClick: () -> Unit) {
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun BotTableSetupDialogPreview() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        BotTableSetupDialog(
+            difficultyLabel = "Casual",
+            onStart = {},
+            onDismiss = {},
+        )
+    }
+}

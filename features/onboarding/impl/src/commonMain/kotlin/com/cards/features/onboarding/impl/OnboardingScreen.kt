@@ -282,3 +282,42 @@ internal data class OnboardingSlide(
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(),
+            onAction = {},
+            onSignIn = {},
+            onComplete = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_Initializing() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(isInitializing = true),
+            onAction = {},
+            onSignIn = {},
+            onComplete = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_Error() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(error = "Couldn't reach the server. Try again."),
+            onAction = {},
+            onSignIn = {},
+            onComplete = {},
+        )
+    }
+}

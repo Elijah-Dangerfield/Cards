@@ -83,12 +83,12 @@ fun AvatarCircle(
  */
 @Composable
 fun avatarEmojiTypographyFor(size: Dp): TypographyResource = when {
-    size <= 28.dp -> AppTheme.typography.Body.B700
-    size <= 40.dp -> AppTheme.typography.Display.D800
-    size <= 52.dp -> AppTheme.typography.Display.D1000
-    size <= 72.dp -> AppTheme.typography.Display.D1100
-    size <= 96.dp -> AppTheme.typography.Display.D1200
-    else -> AppTheme.typography.Display.D1500
+    size <= 28.dp -> AppTheme.typography.Body.B500
+    size <= 40.dp -> AppTheme.typography.Body.B700
+    size <= 52.dp -> AppTheme.typography.Heading.H800
+    size <= 72.dp -> AppTheme.typography.Heading.H900
+    size <= 96.dp -> AppTheme.typography.Display.D1100
+    else -> AppTheme.typography.Display.D1100
 }
 
 /**

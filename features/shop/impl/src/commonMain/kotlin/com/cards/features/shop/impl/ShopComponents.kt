@@ -166,3 +166,43 @@ internal fun formatChips(amount: Long): String {
     }
     return out.reverse().toString()
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ProductIconPreview_AllTones() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        androidx.compose.foundation.layout.Row(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            ProductIcon(emoji = "💰", tone = IconTone.Gold)
+            ProductIcon(emoji = "🎭", tone = IconTone.Accent)
+            ProductIcon(emoji = "🪙", tone = IconTone.Neutral)
+        }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun BadgePillPreview() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        androidx.compose.foundation.layout.Row(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+        ) {
+            BadgePill(text = "NEW", accent = AppTheme.colors.accentPrimary)
+            BadgePill(text = "+20% BONUS", accent = ColorResource.Amber600)
+        }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OverhangBadgePreview() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        androidx.compose.foundation.layout.Row(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+        ) {
+            OverhangBadge(text = "BEST VALUE", accent = AppTheme.colors.accentPrimary)
+            OverhangBadge(text = "LIMITED", accent = ColorResource.Amber600)
+        }
+    }
+}
