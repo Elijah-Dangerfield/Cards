@@ -25,6 +25,10 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.OAuthProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -110,7 +114,7 @@ class FakePokerSessionFactory(
         state: GameState,
         lastWinners: GameEvent.HandEnded?,
         lastActionBySeat: Map<Int, PlayerAction>,
-        humanIdentity: com.dangerfield.cards.libraries.identity.Identity?,
+        humanIdentity: Identity?,
     ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
@@ -275,23 +279,22 @@ fun bizzaroPersonality(label: String = "Tight Aggressive"): Personality = Person
 // ---------- IdentityRepository ----------
 
 /**
- * Minimal [com.dangerfield.cards.libraries.identity.IdentityRepository] fake
- * for VM tests. Only [state] is meaningfully implemented — every other
- * method throws because the play-poker VM only reads the state flow.
+ * Minimal [IdentityRepository] fake for VM tests. Only [state] is meaningfully
+ * implemented — every other method throws because the play-poker VM only
+ * reads the state flow.
  *
- * Defaults to [com.dangerfield.cards.libraries.identity.IdentityState.Unknown]
- * so existing tests (which don't care about identity-driven projection)
- * pin the engine-side "You" displayName. Tests that need to assert on the
- * identity-driven seat shape can flip the state via [emit].
+ * Defaults to [IdentityState.Unknown] so existing tests (which don't care
+ * about identity-driven projection) pin the engine-side "You" displayName.
+ * Tests that need to assert on the identity-driven seat shape can flip
+ * the state via [emit].
  */
 class FakeIdentityRepository(
-    initial: com.dangerfield.cards.libraries.identity.IdentityState =
-        com.dangerfield.cards.libraries.identity.IdentityState.Unknown,
-) : com.dangerfield.cards.libraries.identity.IdentityRepository {
+    initial: IdentityState = IdentityState.Unknown,
+) : IdentityRepository {
     private val _state = MutableStateFlow(initial)
-    override val state: StateFlow<com.dangerfield.cards.libraries.identity.IdentityState> = _state
+    override val state: StateFlow<IdentityState> = _state
 
-    fun emit(state: com.dangerfield.cards.libraries.identity.IdentityState) {
+    fun emit(state: IdentityState) {
         _state.value = state
     }
 
@@ -311,8 +314,6 @@ class FakeIdentityRepository(
     ) = error("updateProfile not used")
     override suspend fun fetchAvatarPack() = error("fetchAvatarPack not used")
     override suspend fun deleteAccount() = error("deleteAccount not used")
-    override suspend fun linkOAuthIdentity(provider: com.dangerfield.cards.libraries.identity.OAuthProvider) =
-        error("linkOAuthIdentity not used")
-    override suspend fun signInWithOAuth(provider: com.dangerfield.cards.libraries.identity.OAuthProvider) =
-        error("signInWithOAuth not used")
+    override suspend fun linkOAuthIdentity(provider: OAuthProvider) = error("linkOAuthIdentity not used")
+    override suspend fun signInWithOAuth(provider: OAuthProvider) = error("signInWithOAuth not used")
 }

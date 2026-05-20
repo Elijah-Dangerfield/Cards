@@ -525,7 +525,7 @@ interface PokerSessionFactory {
         state: GameState,
         lastWinners: GameEvent.HandEnded? = null,
         lastActionBySeat: Map<Int, PlayerAction> = emptyMap(),
-        humanIdentity: com.dangerfield.cards.libraries.identity.Identity? = null,
+        humanIdentity: Identity? = null,
     ): TableUiState
 }
 

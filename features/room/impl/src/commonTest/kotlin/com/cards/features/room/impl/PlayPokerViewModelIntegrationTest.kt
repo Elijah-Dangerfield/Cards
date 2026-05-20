@@ -8,7 +8,9 @@ import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.identity.Identity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -284,8 +286,8 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         override fun tableFor(
             state: GameState,
             lastWinners: GameEvent.HandEnded?,
-            lastActionBySeat: Map<Int, com.dangerfield.cards.libraries.gameplay.PlayerAction>,
-            humanIdentity: com.dangerfield.cards.libraries.identity.Identity?,
+            lastActionBySeat: Map<Int, PlayerAction>,
+            humanIdentity: Identity?,
         ): TableUiState = TableUiState.fromGameState(
             gameState = state,
             humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,

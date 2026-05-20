@@ -16,6 +16,8 @@ import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.IdentityState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -187,7 +189,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
     @Test
     fun signedInIdentity_drivesHumanSeatNameAndEmoji() = runUnitTest {
-        val identity = com.dangerfield.cards.libraries.identity.Identity(
+        val identity = Identity(
             userId = "u-1",
             displayName = "QuietAce72",
             avatarEmoji = "🦊",
@@ -195,7 +197,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
             isAnonymous = true,
         )
         val identityRepo = FakeIdentityRepository(
-            initial = com.dangerfield.cards.libraries.identity.IdentityState.SignedIn(identity),
+            initial = IdentityState.SignedIn(identity),
         )
         val session = FakePokerSession()
         val factory = FakePokerSessionFactory(session = session)

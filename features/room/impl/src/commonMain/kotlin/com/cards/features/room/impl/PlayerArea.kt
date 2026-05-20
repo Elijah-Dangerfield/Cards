@@ -278,9 +278,9 @@ private fun PlayerInfoTile(
                     .offset(x = (-2).dp, y = (-8).dp),
             )
         }
-        // Display name — sourced from the user's identity via the SeatView
-        // projection. Single line + ellipsis so a long handle can't blow
-        // the locked tile height.
+        VerticalSpacerD300()
+        // Single line + ellipsis so a long handle can't blow the locked
+        // tile height.
         Text(
             text = seat.displayName,
             typography = AppTheme.typography.Body.B400,
@@ -290,9 +290,8 @@ private fun PlayerInfoTile(
             overflow = TextOverflow.Ellipsis,
         )
         // Equipped title — "Bluff Master", "The Shark", "High Roller".
-        // Renders between name + stack, kept to a single line via
-        // maxLines + ellipsis so a future longer title doesn't blow
-        // the locked tile height.
+        // Single line + ellipsis so a future longer title can't blow the
+        // locked tile height.
         if (title != null) {
             Text(
                 text = title,
