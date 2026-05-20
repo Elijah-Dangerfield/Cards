@@ -366,10 +366,11 @@ private fun ProfileHeader(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // No .clip(CircleShape) on the wrapper — the badge tucks slightly
+        // outside the avatar disc and would otherwise be cut off by a
+        // circular clip on the bounding box.
         Box(
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(onClick = onEditProfile),
+            modifier = Modifier.clickable(onClick = onEditProfile),
             contentAlignment = Alignment.Center,
         ) {
             AvatarCircle(
@@ -388,7 +389,6 @@ private fun ProfileHeader(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 2.dp, y = 2.dp)
                     .size(28.dp)
                     .clip(CircleShape)
                     .background(AppTheme.colors.surfaceSecondary.color)
