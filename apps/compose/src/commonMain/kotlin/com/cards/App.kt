@@ -164,6 +164,11 @@ fun App(appComponent: AppComponent) {
 
                 SplashGate()
 
+                UserMessageOverlay(
+                    repository = appComponent.userMessageRepository,
+                    router = router,
+                )
+
                 DialogHost(
                     modifier = Modifier.matchParentSize(),
                     hostState = dialogHostState

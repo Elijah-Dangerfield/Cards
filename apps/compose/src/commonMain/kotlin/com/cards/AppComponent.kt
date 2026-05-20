@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.cards.impl.AppEventDispatcher
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
@@ -26,7 +27,8 @@ interface AppComponent {
     val appConfigFlow: AppConfigFlow
     val ensureAppConfigLoaded: EnsureAppConfigLoaded
     val configOverrideRepository: ConfigOverrideRepository
-    
+    val userMessageRepository: UserMessageRepository
+
     /**
      * Eagerly initialized to start observing app lifecycle events.
      * This ensures sessions are created on foreground entry.

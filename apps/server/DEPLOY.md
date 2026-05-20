@@ -201,8 +201,15 @@ Don't curl it directly. Use the GitHub Actions wrapper:
 2. Fill the form: `userId` (Supabase auth UUID), `delta` (signed; negative
    debits), `reason` (free-form note for the audit log), optionally
    `idempotencyKey` (omit and the server fills one).
-3. Submit. The run's **Summary** tab shows the post-apply balance and
-   the server's outcome (`Applied` / `AlreadyApplied` / `InsufficientChips`).
+3. **Optionally attach an in-app dialog** by filling `messageTitle` +
+   `messageBody` (both required if either is set). `messageEmoji`
+   populates the dialog's bubble; `messageDeepLink` makes the CTA
+   button open a URL instead of plain-dismissing. The dialog is
+   scheduled only if the grant actually moves chips — a replay or
+   insufficient-balance outcome doesn't double-attach.
+4. Submit. The run's **Summary** tab shows the post-apply balance and
+   the server's outcome (`Applied` / `AlreadyApplied` / `InsufficientChips`),
+   plus the scheduled message id when applicable.
 
 Why the wrapper instead of curl: `ADMIN_API_TOKEN` never leaves GitHub,
 every grant is a workflow run tagged with the operator's GitHub identity,
@@ -212,6 +219,31 @@ server. Implementation: `.github/workflows/admin-grant-chips.yml`.
 Ledger trail: each grant writes a `wallet_events` row with reason
 `admin_grant:<your note>`. Filter the table with
 `reason LIKE 'admin_grant:%'` to see every admin grant ever applied.
+
+## Sending an in-app dialog (no chips)
+
+For maintenance heads-ups, season launches, "we fixed the bug" support
+outreach, or anything else that should reach the user but isn't a chip
+event:
+
+1. Repo → **Actions** → **Admin · Send message (dev)** → **Run workflow**.
+2. Fill the form: `userId`, `title` (max 80 chars), `body` (max 500
+   chars), optionally `emoji` for the dialog bubble, optionally
+   `deepLink` for the CTA. Idempotency key is optional — pass one to
+   make a retry a safe no-op.
+3. Submit. The recipient sees the dialog on their next app foreground
+   / cold-boot. One dialog at a time — a burst of admin sends queues
+   client-side and the user dismisses them in order.
+
+For broadcasts (a Christmas drop to everyone, an upgrade-required
+notice to a specific cohort), call the workflow N times — V1
+deliberately does NOT have a fan-out endpoint, so a single typo can't
+spam the whole user base.
+
+Storage: `user_messages` table, one row per recipient. Acked rows
+fall out of the partial unread-index so the read path stays fast even
+as the audit history grows. Acks are idempotent; we don't distinguish
+"already acked" from "never existed" on the wire.
 
 ### Rotating `ADMIN_API_TOKEN`
 
