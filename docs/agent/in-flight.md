@@ -74,3 +74,21 @@ Why guard in the VM init rather than at the route declaration: the VM init runs 
 2. Considered placing the banner outside the Scaffold (in a `Column { AppGuardBanner; Screen { ... } }`) but that pushes status-bar handling into a `consumeWindowInsets` dance gated on the banner state. The pad-at-NavHost route keeps the chrome layering intact and is one block of math instead.
 3. No automated test — this is a layout fix verified by reasoning about `Scaffold` paddingValues + manual build. The `AppGuardLayerPreview_Banner` preview already exercises the banner state visually; the bug only manifested when the banner sat over a real NavHost subtree, not the preview's static text.
 
+## refactor(ui): flatten BasicDialog into Dialog overloads
+
+**Problem:** Step 1 of the dialog/sheet primitive reshape plan (see `docs/todo.md` → Design system — dialog & sheet primitives). `BasicDialog` was a thin wrapper that layered title/body/buttons or 3-slot opinions on top of the already-opinionated `Dialog`. Two layers of opinions confuse the API ("which one do I reach for?") and break the parallel with bottom sheets.
+
+**Approach:** Added two overloads to `Dialog.kt` that match `BasicDialog`'s API:
+- `Dialog(onDismissRequest, topContent, bottomContent, content, …)` — slotted layout, internally renders the same `ModalContent`-with-`Dimension.D800`-padding wrapper `BasicDialog` used, so spacing is byte-for-byte equivalent.
+- `Dialog(title, description, primaryButtonText, onDismissRequest, onPrimaryButtonClicked, secondaryButtonText?, …)` — title/body/buttons convenience, delegates to the slotted overload so spacing/padding/typography come from one source of truth.
+
+Migrated the two production callsites (`ShakeDialog`, `libraries/navigation/.../ErrorDialogContent`) from `BasicDialog(...)` to `Dialog(...)` — neither needed any other change because the slot signature matches. Deleted `BasicDialog.kt`. Updated the dialog/sheet primitive plan entry in `docs/todo.md` to mark step 1 done and renumber the remaining steps.
+
+**Reviewer notes:** Three calls worth flagging —
+1. Kept the title/description/buttons overload even though no production caller uses it today. The plan asks for it explicitly (the goal of step 1 is to preserve the BasicDialog API surface, not just delete it), and removing it would break anyone resurrecting BasicDialog patterns from the git history. If you'd rather YAGNI it, the overload is the second `fun Dialog(...)` in `Dialog.kt` — drop in one Edit.
+2. The slotted overload deliberately *does not* accept `emoji: DialogEmoji?` even though the existing single-slot `Dialog(...)` does. That matches the old `BasicDialog` API surface exactly — no slotted caller used emoji. If a future caller wants 3-slot + emoji, we can add the parameter then.
+3. No automated tests changed — `:libraries:ui:testDebugUnitTest` and `:libraries:navigation:impl:testDebugUnitTest` both still pass; the dialog primitives have no commonTest coverage to begin with. Verification was the Android assembleDebug build + the preview composables in `Dialog.kt` / `ShakeDialog.kt` / `ErrorDialogContent.kt` (all unchanged from before, still wired through the migrated `Dialog`).
+
+**Deferred:**
+- Steps 2–4 of the dialog/sheet plan stayed in `docs/todo.md` for the next worker (or the human, since step 3's surface-token pin is a visual design call I flagged on the way out).
+

@@ -27,7 +27,7 @@ fun ShakeDialog(
     modifier: Modifier = Modifier,
     state: DialogState = rememberDialogState(),
 ) {
-    BasicDialog(
+    Dialog(
         state = state,
         onDismissRequest = onDismiss,
         modifier = modifier,

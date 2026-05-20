@@ -11,7 +11,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
-import com.dangerfield.cards.libraries.ui.components.dialog.BasicDialog
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -35,7 +35,7 @@ internal fun ErrorDialog(
 ) {
     val showReportButton = onReportToDeveloper != null
 
-    BasicDialog(
+    Dialog(
         state = state,
         onDismissRequest = onDismissRequest,
         topContent = {
