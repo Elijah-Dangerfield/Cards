@@ -13,20 +13,14 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Production default — no store integration. Reports [ConnectionState.Unavailable]
- * once [connect] is called and an empty product map for any query, so the
- * catalog reconciliation drops every IAP pack and the shop screen renders
- * only chip-funded offers.
+ * No-op [BillingClient]: [ConnectionState.Unavailable] after [connect],
+ * empty product map for any query, [PurchaseResult.NotConnected] for
+ * every purchase. Causes the catalog reconciliation to drop every IAP
+ * pack and the shop to render only chip-funded offers.
  *
- * This is the right default for builds without provisioned store listings
- * (the state we're in pre-launch) and for previews / unit tests. Swap it
- * out per-platform once Apple App Store Connect + Google Play Console
- * accounts are set up:
- *
- * ```
- * @ContributesBinding(AppScope::class, replaces = [NoOpBillingClient::class])
- * class PlayBillingClient(...) : BillingClient { ... }
- * ```
+ * Not currently bound directly — [DevBillingClient] delegates here for
+ * release builds. Once a real platform binding lands, both this class
+ * and `DevBillingClient` become candidates for removal.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
