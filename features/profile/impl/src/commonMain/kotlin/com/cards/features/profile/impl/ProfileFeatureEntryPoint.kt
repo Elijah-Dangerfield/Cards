@@ -155,11 +155,15 @@ class ProfileFeatureEntryPoint(
         }
 
         screen<QaMenuRoute> {
+            val identityState by identityRepository.state
+                .collectAsStateWithLifecycle(initialValue = IdentityState.Unknown)
+            val userId = (identityState as? IdentityState.SignedIn)?.identity?.userId
             QaMenuScreen(
                 configStream = appConfigRepository.configStream(),
                 initialConfig = appConfigRepository.config(),
                 overrideRepository = configOverrideRepository,
                 onBack = { router.goBack() },
+                userId = userId,
             )
         }
 

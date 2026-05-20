@@ -1,0 +1,5 @@
+## feat(qa-menu): show current user id with long-press copy
+
+**Problem:** QA menu had no way to read the signed-in user's id for support / log correlation; existing config rows don't include identity context.
+**Approach:** Added an optional `userId: String?` parameter to `QaMenuScreen`, rendered as a small `surfacePrimary` block between the description and "Clear all overrides" (above the config list). Long-press copies via `LocalClipboardManager.setText(AnnotatedString(...))` and shows an inline "Copied" hint that auto-clears after 1.5s. `ProfileFeatureEntryPoint` collects `identityRepository.state` and extracts `userId` from `IdentityState.SignedIn`.
+**Reviewer notes:** Used `@Suppress("DEPRECATION")` on `LocalClipboardManager` — the new `LocalClipboard` exposes a suspend `setClipEntry(ClipEntry?)` API where `ClipEntry` construction is platform-specific in CMP 1.9.3 (no cross-platform `ClipEntry.withPlainText` factory shipped yet). Suppressing matches the existing pattern in `AudioRecorder.android.kt`. Migration to `LocalClipboard` becomes clean once CMP exposes a cross-platform `ClipEntry` builder.

@@ -68,9 +68,6 @@ Surfaced 2026-05-20 by a spec-vs-build audit. All three are spec promises in [pr
 ### Navigation animations
 - **Back animation should mirror forward.** [Route.kt:44](../libraries/navigation/src/commonMain/kotlin/com/cards/libraries/navigation/Route.kt#L44) defines an `opposite()` mapping (SlideUp → SlideDown, etc.) but the pop-exit transition isn't actually using it — both forward enter and back exit currently slide the *same* direction. Desired model: a screen pushed with `SlideUp` slides up *over* the current screen (current stays put); on back, the pushed screen slides back *down* to reveal the unmoved underneath. That's the standard "cover and uncover" pattern (matches platform sheet semantics). Audit the `NavHost` enter/exit/popEnter/popExit wiring and make popExit = `opposite(enter)` while keeping the previous screen's exit/popEnter as `EnterTransition.None` / `ExitTransition.None` so it doesn't budge.
 
-### QA menu
-- **Show the current user id.** Useful for support / log correlation. Add it near the top of the QA menu screen, above the config list ([QaMenuScreen.kt:52](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/QaMenuScreen.kt#L52)). Long-press to copy.
-
 ### Screen / chrome consistency
 - **Previews on every user-facing composable.** Rough rule: every public/internal screen-level composable should have at least one `@Preview`. Private helpers don't need their own preview unless the parent doesn't already exercise the visual. First sweep landed previews on the obvious gaps — `OnboardingScreen`, `SignInScreen`, `SignUpScreen`, `VerifyEmailScreen`, `BotTableSetupDialog`, `WinOddsBadge`, `CountdownBadge`, `ProductIcon` / `BadgePill` / `OverhangBadge` (shop helpers). Future contributions should add a preview alongside any new screen-level composable; CI doesn't enforce yet (no static-analysis lint plugged in), so this is a convention.
 
