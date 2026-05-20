@@ -33,7 +33,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -176,7 +175,7 @@ private fun NotificationCard(
                     .size(Dimension.D1200)
                     .background(
                         color = AppTheme.colors.surfaceTertiary.color,
-                        shape = RoundedCornerShape(percent = 50),
+                        shape = Radii.Round.shape,
                     ),
                 contentAlignment = Alignment.Center,
             ) {
