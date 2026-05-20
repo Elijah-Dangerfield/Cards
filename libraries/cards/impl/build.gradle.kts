@@ -34,6 +34,7 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.cards.storage)
             implementation(projects.libraries.networking)
+            implementation(projects.libraries.identity)
             implementation(projects.libraries.flowroutines.testing)
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.kotlinx.json)

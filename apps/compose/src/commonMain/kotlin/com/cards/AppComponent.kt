@@ -1,5 +1,6 @@
 package com.dangerfield.cards
 
+import com.dangerfield.cards.libraries.cards.InAppMessageManager
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.cards.impl.AppEventDispatcher
 import com.dangerfield.cards.libraries.config.AppConfigFlow
@@ -28,6 +29,7 @@ interface AppComponent {
     val ensureAppConfigLoaded: EnsureAppConfigLoaded
     val configOverrideRepository: ConfigOverrideRepository
     val userMessageRepository: UserMessageRepository
+    val inAppMessageManager: InAppMessageManager
 
     /**
      * Eagerly initialized to start observing app lifecycle events.
