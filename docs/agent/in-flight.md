@@ -63,3 +63,14 @@ Why guard in the VM init rather than at the route declaration: the VM init runs 
 **Deferred:**
 - Root-cause investigation of which composable above `OnboardingRoute` is recomposing past the existing `AppGuardGate` / `SplashGate` insulation — left as the surviving bullet under "Bouncing to onboarding when app-config changes" in `docs/todo.md`. Needs simulator repro before a worker should touch it.
 
+## fix(app): maintenance banner pushes content down instead of overlaying
+
+**Problem:** The maintenance banner was correctly slotted into the outer Scaffold's `topBar` slot, but the `App.kt` `Screen(...) { ... }` content lambda invoked `NavHost(...)` without applying the `PaddingValues` that the Scaffold passes in. Because the lambda silently discarded the parameter, the NavHost (and every inner screen) drew full-bleed under the banner — exactly the visual the todo described.
+
+**Approach:** Bind the parameter as `scaffoldPadding` and apply *only the chrome portion* of the top inset to the NavHost (`scaffoldPadding.calculateTopPadding() - WindowInsets.statusBars.calculateTopPadding()`, floored at 0). The inner screens already handle status-bar insets via their own `Screen → Scaffold(contentWindowInsets = safeDrawing)`; applying the full outer top inset would double-pad the status bar through that chain. Subtracting the status-bar portion means: banner hidden → 0dp extra, banner shown → exactly the banner's content-height shift, no double padding.
+
+**Reviewer notes:** Three calls worth flagging —
+1. Deliberately *did not* touch `scaffoldPadding.calculateBottomPadding()`. Inner screens already work around the missing bottom inset via `BottomBarSpacer()` (defined in `libraries/ui/.../BottomBar.kt`), and applying the bottom inset at the NavHost level would double-reserve space against that spacer. Cleaning up the bottom path is a different change — the todo only flagged the banner.
+2. Considered placing the banner outside the Scaffold (in a `Column { AppGuardBanner; Screen { ... } }`) but that pushes status-bar handling into a `consumeWindowInsets` dance gated on the banner state. The pad-at-NavHost route keeps the chrome layering intact and is one block of math instead.
+3. No automated test — this is a layout fix verified by reasoning about `Scaffold` paddingValues + manual build. The `AppGuardLayerPreview_Banner` preview already exercises the banner state visually; the bug only manifested when the banner sat over a real NavHost subtree, not the preview's static text.
+
