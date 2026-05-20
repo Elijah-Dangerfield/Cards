@@ -9,11 +9,16 @@ Check items off as you do them; delete when the whole section is empty.
 ## GitHub repo settings
 
 ### Branch protection on `main`
-The repo has no protection on `main` — PRs can merge without CI green, and direct pushes are allowed. CI is wired (`.github/workflows/ci.yml` runs `Build + test` on macOS and `Server tests` on ubuntu; `.github/workflows/server-deploy.yml` re-runs server tests before `fly deploy`), so flipping these on is just a settings change.
+Rules are configured in the UI but **not enforced** — GitHub's banner: *"Your rulesets won't be enforced on this private repository until you move to GitHub Team organization account."* Track this so it gets flipped on once the repo lives in a Team org.
 
-- [ ] **Settings → Branches → Add rule for `main`** — require status checks `Build + test` and `Server tests`, require branches to be up to date, disallow force-pushes and deletions.
-- [ ] **Allow `release-please--branches--main`** to bypass the up-to-date requirement (or accept release-please rebasing its PR) so the release flow doesn't get stuck.
-- [ ] **Confirm** the `Auto-merge` workflow still works — it uses `gh pr merge --auto`, which already waits for required checks, so no change needed there.
+Intended rules (already saved in the UI, just inert):
+- Require a pull request before merging (0 required approvals — solo repo)
+- Require status checks to pass: `Build + test`, `Server tests`, `Validate PR title` *(checks must run at least once on a PR before they appear in the dropdown)*
+- Do not enable "Require branches to be up to date" — strict mode is friction for the nightly PR and offers little on a solo repo
+- Block force pushes
+- Block deletions
+
+- [ ] **Move repo into a GitHub Team org** (or wait for that to happen for other reasons) so the rulesets above start enforcing.
 
 ---
 
