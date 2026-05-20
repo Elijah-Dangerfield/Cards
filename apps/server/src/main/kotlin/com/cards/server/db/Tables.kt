@@ -117,3 +117,21 @@ object WalletEventsTable : Table("wallet_events") {
     val appliedAt = timestamp("applied_at")
     override val primaryKey = PrimaryKey(userId, idempotencyKey)
 }
+
+/**
+ * Per-user in-app messages. Authored by admins, delivered as a
+ * dialog on the next foreground after creation, acked exactly once.
+ * See `V8__user_messages.sql`.
+ */
+object UserMessagesTable : Table("user_messages") {
+    val id = uuid("id")
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val emoji = text("emoji").nullable()
+    val title = text("title")
+    val body = text("body")
+    val deepLink = text("deep_link").nullable()
+    val createdAt = timestamp("created_at")
+    val ackedAt = timestamp("acked_at").nullable()
+    override val primaryKey = PrimaryKey(id)
+}

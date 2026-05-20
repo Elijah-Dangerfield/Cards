@@ -10,6 +10,7 @@ import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.MergeComponent
@@ -50,6 +51,7 @@ abstract class ServerComponent(
     abstract val equipmentRepository: EquipmentRepository
     abstract val inventoryRepository: InventoryRepository
     abstract val walletRepository: WalletRepository
+    abstract val userMessageRepository: UserMessageRepository
     abstract val roomService: RoomService
 
     /**

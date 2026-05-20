@@ -5,6 +5,8 @@ import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.plugins.BadRequestException
@@ -39,6 +41,7 @@ fun Route.adminRoutes(
     sweep: OrphanAnonymousSweep,
     rooms: RoomService,
     wallets: WalletRepository,
+    messages: UserMessageRepository,
 ) {
     route("/v1/admin") {
         post("/sweep-anonymous-users") {
@@ -186,6 +189,11 @@ fun Route.adminRoutes(
                     problemEnvelope("invalid_delta", "delta must be non-zero."),
                 )
             }
+            val attachedMessage = body.message
+            if (attachedMessage != null) {
+                val validation = validateMessagePayload(attachedMessage)
+                if (validation != null) return@post call.respond(validation.first, validation.second)
+            }
             val key = body.idempotencyKey?.takeIf { it.isNotBlank() }
                 ?: UUID.randomUUID().toString()
             val outcome = wallets.apply(
@@ -194,6 +202,28 @@ fun Route.adminRoutes(
                 delta = body.delta,
                 reason = "admin_grant:$trimmedReason",
             )
+            val messageDto: AdminMessageDto? = if (
+                attachedMessage != null &&
+                outcome is ApplyOutcome.Applied &&
+                !outcome.wasAlreadyApplied
+            ) {
+                // Only attach a message when the grant actually moved chips.
+                // Replays don't re-attach (the original call already did);
+                // InsufficientChips means the chips never landed so a
+                // "we credited you" dialog would be a lie.
+                val result = messages.create(
+                    id = UUID.randomUUID(),
+                    userId = parsedUserId,
+                    idempotencyKey = "grant-chips:$key",
+                    emoji = attachedMessage.emoji,
+                    title = attachedMessage.title.trim(),
+                    body = attachedMessage.body.trim(),
+                    deepLink = attachedMessage.deepLink?.takeUnless { it.isBlank() },
+                )
+                result.message.toAdminDto()
+            } else {
+                null
+            }
             val (status, response) = when (outcome) {
                 is ApplyOutcome.Applied -> HttpStatusCode.OK to GrantChipsResponse(
                     balance = outcome.balance,
@@ -203,17 +233,135 @@ fun Route.adminRoutes(
                         GrantChipsOutcomeDto.Applied
                     },
                     idempotencyKey = key,
+                    message = messageDto,
                 )
                 is ApplyOutcome.InsufficientChips -> HttpStatusCode.Conflict to GrantChipsResponse(
                     balance = outcome.balance,
                     outcome = GrantChipsOutcomeDto.InsufficientChips,
                     idempotencyKey = key,
+                    message = null,
                 )
             }
             call.respond(status, response)
         }
+
+        /**
+         * Schedules an in-app dialog for [SendMessageRequest.userId]. The
+         * dialog appears on the user's next foreground / cold-boot, with
+         * the emoji bubble, title, body, and CTA the operator filled in.
+         *
+         * Body validation mirrors the chip-attach path so the two
+         * endpoints agree on what a "valid message" looks like. Returns
+         * the created (or replayed) message id so the operator can
+         * cross-reference the run with the recipient's ack later.
+         *
+         * Use cases: maintenance heads-up, season launch, "we fixed the
+         * bug that ate your hand" support outreach. For broadcasts,
+         * call N times — V1 deliberately doesn't have a fan-out endpoint
+         * (avoids accidentally messaging the entire user base from a
+         * single typo).
+         */
+        post("/messages") {
+            if (!call.authenticatedAsAdmin(config)) {
+                return@post call.respond(
+                    HttpStatusCode.Unauthorized,
+                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
+                )
+            }
+            val body = try {
+                call.receive<SendMessageRequest>()
+            } catch (_: BadRequestException) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    problemEnvelope("invalid_body", "Malformed JSON body."),
+                )
+            }
+            val parsedUserId = try {
+                UserId(UUID.fromString(body.userId))
+            } catch (_: IllegalArgumentException) {
+                return@post call.respond(
+                    HttpStatusCode.BadRequest,
+                    problemEnvelope("invalid_user_id", "userId must be a UUID."),
+                )
+            }
+            val validation = validateMessagePayload(body.message)
+            if (validation != null) return@post call.respond(validation.first, validation.second)
+
+            val idempotencyKey = body.idempotencyKey?.takeIf { it.isNotBlank() }
+                ?: UUID.randomUUID().toString()
+            val result = messages.create(
+                id = UUID.randomUUID(),
+                userId = parsedUserId,
+                idempotencyKey = idempotencyKey,
+                emoji = body.message.emoji,
+                title = body.message.title.trim(),
+                body = body.message.body.trim(),
+                deepLink = body.message.deepLink?.takeUnless { it.isBlank() },
+            )
+            call.respond(
+                HttpStatusCode.OK,
+                SendMessageResponse(
+                    message = result.message.toAdminDto(),
+                    outcome = if (result.wasAlreadyCreated) {
+                        SendMessageOutcomeDto.AlreadyScheduled
+                    } else {
+                        SendMessageOutcomeDto.Scheduled
+                    },
+                    idempotencyKey = idempotencyKey,
+                ),
+            )
+        }
     }
 }
+
+/**
+ * Returns a (status, problem-envelope) pair describing the validation
+ * failure, or `null` if the payload is good. Same checks both the
+ * `POST /v1/admin/messages` body and the attached-message branch on
+ * `POST /v1/admin/grant-chips`.
+ */
+private fun validateMessagePayload(
+    payload: AdminMessagePayload,
+): Pair<HttpStatusCode, Map<String, Map<String, String>>>? {
+    if (payload.title.trim().isEmpty()) {
+        return HttpStatusCode.BadRequest to
+            problemEnvelope("invalid_title", "title must be a non-empty string.")
+    }
+    if (payload.title.length > MAX_MESSAGE_TITLE_LEN) {
+        return HttpStatusCode.BadRequest to
+            problemEnvelope("invalid_title", "title is too long (max $MAX_MESSAGE_TITLE_LEN chars).")
+    }
+    if (payload.body.trim().isEmpty()) {
+        return HttpStatusCode.BadRequest to
+            problemEnvelope("invalid_body_field", "body must be a non-empty string.")
+    }
+    if (payload.body.length > MAX_MESSAGE_BODY_LEN) {
+        return HttpStatusCode.BadRequest to
+            problemEnvelope("invalid_body_field", "body is too long (max $MAX_MESSAGE_BODY_LEN chars).")
+    }
+    payload.emoji?.let {
+        if (it.length > MAX_MESSAGE_EMOJI_LEN) {
+            return HttpStatusCode.BadRequest to
+                problemEnvelope("invalid_emoji", "emoji is too long (max $MAX_MESSAGE_EMOJI_LEN chars).")
+        }
+    }
+    return null
+}
+
+private const val MAX_MESSAGE_TITLE_LEN = 80
+private const val MAX_MESSAGE_BODY_LEN = 500
+private const val MAX_MESSAGE_EMOJI_LEN = 16
+
+@OptIn(ExperimentalTime::class)
+private fun UserMessage.toAdminDto(): AdminMessageDto = AdminMessageDto(
+    id = id.toString(),
+    userId = userId.value.toString(),
+    emoji = emoji,
+    title = title,
+    body = body,
+    deepLink = deepLink,
+    createdAtEpochMs = createdAt.toEpochMilliseconds(),
+)
 
 private fun io.ktor.server.application.ApplicationCall.authenticatedAsAdmin(config: AdminConfig): Boolean {
     val token = config.apiToken?.takeUnless { it.isBlank() } ?: return false
@@ -256,6 +404,8 @@ data class GrantChipsRequest(
     val delta: Long,
     val reason: String,
     val idempotencyKey: String? = null,
+    /** Optional in-app dialog to schedule alongside the grant. */
+    val message: AdminMessagePayload? = null,
 )
 
 @Serializable
@@ -263,6 +413,11 @@ data class GrantChipsResponse(
     val balance: Long,
     val outcome: GrantChipsOutcomeDto,
     val idempotencyKey: String,
+    /** The attached dialog, when the caller asked for one AND the grant
+     *  was applied (a replay returns the existing chip outcome with
+     *  message = null because the dialog was already scheduled the
+     *  first time around). */
+    val message: AdminMessageDto? = null,
 )
 
 @Serializable
@@ -271,6 +426,47 @@ enum class GrantChipsOutcomeDto {
     AlreadyApplied,
     InsufficientChips,
 }
+
+@Serializable
+data class SendMessageRequest(
+    val userId: String,
+    val message: AdminMessagePayload,
+    val idempotencyKey: String? = null,
+)
+
+@Serializable
+data class SendMessageResponse(
+    val message: AdminMessageDto,
+    val outcome: SendMessageOutcomeDto,
+    val idempotencyKey: String,
+)
+
+@Serializable
+enum class SendMessageOutcomeDto {
+    /** First time we've seen this (userId, idempotencyKey) — row inserted. */
+    Scheduled,
+    /** Replay — the existing row is returned unchanged. */
+    AlreadyScheduled,
+}
+
+@Serializable
+data class AdminMessagePayload(
+    val emoji: String? = null,
+    val title: String,
+    val body: String,
+    val deepLink: String? = null,
+)
+
+@Serializable
+data class AdminMessageDto(
+    val id: String,
+    val userId: String,
+    val emoji: String?,
+    val title: String,
+    val body: String,
+    val deepLink: String?,
+    val createdAtEpochMs: Long,
+)
 
 @Serializable
 private data class AdminRoomSummary(

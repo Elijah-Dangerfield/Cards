@@ -4,9 +4,12 @@ import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.CreateMessageOutcome
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.SweepResult
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
@@ -34,6 +37,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -449,6 +453,220 @@ class AdminRoutesTest {
         }
     }
 
+    // ---------- POST /v1/admin/grant-chips with attached message ----------
+
+    @Test
+    fun grantChips_withAttachedMessage_creates_a_dialog_for_the_recipient() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        val messages = FakeMessageRepository()
+        withApp(rooms, wallets = wallets, messages = messages) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{
+                        "userId":"$alice","delta":5000,"reason":"holiday gift",
+                        "message":{"emoji":"🎁","title":"Merry Christmas","body":"5000 chips on us.","deepLink":"cards://shop"}
+                    }""".trimIndent(),
+                )
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            val msg = body["message"]!!.jsonObject
+            assertEquals("🎁", msg["emoji"]!!.jsonPrimitive.content)
+            assertEquals("Merry Christmas", msg["title"]!!.jsonPrimitive.content)
+            assertEquals("cards://shop", msg["deepLink"]!!.jsonPrimitive.content)
+            assertEquals(1, messages.createCalls.size)
+            assertEquals(alice, messages.createCalls.single().userId)
+        }
+    }
+
+    @Test
+    fun grantChips_replay_does_not_re_attach_dialog() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        val messages = FakeMessageRepository()
+        val key = "ticket-9999"
+        withApp(rooms, wallets = wallets, messages = messages) { client ->
+            val firstBody =
+                """{
+                    "userId":"$alice","delta":1000,"reason":"refund","idempotencyKey":"$key",
+                    "message":{"title":"Refunded","body":"Sorry about that."}
+                }"""
+            val first = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token); contentType(ContentType.Application.Json); setBody(firstBody)
+            }
+            assertEquals(HttpStatusCode.OK, first.status)
+            val second = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token); contentType(ContentType.Application.Json); setBody(firstBody)
+            }
+            val secondBody = json.parseToJsonElement(second.bodyAsText()).jsonObject
+            assertEquals("AlreadyApplied", secondBody["outcome"]!!.jsonPrimitive.content)
+            // explicitNulls=false on the server serializer omits null fields entirely,
+            // so "no attached message" lands as the field being absent.
+            assertNull(secondBody["message"], "replay must not re-attach the dialog")
+            assertEquals(1, messages.createCalls.size, "only one dialog ever created")
+        }
+    }
+
+    @Test
+    fun grantChips_insufficientChips_does_not_attach_dialog() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        val messages = FakeMessageRepository()
+        withApp(rooms, wallets = wallets, messages = messages) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{
+                        "userId":"$alice","delta":-99999999,"reason":"clawback",
+                        "message":{"title":"You owe us","body":"Big debit incoming."}
+                    }""".trimIndent(),
+                )
+            }
+            assertEquals(HttpStatusCode.Conflict, resp.status)
+            assertEquals(0, messages.createCalls.size, "no dialog when the chips didn't move")
+        }
+    }
+
+    @Test
+    fun grantChips_withInvalidMessage_returns400_andDoesNotApplyChips() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val wallets = FakeWalletRepository()
+        val messages = FakeMessageRepository()
+        withApp(rooms, wallets = wallets, messages = messages) { client ->
+            val resp = client.post("/v1/admin/grant-chips") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"userId":"$alice","delta":500,"reason":"refund","message":{"title":"  ","body":"x"}}""",
+                )
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, wallets.applyCalls.size, "must validate message before touching wallet")
+            assertEquals(0, messages.createCalls.size)
+        }
+    }
+
+    // ---------- POST /v1/admin/messages ----------
+
+    @Test
+    fun sendMessage_returnsUnauthorized_withoutToken() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        withApp(rooms) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","message":{"title":"T","body":"B"}}""")
+            }
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    @Test
+    fun sendMessage_createsRow_andReturnsScheduled() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{
+                        "userId":"$alice",
+                        "message":{"emoji":"⚠️","title":"Heads up","body":"Maintenance Sunday 9pm.","deepLink":null}
+                    }""".trimIndent(),
+                )
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            assertEquals("Scheduled", body["outcome"]!!.jsonPrimitive.content)
+            assertEquals(1, messages.createCalls.size)
+            assertEquals("⚠️", messages.createCalls.single().emoji)
+            assertEquals("Heads up", messages.createCalls.single().title)
+        }
+    }
+
+    @Test
+    fun sendMessage_replayedKey_returnsAlreadyScheduled() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        val key = "k1"
+        withApp(rooms, messages = messages) { client ->
+            val payload =
+                """{"userId":"$alice","idempotencyKey":"$key","message":{"title":"T","body":"B"}}"""
+            client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token); contentType(ContentType.Application.Json); setBody(payload)
+            }
+            val replay = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token); contentType(ContentType.Application.Json); setBody(payload)
+            }
+            val body = json.parseToJsonElement(replay.bodyAsText()).jsonObject
+            assertEquals("AlreadyScheduled", body["outcome"]!!.jsonPrimitive.content)
+            assertEquals(1, messages.createCalls.size, "second call must not create a second row")
+        }
+    }
+
+    @Test
+    fun sendMessage_returns400_onInvalidUserId() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"userId":"nope","message":{"title":"T","body":"B"}}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, messages.createCalls.size)
+        }
+    }
+
+    @Test
+    fun sendMessage_returns400_onBlankTitleAndBody() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        withApp(rooms, messages = messages) { client ->
+            val blankTitle = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token); contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","message":{"title":"  ","body":"B"}}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, blankTitle.status)
+            val blankBody = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token); contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","message":{"title":"T","body":""}}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, blankBody.status)
+            assertEquals(0, messages.createCalls.size)
+        }
+    }
+
+    @Test
+    fun sendMessage_returns400_onOversizedFields() = runTest {
+        val clock = AdvanceableClock()
+        val rooms = InMemoryRoomService(clock = clock, random = Random(0L))
+        val messages = FakeMessageRepository()
+        val longTitle = "x".repeat(200)
+        withApp(rooms, messages = messages) { client ->
+            val resp = client.post("/v1/admin/messages") {
+                header("X-Admin-Token", token); contentType(ContentType.Application.Json)
+                setBody("""{"userId":"$alice","message":{"title":"$longTitle","body":"B"}}""")
+            }
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, messages.createCalls.size)
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private suspend fun withApp(
@@ -456,6 +674,7 @@ class AdminRoutesTest {
         configuredToken: String? = token,
         ttlMinutes: Int = 5,
         wallets: WalletRepository = FakeWalletRepository(),
+        messages: UserMessageRepository = FakeMessageRepository(),
         block: suspend (io.ktor.client.HttpClient) -> Unit,
     ) {
         testApplication {
@@ -472,6 +691,7 @@ class AdminRoutesTest {
                         sweep = NoopSweep,
                         rooms = rooms,
                         wallets = wallets,
+                        messages = messages,
                     )
                 }
             }
@@ -547,6 +767,68 @@ class AdminRoutesTest {
         override suspend fun deleteAllForUser(userId: UserId) {
             balances.remove(userId)
             keys.remove(userId)
+        }
+    }
+
+    private data class CreateMessageCall(
+        val userId: UserId,
+        val idempotencyKey: String,
+        val emoji: String?,
+        val title: String,
+        val body: String,
+        val deepLink: String?,
+    )
+
+    /**
+     * In-memory user-message repo with the same idempotency semantics as
+     * the Postgres impl: a duplicate (userId, idempotencyKey) returns
+     * the original row with `wasAlreadyCreated = true`.
+     */
+    private class FakeMessageRepository : UserMessageRepository {
+        /** Inserts only — replays don't append here, matching the Postgres
+         *  impl's "one row per (userId, key)" semantics. Use [invocationCount]
+         *  if you specifically want raw call counts. */
+        val createCalls: MutableList<CreateMessageCall> = mutableListOf()
+        var invocationCount: Int = 0
+            private set
+
+        private val byKey = mutableMapOf<Pair<UserId, String>, UserMessage>()
+
+        override suspend fun create(
+            id: UUID,
+            userId: UserId,
+            idempotencyKey: String,
+            emoji: String?,
+            title: String,
+            body: String,
+            deepLink: String?,
+        ): CreateMessageOutcome {
+            invocationCount++
+            val key = userId to idempotencyKey
+            byKey[key]?.let { return CreateMessageOutcome(message = it, wasAlreadyCreated = true) }
+            createCalls += CreateMessageCall(userId, idempotencyKey, emoji, title, body, deepLink)
+            val message = UserMessage(
+                id = id,
+                userId = userId,
+                idempotencyKey = idempotencyKey,
+                emoji = emoji,
+                title = title,
+                body = body,
+                deepLink = deepLink,
+                createdAt = Instant.fromEpochMilliseconds(0),
+                ackedAt = null,
+            )
+            byKey[key] = message
+            return CreateMessageOutcome(message = message, wasAlreadyCreated = false)
+        }
+
+        override suspend fun unreadFor(userId: UserId, limit: Int): List<UserMessage> =
+            byKey.values.filter { it.userId == userId && it.ackedAt == null }.take(limit)
+
+        override suspend fun ack(userId: UserId, id: UUID, at: Instant): Boolean = false
+
+        override suspend fun deleteAllForUser(userId: UserId) {
+            byKey.keys.removeAll { it.first == userId }
         }
     }
 
