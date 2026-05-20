@@ -164,10 +164,10 @@ fun App(appComponent: AppComponent) {
 
                 SplashGate()
 
-                UserMessageOverlay(
-                    repository = appComponent.userMessageRepository,
-                    router = router,
-                )
+                // UserMessageOverlay is reintroduced in the next commit
+                // alongside the InAppMessageManager dialog gate. The
+                // repository now powers Room-backed storage; the in-app
+                // dialog manager + bottom-bar badge land next.
 
                 DialogHost(
                     modifier = Modifier.matchParentSize(),

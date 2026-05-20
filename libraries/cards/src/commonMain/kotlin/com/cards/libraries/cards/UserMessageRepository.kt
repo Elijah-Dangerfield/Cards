@@ -1,36 +1,61 @@
 package com.dangerfield.cards.libraries.cards
 
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 
 /**
- * Local cache + read surface for server-scheduled in-app dialogs.
+ * Local cache + read surface for server-scheduled in-app messages.
  *
- * The hot path is `unread` — the UI subtree that hosts the dialog
- * observes this StateFlow and pops a [Dialog] whenever the head is
- * non-null. After the user dismisses, the UI calls [ack] which removes
- * the message from the StateFlow and fires the server ack.
+ * Backed by a Room table that holds both dialog and inbox kinds in
+ * one place; the [InAppMessageManager] gates which dialog (if any)
+ * surfaces on each foreground, and [observeInbox] /
+ * [observeUnreadInboxCount] power the Notifications screen + the
+ * bottom-bar badge respectively.
  *
- * Fetching is a separate concern — see [UserMessageSyncService]. The
- * repo is the cached state; the sync service is what pulls fresh
- * messages on foreground / cold-boot.
+ * Fetching is owned by [UserMessageSyncService] — the repository is
+ * the cached state; the sync service pulls fresh and reconciles.
  *
- * V1 keeps the cache in memory. Messages are short-lived (acked once
- * shown), the server is the source of truth, and the next online
- * foreground re-syncs. If we ever want "show the dialog even offline
- * on cold boot," promote this to a Room cache.
+ * Acks are queued locally and shipped in the next sync's POST body —
+ * see [UserMessageSyncService] for the wire shape. The client never
+ * directly POSTs an ack.
  */
 interface UserMessageRepository {
-    val unread: StateFlow<List<UserMessage>>
 
-    /** Replace the cached set — called by [UserMessageSyncService] after fetch. */
-    suspend fun setUnread(messages: List<UserMessage>)
+    /** Newest-first inbox rows (read + unread, expiry-filtered). */
+    fun observeInbox(): Flow<List<UserMessage>>
+
+    /** Unread inbox count — the bottom-bar badge subscribes to this. */
+    fun observeUnreadInboxCount(): Flow<Int>
 
     /**
-     * Mark [id] acked locally + on the server. The local removal happens
-     * first (so the dialog dismisses immediately even if the network
-     * call is slow), then the server is told. The server ack is
-     * idempotent so a flaky network at this point is harmless — the
-     * next sync's `unread` list won't include this id either way.
+     * Returns the next unread, unexpired dialog and marks it shown +
+     * pending-ack in a single transaction. Returns null if none is
+     * eligible. The "1 per foreground" gate calls this once per
+     * foreground event.
      */
-    suspend fun ack(id: String)
+    suspend fun consumeNextDialog(): UserMessage?
+
+    /**
+     * Mark every unread inbox row as shown + pending-ack. Called when
+     * the Notifications screen enters Resumed — the badge clears
+     * immediately because the count query filters on `shown_at IS NULL`.
+     * Returns the number of rows flipped (rarely needed; mostly for tests).
+     */
+    suspend fun markAllInboxShown(): Int
+
+    /**
+     * Replace the local cache with [messages] inside one transaction.
+     * Called by [UserMessageSyncService] after a successful sync —
+     * anything in local but not in [messages] gets deleted; rows that
+     * survive the diff keep their local `shown_at` / `acked_pending`
+     * flags.
+     */
+    suspend fun replaceCache(messages: List<UserMessage>)
+
+    /**
+     * Ids the next sync should batch up as the `ackedIds` field of
+     * the POST body. Cleared on successful reconciliation (those ids
+     * either won't come back, or come back unchanged — see the
+     * service for the reconciliation rule).
+     */
+    suspend fun pendingAckIds(): List<String>
 }

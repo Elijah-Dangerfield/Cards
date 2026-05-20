@@ -20,6 +20,8 @@ import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
 import com.dangerfield.cards.libraries.cards.storage.db.SessionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.UserDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserEntity
+import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
+import com.dangerfield.cards.libraries.cards.storage.db.UserMessageEntity
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
@@ -37,8 +39,9 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         InventoryEntity::class,
         EquipmentEntity::class,
         WalletEventEntity::class,
+        UserMessageEntity::class,
     ],
-    version = 11, // v11: wallet_events table for pending chip-delta sync receipts
+    version = 12, // v12: user_messages table for server-scheduled in-app dialogs + inbox
     exportSchema = true
 )
 @TypeConverters(CoreTypeConverters::class)
@@ -53,6 +56,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun inventoryDao(): InventoryDao
     abstract fun equipmentDao(): EquipmentDao
     abstract fun walletEventDao(): WalletEventDao
+    abstract fun userMessageDao(): UserMessageDao
 }
 
 @Suppress("KotlinNoActualForExpect")

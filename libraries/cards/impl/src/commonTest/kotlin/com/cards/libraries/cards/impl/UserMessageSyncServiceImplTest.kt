@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.UserMessage
+import com.dangerfield.cards.libraries.cards.UserMessageKind
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -12,121 +13,111 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNull
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the user-message sync flow: GET /v1/me/messages → parse →
- * hand off to [UserMessageRepository.setUnread]. Same MockEngine
- * pattern as [ChipsSyncServiceImplTest] for consistency.
- *
- * What we pin:
- *  - 200 with 0/1/many messages — all map cleanly to the repo
- *  - Optional fields (emoji, deepLink) survive round-trip both ways
- *  - 5xx / network error → repo cache stays untouched (no clobber on
- *    a transient blip)
- *  - The endpoint hit is exactly the documented one — typo guard
+ * Pins the sync round-trip: pending acks go up in the POST body, the
+ * response replaces the local cache, network failure leaves both
+ * untouched. Single-flight serialization is implicit (Mutex) and not
+ * directly asserted.
  */
 class UserMessageSyncServiceImplTest : CoroutineTest() {
 
     @Test
-    fun sync_emptyUnread_setsEmptyOnRepo() = runUnitTest {
+    fun sync_postsAckedIds_andReplacesCache_withResponse() = runUnitTest {
         val repo = FakeMessageRepo().apply {
-            // Seed with a stale value so we can confirm the sync overwrites it.
-            seed(listOf(message("stale", "old", "old body")))
+            queuePendingAcks("a1", "b2")
         }
-        val service = buildService(repo) {
-            respondJson("""{"schemaVersion":1,"messages":[]}""")
+        var capturedBody: String? = null
+        val service = buildService(repo) { request ->
+            capturedBody = request.body.toByteReadPacketAsString()
+            respondJson(
+                """
+                {"messages":[
+                  {"id":"x","kind":"dialog","title":"Hi","body":"hi","createdAtEpochMs":1}
+                ]}
+                """.trimIndent(),
+            )
         }
 
         val result = service.sync()
 
         assertTrue(result.isSuccess)
-        assertTrue(repo.unread.value.isEmpty(), "empty server response must overwrite the cache")
+        assertNotNull(capturedBody)
+        assertTrue(
+            capturedBody!!.contains("\"a1\"") && capturedBody!!.contains("\"b2\""),
+            "POST body must include both pending ack ids; was: $capturedBody",
+        )
+        assertEquals(listOf("x"), repo.lastReplacedWith.map { it.id })
     }
 
     @Test
-    fun sync_singleMessage_roundTripsAllFields() = runUnitTest {
+    fun sync_emptyPendingAcks_stillIssuesRequest() = runUnitTest {
         val repo = FakeMessageRepo()
+        var hit = 0
         val service = buildService(repo) {
-            respondJson(
-                """
-                {"schemaVersion":1,"messages":[
-                  {"id":"abc","emoji":"🎁","title":"Merry","body":"Have 5000 chips.","deepLink":"cards://shop","createdAtEpochMs":1700000000000}
-                ]}
-                """.trimIndent(),
-            )
+            hit++
+            respondJson("""{"messages":[]}""")
         }
-
         service.sync()
-
-        val single = repo.unread.value.single()
-        assertEquals("abc", single.id)
-        assertEquals("🎁", single.emoji)
-        assertEquals("Merry", single.title)
-        assertEquals("Have 5000 chips.", single.body)
-        assertEquals("cards://shop", single.deepLink)
-        assertEquals(1_700_000_000_000L, single.createdAtEpochMs)
+        assertEquals(1, hit, "empty acks must still POST (server might have new messages)")
     }
 
     @Test
-    fun sync_omittedOptionalFields_landAsNull() = runUnitTest {
-        // explicitNulls=false on the server means emoji/deepLink can
-        // be absent entirely. The DTO must default them to null — this
-        // is the typing assertion that catches a "required" slip.
+    fun sync_kindAndExpiry_roundTripThroughResponse() = runUnitTest {
         val repo = FakeMessageRepo()
         val service = buildService(repo) {
             respondJson(
                 """
                 {"messages":[
-                  {"id":"abc","title":"Heads up","body":"Maintenance Sunday.","createdAtEpochMs":1700000000000}
+                  {"id":"dialog-1","kind":"dialog","title":"D","body":"d","createdAtEpochMs":1,"emoji":"🎉"},
+                  {"id":"inbox-1","kind":"inbox","title":"I","body":"i","createdAtEpochMs":2,"expiresAtEpochMs":99999},
+                  {"id":"missing-kind","title":"M","body":"m","createdAtEpochMs":3}
                 ]}
                 """.trimIndent(),
             )
         }
-
         service.sync()
-
-        val single = repo.unread.value.single()
-        assertNull(single.emoji)
-        assertNull(single.deepLink)
+        val map = repo.lastReplacedWith.associateBy { it.id }
+        assertEquals(UserMessageKind.Dialog, map.getValue("dialog-1").kind)
+        assertEquals(UserMessageKind.Inbox, map.getValue("inbox-1").kind)
+        assertEquals(99_999L, map.getValue("inbox-1").expiresAtEpochMs)
+        assertEquals(
+            UserMessageKind.Dialog,
+            map.getValue("missing-kind").kind,
+            "missing kind falls back to dialog",
+        )
     }
 
     @Test
-    fun sync_multipleMessages_preservesOrder() = runUnitTest {
+    fun sync_unknownKind_fallsBackToDialog() = runUnitTest {
+        // Forward-compat: a future server adds a 'banner' kind. Old
+        // clients shouldn't crash; they show it as a dialog.
         val repo = FakeMessageRepo()
         val service = buildService(repo) {
             respondJson(
-                """
-                {"messages":[
-                  {"id":"1","title":"A","body":"a","createdAtEpochMs":1},
-                  {"id":"2","title":"B","body":"b","createdAtEpochMs":2},
-                  {"id":"3","title":"C","body":"c","createdAtEpochMs":3}
-                ]}
-                """.trimIndent(),
+                """{"messages":[{"id":"x","kind":"banner","title":"T","body":"B","createdAtEpochMs":1}]}""",
             )
         }
-
         service.sync()
-
-        assertEquals(listOf("1", "2", "3"), repo.unread.value.map { it.id })
+        assertEquals(UserMessageKind.Dialog, repo.lastReplacedWith.single().kind)
     }
 
     @Test
-    fun sync_serverError_returnsFailure_andLeavesCacheUntouched() = runUnitTest {
-        val seeded = listOf(message("keep", "Keep me", "still relevant"))
-        val repo = FakeMessageRepo().apply { seed(seeded) }
+    fun sync_serverError_returnsFailure_leavesRepoUntouched() = runUnitTest {
+        val repo = FakeMessageRepo().apply { queuePendingAcks("a") }
         val service = buildService(repo) {
             respond(content = ByteReadChannel(""), status = HttpStatusCode.InternalServerError)
         }
@@ -134,28 +125,29 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
         val result = service.sync()
 
         assertTrue(result.isFailure)
-        assertEquals(
-            seeded,
-            repo.unread.value,
-            "5xx must not clobber the local cache — next foreground will retry",
+        assertTrue(
+            repo.lastReplacedWith.isEmpty(),
+            "5xx must not call replaceCache — local stays as-is",
         )
+        assertEquals(listOf("a"), repo.pendingAckIds(), "ack queue stays for retry")
     }
 
     @Test
-    fun sync_hitsExactEndpoint() = runUnitTest {
+    fun sync_hitsExactEndpoint_withPostMethod() = runUnitTest {
         val repo = FakeMessageRepo()
         var capturedPath: String? = null
+        var capturedMethod: HttpMethod? = null
         val service = buildService(repo) { request ->
             capturedPath = request.url.encodedPath
+            capturedMethod = request.method
             respondJson("""{"messages":[]}""")
         }
-
         service.sync()
-
-        assertEquals("/v1/me/messages", capturedPath, "path drift would break sync silently")
+        assertEquals("/v1/me/messages/sync", capturedPath)
+        assertEquals(HttpMethod.Post, capturedMethod)
     }
 
-    // ---------- Scaffolding ----------
+    // ---------- scaffolding ----------
 
     private fun buildService(
         repo: UserMessageRepository,
@@ -164,13 +156,11 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
         val mockEngine = MockEngine(handler)
         val client = HttpClient(mockEngine) {
             install(ContentNegotiation) {
-                json(
-                    Json {
-                        ignoreUnknownKeys = true
-                        explicitNulls = false
-                        coerceInputValues = true
-                    },
-                )
+                json(Json {
+                    ignoreUnknownKeys = true
+                    explicitNulls = false
+                    coerceInputValues = true
+                })
             }
         }
         val networkClient = object : NetworkClient {
@@ -189,32 +179,35 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
         headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
     )
 
-    private fun message(id: String, title: String, body: String) = UserMessage(
-        id = id,
-        emoji = null,
-        title = title,
-        body = body,
-        deepLink = null,
-        createdAtEpochMs = 0L,
-    )
+    private fun io.ktor.http.content.OutgoingContent.toByteReadPacketAsString(): String =
+        when (this) {
+            is io.ktor.http.content.TextContent -> text
+            is io.ktor.http.content.ByteArrayContent -> bytes().decodeToString()
+            else -> toString()
+        }
 
     private class FakeMessageRepo : UserMessageRepository {
-        private val _unread = MutableStateFlow<List<UserMessage>>(emptyList())
-        override val unread: StateFlow<List<UserMessage>> = _unread.asStateFlow()
-        var ackCalls: MutableList<String> = mutableListOf()
+        private val _unreadInbox = MutableStateFlow<List<UserMessage>>(emptyList())
+        var lastReplacedWith: List<UserMessage> = emptyList()
             private set
+        private var pending: MutableList<String> = mutableListOf()
 
-        fun seed(messages: List<UserMessage>) {
-            _unread.value = messages
+        fun queuePendingAcks(vararg ids: String) {
+            pending.addAll(ids)
         }
 
-        override suspend fun setUnread(messages: List<UserMessage>) {
-            _unread.value = messages
+        override fun observeInbox(): Flow<List<UserMessage>> = _unreadInbox.asStateFlow()
+        override fun observeUnreadInboxCount(): Flow<Int> =
+            MutableStateFlow(0).asStateFlow()
+
+        override suspend fun consumeNextDialog(): UserMessage? = null
+        override suspend fun markAllInboxShown(): Int = 0
+
+        override suspend fun replaceCache(messages: List<UserMessage>) {
+            lastReplacedWith = messages
+            pending.clear()
         }
 
-        override suspend fun ack(id: String) {
-            ackCalls += id
-            _unread.value = _unread.value.filterNot { it.id == id }
-        }
+        override suspend fun pendingAckIds(): List<String> = pending.toList()
     }
 }
