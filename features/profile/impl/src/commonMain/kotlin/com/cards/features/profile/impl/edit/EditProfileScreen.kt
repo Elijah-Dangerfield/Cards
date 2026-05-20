@@ -22,9 +22,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -289,26 +286,35 @@ private fun AvatarGrid(
     enabled: Boolean,
     onSelect: (String) -> Unit,
 ) {
-    // 4-wide grid with intrinsic height — the outer Column is scrollable,
-    // so this grid renders all its rows at once. Compose can't have a
-    // scrolling LazyVerticalGrid inside a verticalScroll, so we size by
-    // row count: ceil(emojis.size / 4) × tileHeight.
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(GRID_COLUMNS),
-        userScrollEnabled = false,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(((emojis.size + GRID_COLUMNS - 1) / GRID_COLUMNS * TILE_HEIGHT_DP).dp),
+    // Plain chunked Column-of-Rows. A LazyVerticalGrid inside a vertical
+    // scroll can't measure itself — it needs a bounded height — and any
+    // height we calculate has to account for inter-row spacing, which
+    // depends on the parent width. Rows-of-weighted-cells lay out without
+    // any of that arithmetic and scroll naturally with the outer Column.
+    Column(
         verticalArrangement = Arrangement.spacedBy(Dimension.D300),
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        items(emojis) { emoji ->
-            AvatarTile(
-                emoji = emoji,
-                isSelected = emoji == selected,
-                enabled = enabled,
-                onClick = { onSelect(emoji) },
-            )
+        emojis.chunked(GRID_COLUMNS).forEach { row ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                row.forEach { emoji ->
+                    AvatarTile(
+                        emoji = emoji,
+                        isSelected = emoji == selected,
+                        enabled = enabled,
+                        onClick = { onSelect(emoji) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                // Pad the last row so a partial row's tiles don't stretch
+                // across the full width.
+                repeat(GRID_COLUMNS - row.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -319,13 +325,13 @@ private fun AvatarTile(
     isSelected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val borderColor = if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
     val borderWidth = if (isSelected) 3.dp else 1.dp
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .aspectRatio(1f)
             .clip(CircleShape)
             .background(AppTheme.colors.surfaceSecondary.color)
@@ -340,7 +346,6 @@ private fun AvatarTile(
 }
 
 private const val GRID_COLUMNS = 4
-private const val TILE_HEIGHT_DP = 72
 
 @Composable
 private fun BackgroundColorPicker(
