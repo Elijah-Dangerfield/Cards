@@ -1,11 +1,13 @@
 package com.dangerfield.cards.features.onboarding.impl
 
+import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.IdentityRepository
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
 /**
@@ -33,6 +35,15 @@ import me.tatarka.inject.annotations.Inject
  * detail (truncated) — so a tester can read it directly without diving into
  * logs. Release builds get a friendly generic message + a "Report a bug"
  * affordance.
+ *
+ * Hard guard on init: if `AppData.hasUserOnboarded` is already true, fire
+ * [OnboardingEvent.NavigateToHome] immediately. This is a safety net against
+ * any path that lands a returning user back on the onboarding pager — e.g.
+ * a root recomposition resetting the nav graph, an accidental nav from a
+ * future surface, or a deep link. The pager itself only flips the flag on
+ * success, so this guard is one-way: a brand-new user (`false`) never trips
+ * it, and a sign-out (which flips the flag back to `false` first, then
+ * navigates) also doesn't trip it.
  */
 @Inject
 class OnboardingViewModel(
@@ -41,6 +52,16 @@ class OnboardingViewModel(
 ) : SEAViewModel<OnboardingState, OnboardingEvent, OnboardingAction>(
     initialStateArg = OnboardingState(),
 ) {
+
+    init {
+        viewModelScope.launch {
+            Catching {
+                if (appCache.get().hasUserOnboarded) {
+                    sendEvent(OnboardingEvent.NavigateToHome)
+                }
+            }.logOnFailure { "Onboarded-guard cache read failed" }
+        }
+    }
 
     override suspend fun handleAction(action: OnboardingAction) {
         when (action) {

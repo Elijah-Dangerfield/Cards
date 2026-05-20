@@ -47,3 +47,19 @@ Tests cover: 401 without/with bad token / with no token configured, 200 Applied 
 1. Stored reason format is `admin_grant:<reason>` (colon-prefixed), not bare `admin_grant`. The todo wording was "writes a `wallet_event` with reason `admin_grant`"; I read that as "stamp the admin_grant namespace on the ledger" rather than "literally store the string 'admin_grant' and drop the operator's note." If the reviewer wants the literal-`admin_grant` form (dropping the operator note), it's a one-line change.
 2. Insufficient-chips returns 409 Conflict (matches "request conflicts with current state" semantics) rather than the 200-with-`InsufficientChips`-outcome shape that `/v1/me/wallet/sync` uses. Sync's 200 is right because it's a *batch* that can have mixed outcomes; grant is single-event so a non-200 makes the failure obvious in `curl` / on-call dashboards. Different shape; both intentional.
 3. No rate limit on the endpoint. The admin token is already the gate, and we don't expect bulk volume here — adding a rate-limit bucket felt like over-engineering. If we ever script `grant-chips` from a cron, revisit.
+
+## fix(onboarding): hard-guard OnboardingViewModel against returning users
+
+**Problem:** The "bouncing to onboarding when app-config changes" todo: a returning user can land back on the onboarding pager because something past `AppGuardGate` / `SplashGate` causes a root-level recomposition that re-pushes the start destination. The todo asked for both a root-cause fix and a hard guard short-circuiting any path that lands a returning user on `OnboardingRoute`.
+
+**Approach:** Added the hard guard only — root cause still needs hands-on simulator repro. In `OnboardingViewModel.init`, read `AppCache.get().hasUserOnboarded` and `sendEvent(OnboardingEvent.NavigateToHome)` if already true. The existing `ObserveEvents` in `OnboardingFeatureEntryPoint` already wires `NavigateToHome → router.navigate(HomeRoute(), clearBackStack = true)`, so the bounce is one channel-send away. `Catching {}` around the cache read so a DataStore hiccup doesn't trap the user on a blank pager. Updated the docstring + trimmed the todo entry to reflect what's left (root cause).
+
+Why guard in the VM init rather than at the route declaration: the VM init runs once per OnboardingRoute push, and `sendEvent` lands in an unlimited channel that the `ObserveEvents` subscriber drains as soon as the screen composes. Doing the guard at the `screen<OnboardingRoute>` block would require collecting `AppCache.updates` as state, which adds a frame of "show pager → guard fires" anyway and pulls cache reads into the nav layer. The VM placement keeps the responsibility on the VM (which already owns the onboarding flag write).
+
+**Reviewer notes:** Two follow-ups worth knowing —
+1. There's a frame of visible flicker (pager renders briefly before the bounce fires) since the cache read is async. The todo accepts that as the cost of a "safety net"; if we want zero flicker, we'd need to gate the screen on `isCheckingOnboarded` state and add a loading placeholder. Skipped because the root-cause fix should make the guard never fire in steady-state — flicker is the *symptom of the bug we still need to fix*.
+2. Sign-out paths flip `hasUserOnboarded → false` *before* navigating to `OnboardingRoute` (see `AccountActionsViewModel`, `DeleteAccountViewModel`), so the guard is one-way: a real "send me back to onboarding" intent isn't blocked. Tested in `OnboardingViewModelTest` (`init_alreadyOnboarded_…` + `init_notOnboarded_…`).
+
+**Deferred:**
+- Root-cause investigation of which composable above `OnboardingRoute` is recomposing past the existing `AppGuardGate` / `SplashGate` insulation — left as the surviving bullet under "Bouncing to onboarding when app-config changes" in `docs/todo.md`. Needs simulator repro before a worker should touch it.
+
