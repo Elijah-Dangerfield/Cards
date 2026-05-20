@@ -8,6 +8,20 @@ KMP (Kotlin Multiplatform) app with Compose Multiplatform. Modular architecture 
 
 This is **Kotlin Multiplatform**—most code is shared, but some platform features (permissions, sensors, native APIs) require platform-specific implementations. When implementing something not inherently cross-platform, follow the patterns in `docs/swift-kotlin-communication-patterns.md`.
 
+## Where work comes from
+
+The repo has three task surfaces. Each has a distinct role; agents must respect the boundary.
+
+| Doc | Who picks from it | Contents |
+| --- | --- | --- |
+| [`docs/todo.md`](docs/todo.md) | AI workers + human | Active engineering work — current ship target. §A "Blocked — needs human decision" is **off-limits** to automated runs. |
+| [`docs/backlog.md`](docs/backlog.md) | Human-curated, AI appends | Someday/maybe ideas and follow-ups. Workers don't pick from here, but **append** new items here when they notice good follow-ups outside their current scope. |
+| [`docs/developer-todo.md`](docs/developer-todo.md) | Human only | Credentials, GitHub settings, console config. **Automated workers must never edit this file.** |
+
+If you complete or close out a `docs/todo.md` item, also drop a short entry in [`docs/decisions.md`](docs/decisions.md) when the change involved a non-trivial architectural call (see "Decisions log" below).
+
+Automated nightly runs use [`docs/agent/`](docs/agent/) for their own state — the worker and reviewer prompts live there, and the ephemeral `docs/agent/in-flight.md` is the handoff log between workers and the 5am reviewer (created by workers, deleted by the reviewer in the PR).
+
 ## Build Commands
 
 ```shell

@@ -1,16 +1,25 @@
-# V1 — What's Left
+# TODO
 
-**Last reviewed:** 2026-05-20 · **Status:** Active punch list · **Companion to:** [product/v1-mvp.md](./product/v1-mvp.md)
+**Last reviewed:** 2026-05-20 · **Companion to:** [product/v1-mvp.md](./product/v1-mvp.md), [backlog.md](./backlog.md)
 
-This is the live list of everything still standing between us and V1 ship. Append, check off, and move done items into the decision log when they land. Most other docs (`product-spec.md`, `decisions.md`, `voice-and-copy.md`) are reference; this one is the working sheet.
+The live punch list of actionable engineering work — V1 ship items today, post-V1 items as they arise. Append, check off, and move done items into the decision log when they land. Most other docs (`product-spec.md`, `decisions.md`, `voice-and-copy.md`) are reference; this one is the working sheet.
 
 When an item points at a file path or system, the assumption is that path/system already exists — the work is the gap, not a greenfield build.
 
+**Loose item template** (freeform — no enforcement, but the more of these you fill in, the safer it is for an automated worker to pick up):
+
+> **Problem:** what's wrong / missing.
+> **Acceptance:** how we know it's done.
+> **Files / hints:** where to start looking.
+> **Out of scope:** what NOT to drag in.
+
+Anything in §A is **off-limits to automated workers** — those items need a human call first. Everything below §A is fair game.
+
 ---
 
-## A. Decisions needed (resolve before scheduling)
+## A. 🚫 Blocked — needs human decision
 
-Two items in this list contradict the locked spec. Resolve before queuing engineering work — the answer shapes the implementation.
+**Do not pick these up in any automated run.** These items contradict the locked spec or require an executive call before engineering can start.
 
 1. **Felt visibility.** Note in the field log: *"only you can see your felt."* This conflicts with [product-spec.md §4.3](./product/product-spec.md#43-shop), which lists table felts as *"visible to whole table, high social signal."* The spec direction was deliberate (cosmetics-as-social-signal is the brand). If we're flipping to private felts, update §4.3 + §4.2 first; the engineering follows. If felts stay public, the work is **clearer UI copy that felts are seen by the table** (probably on the equip confirmation).
 

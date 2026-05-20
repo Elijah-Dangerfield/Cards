@@ -1,6 +1,6 @@
 # Developer TODO
 
-Things only the human (Elijah) can do — credentials to provide, GitHub settings to flip, console configuration to set up. Not part of the V1 product punch list ([v1-remaining.md](./v1-remaining.md) is for that).
+Things only the human (Elijah) can do — credentials to provide, GitHub settings to flip, console configuration to set up. Not part of the engineering punch list ([todo.md](./todo.md) is for that). Automated workers must never touch this file.
 
 Check items off as you do them; delete when the whole section is empty.
 

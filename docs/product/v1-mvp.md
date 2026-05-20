@@ -4,7 +4,7 @@
 
 V1 = the smallest *coherent* expression of [Card Hall](./product-spec.md). Shipping less = a generic solo bot poker app (Offsuit's space, already taken). Shipping more = scope creep and quality compromise (the Pokerrrr 2 trap). This document defines that cut.
 
-**Working punch list:** [`docs/v1-remaining.md`](../v1-remaining.md) — what's actually left to ship. Updated continuously as items land. This doc is the scope frame; that doc is the working sheet.
+**Working punch list:** [`docs/todo.md`](../todo.md) — what's actually left to ship. Updated continuously as items land. This doc is the scope frame; that doc is the working sheet.
 
 ---
 
@@ -35,7 +35,7 @@ V1 doesn't ship until all of these clear the quality bar.
 
 Phases 1–2 (engine, bots, defensive infra), the full V1 progression UX (XP, ranks, ~37 achievements, chip wallet), Phase 3 (anonymous-by-default auth + claim flow + delete account), Phase 4.1 (multiplayer lobby foundation with rooms, codes, reconnect grace timer, ops endpoints), server-authoritative chip wallet, server-side product catalog, and the billing scaffold (NoOp default; FakeBillingClient for tests).
 
-Day-to-day status lives in [project memory](~/.claude/projects/-Users-elijahdangerfield-Workspace-Cards/memory/project_cards_v1.md) and in [`docs/decisions.md`](../decisions.md). What's *not* yet shipped is in [`docs/v1-remaining.md`](../v1-remaining.md).
+Day-to-day status lives in [project memory](~/.claude/projects/-Users-elijahdangerfield-Workspace-Cards/memory/project_cards_v1.md) and in [`docs/decisions.md`](../decisions.md). What's *not* yet shipped is in [`docs/todo.md`](../todo.md).
 
 ### 2.2 Phase 3 — Auth
 

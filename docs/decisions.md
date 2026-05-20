@@ -1,8 +1,27 @@
 # Decision Log
 
-Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history. Each entry: date, decision, context, status.
+Decisions made about Cards' product direction and architecture. Append new decisions; do not rewrite history.
 
 The canonical V1 plan lives at `~/.claude/plans/this-is-going-to-vast-kahn.md` outside the repo; this log is for in-repo continuity and future sessions.
+
+## What goes here
+
+**Add an entry when** — you've made a non-trivial call that future-you (or a future agent) would otherwise *re-derive*: a new module boundary, choice of library, a scope cut, a schema shape, an explicit rejection of an obvious-looking alternative, anything where the reason matters more than the change.
+
+**Don't add an entry when** — the work speaks for itself (a refactor, a bug fix, a dependency bump, a typo). Code + commit message + PR title is enough. Most commits don't deserve a decision entry.
+
+## Format
+
+```
+## YYYY-MM-DD — <one-line decision>
+
+**Decision:** <what we're doing>
+**Why:** <load-bearing reason — what changes if this reason goes away>
+**Alternatives considered:** <briefly, with why each was rejected>
+**Status:** Locked / Tentative / Superseded by <date>
+```
+
+If a later decision supersedes an older one, mark the old one `Superseded by YYYY-MM-DD` in place — don't delete it. Knowing why we used to think X is often the reason future-you doesn't fall back to X.
 
 ---
 
