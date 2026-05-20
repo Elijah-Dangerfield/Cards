@@ -4,10 +4,11 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface AchievementDao {
+interface AchievementDao : ClearableDao {
 
     // ----- earned ledger -----
 
@@ -52,4 +53,10 @@ interface AchievementDao {
 
     @Query("DELETE FROM achievement_counter")
     suspend fun deleteAllCounters()
+
+    @Transaction
+    override suspend fun deleteAll() {
+        deleteAllEarned()
+        deleteAllCounters()
+    }
 }

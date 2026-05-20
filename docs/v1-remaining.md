@@ -110,16 +110,8 @@ The lobby + reconnect-grace foundation landed (per project memory); these are th
 Quality issues the user has flagged across the codebase. None are blockers, but they compound. Track them here; pull each in when the surrounding area is open.
 
 ### Sign-out data clearing
-**Problem:** `clearAllUserData()` currently maintains an explicit list of DAOs to wipe. Adding a new DAO means remembering to add it to the list; forgetting leaks data across sessions. The file/DB clear paths are separate, so readers have to grep.
-
-**Proposed shape:**
-- A `ClearableDao` interface (`suspend fun deleteAll()`).
-- Each `@Dao` extends it; Room's codegen handles `deleteAll()` per table via an `@Query("DELETE FROM …")` or per-DAO method.
-- DI binds *every* `ClearableDao` into a multibinding set.
-- A `SignOutDataDeleter` singleton receives the set and iterates `deleteAll()` on each. Same singleton handles file deletion (app caches, downloaded avatars, etc.), so the full "what gets cleared on sign-out" lives in one file.
-- Adding a new DAO means extending `ClearableDao` — no list edit, no forgetting.
-
-Cost: refactor the existing wipe + DI multibinding wire-up. Worth it before V1 because data-leak-on-sign-out is the kind of bug that survives unless it's structural.
+- ~~**DAO sweep relies on an explicit list.**~~ ✅ `ClearableDao` interface lives in `:libraries:cards:storage`; every `@Dao` extends it (`AchievementDao.deleteAll()` is a `@Transaction` default that combines `deleteAllEarned` + `deleteAllCounters`; `SessionDao.deleteAllSessions` renamed to `deleteAll`). Each `ProvideXxxDao` in `:libraries:storage:impl` carries a second `@ContributesBinding(multibinding = true, boundType = ClearableDao::class)`. `SignedOutLocalDataCleaner` now consumes `Set<ClearableDao>` and iterates with per-DAO `Catching {}` so one stuck row can't strand the rest. Adding a new entity → extend `ClearableDao` on its DAO; the multibinding pulls it in automatically. Pinned by `SignedOutLocalDataCleanerTest`.
+- **File-side cleanup on sign-out is still ad-hoc.** Originally the proposal had `SignOutDataDeleter` co-own file deletion (app caches, downloaded avatars). Nothing in the codebase deletes files on sign-out today, and no concrete leak path is on fire. Defer until we have actual on-disk caches to clear; the `AppEventListener.onSignedOut` hook is already in place to wire one in.
 
 ### Config plumbing — `featureValue` vs DI-bound `ConfiguredValue`
 **Question on the table:** `FeatureConfig` declares values with `by featureValue(...)` (the current pattern). The user previously preferred DI-bound `ConfiguredValue` objects, each able to advertise itself to the QA menu autonomously.

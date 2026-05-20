@@ -6,7 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 
 @Dao
-interface WalletEventDao {
+interface WalletEventDao : ClearableDao {
 
     /** Pending wallet events to flush to the server, oldest first so the
      *  server applies them in the same order the user generated them. */
@@ -23,5 +23,5 @@ interface WalletEventDao {
     suspend fun deleteByKeys(keys: List<String>)
 
     @Query("DELETE FROM wallet_events")
-    suspend fun deleteAll()
+    override suspend fun deleteAll()
 }

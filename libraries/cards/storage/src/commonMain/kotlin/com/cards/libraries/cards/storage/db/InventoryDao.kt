@@ -7,7 +7,7 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface InventoryDao {
+interface InventoryDao : ClearableDao {
 
     @Query("SELECT * FROM inventory ORDER BY purchased_at_epoch_ms DESC")
     fun observeAll(): Flow<List<InventoryEntity>>
@@ -33,5 +33,5 @@ interface InventoryDao {
     suspend fun delete(productId: String)
 
     @Query("DELETE FROM inventory")
-    suspend fun deleteAll()
+    override suspend fun deleteAll()
 }

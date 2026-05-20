@@ -7,7 +7,7 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface ChipsDao {
+interface ChipsDao : ClearableDao {
 
     @Query("SELECT * FROM chips WHERE id = 'user' LIMIT 1")
     fun observeChips(): Flow<ChipsEntity?>
@@ -25,5 +25,5 @@ interface ChipsDao {
     suspend fun applyDelta(delta: Long, updatedAtEpochMs: Long)
 
     @Query("DELETE FROM chips")
-    suspend fun deleteAll()
+    override suspend fun deleteAll()
 }

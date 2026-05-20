@@ -8,7 +8,7 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface SessionDao {
+interface SessionDao : ClearableDao {
 
     // ========== Observe ==========
 
@@ -43,5 +43,5 @@ interface SessionDao {
     suspend fun update(session: SessionEntity)
 
     @Query("DELETE FROM sessions")
-    suspend fun deleteAllSessions()
+    override suspend fun deleteAll()
 }

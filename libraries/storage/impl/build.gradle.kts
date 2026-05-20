@@ -19,6 +19,13 @@ kotlin {
             implementation(projects.libraries.cards.storage)
             implementation(libs.kotlinx.serialization.json)
         }
+
+        commonTest.dependencies {
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.cards.storage)
+            implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.flowroutines.testing)
+        }
     }
 }
 

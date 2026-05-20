@@ -6,7 +6,7 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface XpEventDao {
+interface XpEventDao : ClearableDao {
 
     @Insert
     suspend fun insertAll(events: List<XpEventEntity>)
@@ -31,5 +31,5 @@ interface XpEventDao {
     fun observeRecent(limit: Int): Flow<List<XpEventEntity>>
 
     @Query("DELETE FROM xp_events")
-    suspend fun deleteAll()
+    override suspend fun deleteAll()
 }

@@ -8,7 +8,7 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface UserDao {
+interface UserDao : ClearableDao {
 
     @Query("SELECT * FROM user WHERE id = 'user' LIMIT 1")
     fun observeUser(): Flow<UserEntity?>
@@ -38,5 +38,5 @@ interface UserDao {
     suspend fun incrementShakeCount()
 
     @Query("DELETE FROM user")
-    suspend fun deleteAll()
+    override suspend fun deleteAll()
 }

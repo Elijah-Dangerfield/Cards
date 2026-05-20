@@ -7,7 +7,7 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface EquipmentDao {
+interface EquipmentDao : ClearableDao {
 
     @Query("SELECT * FROM equipment WHERE is_equipped = 1 ORDER BY updated_at_epoch_ms DESC")
     fun observeEquipped(): Flow<List<EquipmentEntity>>
@@ -41,7 +41,7 @@ interface EquipmentDao {
      *  the local view (e.g. user equipped from another device). */
     @androidx.room.Transaction
     @Query("DELETE FROM equipment")
-    suspend fun deleteAll()
+    override suspend fun deleteAll()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(rows: List<EquipmentEntity>)

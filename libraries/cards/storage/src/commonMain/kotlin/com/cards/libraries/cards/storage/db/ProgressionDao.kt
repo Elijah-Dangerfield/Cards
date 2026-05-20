@@ -8,7 +8,7 @@ import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface ProgressionDao {
+interface ProgressionDao : ClearableDao {
 
     @Query("SELECT * FROM progression WHERE id = 'user' LIMIT 1")
     fun observeProgression(): Flow<ProgressionEntity?>
@@ -86,5 +86,5 @@ interface ProgressionDao {
     }
 
     @Query("DELETE FROM progression")
-    suspend fun deleteAll()
+    override suspend fun deleteAll()
 }
