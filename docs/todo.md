@@ -39,9 +39,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
    **Out of scope:** the underlying animation / scrim / sizing behavior — that stays. This is naming, layering, and emoji-bubble theme-awareness only.
 
-### Cosmetics / shop / felts
-- **Switch felt visibility to private (per [decisions.md 2026-05-20](./decisions.md)).** Each player only sees their own equipped felt on the table render. Tasks: (a) audit the play-screen render path to confirm felts are local-only — if any code paths broadcast a felt id over the wire or read another player's felt, remove that. (b) Update user-facing copy in the shop tile and My Items detail for felts — drop any "visible to the table" framing, replace with "your table" or similar. Check `:libraries:ui` shop components, `features/shop/impl/`, `features/profile/impl/items/`. (c) `voice-and-copy.md` may need a one-line addition near the shop section if there's canonical copy for felt tiles.
-
 ### Edit profile
 - **Offline-first reads for profile-editable data.** When the user opens Edit Profile, the avatar picker fetches the pack fresh from the server every time — slow, and impossible offline. Drive the picker (and similar profile-editable surfaces) from the local DB; reconcile to the server in the background. Edits should write locally first, queue a sync, and trust eventual consistency. **Out of scope:** server-authoritative things that need server confirmation before they're real (products / purchases / chip wallet — those keep their current server-roundtrip semantics).
 
@@ -61,12 +58,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### App guard chrome
 - **Maintenance banner overlays content instead of pushing it down.** Earlier sweep concluded this was wired through Scaffold.topBar, but live behavior shows the banner laying on top of the topBar / content. Re-verify: is the banner actually slotted into Scaffold.topBar, or is it absolutely positioned somewhere upstream? Acceptance: banner sits above topBar, pushes the rest of the chrome and content down, no overlap with anything. Check `AppGuardLayer`, `AppGuardBanner`, and the `App.kt` slotting around line 160.
 - **Blocking states intentionally overlay (not in topBar).** `UpgradeRequired` / `MaintenanceBlocking` use a full-screen `Box` overlay inside `AppGuardLayer` so they cover the entire app surface — including any topBar / bottomBar. That's the right model for "stop everything" states; don't refactor to a Column.
-
-### Sound
-- **Hide the Sound option for V1.** The setting persists but only Vibrate is actually wired (via Compose haptics) — Sound is a no-op. Honest move for V1 is to remove the Sound option from the picker entirely, leaving Vibrate / Mute. The audio infrastructure to make Sound real lives in [backlog.md](./backlog.md#audio-infrastructure-sound-cues-bgm); restore the option when that ships.
-
-### Play screen — bots context
-- **Bot-table setup dialog should call out "playing against bots, not real chips."** The table-size selection dialog (`BotTableSetupDialog`) doesn't make it obvious to new users that bot tables are practice / sandbox. Add a line of copy somewhere on the dialog (subtitle under the title, or a small note above the start button) along the lines of *"Practice table — your chips don't move here."* Verify against voice-and-copy.md before settling on final wording.
 
 ### Play screen — opponents row at MP scale
 - **Horizontal scroll + auto-scroll for >4 seats.** At 10-seat MP tables the current pack-and-shrink approach makes avatars unreadable. `LazyRow` once `count > 4`, auto-scroll to the active actor when their turn flips, fade gradients on both edges, respect manual user scroll for a few seconds. Keep pack-and-shrink for `count ≤ 4` so casual bot tables show everyone at once.
