@@ -73,6 +73,22 @@ class PostgresProductCatalogSource(
             ProductCatalog(chipPacks = chipPacks, chipOffers = chipOffers)
         }
 
+    override suspend fun readById(id: String, context: ClientContext): Product? =
+        database.transaction {
+            val row = ProductsTable
+                .selectAll()
+                .where { ProductsTable.id eq id }
+                .singleOrNull()
+                ?: return@transaction null
+
+            val platforms = readPlatforms(listOf(id))[id] ?: defaultPlatforms()
+            when (val kind = row[ProductsTable.kind]) {
+                "chip_pack" -> row.toChipPack(platforms)
+                "chip_offer" -> row.toChipOffer(platforms)
+                else -> error("Unknown product kind '$kind' on row id='$id'")
+            }
+        }
+
     private fun readPlatforms(ids: List<String>): Map<String, Set<ClientContext.Platform>> {
         if (ids.isEmpty()) return emptyMap()
         // Exposed has no first-class column type for `text[]`, so we run a

@@ -254,6 +254,49 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
         }
     }
 
+    @Test
+    fun readById_returnsSeededShopProduct() = runTest {
+        val product = newSource().readById("chip_pack_small", androidContext)
+
+        assertNotNull(product)
+        assertTrue(product is Product.ChipPack, "expected ChipPack for chip_pack_small")
+        assertEquals("chip_pack_small", product.id)
+        assertEquals("Pocket Stack", product.titleByLocale["en"])
+    }
+
+    @Test
+    fun readById_returnsUnlockOnlyProduct_thatIsHiddenFromShop() = runTest {
+        val unlockOnlyId = "test_unlock_only_readById_${System.nanoTime()}"
+        insertUnlockOnlyChipOffer(
+            id = unlockOnlyId,
+            sortOrder = 9_997,
+            title = "Legendary Trophy",
+            grantsKey = "trophy.readById_test",
+        )
+        try {
+            val shopIds = newSource().read(androidContext).let { catalog ->
+                (catalog.chipPacks.map { it.id } + catalog.chipOffers.map { it.id }).toSet()
+            }
+            assertTrue(unlockOnlyId !in shopIds, "precondition: unlock_only row must be hidden from shop")
+
+            val product = newSource().readById(unlockOnlyId, androidContext)
+
+            assertNotNull(product, "readById must surface unlock_only rows the shop catalog hides")
+            assertEquals(unlockOnlyId, product.id)
+            assertTrue(product is Product.ChipOffer)
+            assertEquals("trophy.readById_test", product.grantsKey)
+        } finally {
+            deleteProduct(unlockOnlyId)
+        }
+    }
+
+    @Test
+    fun readById_returnsNull_forUnknownId() = runTest {
+        val product = newSource().readById("does_not_exist_${System.nanoTime()}", androidContext)
+
+        assertNull(product)
+    }
+
     private suspend fun insertUnlockOnlyChipOffer(
         id: String,
         sortOrder: Int,

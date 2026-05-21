@@ -15,6 +15,24 @@ package com.dangerfield.cards.server.domain
  */
 interface ProductCatalogSource {
     suspend fun read(context: com.dangerfield.cards.server.http.ClientContext): ProductCatalog
+
+    /**
+     * Look up a single product by id, bypassing the shop-catalog filter.
+     *
+     * `read()` deliberately omits unlock-only rows so they can never leak
+     * into the shop. But code paths that *render* a user's unlock-only
+     * holdings (Trophy Case, inventory-grant on achievement reward) need
+     * to resolve a known id back to its [Product] regardless of the flag.
+     *
+     * Returns null when no row with the given id exists. Context is
+     * accepted for the same forward-compat reason as [read] — a future
+     * impl may want to vary by platform / locale — even though the current
+     * impl doesn't filter by it.
+     */
+    suspend fun readById(
+        id: String,
+        context: com.dangerfield.cards.server.http.ClientContext,
+    ): Product?
 }
 
 /** Catalog payload — what the endpoint serializes after localization. */
