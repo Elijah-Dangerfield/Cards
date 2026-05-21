@@ -30,6 +30,7 @@ import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
 import com.dangerfield.cards.features.profile.impl.items.MyItemsScreen
 import com.dangerfield.cards.features.profile.impl.items.MyItemsViewModel
 import com.dangerfield.cards.features.profile.impl.notifications.NotificationsScreen
+import com.dangerfield.cards.features.profile.impl.trophy.TrophyCaseScreen
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
@@ -37,6 +38,7 @@ import com.dangerfield.cards.features.profile.MyItemsRoute
 import com.dangerfield.cards.features.profile.NotificationsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
+import com.dangerfield.cards.features.profile.TrophyCaseRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.libraries.cards.AppCache
@@ -134,6 +136,7 @@ class ProfileFeatureEntryPoint(
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },
                 onOpenMyItems = { router.navigate(MyItemsRoute()) },
+                onOpenTrophyCase = { router.navigate(TrophyCaseRoute()) },
                 onOpenNotifications = { router.navigate(NotificationsRoute()) },
                 onBotSpeedChange = { speed ->
                     scope.launch { appCache.update { it.copy(botSpeed = speed) } }
@@ -216,6 +219,10 @@ class ProfileFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
             )
+        }
+
+        screen<TrophyCaseRoute> {
+            TrophyCaseScreen(onBack = { router.goBack() })
         }
 
         screen<ClaimAccountRoute> {
