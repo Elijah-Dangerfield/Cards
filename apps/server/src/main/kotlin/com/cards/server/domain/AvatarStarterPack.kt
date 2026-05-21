@@ -48,7 +48,42 @@ object AvatarPacks {
         ),
     )
 
-    val all: List<Pack> = listOf(Starter)
+    val Animals: Pack = Pack(
+        id = "animals",
+        name = "Animals",
+        emojis = listOf("🐱", "🐶", "🐯", "🐼", "🦊", "🐻", "🦁", "🐸"),
+        unlockProductId = "avatars_animals",
+    )
+
+    val Food: Pack = Pack(
+        id = "food",
+        name = "Foodie",
+        emojis = listOf("🍕", "🍔", "🌮", "🍣", "🍰", "🥑", "🍩", "☕"),
+        unlockProductId = "avatars_food",
+    )
+
+    val Sports: Pack = Pack(
+        id = "sports",
+        name = "Sports",
+        emojis = listOf("⚽", "🏀", "🏈", "⚾", "🎾", "🎯", "🎳", "🥊"),
+        unlockProductId = "avatars_sports",
+    )
+
+    val Fantasy: Pack = Pack(
+        id = "fantasy",
+        name = "Fantasy",
+        emojis = listOf("🧙", "🧚", "🧛", "🧜", "🦄", "🐉", "🧞", "🐲"),
+        unlockProductId = "avatars_fantasy",
+    )
+
+    val Mythical: Pack = Pack(
+        id = "mythical",
+        name = "Mythical",
+        emojis = listOf("🦖", "🐙", "🦕", "🦑", "🦞", "🦀", "🐡", "🦈"),
+        unlockProductId = "avatars_mythical",
+    )
+
+    val all: List<Pack> = listOf(Starter, Animals, Food, Sports, Fantasy, Mythical)
 
     /**
      * Packs accessible to a caller given their owned product IDs.
