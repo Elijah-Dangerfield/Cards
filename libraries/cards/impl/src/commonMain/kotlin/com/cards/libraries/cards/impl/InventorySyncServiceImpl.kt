@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.InventorySyncService
@@ -30,6 +31,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class InventorySyncServiceImpl(
     private val inventoryRepository: InventoryRepository,
     private val chipsRepository: ChipsRepository,
+    private val equipmentRepository: EquipmentRepository,
     private val networkClient: NetworkClient,
 ) : InventorySyncService {
 
@@ -104,6 +106,20 @@ class InventorySyncServiceImpl(
                 )
             }
             inventoryRepository.applyServerSnapshot(authoritative)
+
+            // Equipment consistency invariant: an equipment row only makes
+            // sense when the user owns the product. After folding in the
+            // server-authoritative inventory snapshot, drop any equipment
+            // row whose productId isn't owned anymore. Logged so the
+            // drop-rate is visible — if this fires often, the divergence
+            // upstream (refund/revoke pathway, cache-clear pathway) is the
+            // real bug.
+            val owned = authoritative.map { it.productId }.toSet()
+            val orphans = equipmentRepository.dropOrphanEquipment(owned)
+            if (orphans.isNotEmpty()) {
+                logger.w { "Dropped ${orphans.size} orphan equipment row(s): $orphans" }
+            }
+
             logger.d { "Sync complete: ${confirmedIds.size} confirmed, ${authoritative.size} server-owned." }
             Unit
         }.onFailure { logger.w(it) { "Inventory sync failed; pending rows stay Pending." } }

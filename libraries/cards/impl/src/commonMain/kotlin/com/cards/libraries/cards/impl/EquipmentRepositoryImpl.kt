@@ -122,6 +122,16 @@ class EquipmentRepositoryImpl(
         equipmentDao.purgeSyncedUnequips()
     }
 
+    override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> {
+        val orphans = equipmentDao.getAll()
+            .map { it.productId }
+            .filter { it !in ownedProductIds }
+        if (orphans.isNotEmpty()) {
+            equipmentDao.deleteByProductIds(orphans)
+        }
+        return orphans
+    }
+
     override suspend fun deleteAll() {
         equipmentDao.deleteAll()
     }

@@ -232,6 +232,12 @@ class FakeEquipmentRepository(
         state.value = authoritative
     }
 
+    override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> {
+        val orphans = state.value.map { it.productId }.filter { it !in ownedProductIds }
+        state.value = state.value.filter { it.productId in ownedProductIds }
+        return orphans
+    }
+
     override suspend fun deleteAll() { state.value = emptyList() }
 }
 

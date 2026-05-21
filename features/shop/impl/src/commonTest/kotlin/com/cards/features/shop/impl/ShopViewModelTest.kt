@@ -559,6 +559,7 @@ class ShopViewModelTest : CoroutineTest() {
             return EquipmentToggleResult.Success
         }
         override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) { }
+        override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
         override suspend fun deleteAll() { state.value = emptyList() }
     }
 
