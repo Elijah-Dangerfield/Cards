@@ -52,3 +52,11 @@
 - The hero gradient at `RankDetailSheet.RankHero` (line ~88-92) uses raw `Color(0xFF8E7CC3)` + `Color(0xFFE07AB1)` — another DS violation per AGENTS.md (no `Color(0xFF...)` outside the palette). Separate scope: needs a designer call on whether those brand colors belong in `PokerPalette` or as new theme tokens. Left in place; not in `backlog.md` yet — reviewer to triage.
 - `InfoCard` at line ~190 still uses `RoundedCornerShape(16.dp)` (literal) for its corner. Closest DS token is `Radii.R500` (12.dp) or `Radii.R600` (14.dp); neither is 16.dp. Either add a new `Radii.R650` to the DS or swap to `R600` — a small enough drift that it's a separate cleanup. Not filed yet.
 
+
+## feat(ui): add Radii.R700 + adopt it in RankDetail InfoCard
+
+**Problem:** Previous worker flagged `RankDetailSheet.InfoCard` as the lone 16.dp `RoundedCornerShape` literal in the file — a DS-first violation per AGENTS.md. The two closest existing tokens (R500=12.dp, R600=14.dp) neither matched 16.dp, so the deferred bullet asked for either an `R650` or a swap to `R600`.
+**Approach:** AGENTS.md DS-first rule §6 ("If you reach for `RoundedCornerShape(12.dp)` … the right move is to *add the missing token/primitive*"). Added `R700 = D700 (16.dp)` to `Radii` — extends the existing linear scale (R300=8, R400=10, R500=12, R600=14, R700=16) so the token reads as a natural extension rather than a one-off. Swapped the InfoCard literal to `Radii.R700.shape` and dropped the now-unused `RoundedCornerShape` import.
+**Reviewer notes:** No visual change — `R700.shape` resolves to `RoundedCornerShape(16.dp)`, so the InfoCard renders identically. `:features:progression:impl:testDebugUnitTest` and `:features:progression:impl:compileDebugKotlinAndroid` both pass.
+**Deferred:**
+- Eleven other `RoundedCornerShape(16.dp)` literals across the codebase are now drop-in replacements for `Radii.R700.shape` (`BoardArea.kt:94/98`, `HandResultDialogs.kt:272`, `PlayerArea.kt:240/245`, `QaMenuScreen.kt:219`, `MyItemsScreen.kt:117`, `StatsScreen.kt:214/237/400`, `FeatureCard.kt:59`). Each is mechanical, but the game-table surfaces (`BoardArea`, `PlayerArea`, `HandResultDialogs`) were tuned by hand for the play screen — worth a deliberate sweep rather than blind replace. Left as-is; reviewer can fold into this PR or punt as a follow-up.
