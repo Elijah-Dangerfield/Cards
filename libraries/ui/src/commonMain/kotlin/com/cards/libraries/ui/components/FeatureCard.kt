@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
@@ -24,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 
 /**
  * A full-width gradient card with leading glyph block, title + subtitle, and trailing chevron.
@@ -43,7 +43,7 @@ fun FeatureCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(Radii.R900.shape)
             .background(
                 Brush.horizontalGradient(
                     colors = listOf(accent.copy(alpha = 0.95f), accent.copy(alpha = 0.7f)),
@@ -56,7 +56,7 @@ fun FeatureCard(
         Box(
             modifier = Modifier
                 .size(52.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(Radii.R700.shape)
                 .background(Color.White.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {

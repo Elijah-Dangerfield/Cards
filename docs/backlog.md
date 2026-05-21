@@ -108,19 +108,54 @@ Needs a designer call on whether the bespoke gradient is load-bearing for the Ra
 
 ---
 
-## Sweep remaining `RoundedCornerShape(16.dp)` literals → `Radii.R700.shape`
+## Route default `popExit` = reversal of `enter`
 
-**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. Eleven other callsites still use the literal:
+**Idea (raised 2026-05-20):** After the cover-and-uncover NavHost rewire, every existing `Route` subclass still has to declare `popExit` explicitly to mirror `enter`. The default in `Route(...)` is hardcoded `AnimationType.SlideOutToRight`, which is fine for horizontal-slide routes but wrong by default for `SlideUp` / `FadeIn` / etc. — a new route that forgets to declare `popExit` will pop horizontally regardless of how it entered.
 
-- `BoardArea.kt:94/98`
-- `HandResultDialogs.kt:272`
-- `PlayerArea.kt:240/245`
-- `QaMenuScreen.kt:219` (and the adjacent `UserIdBlock` + "Clear all overrides" boxes that use `RoundedCornerShape(10.dp)` — `Radii.R400.shape`)
-- `MyItemsScreen.kt:117`
-- `StatsScreen.kt:214/237/400`
-- `FeatureCard.kt:59`
+Worth deriving the default — `popExit: AnimationType = enter.reversal()` (the existing `opposite()` is a *mirror* not a *reversal*, so it needs renaming or a sibling). Then every per-route `popExit` declaration that matches the derivation can be dropped.
 
-Each is mechanical, but the game-table surfaces (`BoardArea`, `PlayerArea`, `HandResultDialogs`) were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace.
+Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → SlideOutToLeft` (mirror), but the reversal we want for back-out is `SlideInFromRight → SlideOutToRight` (back the way it came). Renaming / fixing the mapping is a semantic call worth a deliberate pass rather than tucking into the wiring change.
 
-**Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table or shop surfaces.
+**Status:** Backlog. Captured 2026-05-20 alongside the NavHost cover-and-uncover wiring.
+
+---
+
+## `FeatureCard` glyph block — white-alpha on accent gradient
+
+**Idea (raised 2026-05-21):** [`FeatureCard.kt:60`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/FeatureCard.kt#L60) renders the leading glyph block with `Color.White.copy(alpha = 0.15f)` — the exact pattern AGENTS.md DS rule §1 calls out. It's a hand-tuned tile on top of a gradient (the card's `accent.copy(alpha = 0.95f) → accent.copy(alpha = 0.7f)` horizontal gradient), so a flat `surface*` token would clash with the gradient.
+
+Two directions:
+- **New DS token for "overlay on accent surface."** Something like `AppTheme.colors.surfaceOverlayOnAccent` that resolves to a translucent neutral wash. Lets every accent-gradient card get the same glyph treatment without duplicating the magic alpha.
+- **Pin to `surfacePrimary.copy(alpha = X)`.** Cheaper, but ties the glyph block to whatever the surfacePrimary token resolves to under the gradient — needs an eyeball check across all four `FeatureCardAccents` (Green/Blue/Magenta/Gold).
+
+Needs a designer call on which approach the DS should codify.
+
+**Status:** Backlog. Surfaced during the 2026-05-21 Radii-token sweep.
+
+---
+
+## `Route.exit` field — dead after cover-and-uncover wiring
+
+**Idea (raised 2026-05-21):** After the NavHost `exitTransition` was collapsed to `ExitTransition.None` (cover-and-uncover semantics), `Route.exit` is no longer read by the host. ~7 Route subclasses still declare it. Separable cleanup: drop `exit` from `Route(...)` and every subclass, then drop the dead `getExitTransition()` accessor and the `toExitTransition()` callers that route through it.
+
+Blocker on doing it now: should land alongside the `popExit = enter.reversal()` derivation (already in this backlog under "Route default `popExit` = reversal of `enter`") so the per-route animation surface gets rationalised in one pass rather than two.
+
+**Status:** Backlog. Captured 2026-05-21 alongside the NavHost cover-and-uncover wiring.
+
+---
+
+## Sweep remaining game-table corner literals → `Radii` tokens
+
+**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. `R800` (20.dp), `R900` (24.dp), and `R1000` (28.dp) were added 2026-05-21 alongside the non-game-table follow-up (`FeatureCard`, `AchievementMedallion`, `LobbyScreen`). The non-game-table 16.dp callsites were migrated 2026-05-21 (`MyItemsScreen`, `StatsScreen` ×3, `FeatureCard`, `QaMenuScreen` ×5 including the 10.dp `R400` ones). Remaining literals all live on game-table surfaces, which were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace:
+
+- `BoardArea.kt:94/98` — 16.dp (→ `R700`)
+- `HandResultDialogs.kt:272` — 16.dp (→ `R700`)
+- `PlayerArea.kt:102/103` — 20.dp (→ `R800`)
+- `PlayerArea.kt:240/245` — 16.dp (→ `R700`)
+- `HandRankingsCheatSheet.kt:266` — 28.dp (→ `R1000`)
+- `HandRankingsCheatSheet.kt:382/422` — 20.dp (→ `R800`)
+- `RaiseSheet.kt:206` — 28.dp (→ `R1000`)
+- `TableActionBar.kt:138/167` — 28.dp (→ `R1000`)
+
+**Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
 

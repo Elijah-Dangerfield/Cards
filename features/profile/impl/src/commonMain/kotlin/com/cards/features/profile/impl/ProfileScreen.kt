@@ -262,7 +262,7 @@ private fun SignOutConfirmDialog(
     }
     com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
         onDismissRequest = onDismiss,
-        emoji = com.dangerfield.cards.libraries.ui.components.dialog.DialogEmoji(emoji = "👋"),
+        emoji = com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji(emoji = "👋", surface = null),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(

@@ -36,7 +36,7 @@ import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.describe
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.DialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -78,7 +78,7 @@ internal fun ShowdownDialog(
 
     Dialog(
         onDismissRequest = onNextHand,
-        emoji = DialogEmoji(emoji = heroEmoji),
+        emoji = dialogEmoji(emoji = heroEmoji, surface = null),
     ) {
         Column(
             modifier = Modifier
@@ -207,7 +207,7 @@ internal fun BustDialog(
 ) {
     Dialog(
         onDismissRequest = onDealMeIn,
-        emoji = DialogEmoji(emoji = "💸"),
+        emoji = dialogEmoji(emoji = "💸", surface = null),
     ) {
         Column(
             modifier = Modifier

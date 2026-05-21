@@ -46,6 +46,8 @@ import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.navigation.NavBackStackEntry
@@ -271,36 +273,8 @@ private fun AppNavigation(
 
                     animationType.toEnterTransition()
                 },
-                popEnterTransition = {
-                    // Popping from B back to A
-                    // How should we animate the A screen?
-                    // Enter animation should match initials pop EXIT transition
-                    // AKA if B slides out, A should slide IN
-                    val initialRoute = initialState.toRouteOrNull<Route>()
-                    val targetRoute = targetState.toRouteOrNull<Route>()
-                    val (animationType, reason) = when {
-                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
-                        initialRoute != null -> initialRoute.popExit.opposite() to "Mirroring initial popExit animation"
-                        targetRoute != null -> targetRoute.enter to "Fallback to target route enter animation"
-                        else -> AnimationType.None to "No route metadata; default to none"
-                    }
-
-                    animationType.toEnterTransition()
-                },
-                exitTransition = {
-                    // A -> B
-                    // Initial: A | Target B
-                    // How should we animate the A screen
-                    // Exit animation should match A's Exit
-                    val initialRoute = initialState.toRouteOrNull<Route>()
-                    val (animationType, reason) = when {
-                        isSwitchingTabs() -> AnimationType.None to "Switching tabs"
-                        initialRoute != null -> initialRoute.exit to "Using initial route exit animation"
-                        else -> AnimationType.None to "Initial destination is not a Route; default to none"
-                    }
-
-                    animationType.toExitTransition()
-                },
+                popEnterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
                 popExitTransition = {
                     // Popping from B back to A
                     // Initial: B | Target A

@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.DialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -30,7 +30,7 @@ internal fun LastActionExplainer(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = DialogEmoji(emoji = emojiFor(action)),
+        emoji = dialogEmoji(emoji = emojiFor(action), surface = null),
     ) {
         Column(
             modifier = Modifier

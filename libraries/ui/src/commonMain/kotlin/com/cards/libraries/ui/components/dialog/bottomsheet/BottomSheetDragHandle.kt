@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
+import com.dangerfield.cards.system.AppTheme
 
 /**
  * Typed drag-handle slot for [BottomSheet] / [BaseBottomSheet].
@@ -53,6 +54,13 @@ sealed interface BottomSheetDragHandle {
      * border — is locked by the DS so sheets stay visually consistent
      * across the app.
      *
+     * Construction is restricted to the `:libraries:ui` module — every
+     * caller routes through [bottomSheetEmojiHandle], the composable
+     * factory whose defaults can read [AppTheme]. Mirrors the
+     * [com.dangerfield.cards.libraries.ui.components.dialog.DialogEmoji] /
+     * [com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji]
+     * split.
+     *
      * @param emoji A short string rendered centered in the bubble. Single
      *   emoji or `$`-style char. Anything longer than ~2 grapheme clusters
      *   will overflow the bubble — keep it short.
@@ -60,14 +68,14 @@ sealed interface BottomSheetDragHandle {
      *   universal default; [EmojiHandleStyle.Squircle] is reserved for
      *   commerce / purchase sheets.
      * @param surface Fill for the bubble — a [BubbleSurface.Solid] color
-     *   or a [BubbleSurface.Gradient] brush. `null` (default) means "match
+     *   or a [BubbleSurface.Gradient] brush. `null` means "match
      *   the sheet's surfacePrimary" so the bubble reads as a continuation
      *   of the top edge. Pass an explicit value to make the bubble pop
      *   against the sheet (brand accent, product-specific gradient that
      *   mirrors the card the user tapped, etc.).
      */
     @Immutable
-    data class Emoji(
+    data class Emoji internal constructor(
         val emoji: String,
         val style: EmojiHandleStyle = EmojiHandleStyle.Circle,
         val surface: BubbleSurface? = null,
@@ -92,3 +100,16 @@ sealed interface BottomSheetDragHandle {
  *    product callout.
  */
 enum class EmojiHandleStyle { Circle, Squircle }
+
+/**
+ * Theme-aware factory for [BottomSheetDragHandle.Emoji]. Mirrors
+ * [com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji] so
+ * sheets and dialogs share one DS chokepoint for the bubble fill — when
+ * the default surface token gets pinned, both layers move together.
+ */
+@Composable
+fun bottomSheetEmojiHandle(
+    emoji: String,
+    style: EmojiHandleStyle = EmojiHandleStyle.Circle,
+    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
+): BottomSheetDragHandle = BottomSheetDragHandle.Emoji(emoji, style, surface)

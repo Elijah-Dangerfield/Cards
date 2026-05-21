@@ -40,6 +40,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -211,7 +212,7 @@ private fun StatTile(
 ) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
@@ -234,7 +235,7 @@ private fun RecentEventsList(events: List<XpEvent>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700.shape)
             .background(AppTheme.colors.surfacePrimary.color),
     ) {
         events.forEachIndexed { index, event ->
@@ -397,7 +398,7 @@ private fun InfoCard(content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
