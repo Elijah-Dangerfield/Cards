@@ -108,6 +108,18 @@ Needs a designer call on whether the bespoke gradient is load-bearing for the Ra
 
 ---
 
+## Route default `popExit` = reversal of `enter`
+
+**Idea (raised 2026-05-20):** After the cover-and-uncover NavHost rewire, every existing `Route` subclass still has to declare `popExit` explicitly to mirror `enter`. The default in `Route(...)` is hardcoded `AnimationType.SlideOutToRight`, which is fine for horizontal-slide routes but wrong by default for `SlideUp` / `FadeIn` / etc. — a new route that forgets to declare `popExit` will pop horizontally regardless of how it entered.
+
+Worth deriving the default — `popExit: AnimationType = enter.reversal()` (the existing `opposite()` is a *mirror* not a *reversal*, so it needs renaming or a sibling). Then every per-route `popExit` declaration that matches the derivation can be dropped.
+
+Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → SlideOutToLeft` (mirror), but the reversal we want for back-out is `SlideInFromRight → SlideOutToRight` (back the way it came). Renaming / fixing the mapping is a semantic call worth a deliberate pass rather than tucking into the wiring change.
+
+**Status:** Backlog. Captured 2026-05-20 alongside the NavHost cover-and-uncover wiring.
+
+---
+
 ## Sweep remaining `RoundedCornerShape(16.dp)` literals → `Radii.R700.shape`
 
 **Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. Eleven other callsites still use the literal:

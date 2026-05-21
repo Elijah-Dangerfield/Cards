@@ -79,8 +79,8 @@ fun AnimationType.toExitTransition(): ExitTransition = when (this) {
     AnimationType.SlideInFromRight -> slideOutHorizontally { it }
     AnimationType.SlideOutToRight -> slideOutHorizontally { it }
     AnimationType.SlideOutToLeft -> slideOutHorizontally { -it }
-    AnimationType.SlideUp -> slideOutVertically { it }
-    AnimationType.SlideDown -> slideOutVertically { -it }
+    AnimationType.SlideUp -> slideOutVertically { -it }
+    AnimationType.SlideDown -> slideOutVertically { it }
     AnimationType.ShrinkOut -> shrinkOut { it }
     AnimationType.ExpandIn -> fadeOut(tween(0))
     AnimationType.FadeIn -> fadeOut(tween(0))
