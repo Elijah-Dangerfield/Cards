@@ -92,3 +92,35 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 **Tradeoff:** Audio adds binary size + a small init cost. Worth it for the "sound" preference to be honest, plus opens the door to other game cues later. Until then, "Sound" is effectively a no-op (Mute and Sound behave the same).
 
 **Status:** Backlog. Vibrate works now via Compose haptics; ship Sound when it's worth the platform-actuals overhead.
+
+---
+
+## RankDetail hero gradient — raw brand colors
+
+**Idea (raised 2026-05-20):** `RankDetailSheet.RankHero` (~lines 88–92) uses raw `Color(0xFF8E7CC3)` + `Color(0xFFE07AB1)` for the hero gradient — an AGENTS.md DS-first violation (no `Color(0xFF…)` outside `PokerPalette`). Two directions:
+
+- **Promote both to `PokerPalette`** as the canonical "rank hero" pair, named for what they are visually (e.g. `rankHeroStart`, `rankHeroEnd`). Cheap, keeps the gradient working as-is.
+- **Replace with theme tokens** — likely `accentPrimary` and a sibling. Loses the bespoke purple→pink hue but pulls the surface into the semantic palette.
+
+Needs a designer call on whether the bespoke gradient is load-bearing for the Rank surface's identity. Touched-but-not-fixed during the 2026-05-20 white-alpha pill cleanup.
+
+**Status:** Backlog. Needs a design decision before swap.
+
+---
+
+## Sweep remaining `RoundedCornerShape(16.dp)` literals → `Radii.R700.shape`
+
+**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. Eleven other callsites still use the literal:
+
+- `BoardArea.kt:94/98`
+- `HandResultDialogs.kt:272`
+- `PlayerArea.kt:240/245`
+- `QaMenuScreen.kt:219` (and the adjacent `UserIdBlock` + "Clear all overrides" boxes that use `RoundedCornerShape(10.dp)` — `Radii.R400.shape`)
+- `MyItemsScreen.kt:117`
+- `StatsScreen.kt:214/237/400`
+- `FeatureCard.kt:59`
+
+Each is mechanical, but the game-table surfaces (`BoardArea`, `PlayerArea`, `HandResultDialogs`) were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace.
+
+**Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table or shop surfaces.
+
