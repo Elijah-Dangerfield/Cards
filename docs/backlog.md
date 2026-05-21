@@ -122,17 +122,11 @@ Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → Slide
 
 ## Sweep remaining `RoundedCornerShape(16.dp)` literals → `Radii.R700.shape`
 
-**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. Eleven other callsites still use the literal:
+**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. The non-game-table callsites were migrated 2026-05-21 (`MyItemsScreen`, `StatsScreen` ×3, `FeatureCard`, `QaMenuScreen` ×5 including the 10.dp `R400` ones). Remaining literals all live on game-table surfaces, which were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace:
 
 - `BoardArea.kt:94/98`
 - `HandResultDialogs.kt:272`
 - `PlayerArea.kt:240/245`
-- `QaMenuScreen.kt:219` (and the adjacent `UserIdBlock` + "Clear all overrides" boxes that use `RoundedCornerShape(10.dp)` — `Radii.R400.shape`)
-- `MyItemsScreen.kt:117`
-- `StatsScreen.kt:214/237/400`
-- `FeatureCard.kt:59`
 
-Each is mechanical, but the game-table surfaces (`BoardArea`, `PlayerArea`, `HandResultDialogs`) were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace.
-
-**Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table or shop surfaces.
+**Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
 

@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 
 /**
  * A full-width gradient card with leading glyph block, title + subtitle, and trailing chevron.
@@ -56,7 +57,7 @@ fun FeatureCard(
         Box(
             modifier = Modifier
                 .size(52.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(Radii.R700.shape)
                 .background(Color.White.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {

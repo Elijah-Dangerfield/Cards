@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +30,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 
 /**
  * Renders the player's inventory as a single scrollable list. Each row
@@ -114,7 +114,7 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
     ) {

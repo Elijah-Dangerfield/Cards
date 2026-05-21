@@ -51,6 +51,7 @@ import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
@@ -120,7 +121,7 @@ fun QaMenuScreen(
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(Radii.R400.shape)
                         .background(AppTheme.colors.surfaceSecondary.color)
                         .clickable {
                             scope.launch { overrideRepository.clearAll() }
@@ -185,7 +186,7 @@ private fun UserIdBlock(userId: String?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(Radii.R400.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .then(clickable)
             .padding(horizontal = 14.dp, vertical = 12.dp),
@@ -225,7 +226,7 @@ private fun QaSection(title: String, content: @Composable () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(Radii.R700.shape)
                 .background(AppTheme.colors.surfacePrimary.color)
                 .padding(vertical = 4.dp),
         ) {
@@ -321,7 +322,7 @@ private fun QaRow(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(Radii.R400.shape)
                             .background(AppTheme.colors.surfaceSecondary.color)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     ) {
@@ -338,7 +339,7 @@ private fun QaRow(
                     Spacer(modifier = Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(Radii.R400.shape)
                             .background(AppTheme.colors.accentPrimary.color)
                             .clickable {
                                 val parsed = parseValue(draft, row.default)

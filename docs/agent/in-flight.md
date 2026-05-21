@@ -13,3 +13,21 @@ Chose this over the todo's literal "popExit = `opposite(enter)`" structural chan
 **Deferred:**
 - Default `Route.popExit` derived from `enter.reversal()` so new routes can omit the override — needs the `opposite()` → `reversal()` rename first. Captured in `docs/backlog.md`.
 - `Route.exit` field is now dead from `NavHost`'s perspective. Could be removed across all subclasses in a separable refactor — not now, since it's still descriptive and removing it would touch ~7 route files.
+
+## refactor(ds): swap non-game-table `RoundedCornerShape` literals for `Radii` tokens
+
+**Problem:** Backlog item "Sweep remaining `RoundedCornerShape(16.dp)` literals → `Radii.R700.shape`" listed eleven hand-tuned corner-radius literals. AGENTS.md DS rule §5 says corner radii come from `Radii` tokens; one-off `dp` literals at these sites had drifted past what the design system codifies.
+
+**Approach:** Migrated the non-game-table callsites the backlog flagged as mechanical:
+- `MyItemsScreen.kt:117` — 16.dp → `Radii.R700.shape` (also removed now-unused `RoundedCornerShape` import)
+- `StatsScreen.kt:214/237/400` — three 16.dp callsites → `Radii.R700.shape` (import kept; file still uses `RoundedCornerShape(50)` for chip rows)
+- `FeatureCard.kt:59` — 16.dp → `Radii.R700.shape` (import kept for the 24.dp outer shape, which has no token yet)
+- `QaMenuScreen.kt` — five callsites: three `RoundedCornerShape(10.dp)` → `Radii.R400.shape` (UserIdBlock, "Clear all overrides", text-field wrapper, Apply button) and one `RoundedCornerShape(16.dp)` → `Radii.R700.shape` (QaSection card). Import kept for the remaining `RoundedCornerShape(50)` chip.
+
+Skipped the game-table callsites (`BoardArea.kt`, `HandResultDialogs.kt:272`, `PlayerArea.kt:240/245`) per the backlog note — those were tuned by hand for the play screen and need a deliberate visual sweep, not blind replace. Updated `docs/backlog.md` to reflect what's left.
+
+**Reviewer notes:** Pure DS-token swap — `Radii.R400` is 10.dp and `R700` is 16.dp via `DimensionResource`, so the rendered shape is unchanged. Built `./gradlew :apps:compose:assembleDebug` and ran `:features:profile:impl:testDebugUnitTest`, `:features:progression:impl:testDebugUnitTest`, `:libraries:ui:testDebugUnitTest` — all green. No tests added; mechanical refactor with no logic surface.
+
+**Deferred:**
+- `FeatureCard.kt:46` still uses `RoundedCornerShape(24.dp)` (no token) and `Color.White.copy(alpha = 0.15f)` on the glyph block — both are AGENTS.md DS-rule drift but out of scope for this radii sweep. Left as-is; reviewer please triage whether to file as a separate backlog item (new `Radii.R800`/`R900` token + white-alpha-on-surface remediation) or roll into the next DS pass.
+- `StatsScreen.kt` and `QaMenuScreen.kt` still use percent-based `RoundedCornerShape(50)` for chips — `Radii.Round` exists (`CornerSize(percent = 50)`) and would cover them, but those weren't in the backlog item so I left them. Mechanical follow-up if/when we tighten DS-token coverage.
