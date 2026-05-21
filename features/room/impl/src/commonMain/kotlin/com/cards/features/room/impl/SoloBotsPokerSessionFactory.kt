@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.game.Personality
 import com.dangerfield.cards.libraries.game.SeatOccupant
@@ -34,6 +35,8 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         BotPersonality.forDifficulty(difficulty, seatCount - 1)
 
     override val difficultyName: String = difficulty.name
+
+    override val xpMode: XpMode = XpMode.BOTS
 
     /**
      * Personalities indexed by seat. Computed once per session-factory

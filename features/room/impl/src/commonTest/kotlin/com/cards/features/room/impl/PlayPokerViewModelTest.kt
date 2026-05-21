@@ -551,6 +551,30 @@ class PlayPokerViewModelTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun leaveTable_inBotMode_requestsSessionEndPrompt() = runUnitTest {
+        val coordinator = FakeReviewPromptCoordinator()
+        val vm = buildVm(reviewPromptCoordinator = coordinator)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertEquals(listOf(ReviewTrigger.SessionEnd), coordinator.requested)
+    }
+
+    @Test
+    fun leaveTable_outsideBotMode_doesNotRequestPrompt() = runUnitTest {
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory(xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER)
+        val vm = buildVm(factory = factory, reviewPromptCoordinator = coordinator)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertTrue(
+            coordinator.requested.isEmpty(),
+            "SessionEnd must not fire on MP exit — disconnects shouldn't masquerade as positive moments",
+        )
+    }
+
     // ---------- Helpers ----------
 
     private fun buildVm(

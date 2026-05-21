@@ -268,7 +268,7 @@ class PlayPokerViewModel @Inject constructor(
             event = event,
             state = state,
             humanSeatIndex = humanSeatIndex,
-            mode = XpMode.BOTS,
+            mode = sessionFactory.xpMode,
         )
         val context = AchievementHandContext(
             opponentBotNames = state.seats
@@ -418,6 +418,13 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.ConnectionChanged -> action.updateState {
                 it.copy(connection = action.connection)
             }
+            is PlayPokerAction.LeaveTable -> {
+                if (sessionFactory.xpMode == XpMode.BOTS) {
+                    Catching {
+                        reviewPromptCoordinator.requestPrompt(ReviewTrigger.SessionEnd)
+                    }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
+                }
+            }
         }
     }
 }
@@ -519,6 +526,15 @@ sealed interface PlayPokerAction {
 
     /** Fired by the session's connection-state subscription. */
     data class ConnectionChanged(val connection: ConnectionState) : PlayPokerAction
+
+    /**
+     * Fired by the play screen the moment the user opts into a clean
+     * exit (back-handler, top-bar back, confirmed leave dialog). The VM
+     * uses this to fire [ReviewTrigger.SessionEnd] — a "they finished
+     * intentionally" signal that the OS may decide to act on. No state
+     * update; navigation itself is the screen's job.
+     */
+    data object LeaveTable : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {
@@ -542,6 +558,14 @@ enum class SoundKind { CardFlick, ChipClick, Showdown, AchievementChime }
  */
 interface PokerSessionFactory {
     val difficultyName: String
+
+    /**
+     * Which [XpMode] this session counts for. Drives progression
+     * attribution (hand summaries written under this mode) and gating
+     * for prestige-bearing signals like [ReviewTrigger.SessionEnd] —
+     * MP-disconnects shouldn't masquerade as positive moments.
+     */
+    val xpMode: XpMode
 
     fun create(
         humanSeatIndex: Int,

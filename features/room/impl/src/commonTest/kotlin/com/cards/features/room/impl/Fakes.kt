@@ -94,6 +94,7 @@ class FakePokerSession(
 class FakePokerSessionFactory(
     val session: FakePokerSession = FakePokerSession(),
     override val difficultyName: String = "Standard",
+    override val xpMode: com.dangerfield.cards.libraries.cards.XpMode = com.dangerfield.cards.libraries.cards.XpMode.BOTS,
     val personalities: Map<Int, Personality> = emptyMap(),
 ) : PokerSessionFactory {
 

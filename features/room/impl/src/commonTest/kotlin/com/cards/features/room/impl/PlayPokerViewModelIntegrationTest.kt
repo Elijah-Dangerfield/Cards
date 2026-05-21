@@ -246,6 +246,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         private val seatsCount: Int,
         private val dispatchers: com.dangerfield.cards.libraries.flowroutines.DispatcherProvider,
         override val difficultyName: String = "Casual",
+        override val xpMode: com.dangerfield.cards.libraries.cards.XpMode = com.dangerfield.cards.libraries.cards.XpMode.BOTS,
     ) : PokerSessionFactory {
 
         private val personalities = listOf(
