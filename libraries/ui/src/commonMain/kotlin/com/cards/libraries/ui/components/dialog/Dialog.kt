@@ -152,9 +152,15 @@ fun Dialog(
  * bubble; pass [EmojiHandleStyle.Squircle] for commerce / equip dialogs.
  * [surface] overrides the bubble fill (color or gradient); leave null to
  * match the dialog's surface for a seamless top edge.
+ *
+ * Construction is restricted to the `:libraries:ui` module so every caller
+ * routes through the composable factory [dialogEmoji]. The factory owns
+ * theme-aware defaults — keeping it the single chokepoint means the DS
+ * can pin a default surface token in one place rather than retuning every
+ * callsite.
  */
 @Immutable
-data class DialogEmoji(
+data class DialogEmoji internal constructor(
     val emoji: String,
     val style: EmojiHandleStyle = EmojiHandleStyle.Circle,
     val surface: BubbleSurface? = null,

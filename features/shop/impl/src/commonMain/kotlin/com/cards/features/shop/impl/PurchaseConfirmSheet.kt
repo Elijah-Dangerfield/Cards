@@ -26,6 +26,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSh
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetValue
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.bottomSheetEmojiHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.rememberBottomSheetState
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -85,7 +86,7 @@ internal fun PurchaseConfirmSheet(
         is PendingPurchase.IapPack -> pending.product
         is PendingPurchase.ChipOffer -> pending.product
     }
-    val handle: BottomSheetDragHandle = BottomSheetDragHandle.Emoji(
+    val handle: BottomSheetDragHandle = bottomSheetEmojiHandle(
         emoji = product.iconEmoji,
         style = EmojiHandleStyle.Squircle,
         surface = productBubbleSurface(product),
