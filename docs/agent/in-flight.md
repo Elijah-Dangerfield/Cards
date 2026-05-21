@@ -9,3 +9,14 @@
 **Deferred:**
 - Platform `ReviewLauncher` impls — `AndroidReviewLauncher` wrapping `ReviewManager.launchReviewFlow`, `IosReviewLauncher` wrapping `SKStoreReviewController.requestReview`. Noted in updated `docs/todo.md` entry for the next slice.
 - Caller wiring — hooking `AchievementRepository` unlock / `ProgressionRepository` level-up / play-screen session-end into `ReviewPromptCoordinator.requestPrompt(...)`. Same todo entry.
+
+## feat(server): add GET /v1/me/active-rooms endpoint
+
+**Problem:** Orphan-room policy (`docs/todo.md` C. MP hardening) called for `GET /v1/me/active-rooms` on cold launch so the client can offer rejoin / forfeit before silently stranding a user — but the endpoint didn't exist server-side.
+
+**Approach:** Added the route under `meRoutes` (it's a "what does this user have" query, not a room-discovery surface, so it lives with the rest of `/v1/me`). Implementation is a one-pass filter over `RoomService.snapshot()` for caller-as-member — same `snapshot()` the admin endpoint uses, so no new service method. Wired the new param through `MeRoutes` + `Application.kt`. New `ActiveRoomsResponse` DTO in `RoomDto.kt` matches the schema-versioned envelope shape used by the other room responses. Three new tests on `MeRoutesTest` — happy path (one of two rooms is the caller's), empty-when-no-membership, and 401-when-missing-auth.
+
+**Reviewer notes:** Endpoint uses `RoomService.snapshot()` under the hood, which acquires the same global mutex as create/join/leave. With the current load (handful of rooms) that's fine. If the room map ever grows past trivial size, this could move to a dedicated `RoomService.findByMember(userId)` that doesn't lock the whole table. Not a concern today — flagging for future scale.
+
+**Deferred:**
+- Client-side wiring — calling this endpoint on cold launch and surfacing rejoin / forfeit. Updated `docs/todo.md` entry now lists this as the gap.

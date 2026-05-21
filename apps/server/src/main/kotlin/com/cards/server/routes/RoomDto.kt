@@ -67,6 +67,12 @@ data class GetRoomResponse(
     val room: RoomDto,
 )
 
+@Serializable
+data class ActiveRoomsResponse(
+    val schemaVersion: Int = 1,
+    val rooms: List<RoomDto>,
+)
+
 @OptIn(ExperimentalTime::class)
 internal fun Room.toDto(): RoomDto = RoomDto(
     code = code,

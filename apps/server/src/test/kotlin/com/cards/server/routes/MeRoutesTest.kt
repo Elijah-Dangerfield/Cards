@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.routes
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OwnedItem
@@ -9,7 +10,12 @@ import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.CreateResult
+import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.MessageSweepResult
+import com.dangerfield.cards.server.domain.Room
+import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.RoomSweepResult
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
@@ -171,6 +177,71 @@ class MeRoutesTest {
         }
     }
 
+    @Test
+    fun activeRooms_returnsRoomsCallerIsMemberOf() = runTest {
+        val rooms = InMemoryRoomService(clock = FixedClock(), random = kotlin.random.Random(0L))
+        val otherUser = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
+        val joined = rooms.create(userId, "Caller").let { (it as CreateResult.Success).room }
+        rooms.create(otherUser, "Other")
+
+        callActiveRooms(rooms, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<ActiveRoomsResponse>()
+            assertEquals(1, body.rooms.size, "only the caller's room comes back")
+            assertEquals(joined.code, body.rooms.single().code)
+        }
+    }
+
+    @Test
+    fun activeRooms_returnsEmpty_whenCallerHoldsNoSeats() = runTest {
+        val rooms = InMemoryRoomService(clock = FixedClock(), random = kotlin.random.Random(0L))
+        val otherUser = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
+        rooms.create(otherUser, "Other")
+
+        callActiveRooms(rooms, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(emptyList(), resp.body<ActiveRoomsResponse>().rooms)
+        }
+    }
+
+    @Test
+    fun activeRooms_returns401_whenAuthHeaderMissing() = runTest {
+        val rooms = InMemoryRoomService(clock = FixedClock(), random = kotlin.random.Random(0L))
+        callActiveRooms(rooms, bearer = null) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    private suspend fun callActiveRooms(
+        rooms: RoomService,
+        bearer: String?,
+        assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
+    ) {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyMessages, rooms)
+                }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val response = client.get("/v1/me/active-rooms") {
+                bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+            }
+            assert(response)
+        }
+    }
+
+    private class FixedClock(private val ms: Long = 1_700_000_000_000) : kotlin.time.Clock {
+        override fun now(): kotlin.time.Instant = kotlin.time.Instant.fromEpochMilliseconds(ms)
+    }
+
     // ---------- Test scaffolding ----------
 
     private fun validJwt(isAnonymous: Boolean = false): String {
@@ -201,7 +272,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages, EmptyRooms) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -225,7 +296,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages, EmptyRooms) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -372,6 +443,21 @@ class MeRoutesTest {
 
         override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
         override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyRooms : RoomService {
+        override suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int): CreateResult =
+            error("unused")
+        override suspend fun join(code: String, userId: UserId, name: String): JoinResult =
+            error("unused")
+        override suspend fun leave(code: String, userId: UserId): com.dangerfield.cards.server.domain.LeaveResult =
+            error("unused")
+        override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): Room? = null
+        override suspend fun find(code: String): Room? = null
+        override suspend fun observe(code: String): kotlinx.coroutines.flow.Flow<Room>? = null
+        override suspend fun sweepDisconnected(maxIdle: kotlin.time.Duration): RoomSweepResult =
+            RoomSweepResult(0, 0, 0)
+        override suspend fun snapshot(): List<Room> = emptyList()
     }
 
     private object EmptyMessages : UserMessageRepository {

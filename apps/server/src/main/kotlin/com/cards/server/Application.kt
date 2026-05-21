@@ -69,6 +69,7 @@ fun Application.module(config: ServerConfig) {
             component.inventoryRepository,
             component.walletRepository,
             component.userMessageRepository,
+            component.roomService,
         )
         messageRoutes(component.userMessageRepository, component.provideClock())
         avatarRoutes(component.inventoryRepository)

@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserMessageRepository
@@ -27,12 +28,17 @@ import io.ktor.server.routing.patch
 import org.slf4j.LoggerFactory
 
 /**
- * `GET /v1/me`     — returns the currently-authenticated user's profile,
- *                    creating it if this is their first contact (get-or-create).
- * `PATCH /v1/me`   — update `displayName` and/or `avatarEmoji`. Both optional.
- * `DELETE /v1/me`  — permanent account deletion: removes the Supabase
- *                    auth.users row (via the Admin API) AND our profile row.
- *                    Returns 204 on success.
+ * `GET /v1/me`              — returns the currently-authenticated user's profile,
+ *                             creating it if this is their first contact (get-or-create).
+ * `GET /v1/me/active-rooms` — the rooms the caller currently holds a seat in. Used by
+ *                             the client on cold launch to offer "rejoin or forfeit"
+ *                             before silently stranding a player in a room they
+ *                             abandoned across an app kill. In-memory snapshot — no
+ *                             persistence needed today.
+ * `PATCH /v1/me`            — update `displayName` and/or `avatarEmoji`. Both optional.
+ * `DELETE /v1/me`           — permanent account deletion: removes the Supabase
+ *                             auth.users row (via the Admin API) AND our profile row.
+ *                             Returns 204 on success.
  *
  * All three require a valid Supabase JWT. The JWT plugin populates
  * `call.userId()`.
@@ -59,12 +65,22 @@ fun Route.meRoutes(
     inventory: InventoryRepository,
     wallet: WalletRepository,
     messages: UserMessageRepository,
+    rooms: RoomService,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val profile = repository.findOrCreate(userId)
             call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
+        }
+
+        get("/v1/me/active-rooms") {
+            val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+            val active = rooms.snapshot().filter { it.memberFor(userId) != null }
+            call.respond(
+                HttpStatusCode.OK,
+                ActiveRoomsResponse(rooms = active.map { it.toDto() }),
+            )
         }
 
         rateLimit(RateLimitName(PROFILE_WRITE_LIMIT)) {
