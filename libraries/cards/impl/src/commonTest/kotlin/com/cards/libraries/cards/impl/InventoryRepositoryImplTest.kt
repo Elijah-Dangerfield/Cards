@@ -201,6 +201,119 @@ class InventoryRepositoryImplTest : CoroutineTest() {
         assertTrue(inv.deleteAllCalled)
     }
 
+    @Test
+    fun applyServerSnapshot_insertsAuthoritativeAsConfirmed_onEmptyLocal() = runUnitTest {
+        val inv = FakeInventoryDao()
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+
+        repo.applyServerSnapshot(
+            listOf(
+                com.dangerfield.cards.libraries.cards.InventoryItem(
+                    productId = "emote_dance",
+                    state = PurchaseState.Pending,
+                    purchasedAtEpochMs = 100,
+                    costChipsAtPurchase = 2_500,
+                ),
+            ),
+        )
+
+        val final = inv.getAll().single()
+        assertEquals("emote_dance", final.productId)
+        assertEquals(PurchaseState.Confirmed.name, final.syncState)
+        assertEquals(100L, final.purchasedAtEpochMs)
+        assertEquals(2_500L, final.costChipsAtPurchase)
+    }
+
+    @Test
+    fun applyServerSnapshot_promotesLocalPendingToConfirmed_whenServerAgrees() = runUnitTest {
+        val inv = FakeInventoryDao().apply {
+            emit(
+                listOf(
+                    InventoryEntity(
+                        productId = "emote_dance",
+                        syncState = "Pending",
+                        purchasedAtEpochMs = 50,
+                        costChipsAtPurchase = 2_500,
+                    ),
+                ),
+            )
+        }
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+
+        repo.applyServerSnapshot(
+            listOf(
+                com.dangerfield.cards.libraries.cards.InventoryItem(
+                    productId = "emote_dance",
+                    state = PurchaseState.Confirmed,
+                    purchasedAtEpochMs = 100,
+                    costChipsAtPurchase = 2_500,
+                ),
+            ),
+        )
+
+        val final = inv.getAll().single()
+        assertEquals(PurchaseState.Confirmed.name, final.syncState)
+    }
+
+    @Test
+    fun applyServerSnapshot_dropsLocalConfirmed_notInAuthoritative() = runUnitTest {
+        val inv = FakeInventoryDao().apply {
+            emit(
+                listOf(
+                    InventoryEntity(
+                        productId = "old_table",
+                        syncState = "Confirmed",
+                        purchasedAtEpochMs = 50,
+                        costChipsAtPurchase = 12_000,
+                    ),
+                ),
+            )
+        }
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+
+        repo.applyServerSnapshot(authoritative = emptyList())
+
+        assertTrue(
+            inv.getAll().isEmpty(),
+            "server says user owns nothing → local Confirmed row is revoked",
+        )
+    }
+
+    @Test
+    fun applyServerSnapshot_keepsLocalPending_notInAuthoritative() = runUnitTest {
+        // A Pending row is in flight — server hasn't seen the purchase yet.
+        // Don't drop it; the next sync cycle will reconcile.
+        val inv = FakeInventoryDao().apply {
+            emit(
+                listOf(
+                    InventoryEntity(
+                        productId = "in_flight",
+                        syncState = "Pending",
+                        purchasedAtEpochMs = 50,
+                        costChipsAtPurchase = 2_500,
+                    ),
+                ),
+            )
+        }
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+
+        repo.applyServerSnapshot(authoritative = emptyList())
+
+        val final = inv.getAll().single()
+        assertEquals("in_flight", final.productId)
+        assertEquals(PurchaseState.Pending.name, final.syncState)
+    }
+
+    @Test
+    fun applyServerSnapshot_emptyAuthoritative_onEmptyLocal_isNoOp() = runUnitTest {
+        val inv = FakeInventoryDao()
+        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+
+        repo.applyServerSnapshot(authoritative = emptyList())
+
+        assertTrue(inv.getAll().isEmpty())
+    }
+
     // ---------- Test scaffolding ----------
 
     private class FixedClock(private val now: Long) : Clock {
@@ -258,6 +371,12 @@ class InventoryRepositoryImplTest : CoroutineTest() {
             return inserted.size.toLong()
         }
 
+        override suspend fun insertAll(rows: List<InventoryEntity>) {
+            val byId = this.rows.value.associateBy { it.productId }.toMutableMap()
+            for (entity in rows) byId[entity.productId] = entity
+            this.rows.value = byId.values.toList()
+        }
+
         override suspend fun markConfirmed(productIds: Collection<String>) {
             confirmCalls += productIds
             rows.value = rows.value.map {
@@ -268,6 +387,12 @@ class InventoryRepositoryImplTest : CoroutineTest() {
         override suspend fun delete(productId: String) {
             deleted += productId
             rows.value = rows.value.filterNot { it.productId == productId }
+        }
+
+        override suspend fun deleteConfirmed(productIds: Collection<String>) {
+            rows.value = rows.value.filterNot {
+                it.productId in productIds && it.syncState == "Confirmed"
+            }
         }
 
         override suspend fun deleteAll() {

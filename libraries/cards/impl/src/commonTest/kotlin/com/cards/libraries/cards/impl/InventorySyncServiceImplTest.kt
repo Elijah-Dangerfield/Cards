@@ -29,9 +29,11 @@ import kotlin.test.assertTrue
  * stubbing the `/v1/inventory/sync` endpoint.
  *
  * What's pinned:
- *  - No-op when there's nothing pending — saves a network round-trip.
+ *  - Empty-pending case still POSTs so the server's authoritative `owned`
+ *    snapshot reaches the repo (cold-start / device-switch fetch).
  *  - All-Confirmed response → repo.markConfirmed gets the right ids, no
  *    chip movement.
+ *  - `owned` snapshot is folded into the repo via applyServerSnapshot.
  *  - Reverted outcomes → repo.revertPurchase called AND chips refunded.
  *  - Network failure → returns Result.failure, leaves rows Pending (no
  *    markConfirmed, no revert).
@@ -40,21 +42,39 @@ import kotlin.test.assertTrue
 class InventorySyncServiceImplTest : CoroutineTest() {
 
     @Test
-    fun emptyInventory_noOps_withoutHittingNetwork() = runUnitTest {
+    fun emptyInventory_stillPostsToFetchServerSnapshot() = runUnitTest {
         val inv = FakeInventory(initial = emptyList())
         val chips = FakeChips()
         var hitCount = 0
         val service = buildService(
             inventory = inv,
             chips = chips,
-            handler = { hitCount++; respondJson(""" {"results":[]} """) },
+            handler = {
+                hitCount++
+                respondJson(
+                    """
+                    {
+                      "schemaVersion": 1,
+                      "results": [],
+                      "owned": [
+                        {"productId":"emote_dance","costChipsAtPurchase":2500,"purchasedAtEpochMs":1000}
+                      ]
+                    }
+                    """.trimIndent(),
+                )
+            },
         )
 
         val result = service.sync()
 
         assertTrue(result.isSuccess)
-        assertEquals(0, hitCount, "no pending → no network call")
+        assertEquals(1, hitCount, "empty pending must still fetch the owned snapshot")
         assertTrue(inv.markedConfirmed.isEmpty())
+        assertEquals(
+            listOf("emote_dance"),
+            inv.snapshotsApplied.single().map { it.productId },
+            "server's owned snapshot reaches the repo",
+        )
     }
 
     @Test
@@ -242,6 +262,7 @@ class InventorySyncServiceImplTest : CoroutineTest() {
         private val state = MutableStateFlow(initial)
         val markedConfirmed = mutableListOf<String>()
         val reverted = mutableListOf<String>()
+        val snapshotsApplied = mutableListOf<List<InventoryItem>>()
 
         override fun observeInventory(): Flow<List<InventoryItem>> = state.asStateFlow()
         override suspend fun getInventory(): List<InventoryItem> = state.value
@@ -251,6 +272,9 @@ class InventorySyncServiceImplTest : CoroutineTest() {
             markedConfirmed += productIds
         }
         override suspend fun revertPurchase(productId: String) { reverted += productId }
+        override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) {
+            snapshotsApplied += authoritative
+        }
         override suspend fun deleteAll() { }
     }
 

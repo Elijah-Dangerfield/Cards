@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.InventorySyncService
 import com.dangerfield.cards.libraries.cards.PurchaseState
@@ -36,20 +37,16 @@ class InventorySyncServiceImpl(
     private val mutex = Mutex()
 
     override suspend fun sync(): Result<Unit> = mutex.withLock {
-        // TODO: post-auth this becomes the server-authoritative
-        //   reconciliation pass — server can revert rows for race /
-        //   insufficient_chips / offer_expired / revoked reasons and we
-        //   re-credit chips with a soft toast. Add telemetry events
-        //   (sync.confirmed / sync.reverted{reason} / sync.failed /
-        //   sync.empty_inventory).
+        // Always POSTs — even with an empty pending set — because the
+        // response carries the server's authoritative `owned` snapshot.
+        // That doubles as the cold-start fetch for "what does the user
+        // actually own" (parallel to how `EquipmentSyncServiceImpl` works)
+        // and is what closes the equipment-without-inventory drift bug:
+        // on a fresh install the server's snapshot brings the inventory
+        // back in line before the equipment consistency invariant fires.
         Catching {
             val pending = inventoryRepository.getInventory()
                 .filter { it.state == PurchaseState.Pending }
-
-            if (pending.isEmpty()) {
-                logger.d { "No pending purchases — sync no-op." }
-                return@Catching
-            }
 
             logger.d { "Syncing ${pending.size} pending purchases." }
             val request = InventorySyncRequestDto(
@@ -97,7 +94,18 @@ class InventorySyncServiceImpl(
                 }
             }
             inventoryRepository.markConfirmed(confirmedIds)
-            logger.d { "Sync complete: ${confirmedIds.size} confirmed." }
+
+            val authoritative = response.owned.map { dto ->
+                InventoryItem(
+                    productId = dto.productId,
+                    state = PurchaseState.Confirmed,
+                    purchasedAtEpochMs = dto.purchasedAtEpochMs,
+                    costChipsAtPurchase = dto.costChipsAtPurchase,
+                )
+            }
+            inventoryRepository.applyServerSnapshot(authoritative)
+            logger.d { "Sync complete: ${confirmedIds.size} confirmed, ${authoritative.size} server-owned." }
+            Unit
         }.onFailure { logger.w(it) { "Inventory sync failed; pending rows stay Pending." } }
     }
 }

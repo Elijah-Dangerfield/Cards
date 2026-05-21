@@ -519,6 +519,7 @@ class ShopViewModelTest : CoroutineTest() {
         override suspend fun revertPurchase(productId: String) {
             state.value = state.value.filterNot { it.productId == productId }
         }
+        override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) { }
         override suspend fun deleteAll() { state.value = emptyList() }
         fun emit(items: List<InventoryItem>) { state.value = items }
     }

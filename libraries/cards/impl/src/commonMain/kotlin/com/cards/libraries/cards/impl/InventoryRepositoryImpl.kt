@@ -97,6 +97,31 @@ class InventoryRepositoryImpl(
         inventoryDao.delete(productId)
     }
 
+    override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) {
+        val authoritativeIds = authoritative.map { it.productId }.toSet()
+
+        if (authoritative.isNotEmpty()) {
+            inventoryDao.insertAll(
+                authoritative.map { item ->
+                    InventoryEntity(
+                        productId = item.productId,
+                        syncState = PurchaseState.Confirmed.name,
+                        purchasedAtEpochMs = item.purchasedAtEpochMs,
+                        costChipsAtPurchase = item.costChipsAtPurchase,
+                    )
+                },
+            )
+        }
+
+        val supersededConfirmed = inventoryDao.getAll()
+            .filter { it.syncState == PurchaseState.Confirmed.name }
+            .map { it.productId }
+            .filter { it !in authoritativeIds }
+        if (supersededConfirmed.isNotEmpty()) {
+            inventoryDao.deleteConfirmed(supersededConfirmed)
+        }
+    }
+
     override suspend fun deleteAll() {
         inventoryDao.deleteAll()
     }

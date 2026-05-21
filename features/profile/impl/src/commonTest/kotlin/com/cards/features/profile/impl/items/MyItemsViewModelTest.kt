@@ -114,6 +114,7 @@ class MyItemsViewModelTest : CoroutineTest() {
             error("not used")
         override suspend fun markConfirmed(productIds: Collection<String>) { }
         override suspend fun revertPurchase(productId: String) { }
+        override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) { }
         override suspend fun deleteAll() { }
     }
 

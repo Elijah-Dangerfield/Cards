@@ -26,6 +26,21 @@ internal data class PendingPurchaseDto(
 internal data class InventorySyncResponseDto(
     val schemaVersion: Int = 1,
     val results: List<InventorySyncResultDto> = emptyList(),
+    /**
+     * Server-authoritative snapshot of everything the user owns after the
+     * submitted purchases were reconciled. Mirrors `POST /v1/equipment/sync`
+     * — the sync response IS the truth. Older servers that don't return
+     * this field deserialize as empty; the client treats an empty snapshot
+     * as "trust local state" (see [InventorySyncServiceImpl] handling).
+     */
+    val owned: List<OwnedInventoryItemDto> = emptyList(),
+)
+
+@Serializable
+internal data class OwnedInventoryItemDto(
+    val productId: String,
+    val costChipsAtPurchase: Long,
+    val purchasedAtEpochMs: Long,
 )
 
 @Serializable

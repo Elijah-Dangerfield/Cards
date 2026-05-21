@@ -111,6 +111,22 @@ interface InventoryRepository {
      */
     suspend fun revertPurchase(productId: String)
 
+    /**
+     * Fold a server-authoritative snapshot into local state. Mirrors
+     * `EquipmentRepository.applyServerSnapshot` — used by the sync service
+     * after it receives the `owned` array on `POST /v1/inventory/sync`.
+     *
+     * Behavior:
+     *  - For each authoritative item: upsert as Confirmed (replaces a prior
+     *    Pending row, which means "server saw this purchase").
+     *  - Local Confirmed rows whose productId isn't in [authoritative] are
+     *    removed — server says the user no longer owns them (refund / revoke
+     *    on another device).
+     *  - Local Pending rows whose productId isn't in [authoritative] are
+     *    kept untouched — they're in-flight and will retry next cycle.
+     */
+    suspend fun applyServerSnapshot(authoritative: List<InventoryItem>)
+
     /** Reset everything (used by "Fresh Start" / debug). */
     suspend fun deleteAll()
 }
