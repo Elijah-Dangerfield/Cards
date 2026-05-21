@@ -116,7 +116,7 @@ fun QaMenuScreen(
                     color = AppTheme.colors.textSecondary,
                 )
 
-                if (userId != null) UserIdBlock(userId = userId)
+                UserIdBlock(userId = userId)
 
                 Box(
                     modifier = Modifier
@@ -161,7 +161,7 @@ fun QaMenuScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UserIdBlock(userId: String) {
+private fun UserIdBlock(userId: String?) {
     @Suppress("DEPRECATION")
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
@@ -171,18 +171,23 @@ private fun UserIdBlock(userId: String) {
             copied = false
         }
     }
+    val clickable = if (userId != null) {
+        Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = {
+                clipboard.setText(AnnotatedString(userId))
+                copied = true
+            },
+        )
+    } else {
+        Modifier
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(AppTheme.colors.surfacePrimary.color)
-            .combinedClickable(
-                onClick = {},
-                onLongClick = {
-                    clipboard.setText(AnnotatedString(userId))
-                    copied = true
-                },
-            )
+            .then(clickable)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
@@ -192,13 +197,17 @@ private fun UserIdBlock(userId: String) {
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = userId,
+            text = userId ?: "— not signed in —",
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfacePrimary,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = if (copied) "Copied" else "Long-press to copy",
+            text = when {
+                userId == null -> "Identity not resolved yet — check IdentityRepository."
+                copied -> "Copied"
+                else -> "Long-press to copy"
+            },
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -448,16 +457,8 @@ private class PreviewAppConfigMap(override val map: Map<String, *>) : AppConfigM
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun QaMenuScreenPreview() {
-    val configMap = PreviewAppConfigMap(
-        map = mapOf(
-            "upgrade" to mapOf(
-                "minSupportedVersionCode" to 1,
-                "maintenanceMode" to "off",
-                "maintenanceMessage" to "We're updating the servers...",
-            ),
-        ),
-    )
+private fun QaMenuScreenPreview_SignedIn() {
+    val configMap = previewConfigMap()
     com.dangerfield.cards.libraries.ui.PreviewContent {
         QaMenuScreen(
             configStream = kotlinx.coroutines.flow.flowOf(configMap),
@@ -468,3 +469,28 @@ private fun QaMenuScreenPreview() {
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun QaMenuScreenPreview_UnresolvedIdentity() {
+    val configMap = previewConfigMap()
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        QaMenuScreen(
+            configStream = kotlinx.coroutines.flow.flowOf(configMap),
+            initialConfig = configMap,
+            overrideRepository = PreviewConfigOverrideRepository(),
+            onBack = {},
+            userId = null,
+        )
+    }
+}
+
+private fun previewConfigMap(): PreviewAppConfigMap = PreviewAppConfigMap(
+    map = mapOf(
+        "upgrade" to mapOf(
+            "minSupportedVersionCode" to 1,
+            "maintenanceMode" to "off",
+            "maintenanceMessage" to "We're updating the servers...",
+        ),
+    ),
+)
