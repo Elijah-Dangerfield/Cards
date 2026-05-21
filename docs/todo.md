@@ -197,10 +197,6 @@ This is a poker app. A user shouldn't need internet to play bots, even on first 
 
 **Files / hints:** [SupabaseIdentityRepository.kt:113](../libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/SupabaseIdentityRepository.kt#L113) (`ensureInitialized`), [SplashGate](../libraries/identity/api/src/commonMain/kotlin/com/cards/libraries/identity/api/SessionState.kt) wiring. **Discuss approach with the human before implementing** — this is an executive decision call, not a worker pickup.
 
-### CI — cache & artifacts
-- **Gradle cache is already wired** via `gradle/actions/setup-gradle@v4` with `cache-read-only` on PRs, plus a `~/.konan` cache for Kotlin/Native ([ci.yml:71](../.github/workflows/ci.yml#L71)). That's the right shape; no change needed there.
-- **Worth adding — artifact uploads:** test reports (JUnit XML / HTML) and built APK / IPA on green main. Today nothing is uploaded, so post-mortem on a CI failure means re-running locally. Use `actions/upload-artifact@v4` with sane retention (7–14 days for test reports, 30 days for release-train APKs).
-
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 **Problem:** `libraries/cards` was originally the "highly shared" dumping ground. It has grown to be too big. We now also have `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). The three overlap in confusing ways for new readers.
 
