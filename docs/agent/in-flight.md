@@ -1,3 +1,15 @@
+## feat(server): add unlock_only flag and filter shop catalog
+
+**Problem:** `docs/todo.md` §B "Catalog gating" called out a V1-blocker: legendary / league / achievement-chain cosmetics are spec'd to never appear in the shop, but the `products` table had no `unlock_only` column and the catalog query had no filter. The moment any prestige cosmetic ships it would have leaked into the shop and broken the no-pay-to-win principle.
+
+**Approach:** Three-line slice. New `V10__unlock_only_products.sql` adds `unlock_only BOOLEAN NOT NULL DEFAULT FALSE` to `products` (default-false keeps every existing row shop-eligible). `ProductsTable` got an `unlockOnly` Exposed column matching the new schema. `PostgresProductCatalogSource.read` now adds `.where { ProductsTable.unlockOnly eq false }` — the shop catalog never sees unlock-only rows. Two new tests on `PostgresProductCatalogSourceTest`: a one-shot insert of a synthetic unlock-only product proves it's filtered out of the catalog, and a coexistence test confirms shop products still appear when an unlock-only row exists. Tests use raw SQL via `TransactionManager.current().exec` because `title_by_locale` is JSONB and Exposed's parameterized insert won't auto-cast a String to JSONB.
+
+**Reviewer notes:** The catalog filter handles the *prevention* side (no leak into the shop), but the *grant* side — actually inserting an unlock-only product id into a user's inventory when they unlock an achievement / league finish — isn't wired. Same for the read-by-id path the Trophy Case will need (the current catalog filter would hide unlock-only rows from any code that tries to render them). Both are next-slice work and are flagged in the updated `docs/todo.md` entry. V1 can ship with zero unlock-only rows and the shop is unaffected, so this slice is enough to land the structural piece without forcing a Trophy Case shipping decision tonight.
+
+**Deferred:**
+- Inventory-grant path that writes unlock_only product ids into `inventory` on achievement / league reward. Flagged in updated `docs/todo.md`.
+- `ProductCatalogSource.readById(id)` (or equivalent) that bypasses the filter for Trophy Case rendering. Same todo entry.
+
 ## feat(rooms): add RoomRepository.getActiveRooms() client surface
 
 **Problem:** Server `GET /v1/me/active-rooms` landed earlier tonight, but `RoomRepository` had no client method to call it. Without a typed outcome surface, anything wired on cold launch later would have to hand-roll its own HTTP + status mapping.

@@ -89,6 +89,8 @@ object ProductsTable : Table("products") {
     val costChips = long("cost_chips").nullable()
     val unlockLevel = integer("unlock_level").nullable()
 
+    val unlockOnly = bool("unlock_only").default(false)
+
     override val primaryKey = PrimaryKey(id)
 }
 

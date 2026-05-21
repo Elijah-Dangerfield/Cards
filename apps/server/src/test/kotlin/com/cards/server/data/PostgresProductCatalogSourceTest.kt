@@ -4,6 +4,7 @@ import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.http.ClientContext
 import kotlinx.coroutines.test.runTest
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -210,5 +211,76 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
 
         val missing = expectedGrantKeys - seededGrantKeys
         assertTrue(missing.isEmpty(), "missing grantsKey rows in seed: $missing")
+    }
+
+    @Test
+    fun read_filtersOut_unlockOnlyProducts() = runTest {
+        val unlockOnlyId = "test_unlock_only_trophy_${System.nanoTime()}"
+        insertUnlockOnlyChipOffer(
+            id = unlockOnlyId,
+            sortOrder = 9_999,
+            title = "Legendary Trophy",
+            grantsKey = "trophy.legendary_test",
+        )
+        try {
+            val catalog = newSource().read(androidContext)
+            val ids = (catalog.chipPacks.map { it.id } + catalog.chipOffers.map { it.id }).toSet()
+            assertTrue(
+                unlockOnlyId !in ids,
+                "unlock_only product $unlockOnlyId leaked into shop catalog",
+            )
+        } finally {
+            deleteProduct(unlockOnlyId)
+        }
+    }
+
+    @Test
+    fun read_keepsExistingProducts_whenAnotherIsUnlockOnly() = runTest {
+        val unlockOnlyId = "test_unlock_only_coexist_${System.nanoTime()}"
+        insertUnlockOnlyChipOffer(
+            id = unlockOnlyId,
+            sortOrder = 9_998,
+            title = "League Crown",
+            grantsKey = "crown.league_test",
+        )
+        try {
+            val catalog = newSource().read(androidContext)
+            assertTrue(
+                catalog.chipOffers.any { it.id == "felt_royal_red" },
+                "existing seeded products must still appear when an unlock-only row exists",
+            )
+        } finally {
+            deleteProduct(unlockOnlyId)
+        }
+    }
+
+    private suspend fun insertUnlockOnlyChipOffer(
+        id: String,
+        sortOrder: Int,
+        title: String,
+        grantsKey: String,
+    ) {
+        database.transaction {
+            TransactionManager.current().exec(
+                """
+                INSERT INTO products (
+                    id, kind, sort_order, icon_emoji, featured,
+                    title_by_locale, subtitle_by_locale,
+                    grants_key, cost_chips, unlock_only
+                ) VALUES (
+                    '$id', 'chip_offer', $sortOrder, '🏆', FALSE,
+                    '{"en":"$title"}'::jsonb,
+                    '{"en":"Earned, not bought"}'::jsonb,
+                    '$grantsKey', 0, TRUE
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+    private suspend fun deleteProduct(id: String) {
+        database.transaction {
+            TransactionManager.current().exec("DELETE FROM products WHERE id = '$id'")
+        }
     }
 }

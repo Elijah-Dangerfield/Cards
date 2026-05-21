@@ -14,6 +14,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -47,6 +48,7 @@ class PostgresProductCatalogSource(
         database.transaction {
             val rows = ProductsTable
                 .selectAll()
+                .where { ProductsTable.unlockOnly eq false }
                 .orderBy(ProductsTable.sortOrder to SortOrder.ASC)
                 .toList()
 
