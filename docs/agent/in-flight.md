@@ -20,3 +20,15 @@
 
 **Deferred:**
 - Client-side wiring — calling this endpoint on cold launch and surfacing rejoin / forfeit. Updated `docs/todo.md` entry now lists this as the gap.
+
+## feat(server): soft bust protection — auto-grant on first zero balance
+
+**Problem:** V1-blocker on the chip-economy story (`docs/todo.md` §B Economy): a player who busted their starter grant had no path back to the table without an IAP. Spec called for a one-time 1,000-chip grant + "Welcome back to the table." dialog on first transition-to-zero.
+
+**Approach:** Server-side, idempotency-keyed. Added `Wallet.BUST_PROTECTION_{GRANT, KEY, REASON}` constants and a private `maybeApplyBustProtection` helper in `WalletRoutes.kt`. Both `GET /v1/me/wallet` and `POST /v1/me/wallet/sync` call it after their normal work. When the balance is zero, the helper applies a +1,000 ledger event with idempotency key `bust_protection_v1` — the existing `(user_id, idempotency_key)` PK on `wallet_events` is the lifetime-once guarantee, so re-detecting zero is a no-op past the first grant. On the *first* grant (`!wasAlreadyApplied`) it also queues a Dialog `UserMessage` ("Welcome back to the table.") via the existing `UserMessageRepository`, mirroring the AdminRoutes chip-grant precedent. No new schema, no new domain service, no new client RPC — the client picks the dialog up through the existing UserMessage poll and observes the wallet delta through the existing wallet sync. Four route tests cover: GET grants and queues message on zero, GET stays no-op after the lifetime grant, sync triggers post-batch when chips drain to zero, sync doesn't trigger when balance stays positive.
+
+**Reviewer notes:** Bust protection fires from BOTH endpoints, not just sync. That's intentional — a cold-launch user who closed the app at zero would otherwise be stranded until they happened to sync. The idempotency primitive makes the duplicate trigger cheap (one extra SELECT past the first). If the auto-pop dialog placement turns out to interrupt active play, the right fix is to gate the *client-side dialog surfacing* on session-start rather than removing the server-side grant — the chips themselves should always land. One thing worth a second look: the welcome dialog body inlines the chip count (`"…here's ${Wallet.BUST_PROTECTION_GRANT} on the house…"`) but the copy literal "Welcome back to the table." came directly from the todo entry — a copy editor might want a different voice.
+
+**Deferred:**
+- Client-side verification — actually playing a hand to zero and confirming the dialog renders. Listed in updated `docs/todo.md` entry.
+- Honest copy review — the dialog body is mine, not from voice-and-copy.md. Worth a look before TestFlight.

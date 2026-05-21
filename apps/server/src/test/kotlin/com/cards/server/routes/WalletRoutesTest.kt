@@ -3,7 +3,12 @@ package com.dangerfield.cards.server.routes
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.MessageSweepResult
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessage
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
@@ -204,6 +209,7 @@ class WalletRoutesTest {
     private suspend fun callGet(
         repo: WalletRepository,
         bearer: String?,
+        messages: UserMessageRepository = NoopUserMessages(),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -212,7 +218,7 @@ class WalletRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { walletRoutes(repo) }
+                routing { walletRoutes(repo, messages) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -228,6 +234,7 @@ class WalletRoutesTest {
         repo: WalletRepository,
         request: WalletSyncRequest,
         bearer: String?,
+        messages: UserMessageRepository = NoopUserMessages(),
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -236,7 +243,7 @@ class WalletRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { walletRoutes(repo) }
+                routing { walletRoutes(repo, messages) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -257,13 +264,13 @@ class WalletRoutesTest {
      * point: pre-populate it to simulate "the server already saw this
      * key" in a replay scenario.
      */
-    private class FakeWalletRepo : WalletRepository {
+    private class FakeWalletRepo(seed: Map<UserId, Long> = emptyMap()) : WalletRepository {
         var findOrCreateCalls: Int = 0
             private set
         var applyCalls: Int = 0
             private set
 
-        private val balances = mutableMapOf<UserId, Long>()
+        private val balances: MutableMap<UserId, Long> = seed.toMutableMap()
         val applied: MutableMap<String, ApplyOutcome.Applied> = mutableMapOf()
 
         override suspend fun findOrCreate(userId: UserId): Wallet {
@@ -311,6 +318,127 @@ class WalletRoutesTest {
         override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
         override suspend fun deleteAllForUser(userId: UserId) {
             balances.remove(userId)
+        }
+    }
+
+    private class NoopUserMessages : UserMessageRepository {
+        val created: MutableList<RecordedMessage> = mutableListOf()
+
+        data class RecordedMessage(
+            val userId: UserId,
+            val idempotencyKey: String,
+            val kind: UserMessageKind,
+            val title: String,
+            val body: String,
+        )
+
+        private val keys: MutableSet<Pair<UserId, String>> = mutableSetOf()
+
+        override suspend fun create(
+            id: UUID,
+            userId: UserId,
+            idempotencyKey: String,
+            kind: UserMessageKind,
+            emoji: String?,
+            title: String,
+            body: String,
+            deepLink: String?,
+            expiresAt: Instant?,
+        ): CreateMessageOutcome {
+            val key = userId to idempotencyKey
+            val firstTime = keys.add(key)
+            if (firstTime) {
+                created += RecordedMessage(userId, idempotencyKey, kind, title, body)
+            }
+            return CreateMessageOutcome(
+                message = UserMessage(
+                    id = id,
+                    userId = userId,
+                    idempotencyKey = idempotencyKey,
+                    kind = kind,
+                    emoji = emoji,
+                    title = title,
+                    body = body,
+                    deepLink = deepLink,
+                    createdAt = Instant.fromEpochMilliseconds(0),
+                    expiresAt = expiresAt,
+                    ackedAt = null,
+                ),
+                wasAlreadyCreated = !firstTime,
+            )
+        }
+
+        override suspend fun unreadFor(userId: UserId, now: Instant, limit: Int): List<UserMessage> = emptyList()
+        override suspend fun ackMany(userId: UserId, ids: List<UUID>, at: Instant): Int = 0
+        override suspend fun sweepExpiredAndAcked(now: Instant): MessageSweepResult = MessageSweepResult(0, 0)
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    @Test
+    fun get_bustProtection_grantsChipsAndQueuesMessage_whenBalanceIsZero() = runTest {
+        val repo = FakeWalletRepo(seed = mapOf(userId to 0L))
+        val messages = NoopUserMessages()
+        callGet(repo, bearer = validJwt(), messages = messages) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletResponse>()
+            assertEquals(Wallet.BUST_PROTECTION_GRANT, body.balance)
+            val recorded = messages.created.single()
+            assertEquals(UserMessageKind.Dialog, recorded.kind)
+            assertEquals("Welcome back to the table.", recorded.title)
+            assertEquals("${Wallet.BUST_PROTECTION_KEY}_msg", recorded.idempotencyKey)
+        }
+    }
+
+    @Test
+    fun get_bustProtection_isLifetimeOnce() = runTest {
+        val repo = FakeWalletRepo(seed = mapOf(userId to 0L)).apply {
+            applied[Wallet.BUST_PROTECTION_KEY] = ApplyOutcome.Applied(
+                balance = 0L,
+                wasAlreadyApplied = false,
+            )
+        }
+        val messages = NoopUserMessages()
+        callGet(repo, bearer = validJwt(), messages = messages) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(0L, resp.body<WalletResponse>().balance, "no second grant; user stays at zero")
+            assertEquals(0, messages.created.size, "no replayed welcome dialog")
+        }
+    }
+
+    @Test
+    fun sync_bustProtection_firesAfterBatchDrainsBalanceToZero() = runTest {
+        val repo = FakeWalletRepo(seed = mapOf(userId to 500L))
+        val messages = NoopUserMessages()
+        callSync(
+            repo,
+            request = WalletSyncRequest(
+                events = listOf(WalletEventDto(idempotencyKey = "bet", delta = -500, reason = "hand")),
+            ),
+            bearer = validJwt(),
+            messages = messages,
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<WalletSyncResponse>()
+            assertEquals(Wallet.BUST_PROTECTION_GRANT, body.balance, "bust protection kicks in post-batch")
+            assertEquals(1, messages.created.size, "welcome dialog queued exactly once")
+        }
+    }
+
+    @Test
+    fun sync_doesNotTriggerBustProtection_whenBalanceStaysPositive() = runTest {
+        val repo = FakeWalletRepo()
+        val messages = NoopUserMessages()
+        callSync(
+            repo,
+            request = WalletSyncRequest(
+                events = listOf(WalletEventDto(idempotencyKey = "bet", delta = -500, reason = "hand")),
+            ),
+            bearer = validJwt(),
+            messages = messages,
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(Wallet.STARTER_GRANT - 500, resp.body<WalletSyncResponse>().balance)
+            assertEquals(0, messages.created.size, "no welcome dialog when the user didn't bust")
         }
     }
 }
