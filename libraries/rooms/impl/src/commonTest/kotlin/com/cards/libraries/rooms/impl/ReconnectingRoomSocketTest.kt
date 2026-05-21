@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.rooms.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -63,6 +64,36 @@ class ReconnectingRoomSocketTest {
             val reconnecting = assertIs<RoomConnection.Reconnecting>(awaitItem())
             assertTrue(reconnecting.cause is SimulatedNetworkError)
             cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun handshake4xx_surfaces_Closed_Rejected_andStopsLoop() = runTest {
+        // A 4xx on the WS handshake means the server rejected the upgrade
+        // (most commonly: user isn't a member of the room). The reconnect
+        // loop has no business retrying — the collector needs to call
+        // POST /join + re-subscribe. Surfaces as Closed(Rejected) and
+        // terminates so the collector can act on it.
+        //
+        // Uses its own client config with `expectSuccess = true` to match
+        // production NetworkClientImpl — the default mock client doesn't
+        // distinguish 4xx vs 5xx exception types.
+        val engine = MockEngine { respond(content = "", status = HttpStatusCode.Forbidden) }
+        val client = HttpClient(engine) {
+            install(WebSockets)
+            install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            expectSuccess = true
+        }
+        val socket = ReconnectingRoomSocket(
+            networkClient = FakeNetworkClient(client),
+            networkConfig = FakeNetworkConfig(),
+        )
+
+        socket.observe("ABC123").test {
+            assertEquals(RoomConnection.Connecting, awaitItem())
+            val closed = assertIs<RoomConnection.Closed>(awaitItem())
+            assertEquals(ClosedReason.Rejected, closed.reason)
+            awaitComplete()
         }
     }
 

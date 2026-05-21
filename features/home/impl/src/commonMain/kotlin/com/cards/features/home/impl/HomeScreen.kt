@@ -44,6 +44,7 @@ fun HomeScreen(
     onTapCash: () -> Unit,
     onStartGame: () -> Unit,
     onJoinGame: () -> Unit,
+    onRejoinRoom: (code: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
@@ -54,12 +55,15 @@ fun HomeScreen(
         rank = if (state.isAnonymous) 0 else 1200,
         chips = state.chips,
         xp = state.xp,
+        activeRooms = state.activeRooms,
         onPlayBots = onPlayBots,
         onTapRank = onTapRank,
         onTapXp = onTapXp,
         onTapCash = onTapCash,
         onStartGame = onStartGame,
         onJoinGame = onJoinGame,
+        onRejoinRoom = onRejoinRoom,
+        onForfeitRoom = { code -> viewModel.takeAction(HomeAction.Forfeit(code)) },
         modifier = modifier,
     )
 }
@@ -69,12 +73,15 @@ private fun HomeScreenContent(
     rank: Int,
     chips: Long,
     xp: Long,
+    activeRooms: List<ActiveRoomSummary>,
     onPlayBots: (difficulty: String) -> Unit,
     onTapRank: () -> Unit,
     onTapXp: () -> Unit,
     onTapCash: () -> Unit,
     onStartGame: () -> Unit,
     onJoinGame: () -> Unit,
+    onRejoinRoom: (code: String) -> Unit,
+    onForfeitRoom: (code: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Screen(modifier = modifier) { paddingValues ->
@@ -92,6 +99,15 @@ private fun HomeScreenContent(
             ) {
                 RankBadge(rank = rank, onClick = onTapRank)
                 XpBadge(xp = xp, onClick = onTapXp)
+            }
+
+            activeRooms.forEach { room ->
+                VerticalSpacerD600()
+                ActiveRoomBanner(
+                    code = room.code,
+                    onRejoin = { onRejoinRoom(room.code) },
+                    onForfeit = { onForfeitRoom(room.code) },
+                )
             }
 
             VerticalSpacerD1100()
@@ -187,12 +203,15 @@ private fun HomeScreenPreview_Default() {
             rank = 1200,
             chips = 10_000,
             xp = 2_840,
+            activeRooms = emptyList(),
             onPlayBots = {},
             onTapRank = {},
             onTapXp = {},
             onTapCash = {},
             onStartGame = {},
             onJoinGame = {},
+            onRejoinRoom = {},
+            onForfeitRoom = {},
         )
     }
 }
@@ -205,12 +224,15 @@ private fun HomeScreenPreview_BrokeAndLowRank() {
             rank = 800,
             chips = 0,
             xp = 60,
+            activeRooms = emptyList(),
             onPlayBots = {},
             onTapRank = {},
             onTapXp = {},
             onTapCash = {},
             onStartGame = {},
             onJoinGame = {},
+            onRejoinRoom = {},
+            onForfeitRoom = {},
         )
     }
 }
@@ -223,12 +245,36 @@ private fun HomeScreenPreview_Whale() {
             rank = 2400,
             chips = 1_234_567,
             xp = 982_000,
+            activeRooms = emptyList(),
             onPlayBots = {},
             onTapRank = {},
             onTapXp = {},
             onTapCash = {},
             onStartGame = {},
             onJoinGame = {},
+            onRejoinRoom = {},
+            onForfeitRoom = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenPreview_WithActiveRoom() {
+    PreviewContent {
+        HomeScreenContent(
+            rank = 1200,
+            chips = 10_000,
+            xp = 2_840,
+            activeRooms = listOf(ActiveRoomSummary(code = "ABC123")),
+            onPlayBots = {},
+            onTapRank = {},
+            onTapXp = {},
+            onTapCash = {},
+            onStartGame = {},
+            onJoinGame = {},
+            onRejoinRoom = {},
+            onForfeitRoom = {},
         )
     }
 }

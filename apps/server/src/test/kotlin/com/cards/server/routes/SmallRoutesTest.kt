@@ -199,6 +199,90 @@ class SmallRoutesTest {
     }
 
     @Test
+    fun avatars_includesPremiumPack_whenInventoryContainsItsProduct() = runTest {
+        // Regression pin for the picker bug where paid avatar packs
+        // (avatars_food, avatars_animals, etc.) never surfaced even after
+        // purchase: the catalog rows existed but no Pack with a matching
+        // unlockProductId was registered, so the inventory join was a
+        // no-op. Asserting one premium pack here is enough — the filter
+        // is shared.
+        val ownedFood = object : InventoryRepository {
+            override suspend fun listOwned(userId: UserId): List<OwnedItem> = listOf(
+                OwnedItem(
+                    productId = "avatars_food",
+                    costChipsAtPurchase = 4000,
+                    purchasedAt = kotlin.time.Clock.System.now(),
+                ),
+            )
+
+            override suspend fun recordPurchase(
+                userId: UserId,
+                productId: String,
+                costChipsAtPurchase: Long,
+                purchasedAt: kotlin.time.Instant,
+            ): OwnedItem = error("unused")
+
+            override suspend fun deleteAllForUser(userId: UserId) = Unit
+        }
+        testApplication {
+            application {
+                installSerialization()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing { avatarRoutes(ownedFood) }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val resp = client.get("/v1/avatars") {
+                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            val packs = body["packs"]!!.jsonArray
+            val packIds = packs.map { it.jsonObject["id"]!!.jsonPrimitive.content }
+            assertTrue(
+                AvatarPacks.Starter.id in packIds,
+                "starter pack must always be present, got: $packIds",
+            )
+            assertTrue(
+                AvatarPacks.Food.id in packIds,
+                "owned premium pack (food) must appear, got: $packIds",
+            )
+            val food = packs.single { it.jsonObject["id"]!!.jsonPrimitive.content == AvatarPacks.Food.id }
+            assertEquals(
+                AvatarPacks.Food.emojis,
+                food.jsonObject["emojis"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+        }
+    }
+
+    @Test
+    fun avatars_omitsUnownedPremiumPacks() = runTest {
+        // The catalog should never leak unowned premium packs back to the
+        // client. With an empty inventory the response is exactly Starter.
+        testApplication {
+            application {
+                installSerialization()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing { avatarRoutes(EmptyInventory) }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val resp = client.get("/v1/avatars") {
+                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            val packIds = body["packs"]!!.jsonArray
+                .map { it.jsonObject["id"]!!.jsonPrimitive.content }
+            assertEquals(listOf(AvatarPacks.Starter.id), packIds)
+        }
+    }
+
+    @Test
     fun avatars_setsPrivateCache_so_packsDontBleedAcrossUsers() = runTest {
         // Per-user payload (we join inventory), so a `private` cache
         // directive is required — otherwise a CDN could serve user A's

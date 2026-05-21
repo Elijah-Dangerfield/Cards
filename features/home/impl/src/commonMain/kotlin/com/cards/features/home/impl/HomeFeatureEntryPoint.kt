@@ -49,6 +49,7 @@ class HomeFeatureEntryPoint(
                 },
                 onStartGame = { router.navigate(LobbyRoute()) },
                 onJoinGame = { router.navigate(LobbyRoute()) },
+                onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
             )
 
             setupDifficulty?.let { difficulty ->

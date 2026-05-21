@@ -62,7 +62,11 @@ fun Application.module(config: ServerConfig) {
         appConfigRoutes(component.appConfigSource)
         productsRoutes(component.productCatalogSource)
         inventoryRoutes(component.inventoryRepository)
-        walletRoutes(component.walletRepository, component.userMessageRepository)
+        walletRoutes(
+            repository = component.walletRepository,
+            messages = component.userMessageRepository,
+            clock = component.provideClock(),
+        )
         meRoutes(
             component.profileRepository,
             component.supabaseAdminClient,

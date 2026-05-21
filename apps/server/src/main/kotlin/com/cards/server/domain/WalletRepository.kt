@@ -44,6 +44,29 @@ data class Wallet(
 
         /** Ledger reason for the bust-protection grant. */
         const val BUST_PROTECTION_REASON: String = "bust_protection"
+
+        /**
+         * Window over which the welcome-week daily grant runs, counted
+         * in whole days since the wallet's `createdAt`. Day 0 is the
+         * first contact; day [WELCOME_WEEK_DAYS] - 1 is the last day
+         * with an eligible grant. Mirrors product-spec.md §4.1: silent
+         * 500/day for the first 7 days post-install / sign-up.
+         */
+        const val WELCOME_WEEK_DAYS: Int = 7
+
+        /** Per-day chip count granted by the welcome-week schedule. */
+        const val WELCOME_WEEK_DAILY_GRANT: Long = 500L
+
+        /**
+         * Idempotency-key prefix for the welcome-week daily grants. The
+         * full key is `${WELCOME_WEEK_KEY_PREFIX}{day}_v1` where `day`
+         * is the day index `0..WELCOME_WEEK_DAYS-1`. Lifetime-once per
+         * (user, day).
+         */
+        const val WELCOME_WEEK_KEY_PREFIX: String = "welcome_week_day_"
+
+        /** Ledger reason for welcome-week grants. */
+        const val WELCOME_WEEK_REASON: String = "welcome_week"
     }
 }
 

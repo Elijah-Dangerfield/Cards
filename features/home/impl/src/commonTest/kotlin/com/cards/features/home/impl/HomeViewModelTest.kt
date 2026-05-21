@@ -9,8 +9,17 @@ import com.dangerfield.cards.libraries.cards.User
 import com.dangerfield.cards.libraries.cards.UserRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
+import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
+import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.Room
+import com.dangerfield.cards.libraries.rooms.RoomConnection
+import com.dangerfield.cards.libraries.rooms.RoomRepository
+import com.dangerfield.cards.libraries.rooms.RoomStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -136,16 +145,109 @@ class HomeViewModelTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun activeRooms_success_populatesState() = runUnitTest {
+        val room = sampleRoom(code = "WXYZ12")
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(room)),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.activeRooms.isEmpty()) last = awaitItem()
+            assertEquals(listOf(ActiveRoomSummary(code = "WXYZ12")), last.activeRooms)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun activeRooms_networkError_keepsEmpty() = runUnitTest {
+        // The home banner must stay silent when /v1/me/active-rooms fails so
+        // we don't pop a "you have an ongoing game" affordance keyed to nothing.
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.NetworkError(RuntimeException("boom")),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.stateFlow.test {
+            // Let init drain
+            var last = awaitItem()
+            repeat(3) {
+                if (last.userName != null) return@repeat
+                last = awaitItem()
+            }
+            assertTrue(last.activeRooms.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun forfeit_optimisticallyRemovesRoom_andCallsLeave() = runUnitTest {
+        val a = sampleRoom(code = "AAA111")
+        val b = sampleRoom(code = "BBB222")
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(a, b)),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.activeRooms.size != 2) last = awaitItem()
+
+            vm.takeAction(HomeAction.Forfeit(code = "AAA111"))
+
+            while (last.activeRooms.any { it.code == "AAA111" }) last = awaitItem()
+            assertEquals(listOf(ActiveRoomSummary("BBB222")), last.activeRooms)
+            assertEquals(listOf("AAA111"), rooms.leaveCalls)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun forfeit_networkError_rehydratesFromServer() = runUnitTest {
+        // A leave that fails over the wire must NOT silently drop the room from
+        // the user's view — the server's truth is still "you're in." Reload.
+        val original = sampleRoom(code = "AAA111")
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(original)),
+            leaveOutcome = LeaveRoomOutcome.NetworkError(RuntimeException("boom")),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.activeRooms.isEmpty()) last = awaitItem()
+
+            vm.takeAction(HomeAction.Forfeit(code = "AAA111"))
+
+            // The optimistic drop + rehydrate is conflated by StateFlow into the
+            // same end-state — so we assert the final value and that the leave
+            // failure triggered a second active-rooms fetch.
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf(ActiveRoomSummary("AAA111")), vm.stateFlow.value.activeRooms)
+        assertTrue(rooms.getActiveRoomsCalls >= 2, "Failure must re-query active rooms")
+        assertEquals(listOf("AAA111"), rooms.leaveCalls)
+    }
+
     // ---------- scaffolding ----------
 
     private fun buildVm(
         users: FakeUserRepository = FakeUserRepository(initial = anonymousUser()),
         progression: FakeProgressionRepository = FakeProgressionRepository(),
         chips: FakeChipsRepository = FakeChipsRepository(),
+        rooms: FakeRoomRepository = FakeRoomRepository(),
     ): HomeViewModel = HomeViewModel(
         userRepository = users,
         progressionRepository = progression,
         chipsRepository = chips,
+        roomRepository = rooms,
+    )
+
+    private fun sampleRoom(code: String): Room = Room(
+        code = code,
+        hostUserId = "11111111-1111-1111-1111-111111111111",
+        createdAtEpochMs = 1_700_000_000_000,
+        maxSeats = 4,
+        status = RoomStatus.Playing,
+        members = emptyList(),
     )
 
     private fun anonymousUser(name: String? = "QuietAce72"): User = User(
@@ -199,6 +301,29 @@ class HomeViewModelTest : CoroutineTest() {
         override suspend fun deleteAll() {
             balance.value = ChipsRepository.STARTING_GRANT
         }
+    }
+
+    private class FakeRoomRepository(
+        private val activeRoomsOutcome: GetActiveRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList()),
+        private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success,
+    ) : RoomRepository {
+        var getActiveRoomsCalls: Int = 0
+            private set
+        val leaveCalls: MutableList<String> = mutableListOf()
+
+        override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome =
+            CreateRoomOutcome.NetworkError(RuntimeException("not used"))
+        override suspend fun joinRoom(code: String): JoinRoomOutcome =
+            JoinRoomOutcome.NetworkError(RuntimeException("not used"))
+        override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
+            leaveCalls += code
+            return leaveOutcome
+        }
+        override suspend fun getActiveRooms(): GetActiveRoomsOutcome {
+            getActiveRoomsCalls += 1
+            return activeRoomsOutcome
+        }
+        override fun observeRoom(code: String): Flow<RoomConnection> = flow { }
     }
 
     private class FakeProgressionRepository(

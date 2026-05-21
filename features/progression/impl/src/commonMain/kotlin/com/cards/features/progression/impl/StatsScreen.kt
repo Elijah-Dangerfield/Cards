@@ -301,7 +301,7 @@ private fun HowToEarn() {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Bots count at half the rate of multiplayer. XP never depends on whether you win or lose the hand — just on how engaged you were.",
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Start,
         )
@@ -313,13 +313,13 @@ private fun WhatXpDoes() {
     InfoCard {
         Text(
             text = "XP is your lifetime engagement score. It never goes down. Every session adds to it whether you stack chips or bust out.",
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Future updates will unlock cosmetics, table titles, and achievement badges as your XP climbs. Multiplayer earns 2× when it ships.",
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
         )
     }
@@ -416,7 +416,7 @@ private fun Bullet(text: String) {
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = text,
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
     }
