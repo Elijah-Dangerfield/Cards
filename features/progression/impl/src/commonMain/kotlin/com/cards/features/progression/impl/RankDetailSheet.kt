@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,10 +26,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.VerticalSpacerD100
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -140,38 +143,41 @@ private fun WhereYouSeeIt() {
 
 @Composable
 private fun ClaimAccountCard(onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(AppTheme.colors.accentPrimary.color)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = AppTheme.colors.accentPrimary,
+        contentColor = AppTheme.colors.text,
+        radius = Radii.Card,
+        onClick = onClick,
+        bounceScale = 0.97f,
+        contentPadding = PaddingValues(20.dp),
     ) {
-        Text(
-            text = "Play with real opponents",
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.text,
-        )
-        Text(
-            text = "Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over.",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(Radii.R500.shape)
-                .background(Color.White.copy(alpha = 0.18f))
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Claim your account",
-                typography = AppTheme.typography.Body.B500,
+                text = "Play with real opponents",
+                typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.text,
             )
+            Text(
+                text = "Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over.",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.text,
+            )
+            VerticalSpacerD100()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(Radii.R500.shape)
+                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Claim your account",
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.text,
+                )
+            }
         }
     }
 }
