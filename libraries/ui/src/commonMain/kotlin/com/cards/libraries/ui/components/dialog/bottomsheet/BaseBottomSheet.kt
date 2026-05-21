@@ -27,7 +27,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubble
 import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleDefaults
 import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleNotchRadius
-import com.dangerfield.cards.libraries.ui.components.dialog.LowLevelDialogApi
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.system.color.ProvideContentColor
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -44,7 +44,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * the standard horizontal gutter, top spacing, and [ModalContent]-style
  * scaffolding. Reach for [BaseBottomSheet] only when the caller is
  * deliberately escaping the defaults (custom inner padding,
- * full-bleed surface, one-off layout). The [LowLevelDialogApi] opt-in is
+ * full-bleed surface, one-off layout). The [LowLevelDSComponent] opt-in is
  * the discoverable signal that this is the escape hatch, not the standard
  * path.
  *
@@ -56,7 +56,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * lives in [EmojiBubble] / [com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleDefaults]
  * — sheets don't tune it.
  */
-@LowLevelDialogApi
+@LowLevelDSComponent
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun BaseBottomSheet(
@@ -142,7 +142,7 @@ private val RoundedTopSheetShape: Shape =
 
 private val SheetCornerRadius = 16.dp
 
-@OptIn(LowLevelDialogApi::class)
+@OptIn(LowLevelDSComponent::class)
 @Preview(heightDp = 500)
 @Composable
 private fun PreviewBaseBottomSheet() {
@@ -165,7 +165,7 @@ private fun PreviewBaseBottomSheet() {
     }
 }
 
-@OptIn(LowLevelDialogApi::class)
+@OptIn(LowLevelDSComponent::class)
 @Preview(heightDp = 500)
 @Composable
 private fun PreviewBaseBottomSheet_EmojiHandle_DefaultSurface() {
@@ -190,7 +190,7 @@ private fun PreviewBaseBottomSheet_EmojiHandle_DefaultSurface() {
     }
 }
 
-@OptIn(LowLevelDialogApi::class)
+@OptIn(LowLevelDSComponent::class)
 @Preview(heightDp = 500)
 @Composable
 private fun PreviewBaseBottomSheet_EmojiHandle_AccentSurface() {

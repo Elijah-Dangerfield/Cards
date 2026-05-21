@@ -55,6 +55,7 @@ import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -75,7 +76,7 @@ import kotlin.random.Random
  * title. Rendering goes through the same [EmojiBubble] primitive so
  * sheets and dialogs stay in lockstep.
  */
-@OptIn(LowLevelDialogApi::class)
+@OptIn(LowLevelDSComponent::class)
 @Composable
 fun Dialog(
     state: DialogState = rememberDialogState(),
@@ -282,10 +283,10 @@ private fun PreviewDialog() {
  * surface, max-height cap, and emoji affordance. Reach for [BaseDialog]
  * only when the caller is deliberately escaping the defaults (custom
  * animation, non-DS marketing surface, one-off shape). The
- * [LowLevelDialogApi] opt-in is the discoverable signal that this is the
+ * [LowLevelDSComponent] opt-in is the discoverable signal that this is the
  * escape hatch, not the standard path.
  */
-@LowLevelDialogApi
+@LowLevelDSComponent
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun BaseDialog(

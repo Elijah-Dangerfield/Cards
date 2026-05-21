@@ -23,7 +23,7 @@ import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
-import com.dangerfield.cards.libraries.ui.components.dialog.LowLevelDialogApi
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BaseBottomSheet
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
@@ -159,7 +159,7 @@ private val rankings: List<RankingEntry> = listOf(
     ),
 )
 
-@OptIn(LowLevelDialogApi::class)
+@OptIn(LowLevelDSComponent::class)
 @Composable
 fun HandRankingsCheatSheet(
     onDismiss: () -> Unit,

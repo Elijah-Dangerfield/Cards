@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
-import com.dangerfield.cards.libraries.ui.components.dialog.LowLevelDialogApi
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.libraries.ui.components.dialog.ModalContent
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -29,7 +29,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Standard bottom-sheet shell with a drag handle (or close button),
  * horizontal gutters, and a [ModalContent] body. This is the DS-opinionated
  * default — 99% of sheets should use this. For the raw escape hatch see
- * [BaseBottomSheet] (gated by [LowLevelDialogApi]).
+ * [BaseBottomSheet] (gated by [LowLevelDSComponent]).
  *
  * Padding model:
  *  - Horizontal: [Dimension.D800] on each side, matching the rest of the
@@ -59,7 +59,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  When [showCloseButton] is true, the handle is overridden to a close
  *  button anchored top-right; the [dragHandle] choice is ignored.
  */
-@OptIn(LowLevelDialogApi::class)
+@OptIn(LowLevelDSComponent::class)
 @Composable
 fun BottomSheet(
     onDismissRequest: () -> Unit,
