@@ -38,9 +38,9 @@ For each block in `docs/agent/in-flight.md` (and each commit since `origin/main`
 
 Each in-flight block may have a `**Deferred:**` field listing things the worker noticed but didn't do. For each entry, make a call:
 
-- **Should have been done in scope.** The worker drew the scope line too tight. Do it now as a new commit, note it under "Reviewer changes" in the PR body.
-- **Real follow-up, clearly future thinking.** Add to `docs/backlog.md` if the worker didn't already, and mention under "For your eyes" so the human sees the trail.
-- **Needs a human call** — touches the spec, requires a product decision, or is the kind of "should we even do this?" question. Surface under "For your eyes" with enough context for the human to decide. Don't act unilaterally.
+- **Should have been done in scope.** The worker drew the scope line too tight. Do it now as a new commit; fold it into the relevant "Shipped" bullet in the PR body (no separate "Reviewer did X" section).
+- **Real follow-up, clearly future thinking.** Add to `docs/backlog.md` if the worker didn't already, and mention it once in "Heads up" so the human sees the trail.
+- **Needs a human call** — touches the spec, requires a product decision, or is the kind of "should we even do this?" question. Surface in "Heads up" with enough context for the human to decide. Don't act unilaterally.
 
 You're the second pair of eyes on deferred items — workers tend to defer conservatively, so expect that some of these belong in the PR.
 
@@ -48,9 +48,9 @@ You're the second pair of eyes on deferred items — workers tend to defer conse
 
 You have full authority to:
 
-- **Fix small issues directly.** Add missing tests, swap a hardcoded color for a token, remove a comment, tighten a function name. Commit each fix as its own new commit with a conventional-commit message. Note it in "Reviewer changes" in the PR body.
-- **Revert a commit** that shouldn't have shipped — wrong approach, mishandled spec, broken assumption. `git revert <sha>`, note it under "Reviewer changes." Don't ask permission; this is your call.
-- **Add to `docs/backlog.md`** if a follow-up is needed but out of scope for this PR. Call it out in "For your eyes."
+- **Fix small issues directly.** Add missing tests, swap a hardcoded color for a token, remove a comment, tighten a function name. Commit each fix as its own new commit with a conventional-commit message. Fold the change into the Shipped bullet it belongs to — the human doesn't need to know which lines came from a worker vs the reviewer.
+- **Revert a commit** that shouldn't have shipped — wrong approach, mishandled spec, broken assumption. `git revert <sha>`, mention the revert in "Heads up" with a one-line reason. Don't ask permission; this is your call.
+- **Add to `docs/backlog.md`** if a follow-up is needed but out of scope for this PR. Call it out once in "Heads up."
 
 You should **not**:
 
@@ -59,7 +59,7 @@ You should **not**:
 - Merge the PR. Human merges.
 - Change the PR title's conventional-commit type because the dominant change *became* something else after your reverts. Set the title based on what actually ships in the final diff.
 
-**If you end up reverting everything the workers did**, the PR is empty — still open it (or leave the existing one open) with an honest "Shipped: nothing kept this cycle" body and what was rejected and why under "For your eyes." Silence is worse than a transparent zero.
+**If you end up reverting everything the workers did**, the PR is empty — still open it (or leave the existing one open) with an honest "Shipped: nothing kept this cycle" body and what was rejected and why under "Heads up." Silence is worse than a transparent zero.
 
 ## Build + tests
 
@@ -83,26 +83,41 @@ If something is broken:
    ```
    gh pr create --base main --head dev --title "<type>: <short summary>" --body "$(cat <<'EOF'
    ## Shipped
-   - <one bullet per worker item — include the commit short-sha and a one-line description>
+   - <plain-English line per worker item — what changed and why, no commit shas, no "refactor:" prefix. Group two related items if they tell one story.>
 
-   ## Reviewer changes
-   - <only if any: reverts, refactors, added tests. One bullet each with short-sha. Omit the section entirely if no reviewer changes were made.>
-
-   ## For your eyes
-   - <items skipped from docs/todo.md and why>
-   - <new entries added to docs/backlog.md>
-   - <untested paths the human should QA by hand>
-   - <surprises, alternatives considered but not taken, anything unusual>
-   - <omit this section entirely if nothing applies>
+   ## Heads up
+   - <only put things here that need the human's attention: visual deltas to eyeball, scope calls the worker / reviewer made, items added to backlog.md, anything skipped from todo.md, untested paths to QA by hand>
+   - <omit this section entirely if nothing actually needs the human's eyes>
    EOF
    )"
+   ```
+
+   PR body rules — the human reads this on their phone over coffee, treat it like that:
+
+   - **One screen scroll, total.** If you can't see the whole body without scrolling, it's too long. Cut.
+   - **Plain English, not commit log.** No short-shas. No conventional-commit prefixes (`feat:` / `refactor:`). No "Worker did X." Write "Rank detail's claim card is now actually tappable" not "fix(progression): wire RankDetail claim card click."
+   - **One line per item.** If you need a paragraph to explain something, it's probably "Heads up," not "Shipped."
+   - **Group when it's one story.** Three commits that together rename a screen = one Shipped bullet, not three.
+   - **"Heads up" is for things that need eyes, not a changelog.** Skip CI status, skip test-plan checkboxes, skip "we considered X but didn't do it" unless the human would actually care. New backlog entries go here. Scope calls the reviewer made go here. Visual deltas worth eyeballing go here.
+   - **Omit sections that don't apply.** No reviewer changes, no `## Reviewer changes`. No heads-up items, no `## Heads up`. Empty sections are noise.
+
+   Example of the right tone:
+   ```
+   ## Shipped
+   - Rank detail's "Play with real opponents" card is now actually tappable for anonymous users.
+   - XP details page is now the Stats page — XP is one section above a Lifetime section, ready for more stats to land on top.
+   - Home and Shop chip pills sit at the same screen coordinates now, via a shared BalancePillSlot.
+   - DS gains a Radii.R700 (16dp) token + a @LowLevelDSComponent annotation for raw-primitive escape hatches.
+
+   ## Heads up
+   - RankDetail claim card's outer corner radius shifted 20→10dp to match Profile's card. Worth eyeballing before merge.
+   - Filed two backlog entries: the RankDetail hero gradient still uses raw brand colors (designer call), and there are 11 more `RoundedCornerShape(16.dp)` literals that could swap to `Radii.R700.shape` (deliberate visual sweep).
    ```
 
    PR title rules:
    - **The PR title drives release-please's next version bump.** PRs squash-merge into `main`, so the PR title becomes the commit message release-please reads. `feat:` → minor bump, `fix:` / `perf:` → patch, `feat!:` or `BREAKING CHANGE:` → major, everything else (`refactor:`, `chore:`, `docs:`, `test:`, `ci:`, `build:`, `style:`, `revert:`) → no bump. See `AGENTS.md` → "Conventional Commits."
    - **Pick the type that reflects the user-visible truth of the diff.** A PR full of internal refactors with one small user-facing bug fix is `fix:`, not `feat:`. A PR full of `feat:` commits but no actual user-facing capability change is `refactor:` or `chore:`. Don't inflate the minor version with refactors; don't hide a real feature under `chore:`.
    - **Summary:** under ~60 chars, starts with a lowercase letter (commitlint rejects capital-letter subjects). Readable in a notification.
-   - **Body:** short. The human reviews in a couple of minutes.
 
    If a PR from `dev` → `main` is already open, use `gh pr edit <number> --body "..."` instead of `gh pr create`, and push your commits with `git push origin dev`.
 
@@ -114,8 +129,8 @@ After opening the PR, **poll status once at ~15 minutes**: `gh pr checks <number
 
 - **All green:** done.
 - **`Validate PR title` red:** the title isn't conventional-commit-compliant. Fix it (`gh pr edit <number> --title "..."`) and continue.
-- **`Build + test` or `Server tests` red:** read the failure (`gh run view <run-id> --log-failed`). If it's an obvious flake on the runner (Konan cache, network blip), re-run with `gh run rerun <run-id>` once. If it's a real failure, fix it as a new commit and push. If you can't fix it confidently within ~10 minutes, **leave it red and call it out under "For your eyes"** — the human will see the red check and decide.
-- **Still pending after 15 minutes:** that's fine. Note "CI still running at hand-off" under "For your eyes" and exit. Don't sit on the runner indefinitely.
+- **`Build + test` or `Server tests` red:** read the failure (`gh run view <run-id> --log-failed`). If it's an obvious flake on the runner (Konan cache, network blip), re-run with `gh run rerun <run-id>` once. If it's a real failure, fix it as a new commit and push. If you can't fix it confidently within ~10 minutes, **leave it red and call it out under "Heads up"** — the human will see the red check and decide.
+- **Still pending after 15 minutes:** that's fine. Note "CI still running at hand-off" under "Heads up" and exit. Don't sit on the runner indefinitely.
 
 ## Done
 
