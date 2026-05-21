@@ -36,6 +36,7 @@ import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.describe
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.dialogChipBubble
 import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -207,7 +208,7 @@ internal fun BustDialog(
 ) {
     Dialog(
         onDismissRequest = onDealMeIn,
-        emoji = dialogEmoji(emoji = "💸", surface = null),
+        emoji = dialogChipBubble(),
     ) {
         Column(
             modifier = Modifier

@@ -56,6 +56,8 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
+import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -174,6 +176,27 @@ fun dialogEmoji(
     surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
 ) = DialogEmoji(emoji, style, surface)
 
+/**
+ * Factory for the chip-themed top bubble used by chip-related dialogs
+ * (rebuy, bust, chip rewards, soft-bust grant, tip-the-dealer). Paints
+ * a solid casino-gold circle with a `$` glyph in the middle.
+ *
+ * Routes through the same [DialogEmoji] / [EmojiBubble] chokepoint as
+ * [dialogEmoji] so geometry, notch, and ring stay in lockstep. The
+ * spec called this a "sibling primitive"; we ship the factory now and
+ * defer a fully separate render path until there's a documented visual
+ * problem with the shared one (`$` already renders cleanly at the
+ * shared `H1100` typography — verify in [Dialog]'s preview pane).
+ */
+@Composable
+fun dialogChipBubble(): DialogEmoji = DialogEmoji(
+    emoji = "$",
+    style = EmojiHandleStyle.Circle,
+    surface = BubbleSurface.Solid(
+        color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
+    ),
+)
+
 @Composable
 fun Dialog(
     onDismissRequest: () -> Unit,
@@ -275,6 +298,22 @@ private fun PreviewDialog() {
             onDismissRequest = { -> },
         ) {
             Text("This is all a dialog is")
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_ChipBubble() {
+    PreviewContent {
+        Dialog(
+            onDismissRequest = { -> },
+            emoji = dialogChipBubble(),
+        ) {
+            Text(
+                modifier = Modifier.padding(Dimension.D800),
+                text = "Chip-themed dialog (rebuy / bust / chip rewards)",
+            )
         }
     }
 }
