@@ -149,6 +149,68 @@ class InventoryRoutesTest {
     }
 
     @Test
+    fun ownedSnapshot_isEmpty_whenUserHasNoPurchases() = runTest {
+        post(FakeInventoryRepository(), """{"purchases":[]}""") { resp ->
+            assertTrue(resp.body<InventorySyncResponse>().owned.isEmpty())
+        }
+    }
+
+    @Test
+    fun ownedSnapshot_includesSubmittedPurchases() = runTest {
+        val repo = FakeInventoryRepository()
+        post(
+            repo,
+            """
+            {
+              "purchases": [
+                {"productId":"emote_dance","purchasedAtEpochMs":1000,"costChipsAtPurchase":2500},
+                {"productId":"table_neon","purchasedAtEpochMs":3000,"costChipsAtPurchase":12000}
+              ]
+            }
+            """.trimIndent(),
+        ) { resp ->
+            val body = resp.body<InventorySyncResponse>()
+            assertEquals(
+                setOf("emote_dance", "table_neon"),
+                body.owned.map { it.productId }.toSet(),
+            )
+            val dance = body.owned.first { it.productId == "emote_dance" }
+            assertEquals(2_500L, dance.costChipsAtPurchase)
+            assertEquals(1_000L, dance.purchasedAtEpochMs)
+        }
+    }
+
+    @Test
+    fun ownedSnapshot_includesPriorPurchases_evenWhenRequestIsEmpty() = runTest {
+        val repo = FakeInventoryRepository()
+        post(
+            repo,
+            """{"purchases":[{"productId":"emote_dance","purchasedAtEpochMs":1000,"costChipsAtPurchase":2500}]}""",
+        ) {}
+        post(repo, """{"purchases":[]}""") { resp ->
+            val body = resp.body<InventorySyncResponse>()
+            assertEquals(listOf("emote_dance"), body.owned.map { it.productId })
+            assertTrue(body.results.isEmpty(), "no purchases submitted → no per-purchase results")
+        }
+    }
+
+    @Test
+    fun ownedSnapshot_isPerUser() = runTest {
+        val repo = FakeInventoryRepository()
+        val otherUser = UserId(UUID.fromString("33333333-3333-3333-3333-333333333333"))
+        post(
+            repo,
+            """{"purchases":[{"productId":"emote_dance","purchasedAtEpochMs":1000,"costChipsAtPurchase":2500}]}""",
+        ) {}
+        post(repo, """{"purchases":[]}""", bearer = jwt(forUserId = otherUser)) { resp ->
+            assertTrue(
+                resp.body<InventorySyncResponse>().owned.isEmpty(),
+                "user 2 must not see user 1's owned items",
+            )
+        }
+    }
+
+    @Test
     fun returns401_whenAuthHeaderMissing() = runTest {
         val repo = FakeInventoryRepository()
         post(repo, """{"purchases":[]}""", withBearer = false) { resp ->

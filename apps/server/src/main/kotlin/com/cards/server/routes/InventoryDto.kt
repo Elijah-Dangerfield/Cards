@@ -37,6 +37,23 @@ data class PendingPurchaseDto(
 data class InventorySyncResponse(
     val schemaVersion: Int = 1,
     val results: List<InventorySyncResultDto>,
+    /**
+     * Authoritative snapshot of everything the user owns on the server,
+     * after the submitted purchases were reconciled. Mirrors the shape
+     * `POST /v1/equipment/sync` uses: the sync response IS the truth, so
+     * the client can fold local state into it without a separate GET.
+     *
+     * Older clients that don't deserialize this field will continue to
+     * work — the route stays additive.
+     */
+    val owned: List<OwnedItemDto> = emptyList(),
+)
+
+@Serializable
+data class OwnedItemDto(
+    val productId: String,
+    val costChipsAtPurchase: Long,
+    val purchasedAtEpochMs: Long,
 )
 
 @Serializable

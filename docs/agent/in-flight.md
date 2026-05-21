@@ -1,3 +1,14 @@
+## feat(server): return server-authoritative owned list from inventory sync
+
+**Problem:** `POST /v1/inventory/sync` only echoed per-purchase confirmation outcomes — it never returned the user's full owned set. That left the client with no way to fetch a server-authoritative inventory snapshot, which is the root cause of the "equipped item exists while inventory is empty" bug listed in `docs/todo.md` §B: equipment sync DOES return the full server snapshot (so a server-equipped item lands locally), but inventory only ever accreted from local redemptions, so a fresh install / cache wipe leaves equipment populated and inventory empty.
+
+**Approach:** Mirror what `POST /v1/equipment/sync` already does — the response IS the truth. Added `owned: List<OwnedItemDto>` to `InventorySyncResponse` with a default of empty (backwards-compatible: older clients that ignore the field still work, and the server keeps returning the per-purchase `results` array unchanged). The route's handler calls `repository.listOwned(userId)` after the submitted purchases have been recorded, maps each `OwnedItem` to the new `OwnedItemDto`, and returns both arrays. No schema or domain changes — `InventoryRepository.listOwned` already existed and `PostgresInventoryRepository` already implements it. Four new tests on `InventoryRoutesTest`: empty-on-no-purchases, submitted-purchases-included-in-snapshot, prior-purchases-included-even-when-request-is-empty, snapshot-is-per-user.
+
+**Reviewer notes:** This is a server-only slice — the client-side wiring (consuming `owned` to apply an authoritative snapshot, then the equipment consistency invariant) is the next slice and is flagged in the updated `docs/todo.md` entry. Deliberate split: the wire shape is the load-bearing piece, and the client change will be smaller / lower-risk once it has the data to fold in. The `OwnedItemDto` lives on the existing `routes` package alongside the request/response DTOs rather than mirroring the domain `OwnedItem` directly so the wire shape can evolve independently of the domain (same pattern the rest of the routes follow).
+
+**Deferred:**
+- Client-side `InventoryRepository.applyServerSnapshot(...)` + `InventorySyncServiceImpl` consuming the new field, then the "drop equipment row whose productId isn't in inventory" invariant on the equipment side. Flagged in updated `docs/todo.md` entry — next slice.
+
 ## refactor(progression): drop stray "XP" SectionTitle in StatsScreen
 
 **Problem:** The Stats screen rendered a `SectionTitle("XP")` directly above the XP hero — redundant labeling since the surrounding screen context (top-bar reads "Stats", the hero shows the level + XP number) already conveys this is the XP surface. Cosmetic, but listed on `docs/todo.md` §B.
