@@ -36,8 +36,8 @@ import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
+import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -203,11 +203,8 @@ private fun CatalogContent(
 
 @Composable
 private fun ShopHeader(chips: Long) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
+    BalancePillSlot(chips = chips) {
+        Column {
             Text(
                 text = "Shop",
                 typography = AppTheme.typography.Heading.H1000,
@@ -220,7 +217,6 @@ private fun ShopHeader(chips: Long) {
                 color = AppTheme.colors.textSecondary,
             )
         }
-        ChipBadge(amount = chips)
     }
 }
 

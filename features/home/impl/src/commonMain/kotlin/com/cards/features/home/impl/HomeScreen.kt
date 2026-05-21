@@ -1,9 +1,6 @@
 package com.dangerfield.cards.features.home.impl
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,8 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AnimatedNumberText
+import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.FeatureCard
 import com.dangerfield.cards.libraries.ui.components.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.components.RankBadge
@@ -89,15 +86,12 @@ private fun HomeScreenContent(
                 .padding(horizontal = 20.dp),
         ) {
             VerticalSpacerD500()
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            BalancePillSlot(
+                chips = chips,
+                onChipsClick = onTapCash,
             ) {
                 RankBadge(rank = rank, onClick = onTapRank)
                 XpBadge(xp = xp, onClick = onTapXp)
-                Spacer(modifier = Modifier.weight(1f))
-                ChipBadge(amount = chips, onClick = onTapCash)
             }
 
             VerticalSpacerD1100()
