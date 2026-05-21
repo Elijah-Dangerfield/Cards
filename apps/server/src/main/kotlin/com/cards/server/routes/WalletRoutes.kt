@@ -1,6 +1,10 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
+import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.WALLET_WRITE_LIMIT
@@ -14,6 +18,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import java.util.UUID
 
 /**
  * Server-authoritative chip wallet endpoints.
@@ -30,17 +35,35 @@ import io.ktor.server.routing.post
  * stays put, the batch continues, and the client surfaces a soft
  * reconcile message.
  *
+ * Soft bust protection: both endpoints, after their normal work, call
+ * [maybeApplyBustProtection]. The first time the user's balance hits
+ * zero (and only the first time, ever — keyed off
+ * [Wallet.BUST_PROTECTION_KEY]) the server grants
+ * [Wallet.BUST_PROTECTION_GRANT] chips and queues a "Welcome back to
+ * the table." dialog. Idempotency on the wallet ledger collapses
+ * subsequent zero-balance reads to a no-op, so it's safe to call from
+ * any endpoint that learns about the balance.
+ *
  * Both endpoints require a valid Supabase JWT. The userId comes from
  * the `sub` claim; the client never passes it in the body. Per-IP rate
  * limit on the sync endpoint protects against runaway clients
  * inadvertently DoSing themselves and against trivial abuse.
  */
-fun Route.walletRoutes(repository: WalletRepository) {
+fun Route.walletRoutes(
+    repository: WalletRepository,
+    messages: UserMessageRepository,
+) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me/wallet") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-            val wallet = repository.findOrCreate(userId)
-            call.respond(HttpStatusCode.OK, WalletResponse(balance = wallet.balance))
+            val initial = repository.findOrCreate(userId)
+            val balance = maybeApplyBustProtection(
+                userId = userId,
+                currentBalance = initial.balance,
+                wallets = repository,
+                messages = messages,
+            )
+            call.respond(HttpStatusCode.OK, WalletResponse(balance = balance))
         }
 
         rateLimit(RateLimitName(WALLET_WRITE_LIMIT)) {
@@ -77,6 +100,13 @@ fun Route.walletRoutes(repository: WalletRepository) {
                     }
                 }
 
+                lastBalance = maybeApplyBustProtection(
+                    userId = userId,
+                    currentBalance = lastBalance,
+                    wallets = repository,
+                    messages = messages,
+                )
+
                 call.respond(
                     HttpStatusCode.OK,
                     WalletSyncResponse(balance = lastBalance, results = results),
@@ -84,4 +114,46 @@ fun Route.walletRoutes(repository: WalletRepository) {
             }
         }
     }
+}
+
+/**
+ * If [currentBalance] is exactly zero, attempt the soft-bust-protection
+ * grant via [WalletRepository.apply] with the lifetime-once
+ * [Wallet.BUST_PROTECTION_KEY]. Returns the post-grant balance, which
+ * is the same as [currentBalance] when the user is non-zero or has
+ * already used their lifetime bust-protection grant.
+ *
+ * On the *first* grant (not on idempotent replays), also enqueues a
+ * Dialog [UserMessage] so the next foreground / cold-boot shows the
+ * "Welcome back to the table." copy. Mirrors the AdminRoutes pattern
+ * of attaching a message only when the grant actually moved chips.
+ */
+private suspend fun maybeApplyBustProtection(
+    userId: UserId,
+    currentBalance: Long,
+    wallets: WalletRepository,
+    messages: UserMessageRepository,
+): Long {
+    if (currentBalance != 0L) return currentBalance
+
+    val outcome = wallets.apply(
+        userId = userId,
+        idempotencyKey = Wallet.BUST_PROTECTION_KEY,
+        delta = Wallet.BUST_PROTECTION_GRANT,
+        reason = Wallet.BUST_PROTECTION_REASON,
+    )
+    if (outcome is ApplyOutcome.Applied && !outcome.wasAlreadyApplied) {
+        messages.create(
+            id = UUID.randomUUID(),
+            userId = userId,
+            idempotencyKey = "${Wallet.BUST_PROTECTION_KEY}_msg",
+            kind = UserMessageKind.Dialog,
+            emoji = "💰",
+            title = "Welcome back to the table.",
+            body = "Your chips ran out — here's ${Wallet.BUST_PROTECTION_GRANT} on the house. Play smart.",
+            deepLink = null,
+            expiresAt = null,
+        )
+    }
+    return outcome.balance
 }

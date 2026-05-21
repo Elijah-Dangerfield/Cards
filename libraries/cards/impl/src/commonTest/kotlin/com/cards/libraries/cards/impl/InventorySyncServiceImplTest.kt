@@ -1,6 +1,9 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.EquipmentEntry
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.PurchaseState
@@ -29,9 +32,11 @@ import kotlin.test.assertTrue
  * stubbing the `/v1/inventory/sync` endpoint.
  *
  * What's pinned:
- *  - No-op when there's nothing pending — saves a network round-trip.
+ *  - Empty-pending case still POSTs so the server's authoritative `owned`
+ *    snapshot reaches the repo (cold-start / device-switch fetch).
  *  - All-Confirmed response → repo.markConfirmed gets the right ids, no
  *    chip movement.
+ *  - `owned` snapshot is folded into the repo via applyServerSnapshot.
  *  - Reverted outcomes → repo.revertPurchase called AND chips refunded.
  *  - Network failure → returns Result.failure, leaves rows Pending (no
  *    markConfirmed, no revert).
@@ -40,21 +45,89 @@ import kotlin.test.assertTrue
 class InventorySyncServiceImplTest : CoroutineTest() {
 
     @Test
-    fun emptyInventory_noOps_withoutHittingNetwork() = runUnitTest {
+    fun emptyInventory_stillPostsToFetchServerSnapshot() = runUnitTest {
         val inv = FakeInventory(initial = emptyList())
         val chips = FakeChips()
         var hitCount = 0
         val service = buildService(
             inventory = inv,
             chips = chips,
-            handler = { hitCount++; respondJson(""" {"results":[]} """) },
+            handler = {
+                hitCount++
+                respondJson(
+                    """
+                    {
+                      "schemaVersion": 1,
+                      "results": [],
+                      "owned": [
+                        {"productId":"emote_dance","costChipsAtPurchase":2500,"purchasedAtEpochMs":1000}
+                      ]
+                    }
+                    """.trimIndent(),
+                )
+            },
         )
 
         val result = service.sync()
 
         assertTrue(result.isSuccess)
-        assertEquals(0, hitCount, "no pending → no network call")
+        assertEquals(1, hitCount, "empty pending must still fetch the owned snapshot")
         assertTrue(inv.markedConfirmed.isEmpty())
+        assertEquals(
+            listOf("emote_dance"),
+            inv.snapshotsApplied.single().map { it.productId },
+            "server's owned snapshot reaches the repo",
+        )
+    }
+
+    @Test
+    fun afterSnapshot_dropsOrphanEquipment_forUnownedProducts() = runUnitTest {
+        // The bug this fixes: local equipment row for red_felt remains even
+        // though the user no longer owns it on the server. The sync service
+        // should call dropOrphanEquipment with the server's owned set so the
+        // equipment row gets reconciled.
+        val inv = FakeInventory(initial = emptyList())
+        val chips = FakeChips()
+        val equipment = FakeEquipment(
+            initial = listOf(
+                EquipmentEntry(
+                    productId = "red_felt",
+                    isEquipped = true,
+                    syncState = com.dangerfield.cards.libraries.cards.EquipmentSyncState.Synced,
+                    updatedAtEpochMs = 0,
+                ),
+                EquipmentEntry(
+                    productId = "blue_back",
+                    isEquipped = true,
+                    syncState = com.dangerfield.cards.libraries.cards.EquipmentSyncState.Synced,
+                    updatedAtEpochMs = 0,
+                ),
+            ),
+        )
+        val service = buildService(
+            inventory = inv,
+            chips = chips,
+            equipment = equipment,
+            handler = {
+                respondJson(
+                    """
+                    {
+                      "schemaVersion": 1,
+                      "results": [],
+                      "owned": [
+                        {"productId":"blue_back","costChipsAtPurchase":2500,"purchasedAtEpochMs":1000}
+                      ]
+                    }
+                    """.trimIndent(),
+                )
+            },
+        )
+
+        service.sync()
+
+        assertEquals(setOf("blue_back"), equipment.dropCalls.single())
+        val remainingEquipment = equipment.getAll()
+        assertEquals(listOf("blue_back"), remainingEquipment.map { it.productId })
     }
 
     @Test
@@ -198,6 +271,7 @@ class InventorySyncServiceImplTest : CoroutineTest() {
     private fun buildService(
         inventory: FakeInventory,
         chips: FakeChips,
+        equipment: FakeEquipment = FakeEquipment(),
         handler: io.ktor.client.engine.mock.MockRequestHandleScope.(io.ktor.client.request.HttpRequestData) -> io.ktor.client.request.HttpResponseData,
     ): InventorySyncServiceImpl {
         val mockEngine = MockEngine(handler)
@@ -215,7 +289,7 @@ class InventorySyncServiceImplTest : CoroutineTest() {
             override val client: HttpClient = client
             override val authenticatedClient: HttpClient = client
         }
-        return InventorySyncServiceImpl(inventory, chips, networkClient)
+        return InventorySyncServiceImpl(inventory, chips, equipment, networkClient)
     }
 
     private fun io.ktor.client.engine.mock.MockRequestHandleScope.respondJson(
@@ -242,6 +316,7 @@ class InventorySyncServiceImplTest : CoroutineTest() {
         private val state = MutableStateFlow(initial)
         val markedConfirmed = mutableListOf<String>()
         val reverted = mutableListOf<String>()
+        val snapshotsApplied = mutableListOf<List<InventoryItem>>()
 
         override fun observeInventory(): Flow<List<InventoryItem>> = state.asStateFlow()
         override suspend fun getInventory(): List<InventoryItem> = state.value
@@ -251,7 +326,30 @@ class InventorySyncServiceImplTest : CoroutineTest() {
             markedConfirmed += productIds
         }
         override suspend fun revertPurchase(productId: String) { reverted += productId }
+        override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) {
+            snapshotsApplied += authoritative
+        }
         override suspend fun deleteAll() { }
+    }
+
+    private class FakeEquipment(initial: List<EquipmentEntry> = emptyList()) : EquipmentRepository {
+        private val state = MutableStateFlow(initial)
+        val dropCalls = mutableListOf<Set<String>>()
+
+        override fun observeEquipped(): Flow<List<EquipmentEntry>> = state.asStateFlow()
+        override suspend fun getAll(): List<EquipmentEntry> = state.value
+        override suspend fun equip(productId: String): EquipmentToggleResult = error("not used")
+        override suspend fun unequip(productId: String): EquipmentToggleResult = error("not used")
+        override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) {
+            state.value = authoritative
+        }
+        override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> {
+            dropCalls += ownedProductIds
+            val orphans = state.value.map { it.productId }.filter { it !in ownedProductIds }
+            state.value = state.value.filter { it.productId in ownedProductIds }
+            return orphans
+        }
+        override suspend fun deleteAll() { state.value = emptyList() }
     }
 
     private class FakeChips : ChipsRepository {

@@ -26,11 +26,23 @@ interface InventoryDao : ClearableDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertIfMissing(entity: InventoryEntity): Long
 
+    /** Upsert variant used by `applyServerSnapshot` — REPLACE because the
+     *  server-authoritative row supersedes whatever the local row said
+     *  (Pending → Confirmed, or refreshed timestamp / cost). */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(rows: List<InventoryEntity>)
+
     @Query("UPDATE inventory SET sync_state = 'Confirmed' WHERE product_id IN (:productIds)")
     suspend fun markConfirmed(productIds: Collection<String>)
 
     @Query("DELETE FROM inventory WHERE product_id = :productId")
     suspend fun delete(productId: String)
+
+    /** Used by `applyServerSnapshot` to revoke Confirmed rows the server no
+     *  longer agrees the user owns. Pending rows are left alone — they're
+     *  in-flight and the next sync resolves them. */
+    @Query("DELETE FROM inventory WHERE product_id IN (:productIds) AND sync_state = 'Confirmed'")
+    suspend fun deleteConfirmed(productIds: Collection<String>)
 
     @Query("DELETE FROM inventory")
     override suspend fun deleteAll()

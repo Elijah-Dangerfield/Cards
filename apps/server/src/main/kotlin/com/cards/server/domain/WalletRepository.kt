@@ -25,6 +25,25 @@ data class Wallet(
     companion object {
         /** Chip count granted on first contact (lazy-create). */
         const val STARTER_GRANT: Long = 10_000L
+
+        /**
+         * One-time grant when the user's wallet first hits zero —
+         * "soft bust protection." Mirrors product-spec.md §4.1: no
+         * timer, no claim prompt, lifetime-once per user (keyed off
+         * [BUST_PROTECTION_KEY] in the ledger, so re-detecting the
+         * zero state is a no-op).
+         */
+        const val BUST_PROTECTION_GRANT: Long = 1_000L
+
+        /**
+         * Wallet-event idempotency key for the bust-protection grant.
+         * Stable across the user's lifetime so retries / re-detected
+         * zero states collapse to a single ledger row.
+         */
+        const val BUST_PROTECTION_KEY: String = "bust_protection_v1"
+
+        /** Ledger reason for the bust-protection grant. */
+        const val BUST_PROTECTION_REASON: String = "bust_protection"
     }
 }
 

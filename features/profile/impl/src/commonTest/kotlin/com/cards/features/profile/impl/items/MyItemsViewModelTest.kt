@@ -114,6 +114,7 @@ class MyItemsViewModelTest : CoroutineTest() {
             error("not used")
         override suspend fun markConfirmed(productIds: Collection<String>) { }
         override suspend fun revertPurchase(productId: String) { }
+        override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) { }
         override suspend fun deleteAll() { }
     }
 
@@ -154,6 +155,7 @@ class MyItemsViewModelTest : CoroutineTest() {
             return EquipmentToggleResult.Success
         }
         override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) { }
+        override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
         override suspend fun deleteAll() { state.value = emptyList() }
     }
 

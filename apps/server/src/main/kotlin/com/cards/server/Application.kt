@@ -62,13 +62,14 @@ fun Application.module(config: ServerConfig) {
         appConfigRoutes(component.appConfigSource)
         productsRoutes(component.productCatalogSource)
         inventoryRoutes(component.inventoryRepository)
-        walletRoutes(component.walletRepository)
+        walletRoutes(component.walletRepository, component.userMessageRepository)
         meRoutes(
             component.profileRepository,
             component.supabaseAdminClient,
             component.inventoryRepository,
             component.walletRepository,
             component.userMessageRepository,
+            component.roomService,
         )
         messageRoutes(component.userMessageRepository, component.provideClock())
         avatarRoutes(component.inventoryRepository)

@@ -14,6 +14,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -47,6 +48,7 @@ class PostgresProductCatalogSource(
         database.transaction {
             val rows = ProductsTable
                 .selectAll()
+                .where { ProductsTable.unlockOnly eq false }
                 .orderBy(ProductsTable.sortOrder to SortOrder.ASC)
                 .toList()
 
@@ -69,6 +71,22 @@ class PostgresProductCatalogSource(
             }
 
             ProductCatalog(chipPacks = chipPacks, chipOffers = chipOffers)
+        }
+
+    override suspend fun readById(id: String, context: ClientContext): Product? =
+        database.transaction {
+            val row = ProductsTable
+                .selectAll()
+                .where { ProductsTable.id eq id }
+                .singleOrNull()
+                ?: return@transaction null
+
+            val platforms = readPlatforms(listOf(id))[id] ?: defaultPlatforms()
+            when (val kind = row[ProductsTable.kind]) {
+                "chip_pack" -> row.toChipPack(platforms)
+                "chip_offer" -> row.toChipOffer(platforms)
+                else -> error("Unknown product kind '$kind' on row id='$id'")
+            }
         }
 
     private fun readPlatforms(ids: List<String>): Map<String, Set<ClientContext.Platform>> {

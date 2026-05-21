@@ -148,9 +148,13 @@ fun PlayPokerScreen(
     // loading or no hand is in progress — there's nothing to lose. When a
     // hand is live, always show the confirmation; leaving costs the hand.
     val handInProgress = active != null && active.handResult == null
+    val leaveTable: () -> Unit = {
+        onAction(PlayPokerAction.LeaveTable)
+        onBack()
+    }
     val requestLeave: () -> Unit = {
         if (!handInProgress) {
-            onBack()
+            leaveTable()
         } else {
             leaveConfirmOpen = true
         }
@@ -273,7 +277,7 @@ fun PlayPokerScreen(
                 onStay = { leaveConfirmOpen = false },
                 onLeave = {
                     leaveConfirmOpen = false
-                    onBack()
+                    leaveTable()
                 },
             )
         }

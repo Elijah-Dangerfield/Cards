@@ -283,5 +283,7 @@ class ProductsRoutesTest {
             val filtered = (listOf(base) + extras).filter { context.platform in it.platforms }
             return ProductCatalog(chipPacks = filtered, chipOffers = emptyList())
         }
+
+        override suspend fun readById(id: String, context: ClientContext): Product? = null
     }
 }

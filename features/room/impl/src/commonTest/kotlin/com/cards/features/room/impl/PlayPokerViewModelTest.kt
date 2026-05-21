@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -402,6 +403,178 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals(0, achievements.recordedHands.single().second.bustedOpponentCount)
     }
 
+    // ---------- Review prompt wiring ----------
+
+    @Test
+    fun handEnded_unlocksRareAchievement_requestsReviewPrompt() = runUnitTest {
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.RARE))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        buildVm(
+            factory = factory,
+            achievementRepository = achievements,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertEquals(listOf(ReviewTrigger.AchievementUnlocked), coordinator.requested)
+    }
+
+    @Test
+    fun handEnded_unlocksLegendaryAchievement_requestsReviewPrompt() = runUnitTest {
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.LEGENDARY))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        buildVm(
+            factory = factory,
+            achievementRepository = achievements,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertEquals(listOf(ReviewTrigger.AchievementUnlocked), coordinator.requested)
+    }
+
+    @Test
+    fun handEnded_unlocksCommonOnly_doesNotRequestAchievementPrompt() = runUnitTest {
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.COMMON))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        buildVm(
+            factory = factory,
+            achievementRepository = achievements,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertTrue(
+            ReviewTrigger.AchievementUnlocked !in coordinator.requested,
+            "common-only earnings must not fire AchievementUnlocked",
+        )
+    }
+
+    @Test
+    fun handEnded_levelChange_requestsLevelUpPrompt() = runUnitTest {
+        val progression = FakeProgressionRepository(initial = Progression.Empty.copy(totalXp = 0))
+        progression.onAwardForHand = {
+            progression.emit(Progression.Empty.copy(totalXp = 150))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        buildVm(
+            factory = factory,
+            progressionRepository = progression,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertEquals(listOf(ReviewTrigger.LevelUp), coordinator.requested)
+    }
+
+    @Test
+    fun handEnded_noLevelChange_doesNotRequestLevelUpPrompt() = runUnitTest {
+        val progression = FakeProgressionRepository(initial = Progression.Empty.copy(totalXp = 0))
+        progression.onAwardForHand = {
+            progression.emit(Progression.Empty.copy(totalXp = 30))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        buildVm(
+            factory = factory,
+            progressionRepository = progression,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertTrue(coordinator.requested.isEmpty(), "no prompts when level doesn't change")
+    }
+
+    @Test
+    fun handEnded_achievementUnlock_takesPriorityOverLevelUp() = runUnitTest {
+        val progression = FakeProgressionRepository(initial = Progression.Empty.copy(totalXp = 0))
+        progression.onAwardForHand = {
+            progression.emit(Progression.Empty.copy(totalXp = 150))
+        }
+        val achievements = FakeAchievementRepository().apply {
+            nextEarned = listOf(testEarnedAchievement(rarity = AchievementRarity.EPIC))
+        }
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory()
+        buildVm(
+            factory = factory,
+            progressionRepository = progression,
+            achievementRepository = achievements,
+            reviewPromptCoordinator = coordinator,
+        )
+
+        factory.capturedOnHandEnded?.invoke(
+            GameEvent.HandEnded(sequence = 0, winners = emptyList(), board = emptyList(), revealedHoleCards = emptyMap()),
+            stubGameState(),
+            1_000L,
+        )
+
+        assertEquals(
+            listOf(ReviewTrigger.AchievementUnlocked),
+            coordinator.requested,
+            "achievement unlock subsumes the level-up trigger",
+        )
+    }
+
+    @Test
+    fun leaveTable_inBotMode_requestsSessionEndPrompt() = runUnitTest {
+        val coordinator = FakeReviewPromptCoordinator()
+        val vm = buildVm(reviewPromptCoordinator = coordinator)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertEquals(listOf(ReviewTrigger.SessionEnd), coordinator.requested)
+    }
+
+    @Test
+    fun leaveTable_outsideBotMode_doesNotRequestPrompt() = runUnitTest {
+        val coordinator = FakeReviewPromptCoordinator()
+        val factory = FakePokerSessionFactory(xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER)
+        val vm = buildVm(factory = factory, reviewPromptCoordinator = coordinator)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertTrue(
+            coordinator.requested.isEmpty(),
+            "SessionEnd must not fire on MP exit — disconnects shouldn't masquerade as positive moments",
+        )
+    }
+
     // ---------- Helpers ----------
 
     private fun buildVm(
@@ -410,6 +583,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         achievementRepository: FakeAchievementRepository = FakeAchievementRepository(),
         appCache: FakeAppCache = FakeAppCache(),
         identityRepository: FakeIdentityRepository = FakeIdentityRepository(),
+        reviewPromptCoordinator: FakeReviewPromptCoordinator = FakeReviewPromptCoordinator(),
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
         progressionRepository = progressionRepository,
@@ -417,16 +591,19 @@ class PlayPokerViewModelTest : CoroutineTest() {
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
         identityRepository = identityRepository,
+        reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
     )
 
-    private fun testEarnedAchievement(): EarnedAchievement = EarnedAchievement(
+    private fun testEarnedAchievement(
+        rarity: AchievementRarity = AchievementRarity.COMMON,
+    ): EarnedAchievement = EarnedAchievement(
         achievement = Achievement(
             id = AchievementId.FIRST_HAND,
             name = "First Hand",
             description = "Play your first hand.",
             icon = "icon",
-            rarity = AchievementRarity.COMMON,
+            rarity = rarity,
             criterion = Criterion.HandsPlayed(target = 1),
             xpReward = 50,
         ),

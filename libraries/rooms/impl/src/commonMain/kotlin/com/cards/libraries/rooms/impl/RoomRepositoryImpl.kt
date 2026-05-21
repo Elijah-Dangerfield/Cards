@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomConnection
@@ -87,6 +88,23 @@ class RoomRepositoryImpl(
         LeaveRoomOutcome.NetworkError(e)
     } catch (e: Throwable) {
         LeaveRoomOutcome.NetworkError(e)
+    }
+
+    override suspend fun getActiveRooms(): GetActiveRoomsOutcome = try {
+        val response = api.listActive()
+        val body = response.body<ActiveRoomsResponseDto>()
+        GetActiveRoomsOutcome.Success(rooms = body.rooms.map { it.toDomain() })
+    } catch (e: ClientRequestException) {
+        when (e.response.status) {
+            HttpStatusCode.Unauthorized -> GetActiveRoomsOutcome.NotSignedIn(e)
+            else -> GetActiveRoomsOutcome.Unknown(e)
+        }
+    } catch (e: HttpRequestTimeoutException) {
+        GetActiveRoomsOutcome.NetworkError(e)
+    } catch (e: ServerResponseException) {
+        GetActiveRoomsOutcome.Unknown(e)
+    } catch (e: Throwable) {
+        GetActiveRoomsOutcome.NetworkError(e)
     }
 
     override fun observeRoom(code: String): Flow<RoomConnection> = socket.observe(code)

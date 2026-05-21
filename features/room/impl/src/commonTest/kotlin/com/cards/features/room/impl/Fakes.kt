@@ -30,6 +30,8 @@ import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.identity.OAuthProvider
+import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
+import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,6 +94,7 @@ class FakePokerSession(
 class FakePokerSessionFactory(
     val session: FakePokerSession = FakePokerSession(),
     override val difficultyName: String = "Standard",
+    override val xpMode: com.dangerfield.cards.libraries.cards.XpMode = com.dangerfield.cards.libraries.cards.XpMode.BOTS,
     val personalities: Map<Int, Personality> = emptyMap(),
 ) : PokerSessionFactory {
 
@@ -151,12 +154,14 @@ class FakeProgressionRepository(initial: Progression = Progression.Empty) : Prog
     private val state = MutableStateFlow(initial)
     val awardedSummaries = mutableListOf<HandResultSummary>()
     var nextAwardedEvents: List<XpEvent> = emptyList()
+    var onAwardForHand: (() -> Unit)? = null
 
     override fun observeProgression(): Flow<Progression> = state
     override suspend fun getProgression(): Progression = state.value
 
     override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> {
         awardedSummaries += summary
+        onAwardForHand?.invoke()
         return nextAwardedEvents
     }
 
@@ -227,7 +232,25 @@ class FakeEquipmentRepository(
         state.value = authoritative
     }
 
+    override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> {
+        val orphans = state.value.map { it.productId }.filter { it !in ownedProductIds }
+        state.value = state.value.filter { it.productId in ownedProductIds }
+        return orphans
+    }
+
     override suspend fun deleteAll() { state.value = emptyList() }
+}
+
+// ---------- ReviewPromptCoordinator ----------
+
+class FakeReviewPromptCoordinator(
+    var nextResult: Boolean = true,
+) : ReviewPromptCoordinator {
+    val requested = mutableListOf<ReviewTrigger>()
+    override suspend fun requestPrompt(trigger: ReviewTrigger): Boolean {
+        requested += trigger
+        return nextResult
+    }
 }
 
 // ---------- Test data builders ----------

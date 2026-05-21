@@ -48,7 +48,17 @@ fun Route.inventoryRoutes(repository: InventoryRepository) {
                     outcome = SyncOutcomeDto.Confirmed,
                 )
             }
-            call.respond(HttpStatusCode.OK, InventorySyncResponse(results = results))
+            val owned = repository.listOwned(userId).map { item ->
+                OwnedItemDto(
+                    productId = item.productId,
+                    costChipsAtPurchase = item.costChipsAtPurchase,
+                    purchasedAtEpochMs = item.purchasedAt.toEpochMilliseconds(),
+                )
+            }
+            call.respond(
+                HttpStatusCode.OK,
+                InventorySyncResponse(results = results, owned = owned),
+            )
         }
     }
 }

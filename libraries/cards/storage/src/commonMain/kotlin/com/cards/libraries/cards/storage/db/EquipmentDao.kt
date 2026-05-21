@@ -45,4 +45,11 @@ interface EquipmentDao : ClearableDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(rows: List<EquipmentEntity>)
+
+    /** Used by `dropOrphanEquipment` to repair drift between equipment and
+     *  inventory: any equipment row whose product no longer appears in the
+     *  authoritative inventory is dropped outright (not just unequipped —
+     *  the row carries no information once the user doesn't own the item). */
+    @Query("DELETE FROM equipment WHERE product_id IN (:productIds)")
+    suspend fun deleteByProductIds(productIds: Collection<String>)
 }

@@ -50,6 +50,12 @@ data class AppData(
 
     /** Cue played when it becomes the user's turn during a hand. */
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
+
+    /** Epoch-ms — first observed by the review coordinator. 0 = uncaptured. */
+    val reviewInstallAt: Long = 0L,
+
+    /** Epoch-ms — last review prompt the coordinator forwarded to the platform. 0 = never. */
+    val lastReviewPromptAt: Long = 0L,
 )
 
 interface AppCache : Cache<AppData>

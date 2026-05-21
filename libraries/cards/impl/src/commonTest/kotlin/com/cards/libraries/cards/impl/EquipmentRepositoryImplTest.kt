@@ -221,6 +221,83 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun dropOrphanEquipment_removesRowsNotInOwnedSet_returnsOrphanIds() = runUnitTest {
+        val dao = FakeEquipmentDao().apply {
+            seed(
+                EquipmentEntity(
+                    productId = "owned_cardback",
+                    isEquipped = true,
+                    syncState = "Synced",
+                    updatedAtEpochMs = 0,
+                ),
+            )
+            seed(
+                EquipmentEntity(
+                    productId = "orphan_felt",
+                    isEquipped = true,
+                    syncState = "Synced",
+                    updatedAtEpochMs = 0,
+                ),
+            )
+        }
+        val repo = EquipmentRepositoryImpl(dao, FixedClock(0))
+
+        val dropped = repo.dropOrphanEquipment(ownedProductIds = setOf("owned_cardback"))
+
+        assertEquals(listOf("orphan_felt"), dropped)
+        val remaining = dao.getAll().single()
+        assertEquals("owned_cardback", remaining.productId)
+    }
+
+    @Test
+    fun dropOrphanEquipment_emptyOwnedSet_dropsEverything() = runUnitTest {
+        val dao = FakeEquipmentDao().apply {
+            seed(
+                EquipmentEntity(
+                    productId = "a",
+                    isEquipped = true,
+                    syncState = "Synced",
+                    updatedAtEpochMs = 0,
+                ),
+            )
+            seed(
+                EquipmentEntity(
+                    productId = "b",
+                    isEquipped = true,
+                    syncState = "Synced",
+                    updatedAtEpochMs = 0,
+                ),
+            )
+        }
+        val repo = EquipmentRepositoryImpl(dao, FixedClock(0))
+
+        val dropped = repo.dropOrphanEquipment(ownedProductIds = emptySet())
+
+        assertEquals(setOf("a", "b"), dropped.toSet())
+        assertEquals(emptyList(), dao.getAll())
+    }
+
+    @Test
+    fun dropOrphanEquipment_allRowsOwned_returnsEmptyList_isNoOp() = runUnitTest {
+        val dao = FakeEquipmentDao().apply {
+            seed(
+                EquipmentEntity(
+                    productId = "owned_cardback",
+                    isEquipped = true,
+                    syncState = "Synced",
+                    updatedAtEpochMs = 0,
+                ),
+            )
+        }
+        val repo = EquipmentRepositoryImpl(dao, FixedClock(0))
+
+        val dropped = repo.dropOrphanEquipment(ownedProductIds = setOf("owned_cardback", "extra"))
+
+        assertEquals(emptyList(), dropped)
+        assertEquals(1, dao.getAll().size, "no DB rows removed when nothing is orphaned")
+    }
+
+    @Test
     fun observeEquipped_unknownSyncStateDecaysToPending() = runUnitTest {
         val dao = FakeEquipmentDao().apply {
             seed(
@@ -292,6 +369,10 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
             // overwritten.
             val toReplace = rows.map { it.productId }.toSet()
             this.rows.value = this.rows.value.filter { it.productId !in toReplace } + rows
+        }
+
+        override suspend fun deleteByProductIds(productIds: Collection<String>) {
+            this.rows.value = this.rows.value.filterNot { it.productId in productIds }
         }
     }
 }

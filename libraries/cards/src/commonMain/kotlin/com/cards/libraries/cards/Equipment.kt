@@ -72,6 +72,20 @@ interface EquipmentRepository {
      */
     suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>)
 
+    /**
+     * Enforces "equipped ⇒ owned." Drops any equipment row whose
+     * productId isn't in [ownedProductIds] — used by the inventory sync
+     * service after it folds in the server-authoritative `owned` snapshot,
+     * to repair drift between equipment and inventory (e.g. an item
+     * refunded / revoked on another device, or a local cache that lost
+     * its inventory rows but kept equipment).
+     *
+     * Returns the productIds that were dropped so the caller can log them
+     * — drop-rate visibility is the only way to tell whether the drift is
+     * a rare edge or a steady-state symptom of something else.
+     */
+    suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String>
+
     /** Called from "Fresh Start" / debug menus. */
     suspend fun deleteAll()
 }
