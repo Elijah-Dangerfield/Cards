@@ -88,10 +88,9 @@ Surfaced 2026-05-20 by a spec-vs-build audit. All three are spec promises in [pr
 - **Swipe-up-to-fold.** Gesture on the user's hole cards = fold. First time it triggers, show a confirmation dialog *with* a "Don't show this again" — so the gesture stays discoverable then gets out of the way.
 
 ### App-store review prompts
-- **Wire native review APIs at positive moments.** New must-have ([spec §2.6](./product/product-spec.md#26-app-store-review-prompts), [v1-mvp.md §2.6](./product/v1-mvp.md)). Shape:
-  - New `:libraries:review` (api + impl) with a KMP `ReviewPromptCoordinator` and platform `expect`/`actual` calling `SKStoreReviewController.requestReview()` on iOS and `ReviewManager.launchReviewFlow()` on Android.
-  - Hook into existing event streams — achievement unlock (`AchievementRepository`), level-up (`ProgressionRepository`), session-end (the play-screen ViewModel emits a session-summary event). Coordinator checks the eligibility gate (install age, session count, last-prompt date, last-hand outcome) and only then signals the OS.
-  - Persist `lastPromptAt` + `sessionCount` + `installAt` locally. No server round-trip — purely a client concern.
+- **Wire platform `ReviewLauncher` impls + hook callsites.** Scaffold landed 2026-05-21: `:libraries:review` exposes `ReviewPromptCoordinator` + `ReviewLauncher`; `RealReviewPromptCoordinator` runs the eligibility gate (install age ≥3d, prompt cooldown ≥30d) end-to-end against `AppCache`; default binding is `NoOpReviewLauncher`. Remaining work:
+  - Drop in `AndroidReviewLauncher` (wraps `ReviewManager.launchReviewFlow`) and `IosReviewLauncher` (wraps `SKStoreReviewController.requestReview`) with `@ContributesBinding(replaces = [NoOpReviewLauncher::class])`.
+  - Wire callers — `AchievementRepository` unlock event, `ProgressionRepository` level-up event, session-end event from the play ViewModel — to `ReviewPromptCoordinator.requestPrompt(...)`.
   - **Important:** never write a self-built rating dialog as a fallback. If the OS declines to show the prompt, that's the system working as designed — see [spec §2.6](./product/product-spec.md#26-app-store-review-prompts).
   - **V1-must-have** — small but load-bearing for ASO. Ship before TestFlight.
 
