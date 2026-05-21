@@ -1,3 +1,11 @@
+## fix(ui): bump small body copy on stats + notifications screens
+
+**Problem:** The "typography audit" item in `docs/todo.md` called out that XP and Rank screens have copy at the bottom that's noticeably smaller than the rest of the UI — concretely, the `HowToEarn` / `WhatXpDoes` info cards and the bullet list on `StatsScreen` were `Body.B400`, plus `NotificationsScreen`'s notification body. The DS default is `Body.B600`; B400 reads as supporting / footnote weight, not main content.
+**Approach:** Bumped the content lines from `Body.B400` → `Body.B500` in `StatsScreen` (HowToEarn descriptor sentence, both WhatXpDoes paragraphs, the `Bullet` text) and `NotificationsScreen` (NotificationCard body). Picked B500 rather than the DS default B600 because these surfaces are dense info cards / inbox rows — B600 would read as headline-weight against the existing H500/H700 titles next to them. Left supporting/footnote text (e.g. the `EventRow` subline, the `StatTile` label, the app-version footer on Profile) at B400 — those are correctly secondary. Keeps the broader "DS-first text default" sub-bullet open in `docs/todo.md` since this slice only addresses the observed drift, not the wider question of whether `Text` without a typography arg should still resolve to `Body.B600`.
+**Reviewer notes:** Pure typography change — no logic touched, no new previews needed (existing previews exercise both surfaces). The `:features:progression:impl` and `:features:profile:impl` `compileKotlinIosSimulatorArm64` tasks passed. Visual eyeball: `StatsScreenPreview_Populated` and `NotificationsScreenPreview_WithMessages` are the two relevant previews.
+**Deferred:**
+- Wider sweep / DS-first `Text` default — still open in `docs/todo.md` ("Typography & DS consistency" section). Picking the right default needs a survey of every Text callsite that currently passes `typography = …`; I'd rather do that as one deliberate audit than chip at it screen-by-screen.
+
 ## feat(home): surface active-room rejoin/forfeit on cold launch
 
 **Problem:** Server endpoint `GET /v1/me/active-rooms` and `RoomRepository.getActiveRooms()` both landed earlier in the week, but nothing client-side consumed them — a user whose previous session left a seat warm via the `disconnectedAt` grace timer had no in-app way to discover the ongoing game or release it.

@@ -195,7 +195,7 @@ private fun NotificationCard(
             Spacer(Modifier.height(Dimension.D200))
             Text(
                 text = message.body,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
         }
