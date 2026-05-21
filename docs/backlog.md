@@ -120,13 +120,18 @@ Blocker on doing it now: `opposite()` currently maps `SlideInFromRight → Slide
 
 ---
 
-## Sweep remaining `RoundedCornerShape(16.dp)` literals → `Radii.R700.shape`
+## Sweep remaining game-table corner literals → `Radii` tokens
 
-**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. The non-game-table callsites were migrated 2026-05-21 (`MyItemsScreen`, `StatsScreen` ×3, `FeatureCard`, `QaMenuScreen` ×5 including the 10.dp `R400` ones). Remaining literals all live on game-table surfaces, which were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace:
+**Idea (raised 2026-05-20):** `Radii.R700` (16.dp) was added during the RankDetail cleanup. `R800` (20.dp), `R900` (24.dp), and `R1000` (28.dp) were added 2026-05-21 alongside the non-game-table follow-up (`FeatureCard`, `AchievementMedallion`, `LobbyScreen`). The non-game-table 16.dp callsites were migrated 2026-05-21 (`MyItemsScreen`, `StatsScreen` ×3, `FeatureCard`, `QaMenuScreen` ×5 including the 10.dp `R400` ones). Remaining literals all live on game-table surfaces, which were tuned by hand for the play screen — worth a deliberate visual sweep rather than blind replace:
 
-- `BoardArea.kt:94/98`
-- `HandResultDialogs.kt:272`
-- `PlayerArea.kt:240/245`
+- `BoardArea.kt:94/98` — 16.dp (→ `R700`)
+- `HandResultDialogs.kt:272` — 16.dp (→ `R700`)
+- `PlayerArea.kt:102/103` — 20.dp (→ `R800`)
+- `PlayerArea.kt:240/245` — 16.dp (→ `R700`)
+- `HandRankingsCheatSheet.kt:266` — 28.dp (→ `R1000`)
+- `HandRankingsCheatSheet.kt:382/422` — 20.dp (→ `R800`)
+- `RaiseSheet.kt:206` — 28.dp (→ `R1000`)
+- `TableActionBar.kt:138/167` — 28.dp (→ `R1000`)
 
 **Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
 

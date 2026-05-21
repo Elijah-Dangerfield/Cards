@@ -1,3 +1,17 @@
+## refactor(ds): add Radii R800/R900/R1000 + sweep non-table 20/24dp callsites
+
+**Problem:** Previous worker's deferred note flagged `FeatureCard.kt:46` still on `RoundedCornerShape(24.dp)` because no `Radii` token covered 24.dp. Same gap blocked clean migration of `AchievementMedallion.kt:81` (24.dp) and `LobbyScreen.kt:178` (20.dp). The scale jumped from R700 (16.dp) straight to the percent-based `Round` — anything in the 20–28.dp band stayed as a literal, exactly the DS-rule drift AGENTS.md §5 warns about.
+
+**Approach:** Extended the numeric `Radii` scale with three new tokens — `R800` (D800 = 20.dp), `R900` (D900 = 24.dp), `R1000` (D1000 = 28.dp). They follow the existing pattern (`Radius(CornerSize(DimensionResource.DXXX.dp))`) so they pick up the `DimensionResource` source of truth. Then swapped the three non-game-table callsites: `FeatureCard.kt` (24 → R900), `AchievementMedallion.kt` (24 → R900), `LobbyScreen.kt` (20 → R800). Removed now-unused `RoundedCornerShape` import from `FeatureCard.kt` and `LobbyScreen.kt`; kept it in `AchievementMedallion.kt`? — checked, only one usage, dropped that import too. Added the `Radii` import to `AchievementMedallion.kt`.
+
+Game-table callsites (`HandRankingsCheatSheet`, `PlayerArea`, `RaiseSheet`, `TableActionBar`, `BoardArea`, `HandResultDialogs:272`) deliberately left as literals — same caveat the previous worker honored for the R700 sweep: "tuned by hand for the play screen, deliberate visual sweep needed, not blind replace." Updated `docs/backlog.md` to fold the new tokens into the existing backlog entry and list every game-table site with its target token, so the next pass is mechanical.
+
+**Reviewer notes:** Pure DS-token additions + swaps — `R800/R900/R1000` resolve to 20/24/28 dp via `DimensionResource`, so every migrated callsite renders identically. Built `./gradlew :apps:compose:assembleDebug` (green) and ran `:libraries:ui:testDebugUnitTest :features:progression:impl:testDebugUnitTest :features:lobby:impl:testDebugUnitTest` (all green). No tests added — extending a token scale + mechanical swap with no logic surface.
+
+**Deferred:**
+- `FeatureCard.kt:61` still has `Color.White.copy(alpha = 0.15f)` on the glyph block — the white-alpha-on-accent-gradient pattern AGENTS.md DS rule §1 calls out. Picking the right replacement is a visual design call (does the DS need a new "overlay on accent" token? Or should this resolve to `surfacePrimary.copy(alpha = ...)`?), so I left it for the reviewer to triage with the human rather than burning the surface-token decision in a follow-up commit.
+- Game-table corner-literal sweep — captured in `docs/backlog.md` with every callsite's target token. Reviewer please leave as backlog; should land alongside the next deliberate play-screen visual pass, not this DS-token housekeeping.
+
 ## fix(nav): cover-and-uncover transitions; previous screen stays put
 
 **Problem:** Forward push and back pop both animated the same screen pair in the same visual direction. A screen pushed with `SlideUp` slid up into view, but on pop the *same* screen also slid up (off the top) instead of sliding back down to reveal the previous screen underneath. Same root cause across the wiring (`App.kt`) and the animation mapping (`Route.kt`).
