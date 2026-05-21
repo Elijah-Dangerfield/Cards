@@ -8,12 +8,12 @@ package com.dangerfield.cards.libraries.review
  * [ReviewPromptCoordinator] is fully testable without touching the
  * platform.
  *
- * **Default binding is [com.dangerfield.cards.libraries.review.impl.NoOpReviewLauncher]**
- * while the platform impls are still being wired. With the no-op
- * bound the coordinator runs end-to-end — eligibility checks fire,
- * timestamps persist — but nothing user-visible happens. Replace the
- * binding with a real `AndroidReviewLauncher` / `IosReviewLauncher`
- * impl to enable the actual prompt.
+ * **Default binding is [com.dangerfield.cards.libraries.review.impl.AdaptedReviewLauncher]**,
+ * which delegates to the long-standing [com.dangerfield.cards.libraries.cards.ReviewPrompter]
+ * (Android Play Core impl wired in `:libraries:cards:impl`, iOS impl
+ * passed from Swift via `IosAppComponentFactory`). [com.dangerfield.cards.libraries.review.impl.NoOpReviewLauncher]
+ * is kept as a fallback for tests that don't want to drag in the
+ * platform dependency.
  *
  * Implementations must not throw: the platform APIs report failure
  * via callbacks / no-ops, and a thrown launcher would punch through
