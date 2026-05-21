@@ -30,6 +30,8 @@ import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.identity.OAuthProvider
+import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
+import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -151,12 +153,14 @@ class FakeProgressionRepository(initial: Progression = Progression.Empty) : Prog
     private val state = MutableStateFlow(initial)
     val awardedSummaries = mutableListOf<HandResultSummary>()
     var nextAwardedEvents: List<XpEvent> = emptyList()
+    var onAwardForHand: (() -> Unit)? = null
 
     override fun observeProgression(): Flow<Progression> = state
     override suspend fun getProgression(): Progression = state.value
 
     override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> {
         awardedSummaries += summary
+        onAwardForHand?.invoke()
         return nextAwardedEvents
     }
 
@@ -228,6 +232,18 @@ class FakeEquipmentRepository(
     }
 
     override suspend fun deleteAll() { state.value = emptyList() }
+}
+
+// ---------- ReviewPromptCoordinator ----------
+
+class FakeReviewPromptCoordinator(
+    var nextResult: Boolean = true,
+) : ReviewPromptCoordinator {
+    val requested = mutableListOf<ReviewTrigger>()
+    override suspend fun requestPrompt(trigger: ReviewTrigger): Boolean {
+        requested += trigger
+        return nextResult
+    }
 }
 
 // ---------- Test data builders ----------

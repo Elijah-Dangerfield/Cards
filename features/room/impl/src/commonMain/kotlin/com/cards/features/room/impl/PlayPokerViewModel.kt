@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.room.impl
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.bots.HandStrength
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
+import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.BotSpeed
@@ -11,6 +12,7 @@ import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpMode
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
@@ -30,6 +32,8 @@ import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
+import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -65,6 +69,7 @@ class PlayPokerViewModel @Inject constructor(
     private val appCache: AppCache,
     private val equipmentRepository: EquipmentRepository,
     private val identityRepository: IdentityRepository,
+    private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
     initialStateArg = PlayPokerState(),
@@ -281,19 +286,49 @@ class PlayPokerViewModel @Inject constructor(
                 .count { it.index != humanSeatIndex && it.stack <= 0 },
         )
         viewModelScope.launch {
+            val priorLevel = Catching {
+                levelProgressFor(progressionRepository.getProgression().totalXp).level
+            }.getOrNull()
+
             Catching {
                 val awarded = progressionRepository.awardForHand(summary)
                 val total = awarded.sumOf { it.deltaXp }
                 if (total > 0) takeAction(PlayPokerAction.HandXpAwarded(total))
             }.onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
 
-            Catching {
-                val earned = achievementRepository.recordHand(summary, context)
-                if (earned.isNotEmpty()) takeAction(PlayPokerAction.AchievementsEarned(earned))
+            val earned = Catching {
+                val list = achievementRepository.recordHand(summary, context)
+                if (list.isNotEmpty()) takeAction(PlayPokerAction.AchievementsEarned(list))
+                list
             }.onFailure {
                 logger.w(it) { "Achievement recording failed for hand ${summary.handId}" }
-            }
+            }.getOrNull().orEmpty()
+
+            maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
         }
+    }
+
+    private suspend fun maybeRequestReviewPrompt(
+        priorLevel: Int?,
+        earned: List<EarnedAchievement>,
+    ) {
+        Catching {
+            val unlockedRareOrBetter = earned.any {
+                it.achievement.rarity.ordinal >= AchievementRarity.RARE.ordinal
+            }
+            if (unlockedRareOrBetter) {
+                reviewPromptCoordinator.requestPrompt(ReviewTrigger.AchievementUnlocked)
+                return@Catching
+            }
+            if (priorLevel != null) {
+                val newLevel = levelProgressFor(
+                    progressionRepository.getProgression().totalXp,
+                ).level
+                if (newLevel > priorLevel) {
+                    reviewPromptCoordinator.requestPrompt(ReviewTrigger.LevelUp)
+                }
+            }
+        }.onFailure { logger.w(it) { "Review prompt request failed" } }
     }
 
     override suspend fun handleAction(action: PlayPokerAction) {

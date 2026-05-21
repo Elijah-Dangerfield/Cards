@@ -18,6 +18,7 @@ kotlin {
             implementation(projects.libraries.identity)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.review)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)
 
@@ -43,6 +44,7 @@ kotlin {
             implementation(projects.libraries.game)
             implementation(projects.libraries.gameplay)
             implementation(projects.libraries.identity)
+            implementation(projects.libraries.review)
             implementation(projects.libraries.storage)
             implementation(projects.libraries.flowroutines)
         }

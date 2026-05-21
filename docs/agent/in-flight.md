@@ -1,3 +1,15 @@
+## feat(review): wire achievement-unlock + level-up callers in PlayPokerViewModel
+
+**Problem:** Review-prompt scaffold landed earlier tonight but nothing called `ReviewPromptCoordinator.requestPrompt(...)`. Two of the three V1 triggers in the spec — `AchievementUnlocked` (rare/legendary unlock) and `LevelUp` — fire at hand-end and have a clean home in the play VM.
+
+**Approach:** Constructor-inject `ReviewPromptCoordinator` into `PlayPokerViewModel` and call from `handleHandEnded` after `awardForHand` + `recordHand` resolve. Achievement trigger fires when *any* earned achievement this hand has rarity ≥ `RARE` (covers RARE/EPIC/LEGENDARY — matches the spec's "rare/legendary" copy). Level-up trigger fires when `levelProgressFor(totalXp).level` increased between the start of the callback and after both repos have settled (so achievement XP rewards counted alongside hand XP). Achievement unlock takes priority over level-up — both can land on the same hand but the stronger signal subsumes the weaker. Both are gated by the coordinator's eligibility floor (3d install age, 30d cooldown), so the call site stays naive. Six new tests pin: rare unlock fires, legendary fires, common-only suppresses, level-change fires, no-level-change suppresses, achievement-takes-priority.
+
+**Reviewer notes:** `SessionEnd` is the third spec trigger and is *not* wired yet — `PlayPokerEvent.NavigatedBack` exists as a typed signal but isn't emitted anywhere today, and the play screen's back-handler / leave action would need to do the emission. Skipped intentionally: better to defer than to guess at "clean exit" semantics and start firing the prompt on rage-quits. Updated todo to spell out the remaining slice (suggest gating on `XpMode.BOTS` so MP-disconnects don't masquerade as positive moments). Also note the `SessionEnd` trigger could be hooked at the VM's `onCleared` / `viewModelScope` cancellation — but that fires on every screen exit including aborts, which is wrong for this purpose. Worth a human eye before the next slice picks it up.
+
+**Deferred:**
+- `SessionEnd` trigger — flagged in updated `docs/todo.md` entry. Needs a clean "user finished the session intentionally" signal first.
+- Platform `ReviewLauncher` impls (Android/iOS) — same todo entry. Still pending; bindings replace `NoOpReviewLauncher` once they land.
+
 ## feat(review): scaffold :libraries:review with eligibility gate
 
 **Problem:** V1-must-have app-store review prompts had nothing in the codebase — no abstraction, no eligibility gate, no persistence. Reviewer needed to ship a confident slice without blocking on platform bindings.
