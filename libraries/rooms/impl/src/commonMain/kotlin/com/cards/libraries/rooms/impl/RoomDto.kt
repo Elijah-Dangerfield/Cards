@@ -67,6 +67,12 @@ data class GetRoomResponseDto(
 )
 
 @Serializable
+data class ActiveRoomsResponseDto(
+    val schemaVersion: Int = 1,
+    val rooms: List<RoomDto> = emptyList(),
+)
+
+@Serializable
 data class ProblemEnvelopeDto(
     val error: ProblemDto,
 )

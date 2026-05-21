@@ -27,6 +27,7 @@ interface RoomApi {
     suspend fun join(code: String): HttpResponse
     suspend fun leave(code: String): HttpResponse
     suspend fun fetch(code: String): HttpResponse
+    suspend fun listActive(): HttpResponse
 }
 
 @SingleIn(AppScope::class)
@@ -53,6 +54,9 @@ class HttpRoomApi(
 
     override suspend fun fetch(code: String): HttpResponse =
         networkClient.authenticatedClient.get("/v1/rooms/$code")
+
+    override suspend fun listActive(): HttpResponse =
+        networkClient.authenticatedClient.get("/v1/me/active-rooms")
 }
 
 internal suspend inline fun <reified T> HttpResponse.bodyOrNull(): T? = try {

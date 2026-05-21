@@ -30,6 +30,14 @@ interface RoomRepository {
     suspend fun leaveRoom(code: String): LeaveRoomOutcome
 
     /**
+     * Rooms the signed-in user is currently a member of. Called on cold
+     * launch by the home/launch flow so we can offer "rejoin / forfeit"
+     * before silently stranding a player whose previous session left a
+     * seat warm via the `disconnectedAt` grace timer.
+     */
+    suspend fun getActiveRooms(): GetActiveRoomsOutcome
+
+    /**
      * Live connection to a room's WebSocket. Auto-reconnects on
      * transport failures with exponential backoff (capped at ~16s).
      * Cancel the collector to close the socket.
@@ -54,6 +62,14 @@ sealed interface JoinRoomOutcome {
     data class NotSignedIn(val cause: Throwable? = null) : JoinRoomOutcome
     data class NetworkError(val cause: Throwable) : JoinRoomOutcome
     data class Unknown(val cause: Throwable) : JoinRoomOutcome
+}
+
+sealed interface GetActiveRoomsOutcome {
+    /** Empty list = no active rooms; the call still succeeded. */
+    data class Success(val rooms: List<Room>) : GetActiveRoomsOutcome
+    data class NotSignedIn(val cause: Throwable? = null) : GetActiveRoomsOutcome
+    data class NetworkError(val cause: Throwable) : GetActiveRoomsOutcome
+    data class Unknown(val cause: Throwable) : GetActiveRoomsOutcome
 }
 
 sealed interface LeaveRoomOutcome {

@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.rooms.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomConnection
@@ -131,6 +132,37 @@ class RoomRepositoryImplTest {
         assertTrue(networkError.cause is SimulatedNetworkError)
     }
 
+    @Test
+    fun getActiveRooms_200_withRooms_returnsSuccess() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_ONE_ROOM_JSON) })
+        val outcome = repo.getActiveRooms()
+        val success = assertIs<GetActiveRoomsOutcome.Success>(outcome)
+        assertEquals(1, success.rooms.size)
+        assertEquals("ABC123", success.rooms.single().code)
+    }
+
+    @Test
+    fun getActiveRooms_200_empty_returnsSuccess_withEmptyList() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_EMPTY_JSON) })
+        val outcome = repo.getActiveRooms()
+        val success = assertIs<GetActiveRoomsOutcome.Success>(outcome)
+        assertTrue(success.rooms.isEmpty())
+    }
+
+    @Test
+    fun getActiveRooms_401_returnsNotSignedIn() = runTest {
+        val repo = newRepo(MockEngine { respondError(HttpStatusCode.Unauthorized) })
+        assertIs<GetActiveRoomsOutcome.NotSignedIn>(repo.getActiveRooms())
+    }
+
+    @Test
+    fun getActiveRooms_transportError_returnsNetworkError() = runTest {
+        val repo = newRepo(MockEngine { throw SimulatedNetworkError("dns") })
+        val outcome = repo.getActiveRooms()
+        val networkError = assertIs<GetActiveRoomsOutcome.NetworkError>(outcome)
+        assertTrue(networkError.cause is SimulatedNetworkError)
+    }
+
     /**
      * Cross-platform stand-in for `java.io.IOException` — see the sibling
      * comment in `ReconnectingRoomSocketTest`.
@@ -193,5 +225,9 @@ class RoomRepositoryImplTest {
             """{"schemaVersion":1,"alreadyJoined":false,"room":$ROOM_JSON_HOST}"""
         private val JOIN_RESPONSE_JSON_REJOIN =
             """{"schemaVersion":1,"alreadyJoined":true,"room":$ROOM_JSON_HOST}"""
+        private val ACTIVE_ROOMS_ONE_ROOM_JSON =
+            """{"schemaVersion":1,"rooms":[$ROOM_JSON_HOST]}"""
+        private val ACTIVE_ROOMS_EMPTY_JSON =
+            """{"schemaVersion":1,"rooms":[]}"""
     }
 }

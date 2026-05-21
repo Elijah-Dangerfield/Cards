@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.ResendOutcome
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
@@ -229,6 +230,7 @@ class LobbyViewModelTest : CoroutineTest() {
         private val createOutcome: CreateRoomOutcome = CreateRoomOutcome.NetworkError(RuntimeException("simulated network error")),
         private val joinOutcome: JoinRoomOutcome = JoinRoomOutcome.NetworkError(RuntimeException("simulated network error")),
         private val leaveOutcome: LeaveRoomOutcome = LeaveRoomOutcome.Success,
+        private val activeRoomsOutcome: GetActiveRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList()),
         private val observe: (String) -> Flow<RoomConnection> = { flow {} },
     ) : RoomRepository {
         var joinCalls: Int = 0
@@ -239,6 +241,7 @@ class LobbyViewModelTest : CoroutineTest() {
             return joinOutcome
         }
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = leaveOutcome
+        override suspend fun getActiveRooms(): GetActiveRoomsOutcome = activeRoomsOutcome
         override fun observeRoom(code: String): Flow<RoomConnection> = observe(code)
     }
 

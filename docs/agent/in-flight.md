@@ -1,3 +1,14 @@
+## feat(rooms): add RoomRepository.getActiveRooms() client surface
+
+**Problem:** Server `GET /v1/me/active-rooms` landed earlier tonight, but `RoomRepository` had no client method to call it. Without a typed outcome surface, anything wired on cold launch later would have to hand-roll its own HTTP + status mapping.
+
+**Approach:** Mirrored the existing pattern from `createRoom` / `joinRoom`. Added `RoomApi.listActive(): HttpResponse` (`HttpRoomApi` does `authenticatedClient.get("/v1/me/active-rooms")`), `ActiveRoomsResponseDto` matching the server envelope (`schemaVersion` + `rooms: List<RoomDto>`), `RoomRepository.getActiveRooms(): GetActiveRoomsOutcome` with `Success` / `NotSignedIn` / `NetworkError` / `Unknown` variants, and `RoomRepositoryImpl.getActiveRooms` doing the standard `ClientRequestException` / `HttpRequestTimeoutException` / `ServerResponseException` / `Throwable` ladder. Four new MockEngine-driven tests pin: 200 with rooms → Success, 200 empty → Success-with-empty-list, 401 → NotSignedIn, transport throw → NetworkError. `FakeRoomRepository` in `LobbyViewModelTest` got the new method with a defaults-to-empty outcome so existing lobby tests stay unchanged.
+
+**Reviewer notes:** The repo method is exposed but nothing calls it yet — the cold-launch consumer (Home / AppLaunchGate) is the next slice. Choosing not to wire it inside `LobbyViewModel` because the "you have an ongoing game" surface belongs in the launch flow, not behind the lobby's join CTA — by the time a user reaches the lobby they're already past the point we want to intercept. Worth a second look on whether `RoomRepository` is even the right home long-term (vs. a smaller "session resume" service) once a second consumer materializes; punting the abstraction question until that consumer arrives.
+
+**Deferred:**
+- Cold-launch wiring + rejoin/forfeit UI — flagged in updated `docs/todo.md` (under §C MP hardening, orphan-room policy). Needs a design call on the surface (banner on Home? dedicated launch-gate screen?).
+
 ## feat(review): wire achievement-unlock + level-up callers in PlayPokerViewModel
 
 **Problem:** Review-prompt scaffold landed earlier tonight but nothing called `ReviewPromptCoordinator.requestPrompt(...)`. Two of the three V1 triggers in the spec — `AchievementUnlocked` (rare/legendary unlock) and `LevelUp` — fire at hand-end and have a clean home in the play VM.
