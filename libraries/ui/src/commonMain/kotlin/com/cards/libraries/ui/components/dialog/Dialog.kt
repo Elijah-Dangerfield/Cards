@@ -115,6 +115,7 @@ fun Dialog(
                 cornerRadius = DialogCardCornerRadius,
                 notchRadius = EmojiBubbleNotchRadius,
                 notchCornerRadius = EmojiBubbleDefaults.notchCornerRadiusFor(emoji.style),
+                bottomCornerRadius = DialogCardCornerRadius,
             )
         } else {
             Radii.Card.shape

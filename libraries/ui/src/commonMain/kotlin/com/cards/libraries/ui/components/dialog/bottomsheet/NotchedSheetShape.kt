@@ -56,12 +56,19 @@ import androidx.compose.ui.unit.dp
  *   get a squircle-shaped notch. Clamped to `[0, notchRadius]`.
  * @param notchCenterFraction Where along the width the bulge sits, 0..1.
  *   Default 0.5f = centered. Override only if you want an off-center icon.
+ * @param bottomCornerRadius Rounded-bottom-corner radius. Defaults to 0
+ *   (square corners) because the original use-case is a bottom sheet
+ *   whose bottom edge lives off-screen. Dialogs that share this shape
+ *   render the whole surface on screen, so they pass a non-zero value
+ *   (typically the same as [cornerRadius]) to keep all four corners
+ *   consistent.
  */
 class NotchedSheetShape(
     private val cornerRadius: Dp = 16.dp,
     private val notchRadius: Dp,
     private val notchCornerRadius: Dp = notchRadius,
     private val notchCenterFraction: Float = 0.5f,
+    private val bottomCornerRadius: Dp = 0.dp,
 ) : Shape {
 
     override fun createOutline(
@@ -77,6 +84,8 @@ class NotchedSheetShape(
         val cornerR = with(density) { cornerRadius.toPx() }
             // Clamp so a small sheet width can't produce inverted corners.
             .coerceAtMost(size.width / 2f)
+        val bottomCornerR = with(density) { bottomCornerRadius.toPx() }
+            .coerceIn(0f, minOf(size.width / 2f, size.height / 2f))
         val notchCx = size.width * notchCenterFraction.coerceIn(0f, 1f)
         val w = size.width
         val h = size.height
@@ -166,11 +175,41 @@ class NotchedSheetShape(
             )
 
             // ── Right edge, bottom edge, left edge ──
-            // Bottom corners stay square (this is a bottom sheet; the
-            // bottom is off-screen anyway).
-            lineTo(w, h)
-            lineTo(0f, h)
-            lineTo(0f, regularTopY + cornerR)
+            // Bottom corners default to square (this is a bottom sheet; the
+            // bottom is off-screen anyway). Dialogs pass a non-zero
+            // [bottomCornerRadius] so all four corners stay consistent
+            // when the whole surface is on-screen.
+            if (bottomCornerR > 0f) {
+                lineTo(w, h - bottomCornerR)
+                arcTo(
+                    rect = Rect(
+                        left = w - 2 * bottomCornerR,
+                        top = h - 2 * bottomCornerR,
+                        right = w,
+                        bottom = h,
+                    ),
+                    startAngleDegrees = 0f,
+                    sweepAngleDegrees = 90f,
+                    forceMoveTo = false,
+                )
+                lineTo(bottomCornerR, h)
+                arcTo(
+                    rect = Rect(
+                        left = 0f,
+                        top = h - 2 * bottomCornerR,
+                        right = 2 * bottomCornerR,
+                        bottom = h,
+                    ),
+                    startAngleDegrees = 90f,
+                    sweepAngleDegrees = 90f,
+                    forceMoveTo = false,
+                )
+                lineTo(0f, regularTopY + cornerR)
+            } else {
+                lineTo(w, h)
+                lineTo(0f, h)
+                lineTo(0f, regularTopY + cornerR)
+            }
 
             close()
         }
