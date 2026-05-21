@@ -7,6 +7,9 @@ import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.websocket.WebSocketException
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.http.HttpMethod
@@ -35,9 +38,11 @@ import kotlin.math.pow
  * attempt, capped at 16s. Stops reconnecting on two terminal signals:
  *  - The server sends `room_closed` (no point reconnecting to a dead
  *    room).
- *  - The server rejects the handshake (4xx / Close immediately after
- *    upgrade) — usually means the user isn't a member of the room.
- *    The collector should call POST /join + re-subscribe.
+ *  - The server returns a 4xx on the handshake — usually means the user
+ *    isn't a member of the room. Surfaces as [ClosedReason.Rejected];
+ *    the collector should call POST /join + re-subscribe. 5xx and
+ *    transport-level failures still surface as [RoomConnection.Reconnecting]
+ *    and back off — they're the server's transient problem, not ours.
  *
  * Forward-compat: unrecognized event types throw at JSON decode time
  * and the loop drops them with a warning. The Snapshot baseline keeps
@@ -74,11 +79,30 @@ class ReconnectingRoomSocket(
                 }
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Throwable) {
-                // Handshake failure — almost always transient (offline,
-                // server hiccup). Surface Reconnecting + back off.
+            } catch (e: ClientRequestException) {
+                val status = e.response.status
+                logger.w(e) { "Room socket rejected during handshake: ${status.value} ${status.description}" }
+                send(RoomConnection.Closed(ClosedReason.Rejected))
+                return@channelFlow
+            } catch (e: WebSocketException) {
+                val status = e.handshakeStatusOrNull()
+                if (status != null && status in 400..499) {
+                    logger.w(e) { "Room socket rejected during handshake: status $status" }
+                    send(RoomConnection.Closed(ClosedReason.Rejected))
+                    return@channelFlow
+                }
                 attempt += 1
-                logger.w(e) { "Room socket handshake failed (attempt $attempt)" }
+                val suffix = status?.let { " (status $it)" }.orEmpty()
+                logger.w(e) { "Room socket handshake failed$suffix (attempt $attempt)" }
+                send(RoomConnection.Reconnecting(attempt, e))
+                delay(backoffFor(attempt))
+                continue
+            } catch (e: Throwable) {
+                attempt += 1
+                val statusSuffix = (e as? ResponseException)?.response?.status?.value
+                    ?.let { " (status $it)" }
+                    .orEmpty()
+                logger.w(e) { "Room socket handshake failed$statusSuffix (attempt $attempt)" }
                 send(RoomConnection.Reconnecting(attempt, e))
                 delay(backoffFor(attempt))
                 continue
@@ -179,3 +203,16 @@ class ReconnectingRoomSocket(
         private const val BACKOFF_CAP_MS: Long = 16_000
     }
 }
+
+/**
+ * Ktor's [WebSocketException] embeds the HTTP status in its message
+ * ("Handshake exception, expected status code 101 but was 403") with
+ * no structured accessor. Parsing the message is the only way to
+ * classify the upgrade failure into 4xx (terminal — server rejected
+ * membership) vs 5xx (transient — retry). The format is stable across
+ * Ktor 2.x/3.x; unparseable messages fall back to the retry path.
+ */
+private fun WebSocketException.handshakeStatusOrNull(): Int? =
+    message?.let { HandshakeStatusPattern.find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+private val HandshakeStatusPattern = Regex("expected status code 101 but was (\\d{3})")
