@@ -13,12 +13,12 @@ import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
 @Inject
-class XpDetailSheetViewModel(
+class StatsViewModel(
     progressionRepository: ProgressionRepository,
     xpEventRepository: XpEventRepository,
     achievementRepository: AchievementRepository,
-) : SEAViewModel<XpDetailState, XpDetailEvent, XpDetailAction>(
-    initialStateArg = XpDetailState(),
+) : SEAViewModel<StatsState, StatsEvent, StatsAction>(
+    initialStateArg = StatsState(),
 ) {
 
     init {
@@ -30,14 +30,14 @@ class XpDetailSheetViewModel(
             ) { progression, events, achievements ->
                 Triple(progression, events, achievements)
             }.collect { (progression, events, achievements) ->
-                takeAction(XpDetailAction.DataChanged(progression, events, achievements))
+                takeAction(StatsAction.DataChanged(progression, events, achievements))
             }
         }
     }
 
-    override suspend fun handleAction(action: XpDetailAction) {
+    override suspend fun handleAction(action: StatsAction) {
         when (action) {
-            is XpDetailAction.DataChanged -> action.updateState {
+            is StatsAction.DataChanged -> action.updateState {
                 it.copy(
                     progression = action.progression,
                     recentEvents = action.events,
@@ -53,19 +53,19 @@ class XpDetailSheetViewModel(
     }
 }
 
-data class XpDetailState(
+data class StatsState(
     val isLoading: Boolean = true,
     val progression: Progression = Progression.Empty,
     val recentEvents: List<XpEvent> = emptyList(),
     val achievements: AchievementProgress = AchievementProgress.Empty,
 )
 
-sealed interface XpDetailEvent
+sealed interface StatsEvent
 
-sealed interface XpDetailAction {
+sealed interface StatsAction {
     data class DataChanged(
         val progression: Progression,
         val events: List<XpEvent>,
         val achievements: AchievementProgress,
-    ) : XpDetailAction
+    ) : StatsAction
 }

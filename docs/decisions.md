@@ -25,6 +25,68 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-05-20 — Drop proactive smart-claim prompts; add app-store review prompts in their place
+
+**Decision:** Stop pushing anonymous users to claim. Remove the five-trigger smart-claim-prompts table (first MP win, first Epic+ achievement, 5K balance, first shop visit, Level 10). Claim remains available passively (static Profile card; inline-only at the moments where claim is actually required — host a public room, add a friend). In parallel, *add* app-store review prompts that fire at the positive-moment triggers we just freed up (Epic+ achievement unlock, Level 10, session-end-net-positive), gated by install-age + session-count + 90-day-no-prompt + last-hand-not-a-bust. Use native APIs (SKStoreReviewController / Play In-App Review) only — no self-built rating dialog.
+
+**Why drop claim prompts:** The original case for proactive claim prompts was anti-farming on the starter grant. That exploit is now closed by device-fingerprint deduplication ([§6.1](./product/product-spec.md#anti-farming-on-the-starter-grant)) — claim adds nothing to it. The remaining benefits of claim (durability, friends, leaderboards, public-room hosting) are *for the user*, not for us, and best-effort recovery via fingerprint + iCloud Keychain / Block Store already covers the common case. Pushing users to claim was begging for a conversion metric that wasn't load-bearing — a §10 brand-check violation.
+
+**Why add review prompts:** Those same positive moments (Epic+ achievement unlock, Level 10, net-positive session end) are *legitimately* good moments to ask the user for a kind word — they're feeling good, they've invested, they're not interrupting anything. The native review APIs handle their own throttling (iOS 3/year, Android similar), so calling at the trigger moment doesn't mean prompting at the trigger moment — the OS decides. We add a 7-day install-age gate and a 90-day no-prompt gate as belt-and-suspenders, plus a "last-hand-not-a-bust" check so we never ask after a frustrating moment. App-store rating is load-bearing for ASO ([v1-mvp.md §1](./product/v1-mvp.md) target: ≥ 4.3) in a way claim conversion never was.
+
+**Alternatives considered:**
+- **Keep some claim prompts, drop others** (e.g., keep only "first shop purchase" since cosmetic durability is the most concrete pitch). Rejected: any proactive prompt is begging when the underlying need is already met by fingerprinting. Cleaner to drop the surface entirely and let inline-when-required carry the message.
+- **Build our own "rate Cards!" star-rating dialog.** Rejected: the App Store explicitly discourages it, self-built rating sheets erode trust, and the native APIs already handle the hard parts (throttling, dismissal, no-commitment).
+- **Don't ask for reviews at all.** Rejected: ASO matters, target rating in v1-mvp.md is ≥ 4.3, and the native APIs are extremely low-cost / low-risk when gated to positive moments. Not asking would leave organic discovery on the table.
+
+**What changes in the spec:**
+- [product-spec.md §2.1](./product/product-spec.md#21-first-session--the-60-second-rule) — "Smart claim prompts fire at meaningful moments" callout removed; replaced with "Claim is opt-in, never pushed."
+- [product-spec.md §6.1](./product/product-spec.md#61-anonymous-by-default) — "Smart claim prompts (not gating)" subsection rewritten as "Claim is opt-in (no proactive prompts)" with the rationale and the inline-only surface table.
+- [product-spec.md §2.6](./product/product-spec.md#26-app-store-review-prompts) — new section for review-prompt triggers, eligibility gate, never-trigger list.
+- [v1-mvp.md §1](./product/v1-mvp.md) — "anonymous → claimed conversion" downgraded from a ≥ 20% target to directional-only.
+- [v1-mvp.md §2.2 + §2.6](./product/v1-mvp.md) — Phase 3 must-haves updated; new §2.6 for review prompts.
+
+**Status:** Locked. The smart-claim-prompts design in the original 6.1 is superseded.
+
+---
+
+## 2026-05-20 — Today's Quests rejected
+
+**Decision:** Cut Today's Quests (Phase 6's daily-challenge tray) from V1 and from the roadmap entirely. Phase 6 narrows to event-driven push notifications only. Spec updated: §3.4 (Today's Quests) deleted; §3.5–3.7 renumbered to §3.4–3.6; home screen tray removed (§2.4); quest references stripped from §2.1, §2.2, §2.5, §4.1, §8, §9. New rejection note lives at [Appendix C.7](./product/product-spec.md#c7-todays-quests-rejected-2026-05-20).
+
+**Why:** Daily quests are a language-learning / CCG pattern, not a poker pattern. Every formulation we considered breaks against poker's properties:
+- **Win-based quests** ("win 3 hands today") punish skilled play that ran cold — variance, not skill.
+- **Activity-gate quests** ("play 5 hands") are the dark pattern we already rejected with daily-login streaks ([C.1](./product/product-spec.md#c1-daily-login-streak-rejected-2026-05-16)) — they create daily-obligation anxiety on an episodic-entertainment app.
+- **Skill-action quests** ("make 3 bluffs," "win an all-in") actively encourage suboptimal poker — playing for the quest instead of playing the table.
+- **Genre signal:** no successful poker app does daily quests (Pokerrrr 2, Offsuit, Zynga Poker all skip them). Marvel Snap / Duolingo / Clash Royale do, but they're not poker.
+
+Achievements already carry the "give me a near-term reason to play" load on a longer arc that variance can't sabotage in a single session. Doubling up with quests was redundant at best, harmful at worst.
+
+**Alternatives considered:**
+- **Keep quests but tune them harder.** Rejected: there's no quest formulation that satisfies all three of (a) completable in one session, (b) not gameable / not punishing variance, (c) doesn't nudge worse poker. We tried.
+- **Replace with "weekly play streak"** (consecutive weeks with ≥1 MP hand). Already documented as a V1.x option in [Appendix B item 17](./product/product-spec.md#appendix-b--open-decisions) — leave it on the table separately; not a replacement for the quest tray.
+- **Add more low-bar achievements instead.** Open option noted in [C.7](./product/product-spec.md#c7-todays-quests-rejected-2026-05-20) — if early-session "fast wins" data shows a gap, address it via achievement design, not by reintroducing a quest layer.
+
+**Status:** Locked. Phase 6 in [product-spec.md §9](./product/product-spec.md#9-roadmap) and [v1-mvp.md §2.5](./product/v1-mvp.md) now scopes to "Notifications" only.
+
+---
+
+## 2026-05-20 — MP buy-in, blinds & re-buy mechanic
+
+**Decision:** Multiplayer tables use the standard real-poker model: buy-in moves chips from wallet → stack at sit-down, blinds are the per-hand chip mechanic (auto-posted, rotating), stacks return to wallet on graceful leave or sweep-evict. Stake tiers ([product-spec.md §5.3](./product/product-spec.md#53-public-rooms)) are fixed (blind, buy-in) pairs at 100BB stacks. No antes, no rake in V1. Bot tables mirror the same model so the mechanic is discoverable in solo. Re-buy on bust: auto-prompt one-tap if wallet covers; lower-tier prompt if wallet < tier min but ≥ 1,000; bust-protection grant + Practice re-buy if wallet is empty. Sit-out toggle replaces any notion of per-hand confirmation.
+
+**Why:** The user asked whether per-hand buy-in confirmation was needed; real-poker convention is "confirm once on sit-down, post blinds automatically thereafter, sit-out if you need to skip" — and that's also the right answer for MP throughput (no per-hand consensus gating the deal). Blinds + variance is the chip sink that closes the economic loop; rake on play-money would be punitive without justification. 100BB stacks match deep-stack real-poker norms and give players ~100 hands of average pressure per buy-in before re-buy.
+
+**Alternatives considered:**
+- **Per-hand ante or per-hand confirm.** Rejected: gridlocks the table (waits on every player every hand) and isn't how real poker works.
+- **Rake on the pot.** Rejected for V1: play-money + no house + chip-sacred principle (§4.1) makes rake feel punitive. Revisit only if blind/variance churn proves insufficient.
+- **Host-set blinds per room.** Rejected for V1: more knobs = more "what should I pick" friction at create time. Fixed presets per tier ship first; host-set is a V1.x option once we know whether the presets are wrong.
+- **Chip-free bot tables.** Rejected: hides the mechanic from solo users until they hit MP, which is the worst time to learn it. Bot tables are the discovery surface.
+- **Buy-in as a spent fee** (not returned on leave). Rejected: doesn't match real-poker mental model, and the "chips never disappear unless lost to other players" principle (§4.1) is structural.
+
+**Status:** Locked. Closes the [todo.md §A blocker on MP buy-in / ante](./todo.md). Engineering work tracked in [todo.md §C](./todo.md).
+
+---
+
 ## 2026-05-20 — Table felts switch to private (visible only to the owner)
 
 **Decision:** Table felts are visible only to their owner on the local play surface, not broadcast to other players at the table. The shop and My Items copy reflect "your table" framing rather than "high social signal."

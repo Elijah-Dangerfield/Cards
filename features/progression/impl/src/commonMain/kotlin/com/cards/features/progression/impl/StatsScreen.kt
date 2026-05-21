@@ -43,8 +43,8 @@ import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun XpDetailSheet(
-    state: XpDetailState,
+fun StatsScreen(
+    state: StatsState,
     onBack: () -> Unit,
     onSeeAllAchievements: () -> Unit = {},
 ) {
@@ -55,7 +55,7 @@ fun XpDetailSheet(
     Screen(
         topBar = {
             TopBar(
-                title = "XP",
+                title = "Stats",
                 onNavigateBack = onBack,
                 scrollState = scrollState,
             )
@@ -68,9 +68,13 @@ fun XpDetailSheet(
                 .padding(horizontal = 20.dp)
                 .verticalScroll(scrollState),
         ) {
+            SectionTitle("XP")
+            Spacer(modifier = Modifier.height(8.dp))
             XpHero(progress = levelProgress)
             Spacer(modifier = Modifier.height(24.dp))
 
+            SectionTitle("Lifetime")
+            Spacer(modifier = Modifier.height(8.dp))
             LifetimeStatsGrid(progression = state.progression)
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -240,7 +244,7 @@ private fun RecentEventsList(events: List<XpEvent>) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(Color.White.copy(alpha = 0.04f)),
+                        .background(AppTheme.colors.border.color),
                 )
             }
         }
@@ -455,10 +459,10 @@ private fun formatThousands(value: Long): String {
 
 @Preview
 @Composable
-private fun XpDetailSheet_Empty() {
+private fun StatsScreenPreview_Empty() {
     PreviewContent {
-        XpDetailSheet(
-            state = XpDetailState(isLoading = false),
+        StatsScreen(
+            state = StatsState(isLoading = false),
             onBack = {},
         )
     }
@@ -466,10 +470,10 @@ private fun XpDetailSheet_Empty() {
 
 @Preview
 @Composable
-private fun XpDetailSheet_Populated() {
+private fun StatsScreenPreview_Populated() {
     PreviewContent {
-        XpDetailSheet(
-            state = XpDetailState(
+        StatsScreen(
+            state = StatsState(
                 isLoading = false,
                 progression = Progression(
                     totalXp = 2_840,

@@ -55,6 +55,7 @@ import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -69,12 +70,13 @@ import kotlin.random.Random
  * animated dismissals from inside the dialog; otherwise a default state is provided.
  *
  * When [emoji] is non-null, the dialog gains the same notched-top + bubble
- * treatment used by [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BasicBottomSheet]'s
+ * treatment used by [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet]'s
  * `BottomSheetDragHandle.Emoji`. Use it for hero / unlock / commerce
  * dialogs where a glanceable cue should land before the user reads the
  * title. Rendering goes through the same [EmojiBubble] primitive so
  * sheets and dialogs stay in lockstep.
  */
+@OptIn(LowLevelDSComponent::class)
 @Composable
 fun Dialog(
     state: DialogState = rememberDialogState(),
@@ -87,7 +89,7 @@ fun Dialog(
     emoji: DialogEmoji? = null,
     content: @Composable () -> Unit = {},
 ) {
-    HostedDialog(
+    BaseDialog(
         state = state,
         modifier = modifier,
         onDismissRequest = onDismissRequest,
@@ -272,16 +274,22 @@ private fun PreviewDialog() {
 }
 
 /**
- * Window-free dialog host that handles scrim + content animations and dismissal behaviour entirely
- * in Compose Multiplatform.
+ * Low-level dialog primitive — registers the provided [content] with
+ * [DialogHostState] so it renders on top of the app, handles scrim +
+ * content animations + dismissal, but **does not** apply any DS surface,
+ * shape, padding, or emoji-bubble treatment.
+ *
+ * For 99% of dialogs use [Dialog] — it wraps [BaseDialog] with the DS
+ * surface, max-height cap, and emoji affordance. Reach for [BaseDialog]
+ * only when the caller is deliberately escaping the defaults (custom
+ * animation, non-DS marketing surface, one-off shape). The
+ * [LowLevelDSComponent] opt-in is the discoverable signal that this is the
+ * escape hatch, not the standard path.
  */
-/**
- * Lower-level alternative used when callers want to provide their own dialog surface.
- * Registers the provided [content] with [DialogHostState] so it renders on top of the app.
- */
+@LowLevelDSComponent
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-internal fun HostedDialog(
+fun BaseDialog(
     state: DialogState = rememberDialogState(),
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,

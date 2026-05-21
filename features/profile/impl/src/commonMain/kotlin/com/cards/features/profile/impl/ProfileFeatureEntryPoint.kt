@@ -38,7 +38,7 @@ import com.dangerfield.cards.features.profile.NotificationsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
-import com.dangerfield.cards.features.progression.XpDetailsRoute
+import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.Progression
@@ -142,7 +142,7 @@ class ProfileFeatureEntryPoint(
                     scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }
                 },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
-                onTapXp = { router.navigate(XpDetailsRoute()) },
+                onTapXp = { router.navigate(StatsRoute()) },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },
                 onPrivacyPolicy = { router.openWebLink(PRIVACY_POLICY_URL) },
@@ -155,11 +155,15 @@ class ProfileFeatureEntryPoint(
         }
 
         screen<QaMenuRoute> {
+            val identityState by identityRepository.state
+                .collectAsStateWithLifecycle(initialValue = IdentityState.Unknown)
+            val userId = (identityState as? IdentityState.SignedIn)?.identity?.userId
             QaMenuScreen(
                 configStream = appConfigRepository.configStream(),
                 initialConfig = appConfigRepository.config(),
                 overrideRepository = configOverrideRepository,
                 onBack = { router.goBack() },
+                userId = userId,
             )
         }
 

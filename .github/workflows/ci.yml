@@ -5,7 +5,11 @@
 #               CHANGELOG.md, since release-please commits to CHANGELOG.md).
 # Skips:        release-please's PR and its merge commit — bumps-only
 #               changes can't break the build.
-# Side effects: none. No uploads. Ship by cutting a release via the
+# Side effects: uploads JUnit/HTML test reports as artifacts (14 days,
+#               always — green or red, so post-mortem on a failed test
+#               doesn't require re-running locally) and the debug APK
+#               on push-to-main only (30 days). PR runs upload reports
+#               but not APKs. Ship by cutting a release via the
 #               release-please PR → release.yml.
 # Edit to change: compile commands or the test task below.
 # See: docs/release-automation.md
@@ -90,6 +94,28 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-unit-test-reports
+          path: |
+            **/build/test-results/testDebugUnitTest/*.xml
+            **/build/reports/tests/testDebugUnitTest/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload debug APK
+        # PR runs skip — keeps artifact storage focused on green main builds
+        # that someone might actually want to sideload for repro.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: apps/compose/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 30
+
   server-test:
     name: Server tests
     # Runs in parallel with build-and-test on a cheap Ubuntu runner so the
@@ -115,3 +141,14 @@ jobs:
 
       - name: Run server tests
         run: ./gradlew :apps:server:test
+
+      - name: Upload server test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-reports
+          path: |
+            apps/server/build/test-results/test/*.xml
+            apps/server/build/reports/tests/test/**
+          if-no-files-found: ignore
+          retention-days: 14

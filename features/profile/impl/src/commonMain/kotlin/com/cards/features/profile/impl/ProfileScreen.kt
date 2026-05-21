@@ -457,7 +457,7 @@ private fun ProfileHeader(
 /**
  * Compact level summary for the profile header: "Level N · X XP", a slim
  * progress bar, and "X XP to level N+1". Mirrors the visual treatment of
- * [com.dangerfield.cards.features.progression.impl.XpDetailSheet]'s hero
+ * [com.dangerfield.cards.features.progression.impl.StatsScreen]'s hero
  * so the same level state reads identically across both surfaces.
  */
 @Composable

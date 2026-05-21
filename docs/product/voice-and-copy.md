@@ -82,7 +82,6 @@ Pattern: *plain factual statement* + *one inviting action*.
 - **Friends list, none yet:** "No friends yet. Invite someone to a game." → `[Invite]`
 - **Recently played with, none yet:** "Play your first multiplayer hand and it'll show up here." → `[Quick Match]`
 - **Leagues, unranked:** "Leagues rank multiplayer XP. Play a hand with friends or join a public room to enter the ladder." → `[Quick Match]`
-- **Quests done for the day:** "Today's quests complete. Fresh ones tomorrow."
 - **Achievements, none unlocked:** "Achievements show up here as you play."
 - **Shop, empty featured:** doesn't happen; we always have something featured
 
@@ -215,7 +214,7 @@ The four allowed categories (per [spec §8](./product-spec.md#8-notifications)).
 - **Battle pass — season ending:** *"Season 1 ends in 3 days."*
 - **Achievement — Legendary unlock:** *"Achievement: Royal Flush. The rarest in the game."*
 
-Never send: streak notifications (no streak mechanic). "Your quests expire" reminders. Time-of-day "you usually play around now" pings. "Come back" / "we miss you" copy.
+Never send: streak notifications (no streak mechanic). Daily-quest / daily-challenge reminders (no quest mechanic — see [spec C.7](./product-spec.md#c7-todays-quests-rejected-2026-05-20)). Time-of-day "you usually play around now" pings. "Come back" / "we miss you" copy.
 
 ### 5.9 Onboarding skip / sign-in path
 
@@ -267,52 +266,38 @@ If `[Start fresh]` is tapped, secondary confirmation (since this is destructive)
 
 Never escalate the language. Never moralize. The action is the message.
 
-### 5.11 Smart claim prompts (anonymous users)
+### 5.11 Claim copy (anonymous users)
 
-When an anonymous user reaches a moment where they've earned something worth protecting, surface the claim option. Each prompt fires **once, ever, dismissible**. Never gate gameplay; always allow "Not now."
+Claim is opt-in — we never proactively prompt. (See [decisions.md 2026-05-20 — Drop proactive smart-claim prompts](../decisions.md) for the rationale.) Copy lives only on the surfaces where claim is naturally relevant.
 
-**Trigger: first MP hand won**
+**Profile screen — static claim card** (always visible to anonymous users; never modal)
 
-> *"Nice hand. Sign in to save your chips across devices."*
+> **Sign in to keep what you've built.**
 >
-> `[Sign in]` `[Not now]`
-
-**Trigger: first Epic or Legendary achievement unlock**
-
-(Fires alongside the achievement-unlock animation, not as a separate modal.)
-
-> *"This achievement only stays safe if your account is signed in."*
+> *Your chips, achievements, and friends ride along with your account. You'll need to sign in to host public rooms or add friends.*
 >
-> `[Sign in]` `[Not now]`
+> `[Sign in with Apple]` `[Sign in with Google]`
 
-**Trigger: chip balance crosses 5,000**
+**Inline — anon user tries to host a public room**
 
-> *"You've earned 5,000 chips. Sign in to back them up."*
+> *"Hosting a public room means strangers will see your account. Sign in first so they're seeing a real one."*
 >
-> `[Sign in]` `[Not now]`
+> `[Sign in]` `[Back]`
 
-**Trigger: first time opening the shop**
+**Inline — anon user tries to add a friend**
 
-> *"Items you buy stay with your account. Sign in first so your purchases follow you to other devices."*
+> *"Friends need a stable account on both sides. Sign in to add this person."*
 >
-> `[Sign in]` `[Browse anyway]`
-
-(Note: "Browse anyway" is allowed — they can browse without signing in. Sign-in is only required at the point of purchase if they decide to buy.)
-
-**Trigger: reaching Level 10**
-
-> *"Level 10. You've put real time in. Sign in to keep your progress."*
->
-> `[Sign in]` `[Not now]`
+> `[Sign in]` `[Back]`
 
 **Never-do patterns:**
-- Multiple prompts in one session (rate-limit to one per session, max)
-- "Are you sure you want to skip?" confirmation on "Not now"
-- Re-firing the same prompt after dismissal
+- Proactive modals at achievement / level / balance / shop moments (those are review-prompt moments — see §5.13)
+- "Are you sure you want to skip?" confirmation on dismissal
+- Re-firing claim copy after dismissal in the same session
 - Adding urgency ("Only X hours left to save your progress!")
 - Implying the user is at risk in punitive terms ("You could LOSE your chips!")
 
-The prompt is an invitation, not a threat. If the user dismisses every prompt and uninstalls, that's their choice — we respected it.
+The claim card is an offer, not a threat. If a user plays anonymously forever, that's a respected choice — fingerprint recovery handles the common case for them.
 
 ### 5.12 Settings & privacy
 
@@ -322,6 +307,12 @@ Plain, precise, slightly clinical here. Trust lives in clarity.
 - **Notifications:** category-by-category toggles, no master "enable all" pre-checked
 - **Profile visibility:** `[Public]` `[Friends only]` `[Private]` — explained inline: *"Friends only: your level, achievements, and league tier are visible to friends. Other users see only your name and avatar."*
 - **Delete account:** at the bottom, plainly labeled, two-tap confirmation
+
+### 5.13 App-store review prompts
+
+We don't write the prompt text — the native APIs do that. We control *when* we ask the OS to consider showing the prompt. See [spec §2.6](./product-spec.md#26-app-store-review-prompts) for trigger / never-trigger lists.
+
+**Implementation note (for the engineer):** call `SKStoreReviewController.requestReview(in:)` (iOS) or `ReviewManager.launchReviewFlow(...)` (Android) only after the eligibility gate passes. Do **not** wrap with a pre-prompt sheet ("would you like to rate us?") — that pattern is App Store-discouraged and erodes trust.
 
 ---
 

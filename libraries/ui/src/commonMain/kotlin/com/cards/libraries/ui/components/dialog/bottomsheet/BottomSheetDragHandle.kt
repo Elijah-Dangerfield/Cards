@@ -6,7 +6,7 @@ import androidx.compose.runtime.Stable
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 
 /**
- * Typed drag-handle slot for [BasicBottomSheet] / [BottomSheet].
+ * Typed drag-handle slot for [BottomSheet] / [BaseBottomSheet].
  *
  * Standardised vocabulary so every sheet picks from the same set instead
  * of reinventing geometry and colors per feature. The DS owns the look

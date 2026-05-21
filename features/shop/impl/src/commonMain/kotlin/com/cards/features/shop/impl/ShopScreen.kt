@@ -36,8 +36,8 @@ import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
+import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.ChipBadge
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -203,11 +203,8 @@ private fun CatalogContent(
 
 @Composable
 private fun ShopHeader(chips: Long) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
+    BalancePillSlot(chips = chips) {
+        Column {
             Text(
                 text = "Shop",
                 typography = AppTheme.typography.Heading.H1000,
@@ -220,7 +217,6 @@ private fun ShopHeader(chips: Long) {
                 color = AppTheme.colors.textSecondary,
             )
         }
-        ChipBadge(amount = chips)
     }
 }
 
@@ -475,7 +471,7 @@ private fun ChipPackCard(
  *  - [ChipOfferCardState.Locked] → dimmed card, lock-icon overlay on the
  *    product icon, "Unlocks at Level N" footer (no chip cost shown)
  *  - [ChipOfferCardState.Owned] → normal card, green check on the icon,
- *    "OWNED" / "OWNED · SYNCING" footer
+ *    "OWNED" footer
  *
  * Only [ChipOfferCardState.Available] is tappable. Other states call back
  * into [onClick] for analytics / future "tap to learn more" interactions
@@ -569,7 +565,7 @@ private fun ChipOfferCard(
                     is ChipOfferCardState.Locked -> LockedFooter(
                         requiredLevel = cardState.requiredLevel,
                     )
-                    is ChipOfferCardState.Owned -> OwnedFooter(syncing = cardState.pendingSync)
+                    is ChipOfferCardState.Owned -> OwnedFooter()
                 }
             }
         }
@@ -708,8 +704,7 @@ private fun OwnedCheck(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun OwnedFooter(syncing: Boolean) {
-    val label = if (syncing) "OWNED · SYNCING" else "OWNED"
+private fun OwnedFooter() {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
@@ -717,7 +712,7 @@ private fun OwnedFooter(syncing: Boolean) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
-            text = label,
+            text = "OWNED",
             typography = AppTheme.typography.Label.L400,
             color = AppTheme.colors.status.okay,
         )

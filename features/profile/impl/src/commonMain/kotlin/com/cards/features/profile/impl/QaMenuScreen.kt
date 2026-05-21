@@ -1,7 +1,9 @@
 package com.dangerfield.cards.features.profile.impl
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,8 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import com.dangerfield.cards.features.upgrade.UpgradeConfig
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.ConfigOverride
@@ -56,6 +61,7 @@ fun QaMenuScreen(
     overrideRepository: ConfigOverrideRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    userId: String? = null,
 ) {
     val scope = rememberCoroutineScope()
     val configMap by configStream.collectAsState(initial = initialConfig)
@@ -110,6 +116,8 @@ fun QaMenuScreen(
                     color = AppTheme.colors.textSecondary,
                 )
 
+                UserIdBlock(userId = userId)
+
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
@@ -148,6 +156,61 @@ fun QaMenuScreen(
                 Spacer(modifier = Modifier.height(40.dp))
             }
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun UserIdBlock(userId: String?) {
+    @Suppress("DEPRECATION")
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1500)
+            copied = false
+        }
+    }
+    val clickable = if (userId != null) {
+        Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = {
+                clipboard.setText(AnnotatedString(userId))
+                copied = true
+            },
+        )
+    } else {
+        Modifier
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppTheme.colors.surfacePrimary.color)
+            .then(clickable)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Text(
+            text = "User ID",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = userId ?: "— not signed in —",
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.onSurfacePrimary,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = when {
+                userId == null -> "Identity not resolved yet — check IdentityRepository."
+                copied -> "Copied"
+                else -> "Long-press to copy"
+            },
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
     }
 }
 
@@ -394,22 +457,40 @@ private class PreviewAppConfigMap(override val map: Map<String, *>) : AppConfigM
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun QaMenuScreenPreview() {
-    val configMap = PreviewAppConfigMap(
-        map = mapOf(
-            "upgrade" to mapOf(
-                "minSupportedVersionCode" to 1,
-                "maintenanceMode" to "off",
-                "maintenanceMessage" to "We're updating the servers...",
-            ),
-        ),
-    )
+private fun QaMenuScreenPreview_SignedIn() {
+    val configMap = previewConfigMap()
     com.dangerfield.cards.libraries.ui.PreviewContent {
         QaMenuScreen(
             configStream = kotlinx.coroutines.flow.flowOf(configMap),
             initialConfig = configMap,
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
+            userId = "00000000-0000-4000-8000-000000000000",
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun QaMenuScreenPreview_UnresolvedIdentity() {
+    val configMap = previewConfigMap()
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        QaMenuScreen(
+            configStream = kotlinx.coroutines.flow.flowOf(configMap),
+            initialConfig = configMap,
+            overrideRepository = PreviewConfigOverrideRepository(),
+            onBack = {},
+            userId = null,
+        )
+    }
+}
+
+private fun previewConfigMap(): PreviewAppConfigMap = PreviewAppConfigMap(
+    map = mapOf(
+        "upgrade" to mapOf(
+            "minSupportedVersionCode" to 1,
+            "maintenanceMode" to "off",
+            "maintenanceMessage" to "We're updating the servers...",
+        ),
+    ),
+)
