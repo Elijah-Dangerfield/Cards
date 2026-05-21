@@ -275,13 +275,22 @@ The DS lives in `:libraries:ui` — colors, surface tokens, typography, spacing,
 
 **The DS-first instinct is what keeps screens from feeling like a-grab-bag-of-Compose.** When in doubt, ask "could I drop this into another screen and have it look at home?" If the answer is "only if I retune the alpha values" — extract it to the DS first.
 
-### Dialog & bottom-sheet layers
+### `Base*` + opinionated DS components
 
-Two layers, one decision tree. **For 99% of dialogs use `Dialog(...)`**; for 99% of bottom sheets use `BottomSheet(...)`. Both are the DS-opinionated wrappers — surface, animation, padding, drag-handle / emoji-bubble affordance — and most callers only choose between them on slide-up vs. center-modal.
+For any DS component big enough that a one-off caller might want to escape the defaults, expose **two layers**: an opinionated `<Name>(...)` for the 99% path, and a raw `Base<Name>(...)` for genuine one-offs. This is the general convention — Dialog/BottomSheet are the worked examples, future big primitives (overlays, banners, full-screen sheets, complex composite widgets) should follow the same shape.
 
-The raw escape hatches are `BaseDialog` and `BaseBottomSheet`, gated by `@LowLevelDSComponent` (a `RequiresOptIn` warning). That annotation is shared across the whole DS — any low-level primitive (dialog, sheet, future banner / tooltip / overlay) opts in through the same hatch, so callers learn one signal rather than one per family. Reach for a `Base*` only when deliberately escaping a DS default — custom animation, full-bleed surface, one-off shape that doesn't fit the standard padding model. Warning level is intentional (not error) so the hatch stays reachable rather than pushing people back to hand-rolled `Box { background, clip, padding }`.
+- The **opinionated layer** owns DS decisions: surface tokens, padding, typography, default radius / shape, animation feel. It's what keeps screens visually coherent across features. Most callers should never need anything else.
+- The **`Base*` layer** owns the mechanics — state, layout skeleton, scrim / sheet behaviour, dismissal wiring — and nothing about how it *looks*. It's gated by `@LowLevelDSComponent` (a `RequiresOptIn` warning shared across the whole DS, so callers learn one opt-in signal regardless of which family they're escaping).
 
-Top-edge emoji bubbles attach to both layers (dialogs via `emoji = dialogEmoji("🎉")`, sheets via `dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉")`). Construct the dialog variant via the `dialogEmoji(...)` factory so the theme defaults always apply — the raw `DialogEmoji` ctor exists but theme-aware construction goes through the factory.
+**DS-first instinct.** When the opinionated default doesn't fit your case, *extend the opinionated default* — add a content slot, expose an override, ship a sibling overload — before reaching for `Base*`. The escape hatch is for genuinely weird one-offs; if a second screen ever needs the same escape, the right move is to lift their shared shape into the opinionated layer.
+
+Warning-level opt-in (not error) is intentional. Error friction pushes callers back to hand-rolled `Box { background, clip, padding }`, which is worse than a deliberate `Base*` use.
+
+**Current pairs:**
+- `Dialog` / `BaseDialog` — center modal. Most callers want `Dialog`.
+- `BottomSheet` / `BaseBottomSheet` — slide-up sheet. Most callers want `BottomSheet`. (Today `HandRankingsCheatSheet` is on `BaseBottomSheet` because the opinionated wrapper doesn't yet expose the content shape it needs — that's the kind of gap that should resolve by extending `BottomSheet`, not by entrenching the escape hatch. See `docs/todo.md`.)
+
+Top-edge emoji bubbles attach to both dialog and sheet layers — dialogs via `emoji = dialogEmoji("🎉")`, sheets via `dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉")`. Theme-aware construction goes through the `dialogEmoji(...)` factory so defaults always apply.
 
 ## Coding Guidelines
 
