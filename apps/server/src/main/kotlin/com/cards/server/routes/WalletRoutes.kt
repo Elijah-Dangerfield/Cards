@@ -19,6 +19,9 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import java.util.UUID
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * Server-authoritative chip wallet endpoints.
@@ -35,6 +38,14 @@ import java.util.UUID
  * stays put, the batch continues, and the client surfaces a soft
  * reconcile message.
  *
+ * Welcome-week grants: every wallet contact also runs through
+ * [maybeApplyWelcomeWeek], which silently applies the daily
+ * [Wallet.WELCOME_WEEK_DAILY_GRANT] for each eligible day since the
+ * wallet's `createdAt` (capped at [Wallet.WELCOME_WEEK_DAYS]). Each
+ * day is keyed independently for idempotency, so missed days are
+ * still granted next time the user opens the app — spec calls for
+ * "no streak, no expiry, no 'you missed yesterday' copy."
+ *
  * Soft bust protection: both endpoints, after their normal work, call
  * [maybeApplyBustProtection]. The first time the user's balance hits
  * zero (and only the first time, ever — keyed off
@@ -49,17 +60,26 @@ import java.util.UUID
  * limit on the sync endpoint protects against runaway clients
  * inadvertently DoSing themselves and against trivial abuse.
  */
+@OptIn(ExperimentalTime::class)
 fun Route.walletRoutes(
     repository: WalletRepository,
     messages: UserMessageRepository,
+    clock: Clock,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me/wallet") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val initial = repository.findOrCreate(userId)
+            val afterWelcome = maybeApplyWelcomeWeek(
+                userId = userId,
+                walletCreatedAt = initial.createdAt,
+                currentBalance = initial.balance,
+                wallets = repository,
+                clock = clock,
+            )
             val balance = maybeApplyBustProtection(
                 userId = userId,
-                currentBalance = initial.balance,
+                currentBalance = afterWelcome,
                 wallets = repository,
                 messages = messages,
             )
@@ -71,7 +91,14 @@ fun Route.walletRoutes(
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val body = call.receive<WalletSyncRequest>()
 
-                var lastBalance = repository.findOrCreate(userId).balance
+                val initial = repository.findOrCreate(userId)
+                var lastBalance = maybeApplyWelcomeWeek(
+                    userId = userId,
+                    walletCreatedAt = initial.createdAt,
+                    currentBalance = initial.balance,
+                    wallets = repository,
+                    clock = clock,
+                )
                 val results = body.events.map { event ->
                     val outcome = repository.apply(
                         userId = userId,
@@ -117,6 +144,49 @@ fun Route.walletRoutes(
 }
 
 /**
+ * Apply the welcome-week daily grant for every elapsed day in
+ * `[0, min(daysSinceCreatedAt, WELCOME_WEEK_DAYS - 1)]` that hasn't
+ * been granted yet. Each day uses a stable per-(user, day)
+ * idempotency key so re-applying already-granted days is a no-op via
+ * [WalletRepository.apply]'s replay detection.
+ *
+ * Why iterate every day rather than just "today's" day: the spec
+ * says no expiry and no "you missed yesterday" copy. A user who
+ * skips a day still gets that day's chips on their next open. The
+ * apply path short-circuits on the existing idempotency key, so the
+ * additional cost is at most [Wallet.WELCOME_WEEK_DAYS] reads —
+ * cheap enough to do unconditionally on every wallet contact.
+ *
+ * Returns the post-grant balance. Equal to [currentBalance] when
+ * either the user is past their welcome week or every eligible day
+ * has already been applied.
+ */
+@OptIn(ExperimentalTime::class)
+private suspend fun maybeApplyWelcomeWeek(
+    userId: UserId,
+    walletCreatedAt: Instant,
+    currentBalance: Long,
+    wallets: WalletRepository,
+    clock: Clock,
+): Long {
+    val elapsedDays = (clock.now() - walletCreatedAt).inWholeDays
+        .coerceAtLeast(0L)
+        .toInt()
+    val lastEligibleDay = elapsedDays.coerceAtMost(Wallet.WELCOME_WEEK_DAYS - 1)
+    var balance = currentBalance
+    for (day in 0..lastEligibleDay) {
+        val outcome = wallets.apply(
+            userId = userId,
+            idempotencyKey = "${Wallet.WELCOME_WEEK_KEY_PREFIX}${day}_v1",
+            delta = Wallet.WELCOME_WEEK_DAILY_GRANT,
+            reason = Wallet.WELCOME_WEEK_REASON,
+        )
+        balance = outcome.balance
+    }
+    return balance
+}
+
+/**
  * If [currentBalance] is exactly zero, attempt the soft-bust-protection
  * grant via [WalletRepository.apply] with the lifetime-once
  * [Wallet.BUST_PROTECTION_KEY]. Returns the post-grant balance, which
@@ -128,6 +198,7 @@ fun Route.walletRoutes(
  * "Welcome back to the table." copy. Mirrors the AdminRoutes pattern
  * of attaching a message only when the grant actually moved chips.
  */
+@OptIn(ExperimentalTime::class)
 private suspend fun maybeApplyBustProtection(
     userId: UserId,
     currentBalance: Long,
