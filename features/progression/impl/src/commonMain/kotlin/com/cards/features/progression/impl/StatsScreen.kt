@@ -69,8 +69,6 @@ fun StatsScreen(
                 .padding(horizontal = 20.dp)
                 .verticalScroll(scrollState),
         ) {
-            SectionTitle("XP")
-            Spacer(modifier = Modifier.height(8.dp))
             XpHero(progress = levelProgress)
             Spacer(modifier = Modifier.height(24.dp))
 

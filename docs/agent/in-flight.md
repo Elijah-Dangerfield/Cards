@@ -1,3 +1,11 @@
+## refactor(progression): drop stray "XP" SectionTitle in StatsScreen
+
+**Problem:** The Stats screen rendered a `SectionTitle("XP")` directly above the XP hero — redundant labeling since the surrounding screen context (top-bar reads "Stats", the hero shows the level + XP number) already conveys this is the XP surface. Cosmetic, but listed on `docs/todo.md` §B.
+
+**Approach:** Removed the `SectionTitle("XP")` + `Spacer(8.dp)` pair at [StatsScreen.kt:72](../../features/progression/impl/src/commonMain/kotlin/com/dangerfield/cards/features/progression/impl/StatsScreen.kt#L72). The remaining `SectionTitle`s for "Lifetime" / "Recent XP" / "How you earn XP" / "What XP does for you" stay — those still earn their keep as the page scrolls past the hero. No test change — the previews already cover the populated screen state.
+
+**Reviewer notes:** None.
+
 ## feat(review): fire SessionEnd prompt on bot-table clean exit
 
 **Problem:** The third V1 review-prompt trigger (`SessionEnd`) was un-wired — `PlayPokerEvent.NavigatedBack` existed as a typed signal but was never emitted, so even with the launcher binding in place the OS would never see a "clean exit" moment from a bot session. Without it, the V1-must-have review-prompt feature only covers two of three triggers.

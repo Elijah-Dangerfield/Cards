@@ -65,7 +65,6 @@ Surfaced 2026-05-20 by a spec-vs-build audit. All three are spec promises in [pr
 
 ### Screen / chrome consistency
 - **Previews on every user-facing composable.** Rough rule: every public/internal screen-level composable should have at least one `@Preview`. Private helpers don't need their own preview unless the parent doesn't already exercise the visual. First sweep landed previews on the obvious gaps — `OnboardingScreen`, `SignInScreen`, `SignUpScreen`, `VerifyEmailScreen`, `BotTableSetupDialog`, `WinOddsBadge`, `CountdownBadge`, `ProductIcon` / `BadgePill` / `OverhangBadge` (shop helpers). Future contributions should add a preview alongside any new screen-level composable; CI doesn't enforce yet (no static-analysis lint plugged in), so this is a convention.
-- **Stats screen has a stray "XP" section title at the top.** [StatsScreen.kt:72](../features/progression/impl/src/commonMain/kotlin/com/cards/features/progression/impl/StatsScreen.kt#L72) — `SectionTitle("XP")`. Remove it; the surrounding context already conveys it's the XP/stats surface.
 
 ### Privacy policy / terms of service
 - **Write the actual content.** The profile screen already deep-links to a web page; the page itself is empty/placeholder. Probably one of the last items before TestFlight. Hosting can stay on the existing web link target.
