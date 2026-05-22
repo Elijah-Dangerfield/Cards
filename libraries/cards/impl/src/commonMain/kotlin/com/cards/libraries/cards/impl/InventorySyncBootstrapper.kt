@@ -4,8 +4,6 @@ import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.InventorySyncService
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.awaitIdentity
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -27,29 +25,19 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Background: no work — the user's local state is already the truth on
  * device, and the server-side reconcile waits for the next foreground.
  *
- * Each launch suspends on [IdentityRepository.awaitIdentity] before
- * hitting the network — cold boot races onboarding and would otherwise
- * fire a 401 against the inventory endpoint before anonymous sign-in
- * resolves.
+ * The cold-boot 401 race is handled inside [NetworkClient]'s `loadTokens`,
+ * which suspends until [AuthTokenProvider.awaitAccessToken] resolves.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
 @Inject
 class InventorySyncBootstrapper(
     private val syncService: InventorySyncService,
-    // Lazy provider to break the DI cycle through AppEventBus —
-    // see [ChipsSyncBootstrapper] for the full explanation.
-    private val identityRepositoryProvider: () -> IdentityRepository,
     private val appScope: AppCoroutineScope,
 ) : AppEventListener {
 
-    private val identityRepository: IdentityRepository by lazy { identityRepositoryProvider() }
-
     override fun onColdBoot(event: AppEvent.ColdBoot) {
-        appScope.launch {
-            identityRepository.awaitIdentity()
-            syncService.sync()
-        }
+        appScope.launch { syncService.sync() }
     }
 
     override fun onForeground(event: AppEvent.OnForeground) {
@@ -57,9 +45,6 @@ class InventorySyncBootstrapper(
         // own that first sync. Warm-resume into foreground IS where we
         // want a fresh reconcile though, so this branch handles that.
         if (event.isColdBoot) return
-        appScope.launch {
-            identityRepository.awaitIdentity()
-            syncService.sync()
-        }
+        appScope.launch { syncService.sync() }
     }
 }
