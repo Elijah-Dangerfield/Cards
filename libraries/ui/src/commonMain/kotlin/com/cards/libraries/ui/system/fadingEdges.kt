@@ -86,3 +86,41 @@ fun Modifier.fadingEdge(
             }
         }
 }
+
+fun Modifier.horizontalFadingEdge(
+    listState: LazyListState,
+    fadeWidth: Dp = Dimension.D1100,
+): Modifier = this.composed {
+
+    val color = AppTheme.colors.background.color
+
+    Modifier
+        .graphicsLayer { alpha = 0.99F }
+        .drawWithContent {
+            drawContent()
+
+            val fadeWidthPx = fadeWidth.toPx()
+
+            if (listState.canScrollBackward) {
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(color, Color.Transparent),
+                        startX = 0f,
+                        endX = fadeWidthPx,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                )
+            }
+
+            if (listState.canScrollForward) {
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(Color.Transparent, color),
+                        startX = size.width - fadeWidthPx,
+                        endX = size.width,
+                    ),
+                    blendMode = BlendMode.DstIn,
+                )
+            }
+        }
+}

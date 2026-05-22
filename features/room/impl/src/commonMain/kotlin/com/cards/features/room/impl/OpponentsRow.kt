@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,7 +20,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -39,8 +49,11 @@ import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
 import com.dangerfield.cards.libraries.ui.components.poker.PulsingActiveRing
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.horizontalFadingEdge
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD100
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -52,14 +65,40 @@ internal fun OpponentsRow(
 ) {
     val opponents = table.seats.filter { !it.isHuman }
     val winners = table.handResult?.winners?.map { it.seatIndex }?.toSet().orEmpty()
-    // Each opponent gets equal share of the row via weight, and the avatar
-    // size scales with that share: at 2 opponents the avatars are big and
-    // beefy, at 6 they're small and compact, but it never wraps or clips.
+    if (opponents.size > PackedOpponentLimit) {
+        ScrollingOpponentsRow(
+            opponents = opponents,
+            winners = winners,
+            actingSeatIndex = table.actingSeatIndex,
+            onBlindClick = onBlindClick,
+            onBetPillClick = onBetPillClick,
+            onLastActionClick = onLastActionClick,
+        )
+    } else {
+        PackedOpponentsRow(
+            opponents = opponents,
+            winners = winners,
+            onBlindClick = onBlindClick,
+            onBetPillClick = onBetPillClick,
+            onLastActionClick = onLastActionClick,
+        )
+    }
+}
+
+private const val PackedOpponentLimit = 4
+
+@Composable
+private fun PackedOpponentsRow(
+    opponents: List<SeatView>,
+    winners: Set<Int>,
+    onBlindClick: () -> Unit,
+    onBetPillClick: (seatName: String, amount: Long) -> Unit,
+    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val rowWidth = maxWidth
         val count = opponents.size.coerceAtLeast(1)
         val perOpponent = (rowWidth / count).coerceAtLeast(56.dp)
-        // Leave ~28% margin so name/stack/chip pill have breathing room.
         val avatarSize = (perOpponent * 0.62f).coerceIn(40.dp, 76.dp)
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -84,6 +123,74 @@ internal fun OpponentsRow(
         }
     }
 }
+
+@Composable
+private fun ScrollingOpponentsRow(
+    opponents: List<SeatView>,
+    winners: Set<Int>,
+    actingSeatIndex: Int?,
+    onBlindClick: () -> Unit,
+    onBetPillClick: (seatName: String, amount: Long) -> Unit,
+    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+) {
+    val listState = rememberLazyListState()
+    var suppressAutoScroll by remember { mutableStateOf(false) }
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .distinctUntilChanged()
+            .collect { scrolling ->
+                if (scrolling) {
+                    suppressAutoScroll = true
+                } else {
+                    delay(ManualScrollGraceMillis)
+                    suppressAutoScroll = false
+                }
+            }
+    }
+
+    LaunchedEffect(actingSeatIndex, opponents) {
+        if (actingSeatIndex == null || suppressAutoScroll) return@LaunchedEffect
+        val target = opponents.indexOfFirst { it.index == actingSeatIndex }
+        if (target >= 0) listState.animateScrollToItem(target)
+    }
+
+    LazyRow(
+        state = listState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalFadingEdge(listState),
+        contentPadding = PaddingValues(horizontal = ScrollingRowHorizontalPadding),
+        horizontalArrangement = Arrangement.spacedBy(ScrollingRowItemSpacing),
+        verticalAlignment = Alignment.Top,
+    ) {
+        items(
+            count = opponents.size,
+            key = { i -> opponents[i].index },
+        ) { i ->
+            val seat = opponents[i]
+            Box(
+                modifier = Modifier.width(ScrollingSeatWidth),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                OpponentSeat(
+                    seat = seat,
+                    isWinner = seat.index in winners,
+                    avatarSize = ScrollingAvatarSize,
+                    onBlindClick = onBlindClick,
+                    onBetPillClick = onBetPillClick,
+                    onLastActionClick = onLastActionClick,
+                )
+            }
+        }
+    }
+}
+
+private const val ManualScrollGraceMillis = 3000L
+private val ScrollingAvatarSize: Dp = 56.dp
+private val ScrollingSeatWidth: Dp = 72.dp
+private val ScrollingRowItemSpacing: Dp = 8.dp
+private val ScrollingRowHorizontalPadding: Dp = 12.dp
 
 @Composable
 private fun OpponentSeat(
@@ -313,6 +420,29 @@ private fun OpponentsRowPreview_SixSeats() {
                     PreviewSamples.botSeat(index = 5, name = "Steve", participation = HandParticipation.Folded),
                 ),
                 actingSeatIndex = 3,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun OpponentsRowPreview_NineSeats_Scrolling() {
+    PreviewContent {
+        OpponentsRow(
+            table = PreviewSamples.activeTable(
+                seats = listOf(
+                    PreviewSamples.humanSeat(),
+                    PreviewSamples.botSeat(index = 1, name = "David", isSmallBlind = true),
+                    PreviewSamples.botSeat(index = 2, name = "Jane", isBigBlind = true),
+                    PreviewSamples.botSeat(index = 3, name = "Mike"),
+                    PreviewSamples.botSeat(index = 4, name = "Gina"),
+                    PreviewSamples.botSeat(index = 5, name = "Steve", isActing = true),
+                    PreviewSamples.botSeat(index = 6, name = "Otto"),
+                    PreviewSamples.botSeat(index = 7, name = "Lex", participation = HandParticipation.Folded),
+                    PreviewSamples.botSeat(index = 8, name = "Iris"),
+                ),
+                actingSeatIndex = 5,
             ),
         )
     }
