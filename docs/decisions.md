@@ -25,6 +25,26 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-05-21 — Identity boot gate + network-client token wait
+
+**Decision:** Identity resolution is now deterministic on cold start. Two interlocking changes:
+1. `SupabaseIdentityRepository.init` runs `ensureInitialized()` eagerly (returning users go through the full bootstrap, not just first-launchers). `ensureInitialized()` is idempotent on the joint condition `state == SignedIn && supabase.auth.currentSessionOrNull() != null`, so the previous "early-return on cached state alone" race is closed.
+2. `NetworkClient.authenticatedClient`'s Ktor `loadTokens` block now calls `AuthTokenProvider.awaitAccessToken(5s)` instead of `getAccessToken()`. Requests during the cold-boot resolve window suspend up to 5 seconds for a token to land rather than firing without a bearer and 401'ing. The Supabase impl polls `currentSessionOrNull()` at 50ms.
+
+The optimistic cache emit in `init` stays for first-frame identity UX; it just no longer satisfies `ensureInitialized()`. Per-bootstrapper `awaitIdentity()` calls (Chips / Inventory / Equipment) are removed — the network-client gate makes them redundant.
+
+**Why:** Hit live 2026-05-21: cold boot fired `POST /v1/inventory/sync` with no bearer because `SignedIn(cached)` was emitted from our local identity cache *before* supabase-kt had finished restoring its persisted session. `awaitIdentity()` returned immediately on the optimistic state, the sync went out with no token, server returned 401. The root cause is that `SignedIn` previously didn't carry an invariant that an access token was actually retrievable. Two fixes layered together: tighten the `SignedIn` invariant at the publisher (idempotency check), gate at the consumer (network client awaits the token regardless). Belt-and-suspenders is the right answer for a class of bug that's silent (the 401 was logged but didn't surface to the user) and easy to reintroduce.
+
+**Alternatives considered:**
+- **Per-repo / per-bootstrapper waits.** Already in place via `awaitIdentity()`; that's what failed. Pattern is easy to forget and waits on the wrong signal. Removed.
+- **Make `loadTokens` block forever (no timeout).** Rejected: cold-boot offline first-launch would hang the request indefinitely. 5s cap forces a clean failure mode — past that, something is broken and the request fails rather than hanging.
+- **Subscribe to supabase-kt's `sessionStatus` flow instead of polling.** Cleaner but introduces a version dependency on supabase-kt's flow API. Polling at 50ms is cheap (sessions resolve in <500ms typical) and version-stable. Revisit if polling shows up in profiling.
+- **Drop the optimistic cache emit entirely; only emit `SignedIn` after `ensureInitialized()` resolves.** Cleaner contract but costs a first-frame "Welcome, You" flash before the cached name lands. Deferred to the bigger "collapse our IdentityCache into Supabase's session" refactor.
+
+**Status:** Locked. The bigger architectural question — whether we need our own `IdentityCache` at all when supabase-kt persists session + user metadata — is filed in [backlog.md](./backlog.md) as a follow-up. Both halves of this decision land in a single boot-gate slice.
+
+---
+
 ## 2026-05-20 — Drop proactive smart-claim prompts; add app-store review prompts in their place
 
 **Decision:** Stop pushing anonymous users to claim. Remove the five-trigger smart-claim-prompts table (first MP win, first Epic+ achievement, 5K balance, first shop visit, Level 10). Claim remains available passively (static Profile card; inline-only at the moments where claim is actually required — host a public room, add a friend). In parallel, *add* app-store review prompts that fire at the positive-moment triggers we just freed up (Epic+ achievement unlock, Level 10, session-end-net-positive), gated by install-age + session-count + 90-day-no-prompt + last-hand-not-a-bust. Use native APIs (SKStoreReviewController / Play In-App Review) only — no self-built rating dialog.

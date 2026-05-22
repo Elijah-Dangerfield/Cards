@@ -4,6 +4,24 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## Collapse `IdentityCache` into Supabase's session as source of truth
+
+**Idea:** We maintain a separate Cards-side `IdentityCache` (display name, avatar, isAnonymous, userId) alongside supabase-kt's own session cache. Three caches end up overlapping — Supabase's session (tokens + UserInfo metadata), our `IdentityCache` (display fields), and the `IdentityState` `StateFlow`. The 2026-05-21 boot-gate fix (see [decisions.md](./decisions.md)) papers over the race by gating at the network client, but the structural answer is to stop double-caching.
+
+**Sketch:**
+- Drop `IdentityCache` (or demote to a tiny display-only optimistic read for first-frame UX, never used as the source for `SignedIn`).
+- Derive `Identity` directly from `supabase.auth.currentSessionOrNull()?.user` for the userId + isAnonymous, plus `/v1/me` for the server-managed display name / avatar.
+- `IdentityState.SignedIn` then has a single invariant: Supabase session is in memory + `/v1/me` has resolved. The optimistic cache emit goes away.
+
+**Tradeoffs:**
+- First-frame UX: a returning user's name briefly shows as default until `/v1/me` lands (~200ms). The cached-emit today avoids this flash.
+- Offline first-launch becomes worse (no cached fallback display) — but offline first-launch is already the open "Identity cold-boot resilience" item in `docs/todo.md` §D, and that's the right place to address it.
+- Cleaner contract; one source of truth for "is this user authed and who are they."
+
+**Status:** Backlog. Pick up the next time the identity layer opens. Pairs with the existing `SupabaseIdentityRepository` review item in `docs/todo.md` §D ("are we double-caching?" — answer is yes).
+
+---
+
 ## Bot bet-sizing tells
 
 **Idea:** Have bots treat the human's bet size as a *signal* (in addition to the existing pot-odds math). Right now bots only react to bet size mathematically — a big bet costs more to call, so marginal hands fold. They don't interpret "this is a 3× pot overbet from a tight player, that means something."
