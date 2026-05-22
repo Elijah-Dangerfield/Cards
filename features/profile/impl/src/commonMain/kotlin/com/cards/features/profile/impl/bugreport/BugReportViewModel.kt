@@ -2,12 +2,14 @@ package com.dangerfield.cards.features.profile.impl.bugreport
 
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.libraries.core.eitherWay
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.currentIdentity
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import kotlinx.coroutines.async
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Duration.Companion.seconds
@@ -17,6 +19,7 @@ class BugReportViewModel(
     private val repository: FeedbackRepository,
     private val router: Router,
     private val appCache: AppCache,
+    private val appScope: AppCoroutineScope,
     identityRepository: IdentityRepository,
     @Assisted logId: String? = null,
     @Assisted errorCode: Int? = null,
@@ -55,13 +58,15 @@ class BugReportViewModel(
             return
         }
         updateState { it.copy(isSubmitting = true, errorMessage = null) }
-        repository.submitFeedback(
-            message = current.message.trim(),
-            isBugReport = true,
-            logId = current.logId,
-            errorCode = current.errorCode,
-            email = current.email.takeIf { it.isNotBlank() },
-        ).eitherWay {
+        appScope.async {
+            repository.submitFeedback(
+                message = current.message.trim(),
+                isBugReport = true,
+                logId = current.logId,
+                errorCode = current.errorCode,
+                email = current.email.takeIf { it.isNotBlank() },
+            )
+        }.await().eitherWay {
             appCache.update { it.copy(bugsReported = it.bugsReported + 1) }
             updateState { it.copy(isSubmitting = false) }
             showSnackBar(message = "Thanks for reporting this!", delayBy = 1.seconds)

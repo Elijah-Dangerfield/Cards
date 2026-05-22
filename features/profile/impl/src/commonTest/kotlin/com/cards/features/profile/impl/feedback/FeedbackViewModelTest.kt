@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.profile.impl.feedback
 
+import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.features.profile.impl.account.FakeAppCache
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
@@ -17,8 +19,12 @@ import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.Router
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.job
+import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -54,14 +60,74 @@ class FeedbackViewModelTest : CoroutineTest() {
         assertEquals("", vm.state.email)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_serverCallSurvivesViewModelTeardown() = runUnitTest {
+        val gate = CompletableDeferred<Result<Unit>>()
+        val repository = ControllableFeedbackRepository(gate)
+        val vm = buildVm(
+            identity = StubIdentity(IdentityState.SignedIn(sampleIdentity(email = "alice@example.com"))),
+            repository = repository,
+        )
+        vm.takeAction(FeedbackAction.MessageChanged("found a bug"))
+        vm.takeAction(FeedbackAction.Submit)
+        runCurrent()
+        assertEquals(1, repository.submitStarted, "submitFeedback should be in-flight")
+
+        vm.viewModelScope.coroutineContext.job.cancel()
+        runCurrent()
+
+        gate.complete(Result.success(Unit))
+        runCurrent()
+        assertEquals(1, repository.submitFinished, "submitFeedback must complete despite VM teardown")
+    }
+
     private fun buildVm(
         identity: IdentityRepository,
+        repository: FeedbackRepository = NoopFeedbackRepository,
     ): FeedbackViewModel = FeedbackViewModel(
-        repository = NoopFeedbackRepository,
+        repository = repository,
         router = NoopRouter,
         appCache = FakeAppCache(),
+        appScope = AppCoroutineScope(dispatchers),
         identityRepository = identity,
     )
+
+    private fun sampleIdentity(email: String?) = Identity(
+        userId = "u1",
+        displayName = "Alice",
+        avatarEmoji = "🃏",
+        avatarBackgroundColor = null,
+        isAnonymous = email == null,
+        email = email,
+    )
+}
+
+/**
+ * Variant of [NoopFeedbackRepository] that gates `submitFeedback` on an
+ * external [CompletableDeferred] so a test can observe whether the call
+ * actually finished (vs. being cancelled mid-flight).
+ */
+internal class ControllableFeedbackRepository(
+    private val gate: CompletableDeferred<Result<Unit>>,
+) : FeedbackRepository {
+    var submitStarted: Int = 0
+        private set
+    var submitFinished: Int = 0
+        private set
+
+    override suspend fun submitFeedback(
+        message: String,
+        isBugReport: Boolean,
+        logId: String?,
+        errorCode: Int?,
+        email: String?,
+    ): Result<Unit> {
+        submitStarted += 1
+        val outcome = gate.await()
+        submitFinished += 1
+        return outcome
+    }
 }
 
 private fun signedInWith(email: String?): IdentityState =

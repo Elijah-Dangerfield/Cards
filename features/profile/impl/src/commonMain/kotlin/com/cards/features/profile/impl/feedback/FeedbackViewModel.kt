@@ -1,12 +1,14 @@
 package com.dangerfield.cards.features.profile.impl.feedback
 
 import com.dangerfield.cards.libraries.core.eitherWay
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.currentIdentity
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import kotlinx.coroutines.async
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Duration.Companion.seconds
 
@@ -15,6 +17,7 @@ class FeedbackViewModel(
     private val repository: FeedbackRepository,
     private val router: Router,
     private val appCache: AppCache,
+    private val appScope: AppCoroutineScope,
     identityRepository: IdentityRepository,
 ) : SEAViewModel<FeedbackState, Unit, FeedbackAction>(
     initialStateArg = FeedbackState(
@@ -47,11 +50,13 @@ class FeedbackViewModel(
             return
         }
         updateState { it.copy(isSubmitting = true, errorMessage = null) }
-        repository.submitFeedback(
-            message = current.message.trim(),
-            isBugReport = false,
-            email = current.email.takeIf { it.isNotBlank() },
-        ).eitherWay {
+        appScope.async {
+            repository.submitFeedback(
+                message = current.message.trim(),
+                isBugReport = false,
+                email = current.email.takeIf { it.isNotBlank() },
+            )
+        }.await().eitherWay {
             appCache.update { it.copy(feedbacksGiven = it.feedbacksGiven + 1) }
             updateState { it.copy(isSubmitting = false) }
             showSnackBar(message = "Got it. Thank you!", delayBy = 1.seconds)

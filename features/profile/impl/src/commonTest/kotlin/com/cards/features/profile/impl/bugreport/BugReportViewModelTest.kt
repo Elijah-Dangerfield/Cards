@@ -1,13 +1,21 @@
 package com.dangerfield.cards.features.profile.impl.bugreport
 
+import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.features.profile.impl.account.FakeAppCache
+import com.dangerfield.cards.features.profile.impl.feedback.ControllableFeedbackRepository
+import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.NoopFeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.NoopRouter
 import com.dangerfield.cards.features.profile.impl.feedback.StubIdentity
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.job
+import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -51,15 +59,39 @@ class BugReportViewModelTest : CoroutineTest() {
         assertEquals("boom", vm.state.contextMessage)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_serverCallSurvivesViewModelTeardown() = runUnitTest {
+        val gate = CompletableDeferred<Result<Unit>>()
+        val repository = ControllableFeedbackRepository(gate)
+        val vm = buildVm(
+            identity = StubIdentity(IdentityState.SignedIn(sampleIdentity(email = "alice@example.com"))),
+            repository = repository,
+        )
+        vm.takeAction(BugReportAction.MessageChanged("crash on tap"))
+        vm.takeAction(BugReportAction.Submit)
+        runCurrent()
+        assertEquals(1, repository.submitStarted, "submitFeedback should be in-flight")
+
+        vm.viewModelScope.coroutineContext.job.cancel()
+        runCurrent()
+
+        gate.complete(Result.success(Unit))
+        runCurrent()
+        assertEquals(1, repository.submitFinished, "submitFeedback must complete despite VM teardown")
+    }
+
     private fun buildVm(
         identity: IdentityRepository,
+        repository: FeedbackRepository = NoopFeedbackRepository,
         logId: String? = null,
         errorCode: Int? = null,
         contextMessage: String? = null,
     ): BugReportViewModel = BugReportViewModel(
-        repository = NoopFeedbackRepository,
+        repository = repository,
         router = NoopRouter,
         appCache = FakeAppCache(),
+        appScope = AppCoroutineScope(dispatchers),
         identityRepository = identity,
         logId = logId,
         errorCode = errorCode,

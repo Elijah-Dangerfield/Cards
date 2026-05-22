@@ -150,7 +150,7 @@ The lobby + reconnect-grace foundation landed (per project memory); these are th
 Quality issues the user has flagged across the codebase. None are blockers, but they compound. Track them here; pull each in when the surrounding area is open.
 
 ### ViewModel scope vs. AppScope for fire-and-forget actions
-The two confirmed callsites (LobbyViewModel `Leave`, HomeViewModel `Forfeit`) now route their network calls through the existing `AppCoroutineScope` via `appScope.async { … }.await()`, so the server-side request outlives VM teardown. AGENTS.md → "SEAViewModel Pattern" documents the rule. Follow-up: audit additional candidates as they surface — end-of-session telemetry writes, any other "must reach the server" action whose UI doesn't care about the result.
+LobbyViewModel `Leave`, HomeViewModel `Forfeit`, FeedbackViewModel `Submit`, and BugReportViewModel `Submit` now route their network calls through the existing `AppCoroutineScope` via `appScope.async { … }.await()`, so the server-side request outlives VM teardown. AGENTS.md → "SEAViewModel Pattern" documents the rule. Follow-up: audit additional candidates as they surface — sign-out / delete-account, end-of-session telemetry writes, any other "must reach the server" action whose UI doesn't care about the result.
 
 ### Sign-out data clearing
 - **File-side cleanup on sign-out is still ad-hoc.** Originally the proposal had `SignOutDataDeleter` co-own file deletion (app caches, downloaded avatars). Nothing in the codebase deletes files on sign-out today, and no concrete leak path is on fire. Defer until we have actual on-disk caches to clear; the `AppEventListener.onSignedOut` hook is already in place to wire one in.
