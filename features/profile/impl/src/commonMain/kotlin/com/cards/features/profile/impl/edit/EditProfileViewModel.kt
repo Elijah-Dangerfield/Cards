@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.AvatarPack
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
@@ -8,6 +9,7 @@ import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.identity.awaitIdentity
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
@@ -25,6 +27,7 @@ import me.tatarka.inject.annotations.Inject
 @Inject
 class EditProfileViewModel(
     private val identityRepository: IdentityRepository,
+    private val appScope: AppCoroutineScope,
 ) : SEAViewModel<EditProfileState, EditProfileEvent, EditProfileAction>(
     initialStateArg = EditProfileState(),
 ) {
@@ -102,16 +105,18 @@ class EditProfileViewModel(
                 updateState { it.copy(isSubmitting = true, error = null) }
 
                 val colorChanged = current.selectedAvatarBackgroundColor != current.initialAvatarBackgroundColor
-                val outcome = identityRepository.updateProfile(
-                    displayName = current.displayName
-                        .takeIf { it.trim() != current.initialDisplayName?.trim() }
-                        ?.trim(),
-                    avatarEmoji = current.selectedAvatarEmoji
-                        .takeIf { it != current.initialAvatarEmoji },
-                    avatarBackgroundColor = current.selectedAvatarBackgroundColor
-                        ?.takeIf { colorChanged },
-                    clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null,
-                )
+                val outcome = appScope.async {
+                    identityRepository.updateProfile(
+                        displayName = current.displayName
+                            .takeIf { it.trim() != current.initialDisplayName?.trim() }
+                            ?.trim(),
+                        avatarEmoji = current.selectedAvatarEmoji
+                            .takeIf { it != current.initialAvatarEmoji },
+                        avatarBackgroundColor = current.selectedAvatarBackgroundColor
+                            ?.takeIf { colorChanged },
+                        clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null,
+                    )
+                }.await()
 
                 when (outcome) {
                     is UpdateProfileOutcome.Success -> {
