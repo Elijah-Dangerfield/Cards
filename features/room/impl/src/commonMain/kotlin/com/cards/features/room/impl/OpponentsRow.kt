@@ -2,8 +2,10 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
@@ -172,15 +174,25 @@ private fun OpponentSeat(
             overflow = TextOverflow.Ellipsis,
             modifier = dimMod,
         )
-        ChipCoinAmount(
-            amount = seat.stack,
-            coinSize = 12.dp,
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
-            gap = 4.dp,
-            formatter = ::formatCompactChips,
-            modifier = dimMod,
-        )
+        AnimatedVisibility(
+            visible = !busted,
+            enter = fadeIn(animationSpec = tween(220)) +
+                slideInVertically(animationSpec = tween(220)) { -it / 2 } +
+                expandVertically(animationSpec = tween(220)),
+            exit = fadeOut(animationSpec = tween(280)) +
+                slideOutVertically(animationSpec = tween(360)) { it } +
+                shrinkVertically(animationSpec = tween(360)),
+        ) {
+            ChipCoinAmount(
+                amount = seat.stack,
+                coinSize = 12.dp,
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+                gap = 4.dp,
+                formatter = ::formatCompactChips,
+                modifier = dimMod,
+            )
+        }
         if (seat.contributedThisStreet > 0) {
             VerticalSpacerD100()
             ChipPill(
