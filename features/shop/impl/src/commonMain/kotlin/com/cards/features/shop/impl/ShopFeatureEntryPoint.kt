@@ -32,11 +32,13 @@ class ShopFeatureEntryPoint(
                     is ShopEvent.RedeemSucceeded -> showSnackBar(
                         title = "Unlocked!",
                         message = "${event.offer.title} is yours.",
+                        emoji = event.offer.iconEmoji,
                         duration = SnackbarDuration.Short,
                     )
                     is ShopEvent.AlreadyOwned -> showSnackBar(
                         title = "Already yours",
                         message = "Look for ${event.offer.title} in your items.",
+                        emoji = event.offer.iconEmoji,
                         duration = SnackbarDuration.Short,
                     )
                     is ShopEvent.OfferExpired -> showSnackBar(
@@ -60,11 +62,13 @@ private fun showPurchaseSnackbar(outcome: IapPurchaseOutcome) {
         is IapPurchaseOutcome.Success -> showSnackBar(
             title = "Chips added",
             message = "+${outcome.grantedChips} chips",
+            emoji = "🪙",
             duration = SnackbarDuration.Short,
         )
         is IapPurchaseOutcome.AlreadyOwned -> showSnackBar(
             title = "Restored",
             message = "+${outcome.grantedChips} chips re-credited from a prior purchase.",
+            emoji = "🪙",
             duration = SnackbarDuration.Short,
         )
         IapPurchaseOutcome.Cancelled -> Unit

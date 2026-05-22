@@ -1,19 +1,25 @@
 package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -46,6 +52,7 @@ fun Snackbar(
     val title = podawanSnackbarData.visuals.title
     val actionLabel = podawanSnackbarData.visuals.actionLabel
     val icon = podawanSnackbarData.visuals.icon
+    val emoji = podawanSnackbarData.visuals.emoji
 
     ProvideContentColor(color = contentColor) {
 
@@ -62,8 +69,8 @@ fun Snackbar(
                     vertical = Dimension.D500,
                     horizontal = Dimension.D200
                 )
-                .height(IntrinsicSize.Min)
-
+                .height(IntrinsicSize.Min),
+            verticalAlignment = CenterVertically,
         ) {
             Column(
                 modifier = Modifier.weight(1f)
@@ -117,6 +124,12 @@ fun Snackbar(
                 }
             }
 
+            if (!emoji.isNullOrBlank()) {
+                SnackbarEmojiBubble(
+                    emoji = emoji,
+                    modifier = Modifier.padding(end = Dimension.D200),
+                )
+            }
 
             if (podawanSnackbarData.visuals.withDismissAction) {
                 IconButton(
@@ -130,11 +143,33 @@ fun Snackbar(
 }
 
 @Composable
+private fun SnackbarEmojiBubble(
+    emoji: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(SnackbarEmojiBubbleSize)
+            .clip(CircleShape)
+            .background(AppTheme.colors.surfaceTertiary.color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = emoji,
+            typography = AppTheme.typography.Heading.H600,
+        )
+    }
+}
+
+private val SnackbarEmojiBubbleSize = 36.dp
+
+@Composable
 fun snackBarData(
     title: String? = null,
     message: String,
     actionLabel: String? = null,
     icon: IconResource? = null,
+    emoji: String? = null,
     withDismissAction: Boolean = true,
     duration: SnackbarDuration = SnackbarDuration.Short,
     onAction: () -> Unit = {},
@@ -143,6 +178,7 @@ fun snackBarData(
     override val visuals: PodawanSnackbarVisuals = PodawanSnackbarVisuals(
         title = title,
         icon = icon,
+        emoji = emoji,
         message = message,
         actionLabel = actionLabel,
         withDismissAction = withDismissAction,
@@ -235,6 +271,37 @@ private fun PreviewSnackbar() {
     }
 }
 
+@Preview
+@Composable
+private fun PreviewSnackbar_WithEmoji() {
+    PreviewContent {
+        Snackbar(
+            podawanSnackbarData = snackBarData(
+                title = "Unlocked!",
+                message = "Royal Felt is yours.",
+                emoji = "🎰",
+                withDismissAction = true,
+            )
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewSnackbar_WithEmojiAndAction() {
+    PreviewContent {
+        Snackbar(
+            podawanSnackbarData = snackBarData(
+                title = "Unlocked!",
+                message = "Royal Felt is yours.",
+                emoji = "🎰",
+                actionLabel = "Equip",
+                withDismissAction = true,
+            )
+        )
+    }
+}
+
 object SnackbarDefaults {
     /** Default shape of a snackbar. */
     val shape: Shape @Composable get() = Radii.Banner.shape
@@ -250,6 +317,7 @@ fun MaterialSnackbarData.toSnackbarData(title: String): PodawanSnackbarData {
     val visuals = PodawanSnackbarVisuals(
         title = title,
         icon = null,
+        emoji = null,
         message = this.visuals.message,
         actionLabel = this.visuals.actionLabel,
         withDismissAction = this.visuals.withDismissAction,
@@ -289,6 +357,7 @@ data class PodawanSnackbarVisuals(
     val id: Long = Random.nextLong(),
     val title: String?,
     val icon: IconResource? = null,
+    val emoji: String? = null,
     override val message: String,
     override val actionLabel: String?,
     override val withDismissAction: Boolean,
