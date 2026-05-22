@@ -4,10 +4,14 @@ import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.UserRepository
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
@@ -17,9 +21,12 @@ class HomeViewModel(
     private val progressionRepository: ProgressionRepository,
     private val chipsRepository: ChipsRepository,
     private val roomRepository: RoomRepository,
+    private val appScope: AppCoroutineScope,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
     initialStateArg = HomeState()
 ) {
+
+    private val homeLogger = KLog.withTag("HomeViewModel")
 
     init {
         takeAction(HomeAction.Load)
@@ -62,7 +69,7 @@ class HomeViewModel(
 
     private suspend fun HomeAction.loadActiveRooms() {
         val rooms = when (val outcome = roomRepository.getActiveRooms()) {
-            is GetActiveRoomsOutcome.Success -> outcome.rooms.map { ActiveRoomSummary(it.code) }
+            is GetActiveRoomsOutcome.Success -> reconcileToSingleRoom(outcome.rooms)
             is GetActiveRoomsOutcome.NotSignedIn,
             is GetActiveRoomsOutcome.NetworkError,
             is GetActiveRoomsOutcome.Unknown -> emptyList()
@@ -70,9 +77,25 @@ class HomeViewModel(
         updateState { it.copy(activeRooms = rooms) }
     }
 
+    private fun reconcileToSingleRoom(rooms: List<Room>): List<ActiveRoomSummary> {
+        if (rooms.size <= 1) return rooms.map { ActiveRoomSummary(it.code) }
+        val sortedNewestFirst = rooms.sortedByDescending { it.createdAtEpochMs }
+        val keep = sortedNewestFirst.first()
+        val stale = sortedNewestFirst.drop(1)
+        homeLogger.w {
+            "Multi-active-room recovery: keeping ${keep.code}, leaving ${stale.size} stale room(s): " +
+                stale.joinToString { it.code }
+        }
+        stale.forEach { stale ->
+            appScope.launch { roomRepository.leaveRoom(stale.code) }
+        }
+        return listOf(ActiveRoomSummary(keep.code))
+    }
+
     private suspend fun HomeAction.forfeit(code: String) {
         updateState { it.copy(activeRooms = it.activeRooms.filterNot { room -> room.code == code }) }
-        when (roomRepository.leaveRoom(code)) {
+        val outcome = appScope.async { roomRepository.leaveRoom(code) }.await()
+        when (outcome) {
             is LeaveRoomOutcome.Success,
             is LeaveRoomOutcome.NotFound,
             is LeaveRoomOutcome.NotInRoom -> Unit

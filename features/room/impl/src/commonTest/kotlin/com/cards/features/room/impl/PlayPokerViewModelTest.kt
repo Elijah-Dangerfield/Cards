@@ -72,6 +72,30 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals(BotSpeed.Fast, factory.capturedBotSpeedProvider?.invoke())
     }
 
+    @Test
+    fun appCacheEmission_mirrorsSwipeFoldGestureAck() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+
+        assertEquals(false, vm.state.swipeFoldGestureAck)
+
+        cache.emit(AppData(swipeFoldGestureAck = true))
+        assertEquals(true, vm.state.swipeFoldGestureAck)
+    }
+
+    @Test
+    fun acknowledgeSwipeFoldGesture_writesThroughToAppCache() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+
+        assertEquals(false, cache.get().swipeFoldGestureAck)
+
+        vm.takeAction(PlayPokerAction.AcknowledgeSwipeFoldGesture)
+
+        assertEquals(true, cache.get().swipeFoldGestureAck)
+        assertEquals(true, vm.state.swipeFoldGestureAck)
+    }
+
     // ---------- XP mirror (ProgressionRepository → state) ----------
 
     // ---------- Connection state mirror (PokerSession → state) ----------

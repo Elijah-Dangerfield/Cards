@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.User
 import com.dangerfield.cards.libraries.cards.UserRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
@@ -181,21 +182,69 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun forfeit_optimisticallyRemovesRoom_andCallsLeave() = runUnitTest {
-        val a = sampleRoom(code = "AAA111")
-        val b = sampleRoom(code = "BBB222")
+    fun activeRooms_multiple_keepsNewest_andLeavesOlderOnes() = runUnitTest {
+        // A healthy steady state is exactly one active room per user.
+        // Two means the previous session crashed / WS dropped without a clean
+        // tear-down; we should converge to a single room rather than render
+        // a stack of banners that all race when the user picks one.
+        val newer = sampleRoom(code = "NEW111", createdAtEpochMs = 1_700_000_002_000)
+        val older = sampleRoom(code = "OLD000", createdAtEpochMs = 1_700_000_000_000)
+        val middle = sampleRoom(code = "MID222", createdAtEpochMs = 1_700_000_001_000)
         val rooms = FakeRoomRepository(
-            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(a, b)),
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(older, newer, middle)),
+        )
+        val vm = buildVm(rooms = rooms)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.activeRooms.isEmpty()) last = awaitItem()
+            assertEquals(
+                listOf(ActiveRoomSummary("NEW111")), last.activeRooms,
+                "newest active room (by createdAt) is the one the banner keeps",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(
+            setOf("OLD000", "MID222"), rooms.leaveCalls.toSet(),
+            "every stale room is leave-queued; order doesn't matter",
+        )
+    }
+
+    @Test
+    fun activeRooms_singleRoom_doesNotIssueAnyLeave() = runUnitTest {
+        // Single active room is the steady state. No cleanup leave calls.
+        val only = sampleRoom(code = "ONLY11")
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(only)),
+        )
+        val vm = buildVm(rooms = rooms)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.activeRooms.isEmpty()) last = awaitItem()
+            assertEquals(listOf(ActiveRoomSummary("ONLY11")), last.activeRooms)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(
+            rooms.leaveCalls.isEmpty(),
+            "single-room steady state must not surface any cleanup leave",
+        )
+    }
+
+    @Test
+    fun forfeit_optimisticallyRemovesRoom_andCallsLeave() = runUnitTest {
+        val only = sampleRoom(code = "AAA111")
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(only)),
         )
         val vm = buildVm(rooms = rooms)
         vm.stateFlow.test {
             var last = awaitItem()
-            while (last.activeRooms.size != 2) last = awaitItem()
+            while (last.activeRooms.isEmpty()) last = awaitItem()
 
             vm.takeAction(HomeAction.Forfeit(code = "AAA111"))
 
-            while (last.activeRooms.any { it.code == "AAA111" }) last = awaitItem()
-            assertEquals(listOf(ActiveRoomSummary("BBB222")), last.activeRooms)
+            while (last.activeRooms.isNotEmpty()) last = awaitItem()
             assertEquals(listOf("AAA111"), rooms.leaveCalls)
             cancelAndIgnoreRemainingEvents()
         }
@@ -239,12 +288,16 @@ class HomeViewModelTest : CoroutineTest() {
         progressionRepository = progression,
         chipsRepository = chips,
         roomRepository = rooms,
+        appScope = AppCoroutineScope(dispatchers),
     )
 
-    private fun sampleRoom(code: String): Room = Room(
+    private fun sampleRoom(
+        code: String,
+        createdAtEpochMs: Long = 1_700_000_000_000,
+    ): Room = Room(
         code = code,
         hostUserId = "11111111-1111-1111-1111-111111111111",
-        createdAtEpochMs = 1_700_000_000_000,
+        createdAtEpochMs = createdAtEpochMs,
         maxSeats = 4,
         status = RoomStatus.Playing,
         members = emptyList(),

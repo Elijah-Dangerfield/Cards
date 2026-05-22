@@ -44,13 +44,18 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Owns three things, fused so the rest of the app doesn't have to think
  * about any of them:
  *
- *  1. **Cold-start offline display.** On construction, lazily read the
- *     last-known [Identity] from the local cache and emit `SignedIn`
- *     immediately. Feature code that observes [state] sees a real
- *     identity within the first composition, even with no network.
+ *  1. **Cold-start identity bootstrap.** On construction, optimistically
+ *     emit the last-known [Identity] from the local cache for first-frame
+ *     UX continuity, then run [ensureInitialized] eagerly so a valid
+ *     Supabase session lands in memory before any consumer fires an authed
+ *     network call. Bootstrappers can stop guarding against the "signed-in
+ *     state but no token yet" race — by the time they fire,
+ *     [NetworkClient]'s loadTokens gate waits on a real token regardless.
  *
  *  2. **Anonymous bootstrap.** [ensureInitialized] is the onboarding
- *     "Get Started" path — Supabase anonymous sign-in + `/v1/me`.
+ *     "Get Started" path — Supabase anonymous sign-in + `/v1/me`. Also
+ *     called eagerly from `init` so returning users go through the same
+ *     resolution, not just first-launch users.
  *
  *  3. **Email/password auth.** [signInWithEmail], [signUpWithEmail],
  *     [refreshSession], [resendVerificationEmail], [signOut] handle the
@@ -94,15 +99,17 @@ class SupabaseIdentityRepository(
                     }
                 }
             }
+            Catching { ensureInitialized() }
+                .logOnFailure { "Eager identity bootstrap failed; a consumer call will retry" }
         }
     }
 
     override suspend fun ensureInitialized(): Identity = mutex.withLock {
-        (_state.value as? IdentityState.SignedIn)?.let { return@withLock it.identity }
+        val current = (_state.value as? IdentityState.SignedIn)?.identity
+        val hasSession = supabase.auth.currentSessionOrNull() != null
+        if (current != null && hasSession) return@withLock current
 
-        if (supabase.auth.currentSessionOrNull() == null) {
-            supabase.auth.signInAnonymously()
-        }
+        if (!hasSession) supabase.auth.signInAnonymously()
         bootstrapProfileLocked()
     }
 
@@ -227,6 +234,7 @@ class SupabaseIdentityRepository(
                     avatarEmoji = updated.avatarEmoji,
                     avatarBackgroundColor = updated.avatarBackgroundColor,
                     isAnonymous = updated.isAnonymous,
+                    email = supabase.auth.currentSessionOrNull()?.user?.email,
                 )
                 identityCache.write(identity)
                 _state.value = IdentityState.SignedIn(identity)
@@ -406,6 +414,7 @@ class SupabaseIdentityRepository(
             avatarEmoji = me.avatarEmoji,
             avatarBackgroundColor = me.avatarBackgroundColor,
             isAnonymous = me.isAnonymous,
+            email = supabase.auth.currentSessionOrNull()?.user?.email,
         )
         identityCache.write(identity)
         _state.value = IdentityState.SignedIn(identity)

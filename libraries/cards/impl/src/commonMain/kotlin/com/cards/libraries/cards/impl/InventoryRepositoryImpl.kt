@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryEntity
+import com.dangerfield.cards.libraries.core.Catching
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import me.tatarka.inject.annotations.Inject
@@ -82,7 +83,7 @@ class InventoryRepositoryImpl(
                 idempotencyKey = "shop.$productId",
             )
         } catch (t: Throwable) {
-            runCatching { inventoryDao.delete(productId) }
+            Catching { inventoryDao.delete(productId) }
             throw t
         }
         return RedeemResult.Success
@@ -128,7 +129,7 @@ class InventoryRepositoryImpl(
 
     private fun InventoryEntity.toDomain(): InventoryItem = InventoryItem(
         productId = productId,
-        state = runCatching { PurchaseState.valueOf(syncState) }
+        state = Catching { PurchaseState.valueOf(syncState) }
             .getOrDefault(PurchaseState.Pending),
         purchasedAtEpochMs = purchasedAtEpochMs,
         costChipsAtPurchase = costChipsAtPurchase,

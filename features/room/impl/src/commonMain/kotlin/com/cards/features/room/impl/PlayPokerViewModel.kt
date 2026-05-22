@@ -144,6 +144,7 @@ class PlayPokerViewModel @Inject constructor(
             appCache.updates.collect { data ->
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
+                takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
             }
         }
         // Identity → re-project the table so the human seat picks up the
@@ -425,6 +426,14 @@ class PlayPokerViewModel @Inject constructor(
                     }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
                 }
             }
+            is PlayPokerAction.SwipeFoldAckChanged -> action.updateState {
+                it.copy(swipeFoldGestureAck = action.acknowledged)
+            }
+            is PlayPokerAction.AcknowledgeSwipeFoldGesture -> {
+                viewModelScope.launch {
+                    appCache.update { it.copy(swipeFoldGestureAck = true) }
+                }
+            }
         }
     }
 }
@@ -483,6 +492,13 @@ data class PlayPokerState(
      * player's name. Null when nothing's equipped — UI hides the row.
      */
     val equippedTitle: String? = null,
+    /**
+     * Mirrors `AppData.swipeFoldGestureAck`. False = swipe-up-to-fold on
+     * the human's hole cards opens a confirmation dialog; true = it folds
+     * silently. Flips the moment the user ticks "Don't show this again"
+     * inside that dialog.
+     */
+    val swipeFoldGestureAck: Boolean = false,
 )
 
 sealed interface PlayPokerAction {
@@ -535,6 +551,16 @@ sealed interface PlayPokerAction {
      * update; navigation itself is the screen's job.
      */
     data object LeaveTable : PlayPokerAction
+
+    /** Fired by the AppCache mirror; flips the swipe-fold confirmation gate. */
+    data class SwipeFoldAckChanged(val acknowledged: Boolean) : PlayPokerAction
+
+    /**
+     * Fired by the swipe-fold confirmation dialog when the user ticks
+     * "Don't show this again". Writes through to AppCache so the gate
+     * stays flipped across sessions.
+     */
+    data object AcknowledgeSwipeFoldGesture : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {

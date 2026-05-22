@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentEntity
+import com.dangerfield.cards.libraries.core.Catching
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import me.tatarka.inject.annotations.Inject
@@ -139,7 +140,7 @@ class EquipmentRepositoryImpl(
     private fun EquipmentEntity.toDomain(): EquipmentEntry = EquipmentEntry(
         productId = productId,
         isEquipped = isEquipped,
-        syncState = runCatching { EquipmentSyncState.valueOf(syncState) }
+        syncState = Catching { EquipmentSyncState.valueOf(syncState) }
             .getOrDefault(EquipmentSyncState.Pending),
         updatedAtEpochMs = updatedAtEpochMs,
     )

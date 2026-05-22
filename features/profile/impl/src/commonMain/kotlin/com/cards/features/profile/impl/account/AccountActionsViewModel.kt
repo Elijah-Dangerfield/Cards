@@ -1,8 +1,10 @@
 package com.dangerfield.cards.features.profile.impl.account
 
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.IdentityRepository
+import kotlinx.coroutines.async
 import me.tatarka.inject.annotations.Inject
 
 /**
@@ -24,6 +26,7 @@ import me.tatarka.inject.annotations.Inject
 class AccountActionsViewModel(
     private val identityRepository: IdentityRepository,
     private val appCache: AppCache,
+    private val appScope: AppCoroutineScope,
 ) : SEAViewModel<AccountActionsState, AccountActionsEvent, AccountActionsAction>(
     initialStateArg = AccountActionsState(),
 ) {
@@ -32,11 +35,10 @@ class AccountActionsViewModel(
         when (action) {
             is AccountActionsAction.ConfirmSignOut -> action.run {
                 updateState { it.copy(isSigningOut = true) }
-                identityRepository.signOut()
-                // Flip onboarding back to "not done" so the next launch
-                // shows the intro pager again and the user can choose
-                // anon (Get Started) or another sign-in.
-                appCache.update { it.copy(hasUserOnboarded = false) }
+                appScope.async {
+                    identityRepository.signOut()
+                    appCache.update { it.copy(hasUserOnboarded = false) }
+                }.await()
                 updateState { it.copy(isSigningOut = false) }
                 sendEvent(AccountActionsEvent.SignedOut)
             }

@@ -56,6 +56,15 @@ data class AppData(
 
     /** Epoch-ms — last review prompt the coordinator forwarded to the platform. 0 = never. */
     val lastReviewPromptAt: Long = 0L,
+
+    /**
+     * Whether the user has acknowledged the swipe-up-to-fold gesture on
+     * their hole cards. False keeps a confirmation dialog as a safety net
+     * (the gesture is *discoverable* the first few times); flips to true
+     * the moment the user ticks "Don't show this again" in that dialog
+     * — after which the gesture folds silently.
+     */
+    val swipeFoldGestureAck: Boolean = false,
 )
 
 interface AppCache : Cache<AppData>

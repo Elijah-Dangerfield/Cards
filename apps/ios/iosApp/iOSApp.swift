@@ -6,14 +6,14 @@ import ComposeApp
 struct iOSApp: App {
     
     let permissionManager = IOSPermissionManager()
-    let reviewPrompter = IOSReviewPrompter()
+    let reviewLauncher = IOSReviewLauncher()
     private let nativeViewFactory = IOSNativeViewFactory.shared
     private let iOSAppComponent: IosAppComponent
 
     init() {
         self.iOSAppComponent = create(
             permissionManager: permissionManager,
-            reviewPrompter: reviewPrompter,
+            reviewLauncher: reviewLauncher,
             nativeViewFactory: nativeViewFactory
         )
         iOSAppComponent.telemetry.initialize()

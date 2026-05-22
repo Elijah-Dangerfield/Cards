@@ -20,6 +20,7 @@ fun showSnackBar(
     duration: SnackbarDuration = SnackbarDuration.Short,
     withDismissAction: Boolean = true,
     icon: IconResource? = null,
+    emoji: String? = null,
     delayBy: Duration = Duration.ZERO,
     onAction: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
@@ -32,6 +33,7 @@ fun showSnackBar(
         withDismissAction = withDismissAction,
         delayBy = delayBy,
         icon = icon,
+        emoji = emoji,
         onAction = onAction,
         onDismiss = onDismiss
     )
@@ -98,6 +100,7 @@ object SnackBarPresenter {
         withDismissAction: Boolean = true,
         delayBy: Duration = Duration.ZERO,
         icon: IconResource? = null,
+        emoji: String? = null,
         onAction: (() -> Unit)? = null,
         onDismiss: (() -> Unit)? = null,
     ): Boolean {
@@ -110,6 +113,7 @@ object SnackBarPresenter {
                 withDismissAction = withDismissAction,
                 delayBy = delayBy,
                 icon = icon,
+                emoji = emoji,
                 onAction = onAction,
                 onDismiss = onDismiss
             )
@@ -141,6 +145,7 @@ data class SnackbarMessage(
     val withDismissAction: Boolean = true,
     val delayBy: Duration = Duration.ZERO,
     val icon: IconResource? = null,
+    val emoji: String? = null,
     val id: Long = Random.nextLong(),
     val onAction: (() -> Unit)? = null,
     val onDismiss: (() -> Unit)? = null,
@@ -150,6 +155,7 @@ fun SnackbarMessage.toVisuals(): PodawanSnackbarVisuals = PodawanSnackbarVisuals
     id = id,
     title = title,
     icon = icon,
+    emoji = emoji,
     message = message,
     actionLabel = actionLabel,
     withDismissAction = withDismissAction,

@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.libraries.identity.Identity
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
@@ -22,12 +23,13 @@ import me.tatarka.inject.annotations.Inject
  * picked. When MP lands (Phase 4), a sibling `RemotePokerSessionFactory`
  * will satisfy the same interface using server-supplied occupant metadata.
  *
- * Assisted-injected on the [BotDifficulty] + seat count parameters — the
- * `FeatureEntryPoint` constructs an instance per route.
+ * Assisted-injected on the [BotDifficulty], seat count, and stake-tier
+ * parameters — the `FeatureEntryPoint` constructs an instance per route.
  */
 class SoloBotsPokerSessionFactory @Inject constructor(
     @Assisted private val difficulty: BotDifficulty,
     @Assisted private val seatCount: Int,
+    @Assisted private val stakeTier: StakeTier,
     private val dispatchers: DispatcherProvider,
 ) : PokerSessionFactory {
 
@@ -64,6 +66,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
             difficulty = difficulty,
             humanSeatIndex = humanSeatIndex,
             botPersonalities = botPersonalities,
+            settings = stakeTier.toRoomSettings(),
             botSpeedProvider = botSpeedProvider,
             onHandEnded = onHandEnded,
             dispatchers = dispatchers,

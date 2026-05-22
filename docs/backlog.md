@@ -4,6 +4,24 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## Collapse `IdentityCache` into Supabase's session as source of truth
+
+**Idea:** We maintain a separate Cards-side `IdentityCache` (display name, avatar, isAnonymous, userId) alongside supabase-kt's own session cache. Three caches end up overlapping — Supabase's session (tokens + UserInfo metadata), our `IdentityCache` (display fields), and the `IdentityState` `StateFlow`. The 2026-05-21 boot-gate fix (see [decisions.md](./decisions.md)) papers over the race by gating at the network client, but the structural answer is to stop double-caching.
+
+**Sketch:**
+- Drop `IdentityCache` (or demote to a tiny display-only optimistic read for first-frame UX, never used as the source for `SignedIn`).
+- Derive `Identity` directly from `supabase.auth.currentSessionOrNull()?.user` for the userId + isAnonymous, plus `/v1/me` for the server-managed display name / avatar.
+- `IdentityState.SignedIn` then has a single invariant: Supabase session is in memory + `/v1/me` has resolved. The optimistic cache emit goes away.
+
+**Tradeoffs:**
+- First-frame UX: a returning user's name briefly shows as default until `/v1/me` lands (~200ms). The cached-emit today avoids this flash.
+- Offline first-launch becomes worse (no cached fallback display) — but offline first-launch is already the open "Identity cold-boot resilience" item in `docs/todo.md` §D, and that's the right place to address it.
+- Cleaner contract; one source of truth for "is this user authed and who are they."
+
+**Status:** Backlog. Pick up the next time the identity layer opens. Pairs with the existing `SupabaseIdentityRepository` review item in `docs/todo.md` §D ("are we double-caching?" — answer is yes).
+
+---
+
 ## Bot bet-sizing tells
 
 **Idea:** Have bots treat the human's bet size as a *signal* (in addition to the existing pot-odds math). Right now bots only react to bet size mathematically — a big bet costs more to call, so marginal hands fold. They don't interpret "this is a 3× pot overbet from a tight player, that means something."
@@ -159,3 +177,30 @@ Blocker on doing it now: should land alongside the `popExit = enter.reversal()` 
 
 **Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
 
+
+---
+
+## Extract `ConfirmPill` into a `:libraries:ui` primitive
+
+**Idea (raised 2026-05-22):** Four feature modules now define identical-shape private `ConfirmPill` composables: `BotTableSetupDialog.kt:139`, `LeaveBotsConfirmDialog.kt:81`, `SwipeFoldConfirmDialog.kt:100` (added this cycle), and `RaiseSheet.kt:350`. All four are a `Box { clip(RoundedCornerShape(32.dp)), background(accentPrimary|surfaceSecondary), padding(vertical=16dp), Text }` with optional `primary: Boolean` for the colour split. The 32.dp corner radius itself shows up in 7 callsites in `features/room/impl/**` with no `Radii` token — a `Radii.Pill` (or `R900`-style alias) would tidy both this primitive and the loose literals.
+
+**Sketch:**
+- Add `ConfirmPill(label, primary, onClick, modifier)` to `:libraries:ui/components/button` (next to the existing `Button` family). Use surface tokens; expose the same Cancel/Confirm primary/secondary split the existing copies have.
+- Optionally introduce `Radii.Pill = R900` or a new alias if 32.dp doesn't match an existing token.
+- Migrate the four callsites, kill the private copies.
+
+**Tradeoff:** None significant — pure DRY win; the four copies have already drifted apart slightly in padding/typography.
+
+**Status:** Backlog. Non-blocking DS drift; pull on the next pass through `features/room/impl/**` or `features/home/impl/**`.
+
+---
+
+## Server-side `runCatching` audit
+
+**Idea (raised 2026-05-22):** Client side now uses `Catching { }` from `:libraries:core` consistently (it rethrows `CancellationException`, preserving structured concurrency). `apps/server` still uses `runCatching` in `HttpSupabaseAdminClient`, `DefaultOrphanAnonymousSweep`, `MessageRoutes`, etc. Server doesn't depend on `:libraries:core` today, and Ktor request scopes are tied to the request lifecycle rather than `viewModelScope`-style structured concurrency, so the cancellation concern is materially less acute. Still worth deciding either way.
+
+**Sketch:** Either add `implementation(projects.libraries.core)` to `apps/server` and migrate the ~4 callsites, or formally document `runCatching` as the server convention (since the rule only really bites in shared-coroutine-scope client code).
+
+**Tradeoff:** Adding the dep brings the convention into one place; documenting it as "server can use runCatching" is cheaper but leaves a hidden rule.
+
+**Status:** Backlog. Deferred from the 2026-05-22 client-side `Catching` sweep.

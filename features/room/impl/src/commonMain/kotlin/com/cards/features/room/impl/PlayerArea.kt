@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +38,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,6 +81,7 @@ internal fun PlayerArea(
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit = { _, _ -> },
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
+    onSwipeFold: () -> Unit = {},
 ) {
     val human = table.seats.firstOrNull { it.isHuman } ?: return
     val folded = human.participation == HandParticipation.Folded
@@ -90,6 +95,11 @@ internal fun PlayerArea(
         else -> Color.Transparent
     }
     val borderWidth = if (isWinner || human.isActing) 2.dp else 0.dp
+    val swipeFoldEnabled = table.isHumanTurn &&
+        table.humanLegalActions != null &&
+        human.participation != HandParticipation.Folded
+    val swipeFoldThresholdPx = with(LocalDensity.current) { 60.dp.toPx() }
+    val haptics = LocalHapticFeedback.current
     // Fixed row height — children inside use `fillMaxHeight()`, so this MUST
     // be bounded. `heightIn(min)` would let `fillMaxHeight` expand to the
     // parent's full offered height and the row would eat the whole screen.
@@ -110,7 +120,28 @@ internal fun PlayerArea(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .alpha(if (folded) 0.35f else 1f),
+                .alpha(if (folded) 0.35f else 1f)
+                .pointerInput(swipeFoldEnabled, swipeFoldThresholdPx) {
+                    if (!swipeFoldEnabled) return@pointerInput
+                    var accumulatedDy = 0f
+                    var fired = false
+                    detectVerticalDragGestures(
+                        onDragStart = {
+                            accumulatedDy = 0f
+                            fired = false
+                        },
+                        onDragEnd = { accumulatedDy = 0f },
+                        onDragCancel = { accumulatedDy = 0f },
+                        onVerticalDrag = { _, dy ->
+                            accumulatedDy += dy
+                            if (!fired && accumulatedDy <= -swipeFoldThresholdPx) {
+                                fired = true
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onSwipeFold()
+                            }
+                        },
+                    )
+                },
             contentAlignment = Alignment.Center,
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy((-28).dp)) {

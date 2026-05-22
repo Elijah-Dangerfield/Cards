@@ -1,5 +1,5 @@
 //
-//  ReviewPrompter.swift
+//  ReviewLauncher.swift
 //  iosApp
 //
 //  Wraps SKStoreReviewController. The OS owns the throttling decision —
@@ -9,7 +9,7 @@ import ComposeApp
 import StoreKit
 import UIKit
 
-class IOSReviewPrompter: ReviewPrompter {
+class IOSReviewLauncher: ReviewLauncher {
 
     func __requestReview() async throws {
         await MainActor.run {

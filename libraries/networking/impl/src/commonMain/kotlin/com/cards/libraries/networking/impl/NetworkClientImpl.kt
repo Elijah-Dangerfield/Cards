@@ -58,7 +58,8 @@ class NetworkClientImpl(
             install(Auth) {
                 bearer {
                     loadTokens {
-                        val token = authTokenProvider.getAccessToken() ?: return@loadTokens null
+                        val token = authTokenProvider.awaitAccessToken(LoadTokensTimeout)
+                            ?: return@loadTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
                     }
                     refreshTokens {
@@ -118,3 +119,12 @@ private fun HttpClientConfig<*>.applyCommonConfig(
     }
     expectSuccess = true
 }
+
+/**
+ * Cold-boot cap on how long we wait for the identity layer to publish a
+ * token before letting the request go without a bearer (and 401). The
+ * session typically resolves in <500ms after [IdentityRepository.ensureInitialized]
+ * lands; 5s is the failure floor — past that, something is broken and
+ * the request should fail cleanly rather than hang.
+ */
+private val LoadTokensTimeout = 5.seconds

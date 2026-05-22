@@ -1,10 +1,14 @@
 package com.dangerfield.cards.features.profile.impl.feedback
 
 import com.dangerfield.cards.libraries.core.eitherWay
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.currentIdentity
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import kotlinx.coroutines.async
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Duration.Companion.seconds
 
@@ -13,14 +17,19 @@ class FeedbackViewModel(
     private val repository: FeedbackRepository,
     private val router: Router,
     private val appCache: AppCache,
+    private val appScope: AppCoroutineScope,
+    identityRepository: IdentityRepository,
 ) : SEAViewModel<FeedbackState, Unit, FeedbackAction>(
-    initialStateArg = FeedbackState()
+    initialStateArg = FeedbackState(
+        email = identityRepository.currentIdentity?.email.orEmpty(),
+    )
 ) {
 
     override suspend fun handleAction(action: FeedbackAction) {
         when (action) {
             FeedbackAction.Back -> router.goBack()
             is FeedbackAction.MessageChanged -> action.updateMessage()
+            is FeedbackAction.EmailChanged -> action.updateEmail()
             FeedbackAction.Submit -> action.submitFeedback()
         }
     }
@@ -30,6 +39,10 @@ class FeedbackViewModel(
         updateState { it.copy(message = updated, errorMessage = null) }
     }
 
+    private suspend fun FeedbackAction.EmailChanged.updateEmail() {
+        updateState { it.copy(email = value) }
+    }
+
     private suspend fun FeedbackAction.submitFeedback() {
         val current = state
         if (current.message.isBlank()) {
@@ -37,10 +50,13 @@ class FeedbackViewModel(
             return
         }
         updateState { it.copy(isSubmitting = true, errorMessage = null) }
-        repository.submitFeedback(
-            message = current.message.trim(),
-            isBugReport = false
-        ).eitherWay {
+        appScope.async {
+            repository.submitFeedback(
+                message = current.message.trim(),
+                isBugReport = false,
+                email = current.email.takeIf { it.isNotBlank() },
+            )
+        }.await().eitherWay {
             appCache.update { it.copy(feedbacksGiven = it.feedbacksGiven + 1) }
             updateState { it.copy(isSubmitting = false) }
             showSnackBar(message = "Got it. Thank you!", delayBy = 1.seconds)
@@ -51,6 +67,7 @@ class FeedbackViewModel(
 
 data class FeedbackState(
     val message: String = "",
+    val email: String = "",
     val isSubmitting: Boolean = false,
     val errorMessage: String? = null,
 )
@@ -58,5 +75,6 @@ data class FeedbackState(
 sealed interface FeedbackAction {
     data object Back : FeedbackAction
     data class MessageChanged(val value: String) : FeedbackAction
+    data class EmailChanged(val value: String) : FeedbackAction
     data object Submit : FeedbackAction
 }

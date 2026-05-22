@@ -24,6 +24,14 @@ data class Identity(
      * affect access to most features.
      */
     val isAnonymous: Boolean,
+    /**
+     * Account email if the user has claimed (email-signup or OAuth-linked).
+     * Null for anonymous sessions, since Supabase doesn't issue an email
+     * for anon users. Sourced from `supabase.auth.currentSessionOrNull()
+     * ?.user?.email` — the Supabase session is authoritative; the
+     * server's `/v1/me` does not return email.
+     */
+    val email: String? = null,
 )
 
 /**
