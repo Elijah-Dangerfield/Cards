@@ -1,9 +1,28 @@
 package com.dangerfield.cards.features.profile.impl.account
 
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.OAuthProvider
+import com.dangerfield.cards.libraries.identity.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.ResendOutcome
+import com.dangerfield.cards.libraries.identity.SignInOutcome
+import com.dangerfield.cards.libraries.identity.SignUpOutcome
+import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.job
+import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -218,7 +237,28 @@ class DeleteAccountViewModelTest : CoroutineTest() {
         )
     }
 
-    // ---------- scaffolding ----------
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_deleteCallSurvivesViewModelTeardown() = runUnitTest {
+        val gate = CompletableDeferred<DeleteAccountOutcome>()
+        val identity = GatedDeleteIdentity(gate)
+        val vm = DeleteAccountViewModel(
+            identityRepository = identity,
+            appCache = FakeAppCache(),
+            appScope = AppCoroutineScope(dispatchers),
+        )
+        vm.takeAction(DeleteAccountAction.ConfirmationChanged("delete"))
+        vm.takeAction(DeleteAccountAction.ConfirmDelete)
+        runCurrent()
+        assertEquals(1, identity.deleteStarted, "deleteAccount should be in-flight")
+
+        vm.viewModelScope.coroutineContext.job.cancel()
+        runCurrent()
+
+        gate.complete(DeleteAccountOutcome.Success)
+        runCurrent()
+        assertEquals(1, identity.deleteFinished, "deleteAccount must complete despite VM teardown")
+    }
 
     private fun buildVm(
         identity: FakeIdentityRepository = FakeIdentityRepository(),
@@ -226,5 +266,41 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     ): DeleteAccountViewModel = DeleteAccountViewModel(
         identityRepository = identity,
         appCache = appCache,
+        appScope = AppCoroutineScope(dispatchers),
     )
+}
+
+private class GatedDeleteIdentity(
+    private val gate: CompletableDeferred<DeleteAccountOutcome>,
+) : IdentityRepository {
+    var deleteStarted: Int = 0
+        private set
+    var deleteFinished: Int = 0
+        private set
+
+    private val _state = MutableStateFlow<IdentityState>(IdentityState.Unknown)
+    override val state: StateFlow<IdentityState> = _state
+
+    override suspend fun deleteAccount(): DeleteAccountOutcome {
+        deleteStarted += 1
+        val outcome = gate.await()
+        deleteFinished += 1
+        return outcome
+    }
+
+    override suspend fun ensureInitialized(): Identity = error("unused")
+    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
+    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")
+    override suspend fun refreshSession(): RefreshOutcome = error("unused")
+    override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
+    override suspend fun signOut() = Unit
+    override suspend fun updateProfile(
+        displayName: String?,
+        avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
+    ): UpdateProfileOutcome = error("unused")
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("unused")
+    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
+    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
 }
