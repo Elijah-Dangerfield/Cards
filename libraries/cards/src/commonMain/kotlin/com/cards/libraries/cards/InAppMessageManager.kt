@@ -22,9 +22,9 @@ import kotlinx.coroutines.flow.StateFlow
  * StateFlow regardless of how the policy evolves.
  *
  * The fetch (POSTing acks + receiving fresh messages) is owned by
- * [UserMessageSyncService] and runs on the same lifecycle hook. The
- * sync writes to the repository; the manager reads from the
- * repository; the two never call each other directly.
+ * [UserMessageRepository.sync] and runs on the same lifecycle hook —
+ * the manager awaits identity, fires sync, then consumes from the
+ * repo's cache.
  */
 interface InAppMessageManager {
     /**

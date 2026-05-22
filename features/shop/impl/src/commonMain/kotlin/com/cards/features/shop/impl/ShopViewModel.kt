@@ -6,10 +6,8 @@ import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.PurchaseTransaction
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
-import com.dangerfield.cards.libraries.cards.EquipmentSyncService
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
-import com.dangerfield.cards.libraries.cards.InventorySyncService
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
@@ -47,7 +45,7 @@ import me.tatarka.inject.annotations.Inject
  *     the inventory row as Pending and deducts chips.
  *  3. Close the sheet, emit a confirmation event for the UI to celebrate
  *     (toast, haptic, whatever).
- *  4. Best-effort fire [InventorySyncService.sync] in the background so
+ *  4. Best-effort fire [InventoryRepository.sync] in the background so
  *     the row flips Pending → Confirmed before the user closes the app.
  *
  * IAP packs ([ShopAction.ConfirmPendingPurchase] for a chip pack) drive
@@ -59,13 +57,11 @@ import me.tatarka.inject.annotations.Inject
 class ShopViewModel @Inject constructor(
     private val productsRepository: ProductsRepository,
     private val inventoryRepository: InventoryRepository,
-    private val inventorySyncService: InventorySyncService,
     private val chipsRepository: ChipsRepository,
     private val progressionRepository: ProgressionRepository,
     private val billingClient: BillingClient,
     private val identityRepository: IdentityRepository,
     private val equipmentRepository: EquipmentRepository,
-    private val equipmentSyncService: EquipmentSyncService,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
@@ -108,7 +104,7 @@ class ShopViewModel @Inject constructor(
         }
         // Kick off catalog refresh + inventory sync (these run concurrently).
         takeAction(ShopAction.Refresh)
-        viewModelScope.launch { inventorySyncService.sync() }
+        viewModelScope.launch { inventoryRepository.sync() }
     }
 
     override suspend fun handleAction(action: ShopAction) {
@@ -276,7 +272,7 @@ class ShopViewModel @Inject constructor(
                 // Fire-and-forget server reconcile so the Pending row flips
                 // to Confirmed before the user closes the app. Failures
                 // here are non-fatal — next launch retries.
-                viewModelScope.launch { inventorySyncService.sync() }
+                viewModelScope.launch { inventoryRepository.sync() }
             }
             is RedeemResult.InsufficientChips -> {
                 // UI's affordance check should prevent this, but if a race
@@ -307,7 +303,7 @@ class ShopViewModel @Inject constructor(
             .any { entry -> entry.isEquipped && cosmeticSlotFor(entry.productId) == slot }
         if (occupied) return
         equipmentRepository.equip(productId)
-        viewModelScope.launch { equipmentSyncService.sync() }
+        viewModelScope.launch { equipmentRepository.sync() }
     }
 }
 

@@ -88,6 +88,16 @@ interface EquipmentRepository {
 
     /** Called from "Fresh Start" / debug menus. */
     suspend fun deleteAll()
+
+    /**
+     * Reconcile local equipment intent with the server's authoritative
+     * snapshot. Single-flight. Always POSTs — the response IS the server's
+     * current snapshot, so this doubles as cold-start fetch.
+     *
+     * Triggered automatically on cold boot + warm foreground. Manual
+     * callers (e.g. immediately after equip/unequip) can invoke directly.
+     */
+    suspend fun sync(): Result<Unit>
 }
 
 sealed interface EquipmentToggleResult {

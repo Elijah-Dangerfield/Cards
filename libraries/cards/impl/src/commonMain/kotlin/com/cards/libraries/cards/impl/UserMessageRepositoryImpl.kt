@@ -3,10 +3,23 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.cards.UserMessage
 import com.dangerfield.cards.libraries.cards.UserMessageKind
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
+import com.dangerfield.cards.libraries.cards.impl.dto.MessageSyncRequestDto
+import com.dangerfield.cards.libraries.cards.impl.dto.MessageSyncResponseDto
+import com.dangerfield.cards.libraries.cards.impl.dto.UserMessageDto
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageEntity
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.networking.NetworkClient
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -20,8 +33,12 @@ import kotlin.time.ExperimentalTime
 @Inject
 class UserMessageRepositoryImpl(
     private val dao: UserMessageDao,
+    private val networkClient: NetworkClient,
     private val clock: Clock,
 ) : UserMessageRepository {
+
+    private val syncLogger = KLog.withTag("UserMessageSync")
+    private val syncMutex = Mutex()
 
     override fun observeInbox(): Flow<List<UserMessage>> =
         dao.observeInbox(nowEpochMs = clock.now().toEpochMilliseconds())
@@ -41,6 +58,25 @@ class UserMessageRepositoryImpl(
     }
 
     override suspend fun pendingAckIds(): List<String> = dao.pendingAckIds()
+
+    override suspend fun sync(): Result<Unit> = syncMutex.withLock {
+        Catching {
+            val pendingAcks = pendingAckIds()
+            val response: MessageSyncResponseDto = networkClient.authenticatedClient
+                .post("/v1/me/messages/sync") {
+                    contentType(ContentType.Application.Json)
+                    setBody(MessageSyncRequestDto(ackedIds = pendingAcks))
+                }
+                .body()
+            replaceCache(response.messages.map { it.toDomain() })
+            syncLogger.d {
+                "Sync ok: sent ${pendingAcks.size} ack(s), got ${response.messages.size} unread."
+            }
+            Unit
+        }.onFailure {
+            syncLogger.w(it) { "User-message sync failed; cache + ack queue untouched." }
+        }
+    }
 
     private fun UserMessageEntity.toDomain(): UserMessage = UserMessage(
         id = id,
@@ -70,5 +106,16 @@ class UserMessageRepositoryImpl(
         // and unacked.
         shownAtEpochMs = null,
         ackedPending = false,
+    )
+
+    private fun UserMessageDto.toDomain(): UserMessage = UserMessage(
+        id = id,
+        kind = UserMessageKind.fromWire(kind),
+        emoji = emoji,
+        title = title,
+        body = body,
+        deepLink = deepLink,
+        createdAtEpochMs = createdAtEpochMs,
+        expiresAtEpochMs = expiresAtEpochMs,
     )
 }

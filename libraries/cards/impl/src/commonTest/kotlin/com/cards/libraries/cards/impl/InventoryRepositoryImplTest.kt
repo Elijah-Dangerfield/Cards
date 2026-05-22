@@ -2,11 +2,21 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.EquipmentEntry
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryEntity
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.networking.NetworkClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +52,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     fun redeem_insufficientChips_returnsInsufficient_doesNotInsertOrCharge() = runUnitTest {
         val inv = FakeInventoryDao()
         val chips = FakeChipsRepository(balance = 100)
-        val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 1_000))
+        val repo = buildRepo(inv, chips, FixedClock(now = 1_000))
 
         val result = repo.redeemChipOffer("emote_dance", costChips = 2_500)
 
@@ -55,7 +65,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     fun redeem_success_insertsPendingRow_andDeductsChips() = runUnitTest {
         val inv = FakeInventoryDao()
         val chips = FakeChipsRepository(balance = 10_000)
-        val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 5_000))
+        val repo = buildRepo(inv, chips, FixedClock(now = 5_000))
 
         val result = repo.redeemChipOffer("emote_dance", costChips = 2_500)
 
@@ -74,7 +84,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
             insertReturnsDuplicate = true
         }
         val chips = FakeChipsRepository(balance = 10_000)
-        val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
+        val repo = buildRepo(inv, chips, FixedClock(now = 0))
 
         val result = repo.redeemChipOffer("emote_dance", costChips = 2_500)
 
@@ -88,7 +98,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
         val chips = FakeChipsRepository(balance = 10_000).apply {
             failOnNextApplyDelta = RuntimeException("disk full")
         }
-        val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
+        val repo = buildRepo(inv, chips, FixedClock(now = 0))
 
         val thrown = runCatching {
             repo.redeemChipOffer("emote_dance", costChips = 2_500)
@@ -107,7 +117,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     fun markConfirmed_flipsState() = runUnitTest {
         val inv = FakeInventoryDao()
         val chips = FakeChipsRepository(balance = 10_000)
-        val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
+        val repo = buildRepo(inv, chips, FixedClock(now = 0))
 
         repo.markConfirmed(listOf("a", "b"))
 
@@ -119,7 +129,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     fun markConfirmed_emptyList_isNoOp() = runUnitTest {
         val inv = FakeInventoryDao()
         val chips = FakeChipsRepository(balance = 10_000)
-        val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
+        val repo = buildRepo(inv, chips, FixedClock(now = 0))
 
         repo.markConfirmed(emptyList())
 
@@ -130,7 +140,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     fun revertPurchase_deletes() = runUnitTest {
         val inv = FakeInventoryDao()
         val chips = FakeChipsRepository(balance = 10_000)
-        val repo = InventoryRepositoryImpl(inv, chips, FixedClock(now = 0))
+        val repo = buildRepo(inv, chips, FixedClock(now = 0))
 
         repo.revertPurchase("emote_dance")
 
@@ -151,7 +161,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.observeInventory().test {
             val items = awaitItem()
@@ -178,7 +188,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.observeInventory().test {
             val item = awaitItem().single()
@@ -194,7 +204,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun deleteAll_clearsTable() = runUnitTest {
         val inv = FakeInventoryDao()
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.deleteAll()
 
@@ -204,7 +214,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun applyServerSnapshot_insertsAuthoritativeAsConfirmed_onEmptyLocal() = runUnitTest {
         val inv = FakeInventoryDao()
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.applyServerSnapshot(
             listOf(
@@ -238,7 +248,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.applyServerSnapshot(
             listOf(
@@ -269,7 +279,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.applyServerSnapshot(authoritative = emptyList())
 
@@ -295,7 +305,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.applyServerSnapshot(authoritative = emptyList())
 
@@ -307,7 +317,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     @Test
     fun applyServerSnapshot_emptyAuthoritative_onEmptyLocal_isNoOp() = runUnitTest {
         val inv = FakeInventoryDao()
-        val repo = InventoryRepositoryImpl(inv, FakeChipsRepository(10_000), FixedClock(0))
+        val repo = buildRepo(inv, FakeChipsRepository(10_000), FixedClock(0))
 
         repo.applyServerSnapshot(authoritative = emptyList())
 
@@ -315,6 +325,39 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     }
 
     // ---------- Test scaffolding ----------
+
+    private fun runUnitTestScope() = AppCoroutineScope(dispatchers)
+
+    private fun buildRepo(
+        inv: InventoryDao,
+        chips: ChipsRepository,
+        clock: Clock,
+    ): InventoryRepositoryImpl = InventoryRepositoryImpl(
+        inventoryDao = inv,
+        chipsRepository = chips,
+        equipmentRepository = NoopEquipmentRepository(),
+        networkClient = StubNetworkClient(),
+        appScope = runUnitTestScope(),
+        clock = clock,
+    )
+
+    private class StubNetworkClient : NetworkClient {
+        private val unused = HttpClient(MockEngine { respond(content = ByteReadChannel(""), status = HttpStatusCode.NotImplemented) })
+        override val client: HttpClient = unused
+        override val authenticatedClient: HttpClient = unused
+    }
+
+    private class NoopEquipmentRepository : EquipmentRepository {
+        override fun observeEquipped(): Flow<List<EquipmentEntry>> =
+            MutableStateFlow<List<EquipmentEntry>>(emptyList()).asStateFlow()
+        override suspend fun getAll(): List<EquipmentEntry> = emptyList()
+        override suspend fun equip(productId: String): EquipmentToggleResult = error("unused")
+        override suspend fun unequip(productId: String): EquipmentToggleResult = error("unused")
+        override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) {}
+        override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
+        override suspend fun deleteAll() {}
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
+    }
 
     private class FixedClock(private val now: Long) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(now)
@@ -345,6 +388,8 @@ class InventoryRepositoryImplTest : CoroutineTest() {
         override suspend fun deleteAll() {
             state.value = 0
         }
+
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
     }
 
     private class FakeInventoryDao : InventoryDao {

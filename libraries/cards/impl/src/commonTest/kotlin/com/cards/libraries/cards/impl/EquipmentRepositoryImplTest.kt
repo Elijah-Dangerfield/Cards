@@ -6,7 +6,14 @@ import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentEntity
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.networking.NetworkClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +42,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
     @Test
     fun equip_writesPendingRow_andFlowReEmits() = runUnitTest {
         val dao = FakeEquipmentDao()
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 1_000))
+        val repo = buildRepo(dao, FixedClock(now = 1_000))
 
         repo.observeEquipped().test {
             assertEquals(emptyList(), awaitItem())
@@ -64,7 +71,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 5_000))
+        val repo = buildRepo(dao, FixedClock(now = 5_000))
 
         val result = repo.unequip("cardback_marble")
         assertEquals(EquipmentToggleResult.Success, result)
@@ -88,7 +95,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 9_999))
+        val repo = buildRepo(dao, FixedClock(now = 9_999))
 
         val result = repo.equip("felt_royal_red")
 
@@ -113,7 +120,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 9_999))
+        val repo = buildRepo(dao, FixedClock(now = 9_999))
 
         val result = repo.equip("emotes_drama")
 
@@ -133,7 +140,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 9_999))
+        val repo = buildRepo(dao, FixedClock(now = 9_999))
 
         repo.applyServerSnapshot(
             listOf(
@@ -164,7 +171,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 0))
+        val repo = buildRepo(dao, FixedClock(now = 0))
 
         repo.applyServerSnapshot(authoritative = emptyList())
 
@@ -188,7 +195,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 0))
+        val repo = buildRepo(dao, FixedClock(now = 0))
 
         repo.applyServerSnapshot(authoritative = emptyList())
 
@@ -211,7 +218,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(now = 0))
+        val repo = buildRepo(dao, FixedClock(now = 0))
 
         repo.applyServerSnapshot(authoritative = emptyList())
 
@@ -240,7 +247,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(0))
+        val repo = buildRepo(dao, FixedClock(0))
 
         val dropped = repo.dropOrphanEquipment(ownedProductIds = setOf("owned_cardback"))
 
@@ -269,7 +276,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(0))
+        val repo = buildRepo(dao, FixedClock(0))
 
         val dropped = repo.dropOrphanEquipment(ownedProductIds = emptySet())
 
@@ -289,7 +296,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(0))
+        val repo = buildRepo(dao, FixedClock(0))
 
         val dropped = repo.dropOrphanEquipment(ownedProductIds = setOf("owned_cardback", "extra"))
 
@@ -309,7 +316,7 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
                 ),
             )
         }
-        val repo = EquipmentRepositoryImpl(dao, FixedClock(0))
+        val repo = buildRepo(dao, FixedClock(0))
 
         repo.observeEquipped().test {
             val item = awaitItem().single()
@@ -323,6 +330,22 @@ class EquipmentRepositoryImplTest : CoroutineTest() {
     }
 
     // ---------- scaffolding ----------
+
+    private fun buildRepo(dao: EquipmentDao, clock: Clock): EquipmentRepositoryImpl =
+        EquipmentRepositoryImpl(
+            equipmentDao = dao,
+            networkClient = StubNetworkClient,
+            appScope = AppCoroutineScope(dispatchers),
+            clock = clock,
+        )
+
+    private object StubNetworkClient : NetworkClient {
+        private val unused = HttpClient(MockEngine {
+            respond(content = ByteReadChannel(""), status = HttpStatusCode.NotImplemented)
+        })
+        override val client: HttpClient = unused
+        override val authenticatedClient: HttpClient = unused
+    }
 
     private class FixedClock(private val now: Long) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(now)

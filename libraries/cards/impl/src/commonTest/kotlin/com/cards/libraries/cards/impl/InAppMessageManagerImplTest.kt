@@ -5,7 +5,6 @@ import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.UserMessage
 import com.dangerfield.cards.libraries.cards.UserMessageKind
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
-import com.dangerfield.cards.libraries.cards.UserMessageSyncService
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.Identity
@@ -35,8 +34,7 @@ class InAppMessageManagerImplTest : CoroutineTest() {
     @Test
     fun coldBoot_consumesNextDialog_andSurfacesIt() = runUnitTest {
         val repo = FakeRepo().apply { enqueue(message("a")) }
-        val sync = FakeSync()
-        val manager = buildManager(repo, sync)
+        val manager = buildManager(repo)
 
         manager.current.test {
             assertNull(awaitItem())
@@ -46,7 +44,7 @@ class InAppMessageManagerImplTest : CoroutineTest() {
             assertEquals("a", surfaced.id)
             cancelAndIgnoreRemainingEvents()
         }
-        assertEquals(1, sync.calls, "sync runs before consume")
+        assertEquals(1, repo.syncCalls, "sync runs before consume")
         assertEquals(1, repo.consumeCalls)
     }
 
@@ -105,9 +103,11 @@ class InAppMessageManagerImplTest : CoroutineTest() {
     fun syncFailure_stillConsumes_fromLocalCache() = runUnitTest {
         // Offline-first: a failed sync shouldn't block surfacing a
         // cached message.
-        val repo = FakeRepo().apply { enqueue(message("cached")) }
-        val sync = FakeSync(returns = Result.failure(RuntimeException("net")))
-        val manager = buildManager(repo, sync)
+        val repo = FakeRepo().apply {
+            enqueue(message("cached"))
+            syncReturns = Result.failure(RuntimeException("net"))
+        }
+        val manager = buildManager(repo)
         manager.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
         assertEquals("cached", manager.current.value?.id)
@@ -151,14 +151,10 @@ class InAppMessageManagerImplTest : CoroutineTest() {
 
     // ---------- scaffolding ----------
 
-    private fun buildManager(
-        repo: FakeRepo,
-        sync: FakeSync = FakeSync(),
-    ): InAppMessageManagerImpl {
+    private fun buildManager(repo: FakeRepo): InAppMessageManagerImpl {
         val identity = FakeIdentityRepo()
         return InAppMessageManagerImpl(
             repository = repo,
-            syncService = sync,
             identityRepositoryProvider = { identity },
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -179,6 +175,9 @@ class InAppMessageManagerImplTest : CoroutineTest() {
         private val queue = ArrayDeque<UserMessage>()
         var consumeCalls: Int = 0
             private set
+        var syncCalls: Int = 0
+            private set
+        var syncReturns: Result<Unit> = Result.success(Unit)
 
         fun enqueue(message: UserMessage) { queue.addLast(message) }
 
@@ -196,17 +195,9 @@ class InAppMessageManagerImplTest : CoroutineTest() {
         override suspend fun markAllInboxShown(): Int = 0
         override suspend fun replaceCache(messages: List<UserMessage>) {}
         override suspend fun pendingAckIds(): List<String> = emptyList()
-    }
-
-    private class FakeSync(
-        private val returns: Result<Unit> = Result.success(Unit),
-    ) : UserMessageSyncService {
-        var calls: Int = 0
-            private set
-
         override suspend fun sync(): Result<Unit> {
-            calls++
-            return returns
+            syncCalls++
+            return syncReturns
         }
     }
 

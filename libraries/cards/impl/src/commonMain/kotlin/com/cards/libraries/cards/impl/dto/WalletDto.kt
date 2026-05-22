@@ -8,8 +8,8 @@ import kotlinx.serialization.Serializable
  * Mirrors the server's contract in
  * `apps/server/src/.../routes/WalletDto.kt`.
  *
- * Kept internal — the public domain stays narrow ([ChipsRepository] +
- * [ChipsSyncService]) and the wire shape can evolve without touching
+ * Kept internal — the public domain stays narrow ([ChipsRepository])
+ * and the wire shape can evolve without touching
  * consumers.
  */
 @Serializable

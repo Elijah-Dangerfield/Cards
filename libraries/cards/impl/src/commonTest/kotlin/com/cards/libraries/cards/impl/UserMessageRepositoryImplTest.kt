@@ -5,6 +5,12 @@ import com.dangerfield.cards.libraries.cards.UserMessage
 import com.dangerfield.cards.libraries.cards.UserMessageKind
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageEntity
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.networking.NetworkClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpStatusCode
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,7 +46,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
             put(entity("d2", kind = "dialog", createdAt = fixedNow.toEpochMilliseconds()))
             put(entity("i1", kind = "inbox", createdAt = fixedNow.toEpochMilliseconds()))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
 
         val head = repo.consumeNextDialog()
 
@@ -58,7 +64,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
             put(entity("inbox-only", kind = "inbox"))
             put(entity("fresh", kind = "dialog", createdAt = fixedNow.toEpochMilliseconds()))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
 
         val head = repo.consumeNextDialog()
 
@@ -71,13 +77,13 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
             put(entity("expired", kind = "dialog", expiresAt = fixedNow.toEpochMilliseconds() - 1))
             put(entity("future", kind = "dialog", expiresAt = fixedNow.toEpochMilliseconds() + 1000))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
         assertEquals("future", repo.consumeNextDialog()?.id)
     }
 
     @Test
     fun consumeNextDialog_returnsNull_whenQueueIsEmpty() = runUnitTest {
-        val repo = UserMessageRepositoryImpl(FakeUserMessageDao(), fixedClock)
+        val repo = UserMessageRepositoryImpl(FakeUserMessageDao(), StubNetworkClient.instance, fixedClock)
         assertNull(repo.consumeNextDialog())
     }
 
@@ -89,7 +95,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
             put(entity("u-dialog", kind = "dialog"))
             put(entity("already-shown", kind = "inbox", shownAt = fixedNow.toEpochMilliseconds() - 1))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
 
         val count = repo.markAllInboxShown()
 
@@ -107,7 +113,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
             put(entity("survives", kind = "inbox", shownAt = 1234L, ackedPending = true))
             put(entity("disappears", kind = "inbox"))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
 
         // Server response includes "survives" + a brand-new "new-row".
         repo.replaceCache(listOf(
@@ -127,7 +133,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
     @Test
     fun observeUnreadInboxCount_emitsUpdatedValues() = runUnitTest {
         val dao = FakeUserMessageDao()
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
 
         repo.observeUnreadInboxCount().test {
             assertEquals(0, awaitItem())
@@ -150,7 +156,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
             put(entity("middle", kind = "inbox", createdAt = 200))
             put(entity("dialog", kind = "dialog"))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
         val list = repo.observeInbox().firstValue()
         assertEquals(listOf("newest", "middle", "oldest"), list.map { it.id })
     }
@@ -162,7 +168,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
             put(entity("pending-a", kind = "dialog", ackedPending = true))
             put(entity("pending-b", kind = "inbox", ackedPending = true))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
         assertEquals(setOf("pending-a", "pending-b"), repo.pendingAckIds().toSet())
     }
 
@@ -171,7 +177,7 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
         val dao = FakeUserMessageDao().apply {
             put(entity("future-kind", kind = "banner"))
         }
-        val repo = UserMessageRepositoryImpl(dao, fixedClock)
+        val repo = UserMessageRepositoryImpl(dao, StubNetworkClient.instance, fixedClock)
         // Set as a dialog locally despite wire saying "banner" — that's
         // the forward-compat contract.
         repo.replaceCache(listOf(message("future-kind", kind = UserMessageKind.Dialog)))
@@ -226,12 +232,21 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
     }
 }
 
+private object StubNetworkClient : NetworkClient {
+    private val unused = HttpClient(MockEngine {
+        respond(content = ByteReadChannel(""), status = HttpStatusCode.NotImplemented)
+    })
+    override val client: HttpClient = unused
+    override val authenticatedClient: HttpClient = unused
+    val instance: StubNetworkClient = this
+}
+
 /**
  * In-memory mirror of [UserMessageDao]. The reactive flows back onto a
  * shared MutableStateFlow that emits whenever the map changes — same
  * mental model as Room's `Flow<>` queries, just without Room.
  */
-private class FakeUserMessageDao : com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao {
+internal class FakeUserMessageDao : com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao {
     private val rows = MutableStateFlow<Map<String, UserMessageEntity>>(emptyMap())
 
     fun put(entity: UserMessageEntity) {

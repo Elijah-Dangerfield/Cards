@@ -129,6 +129,19 @@ interface InventoryRepository {
 
     /** Reset everything (used by "Fresh Start" / debug). */
     suspend fun deleteAll()
+
+    /**
+     * Reconcile local optimistic purchases with the server. Single-flight
+     * (concurrent callers share one in-flight call). Always POSTs — even
+     * with an empty pending set — because the response carries the
+     * server's authoritative `owned` snapshot.
+     *
+     * Triggered automatically on cold boot + warm foreground. Manual
+     * callers (e.g. immediately after redemption) can invoke directly.
+     *
+     * Failure leaves pending rows as-is. Result-based.
+     */
+    suspend fun sync(): Result<Unit>
 }
 
 sealed interface RedeemResult {

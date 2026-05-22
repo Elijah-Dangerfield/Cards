@@ -1,14 +1,30 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
+import com.dangerfield.cards.libraries.cards.impl.dto.EquipmentOpDto
+import com.dangerfield.cards.libraries.cards.impl.dto.EquipmentSyncRequestDto
+import com.dangerfield.cards.libraries.cards.impl.dto.EquipmentSyncResponseDto
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentEntity
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.networking.NetworkClient
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -16,26 +32,30 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.time.Clock
 
 /**
- * Room-backed equipment store. The repo's three responsibilities:
- *  - Persist optimistic toggles (Pending) immediately.
- *  - Mirror the observed flow back to the UI so equip/unequip feels
- *    instant.
- *  - Apply the server's authoritative snapshot when the sync service
- *    hands it over.
+ * Room-backed equipment store. Persists optimistic toggles (Pending)
+ * immediately, mirrors them back to the UI so equip/unequip feels instant,
+ * and applies the server's authoritative snapshot via [sync] on cold boot
+ * + warm foreground.
  *
  * No-op suppression for equip/unequip ([EquipmentToggleResult.NoChange])
- * happens when the requested state matches a SYNCED row — avoids
- * thrashing the DB with no-op writes when the user double-taps.
- * Pending → Pending re-toggles are NOT suppressed because the
- * intervening `updatedAtEpochMs` bump may matter for LWW.
+ * happens when the requested state matches a SYNCED row — avoids thrashing
+ * the DB with no-op writes when the user double-taps. Pending → Pending
+ * re-toggles are NOT suppressed because the intervening `updatedAtEpochMs`
+ * bump may matter for LWW.
  */
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = EquipmentRepository::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
 @Inject
 class EquipmentRepositoryImpl(
     private val equipmentDao: EquipmentDao,
+    private val networkClient: NetworkClient,
+    private val appScope: AppCoroutineScope,
     private val clock: Clock,
-) : EquipmentRepository {
+) : EquipmentRepository, AppEventListener {
+
+    private val syncLogger = KLog.withTag("EquipmentSync")
+    private val syncMutex = Mutex()
 
     override fun observeEquipped(): Flow<List<EquipmentEntry>> =
         equipmentDao.observeEquipped().map { rows -> rows.map { it.toDomain() } }
@@ -135,6 +155,52 @@ class EquipmentRepositoryImpl(
 
     override suspend fun deleteAll() {
         equipmentDao.deleteAll()
+    }
+
+    override fun onColdBoot(event: AppEvent.ColdBoot) {
+        appScope.launch { sync() }
+    }
+
+    override fun onForeground(event: AppEvent.OnForeground) {
+        if (event.isColdBoot) return
+        appScope.launch { sync() }
+    }
+
+    override suspend fun sync(): Result<Unit> = syncMutex.withLock {
+        Catching {
+            val all = getAll()
+            val pending = all.filter { it.syncState == EquipmentSyncState.Pending }
+
+            val request = EquipmentSyncRequestDto(
+                ops = pending.map { row ->
+                    EquipmentOpDto(
+                        productId = row.productId,
+                        equip = row.isEquipped,
+                        updatedAtEpochMs = row.updatedAtEpochMs,
+                    )
+                },
+            )
+
+            syncLogger.d { "Syncing ${pending.size} pending equipment ops." }
+            val response: EquipmentSyncResponseDto = networkClient.authenticatedClient
+                .post("/v1/equipment/sync") {
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
+                .body()
+
+            val authoritative = response.equipped.map { item ->
+                EquipmentEntry(
+                    productId = item.productId,
+                    isEquipped = true,
+                    syncState = EquipmentSyncState.Synced,
+                    updatedAtEpochMs = item.updatedAtEpochMs,
+                )
+            }
+            applyServerSnapshot(authoritative)
+            syncLogger.d { "Equipment sync complete: ${authoritative.size} server-equipped." }
+            Unit
+        }.onFailure { syncLogger.w(it) { "Equipment sync failed; pending rows stay Pending." } }
     }
 
     private fun EquipmentEntity.toDomain(): EquipmentEntry = EquipmentEntry(

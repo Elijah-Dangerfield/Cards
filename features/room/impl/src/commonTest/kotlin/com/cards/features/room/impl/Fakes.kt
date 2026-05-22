@@ -239,6 +239,7 @@ class FakeEquipmentRepository(
     }
 
     override suspend fun deleteAll() { state.value = emptyList() }
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
 }
 
 // ---------- ReviewPromptCoordinator ----------

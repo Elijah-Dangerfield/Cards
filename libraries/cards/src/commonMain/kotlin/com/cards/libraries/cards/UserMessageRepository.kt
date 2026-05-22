@@ -11,12 +11,11 @@ import kotlinx.coroutines.flow.Flow
  * [observeUnreadInboxCount] power the Notifications screen + the
  * bottom-bar badge respectively.
  *
- * Fetching is owned by [UserMessageSyncService] — the repository is
- * the cached state; the sync service pulls fresh and reconciles.
+ * Fetching is owned by [sync] — the repository's reads are the cached
+ * state; [sync] pulls fresh and reconciles.
  *
- * Acks are queued locally and shipped in the next sync's POST body —
- * see [UserMessageSyncService] for the wire shape. The client never
- * directly POSTs an ack.
+ * Acks are queued locally and shipped in the next [sync]'s POST body.
+ * The client never directly POSTs an ack.
  */
 interface UserMessageRepository {
 
@@ -44,7 +43,7 @@ interface UserMessageRepository {
 
     /**
      * Replace the local cache with [messages] inside one transaction.
-     * Called by [UserMessageSyncService] after a successful sync —
+     * Called by [sync] after a successful sync —
      * anything in local but not in [messages] gets deleted; rows that
      * survive the diff keep their local `shown_at` / `acked_pending`
      * flags.
@@ -54,8 +53,21 @@ interface UserMessageRepository {
     /**
      * Ids the next sync should batch up as the `ackedIds` field of
      * the POST body. Cleared on successful reconciliation (those ids
-     * either won't come back, or come back unchanged — see the
-     * service for the reconciliation rule).
+     * either won't come back, or come back unchanged — see [sync]
+     * for the reconciliation rule).
      */
     suspend fun pendingAckIds(): List<String>
+
+    /**
+     * Pull fresh from `/v1/me/messages/sync`, ship pending acks, replace
+     * the local cache with the server's response. Single-flight.
+     *
+     * Lifecycle is driven by [InAppMessageManager] — it awaits identity
+     * + calls this before consuming the next dialog on cold boot / warm
+     * foreground. Direct callers should be rare.
+     *
+     * Failure leaves the local cache untouched (offline-first). The next
+     * cycle retries with the same ack queue. Result-based.
+     */
+    suspend fun sync(): Result<Unit>
 }

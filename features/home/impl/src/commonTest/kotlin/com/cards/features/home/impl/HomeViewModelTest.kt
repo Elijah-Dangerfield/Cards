@@ -354,6 +354,7 @@ class HomeViewModelTest : CoroutineTest() {
         override suspend fun deleteAll() {
             balance.value = ChipsRepository.STARTING_GRANT
         }
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
     }
 
     private class FakeRoomRepository(

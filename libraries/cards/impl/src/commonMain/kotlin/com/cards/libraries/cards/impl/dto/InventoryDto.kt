@@ -31,7 +31,7 @@ internal data class InventorySyncResponseDto(
      * submitted purchases were reconciled. Mirrors `POST /v1/equipment/sync`
      * — the sync response IS the truth. Older servers that don't return
      * this field deserialize as empty; the client treats an empty snapshot
-     * as "trust local state" (see [InventorySyncServiceImpl] handling).
+     * as "trust local state" (see InventoryRepositoryImpl.sync handling).
      */
     val owned: List<OwnedInventoryItemDto> = emptyList(),
 )

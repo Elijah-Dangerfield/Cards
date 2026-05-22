@@ -3,7 +3,6 @@ package com.dangerfield.cards.features.profile.impl.items
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
-import com.dangerfield.cards.libraries.cards.EquipmentSyncService
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
@@ -23,7 +22,7 @@ import me.tatarka.inject.annotations.Inject
  *
  * Optimistic toggles: tapping equip/unequip writes Pending to the local
  * Room table immediately (the flow re-emits, UI re-renders without a
- * round-trip), then fires [EquipmentSyncService.sync] as a best-effort
+ * round-trip), then fires [EquipmentRepository.sync] as a best-effort
  * background reconcile. If the user is offline, the row stays Pending
  * and the next bootstrap cycle picks it up.
  *
@@ -41,7 +40,6 @@ class MyItemsViewModel(
     private val inventoryRepository: InventoryRepository,
     private val productsRepository: ProductsRepository,
     private val equipmentRepository: EquipmentRepository,
-    private val equipmentSyncService: EquipmentSyncService,
 ) : SEAViewModel<MyItemsState, MyItemsEvent, MyItemsAction>(initialStateArg = MyItemsState()) {
 
     private val logger = KLog.withTag("MyItemsViewModel")
@@ -64,7 +62,7 @@ class MyItemsViewModel(
         }
         // Best-effort fetches on entry. Both gracefully no-op when offline.
         viewModelScope.launch { productsRepository.refresh() }
-        viewModelScope.launch { equipmentSyncService.sync() }
+        viewModelScope.launch { equipmentRepository.sync() }
     }
 
     override suspend fun handleAction(action: MyItemsAction) {
@@ -107,7 +105,7 @@ class MyItemsViewModel(
                 // Fire-and-forget reconcile so Pending → Synced flips
                 // before the user even sees the row settle.
                 viewModelScope.launch {
-                    equipmentSyncService.sync().onFailure {
+                    equipmentRepository.sync().onFailure {
                         logger.w(it) { "Sync after toggle failed; row stays Pending until next launch." }
                     }
                 }

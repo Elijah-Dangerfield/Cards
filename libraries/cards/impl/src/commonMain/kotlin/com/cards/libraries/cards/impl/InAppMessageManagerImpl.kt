@@ -5,7 +5,6 @@ import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.InAppMessageManager
 import com.dangerfield.cards.libraries.cards.UserMessage
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
-import com.dangerfield.cards.libraries.cards.UserMessageSyncService
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
@@ -46,7 +45,6 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class InAppMessageManagerImpl(
     private val repository: UserMessageRepository,
-    private val syncService: UserMessageSyncService,
     private val identityRepositoryProvider: () -> IdentityRepository,
     private val appScope: AppCoroutineScope,
 ) : InAppMessageManager, AppEventListener {
@@ -82,7 +80,7 @@ class InAppMessageManagerImpl(
             identityRepository.awaitIdentity()
             // Best-effort sync — we still consume from cache on failure
             // so an offline user sees their previously-cached messages.
-            syncService.sync()
+            repository.sync()
 
             if (_current.value != null) {
                 logger.d { "Dialog still on screen; skipping consume for this foreground." }

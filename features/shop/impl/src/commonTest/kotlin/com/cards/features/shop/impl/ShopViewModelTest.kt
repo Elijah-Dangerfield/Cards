@@ -9,12 +9,10 @@ import com.dangerfield.cards.libraries.billing.QueryProductsResult
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
-import com.dangerfield.cards.libraries.cards.EquipmentSyncService
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
-import com.dangerfield.cards.libraries.cards.InventorySyncService
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -203,8 +201,7 @@ class ShopViewModelTest : CoroutineTest() {
     @Test
     fun confirmChipOffer_success_closesSheet_andCallsRepo() = runUnitTest {
         val inv = FakeInventoryRepository()
-        val sync = FakeSyncService()
-        val vm = buildVm(inventoryRepository = inv, inventorySyncService = sync)
+        val vm = buildVm(inventoryRepository = inv)
         val offer = SAMPLE_CATALOG.chipOffers.first()  // cost 2_500
         vm.takeAction(ShopAction.RequestPurchase(offer))
 
@@ -217,7 +214,7 @@ class ShopViewModelTest : CoroutineTest() {
             "repo called with the offer's id + cost",
         )
         // sync fires in the background after success
-        assertTrue(sync.syncCalls >= 1, "sync kicked")
+        assertTrue(inv.syncCalls >= 1, "inventory sync kicked")
     }
 
     @Test
@@ -275,18 +272,14 @@ class ShopViewModelTest : CoroutineTest() {
     @Test
     fun confirmChipOffer_success_autoEquipsCosmetic_whenSlotEmpty() = runUnitTest {
         val equipment = FakeEquipmentRepository()
-        val equipSync = FakeEquipmentSyncService()
-        val vm = buildVm(
-            equipmentRepository = equipment,
-            equipmentSyncService = equipSync,
-        )
+        val vm = buildVm(equipmentRepository = equipment)
         val felt = SAMPLE_CATALOG.chipOffers.first { it.id == "felt_royal_red" }
         vm.takeAction(ShopAction.RequestPurchase(felt))
 
         vm.takeAction(ShopAction.ConfirmPendingPurchase)
 
         assertEquals(listOf("felt_royal_red"), equipment.equipCalls)
-        assertTrue(equipSync.syncCalls >= 1, "equipment sync should fire after auto-equip")
+        assertTrue(equipment.syncCalls >= 1, "equipment sync should fire after auto-equip")
     }
 
     @Test
@@ -435,10 +428,10 @@ class ShopViewModelTest : CoroutineTest() {
 
     @Test
     fun init_kicksInventorySync() = runUnitTest {
-        val sync = FakeSyncService()
-        buildVm(inventorySyncService = sync)
-        // ShopViewModel.init calls sync.sync() once.
-        assertEquals(1, sync.syncCalls)
+        val inv = FakeInventoryRepository()
+        buildVm(inventoryRepository = inv)
+        // ShopViewModel.init calls inventoryRepository.sync() once.
+        assertEquals(1, inv.syncCalls)
     }
 
     // ---------- Test scaffolding ----------
@@ -446,7 +439,6 @@ class ShopViewModelTest : CoroutineTest() {
     private fun buildVm(
         productsRepository: FakeProductsRepository = FakeProductsRepository(SAMPLE_CATALOG),
         inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
-        inventorySyncService: FakeSyncService = FakeSyncService(),
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
         billingClient: FakeBillingClient = FakeBillingClient(),
@@ -454,17 +446,14 @@ class ShopViewModelTest : CoroutineTest() {
             initialState = IdentityState.SignedIn(SAMPLE_IDENTITY),
         ),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
-        equipmentSyncService: FakeEquipmentSyncService = FakeEquipmentSyncService(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
         inventoryRepository = inventoryRepository,
-        inventorySyncService = inventorySyncService,
         chipsRepository = chipsRepository,
         progressionRepository = progressionRepository,
         billingClient = billingClient,
         identityRepository = identityRepository,
         equipmentRepository = equipmentRepository,
-        equipmentSyncService = equipmentSyncService,
     )
 
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
@@ -495,6 +484,8 @@ class ShopViewModelTest : CoroutineTest() {
         private val state = MutableStateFlow<List<InventoryItem>>(emptyList())
         val redeemCalls = mutableListOf<Pair<String, Long>>()
         var nextRedeemResult: RedeemResult? = null
+        var syncCalls: Int = 0
+            private set
 
         override fun observeInventory(): Flow<List<InventoryItem>> = state.asStateFlow()
         override suspend fun getInventory(): List<InventoryItem> = state.value
@@ -522,16 +513,11 @@ class ShopViewModelTest : CoroutineTest() {
         }
         override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) { }
         override suspend fun deleteAll() { state.value = emptyList() }
-        fun emit(items: List<InventoryItem>) { state.value = items }
-    }
-
-    private class FakeSyncService : InventorySyncService {
-        var syncCalls: Int = 0
-            private set
         override suspend fun sync(): Result<Unit> {
             syncCalls++
             return Result.success(Unit)
         }
+        fun emit(items: List<InventoryItem>) { state.value = items }
     }
 
     private class FakeEquipmentRepository(
@@ -540,6 +526,8 @@ class ShopViewModelTest : CoroutineTest() {
         private val state = MutableStateFlow(initial)
         val equipCalls = mutableListOf<String>()
         val unequipCalls = mutableListOf<String>()
+        var syncCalls: Int = 0
+            private set
 
         override fun observeEquipped(): Flow<List<EquipmentEntry>> = state.asStateFlow()
         override suspend fun getAll(): List<EquipmentEntry> = state.value
@@ -562,11 +550,6 @@ class ShopViewModelTest : CoroutineTest() {
         override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) { }
         override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
         override suspend fun deleteAll() { state.value = emptyList() }
-    }
-
-    private class FakeEquipmentSyncService : EquipmentSyncService {
-        var syncCalls: Int = 0
-            private set
         override suspend fun sync(): Result<Unit> {
             syncCalls++
             return Result.success(Unit)
@@ -587,6 +570,7 @@ class ShopViewModelTest : CoroutineTest() {
         }
         override suspend fun setBalance(authoritativeBalance: Long) { state.value = authoritativeBalance }
         override suspend fun deleteAll() { state.value = 0 }
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
         fun emit(value: Long) { state.value = value }
     }
 

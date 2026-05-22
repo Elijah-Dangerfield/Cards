@@ -2,7 +2,6 @@ package com.dangerfield.cards.features.profile.impl.items
 
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
-import com.dangerfield.cards.libraries.cards.EquipmentSyncService
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -91,12 +90,10 @@ class MyItemsViewModelTest : CoroutineTest() {
         inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
         productsRepository: FakeProductsRepository = FakeProductsRepository(),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
-        equipmentSyncService: FakeEquipmentSyncService = FakeEquipmentSyncService(),
     ): MyItemsViewModel = MyItemsViewModel(
         inventoryRepository = inventoryRepository,
         productsRepository = productsRepository,
         equipmentRepository = equipmentRepository,
-        equipmentSyncService = equipmentSyncService,
     )
 
     private fun equippedEntry(productId: String): EquipmentEntry = EquipmentEntry(
@@ -116,6 +113,7 @@ class MyItemsViewModelTest : CoroutineTest() {
         override suspend fun revertPurchase(productId: String) { }
         override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) { }
         override suspend fun deleteAll() { }
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
     }
 
     private class FakeProductsRepository : ProductsRepository {
@@ -157,9 +155,6 @@ class MyItemsViewModelTest : CoroutineTest() {
         override suspend fun applyServerSnapshot(authoritative: List<EquipmentEntry>) { }
         override suspend fun dropOrphanEquipment(ownedProductIds: Set<String>): List<String> = emptyList()
         override suspend fun deleteAll() { state.value = emptyList() }
-    }
-
-    private class FakeEquipmentSyncService : EquipmentSyncService {
         override suspend fun sync(): Result<Unit> = Result.success(Unit)
     }
 }

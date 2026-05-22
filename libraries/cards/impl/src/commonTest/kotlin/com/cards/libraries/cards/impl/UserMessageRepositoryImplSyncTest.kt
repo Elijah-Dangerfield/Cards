@@ -1,8 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.UserMessage
 import com.dangerfield.cards.libraries.cards.UserMessageKind
-import com.dangerfield.cards.libraries.cards.UserMessageRepository
+import com.dangerfield.cards.libraries.cards.storage.db.UserMessageEntity
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import io.ktor.client.HttpClient
@@ -18,31 +17,35 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
- * Pins the sync round-trip: pending acks go up in the POST body, the
- * response replaces the local cache, network failure leaves both
- * untouched. Single-flight serialization is implicit (Mutex) and not
- * directly asserted.
+ * Pins [UserMessageRepositoryImpl.sync]: pending acks go up in the POST
+ * body, the response replaces the local cache, network failure leaves
+ * both untouched. Single-flight serialization is implicit (Mutex).
  */
-class UserMessageSyncServiceImplTest : CoroutineTest() {
+class UserMessageRepositoryImplSyncTest : CoroutineTest() {
+
+    private val fixedClock = object : Clock {
+        override fun now(): Instant = Instant.fromEpochMilliseconds(1_700_000_000_000)
+    }
 
     @Test
     fun sync_postsAckedIds_andReplacesCache_withResponse() = runUnitTest {
-        val repo = FakeMessageRepo().apply {
-            queuePendingAcks("a1", "b2")
+        val dao = FakeUserMessageDao().apply {
+            // Two rows already in pending-ack state.
+            put(entity("a1", kind = "dialog", ackedPending = true))
+            put(entity("b2", kind = "inbox", ackedPending = true))
         }
         var capturedBody: String? = null
-        val service = buildService(repo) { request ->
-            capturedBody = request.body.toByteReadPacketAsString()
+        val repo = buildRepo(dao) { request ->
+            capturedBody = request.body.toBodyString()
             respondJson(
                 """
                 {"messages":[
@@ -52,7 +55,7 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
             )
         }
 
-        val result = service.sync()
+        val result = repo.sync()
 
         assertTrue(result.isSuccess)
         assertNotNull(capturedBody)
@@ -60,25 +63,25 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
             capturedBody!!.contains("\"a1\"") && capturedBody!!.contains("\"b2\""),
             "POST body must include both pending ack ids; was: $capturedBody",
         )
-        assertEquals(listOf("x"), repo.lastReplacedWith.map { it.id })
+        assertEquals(listOf("x"), dao.getAll().map { it.id })
     }
 
     @Test
     fun sync_emptyPendingAcks_stillIssuesRequest() = runUnitTest {
-        val repo = FakeMessageRepo()
+        val dao = FakeUserMessageDao()
         var hit = 0
-        val service = buildService(repo) {
+        val repo = buildRepo(dao) {
             hit++
             respondJson("""{"messages":[]}""")
         }
-        service.sync()
+        repo.sync()
         assertEquals(1, hit, "empty acks must still POST (server might have new messages)")
     }
 
     @Test
     fun sync_kindAndExpiry_roundTripThroughResponse() = runUnitTest {
-        val repo = FakeMessageRepo()
-        val service = buildService(repo) {
+        val dao = FakeUserMessageDao()
+        val repo = buildRepo(dao) {
             respondJson(
                 """
                 {"messages":[
@@ -89,70 +92,67 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
                 """.trimIndent(),
             )
         }
-        service.sync()
-        val map = repo.lastReplacedWith.associateBy { it.id }
-        assertEquals(UserMessageKind.Dialog, map.getValue("dialog-1").kind)
-        assertEquals(UserMessageKind.Inbox, map.getValue("inbox-1").kind)
+        repo.sync()
+        val map = dao.getAll().associateBy { it.id }
+        assertEquals("dialog", map.getValue("dialog-1").kind)
+        assertEquals("inbox", map.getValue("inbox-1").kind)
         assertEquals(99_999L, map.getValue("inbox-1").expiresAtEpochMs)
-        assertEquals(
-            UserMessageKind.Dialog,
-            map.getValue("missing-kind").kind,
-            "missing kind falls back to dialog",
-        )
+        assertEquals("dialog", map.getValue("missing-kind").kind, "missing kind falls back to dialog")
     }
 
     @Test
     fun sync_unknownKind_fallsBackToDialog() = runUnitTest {
-        // Forward-compat: a future server adds a 'banner' kind. Old
-        // clients shouldn't crash; they show it as a dialog.
-        val repo = FakeMessageRepo()
-        val service = buildService(repo) {
+        val dao = FakeUserMessageDao()
+        val repo = buildRepo(dao) {
             respondJson(
                 """{"messages":[{"id":"x","kind":"banner","title":"T","body":"B","createdAtEpochMs":1}]}""",
             )
         }
-        service.sync()
-        assertEquals(UserMessageKind.Dialog, repo.lastReplacedWith.single().kind)
+        repo.sync()
+        assertEquals("dialog", dao.getAll().single().kind)
     }
 
     @Test
     fun sync_serverError_returnsFailure_leavesRepoUntouched() = runUnitTest {
-        val repo = FakeMessageRepo().apply { queuePendingAcks("a") }
-        val service = buildService(repo) {
+        val dao = FakeUserMessageDao().apply {
+            put(entity("a", kind = "dialog", ackedPending = true))
+        }
+        val repo = buildRepo(dao) {
             respond(content = ByteReadChannel(""), status = HttpStatusCode.InternalServerError)
         }
 
-        val result = service.sync()
+        val result = repo.sync()
 
         assertTrue(result.isFailure)
-        assertTrue(
-            repo.lastReplacedWith.isEmpty(),
-            "5xx must not call replaceCache — local stays as-is",
+        assertEquals(
+            listOf("a"),
+            dao.getAll().map { it.id },
+            "5xx must not call replaceCache — local row stays",
         )
-        assertEquals(listOf("a"), repo.pendingAckIds(), "ack queue stays for retry")
+        assertEquals(listOf("a"), dao.pendingAckIds(), "ack queue stays for retry")
     }
 
     @Test
     fun sync_hitsExactEndpoint_withPostMethod() = runUnitTest {
-        val repo = FakeMessageRepo()
+        val dao = FakeUserMessageDao()
         var capturedPath: String? = null
         var capturedMethod: HttpMethod? = null
-        val service = buildService(repo) { request ->
+        val repo = buildRepo(dao) { request ->
             capturedPath = request.url.encodedPath
             capturedMethod = request.method
             respondJson("""{"messages":[]}""")
         }
-        service.sync()
+        repo.sync()
         assertEquals("/v1/me/messages/sync", capturedPath)
         assertEquals(HttpMethod.Post, capturedMethod)
     }
 
     // ---------- scaffolding ----------
 
-    private fun buildService(
-        repo: UserMessageRepository,
+    private fun buildRepo(
+        dao: FakeUserMessageDao,
         handler: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
-    ): UserMessageSyncServiceImpl {
+    ): UserMessageRepositoryImpl {
         val mockEngine = MockEngine(handler)
         val client = HttpClient(mockEngine) {
             install(ContentNegotiation) {
@@ -167,7 +167,7 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
             override val client: HttpClient = client
             override val authenticatedClient: HttpClient = client
         }
-        return UserMessageSyncServiceImpl(networkClient, repo)
+        return UserMessageRepositoryImpl(dao, networkClient, fixedClock)
     }
 
     private fun MockRequestHandleScope.respondJson(
@@ -179,35 +179,30 @@ class UserMessageSyncServiceImplTest : CoroutineTest() {
         headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
     )
 
-    private fun io.ktor.http.content.OutgoingContent.toByteReadPacketAsString(): String =
+    private fun io.ktor.http.content.OutgoingContent.toBodyString(): String =
         when (this) {
             is io.ktor.http.content.TextContent -> text
             is io.ktor.http.content.ByteArrayContent -> bytes().decodeToString()
             else -> toString()
         }
 
-    private class FakeMessageRepo : UserMessageRepository {
-        private val _unreadInbox = MutableStateFlow<List<UserMessage>>(emptyList())
-        var lastReplacedWith: List<UserMessage> = emptyList()
-            private set
-        private var pending: MutableList<String> = mutableListOf()
+    private fun entity(
+        id: String,
+        kind: String,
+        ackedPending: Boolean = false,
+    ) = UserMessageEntity(
+        id = id,
+        kind = kind,
+        emoji = null,
+        title = "Title $id",
+        body = "Body $id",
+        deepLink = null,
+        createdAtEpochMs = 0L,
+        expiresAtEpochMs = null,
+        shownAtEpochMs = null,
+        ackedPending = ackedPending,
+    )
 
-        fun queuePendingAcks(vararg ids: String) {
-            pending.addAll(ids)
-        }
-
-        override fun observeInbox(): Flow<List<UserMessage>> = _unreadInbox.asStateFlow()
-        override fun observeUnreadInboxCount(): Flow<Int> =
-            MutableStateFlow(0).asStateFlow()
-
-        override suspend fun consumeNextDialog(): UserMessage? = null
-        override suspend fun markAllInboxShown(): Int = 0
-
-        override suspend fun replaceCache(messages: List<UserMessage>) {
-            lastReplacedWith = messages
-            pending.clear()
-        }
-
-        override suspend fun pendingAckIds(): List<String> = pending.toList()
-    }
+    @Suppress("UNUSED_PARAMETER")
+    private fun unusedToKeepImportsLive(kind: UserMessageKind) = Unit
 }
