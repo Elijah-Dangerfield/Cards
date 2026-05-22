@@ -31,6 +31,7 @@ import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
+import com.dangerfield.cards.libraries.ui.components.poker.BustedStamp
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
 import com.dangerfield.cards.libraries.ui.components.poker.PulsingActiveRing
@@ -92,9 +93,17 @@ private fun OpponentSeat(
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
 ) {
     val folded = seat.participation == HandParticipation.Folded
+    val busted = !seat.seatEmpty &&
+        seat.stack <= 0L &&
+        seat.participation != HandParticipation.NotDealt
     val ringSize = avatarSize + 12.dp
     val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
-    val dimMod = Modifier.alpha(if (folded) 0.4f else 1f)
+    val dimAlpha = when {
+        busted -> 0.35f
+        folded -> 0.4f
+        else -> 1f
+    }
+    val dimMod = Modifier.alpha(dimAlpha)
     // The fade-when-folded effect is applied per-element rather than on the
     // outer Column. A wrapping `Modifier.alpha` rasterizes into an offscreen
     // layer sized to the wrapped bounds, which clips the LastActionPill's
@@ -148,6 +157,10 @@ private fun OpponentSeat(
                     .align(Alignment.BottomEnd)
                     .offset(x = (-6).dp, y = (-6).dp),
             )
+
+            if (busted) {
+                BustedStamp(modifier = Modifier.align(Alignment.Center))
+            }
         }
         VerticalSpacerD100()
         Text(
@@ -288,6 +301,38 @@ private fun OpponentsRowPreview_SixSeats() {
                     PreviewSamples.botSeat(index = 5, name = "Steve", participation = HandParticipation.Folded),
                 ),
                 actingSeatIndex = 3,
+            ),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun OpponentsRowPreview_BustedOpponent() {
+    PreviewContent {
+        OpponentsRow(
+            table = PreviewSamples.activeTable(
+                seats = listOf(
+                    PreviewSamples.humanSeat(),
+                    PreviewSamples.botSeat(
+                        index = 1,
+                        name = "David",
+                        stack = 0,
+                        participation = HandParticipation.AllIn,
+                        lastAction = PlayerAction.AllIn(amount = 1_000),
+                    ),
+                    PreviewSamples.botSeat(
+                        index = 2,
+                        name = "Jane",
+                        stack = 2_000,
+                        lastAction = PlayerAction.Call(amount = 1_000),
+                    ),
+                ),
+                actingSeatIndex = null,
+                handResult = HandResultView(
+                    winners = listOf(PreviewSamples.handWinner(seatIndex = 2, amount = 2_000)),
+                    board = emptyList(),
+                ),
             ),
         )
     }
