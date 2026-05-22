@@ -1,7 +1,7 @@
 package com.dangerfield.cards
 
 import com.dangerfield.cards.libraries.cards.PermissionManager
-import com.dangerfield.cards.libraries.cards.ReviewPrompter
+import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.dangerfield.cards.libraries.ui.nativeviews.NativeViewFactory
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -12,7 +12,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 abstract class IosAppComponent(
     private val permissionManager: PermissionManager,
-    private val reviewPrompter: ReviewPrompter,
+    private val reviewLauncher: ReviewLauncher,
     val nativeViewFactory: NativeViewFactory
 ) : AppComponent {
 
@@ -20,13 +20,13 @@ abstract class IosAppComponent(
     fun providePermissionManager(): PermissionManager = permissionManager
 
     @Provides
-    fun provideReviewPrompter(): ReviewPrompter = reviewPrompter
+    fun provideReviewLauncher(): ReviewLauncher = reviewLauncher
 }
 
 
 @MergeComponent.CreateComponent
 expect fun create(
     permissionManager: PermissionManager,
-    reviewPrompter: ReviewPrompter,
+    reviewLauncher: ReviewLauncher,
     nativeViewFactory: NativeViewFactory
 ): IosAppComponent

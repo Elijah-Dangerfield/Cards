@@ -13,7 +13,7 @@ class CardsApplication : Application() {
         appComponent.telemetry.initialize()
         appComponent.appEventDispatcher
         // Eagerly start tracking the foreground Activity so bindings that
-        // need it (e.g. AndroidReviewPrompter) work the moment they're called.
+        // need it (e.g. AndroidReviewLauncher) work the moment they're called.
         appComponent.activityProvider
     }
 }

@@ -1,10 +1,10 @@
-package com.dangerfield.cards.libraries.cards.impl
+package com.dangerfield.cards.libraries.review.impl
 
-import android.app.Activity
 import android.content.Context
+import com.dangerfield.cards.libraries.cards.ActivityProvider
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
-import com.dangerfield.cards.libraries.cards.ReviewPrompter
+import com.dangerfield.cards.libraries.review.ReviewLauncher
 import com.google.android.play.core.review.ReviewManagerFactory
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -19,19 +19,19 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *   - Play decides the user has been prompted recently.
  *   - The app's signing key doesn't match what Play knows about.
  *
- * In any of those cases this returns silently. That's the contract per Play's
- * docs — the OS owns the visibility decision.
+ * In any of those cases this returns silently. That's the contract per
+ * Play's docs — the OS owns the visibility decision.
  *
- * Requires the foreground [Activity], which this binding gets via the
- * [ActivityProvider] contract that the host app supplies.
+ * Requires the foreground Activity via the host-app-provided
+ * [ActivityProvider] binding.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 @Inject
-class AndroidReviewPrompter(
+class AndroidReviewLauncher(
     private val context: Context,
     private val activityProvider: ActivityProvider,
-) : ReviewPrompter {
+) : ReviewLauncher {
 
     override suspend fun requestReview() {
         Catching {
@@ -47,15 +47,6 @@ class AndroidReviewPrompter(
             }
         }.logOnFailure { "In-app review prompt failed (non-fatal)" }
     }
-}
-
-/**
- * Host-app contract for handing the foreground [Activity] to bindings that
- * need it. Implement once in `:apps:compose` (`androidMain`) — typically by
- * watching the Application's `ActivityLifecycleCallbacks`.
- */
-interface ActivityProvider {
-    fun currentActivity(): Activity?
 }
 
 private suspend fun <T> com.google.android.gms.tasks.Task<T>.asDeferredOrNull(): T? =

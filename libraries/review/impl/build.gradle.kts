@@ -25,5 +25,10 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.storage)
         }
+
+        androidMain.dependencies {
+            implementation(libs.google.play.review)
+            implementation(libs.google.play.review.ktx)
+        }
     }
 }

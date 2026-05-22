@@ -4,7 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
-import com.dangerfield.cards.libraries.cards.impl.ActivityProvider
+import com.dangerfield.cards.libraries.cards.ActivityProvider
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -13,8 +13,8 @@ import java.lang.ref.WeakReference
 
 /**
  * Tracks the foreground [Activity] via [Application.ActivityLifecycleCallbacks]
- * so DI bindings (e.g. [com.dangerfield.cards.libraries.cards.impl.AndroidReviewPrompter])
- * can launch flows that need a real Activity reference.
+ * so DI bindings (e.g. `AndroidReviewLauncher`) can launch flows that need a
+ * real Activity reference.
  *
  * Held weakly so a backgrounded Activity can be GC'd. `currentActivity()`
  * returns null when the app is fully backgrounded.
