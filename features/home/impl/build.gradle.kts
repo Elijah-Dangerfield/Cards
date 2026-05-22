@@ -18,6 +18,7 @@ kotlin {
 
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.gameplay)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.rooms)

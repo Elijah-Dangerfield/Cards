@@ -55,9 +55,15 @@ class HomeFeatureEntryPoint(
             setupDifficulty?.let { difficulty ->
                 BotTableSetupDialog(
                     difficultyLabel = difficulty,
-                    onStart = { seatCount ->
+                    onStart = { seatCount, stakeTier ->
                         setupDifficulty = null
-                        router.navigate(PlayBotsRoute(difficulty = difficulty, seatCount = seatCount))
+                        router.navigate(
+                            PlayBotsRoute(
+                                difficulty = difficulty,
+                                seatCount = seatCount,
+                                stakeTier = stakeTier.name,
+                            ),
+                        )
                     },
                     onDismiss = { setupDifficulty = null },
                 )
