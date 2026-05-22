@@ -11,6 +11,7 @@ kotlin {
         commonMain.dependencies {
             implementation(projects.libraries.networking)
             implementation(projects.libraries.core)
+            implementation(projects.libraries.flowroutines)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentNegotiation)

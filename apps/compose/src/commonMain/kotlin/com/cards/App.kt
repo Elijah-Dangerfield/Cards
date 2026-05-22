@@ -56,7 +56,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.shop.ShopRoute
-import com.dangerfield.cards.libraries.ui.PreviewAppState
 import com.dangerfield.cards.libraries.ui.components.AppBottomBar
 import com.dangerfield.cards.libraries.ui.components.BottomBarItem
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -138,7 +137,7 @@ fun App(appComponent: AppComponent) {
     )
 
     CompositionLocalProvider(
-        LocalAppState provides PreviewAppState,
+        LocalAppState provides appComponent.appState,
         LocalClock provides appComponent.provideClock(),
         LocalBuildInfo provides BuildInfo,
         LocalDialogHostState provides dialogHostState
@@ -164,7 +163,12 @@ fun App(appComponent: AppComponent) {
                             featureEntryPoints = appComponent.featureEntryPoints,
                             startDestination = route,
                             router = router,
-                            topBar = { AppGuardBanner(state = guardState) },
+                            topBar = {
+                                androidx.compose.foundation.layout.Column {
+                                    AppGuardBanner(state = guardState)
+                                    OfflineBanner()
+                                }
+                            },
                             userMessageRepository = appComponent.userMessageRepository,
                         )
                     }
