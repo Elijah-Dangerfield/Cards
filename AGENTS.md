@@ -105,6 +105,29 @@ class MyViewModel : SEAViewModel<State, Event, Action>(initialStateArg = State()
 - **Event**: One-shot side effects (navigation, toasts)
 - **Action**: Only way to mutate state via `action.updateState { }`
 
+### Fire-and-forget actions outlive the screen
+
+`handleAction` runs on `viewModelScope`. If the user navigates away mid-action, the VM dies and the in-flight work is cancelled. For actions whose *completion must reach the server* even if the user pops the screen (leaving a room, forfeiting a seat, telemetry writes), inject `AppCoroutineScope` from `:libraries:flowroutines` and wrap the network call:
+
+```kotlin
+@Inject
+class MyViewModel(
+    private val repo: MyRepository,
+    private val appScope: AppCoroutineScope,
+) : SEAViewModel<State, Event, Action>(initialStateArg = State()) {
+    override suspend fun handleAction(action: Action) {
+        when (action) {
+            is Action.LeaveAndDontCareIfWeArrive -> {
+                val outcome = appScope.async { repo.leave() }.await()
+                // continuation only runs if the VM is still alive
+            }
+        }
+    }
+}
+```
+
+The `appScope.async { … }.await()` pattern keeps the call's job parented to the app-lifetime scope; `viewModelScope`'s cancellation only cancels the awaiting continuation, not the underlying call. Anything that only exists to update the screen's own state stays in `viewModelScope` — don't reach for `AppCoroutineScope` for ordinary loads.
+
 ## Coroutines & dispatchers
 
 **Never reach for `Dispatchers.{Main,IO,Default,Unconfined}` directly in production code.** Inject [`DispatcherProvider`](libraries/flowroutines/src/commonMain/kotlin/com/cards/libraries/flowroutines/DispatcherProvider.kt) and use `dispatchers.io`, `dispatchers.default`, etc. The DI graph already binds `DefaultDispatcherProvider`, so consumer classes just take it as a constructor parameter.

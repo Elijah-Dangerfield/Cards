@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.User
 import com.dangerfield.cards.libraries.cards.UserRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
@@ -239,6 +240,7 @@ class HomeViewModelTest : CoroutineTest() {
         progressionRepository = progression,
         chipsRepository = chips,
         roomRepository = rooms,
+        appScope = AppCoroutineScope(dispatchers),
     )
 
     private fun sampleRoom(code: String): Room = Room(

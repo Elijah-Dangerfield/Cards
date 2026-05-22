@@ -155,14 +155,7 @@ The lobby + reconnect-grace foundation landed (per project memory); these are th
 Quality issues the user has flagged across the codebase. None are blockers, but they compound. Track them here; pull each in when the surrounding area is open.
 
 ### ViewModel scope vs. AppScope for fire-and-forget actions
-**Problem:** Actions whose completion should outlive the originating ViewModel (leaving a room, forfeiting a seat, dispatching a last-stand telemetry write) currently run inside `viewModelScope` via `SEAViewModel.handleAction`. If the user navigates away mid-action, the VM dies and the in-flight request gets cancelled. Two confirmed callsites today:
-
-- [LobbyViewModel.kt:131](../features/lobby/impl/src/commonMain/kotlin/com/cards/features/lobby/impl/LobbyViewModel.kt#L131) — the `Leave` action's own comment ("Couldn't tell the server we left. Your seat will free up.") is literally the code admitting the race.
-- [HomeViewModel.kt:73](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/HomeViewModel.kt#L73) — `Forfeit` rehydrates from the server on network failure but doesn't survive VM teardown mid-call.
-
-**Fix:** introduce an app-lifetime `BackgroundScope` (or `AppScope` `CoroutineScope`) provider in `:libraries:flowroutines`, expose via DI, and let ViewModels launch fire-and-forget operations into it instead of `viewModelScope`. Audit candidates: `leaveRoom`, `forfeit`, end-of-session telemetry writes, any "this *needs* to reach the server" action whose UI doesn't care about the result.
-
-**Document the rule in AGENTS.md** under "SEAViewModel pattern" — something like: "If completion of an action must outlive the screen (the user can navigate away and the action should still finish), launch into the injected `BackgroundScope`, not into `viewModelScope`. Anything that exists to update the screen's own state stays in `viewModelScope`."
+The two confirmed callsites (LobbyViewModel `Leave`, HomeViewModel `Forfeit`) now route their network calls through the existing `AppCoroutineScope` via `appScope.async { … }.await()`, so the server-side request outlives VM teardown. AGENTS.md → "SEAViewModel Pattern" documents the rule. Follow-up: audit additional candidates as they surface — end-of-session telemetry writes, any other "must reach the server" action whose UI doesn't care about the result.
 
 ### Sign-out data clearing
 - **File-side cleanup on sign-out is still ad-hoc.** Originally the proposal had `SignOutDataDeleter` co-own file deletion (app caches, downloaded avatars). Nothing in the codebase deletes files on sign-out today, and no concrete leak path is on fire. Defer until we have actual on-disk caches to clear; the `AppEventListener.onSignedOut` hook is already in place to wire one in.

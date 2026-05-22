@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.lobby.impl
 
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
@@ -14,6 +15,7 @@ import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -43,6 +45,7 @@ class LobbyViewModel(
     @Assisted private val prefilledCode: String?,
     private val rooms: RoomRepository,
     private val identity: IdentityRepository,
+    private val appScope: AppCoroutineScope,
 ) : SEAViewModel<LobbyState, LobbyEvent, LobbyAction>(
     initialStateArg = LobbyState(codeInput = prefilledCode?.uppercase().orEmpty()),
 ) {
@@ -133,16 +136,13 @@ class LobbyViewModel(
                 connectionJob?.cancel()
                 connectionJob = null
                 updateState { it.copy(leaving = true) }
-                when (val outcome = rooms.leaveRoom(code)) {
+                val outcome = appScope.async { rooms.leaveRoom(code) }.await()
+                when (outcome) {
                     LeaveRoomOutcome.Success,
                     LeaveRoomOutcome.NotFound,
                     LeaveRoomOutcome.NotInRoom,
                         -> resetToIdle("")
                     is LeaveRoomOutcome.NetworkError -> {
-                        // Local state matches server (we already left
-                        // the socket) so degrade gracefully — UI returns
-                        // to Idle, the server will GC the seat when our
-                        // socket times out.
                         resetToIdle("Couldn't tell the server we left. Your seat will free up.")
                     }
                     is LeaveRoomOutcome.Unknown -> {

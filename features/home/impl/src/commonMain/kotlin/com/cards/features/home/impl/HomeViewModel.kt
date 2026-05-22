@@ -4,10 +4,12 @@ import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.UserRepository
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
@@ -17,6 +19,7 @@ class HomeViewModel(
     private val progressionRepository: ProgressionRepository,
     private val chipsRepository: ChipsRepository,
     private val roomRepository: RoomRepository,
+    private val appScope: AppCoroutineScope,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
     initialStateArg = HomeState()
 ) {
@@ -72,7 +75,8 @@ class HomeViewModel(
 
     private suspend fun HomeAction.forfeit(code: String) {
         updateState { it.copy(activeRooms = it.activeRooms.filterNot { room -> room.code == code }) }
-        when (roomRepository.leaveRoom(code)) {
+        val outcome = appScope.async { roomRepository.leaveRoom(code) }.await()
+        when (outcome) {
             is LeaveRoomOutcome.Success,
             is LeaveRoomOutcome.NotFound,
             is LeaveRoomOutcome.NotInRoom -> Unit
