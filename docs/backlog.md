@@ -177,3 +177,30 @@ Blocker on doing it now: should land alongside the `popExit = enter.reversal()` 
 
 **Status:** Backlog. Non-blocking DS drift; pull when next opening the play-table surfaces.
 
+
+---
+
+## Extract `ConfirmPill` into a `:libraries:ui` primitive
+
+**Idea (raised 2026-05-22):** Four feature modules now define identical-shape private `ConfirmPill` composables: `BotTableSetupDialog.kt:139`, `LeaveBotsConfirmDialog.kt:81`, `SwipeFoldConfirmDialog.kt:100` (added this cycle), and `RaiseSheet.kt:350`. All four are a `Box { clip(RoundedCornerShape(32.dp)), background(accentPrimary|surfaceSecondary), padding(vertical=16dp), Text }` with optional `primary: Boolean` for the colour split. The 32.dp corner radius itself shows up in 7 callsites in `features/room/impl/**` with no `Radii` token — a `Radii.Pill` (or `R900`-style alias) would tidy both this primitive and the loose literals.
+
+**Sketch:**
+- Add `ConfirmPill(label, primary, onClick, modifier)` to `:libraries:ui/components/button` (next to the existing `Button` family). Use surface tokens; expose the same Cancel/Confirm primary/secondary split the existing copies have.
+- Optionally introduce `Radii.Pill = R900` or a new alias if 32.dp doesn't match an existing token.
+- Migrate the four callsites, kill the private copies.
+
+**Tradeoff:** None significant — pure DRY win; the four copies have already drifted apart slightly in padding/typography.
+
+**Status:** Backlog. Non-blocking DS drift; pull on the next pass through `features/room/impl/**` or `features/home/impl/**`.
+
+---
+
+## Server-side `runCatching` audit
+
+**Idea (raised 2026-05-22):** Client side now uses `Catching { }` from `:libraries:core` consistently (it rethrows `CancellationException`, preserving structured concurrency). `apps/server` still uses `runCatching` in `HttpSupabaseAdminClient`, `DefaultOrphanAnonymousSweep`, `MessageRoutes`, etc. Server doesn't depend on `:libraries:core` today, and Ktor request scopes are tied to the request lifecycle rather than `viewModelScope`-style structured concurrency, so the cancellation concern is materially less acute. Still worth deciding either way.
+
+**Sketch:** Either add `implementation(projects.libraries.core)` to `apps/server` and migrate the ~4 callsites, or formally document `runCatching` as the server convention (since the rule only really bites in shared-coroutine-scope client code).
+
+**Tradeoff:** Adding the dep brings the convention into one place; documenting it as "server can use runCatching" is cheaper but leaves a hidden rule.
+
+**Status:** Backlog. Deferred from the 2026-05-22 client-side `Catching` sweep.
