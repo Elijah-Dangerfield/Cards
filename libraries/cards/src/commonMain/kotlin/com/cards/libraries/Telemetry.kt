@@ -13,6 +13,7 @@ interface Telemetry {
         message: String,
         isBugReport: Boolean,
         eventId: String?,
-        errorCode: Int?
+        errorCode: Int?,
+        email: String? = null,
     )
 }

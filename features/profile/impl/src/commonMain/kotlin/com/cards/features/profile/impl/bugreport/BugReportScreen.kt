@@ -33,6 +33,7 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private const val BUG_REPORT_CHAR_LIMIT = 180
+private const val EMAIL_CHAR_LIMIT = 254
 
 @Composable
 fun BugReportScreen(
@@ -115,7 +116,24 @@ fun BugReportScreen(
                 singleLine = false,
                 minLines = 6,
                 maxLines = 10,
-                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Send),
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Next),
+            )
+
+            VerticalSpacerD500()
+
+            OutlinedTextField(
+                value = state.email,
+                onValueChange = { newValue ->
+                    onAction(BugReportAction.EmailChanged(newValue.take(EMAIL_CHAR_LIMIT)))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Email (so we can follow up)") },
+                placeholder = { Text("optional") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
+                    imeAction = ImeAction.Send,
+                ),
                 keyboardActions = KeyboardActions(
                     onSend = {
                         if (canSubmit) {

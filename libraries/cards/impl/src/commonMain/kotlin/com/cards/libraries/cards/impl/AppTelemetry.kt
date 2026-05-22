@@ -111,7 +111,8 @@ private class ConfiguredTelemetry(
         message: String,
         isBugReport: Boolean,
         eventId: String?,
-        errorCode: Int?
+        errorCode: Int?,
+        email: String?,
     ) {
         val payload = message.trim()
         if (payload.isBlank()) {
@@ -132,6 +133,7 @@ private class ConfiguredTelemetry(
 
         val typeTag = if (isBugReport) "bug_report" else "feedback"
         val sentryId = eventId?.let { Catching { SentryId(it) }.getOrNull() } ?: SentryId.EMPTY_ID
+        val sanitizedEmail = email?.trim()?.takeIf { it.isNotBlank() }
         val feedback = UserFeedback(sentryId).apply {
             comments = buildString {
                 if (isBugReport && errorCode != null) {
@@ -139,6 +141,7 @@ private class ConfiguredTelemetry(
                 }
                 append(payload)
             }
+            sanitizedEmail?.let { this.email = it }
         }
 
         Sentry.captureUserFeedback(feedback)
@@ -150,6 +153,7 @@ private class ConfiguredTelemetry(
                 errorCode?.let { scope.extra("error_code", it) }
             }
             scope.extra("payload_length", payload.length)
+            scope.extra("has_email", sanitizedEmail != null)
             "Feedback forwarded to Sentry ($typeTag)"
         }
     }

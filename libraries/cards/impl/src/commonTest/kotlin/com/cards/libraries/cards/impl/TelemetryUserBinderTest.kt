@@ -146,6 +146,7 @@ class TelemetryUserBinderTest : CoroutineTest() {
             isBugReport: Boolean,
             eventId: String?,
             errorCode: Int?,
+            email: String?,
         ) = Unit
     }
 

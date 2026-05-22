@@ -21,6 +21,7 @@ class FeedbackViewModel(
         when (action) {
             FeedbackAction.Back -> router.goBack()
             is FeedbackAction.MessageChanged -> action.updateMessage()
+            is FeedbackAction.EmailChanged -> action.updateEmail()
             FeedbackAction.Submit -> action.submitFeedback()
         }
     }
@@ -28,6 +29,10 @@ class FeedbackViewModel(
     private suspend fun FeedbackAction.MessageChanged.updateMessage() {
         val updated = value
         updateState { it.copy(message = updated, errorMessage = null) }
+    }
+
+    private suspend fun FeedbackAction.EmailChanged.updateEmail() {
+        updateState { it.copy(email = value) }
     }
 
     private suspend fun FeedbackAction.submitFeedback() {
@@ -39,7 +44,8 @@ class FeedbackViewModel(
         updateState { it.copy(isSubmitting = true, errorMessage = null) }
         repository.submitFeedback(
             message = current.message.trim(),
-            isBugReport = false
+            isBugReport = false,
+            email = current.email.takeIf { it.isNotBlank() },
         ).eitherWay {
             appCache.update { it.copy(feedbacksGiven = it.feedbacksGiven + 1) }
             updateState { it.copy(isSubmitting = false) }
@@ -51,6 +57,7 @@ class FeedbackViewModel(
 
 data class FeedbackState(
     val message: String = "",
+    val email: String = "",
     val isSubmitting: Boolean = false,
     val errorMessage: String? = null,
 )
@@ -58,5 +65,6 @@ data class FeedbackState(
 sealed interface FeedbackAction {
     data object Back : FeedbackAction
     data class MessageChanged(val value: String) : FeedbackAction
+    data class EmailChanged(val value: String) : FeedbackAction
     data object Submit : FeedbackAction
 }

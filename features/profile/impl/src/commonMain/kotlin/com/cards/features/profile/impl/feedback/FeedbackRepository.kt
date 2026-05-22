@@ -13,6 +13,7 @@ interface FeedbackRepository {
         isBugReport: Boolean,
         logId: String? = null,
         errorCode: Int? = null,
+        email: String? = null,
     ): Result<Unit>
 }
 
@@ -26,13 +27,15 @@ class FeedbackRepositoryImpl @Inject constructor(
         isBugReport: Boolean,
         logId: String?,
         errorCode: Int?,
+        email: String?,
     ): Result<Unit> {
         return Catching {
             telemetry.captureUserFeedback(
                 message = message,
                 isBugReport = isBugReport,
                 eventId = logId,
-                errorCode = errorCode
+                errorCode = errorCode,
+                email = email,
             )
         }
     }
