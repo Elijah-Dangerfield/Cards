@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
@@ -200,7 +201,7 @@ fun EditProfileScreen(
 @Composable
 private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
     val parsedColor = backgroundColorHex?.let {
-        runCatching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
+        Catching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
     }
     // Hero uses an explicit neutral fallback (not the name-seeded hue
     // AvatarCircle defaults to) so the disc doesn't flicker through
@@ -398,7 +399,7 @@ private fun ColorSwatch(
     onClick: () -> Unit,
 ) {
     val parsed = colorHex?.let {
-        runCatching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
+        Catching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
     }
     val swatchColor = parsed ?: AppTheme.colors.surfaceSecondary.color
     val borderColor = if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color

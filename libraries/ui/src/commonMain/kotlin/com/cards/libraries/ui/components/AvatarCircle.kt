@@ -12,6 +12,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.typography.TypographyResource
@@ -46,7 +47,7 @@ fun AvatarCircle(
      */
     backgroundColorHex: String? = null,
 ) {
-    val parsedBg = backgroundColorHex?.let { runCatching { parseHexColor(it) }.getOrNull() }
+    val parsedBg = backgroundColorHex?.let { Catching { parseHexColor(it) }.getOrNull() }
     val bg = if (parsedBg != null) {
         parsedBg
     } else {
@@ -93,7 +94,7 @@ fun avatarEmojiTypographyFor(size: Dp): TypographyResource = when {
 
 /**
  * Parse a `#rrggbb` hex string into a [Color]. Throws on malformed input
- * so callers wrapping in runCatching can fall back to a default; we want
+ * so callers wrapping in `Catching { }` can fall back to a default; we want
  * loud failures in dev and graceful fallbacks in release.
  *
  * Lives next to AvatarCircle because that's the only consumer that
