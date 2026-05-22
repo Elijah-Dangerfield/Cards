@@ -117,6 +117,7 @@ fun PlayPokerScreen(
     var potExplainerOpen by remember { mutableStateOf(false) }
     var stackExplainerOpen by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
+    var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     // Action / bet / hand-label explainers carry their own context so each
     // dialog can render specific copy instead of opening the whole cheat sheet.
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
@@ -200,6 +201,15 @@ fun PlayPokerScreen(
                         onLastActionClick = { name, action -> lastActionDialog = name to action },
                         onStackClick = { stackExplainerOpen = true },
                         onHandLabelClick = { label -> handLabelDialog = label },
+                        onSwipeFold = {
+                            val humanIndex = active.seats.firstOrNull { it.isHuman }?.index
+                                ?: return@ActiveTable
+                            if (state.swipeFoldGestureAck) {
+                                onAction(PlayPokerAction.Submit(PlayerIntent.Fold(humanIndex)))
+                            } else {
+                                swipeFoldConfirmOpen = true
+                            }
+                        },
                     )
                 }
             }
@@ -278,6 +288,22 @@ fun PlayPokerScreen(
                 onLeave = {
                     leaveConfirmOpen = false
                     leaveTable()
+                },
+            )
+        }
+
+        if (swipeFoldConfirmOpen) {
+            SwipeFoldConfirmDialog(
+                onCancel = { swipeFoldConfirmOpen = false },
+                onConfirmFold = { dontShowAgain ->
+                    swipeFoldConfirmOpen = false
+                    if (dontShowAgain) {
+                        onAction(PlayPokerAction.AcknowledgeSwipeFoldGesture)
+                    }
+                    val humanIndex = active?.seats?.firstOrNull { it.isHuman }?.index
+                    if (humanIndex != null) {
+                        onAction(PlayPokerAction.Submit(PlayerIntent.Fold(humanIndex)))
+                    }
                 },
             )
         }
@@ -409,6 +435,7 @@ private fun ActiveTable(
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
+    onSwipeFold: () -> Unit = {},
 ) {
     // Pinned-bottom layout: opponents + board scroll if needed, but the
     // player's hand and the action bar always sit at the bottom in reach.
@@ -464,6 +491,7 @@ private fun ActiveTable(
                 onLastActionClick = onLastActionClick,
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
+                onSwipeFold = onSwipeFold,
             )
             QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
             VerticalSpacerD500()
