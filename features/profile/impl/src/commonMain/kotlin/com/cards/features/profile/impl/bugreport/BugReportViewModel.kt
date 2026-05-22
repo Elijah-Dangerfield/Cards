@@ -4,6 +4,8 @@ import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.currentIdentity
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import me.tatarka.inject.annotations.Assisted
@@ -15,6 +17,7 @@ class BugReportViewModel(
     private val repository: FeedbackRepository,
     private val router: Router,
     private val appCache: AppCache,
+    identityRepository: IdentityRepository,
     @Assisted logId: String? = null,
     @Assisted errorCode: Int? = null,
     @Assisted contextMessage: String? = null,
@@ -22,7 +25,8 @@ class BugReportViewModel(
     initialStateArg = BugReportState(
         logId = logId,
         errorCode = errorCode,
-        contextMessage = contextMessage
+        contextMessage = contextMessage,
+        email = identityRepository.currentIdentity?.email.orEmpty(),
     )
 ) {
 

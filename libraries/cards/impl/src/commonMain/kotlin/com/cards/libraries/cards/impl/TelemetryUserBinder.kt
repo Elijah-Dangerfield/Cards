@@ -28,9 +28,8 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * a fresh `SignedIn` (post sign-in / sign-out re-bootstrap) refreshes
  * the telemetry user without further wiring.
  *
- * `email` is left null today because [com.dangerfield.cards.libraries.identity.Identity]
- * doesn't carry it; the profile API has it but isn't surfaced here.
- * Display name doubles as `username`.
+ * `email` is forwarded for claimed users (when [com.dangerfield.cards.libraries.identity.Identity]
+ * carries it) and left null for anon. Display name doubles as `username`.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
@@ -51,10 +50,14 @@ class TelemetryUserBinder(
             identity.state
                 .filterIsInstance<IdentityState.SignedIn>()
                 .map { it.identity }
-                .distinctUntilChanged { a, b -> a.userId == b.userId && a.displayName == b.displayName }
+                .distinctUntilChanged { a, b ->
+                    a.userId == b.userId &&
+                        a.displayName == b.displayName &&
+                        a.email == b.email
+                }
                 .collect { resolved ->
                     telemetry.setUser(
-                        email = null,
+                        email = resolved.email,
                         name = resolved.displayName,
                         id = resolved.userId,
                     )

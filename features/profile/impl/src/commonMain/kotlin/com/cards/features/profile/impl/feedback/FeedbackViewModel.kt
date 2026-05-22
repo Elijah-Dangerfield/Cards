@@ -3,6 +3,8 @@ package com.dangerfield.cards.features.profile.impl.feedback
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.currentIdentity
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import me.tatarka.inject.annotations.Inject
@@ -13,8 +15,11 @@ class FeedbackViewModel(
     private val repository: FeedbackRepository,
     private val router: Router,
     private val appCache: AppCache,
+    identityRepository: IdentityRepository,
 ) : SEAViewModel<FeedbackState, Unit, FeedbackAction>(
-    initialStateArg = FeedbackState()
+    initialStateArg = FeedbackState(
+        email = identityRepository.currentIdentity?.email.orEmpty(),
+    )
 ) {
 
     override suspend fun handleAction(action: FeedbackAction) {

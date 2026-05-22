@@ -234,6 +234,7 @@ class SupabaseIdentityRepository(
                     avatarEmoji = updated.avatarEmoji,
                     avatarBackgroundColor = updated.avatarBackgroundColor,
                     isAnonymous = updated.isAnonymous,
+                    email = supabase.auth.currentSessionOrNull()?.user?.email,
                 )
                 identityCache.write(identity)
                 _state.value = IdentityState.SignedIn(identity)
@@ -413,6 +414,7 @@ class SupabaseIdentityRepository(
             avatarEmoji = me.avatarEmoji,
             avatarBackgroundColor = me.avatarBackgroundColor,
             isAnonymous = me.isAnonymous,
+            email = supabase.auth.currentSessionOrNull()?.user?.email,
         )
         identityCache.write(identity)
         _state.value = IdentityState.SignedIn(identity)

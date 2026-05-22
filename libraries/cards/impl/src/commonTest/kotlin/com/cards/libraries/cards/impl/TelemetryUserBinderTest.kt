@@ -105,6 +105,44 @@ class TelemetryUserBinderTest : CoroutineTest() {
     }
 
     @Test
+    fun email_forwardedWhenPresent() = runUnitTest {
+        val identity = FakeIdentity(
+            initial = IdentityState.SignedIn(
+                sample(id = "u1", name = "Alice", email = "alice@example.com"),
+            ),
+        )
+        val telemetry = RecordingTelemetry()
+        val binder = build(identity, telemetry)
+
+        binder.onColdBoot(AppEvent.ColdBoot)
+        runCurrent()
+
+        assertEquals("alice@example.com", telemetry.setUserCalls.single().email)
+    }
+
+    @Test
+    fun emailChange_reEmits() = runUnitTest {
+        val identity = FakeIdentity(
+            initial = IdentityState.SignedIn(
+                sample(id = "u1", name = "Alice", email = null),
+            ),
+        )
+        val telemetry = RecordingTelemetry()
+        val binder = build(identity, telemetry)
+
+        binder.onColdBoot(AppEvent.ColdBoot)
+        runCurrent()
+        identity.emit(
+            IdentityState.SignedIn(sample(id = "u1", name = "Alice", email = "alice@example.com")),
+        )
+        runCurrent()
+
+        assertEquals(2, telemetry.setUserCalls.size)
+        assertNull(telemetry.setUserCalls.first().email)
+        assertEquals("alice@example.com", telemetry.setUserCalls.last().email)
+    }
+
+    @Test
     fun unknownIdentityState_doesNotSet() = runUnitTest {
         val identity = FakeIdentity(initial = IdentityState.Unknown)
         val telemetry = RecordingTelemetry()
@@ -123,12 +161,13 @@ class TelemetryUserBinderTest : CoroutineTest() {
             appScope = AppCoroutineScope(dispatchers),
         )
 
-    private fun sample(id: String, name: String) = Identity(
+    private fun sample(id: String, name: String, email: String? = null) = Identity(
         userId = id,
         displayName = name,
         avatarEmoji = "🙂",
         avatarBackgroundColor = null,
         isAnonymous = true,
+        email = email,
     )
 
     private class RecordingTelemetry : Telemetry {

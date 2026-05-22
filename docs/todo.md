@@ -67,9 +67,6 @@ Surfaced 2026-05-20 by a spec-vs-build audit. All three are spec promises in [pr
 ### Privacy policy / terms of service
 - **Write the actual content.** The profile screen already deep-links to a web page; the page itself is empty/placeholder. Probably one of the last items before TestFlight. Hosting can stay on the existing web link target.
 
-### Telemetry / feedback
-- **Pre-fill bug-report / feedback email from the claimed identity once `Identity` carries it.** The optional email TextField on both screens landed 2026-05-21 and pipes into `UserFeedback.email` via `Telemetry.captureUserFeedback`. Today the field starts blank for everyone because `Identity` doesn't carry the user's email — Supabase has it but it isn't surfaced via `IdentityRepository`. When `Identity` learns `email: String?` (Supabase user.email is the source), default the field's initial value to that for claimed users; anon users still get a blank field.
-
 ### Typography & DS consistency
 - **Audit text sizes across the app.** XP and Rank screens have copy at the bottom that's noticeably smaller than the rest of the UI. Sweep every screen and confirm: (1) only DS typography tokens are in use, (2) the default `Text` component picks a sensible body size when no `typography` is passed. If we have to override `typography = …` in 90% of call sites, the default is wrong.
 - **DS-first text component default.** Whatever `Text` resolves to when called without a typography argument should match what a screen wants in 95% of cases. Building DS-aware screens should mostly *just work*.

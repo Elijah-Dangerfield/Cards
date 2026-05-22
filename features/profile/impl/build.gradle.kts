@@ -37,6 +37,7 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.config)
             implementation(projects.libraries.products)
+            implementation(projects.libraries.navigation)
             implementation(libs.turbine)
         }
     }
