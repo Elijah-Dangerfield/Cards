@@ -109,7 +109,7 @@ private fun RankHero(rank: Int, isAnonymous: Boolean) {
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = if (isAnonymous) "Claim your account to start ranking" else "Multiplayer Elo rating",
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
         )
     }
@@ -125,7 +125,7 @@ private fun HowRankWorks() {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Three separate axes — chips, rank, XP — so a rough session never wipes your sense of progress.",
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
         )
     }
@@ -159,7 +159,7 @@ private fun ClaimAccountCard(onClick: () -> Unit) {
             )
             Text(
                 text = "Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over.",
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.text,
             )
             VerticalSpacerD100()
@@ -206,7 +206,7 @@ private fun Bullet(text: String) {
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = text,
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
     }
