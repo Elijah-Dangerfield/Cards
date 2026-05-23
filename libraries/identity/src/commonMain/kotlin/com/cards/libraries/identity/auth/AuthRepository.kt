@@ -47,6 +47,16 @@ interface AuthRepository {
     suspend fun accessToken(): String?
 
     /**
+     * Force-refresh the access token. Called by the networking layer's
+     * bearer plugin on 401. Returns the new token, or null if refresh
+     * failed (in which case the caller treats the request as unauth).
+     *
+     * supabase-kt auto-refreshes in the background anyway; this is the
+     * "401 happened, get me a fresh one right now" path.
+     */
+    suspend fun refreshAccessToken(): String?
+
+    /**
      * Re-attempt the get-or-create after a previous failure. Used by the
      * connectivity observer (offline → online flip) and explicit retry
      * actions (e.g. onboarding "Try again"). No-op if already

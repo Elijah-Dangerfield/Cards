@@ -2,7 +2,7 @@ package com.dangerfield.cards.libraries.networking.impl
 
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.networking.AuthTokenProvider
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -33,18 +33,17 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class NetworkClientImpl(
     private val config: NetworkConfig,
-    private val authTokenProviderProvider: () -> AuthTokenProvider,
+    private val authRepositoryProvider: () -> AuthRepository,
     private val headersProvider: ClientHeadersProvider,
 ) : NetworkClient {
 
-    // Lazy provider rather than direct injection: the real
-    // [AuthTokenProvider] (in `:libraries:identity:impl`) depends on the
-    // unauthenticated HTTP client to call `/v1/auth/refresh`, which would
-    // create a constructor-time DI cycle (network → auth → network). Both
-    // sides are already singletons (`SingleIn(AppScope::class)`), so this
-    // resolves to the same instance — we just defer when the graph walks
-    // through it.
-    private val authTokenProvider: AuthTokenProvider by lazy { authTokenProviderProvider() }
+    // Lazy provider rather than direct injection: [AuthRepository] (in
+    // `:libraries:identity:impl`) depends on [ProfileApi] which depends
+    // on [NetworkClient] for the `/v1/me`-flavored calls. That'd form a
+    // construction-time DI cycle (network → auth → network). Both sides
+    // are singletons; the lazy resolves the same instance, it just
+    // defers when the graph walks through it.
+    private val authRepository: AuthRepository by lazy { authRepositoryProvider() }
 
     override val client: HttpClient by lazy {
         HttpClient {
@@ -58,12 +57,18 @@ class NetworkClientImpl(
             install(Auth) {
                 bearer {
                     loadTokens {
-                        val token = authTokenProvider.awaitAccessToken(LoadTokensTimeout)
+                        // AuthRepository.accessToken() suspends until auth
+                        // resolves — internally it waits on the auth state
+                        // flow's first emission. No more polling, no 5s
+                        // ceiling here: the auth layer's resolve is the
+                        // backstop.
+                        val token = authRepository.accessToken()
                             ?: return@loadTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
                     }
                     refreshTokens {
-                        val token = authTokenProvider.refreshAccessToken() ?: return@refreshTokens null
+                        val token = authRepository.refreshAccessToken()
+                            ?: return@refreshTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
                     }
                     sendWithoutRequest { true }
@@ -119,12 +124,3 @@ private fun HttpClientConfig<*>.applyCommonConfig(
     }
     expectSuccess = true
 }
-
-/**
- * Cold-boot cap on how long we wait for the identity layer to publish a
- * token before letting the request go without a bearer (and 401). The
- * session typically resolves in <500ms after [IdentityRepository.ensureInitialized]
- * lands; 5s is the failure floor — past that, something is broken and
- * the request should fail cleanly rather than hang.
- */
-private val LoadTokensTimeout = 5.seconds

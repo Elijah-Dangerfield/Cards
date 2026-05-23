@@ -96,6 +96,11 @@ class SupabaseAuthRepositoryImpl(
         }
     }
 
+    override suspend fun refreshAccessToken(): String? = Catching {
+        supabase.auth.refreshCurrentSession()
+        supabase.auth.currentSessionOrNull()?.accessToken
+    }.logOnFailure { "Force refresh of access token failed" }.getOrNull()
+
     override suspend fun retry(): AuthState = mutex.withLock {
         // No-op if already authenticated.
         val latest = lastEmittedOrNull()
