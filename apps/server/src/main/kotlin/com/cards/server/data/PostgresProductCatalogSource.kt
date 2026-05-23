@@ -132,6 +132,7 @@ class PostgresProductCatalogSource(
         badgeByLocale = this[ProductsTable.badgeByLocale]?.let(::parseLocalized),
         availableUntilEpochMs = this[ProductsTable.availableUntilEpochMs],
         platforms = platforms,
+        isEquippable = this[ProductsTable.isEquippable],
         grantsChips = requireNotNull(this[ProductsTable.grantsChips]) {
             "chip_pack row ${this[ProductsTable.id]} missing grants_chips (check constraint should prevent this)"
         },
@@ -174,6 +175,7 @@ class PostgresProductCatalogSource(
         },
         unlockLevel = this[ProductsTable.unlockLevel],
         descriptionByLocale = this[ProductsTable.descriptionByLocale]?.let(::parseLocalized),
+        isEquippable = this[ProductsTable.isEquippable],
     )
 
     private fun parseLocalized(raw: String): Map<String, String> {

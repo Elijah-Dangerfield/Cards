@@ -32,7 +32,26 @@ data class InventoryItem(
      * not chip math.
      */
     val costChipsAtPurchase: Long,
+    /**
+     * How the item entered inventory. Server-driven; defaults to
+     * [AcquisitionSource.Purchased] because every local-redemption path
+     * goes through `redeemChipOffer`. Earned grants come back via the
+     * server snapshot in [InventoryRepository.applyServerSnapshot].
+     *
+     * Data-only for now — UI hasn't shipped an "Earned" badge yet. See
+     * plan: foamy-tickling-meerkat.md.
+     */
+    val acquisitionSource: AcquisitionSource = AcquisitionSource.Purchased,
 )
+
+/**
+ * Server-driven discriminator. Mirrors the `inventory.acquisition_source`
+ * column (see `apps/server` `V13__inventory_acquisition_source.sql`).
+ */
+enum class AcquisitionSource {
+    Purchased,
+    Earned,
+}
 
 /**
  * Lifecycle state of an inventory entry.

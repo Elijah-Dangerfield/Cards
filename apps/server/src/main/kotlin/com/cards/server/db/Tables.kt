@@ -50,6 +50,11 @@ object InventoryTable : Table("inventory") {
     val productId = text("product_id")
     val costChipsAtPurchase = long("cost_chips_at_purchase")
     val purchasedAt = timestamp("purchased_at")
+    // 'purchased' | 'earned'. CHECK constraint enforced at the DB level
+    // (see V13__inventory_acquisition_source.sql). The string-typed
+    // column maps to [com.dangerfield.cards.server.domain.AcquisitionSource]
+    // on read; the repo writes the lowercase enum name back.
+    val acquisitionSource = text("acquisition_source").default("purchased")
     override val primaryKey = PrimaryKey(userId, productId)
 }
 
@@ -90,6 +95,7 @@ object ProductsTable : Table("products") {
     val unlockLevel = integer("unlock_level").nullable()
 
     val unlockOnly = bool("unlock_only").default(false)
+    val isEquippable = bool("is_equippable").default(false)
 
     override val primaryKey = PrimaryKey(id)
 }

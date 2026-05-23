@@ -36,6 +36,7 @@ data class ChipPackDto(
     val featured: Boolean = false,
     val badge: String? = null,
     val availableUntilEpochMs: Long? = null,
+    val isEquippable: Boolean = false,
 )
 
 @Serializable
@@ -51,6 +52,7 @@ data class ChipOfferDto(
     val description: String? = null,
     val unlockLevel: Int? = null,
     val availableUntilEpochMs: Long? = null,
+    val isEquippable: Boolean = false,
 )
 
 @Serializable
@@ -74,6 +76,7 @@ private fun ChipPackDto.toDomain(): Product.ChipPack = Product.ChipPack(
     featured = featured,
     badge = badge,
     availableUntilEpochMs = availableUntilEpochMs,
+    isEquippable = isEquippable,
 )
 
 private fun ChipOfferDto.toDomain(): Product.ChipOffer = Product.ChipOffer(
@@ -88,6 +91,7 @@ private fun ChipOfferDto.toDomain(): Product.ChipOffer = Product.ChipOffer(
     description = description,
     unlockLevel = unlockLevel,
     availableUntilEpochMs = availableUntilEpochMs,
+    isEquippable = isEquippable,
 )
 
 private fun StoreSkuDto.toDomain(): StoreSku = StoreSku(

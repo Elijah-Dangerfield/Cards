@@ -56,6 +56,19 @@ sealed interface Product {
     /** Platforms this product is sold on. */
     val platforms: Set<com.dangerfield.cards.server.http.ClientContext.Platform>
 
+    /**
+     * `true` when this product is a visual cosmetic the user actively
+     * equips (felts, card backs, titles, tools, table themes). `false` for
+     * unlocks — chip packs (consumed on purchase), avatar packs and emote
+     * packs (owning the pack adds options to a picker, no equip toggle).
+     *
+     * The client uses this to decide whether to render an Equip/Unequip
+     * button on the My Items row. Slot-collision routing (one felt at a
+     * time, one card back at a time) still lives in client code today —
+     * promoting that to the product row is a separate slice.
+     */
+    val isEquippable: Boolean
+
     data class ChipPack(
         override val id: String,
         override val titleByLocale: Map<String, String>,
@@ -74,6 +87,9 @@ sealed interface Product {
                 // override this to narrow the set.
                 com.dangerfield.cards.server.http.ClientContext.Platform.Other,
             ),
+        // Chip packs are consumable — they grant chips on purchase and
+        // never appear as something to "equip." Always false.
+        override val isEquippable: Boolean = false,
         val grantsChips: Long,
         val store: PlatformStore,
     ) : Product
@@ -123,6 +139,11 @@ sealed interface Product {
          * BCP-47 tag → string, same as the other localized fields.
          */
         val descriptionByLocale: Map<String, String>? = null,
+        // Surfaced from the products row. True for visual cosmetics
+        // (felts, card backs, titles, table themes, tools); false for
+        // unlock-style packs (avatar packs, emote packs) and any future
+        // category whose value is "owning it" rather than "displaying it."
+        override val isEquippable: Boolean = false,
     ) : Product
 }
 

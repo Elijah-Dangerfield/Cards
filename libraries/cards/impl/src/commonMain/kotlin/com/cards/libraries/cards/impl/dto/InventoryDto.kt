@@ -41,6 +41,13 @@ internal data class OwnedInventoryItemDto(
     val productId: String,
     val costChipsAtPurchase: Long,
     val purchasedAtEpochMs: Long,
+    /**
+     * How the item entered inventory. `"purchased"` (default) for chip /
+     * IAP buys, `"earned"` for achievement / league rewards. Servers
+     * predating the V13 column emit no value; the default keeps older
+     * snapshots interpreting cleanly as Purchased.
+     */
+    val acquisitionSource: String = "purchased",
 )
 
 @Serializable

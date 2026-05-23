@@ -312,6 +312,12 @@ class InventoryRoutesTest {
             return owned
         }
 
+        override suspend fun recordEarnedGrant(
+            userId: UserId,
+            productId: String,
+            grantedAt: Instant,
+        ): OwnedItem = error("recordEarnedGrant not used in this test")
+
         override suspend fun deleteAllForUser(userId: UserId) {
             byUser.remove(userId)
         }

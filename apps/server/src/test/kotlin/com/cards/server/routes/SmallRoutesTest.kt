@@ -222,6 +222,12 @@ class SmallRoutesTest {
                 purchasedAt: kotlin.time.Instant,
             ): OwnedItem = error("unused")
 
+            override suspend fun recordEarnedGrant(
+                userId: UserId,
+                productId: String,
+                grantedAt: kotlin.time.Instant,
+            ): OwnedItem = error("unused")
+
             override suspend fun deleteAllForUser(userId: UserId) = Unit
         }
         testApplication {
@@ -318,6 +324,12 @@ class SmallRoutesTest {
             productId: String,
             costChipsAtPurchase: Long,
             purchasedAt: kotlin.time.Instant,
+        ): OwnedItem = error("unused")
+
+        override suspend fun recordEarnedGrant(
+            userId: UserId,
+            productId: String,
+            grantedAt: kotlin.time.Instant,
         ): OwnedItem = error("unused")
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit

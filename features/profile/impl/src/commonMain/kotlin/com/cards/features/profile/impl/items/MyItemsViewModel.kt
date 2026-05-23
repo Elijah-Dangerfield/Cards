@@ -127,6 +127,14 @@ data class OwnedItem(
     val description: String?,
     val iconEmoji: String,
     val isEquipped: Boolean,
+    /**
+     * Mirrored from the catalog `Product.isEquippable`. False for unlock-
+     * style products (avatar packs, emote packs) — the row still renders,
+     * but the Equip/Unequip button is suppressed. Falls back to false
+     * when the catalog entry is missing so a stale-catalog row doesn't
+     * silently show an Equip button that doesn't do anything.
+     */
+    val isEquippable: Boolean,
 )
 
 data class MyItemsState(
@@ -147,6 +155,7 @@ data class MyItemsState(
                     description = (product as? Product.ChipOffer)?.description,
                     iconEmoji = product?.iconEmoji ?: "🎁",
                     isEquipped = item.productId in equippedIds,
+                    isEquippable = product?.isEquippable ?: false,
                 )
             }
         }

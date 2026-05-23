@@ -152,8 +152,33 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
                 )
             }
         }
+        // Unlock-style products (avatar packs, emote packs) render in the
+        // list because the user *does* own them, but they have no equip
+        // state to toggle — owning the pack is the entire effect (it
+        // expands the relevant picker). Surface a quiet "Unlocked" badge
+        // so the row doesn't look incomplete.
         Spacer(modifier = Modifier.size(Dimension.D400))
-        EquipToggleButton(isEquipped = item.isEquipped, onClick = onToggle)
+        if (item.isEquippable) {
+            EquipToggleButton(isEquipped = item.isEquipped, onClick = onToggle)
+        } else {
+            UnlockedBadge()
+        }
+    }
+}
+
+@Composable
+private fun UnlockedBadge() {
+    Box(
+        modifier = Modifier
+            .clip(Radii.R500.shape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = Dimension.D400, vertical = Dimension.D200),
+    ) {
+        Text(
+            text = "Unlocked",
+            typography = AppTheme.typography.Label.L400,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
     }
 }
 
@@ -227,6 +252,7 @@ private fun OwnedItemRowPreview_Equipped_AndUnequipped() {
                     description = "Luxe deck back with subtle gradient.",
                     iconEmoji = "🃏",
                     isEquipped = true,
+                    isEquippable = true,
                 ),
                 onToggle = {},
             )
@@ -238,6 +264,19 @@ private fun OwnedItemRowPreview_Equipped_AndUnequipped() {
                     description = null,
                     iconEmoji = "🟢",
                     isEquipped = false,
+                    isEquippable = true,
+                ),
+                onToggle = {},
+            )
+            OwnedItemRow(
+                item = OwnedItem(
+                    productId = "avatars_animals",
+                    title = "Animals avatar pack",
+                    subtitle = "Avatar pack",
+                    description = "8 new avatars unlocked in Edit profile.",
+                    iconEmoji = "🐶",
+                    isEquipped = false,
+                    isEquippable = false,
                 ),
                 onToggle = {},
             )

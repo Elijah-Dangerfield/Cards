@@ -136,6 +136,7 @@ class InventoryRepositoryImpl(
                         syncState = PurchaseState.Confirmed.name,
                         purchasedAtEpochMs = item.purchasedAtEpochMs,
                         costChipsAtPurchase = item.costChipsAtPurchase,
+                        acquisitionSource = item.acquisitionSource.name.lowercase(),
                     )
                 },
             )
@@ -228,6 +229,13 @@ class InventoryRepositoryImpl(
                     state = PurchaseState.Confirmed,
                     purchasedAtEpochMs = dto.purchasedAtEpochMs,
                     costChipsAtPurchase = dto.costChipsAtPurchase,
+                    // Server-driven. Older servers omit the field — the DTO
+                    // default ("purchased") preserves the historical
+                    // semantics (every row was a purchase before V13).
+                    acquisitionSource = when (dto.acquisitionSource) {
+                        "earned" -> com.dangerfield.cards.libraries.cards.AcquisitionSource.Earned
+                        else -> com.dangerfield.cards.libraries.cards.AcquisitionSource.Purchased
+                    },
                 )
             }
             applyServerSnapshot(authoritative)
@@ -256,5 +264,9 @@ class InventoryRepositoryImpl(
             .getOrDefault(PurchaseState.Pending),
         purchasedAtEpochMs = purchasedAtEpochMs,
         costChipsAtPurchase = costChipsAtPurchase,
+        acquisitionSource = when (acquisitionSource) {
+            "earned" -> com.dangerfield.cards.libraries.cards.AcquisitionSource.Earned
+            else -> com.dangerfield.cards.libraries.cards.AcquisitionSource.Purchased
+        },
     )
 }

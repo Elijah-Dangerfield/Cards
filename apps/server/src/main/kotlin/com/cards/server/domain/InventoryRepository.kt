@@ -16,11 +16,34 @@ import kotlin.time.Instant
  * room: [recordPurchase] returns the resulting [OwnedItem] so the route
  * can echo it back.
  */
+/**
+ * How a row got into the inventory. Today: purchased (chips or IAP) or
+ * earned (achievement / league reward — wired into the schema but not
+ * yet called from anywhere). The visual "Earned" badge is gated on this
+ * flag — see slice 4 in plan: foamy-tickling-meerkat.md.
+ *
+ * Wire form is the lowercase enum name (`purchased` / `earned`), matched
+ * to the DB CHECK constraint in `V13__inventory_acquisition_source.sql`.
+ */
+enum class AcquisitionSource {
+    Purchased,
+    Earned;
+
+    val wire: String get() = name.lowercase()
+
+    companion object {
+        fun fromWire(raw: String): AcquisitionSource =
+            entries.firstOrNull { it.wire == raw }
+                ?: error("Unknown acquisition_source: $raw")
+    }
+}
+
 @OptIn(ExperimentalTime::class)
 data class OwnedItem(
     val productId: String,
     val costChipsAtPurchase: Long,
     val purchasedAt: Instant,
+    val acquisitionSource: AcquisitionSource = AcquisitionSource.Purchased,
 )
 
 @OptIn(ExperimentalTime::class)
@@ -33,12 +56,31 @@ interface InventoryRepository {
      * Idempotent upsert: if a row already exists for (userId, productId),
      * the existing row stays (first-purchase-wins for cost + timestamp).
      * Otherwise inserts. Returns the row that ends up persisted.
+     *
+     * Always writes `acquisition_source = 'purchased'`. The free-grant
+     * path (achievement reward / league finish) goes through
+     * [recordEarnedGrant] so the discriminator is right at write-time.
      */
     suspend fun recordPurchase(
         userId: UserId,
         productId: String,
         costChipsAtPurchase: Long,
         purchasedAt: Instant,
+    ): OwnedItem
+
+    /**
+     * Idempotent grant of an item the user *earned* (achievement reward,
+     * league finish, future free-grant paths). Returns the existing row
+     * if the user already owns the product — first-grant-wins on cost
+     * and timestamp, same as [recordPurchase]. No caller writes through
+     * this method yet; landed as part of the data-model slice so the
+     * achievement-reward inventory path has a single entry point when
+     * it ships.
+     */
+    suspend fun recordEarnedGrant(
+        userId: UserId,
+        productId: String,
+        grantedAt: Instant,
     ): OwnedItem
 
     /** Wipe everything for a user — used by the orphan sweep + future

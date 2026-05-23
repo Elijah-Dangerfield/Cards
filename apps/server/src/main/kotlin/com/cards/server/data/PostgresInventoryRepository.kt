@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.db.InventoryTable
 import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.UserId
@@ -51,6 +52,35 @@ class PostgresInventoryRepository(
         productId: String,
         costChipsAtPurchase: Long,
         purchasedAt: Instant,
+    ): OwnedItem = upsert(
+        userId = userId,
+        productId = productId,
+        costChipsAtPurchase = costChipsAtPurchase,
+        acquiredAt = purchasedAt,
+        source = AcquisitionSource.Purchased,
+    )
+
+    override suspend fun recordEarnedGrant(
+        userId: UserId,
+        productId: String,
+        grantedAt: Instant,
+    ): OwnedItem = upsert(
+        userId = userId,
+        productId = productId,
+        // Earned grants have no chip-cost provenance. Stored as 0 so the
+        // future "you paid X chips for this" surface can ignore zero
+        // alongside the discriminator.
+        costChipsAtPurchase = 0L,
+        acquiredAt = grantedAt,
+        source = AcquisitionSource.Earned,
+    )
+
+    private suspend fun upsert(
+        userId: UserId,
+        productId: String,
+        costChipsAtPurchase: Long,
+        acquiredAt: Instant,
+        source: AcquisitionSource,
     ): OwnedItem = database.transaction {
         val existing = readRow(userId, productId)
         if (existing != null) return@transaction existing
@@ -60,17 +90,20 @@ class PostgresInventoryRepository(
                 it[InventoryTable.userId] = userId.value
                 it[InventoryTable.productId] = productId
                 it[InventoryTable.costChipsAtPurchase] = costChipsAtPurchase
-                it[InventoryTable.purchasedAt] = purchasedAt.toJavaInstant()
+                it[InventoryTable.purchasedAt] = acquiredAt.toJavaInstant()
+                it[InventoryTable.acquisitionSource] = source.wire
             }
             OwnedItem(
                 productId = productId,
                 costChipsAtPurchase = costChipsAtPurchase,
-                purchasedAt = purchasedAt,
+                purchasedAt = acquiredAt,
+                acquisitionSource = source,
             )
         } catch (e: ExposedSQLException) {
             // Concurrent writer beat us between the read and the insert.
-            // Re-read and return whatever they wrote — first-purchase-wins
-            // is preserved.
+            // Re-read and return whatever they wrote — first-grant-wins
+            // is preserved (matches the historical "first-purchase-wins"
+            // before the earned path landed).
             if (e.isUniqueViolation()) {
                 readRow(userId, productId) ?: throw e
             } else {
@@ -96,6 +129,7 @@ class PostgresInventoryRepository(
         productId = this[InventoryTable.productId],
         costChipsAtPurchase = this[InventoryTable.costChipsAtPurchase],
         purchasedAt = this[InventoryTable.purchasedAt].toKotlinInstant(),
+        acquisitionSource = AcquisitionSource.fromWire(this[InventoryTable.acquisitionSource]),
     )
 
     private fun ExposedSQLException.isUniqueViolation(): Boolean {

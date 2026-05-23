@@ -54,6 +54,13 @@ data class OwnedItemDto(
     val productId: String,
     val costChipsAtPurchase: Long,
     val purchasedAtEpochMs: Long,
+    /**
+     * How the item entered inventory. `"purchased"` for chip / IAP buys,
+     * `"earned"` for achievement / league rewards (no caller writes the
+     * latter yet). Default value lets older clients deserialize the field
+     * as Purchased without a schema bump — additive by default.
+     */
+    val acquisitionSource: String = "purchased",
 )
 
 @Serializable

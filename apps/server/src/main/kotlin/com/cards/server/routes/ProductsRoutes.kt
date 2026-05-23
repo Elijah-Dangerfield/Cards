@@ -92,6 +92,7 @@ private fun Product.ChipPack.toDto(ctx: ClientContext): ChipPackDto = ChipPackDt
     featured = featured,
     badge = badgeByLocale?.let { pickLocalized(it, ctx.preferredLocales) }?.ifEmpty { null },
     availableUntilEpochMs = availableUntilEpochMs,
+    isEquippable = isEquippable,
 )
 
 private fun Product.ChipOffer.toDto(ctx: ClientContext): ChipOfferDto = ChipOfferDto(
@@ -106,6 +107,7 @@ private fun Product.ChipOffer.toDto(ctx: ClientContext): ChipOfferDto = ChipOffe
     description = descriptionByLocale?.let { pickLocalized(it, ctx.preferredLocales) }?.ifEmpty { null },
     unlockLevel = unlockLevel,
     availableUntilEpochMs = availableUntilEpochMs,
+    isEquippable = isEquippable,
 )
 
 private fun PlatformStore.forPlatform(platform: ClientContext.Platform): PlatformStore.StoreSku =

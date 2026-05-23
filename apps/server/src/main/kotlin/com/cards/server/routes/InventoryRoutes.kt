@@ -53,6 +53,7 @@ fun Route.inventoryRoutes(repository: InventoryRepository) {
                     productId = item.productId,
                     costChipsAtPurchase = item.costChipsAtPurchase,
                     purchasedAtEpochMs = item.purchasedAt.toEpochMilliseconds(),
+                    acquisitionSource = item.acquisitionSource.wire,
                 )
             }
             call.respond(

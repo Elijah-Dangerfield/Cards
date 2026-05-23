@@ -34,7 +34,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         WalletEventEntity::class,
         UserMessageEntity::class,
     ],
-    version = 14, // v14: dropped UserEntity (display name + anon flag live on ProfileRepository / AuthRepository)
+    version = 15, // v15: inventory.acquisition_source ('purchased'|'earned')
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)

@@ -27,4 +27,15 @@ data class InventoryEntity(
 
     @ColumnInfo(name = "cost_chips_at_purchase", defaultValue = "0")
     val costChipsAtPurchase: Long,
+
+    /**
+     * "purchased" | "earned". Mirrors the server's
+     * `inventory.acquisition_source` column. Default 'purchased' keeps
+     * pre-V13 rows interpretable as the historical "every row was a
+     * purchase" state. Stored as a string (matches `sync_state`) so
+     * adding a new value later doesn't require a column migration —
+     * just an enum update on the read side.
+     */
+    @ColumnInfo(name = "acquisition_source", defaultValue = "purchased")
+    val acquisitionSource: String = "purchased",
 )

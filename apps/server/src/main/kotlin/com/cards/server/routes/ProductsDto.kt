@@ -51,6 +51,12 @@ data class ChipPackDto(
      * for a clock-spoof-resistant countdown.
      */
     val availableUntilEpochMs: Long? = null,
+    /**
+     * Always `false` for chip packs (they're consumed on purchase, not
+     * equipped). Declared on the wire for symmetry with [ChipOfferDto]
+     * so the client doesn't have to special-case the kind to know.
+     */
+    val isEquippable: Boolean = false,
 )
 
 @Serializable
@@ -78,6 +84,15 @@ data class ChipOfferDto(
     val unlockLevel: Int? = null,
     /** See [ChipPackDto.availableUntilEpochMs]. */
     val availableUntilEpochMs: Long? = null,
+    /**
+     * `true` when this product is a visual cosmetic the user actively
+     * equips (felts, card backs, titles, table themes, tools). `false`
+     * for unlock-style packs (avatar packs, emote packs). The client
+     * uses this to gate the Equip/Unequip button on the My Items row;
+     * unlocks are owned but never "equipped" — they just expand the
+     * relevant picker.
+     */
+    val isEquippable: Boolean = false,
 )
 
 /**

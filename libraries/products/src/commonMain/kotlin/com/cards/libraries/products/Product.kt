@@ -51,6 +51,21 @@ sealed interface Product {
      */
     val availableUntilEpochMs: Long?
 
+    /**
+     * Server-authoritative flag — `true` when this product is a visual
+     * cosmetic the user actively equips (felts, card backs, titles,
+     * table themes, tools). `false` for unlock-style products: chip
+     * packs (consumed on purchase) and avatar / emote packs (owning
+     * the pack adds options to a picker — there's nothing to equip).
+     *
+     * Used to gate the Equip/Unequip button on the My Items row. Slot
+     * routing (one felt at a time, one card back at a time) still
+     * lives in `CosmeticCategory.kt` by product-id prefix; the
+     * `isEquippable` field replaced the prefix logic for the
+     * "does this item have an equip button at all" question.
+     */
+    val isEquippable: Boolean
+
     @Serializable
     data class ChipPack(
         override val id: String,
@@ -62,6 +77,11 @@ sealed interface Product {
         override val featured: Boolean = false,
         override val badge: String? = null,
         override val availableUntilEpochMs: Long? = null,
+        // Chip packs are consumable — grant chips on purchase, never
+        // equipped. Always false; declared so the field is visible
+        // in pattern-matched callsites without having to special-case
+        // the subtype.
+        override val isEquippable: Boolean = false,
     ) : Product
 
     @Serializable
@@ -90,6 +110,9 @@ sealed interface Product {
          * [subtitle] rather than rendering an empty block.
          */
         val description: String? = null,
+        // Server-driven. Visual cosmetics → true; unlock-style packs
+        // (avatar / emote packs) → false. See sealed-parent KDoc.
+        override val isEquippable: Boolean = false,
     ) : Product
 }
 
