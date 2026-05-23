@@ -173,11 +173,11 @@ Lean: revisit when we add the next feature config. Not blocking V1. Capture the 
 
 Not blocking V1, but worth deciding before we add more repos.
 
-### `SupabaseIdentityRepository` review
-Open critiques from the field log:
-- **No tests yet.** The impl has no commonTest sources — a real test pass would need fakes for `SupabaseClient`, `ProfileApi`, `IdentityCache`, and `AppEventBus`. Worth doing before any further changes to the outcome-mapping logic; downstream feature tests use the `IdentityRepository` interface via fakes so they don't exercise these mappings.
-- Maintains its own cache; supabase-kt has its own session cache. Are we double-caching? Should we trust theirs?
-- An identity-as-DI question: rather than each consumer awaiting `IdentityRepository.state`, inject a `Lazy<Identity>` (the way `AppConfig` is treated) that *should* be initialized at boot, with `runBlocking` as the worst-case fallback. Makes consumer code straight-line and removes a class of "what if the state isn't ready" bugs.
+### `SupabaseAuthRepositoryImpl` / `SupabaseProfileRepositoryImpl` review
+Open critiques from the field log (carried forward from the original `SupabaseIdentityRepository` review — the impls were split in the 2026-05-23 auth rework but the structural concerns survive).
+- **No tests yet.** Neither impl has commonTest sources. A real test pass would need fakes for `SupabaseClient`, `ProfileApi`, `ProfileCache`, and `AppEventBus`. Worth doing before any further changes to the outcome-mapping logic; downstream feature tests use the `AuthRepository` / `ProfileRepository` interfaces via fakes so they don't exercise these mappings.
+- `SupabaseProfileRepositoryImpl`'s cache (`ProfileCache`) overlaps supabase-kt's own session cache. The new `Catching { server }.fold(success → it.also(write), failure → cache.read())` pattern means we only consult the local cache on failure, which is correct — but the cache write happens on every success, so the storage cost still exists. Worth measuring before optimizing.
+- A profile-as-DI question: rather than each consumer awaiting `ProfileRepository.observe().first()`, inject a `Lazy<Profile.Authenticated>` (the way `AppConfig` is treated) that *should* be initialized at boot, with `runBlocking` as the worst-case fallback. Makes consumer code straight-line and removes a class of "what if the profile isn't ready" bugs.
 
 Note: the get-or-create pattern is correct, so the remaining structural concerns are consolidation, not correctness.
 
@@ -202,7 +202,7 @@ This is a poker app. A user shouldn't need internet to play bots, even on first 
 
 **Lean:** option 3 is the most honest — it matches what the app actually needs from a server identity. Option 2 is technically possible but introduces a non-trivial reconciliation surface we'd otherwise avoid.
 
-**Files / hints:** [SupabaseIdentityRepository.kt:113](../libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/SupabaseIdentityRepository.kt#L113) (`ensureInitialized`), [SplashGate](../libraries/identity/api/src/commonMain/kotlin/com/cards/libraries/identity/api/SessionState.kt) wiring. **Discuss approach with the human before implementing** — this is an executive decision call, not a worker pickup.
+**Files / hints:** [SupabaseAuthRepositoryImpl.kt](../libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/auth/SupabaseAuthRepositoryImpl.kt) (bootstrap + `retry()`), [AppViewModel.kt](../apps/compose/src/commonMain/kotlin/com/cards/AppViewModel.kt) (splash gate). **Discuss approach with the human before implementing** — this is an executive decision call, not a worker pickup.
 
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 **Problem:** `libraries/cards` was originally the "highly shared" dumping ground. It has grown to be too big. We now also have `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). The three overlap in confusing ways for new readers.
