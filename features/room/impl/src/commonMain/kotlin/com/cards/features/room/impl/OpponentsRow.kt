@@ -174,7 +174,17 @@ private fun ScrollingOpponentsRow(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalFadingEdge(listState),
-        contentPadding = PaddingValues(horizontal = ScrollingRowHorizontalPadding),
+        // Top padding gives the chevron (offset y=-16) and the last-
+        // action pill (offset y=-6, pill height ~22dp) room to render
+        // inside the row. Without it, LazyRow clips at its bounds and
+        // the "Folded" / "Called 10" pill gets cut at the top edge —
+        // the packed (non-scrolling) variant uses a plain Row, which
+        // doesn't clip, so that path renders fine.
+        contentPadding = PaddingValues(
+            start = ScrollingRowHorizontalPadding,
+            end = ScrollingRowHorizontalPadding,
+            top = ScrollingRowOverhangPadding,
+        ),
         horizontalArrangement = Arrangement.spacedBy(ScrollingRowItemSpacing),
         verticalAlignment = Alignment.Top,
     ) {
@@ -205,6 +215,11 @@ private val ScrollingAvatarSize: Dp = 56.dp
 private val ScrollingSeatWidth: Dp = 72.dp
 private val ScrollingRowItemSpacing: Dp = 8.dp
 private val ScrollingRowHorizontalPadding: Dp = 12.dp
+// Headroom for the active-turn chevron (-16dp) and the last-action
+// pill (-6dp offset, ~22dp tall = 28dp overhang). 28dp matches the
+// pill's worst case; if the chevron grows or the pill gets a bigger
+// font, bump this together.
+private val ScrollingRowOverhangPadding: Dp = 28.dp
 
 @Composable
 private fun OpponentSeat(
