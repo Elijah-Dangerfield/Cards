@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
@@ -33,6 +34,7 @@ import me.tatarka.inject.annotations.Inject
 @Inject
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
+    private val inventoryRepository: InventoryRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<EditProfileState, EditProfileEvent, EditProfileAction>(
     initialStateArg = EditProfileState(),
@@ -47,6 +49,15 @@ class EditProfileViewModel(
                 .filterIsInstance<Profile.Authenticated>()
                 .first()
             takeAction(EditProfileAction.SeedFromProfile(profile))
+            // Push any local-only inventory rows to the server BEFORE we
+            // fetch /v1/avatars. The server gates pack availability on
+            // the inventory join — if a recent purchase is still Pending
+            // locally, the picker would render Starter only despite the
+            // user having just bought the pack. Result-based + bounded
+            // by the inventory repo's own timeout; failure here doesn't
+            // block the picker, it just means the user sees stale state
+            // until the next sync.
+            inventoryRepository.sync()
             takeAction(EditProfileAction.LoadAvatarPack)
         }
     }

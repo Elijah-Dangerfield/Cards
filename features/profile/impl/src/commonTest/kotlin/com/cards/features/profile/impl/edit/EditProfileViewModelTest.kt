@@ -2,6 +2,9 @@ package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.InventoryItem
+import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
@@ -13,6 +16,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
@@ -27,6 +31,7 @@ class EditProfileViewModelTest : CoroutineTest() {
         val profile = GatedUpdateProfile(gate)
         val vm = EditProfileViewModel(
             profileRepository = profile,
+            inventoryRepository = NoOpInventoryRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -55,6 +60,7 @@ class EditProfileViewModelTest : CoroutineTest() {
         val profile = GatedUpdateProfile(gate)
         val vm = EditProfileViewModel(
             profileRepository = profile,
+            inventoryRepository = NoOpInventoryRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -121,4 +127,16 @@ private class GatedUpdateProfile(
             packs = listOf(AvatarPack(id = "starter", name = "Starter", emojis = listOf("🃏", "🦊"))),
             palette = emptyList(),
         )
+}
+
+private object NoOpInventoryRepository : InventoryRepository {
+    override fun observeInventory(): Flow<List<InventoryItem>> = flowOf(emptyList())
+    override suspend fun getInventory(): List<InventoryItem> = emptyList()
+    override suspend fun redeemChipOffer(productId: String, costChips: Long): RedeemResult =
+        RedeemResult.Success
+    override suspend fun markConfirmed(productIds: Collection<String>) = Unit
+    override suspend fun revertPurchase(productId: String) = Unit
+    override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) = Unit
+    override suspend fun deleteAll() = Unit
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
 }
