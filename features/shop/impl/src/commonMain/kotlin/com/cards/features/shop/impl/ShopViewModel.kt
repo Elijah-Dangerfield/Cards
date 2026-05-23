@@ -51,7 +51,7 @@ import me.tatarka.inject.annotations.Inject
  * IAP packs ([ShopAction.ConfirmPendingPurchase] for a chip pack) drive
  * [BillingClient.purchase] and emit a [ShopEvent.PurchaseFinished] once
  * the store sheet resolves (success, cancel, failure). Chips are
- * credited locally via [ChipsRepository.applyDelta] when the store
+ * credited locally via [ChipsRepository.addChips] when the store
  * confirms — server-side receipt validation is deferred.
  */
 class ShopViewModel @Inject constructor(
@@ -246,8 +246,8 @@ class ShopViewModel @Inject constructor(
         // doubles as the idempotency key so a duplicate purchase-confirmed
         // signal (e.g. resume-after-restore) doesn't double-credit when
         // the wallet sync flushes either copy of the event.
-        chipsRepository.applyDelta(
-            delta = pack.grantsChips,
+        chipsRepository.addChips(
+            amount = pack.grantsChips,
             reason = "iap.${pack.id}",
             idempotencyKey = "iap.${pack.id}.${transaction.orderId}",
         )
@@ -313,7 +313,10 @@ data class ShopState(
     val catalog: ProductCatalog = ProductCatalog.Empty,
     val isRefreshing: Boolean = false,
     val hasLoaded: Boolean = false,
-    val chipBalance: Long = ChipsRepository.STARTING_GRANT,
+    /** `null` while the first chip sync hasn't hydrated the local row.
+     *  Affordance gates ([canAfford], [classify], [sheetModeFor]) treat
+     *  null as "can't afford anything" so the buy CTA stays disabled. */
+    val chipBalance: Long? = null,
     val errorMessage: String? = null,
     val inventory: List<InventoryItem> = emptyList(),
     /** Quick-lookup set of product ids the user owns. Updated alongside
@@ -340,7 +343,8 @@ data class ShopState(
      * Can the user afford the offer? Used by the screen to disable the
      * row + by the VM as a final guard before mutating state.
      */
-    fun canAfford(offer: Product.ChipOffer): Boolean = chipBalance >= offer.costChips
+    fun canAfford(offer: Product.ChipOffer): Boolean =
+        chipBalance != null && chipBalance >= offer.costChips
 
     /**
      * Is the product unlocked for this user (i.e., past the level gate)?
@@ -383,7 +387,7 @@ data class ShopState(
             requiredLevel = (product as? Product.ChipOffer)?.unlockLevel ?: 1,
         )
         product is Product.ChipOffer && !canAfford(product) -> PurchaseSheetMode.Insufficient(
-            shortBy = (product.costChips - chipBalance).coerceAtLeast(0),
+            shortBy = (product.costChips - (chipBalance ?: 0L)).coerceAtLeast(0),
         )
         else -> PurchaseSheetMode.Available
     }
@@ -400,7 +404,7 @@ data class ShopState(
         )
         !canAfford(offer) -> ChipOfferCardState.Insufficient(
             costChips = offer.costChips,
-            shortBy = (offer.costChips - chipBalance).coerceAtLeast(0),
+            shortBy = (offer.costChips - (chipBalance ?: 0L)).coerceAtLeast(0),
         )
         else -> ChipOfferCardState.Available(costChips = offer.costChips)
     }
@@ -477,7 +481,7 @@ sealed interface ShopAction {
     data object RefreshFinished : ShopAction
     data class RefreshFailed(val message: String) : ShopAction
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
-    data class ChipsChanged(val balance: Long) : ShopAction
+    data class ChipsChanged(val balance: Long?) : ShopAction
     data class InventoryChanged(val inventory: List<InventoryItem>) : ShopAction
     data class PlayerLevelChanged(val level: Int) : ShopAction
     data class TimeAnchorChanged(val anchor: CatalogTimeAnchor?) : ShopAction

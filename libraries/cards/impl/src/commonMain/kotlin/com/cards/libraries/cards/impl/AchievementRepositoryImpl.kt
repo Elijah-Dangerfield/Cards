@@ -159,8 +159,8 @@ class AchievementRepositoryImpl(
             }
             for (earned in newlyEarned) {
                 if (earned.achievement.chipReward > 0L) {
-                    chipsRepository.applyDelta(
-                        delta = earned.achievement.chipReward,
+                    chipsRepository.addChips(
+                        amount = earned.achievement.chipReward,
                         // achievementId+earnedAt is unique per user per
                         // unlock — collapsing both into one key gives us
                         // safe replay across the bounce-the-app-mid-grant

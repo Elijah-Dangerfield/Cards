@@ -45,7 +45,7 @@ data class InventoryItem(
  *  3. On ack → entry transitions to [Confirmed].
  *  4. If the server *rejects* (e.g. retroactive over-draw because the user
  *     redeemed offline twice and chip math doesn't add up) → entry deletes
- *     and chips are credited back via a separate [ChipsRepository.applyDelta].
+ *     and chips are credited back via a separate [ChipsRepository.addChips].
  */
 enum class PurchaseState {
     /** Inserted locally; not yet acknowledged by the server. */

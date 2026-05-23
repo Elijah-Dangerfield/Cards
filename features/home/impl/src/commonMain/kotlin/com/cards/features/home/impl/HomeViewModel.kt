@@ -108,7 +108,10 @@ class HomeViewModel(
 data class HomeState(
     val userName: String? = null,
     val xp: Long = 0,
-    val chips: Long = ChipsRepository.STARTING_GRANT,
+    /** `null` while the first chip sync hasn't hydrated the local row.
+     *  HomeScreen hides / placeholder-renders the chip badge while null
+     *  rather than flashing a guessed value. */
+    val chips: Long? = null,
     val isAnonymous: Boolean = true,
     val activeRooms: List<ActiveRoomSummary> = emptyList(),
 )
@@ -125,5 +128,5 @@ sealed interface HomeAction {
     data object LoadActiveRooms : HomeAction
     data class Forfeit(val code: String) : HomeAction
     data class XpChanged(val totalXp: Long) : HomeAction
-    data class ChipsChanged(val balance: Long) : HomeAction
+    data class ChipsChanged(val balance: Long?) : HomeAction
 }

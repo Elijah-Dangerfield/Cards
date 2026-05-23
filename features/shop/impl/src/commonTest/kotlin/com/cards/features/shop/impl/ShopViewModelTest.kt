@@ -558,21 +558,28 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     private class FakeChipsRepository(
-        initialBalance: Long = ChipsRepository.STARTING_GRANT,
+        initialBalance: Long? = 10_000L,
     ) : ChipsRepository {
         private val state = MutableStateFlow(initialBalance)
+        /** Records (signed-delta, reason, idempotencyKey). Signed for backward
+         *  compat with existing assertions that check for negative shop debits
+         *  and positive IAP credits. */
         val appliedDeltas = mutableListOf<Triple<Long, String, String?>>()
 
-        override fun observeBalance(): Flow<Long> = state.asStateFlow()
-        override suspend fun getBalance(): Long = state.value
-        override suspend fun applyDelta(delta: Long, reason: String, idempotencyKey: String?) {
-            appliedDeltas += Triple(delta, reason, idempotencyKey)
-            state.value += delta
+        override fun observeBalance(): Flow<Long?> = state.asStateFlow()
+        override suspend fun getBalance(): Long? = state.value
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
+            appliedDeltas += Triple(+amount, reason, idempotencyKey)
+            state.value = (state.value ?: 0L) + amount
+        }
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
+            appliedDeltas += Triple(-amount, reason, idempotencyKey)
+            state.value = (state.value ?: 0L) - amount
         }
         override suspend fun setBalance(authoritativeBalance: Long) { state.value = authoritativeBalance }
-        override suspend fun deleteAll() { state.value = 0 }
+        override suspend fun deleteAll() { state.value = null }
         override suspend fun sync(): Result<Unit> = Result.success(Unit)
-        fun emit(value: Long) { state.value = value }
+        fun emit(value: Long?) { state.value = value }
     }
 
     private class FakeBillingClient(

@@ -364,21 +364,29 @@ class InventoryRepositoryImplTest : CoroutineTest() {
     }
 
     private class FakeChipsRepository(balance: Long) : ChipsRepository {
-        private val state = MutableStateFlow(balance)
+        private val state = MutableStateFlow<Long?>(balance)
         val deltas = mutableListOf<Long>()
         val reasons = mutableListOf<String>()
         val idempotencyKeys = mutableListOf<String?>()
         var failOnNextApplyDelta: Throwable? = null
 
-        override fun observeBalance(): Flow<Long> = state.asStateFlow()
-        override suspend fun getBalance(): Long = state.value
+        override fun observeBalance(): Flow<Long?> = state.asStateFlow()
+        override suspend fun getBalance(): Long? = state.value
 
-        override suspend fun applyDelta(delta: Long, reason: String, idempotencyKey: String?) {
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
+            applyDeltaInternal(+amount, reason, idempotencyKey)
+        }
+
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
+            applyDeltaInternal(-amount, reason, idempotencyKey)
+        }
+
+        private fun applyDeltaInternal(delta: Long, reason: String, idempotencyKey: String?) {
             failOnNextApplyDelta?.let { failOnNextApplyDelta = null; throw it }
             deltas += delta
             reasons += reason
             idempotencyKeys += idempotencyKey
-            state.value = state.value + delta
+            state.value = (state.value ?: 0L) + delta
         }
 
         override suspend fun setBalance(authoritativeBalance: Long) {

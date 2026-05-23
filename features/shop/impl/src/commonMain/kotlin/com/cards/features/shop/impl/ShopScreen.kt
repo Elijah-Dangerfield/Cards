@@ -123,7 +123,7 @@ fun ShopScreen(
             PurchaseConfirmSheet(
                 pending = pending,
                 mode = state.sheetModeFor(product),
-                chipBalance = state.chipBalance,
+                chipBalance = state.chipBalance ?: 0L,
                 timeAnchor = state.timeAnchor,
                 onConfirm = { onAction(ShopAction.ConfirmPendingPurchase) },
                 onDismiss = { onAction(ShopAction.DismissPendingPurchase) },
@@ -151,7 +151,11 @@ private fun CatalogContent(
             .padding(horizontal = 20.dp),
     ) {
         VerticalSpacerD500()
-        ShopHeader(chips = state.chipBalance)
+        // First-sync hydrate normally lands during the splash gate; rare
+        // race where shop opens before the chip sync resolves shows 0
+        // rather than passing null through every leaf. UI polish for a
+        // true loading state is a separate follow-up.
+        ShopHeader(chips = state.chipBalance ?: 0L)
         VerticalSpacerD700()
 
         featured?.let {

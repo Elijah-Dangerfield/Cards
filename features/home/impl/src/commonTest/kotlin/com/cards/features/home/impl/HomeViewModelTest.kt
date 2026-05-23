@@ -340,19 +340,22 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     private class FakeChipsRepository(
-        initial: Long = ChipsRepository.STARTING_GRANT,
+        initial: Long? = 10_000L,
     ) : ChipsRepository {
         val balance = MutableStateFlow(initial)
-        override fun observeBalance(): Flow<Long> = balance
-        override suspend fun getBalance(): Long = balance.value
-        override suspend fun applyDelta(delta: Long, reason: String, idempotencyKey: String?) {
-            balance.value = balance.value + delta
+        override fun observeBalance(): Flow<Long?> = balance
+        override suspend fun getBalance(): Long? = balance.value
+        override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
+            balance.value = (balance.value ?: 0L) + amount
+        }
+        override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
+            balance.value = (balance.value ?: 0L) - amount
         }
         override suspend fun setBalance(authoritativeBalance: Long) {
             balance.value = authoritativeBalance
         }
         override suspend fun deleteAll() {
-            balance.value = ChipsRepository.STARTING_GRANT
+            balance.value = null
         }
         override suspend fun sync(): Result<Unit> = Result.success(Unit)
     }

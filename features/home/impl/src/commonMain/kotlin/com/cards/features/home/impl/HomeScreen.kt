@@ -53,7 +53,12 @@ fun HomeScreen(
     // and the RankDetailSheet explainer). XP and chips are live via repos.
     HomeScreenContent(
         rank = if (state.isAnonymous) 0 else 1200,
-        chips = state.chips,
+        // First-sync hydrate normally lands during the splash gate; on
+        // the rare path where home renders before the chip sync hits,
+        // fall back to 0 rather than passing null through every leaf
+        // component. UI polish to render a true "loading" placeholder
+        // is a separate follow-up.
+        chips = state.chips ?: 0L,
         xp = state.xp,
         activeRooms = state.activeRooms,
         onPlayBots = onPlayBots,

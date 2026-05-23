@@ -76,9 +76,11 @@ class InventoryRepositoryImpl(
         require(costChips >= 0) { "costChips must be non-negative" }
 
         // Step 1: pre-check balance. Cheap read; if the user can't afford
-        // it we return without touching state.
+        // it we return without touching state. A null balance means the
+        // first sync hasn't hydrated the local row yet — refuse rather
+        // than guess.
         val balance = chipsRepository.getBalance()
-        if (balance < costChips) return RedeemResult.InsufficientChips
+        if (balance == null || balance < costChips) return RedeemResult.InsufficientChips
 
         // Step 2: optimistic insert. `INSERT OR IGNORE` returns -1 if the
         // row already exists — that's the "already owned" signal, no chip
@@ -102,8 +104,8 @@ class InventoryRepositoryImpl(
         // server's sync side. The reason/key tie the wallet event to
         // this specific product so a re-attempt collapses cleanly.
         try {
-            chipsRepository.applyDelta(
-                delta = -costChips,
+            chipsRepository.subtractChips(
+                amount = costChips,
                 reason = "shop.$productId",
                 idempotencyKey = "shop.$productId",
             )
@@ -201,8 +203,8 @@ class InventoryRepositoryImpl(
                         // matters — the refund mutation is the user-visible
                         // change, the row delete is the bookkeeping.
                         result.chipsToRefund?.takeIf { it > 0 }?.let { refund ->
-                            chipsRepository.applyDelta(
-                                delta = refund,
+                            chipsRepository.addChips(
+                                amount = refund,
                                 reason = "shop.refund.${result.productId}",
                                 idempotencyKey = "shop.refund.${result.productId}",
                             )
