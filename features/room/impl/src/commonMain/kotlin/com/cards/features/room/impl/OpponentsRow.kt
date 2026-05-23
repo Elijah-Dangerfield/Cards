@@ -152,7 +152,21 @@ private fun ScrollingOpponentsRow(
     LaunchedEffect(actingSeatIndex, opponents) {
         if (actingSeatIndex == null || suppressAutoScroll) return@LaunchedEffect
         val target = opponents.indexOfFirst { it.index == actingSeatIndex }
-        if (target >= 0) listState.animateScrollToItem(target)
+        if (target < 0) return@LaunchedEffect
+        // Center the acting seat in the viewport rather than pinning it
+        // to the start. `animateScrollToItem`'s default puts the target
+        // at scrollOffset 0 (left edge); the negative offset pulls the
+        // target inward by half the empty space. Falls back to a plain
+        // scroll if layout isn't ready (first composition).
+        val info = listState.layoutInfo
+        val viewportWidth = info.viewportEndOffset - info.viewportStartOffset
+        val itemWidth = info.visibleItemsInfo.firstOrNull()?.size ?: 0
+        val centeringOffset = if (viewportWidth > 0 && itemWidth > 0) {
+            -((viewportWidth - itemWidth) / 2)
+        } else {
+            0
+        }
+        listState.animateScrollToItem(target, centeringOffset)
     }
 
     LazyRow(

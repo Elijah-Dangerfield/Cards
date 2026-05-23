@@ -87,6 +87,23 @@ fun Modifier.fadingEdge(
         }
 }
 
+/**
+ * Fades the horizontal edges of a [LazyListState] toward transparent so
+ * scrollable content "falls off" at the edges instead of stopping
+ * abruptly. Two independent fades — start edge fires when the list can
+ * scroll backward, end edge when it can scroll forward — so an
+ * un-scrolled list has no fade at all.
+ *
+ * Blend mode is [BlendMode.DstIn], which keeps the destination's alpha
+ * where the source's alpha is high and erases it where the source's
+ * alpha is low. The gradient direction therefore matches the visible
+ * effect: at the outermost edge the gradient sits at `Color.Transparent`
+ * (alpha = 0 → erase content), and `fadeWidth` inward the gradient
+ * sits at `color` (alpha = 1 → keep content). Reversing the gradient
+ * (which is what the original implementation did) erases the content
+ * just *inside* the edge and leaves the outermost pixels visible — the
+ * symptom the team saw was a black strip across the opponents row.
+ */
 fun Modifier.horizontalFadingEdge(
     listState: LazyListState,
     fadeWidth: Dp = Dimension.D1100,
@@ -102,9 +119,11 @@ fun Modifier.horizontalFadingEdge(
             val fadeWidthPx = fadeWidth.toPx()
 
             if (listState.canScrollBackward) {
+                // Start edge: transparent at x=0 (erase content at the
+                // edge) → opaque at fadeWidth (keep content beyond).
                 drawRect(
                     brush = Brush.horizontalGradient(
-                        colors = listOf(color, Color.Transparent),
+                        colors = listOf(Color.Transparent, color),
                         startX = 0f,
                         endX = fadeWidthPx,
                     ),
@@ -113,9 +132,11 @@ fun Modifier.horizontalFadingEdge(
             }
 
             if (listState.canScrollForward) {
+                // End edge: opaque inward (keep content) → transparent
+                // at the right edge (erase content at the edge).
                 drawRect(
                     brush = Brush.horizontalGradient(
-                        colors = listOf(Color.Transparent, color),
+                        colors = listOf(color, Color.Transparent),
                         startX = size.width - fadeWidthPx,
                         endX = size.width,
                     ),
