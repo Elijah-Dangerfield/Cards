@@ -26,10 +26,10 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.OAuthProvider
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlinx.coroutines.flow.Flow
@@ -125,14 +125,14 @@ class FakePokerSessionFactory(
         state: GameState,
         lastWinners: GameEvent.HandEnded?,
         lastActionBySeat: Map<Int, PlayerAction>,
-        humanIdentity: Identity?,
+        humanProfile: Profile.Authenticated?,
     ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
         personalitiesBySeat = emptyMap(),
         lastWinners = lastWinners,
         lastActionBySeat = lastActionBySeat,
-        humanIdentity = humanIdentity,
+        humanProfile = humanProfile,
     )
 }
 
@@ -308,45 +308,34 @@ fun bizzaroPersonality(label: String = "Tight Aggressive"): Personality = Person
     pfr = 0.18,
 )
 
-// ---------- IdentityRepository ----------
+// ---------- ProfileRepository ----------
 
 /**
- * Minimal [IdentityRepository] fake for VM tests. Only [state] is meaningfully
- * implemented — every other method throws because the play-poker VM only
- * reads the state flow.
+ * Minimal [ProfileRepository] fake for VM tests. Only [observe] is
+ * meaningfully implemented — every other method throws because the
+ * play-poker VM only reads the flow.
  *
- * Defaults to [IdentityState.Unknown] so existing tests (which don't care
- * about identity-driven projection) pin the engine-side "You" displayName.
- * Tests that need to assert on the identity-driven seat shape can flip
- * the state via [emit].
+ * Defaults to "nothing emitted" so existing tests (which don't care about
+ * profile-driven projection) pin the engine-side "You" displayName.
+ * Tests that need to assert on the profile-driven seat shape can flip
+ * the value via [emit].
  */
-class FakeIdentityRepository(
-    initial: IdentityState = IdentityState.Unknown,
-) : IdentityRepository {
-    private val _state = MutableStateFlow(initial)
-    override val state: StateFlow<IdentityState> = _state
+class FakeProfileRepository : ProfileRepository {
+    private val flow = MutableSharedFlow<Profile>(replay = 1, extraBufferCapacity = 8)
 
-    fun emit(state: IdentityState) {
-        _state.value = state
+    fun emit(profile: Profile) {
+        flow.tryEmit(profile)
     }
 
-    override suspend fun ensureInitialized() = error("ensureInitialized not used by PlayPokerViewModel")
-    override suspend fun signInWithEmail(email: String, password: String) =
-        error("signInWithEmail not used")
-    override suspend fun signUpWithEmail(email: String, password: String) =
-        error("signUpWithEmail not used")
-    override suspend fun refreshSession() = error("refreshSession not used")
-    override suspend fun resendVerificationEmail(email: String) = error("resendVerificationEmail not used")
-    override suspend fun signOut() = error("signOut not used")
-    override suspend fun updateProfile(
+    override suspend fun current(): Profile = error("not used by PlayPokerViewModel")
+    override fun observe(): Flow<Profile> = flow
+
+    override suspend fun update(
         displayName: String?,
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
-    ) = error("updateProfile not used")
-    override suspend fun fetchAvatarPack() = error("fetchAvatarPack not used")
-    override suspend fun deleteAccount() = error("deleteAccount not used")
-    override suspend fun linkOAuthIdentity(provider: OAuthProvider) = error("linkOAuthIdentity not used")
-    override suspend fun linkEmailIdentity(email: String, password: String) = error("linkEmailIdentity not used")
-    override suspend fun signInWithOAuth(provider: OAuthProvider) = error("signInWithOAuth not used")
+    ): UpdateProfileOutcome = error("update not used")
+
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("fetchAvatarPack not used")
 }

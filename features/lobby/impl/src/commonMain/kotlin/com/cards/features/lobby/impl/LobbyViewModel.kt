@@ -4,9 +4,8 @@ import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.awaitIdentity
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
@@ -44,7 +43,7 @@ import me.tatarka.inject.annotations.Inject
 class LobbyViewModel(
     @Assisted private val prefilledCode: String?,
     private val rooms: RoomRepository,
-    private val identity: IdentityRepository,
+    private val auth: AuthRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<LobbyState, LobbyEvent, LobbyAction>(
     initialStateArg = LobbyState(codeInput = prefilledCode?.uppercase().orEmpty()),
@@ -54,13 +53,14 @@ class LobbyViewModel(
     private var connectionJob: Job? = null
 
     init {
-        // Seed currentUserId so the UI knows who's host. awaitIdentity()
-        // returns immediately when bootstrap is done (the common path
-        // post-onboarding) and waits the brief cache-hydrate window
-        // otherwise.
+        // Seed currentUserId so the UI knows who's host. current()
+        // suspends until auth resolves (the common path post-onboarding
+        // returns immediately; cache-hydrate window otherwise).
         viewModelScope.launch {
-            val id = identity.awaitIdentity().userId
-            takeAction(LobbyAction.IdentityResolved(id))
+            val resolved = auth.current()
+            if (resolved is AuthState.Authenticated) {
+                takeAction(LobbyAction.IdentityResolved(resolved.userId))
+            }
         }
         // Deep-link join path: the route opens with a code already
         // populated. We attempt the join automatically so the user
@@ -215,10 +215,10 @@ class LobbyViewModel(
         // status as events come in.
         takeAction(LobbyAction.ConnectionUpdated(RoomConnection.Connected(room)))
         connectionJob = viewModelScope.launch {
-            // Wait for an authenticated identity (rare race: a fresh
+            // Wait for an authenticated session (rare race: a fresh
             // user who created a room before the anonymous bootstrap
             // settled). Once we have one, observe the socket.
-            identity.state.filterIsInstance<IdentityState.SignedIn>().first()
+            auth.observe().filterIsInstance<AuthState.Authenticated>().first()
             rooms.observeRoom(room.code).collect { connection ->
                 takeAction(LobbyAction.ConnectionUpdated(connection))
             }

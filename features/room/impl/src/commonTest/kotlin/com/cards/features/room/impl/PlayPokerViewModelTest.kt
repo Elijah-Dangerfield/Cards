@@ -17,8 +17,7 @@ import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -232,25 +231,24 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertTrue(vm.state.recentlyEarned.isEmpty())
     }
 
-    // ---------- Identity → human-seat projection ----------
+    // ---------- Profile → human-seat projection ----------
 
     @Test
-    fun signedInIdentity_drivesHumanSeatNameEmojiAndBackgroundColor() = runUnitTest {
-        val identity = Identity(
-            userId = "u-1",
+    fun authenticatedProfile_drivesHumanSeatNameEmojiAndBackgroundColor() = runUnitTest {
+        val profile = Profile.Authenticated(
+            id = "u-1",
             displayName = "QuietAce72",
             avatarEmoji = "🦊",
             avatarBackgroundColor = "#58E47C",
+            email = null,
             isAnonymous = true,
         )
-        val identityRepo = FakeIdentityRepository(
-            initial = IdentityState.SignedIn(identity),
-        )
+        val profileRepo = FakeProfileRepository().apply { emit(profile) }
         val session = FakePokerSession()
         val factory = FakePokerSessionFactory(session = session)
-        val vm = buildVm(factory = factory, identityRepository = identityRepo)
+        val vm = buildVm(factory = factory, profileRepository = profileRepo)
 
-        // Re-emit so the projection runs against the identity captured at init.
+        // Re-emit so the projection runs against the profile captured at init.
         session.emitGameState(
             stubGameState(
                 seats = listOf(
@@ -265,16 +263,16 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals("QuietAce72", humanSeat.displayName)
         assertEquals("🦊", humanSeat.emoji)
         assertEquals("#58E47C", humanSeat.avatarBackgroundColorHex)
-        // Bot seat unaffected — engine name, no identity-driven background.
+        // Bot seat unaffected — engine name, no profile-driven background.
         val botSeat = table.seats.first { it.isBot }
         assertEquals("Steve", botSeat.displayName)
         assertEquals(null, botSeat.avatarBackgroundColorHex)
     }
 
     @Test
-    fun unknownIdentity_keepsEngineSeatName() = runUnitTest {
-        // Default FakeIdentityRepository is Unknown — projection should fall
-        // back to the engine seat's own displayName.
+    fun unresolvedProfile_keepsEngineSeatName() = runUnitTest {
+        // Default FakeProfileRepository emits nothing — projection should
+        // fall back to the engine seat's own displayName.
         val session = FakePokerSession()
         val factory = FakePokerSessionFactory(session = session)
         val vm = buildVm(factory = factory)
@@ -606,7 +604,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
         achievementRepository: FakeAchievementRepository = FakeAchievementRepository(),
         appCache: FakeAppCache = FakeAppCache(),
-        identityRepository: FakeIdentityRepository = FakeIdentityRepository(),
+        profileRepository: FakeProfileRepository = FakeProfileRepository(),
         reviewPromptCoordinator: FakeReviewPromptCoordinator = FakeReviewPromptCoordinator(),
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
@@ -614,7 +612,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         achievementRepository = achievementRepository,
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
-        identityRepository = identityRepository,
+        profileRepository = profileRepository,
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
     )

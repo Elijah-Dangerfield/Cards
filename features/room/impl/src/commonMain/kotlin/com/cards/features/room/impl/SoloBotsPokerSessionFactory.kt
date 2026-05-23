@@ -11,7 +11,7 @@ import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.StakeTier
-import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.profile.Profile
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
@@ -95,13 +95,13 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         state: GameState,
         lastWinners: GameEvent.HandEnded?,
         lastActionBySeat: Map<Int, PlayerAction>,
-        humanIdentity: Identity?,
+        humanProfile: Profile.Authenticated?,
     ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = humanSeatIndex,
         personalitiesBySeat = personalitiesBySeat,
         lastWinners = lastWinners,
         lastActionBySeat = lastActionBySeat,
-        humanIdentity = humanIdentity,
+        humanProfile = humanProfile,
     )
 }

@@ -14,8 +14,8 @@ import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
@@ -60,7 +60,7 @@ class ShopViewModel @Inject constructor(
     private val chipsRepository: ChipsRepository,
     private val progressionRepository: ProgressionRepository,
     private val billingClient: BillingClient,
-    private val identityRepository: IdentityRepository,
+    private val authRepository: AuthRepository,
     private val equipmentRepository: EquipmentRepository,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
@@ -209,7 +209,7 @@ class ShopViewModel @Inject constructor(
     }
 
     private suspend fun launchIapPurchase(pack: Product.ChipPack) {
-        val userId = (identityRepository.state.value as? IdentityState.SignedIn)?.identity?.userId
+        val userId = (authRepository.current() as? AuthState.Authenticated)?.userId
         if (userId == null) {
             logger.w { "IAP purchase requested with no signed-in user" }
             sendEvent(ShopEvent.PurchaseFinished(IapPurchaseOutcome.NotSignedIn))

@@ -10,7 +10,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
-import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.profile.Profile
 
 sealed interface TableUiState {
     data object Loading : TableUiState
@@ -41,7 +41,7 @@ sealed interface TableUiState {
             personalitiesBySeat: Map<Int, BotPersonality>,
             lastWinners: GameEvent.HandEnded?,
             lastActionBySeat: Map<Int, PlayerAction>,
-            humanIdentity: Identity? = null,
+            humanProfile: Profile.Authenticated? = null,
         ): Active {
             val committedThisStreet = gameState.seats.sumOf { it.contributedThisStreet }
             val pot = committedThisStreet + gameState.pots.sumOf { it.amount }
@@ -60,7 +60,7 @@ sealed interface TableUiState {
                     isDealer = seat.index == gameState.buttonSeatIndex,
                     isSmallBlind = seat.index == sbIndex,
                     isBigBlind = seat.index == bbIndex,
-                    humanIdentity = humanIdentity,
+                    humanProfile = humanProfile,
                 )
             }
             val humanSeat = gameState.seats.firstOrNull { it.index == humanSeatIndex }
@@ -150,7 +150,7 @@ data class SeatView(
             isDealer: Boolean,
             isSmallBlind: Boolean,
             isBigBlind: Boolean,
-            humanIdentity: Identity? = null,
+            humanProfile: Profile.Authenticated? = null,
         ): SeatView {
             val visibleHole = when {
                 seat.handParticipation == HandParticipation.NotDealt -> emptyList()
@@ -167,16 +167,16 @@ data class SeatView(
             // when identity is known. Bots keep their engine-side name +
             // personality emoji. The fallback is the engine seat's own
             // displayName so projection still works pre-identity-load.
-            val displayName = if (isHuman && humanIdentity != null) {
-                humanIdentity.displayName
+            val displayName = if (isHuman && humanProfile != null) {
+                humanProfile.displayName
             } else {
                 seat.displayName
             }
             val emoji = when {
-                isHuman && humanIdentity != null -> humanIdentity.avatarEmoji
+                isHuman && humanProfile != null -> humanProfile.avatarEmoji
                 else -> personality?.emoji
             }
-            val avatarBackgroundColorHex = if (isHuman) humanIdentity?.avatarBackgroundColor else null
+            val avatarBackgroundColorHex = if (isHuman) humanProfile?.avatarBackgroundColor else null
             return SeatView(
                 index = seat.index,
                 displayName = displayName,

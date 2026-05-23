@@ -4,19 +4,16 @@ import app.cash.turbine.test
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.SignInOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
-import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
-import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
-import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
@@ -241,12 +238,12 @@ class LobbyViewModelTest : CoroutineTest() {
 
     private fun buildVm(
         rooms: RoomRepository = FakeRoomRepository(),
-        identity: IdentityRepository = AlwaysSignedInIdentity(),
+        identity: AuthRepository = AlwaysSignedInAuth(),
         prefilledCode: String? = null,
     ): LobbyViewModel = LobbyViewModel(
         prefilledCode = prefilledCode,
         rooms = rooms,
-        identity = identity,
+        auth = identity,
         appScope = AppCoroutineScope(dispatchers),
     )
 
@@ -314,37 +311,32 @@ class LobbyViewModelTest : CoroutineTest() {
         override fun observeRoom(code: String): Flow<RoomConnection> = observe(code)
     }
 
-    private class AlwaysSignedInIdentity : IdentityRepository {
-        private val identity = Identity(
+    private class AlwaysSignedInAuth : AuthRepository {
+        private val authenticated: AuthState = AuthState.Authenticated(
             userId = "11111111-1111-1111-1111-111111111111",
-            displayName = "You",
-            avatarEmoji = "🃏",
-            avatarBackgroundColor = null,
             isAnonymous = true,
+            email = null,
         )
-        override val state: kotlinx.coroutines.flow.StateFlow<IdentityState> =
-            MutableStateFlow(IdentityState.SignedIn(identity)).asStateFlow()
-        override suspend fun ensureInitialized(): Identity = identity
+        private val flow = MutableStateFlow<AuthState>(authenticated).asStateFlow()
+
+        override suspend fun current(): AuthState = authenticated
+        override fun observe(): kotlinx.coroutines.flow.Flow<AuthState> = flow
+        override suspend fun accessToken(): String? = "token"
+        override suspend fun refreshAccessToken(): String? = "token"
+        override suspend fun retry(): AuthState = authenticated
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
-            SignInOutcome.Success(identity)
+            SignInOutcome.Success
         override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
             SignUpOutcome.VerificationRequired(email)
-        override suspend fun refreshSession(): RefreshOutcome = RefreshOutcome.EmailConfirmed(identity)
+        override suspend fun refreshSession(): RefreshOutcome = RefreshOutcome.EmailConfirmed
         override suspend fun resendVerificationEmail(email: String): ResendOutcome = ResendOutcome.Sent
         override suspend fun signOut() { /* no-op */ }
-        override suspend fun updateProfile(
-            displayName: String?,
-            avatarEmoji: String?,
-            avatarBackgroundColor: String?,
-            clearAvatarBackgroundColor: Boolean,
-        ): UpdateProfileOutcome = UpdateProfileOutcome.Success(identity)
-        override suspend fun fetchAvatarPack(): AvatarPackOutcome = AvatarPackOutcome.Success(emptyList())
         override suspend fun deleteAccount(): DeleteAccountOutcome = DeleteAccountOutcome.Success
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
-            LinkIdentityOutcome.Success(identity)
+            LinkIdentityOutcome.Success
         override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
             LinkEmailIdentityOutcome.VerificationRequired(email)
         override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
-            SignInOutcome.Success(identity)
+            SignInOutcome.Success
     }
 }

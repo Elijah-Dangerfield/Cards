@@ -10,7 +10,7 @@ import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
-import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.profile.Profile
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -211,7 +211,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             achievementRepository = achievements,
             appCache = appCache,
             equipmentRepository = FakeEquipmentRepository(),
-            identityRepository = FakeIdentityRepository(),
+            profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,
         )
@@ -289,14 +289,14 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             state: GameState,
             lastWinners: GameEvent.HandEnded?,
             lastActionBySeat: Map<Int, PlayerAction>,
-            humanIdentity: Identity?,
+            humanProfile: Profile.Authenticated?,
         ): TableUiState = TableUiState.fromGameState(
             gameState = state,
             humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
             personalitiesBySeat = emptyMap(),
             lastWinners = lastWinners,
             lastActionBySeat = lastActionBySeat,
-            humanIdentity = humanIdentity,
+            humanProfile = humanProfile,
         )
     }
 }

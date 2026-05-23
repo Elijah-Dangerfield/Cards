@@ -16,19 +16,16 @@ import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
-import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
-import com.dangerfield.cards.libraries.identity.SignInOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
-import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.ProductsRepository
@@ -411,8 +408,8 @@ class ShopViewModelTest : CoroutineTest() {
         // forward to the store. The screen should only block when there's
         // NO signed-in user at all (state == Unknown).
         val billing = FakeBillingClient(nextResult = PurchaseResult.Success(SAMPLE_TRANSACTION))
-        val identity = FakeIdentityRepository(initialState = IdentityState.Unknown)
-        val vm = buildVm(billingClient = billing, identityRepository = identity)
+        val identity = FakeAuthRepository(initialState = AuthState.Unauthenticated())
+        val vm = buildVm(billingClient = billing, authRepository = identity)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
         vm.takeAction(ShopAction.RequestPurchase(SAMPLE_CATALOG.chipPacks.first()))
@@ -442,8 +439,12 @@ class ShopViewModelTest : CoroutineTest() {
         chipsRepository: FakeChipsRepository = FakeChipsRepository(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
         billingClient: FakeBillingClient = FakeBillingClient(),
-        identityRepository: FakeIdentityRepository = FakeIdentityRepository(
-            initialState = IdentityState.SignedIn(SAMPLE_IDENTITY),
+        authRepository: FakeAuthRepository = FakeAuthRepository(
+            initialState = AuthState.Authenticated(
+                userId = SAMPLE_USER_ID,
+                isAnonymous = false,
+                email = null,
+            ),
         ),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
     ): ShopViewModel = ShopViewModel(
@@ -452,7 +453,7 @@ class ShopViewModelTest : CoroutineTest() {
         chipsRepository = chipsRepository,
         progressionRepository = progressionRepository,
         billingClient = billingClient,
-        identityRepository = identityRepository,
+        authRepository = authRepository,
         equipmentRepository = equipmentRepository,
     )
 
@@ -606,13 +607,16 @@ class ShopViewModelTest : CoroutineTest() {
         }
     }
 
-    private class FakeIdentityRepository(
-        initialState: IdentityState = IdentityState.Unknown,
-    ) : IdentityRepository {
+    private class FakeAuthRepository(
+        initialState: AuthState = AuthState.Unauthenticated(),
+    ) : AuthRepository {
         private val _state = MutableStateFlow(initialState)
-        override val state: StateFlow<IdentityState> = _state.asStateFlow()
+        override suspend fun current(): AuthState = _state.value
+        override fun observe(): Flow<AuthState> = _state.asStateFlow()
+        override suspend fun accessToken(): String? = null
+        override suspend fun refreshAccessToken(): String? = null
+        override suspend fun retry(): AuthState = _state.value
 
-        override suspend fun ensureInitialized(): Identity = error("not used in shop tests")
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
             error("not used in shop tests")
         override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
@@ -621,13 +625,6 @@ class ShopViewModelTest : CoroutineTest() {
         override suspend fun resendVerificationEmail(email: String): ResendOutcome =
             error("not used in shop tests")
         override suspend fun signOut() = error("not used in shop tests")
-        override suspend fun updateProfile(
-            displayName: String?,
-            avatarEmoji: String?,
-            avatarBackgroundColor: String?,
-            clearAvatarBackgroundColor: Boolean,
-        ): UpdateProfileOutcome = error("not used in shop tests")
-        override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("not used in shop tests")
         override suspend fun deleteAccount(): DeleteAccountOutcome = error("not used in shop tests")
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
             error("not used in shop tests")
@@ -702,13 +699,7 @@ class ShopViewModelTest : CoroutineTest() {
             costChipsAtPurchase = 2_500L,
         )
 
-        private val SAMPLE_IDENTITY = Identity(
-            userId = "11111111-1111-1111-1111-111111111111",
-            displayName = "QuietAce72",
-            avatarEmoji = "🃏",
-            avatarBackgroundColor = null,
-            isAnonymous = false,
-        )
+        private const val SAMPLE_USER_ID = "11111111-1111-1111-1111-111111111111"
 
         private val SAMPLE_TRANSACTION = PurchaseTransaction(
             sku = "chips_small",

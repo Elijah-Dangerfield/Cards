@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.Route
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -26,15 +28,18 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * completes. The App composable blocks NavHost construction on a non-null
  * value, keeping the splash visible during the brief async read.
  *
- * Why not store the destination synchronously: `AppCache.get()` is suspend
- * because DataStore is async on Android. Using `runBlocking` here would
- * delay process startup; reading reactively lets the splash own the
- * waiting state.
+ * `isReady` also waits on the first [ProfileRepository.observe] emission
+ * for returning users — that's the moment the profile resolution
+ * (server `/v1/me`, falling back to cache when offline) completes. Holding
+ * the splash through this window means the first frame the user sees is
+ * authoritative state, not a stale flash. First-launch users skip this
+ * wait — they haven't onboarded yet, no profile to resolve.
  */
 @SingleIn(AppScope::class)
 @Inject
 class AppViewModel(
     private val appCache: AppCache,
+    private val profileRepository: ProfileRepository,
 ) : ViewModel() {
 
     private val _startDestination = MutableStateFlow<Route?>(null)
@@ -43,15 +48,24 @@ class AppViewModel(
     private val _isReady = MutableStateFlow(false)
 
     /**
-     * True once we've determined where to navigate. Used by Android's
-     * splash-screen API for `keepOnScreenCondition`.
+     * True once we've determined where to navigate AND (for returning
+     * users) profile has resolved. Drives Android's splash-screen API
+     * via `keepOnScreenCondition`.
      */
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
     init {
         viewModelScope.launch {
             val data = appCache.get()
-            _startDestination.value = if (data.hasUserOnboarded) HomeRoute() else OnboardingRoute()
+            val onboarded = data.hasUserOnboarded
+            _startDestination.value = if (onboarded) HomeRoute() else OnboardingRoute()
+
+            if (onboarded) {
+                // Hold the splash until profile resolves so home renders
+                // with authoritative data on the first frame instead of
+                // flashing stale cache values.
+                profileRepository.observe().first()
+            }
             _isReady.value = true
         }
     }

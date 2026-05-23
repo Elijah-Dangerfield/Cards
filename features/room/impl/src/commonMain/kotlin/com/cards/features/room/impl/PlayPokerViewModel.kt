@@ -29,9 +29,8 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Seat
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,7 +67,7 @@ class PlayPokerViewModel @Inject constructor(
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
     private val equipmentRepository: EquipmentRepository,
-    private val identityRepository: IdentityRepository,
+    private val profileRepository: ProfileRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
@@ -90,11 +89,13 @@ class PlayPokerViewModel @Inject constructor(
     private var lastWinners: GameEvent.HandEnded? = null
     private val lastActionBySeat: MutableMap<Int, PlayerAction> = mutableMapOf()
 
-    // Latest known identity. Captured here so the [tableFor] projection can
-    // render the human seat with the user's chosen display name + avatar
-    // emoji instead of the engine-side "You" / null placeholders. Null
-    // until the first SignedIn emission lands; re-projects when it does.
-    private var latestHumanIdentity: Identity? = null
+    // Latest known authenticated profile. Captured here so the [tableFor]
+    // projection can render the human seat with the user's chosen display
+    // name + avatar emoji instead of the engine-side "You" / null
+    // placeholders. Null until the first Authenticated emission lands;
+    // re-projects when it does. Fallback profiles aren't useful here —
+    // they have no display name to render.
+    private var latestHumanProfile: Profile.Authenticated? = null
     private var lastGameState: GameState? = null
 
     // Session created lazily so the hand-end lambda below can reference `viewModelScope`.
@@ -147,12 +148,12 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
             }
         }
-        // Identity → re-project the table so the human seat picks up the
+        // Profile → re-project the table so the human seat picks up the
         // user's chosen display name + avatar emoji.
         viewModelScope.launch {
-            identityRepository.state.collect { st ->
-                val id = (st as? IdentityState.SignedIn)?.identity ?: return@collect
-                latestHumanIdentity = id
+            profileRepository.observe().collect { profile ->
+                val authed = profile as? Profile.Authenticated ?: return@collect
+                latestHumanProfile = authed
                 lastGameState?.let { takeAction(PlayPokerAction.GameStateUpdated(it)) }
             }
         }
@@ -342,7 +343,7 @@ class PlayPokerViewModel @Inject constructor(
                             state = action.state,
                             lastWinners = lastWinners,
                             lastActionBySeat = lastActionBySeat.toMap(),
-                            humanIdentity = latestHumanIdentity,
+                            humanProfile = latestHumanProfile,
                         ),
                     )
                 }
@@ -624,7 +625,7 @@ interface PokerSessionFactory {
         state: GameState,
         lastWinners: GameEvent.HandEnded? = null,
         lastActionBySeat: Map<Int, PlayerAction> = emptyMap(),
-        humanIdentity: Identity? = null,
+        humanProfile: Profile.Authenticated? = null,
     ): TableUiState
 }
 
