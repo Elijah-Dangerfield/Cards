@@ -1,12 +1,15 @@
 package com.dangerfield.cards.features.room.impl
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +73,9 @@ import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD300
+import kotlin.math.abs
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -99,7 +105,27 @@ internal fun PlayerArea(
         table.humanLegalActions != null &&
         human.participation != HandParticipation.Folded
     val swipeFoldThresholdPx = with(LocalDensity.current) { 60.dp.toPx() }
+    // Distance the cards travel after the user commits the fold — past the
+    // top of the screen so they read as tossed away. Matches the existing
+    // hole-card deal-in flight distance for symmetry.
+    val foldFlightPx = with(LocalDensity.current) { 400.dp.toPx() }
     val haptics = LocalHapticFeedback.current
+    val gestureScope = rememberCoroutineScope()
+    val dragOffsetY = remember { Animatable(0f) }
+    // 0..1 progress used to drive the in-flight visual response. Capped at
+    // 1 once the user passes the commit threshold, so the rotation/fade
+    // doesn't keep overshooting if they keep dragging upward.
+    val dragProgress = (abs(dragOffsetY.value) / swipeFoldThresholdPx).coerceIn(0f, 1f)
+    // Reset the offset whenever the gate flips back open (e.g. new hand),
+    // so we never start with a stale residual translation from a prior
+    // commit. Using a Compose effect keyed on `swipeFoldEnabled` keeps the
+    // reset off the gesture coroutine, which gets cancelled by the
+    // pointerInput re-key on the same flip.
+    LaunchedEffect(swipeFoldEnabled) {
+        if (swipeFoldEnabled && dragOffsetY.value != 0f) {
+            dragOffsetY.snapTo(0f)
+        }
+    }
     // Fixed row height — children inside use `fillMaxHeight()`, so this MUST
     // be bounded. `heightIn(min)` would let `fillMaxHeight` expand to the
     // parent's full offered height and the row would eat the whole screen.
@@ -123,20 +149,53 @@ internal fun PlayerArea(
                 .alpha(if (folded) 0.35f else 1f)
                 .pointerInput(swipeFoldEnabled, swipeFoldThresholdPx) {
                     if (!swipeFoldEnabled) return@pointerInput
-                    var accumulatedDy = 0f
                     var fired = false
                     detectVerticalDragGestures(
                         onDragStart = {
-                            accumulatedDy = 0f
                             fired = false
+                            gestureScope.launch { dragOffsetY.snapTo(0f) }
                         },
-                        onDragEnd = { accumulatedDy = 0f },
-                        onDragCancel = { accumulatedDy = 0f },
+                        onDragEnd = {
+                            if (!fired) {
+                                gestureScope.launch {
+                                    dragOffsetY.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessMediumLow,
+                                        ),
+                                    )
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            if (!fired) {
+                                gestureScope.launch {
+                                    dragOffsetY.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = spring(),
+                                    )
+                                }
+                            }
+                        },
                         onVerticalDrag = { _, dy ->
-                            accumulatedDy += dy
-                            if (!fired && accumulatedDy <= -swipeFoldThresholdPx) {
+                            // Only follow upward motion past the rest point —
+                            // dragging downward is a no-op so the cards don't
+                            // bob below their resting line.
+                            val next = (dragOffsetY.value + dy).coerceAtMost(0f)
+                            gestureScope.launch { dragOffsetY.snapTo(next) }
+                            if (!fired && dragOffsetY.value <= -swipeFoldThresholdPx) {
                                 fired = true
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                // Continue the upward motion off-screen as the
+                                // fold animation, instead of cutting to the
+                                // folded state.
+                                gestureScope.launch {
+                                    dragOffsetY.animateTo(
+                                        targetValue = -foldFlightPx,
+                                        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+                                    )
+                                }
                                 onSwipeFold()
                             }
                         },
@@ -144,7 +203,17 @@ internal fun PlayerArea(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy((-28).dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy((-28).dp),
+                modifier = Modifier.graphicsLayer {
+                    translationY = dragOffsetY.value
+                    // Light tilt + fade tied to drag progress so the cards
+                    // physically respond to the toss. Capped at small
+                    // values — we want a flick, not a tumble.
+                    rotationZ = -6f * dragProgress
+                    alpha = 1f - 0.25f * dragProgress
+                },
+            ) {
                 HoleCardSlot(card = human.holeCards.getOrNull(0), dealDelayMs = 0, size = PlayingCardSize.Hole)
                 HoleCardSlot(card = human.holeCards.getOrNull(1), dealDelayMs = 150, size = PlayingCardSize.Hole)
             }
