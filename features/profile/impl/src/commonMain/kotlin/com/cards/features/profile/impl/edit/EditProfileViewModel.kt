@@ -182,12 +182,6 @@ data class EditProfileState(
 }
 
 sealed interface EditProfileEvent {
-    /**
-     * Save was dispatched. Caller navigates back immediately — the network
-     * call is optimistic-with-rollback inside [IdentityRepository.updateProfile],
-     * so the user sees the change before the server confirms. Any failure
-     * rolls the local Identity back and surfaces a global snackbar.
-     */
     data object Saved : EditProfileEvent
 }
 
