@@ -112,12 +112,19 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         h.countryCode?.let { headers.append(ClientHeaders.HEADER_COUNTRY_CODE, it) }
     }
     if (BuildInfo.isDebug) {
+        // Debug-only by design: BODY-level logging dumps full request +
+        // response payloads which we don't want in release builds
+        // (privacy + log volume). KLog tag "Network" lets you filter
+        // the device log for just HTTP traffic. Bumped to ALL so
+        // headers + bodies are both visible; raised to INFO severity
+        // so it stays in logcat at default filter levels rather than
+        // hiding under DEBUG.
         install(Logging) {
-            level = LogLevel.INFO
+            level = LogLevel.ALL
             logger = object : Logger {
                 private val log = KLog.withTag("Network")
                 override fun log(message: String) {
-                    log.d { message }
+                    log.i { message }
                 }
             }
         }
