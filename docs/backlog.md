@@ -207,6 +207,57 @@ Blocker on doing it now: should land alongside the `popExit = enter.reversal()` 
 
 ---
 
+## Anti-farming on the starter chip grant (uninstall-reinstall exploit)
+
+**The exploit (raised 2026-05-23):** Today a user can uninstall + reinstall to mint a new anonymous Supabase user → server `WalletRepository.findOrCreate` grants a fresh 10K starter. Repeat indefinitely. Nothing in the chain checks "is this a device we've already paid out."
+
+**What the spec says — already V1-scope, just not built.** [product-spec.md §6.1 "Anti-farming on the starter grant"](./product/product-spec.md#anti-farming-on-the-starter-grant) and [v1-mvp.md line 48](./product/v1-mvp.md) both call for one-starter-per-device-fingerprint. So this isn't a new idea; it's a tracked gap from spec to implementation.
+
+**Existing scaffolding worth knowing about:**
+- `AppIntegrityVerifier` interface exists in `apps/server/.../domain/AppIntegrityVerifier.kt` but binds only to `NoOpAppIntegrityVerifier` — every request passes. KDoc says "enforce before first invited-real-users release."
+- `AppIntegrityFingerprint` exists but only carries `platform` + `clientVersion` — not a real device fingerprint.
+- Server's wallet starter is in `WalletRepository.findOrCreate`, keyed solely on `userId`. No fingerprint check today.
+
+**Two directions — they're alternatives, not additive:**
+
+### Direction A: build the fingerprint plumbing (the spec's path)
+
+**Tier 1 — Device ID (cheap, defeats casual exploit):**
+- Android: `Settings.Secure.ANDROID_ID` is per-app-per-signing-key-per-device since API 26; survives uninstall + reinstall; resets only on factory reset.
+- iOS: `identifierForVendor` survives single-app reinstall; resets when *all* apps from the same vendor are wiped.
+- Send to server (header or JWT custom claim). Server keeps `starter_grants_by_fingerprint` table; `findOrCreate` checks before granting the starter and grants 0 chips on a duplicate.
+- Defeats: casual reinstall farming on the same device.
+- Doesn't defeat: factory reset, rooted spoofing, multi-device farming, jailbroken devices.
+
+**Tier 2 — iOS DeviceCheck (the "2 bits that survive reinstall" trick):**
+- Apple's DeviceCheck API gives you 2 bits of storage per `(app, device)`, server-managed via Apple's endpoint, that persist across uninstall + reinstall + (often) restore.
+- Use bit 0 = "this device has claimed the starter grant." Survives `identifierForVendor` reset.
+- iOS-only — no Android equivalent. Android stays on Tier 1 + Play Integrity for the rooted-device case.
+
+**Tier 3 — Play Integrity / App Attest (V2 shape, not for the starter specifically):**
+- Confirms the request came from a genuine, unmodified Cards APK / iOS build.
+- Doesn't directly answer "have we seen this device" — that's still the fingerprint table's job.
+- Decline starter on devices that fail integrity verdict (emulator, repackaged APK). Per the existing `AppIntegrityVerifier` KDoc, enforcement is "before first invited real users" — broader than just the starter grant.
+
+### Direction B: the design dodge — reshape the starter so the exploit has no payload
+
+The spec frames the 10K as a first-impression gift on first contact. If we changed the trigger from "first install" to one of:
+- **First hand played** — user has to actually play a hand before the grant lands.
+- **On claim only** — anon users get 0 starter; the 10K is the claim incentive.
+- **Drip-grant** — 1K on first contact, 1K each day for the next 9 days (subject to the same orphan-anon TTL).
+
+…then reinstalling to claim a fresh starter requires actual play / actual claim, which a script-farmer isn't getting value from.
+
+This is a real product call — the 10K-on-first-contact is part of the "Card Hall, you belong here" first-impression vibe per the brand notes. Reframing it loses that moment.
+
+**Honest scope read:** V1 has no real money, no leaderboard, and `DefaultOrphanAnonymousSweep` eventually deletes idle anon accounts. Worst case of doing nothing is mild server load from scripted account creation. Not a security crisis. The choice between A and B is partly about how much we trust the anon-orphan sweep + rate-limit to hold the line for invited-users-only V1, vs. wanting a clean story before public launch.
+
+**When to revisit:** before V1 ships publicly (per the spec) OR if scripted anon-creation rates show up in the orphan-sweep metrics. Whichever lands first.
+
+**Status:** Backlog. Pairs with the existing "App integrity attestation — planned" entry in `docs/decisions.md`.
+
+---
+
 ## Eager delete of orphan anon account on guest sign-in
 
 **Idea (raised 2026-05-23):** When an anonymous guest signs *in* (not up) to an existing real account via `SignInViewModel`, the local session swaps to the real account and the anon `auth.users` row is orphaned. Today the orphan is cleaned up lazily by [`DefaultOrphanAnonymousSweep`](../apps/server/src/main/kotlin/com/cards/server/data/DefaultOrphanAnonymousSweep.kt) once it ages past `config.orphanAnonTtlDays`. We could clean up eagerly instead — fire a delete for the just-orphaned anon `userId` *only after* the sign-in to the new account has succeeded, so a mid-flow failure can never blow away a guest's progress.
