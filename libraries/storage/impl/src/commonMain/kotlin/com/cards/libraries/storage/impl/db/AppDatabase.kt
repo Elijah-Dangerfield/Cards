@@ -4,7 +4,6 @@ import androidx.room.ConstructedBy
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
-import androidx.room.TypeConverters
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementCounterEntity
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
@@ -38,7 +37,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
     version = 14, // v14: dropped UserEntity (display name + anon flag live on ProfileRepository / AuthRepository)
     exportSchema = true
 )
-@TypeConverters(CoreTypeConverters::class)
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun progressionDao(): ProgressionDao
