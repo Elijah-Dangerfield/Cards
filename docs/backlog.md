@@ -204,3 +204,19 @@ Blocker on doing it now: should land alongside the `popExit = enter.reversal()` 
 **Tradeoff:** Adding the dep brings the convention into one place; documenting it as "server can use runCatching" is cheaper but leaves a hidden rule.
 
 **Status:** Backlog. Deferred from the 2026-05-22 client-side `Catching` sweep.
+
+---
+
+## Eager delete of orphan anon account on guest sign-in
+
+**Idea (raised 2026-05-23):** When an anonymous guest signs *in* (not up) to an existing real account via `SignInViewModel`, the local session swaps to the real account and the anon `auth.users` row is orphaned. Today the orphan is cleaned up lazily by [`DefaultOrphanAnonymousSweep`](../apps/server/src/main/kotlin/com/cards/server/data/DefaultOrphanAnonymousSweep.kt) once it ages past `config.orphanAnonTtlDays`. We could clean up eagerly instead — fire a delete for the just-orphaned anon `userId` *only after* the sign-in to the new account has succeeded, so a mid-flow failure can never blow away a guest's progress.
+
+**Sketch:**
+- Snapshot the current anon `userId` before calling `identityRepository.signInWithEmail(...)` / `signInWithOAuth(...)`.
+- On `SignInOutcome.Success` (and only then), POST a delete request to the server for that anon `userId`. The server-side handler reuses the same `SupabaseAdminClient.deleteUser` + `profileRepository.delete` path the sweep already uses.
+- On any non-success outcome (`InvalidCredentials`, `NetworkError`, `Cancelled`, etc.), do nothing — the guest's anon account is still their live session.
+- Treat the delete as best-effort: a failure here doesn't block navigation, just leaves the orphan for the sweep to pick up later.
+
+**Tradeoff:** Sweep already handles this on a TTL, so it's a UX-invisible cleanup tightening — no user-facing change. Worth it for keeping the anon table small and avoiding a window where a churned guest still exists server-side. The "only after success" gate is the load-bearing detail — the V1 risk is a bug that fires the delete before sign-in confirms and leaves the user signed out with nothing.
+
+**Status:** Backlog. Pairs with the existing `DefaultOrphanAnonymousSweep`; pull when the next identity-layer pass opens.
