@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
@@ -302,5 +303,6 @@ private class GatedDeleteIdentity(
     ): UpdateProfileOutcome = error("unused")
     override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("unused")
     override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
     override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
 }

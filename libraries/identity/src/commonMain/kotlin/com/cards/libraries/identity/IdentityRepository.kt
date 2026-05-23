@@ -134,6 +134,24 @@ interface IdentityRepository {
     suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome
 
     /**
+     * Attach an email/password identity to the current anonymous Supabase
+     * user. Preserves chips, XP, and history (same `userId`); the call
+     * mutates the session in place via supabase-kt's
+     * `updateUser { email = ...; password = ... }`.
+     *
+     * Supabase sends a verification email; the session stays anonymous
+     * until [refreshSession] sees `email_confirmed_at` set. Mirror the
+     * sign-up flow at the UI: route to the verify-email screen and let
+     * the user confirm before treating them as fully signed-up.
+     *
+     * Only valid on an anonymous session — non-anonymous callers receive
+     * [LinkEmailIdentityOutcome.NotAnonymous] (preventing silent email
+     * mutation of a real account; use a dedicated change-email flow for
+     * that).
+     */
+    suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome
+
+    /**
      * Switch sessions to an existing OAuth account. The current local
      * session (anonymous or otherwise) is replaced; any guest progress
      * tied to the previous session is orphaned by design (per the
@@ -166,6 +184,25 @@ sealed interface LinkIdentityOutcome {
     data object ProviderNotEnabled : LinkIdentityOutcome
     data class NetworkError(val cause: Throwable) : LinkIdentityOutcome
     data class Unknown(val cause: Throwable) : LinkIdentityOutcome
+}
+
+sealed interface LinkEmailIdentityOutcome {
+    /**
+     * Email change accepted by Supabase. The user is still anonymous
+     * until they click the verification link; [IdentityRepository.refreshSession]
+     * picks up the confirmed state. UI should navigate to the verify-email
+     * screen with this email.
+     */
+    data class VerificationRequired(val email: String) : LinkEmailIdentityOutcome
+    data object EmailAlreadyRegistered : LinkEmailIdentityOutcome
+    data object WeakPassword : LinkEmailIdentityOutcome
+    data object InvalidEmail : LinkEmailIdentityOutcome
+    /** Called against a non-anonymous session — guarded to avoid silent email mutation of a real account. */
+    data object NotAnonymous : LinkEmailIdentityOutcome
+    /** No active Supabase session at all. */
+    data object NotSignedIn : LinkEmailIdentityOutcome
+    data class NetworkError(val cause: Throwable) : LinkEmailIdentityOutcome
+    data class Unknown(val cause: Throwable) : LinkEmailIdentityOutcome
 }
 
 sealed interface DeleteAccountOutcome {

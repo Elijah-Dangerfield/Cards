@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
@@ -87,6 +88,9 @@ internal class FakeIdentityRepository(
         lastLinkProvider = provider
         return linkOutcome
     }
+
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
+        error("linkEmailIdentity not used by the account ViewModels")
 
     override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome {
         oauthSignInCalls += 1

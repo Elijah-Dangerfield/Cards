@@ -12,6 +12,7 @@ import com.dangerfield.cards.libraries.identity.SignUpOutcome
 import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
@@ -341,6 +342,8 @@ class LobbyViewModelTest : CoroutineTest() {
         override suspend fun deleteAccount(): DeleteAccountOutcome = DeleteAccountOutcome.Success
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
             LinkIdentityOutcome.Success(identity)
+        override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
+            LinkEmailIdentityOutcome.VerificationRequired(email)
         override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
             SignInOutcome.Success(identity)
     }

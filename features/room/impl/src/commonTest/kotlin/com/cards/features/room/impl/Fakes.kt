@@ -346,5 +346,6 @@ class FakeIdentityRepository(
     override suspend fun fetchAvatarPack() = error("fetchAvatarPack not used")
     override suspend fun deleteAccount() = error("deleteAccount not used")
     override suspend fun linkOAuthIdentity(provider: OAuthProvider) = error("linkOAuthIdentity not used")
+    override suspend fun linkEmailIdentity(email: String, password: String) = error("linkEmailIdentity not used")
     override suspend fun signInWithOAuth(provider: OAuthProvider) = error("signInWithOAuth not used")
 }

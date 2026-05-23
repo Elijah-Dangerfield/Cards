@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
 import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.OAuthProvider as IdentityOAuthProvider
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
@@ -371,6 +372,31 @@ class SupabaseIdentityRepository(
         )
     }
 
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = mutex.withLock {
+        if (supabase.auth.currentSessionOrNull() == null) {
+            return@withLock LinkEmailIdentityOutcome.NotSignedIn
+        }
+        val cachedIdentity = (_state.value as? IdentityState.SignedIn)?.identity
+        if (cachedIdentity != null && !cachedIdentity.isAnonymous) {
+            return@withLock LinkEmailIdentityOutcome.NotAnonymous
+        }
+        Catching {
+            supabase.auth.updateUser {
+                this.email = email
+                this.password = password
+            }
+        }.fold(
+            onSuccess = { LinkEmailIdentityOutcome.VerificationRequired(email) },
+            onFailure = { e ->
+                when (e) {
+                    is RestException -> mapLinkEmailRestException(e)
+                    is HttpRequestException -> LinkEmailIdentityOutcome.NetworkError(e)
+                    else -> LinkEmailIdentityOutcome.Unknown(e)
+                }
+            },
+        )
+    }
+
     override suspend fun signInWithOAuth(provider: IdentityOAuthProvider): SignInOutcome = mutex.withLock {
         Catching {
             supabase.auth.signInWith(provider.toSupabase())
@@ -445,6 +471,21 @@ class SupabaseIdentityRepository(
             e.statusCode == 400 && msg.contains("email not confirmed") ->
                 SignInOutcome.EmailNotConfirmed(email)
             else -> SignInOutcome.Unknown(e)
+        }
+    }
+
+    private fun mapLinkEmailRestException(e: RestException): LinkEmailIdentityOutcome {
+        val msg = (e.message ?: "").lowercase()
+        return when {
+            msg.contains("user already registered") ||
+                (msg.contains("email") && msg.contains("already")) ||
+                (msg.contains("email") && msg.contains("taken")) ->
+                LinkEmailIdentityOutcome.EmailAlreadyRegistered
+            msg.contains("password") && (msg.contains("at least") || msg.contains("weak") || msg.contains("short")) ->
+                LinkEmailIdentityOutcome.WeakPassword
+            msg.contains("invalid email") || msg.contains("unable to validate email") ->
+                LinkEmailIdentityOutcome.InvalidEmail
+            else -> LinkEmailIdentityOutcome.Unknown(e)
         }
     }
 

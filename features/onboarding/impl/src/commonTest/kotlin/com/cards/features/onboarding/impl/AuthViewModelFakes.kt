@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
 import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.OAuthProvider
 import com.dangerfield.cards.libraries.identity.RefreshOutcome
@@ -34,6 +35,8 @@ internal class FakeIdentityRepository(
     val refreshOutcome: RefreshOutcome = RefreshOutcome.Unknown(RuntimeException("not stubbed")),
     val resendOutcome: ResendOutcome = ResendOutcome.Unknown(RuntimeException("not stubbed")),
     val oauthSignInOutcome: SignInOutcome = SignInOutcome.Unknown(RuntimeException("not stubbed")),
+    val linkEmailOutcome: LinkEmailIdentityOutcome = LinkEmailIdentityOutcome.Unknown(RuntimeException("not stubbed")),
+    initialIdentityState: IdentityState = IdentityState.Unknown,
 ) : IdentityRepository {
     var signInCalls: Int = 0
         private set
@@ -53,9 +56,13 @@ internal class FakeIdentityRepository(
         private set
     var lastOAuthProvider: OAuthProvider? = null
         private set
+    var linkEmailCalls: Int = 0
+        private set
+    var lastLinkEmailArgs: Pair<String, String>? = null
+        private set
 
     private val identityState =
-        MutableStateFlow<IdentityState>(IdentityState.Unknown)
+        MutableStateFlow<IdentityState>(initialIdentityState)
 
     override val state: kotlinx.coroutines.flow.StateFlow<IdentityState> = identityState
 
@@ -102,6 +109,12 @@ internal class FakeIdentityRepository(
 
     override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
         error("linkOAuthIdentity not used by the auth ViewModels")
+
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome {
+        linkEmailCalls += 1
+        lastLinkEmailArgs = email to password
+        return linkEmailOutcome
+    }
 
     override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome {
         oauthSignInCalls += 1
@@ -158,6 +171,8 @@ internal open class NoOpIdentityRepository : IdentityRepository {
         error("deleteAccount not stubbed in this test")
     override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
         error("linkOAuthIdentity not stubbed in this test")
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
+        error("linkEmailIdentity not stubbed in this test")
     override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
         error("signInWithOAuth not stubbed in this test")
 }

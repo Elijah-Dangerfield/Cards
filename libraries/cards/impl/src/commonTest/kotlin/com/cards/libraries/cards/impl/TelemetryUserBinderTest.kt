@@ -224,6 +224,10 @@ class TelemetryUserBinderTest : CoroutineTest() {
         override suspend fun linkOAuthIdentity(
             provider: com.dangerfield.cards.libraries.identity.OAuthProvider,
         ): com.dangerfield.cards.libraries.identity.LinkIdentityOutcome = error("unused")
+        override suspend fun linkEmailIdentity(
+            email: String,
+            password: String,
+        ): com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome = error("unused")
         override suspend fun signInWithOAuth(
             provider: com.dangerfield.cards.libraries.identity.OAuthProvider,
         ): com.dangerfield.cards.libraries.identity.SignInOutcome = error("unused")

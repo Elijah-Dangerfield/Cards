@@ -2,6 +2,9 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.SignUpOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -195,9 +198,101 @@ class SignUpViewModelTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun submit_whenAnonymous_routesToLinkEmailIdentity_preservingGuestProgress() = runUnitTest {
+        val identity = FakeIdentityRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("ok@example.com"),
+            initialIdentityState = IdentityState.SignedIn(anonymousIdentity),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.Submit)
+
+        vm.eventFlow.test {
+            val event = assertIs<SignUpEvent.NavigateToVerifyEmail>(awaitItem())
+            assertEquals("ok@example.com", event.email)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, identity.linkEmailCalls, "anonymous guest must take the link path")
+        assertEquals(0, identity.signUpCalls, "anonymous guest must not orphan the session via signUp")
+    }
+
+    @Test
+    fun submit_whenNotAnonymous_takesSignUpPath() = runUnitTest {
+        val identity = FakeIdentityRepository(
+            signUpOutcome = SignUpOutcome.VerificationRequired("ok@example.com"),
+            initialIdentityState = IdentityState.SignedIn(nonAnonymousIdentity),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.Submit)
+
+        vm.eventFlow.test {
+            awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, identity.signUpCalls)
+        assertEquals(0, identity.linkEmailCalls)
+    }
+
+    @Test
+    fun submit_anonymousLinkFails_fallsBackToSignUp_onNotAnonymous() = runUnitTest {
+        val identity = FakeIdentityRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.NotAnonymous,
+            signUpOutcome = SignUpOutcome.VerificationRequired("ok@example.com"),
+            initialIdentityState = IdentityState.SignedIn(anonymousIdentity),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.Submit)
+
+        vm.eventFlow.test {
+            awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, identity.linkEmailCalls)
+        assertEquals(1, identity.signUpCalls, "NotAnonymous link outcome must fall back to signUp so the user isn't stuck")
+    }
+
+    @Test
+    fun submit_anonymousLink_surfacesEmailAlreadyRegistered() = runUnitTest {
+        val vm = buildVm(
+            identity = FakeIdentityRepository(
+                linkEmailOutcome = LinkEmailIdentityOutcome.EmailAlreadyRegistered,
+                initialIdentityState = IdentityState.SignedIn(anonymousIdentity),
+            ),
+        )
+        vm.takeAction(SignUpAction.EmailChanged("dup@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertTrue(
+                last.error!!.contains("signing in", ignoreCase = true),
+                "expected a 'try signing in' hint, got: ${last.error}",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private fun buildVm(
         identity: FakeIdentityRepository = FakeIdentityRepository(),
     ): SignUpViewModel = SignUpViewModel(identityRepository = identity)
+
+    private val anonymousIdentity = Identity(
+        userId = "anon-1",
+        displayName = "QuietAce72",
+        avatarEmoji = "🃏",
+        avatarBackgroundColor = null,
+        isAnonymous = true,
+    )
+
+    private val nonAnonymousIdentity = anonymousIdentity.copy(isAnonymous = false)
 }
