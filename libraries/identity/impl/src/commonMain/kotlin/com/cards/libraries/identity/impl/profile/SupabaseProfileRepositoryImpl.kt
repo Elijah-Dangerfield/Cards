@@ -37,7 +37,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *
  *  - On init, [appScope] launches a collector on [AuthRepository.observe].
  *    Every auth state change triggers a resolve. The first resolve
- *    completes the initial bootstrap; subsequent ones cover sign-in,
+ *    completes the initial resolve; subsequent ones cover sign-in,
  *    sign-out, account delete, etc.
  *  - Resolve:
  *      - [AuthState.Authenticated] → `/v1/me` get-or-create →

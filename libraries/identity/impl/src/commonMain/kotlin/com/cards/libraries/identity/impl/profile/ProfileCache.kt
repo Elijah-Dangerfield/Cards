@@ -13,7 +13,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Persistent mirror of the last-known [Profile], file-backed via
  * `:libraries:storage`. Two roles:
  *
- *  1. **Cache the real `/v1/me` profile** so a failed bootstrap can
+ *  1. **Cache the real `/v1/me` profile** so a failed resolve can
  *     fall back to "what we had last time we successfully fetched."
  *     Survives process death.
  *
