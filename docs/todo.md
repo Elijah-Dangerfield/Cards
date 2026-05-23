@@ -119,6 +119,61 @@ Surfaced 2026-05-20 by a spec-vs-build audit. All three are spec promises in [pr
 ### Home screen redesign
 - **Whole-screen redesign of Home.** The current Home doesn't match the brand — feels generic compared to the Card Hall positioning in [product-spec.md](./product/product-spec.md). Direction: "Duolingo big-surface energy, but more elegant, less kiddy" — large primary CTAs (Play with bots, future Play with friends / Find a room), prominent progression visibility (XP, Rank, daily/seasonal pull), but never feel like a casino skin or a kids' app. **Needs design pass first** — pull from product-spec.md §3 (the Card Hall positioning) and §7 (Home as the entry point), the existing voice-and-copy.md, and the brand notes in §3.1 ("dark mode, muted accents, type-driven moments, never saturated casino-green"). Out of scope until the design pass is done — engineering follows. **Future state to keep in mind during design:** Home eventually has two MP entry points — "Play with friends" (room code / direct invite) and "Find a room" (public matchmaking). Even if those aren't wired in V1, the design should accommodate them without restructuring.
 
+### `Profile.Fallback` per-feature audit
+
+Carried over from the deleted `docs/auth-rework.md` (the doc itself was removed when slice B landed; this is the bullet that didn't ship with it).
+
+**Background.** The 2026-05-23 Auth/Profile split introduced a sealed `Profile` type:
+- `Profile.Authenticated` — real Supabase user + `/v1/me` row.
+- `Profile.Fallback(id = clientLocalUuid)` — fires when auth couldn't resolve AND there's no cached real profile. The client-generated UUID is persisted across launches so any local-only state has a stable key.
+
+The Fallback case is rare in practice (it requires fresh-install + no network during anonymous sign-in + no cached profile from a prior session). But it IS a defined state the architecture now exposes, and each feature surface needs an explicit decision about its behavior in that state.
+
+**The audit:** per surface, decide one of:
+- **Cached browse works** — inventory list, equipment list, achievements page, XP screen. These can render off the local DB; no server identity required.
+- **Hard-gate** — anything that mutates server state (Edit Profile, Shop purchase, Claim Account, Sign In, Multiplayer). Should refuse with a "you need to be online" / "we couldn't reach the server" message.
+- **Soft-gate / read-only** — surfaces that *can* render but where mutations would silently fail. Better to disable the mutation affordances explicitly.
+
+**Surfaces to walk through:**
+- Home (chip badge, XP, active-rooms list — already gracefully handle null/empty)
+- Shop (catalog browse vs purchase)
+- Profile (display name + avatar — Fallback has none; show "Guest" or similar?)
+- Edit Profile (already hard-gates on `Profile.Authenticated.filterIsInstance`)
+- Claim Account
+- Inventory / My Items
+- Multiplayer (Lobby create/join, in-room)
+- Settings / Feedback / Bug Report (currently seed email from profile — Fallback should render empty form)
+
+The global offline banner from commit `775aa11` sets baseline expectations; this audit is per-surface polish. **Plays best as a designer-in-the-loop pass** — engineering picks up the screens after the per-surface behavior is decided.
+
+### Fly cold-start friction on `cards-server-dev`
+
+Carried over from the deleted `docs/auth-rework.md` debugging notes.
+
+The dev Fly server has `auto_stop_machines = 'stop'` + `min_machines_running = 0`. Machines auto-stop when idle. Normal cold-start when a request arrives is ~4s and works fine, but there's a known Fly bad-state where the proxy returns "machine was recently stopped and is unavailable to service request" instead of triggering auto-start. When this hits, requests hang until the client times out (30s) or a GitHub Actions cron eventually wakes the machine.
+
+**Two safe mitigations (user dismissed both at the time, but worth pinning):**
+- `min_machines_running = 1` — keeps one machine warm 24/7. Bulletproof. ~$2-5/month.
+- `auto_stop_machines = 'suspend'` — preserves in-memory state; resume is ~50ms instead of seconds. Keeps scale-to-zero behavior.
+
+**Why this matters now:** the new `AppViewModel` splash gate (added 2026-05-23) waits on `profileRepository.observe().first()` before opening Home. On a Fly bad-state hang, splash sits there for 30s. The "Cache as fallback" branch eventually fires after the network timeout, so the user isn't stuck forever — but the UX during that window is rough.
+
+Decide before public launch. Production (`cards-server` proper) should probably have `min_machines_running = 1` regardless; the dev server is the one with the question.
+
+### Device smoke test before merging `dev` → `main`
+
+The dev branch is 17 commits ahead of `origin/dev` with the full Auth/Profile rework + chip-grant move + FK migration. None of it has been exercised on a real device against the live server yet.
+
+**Minimum checklist before the dev → main merge:**
+1. Fresh install on Android (or iOS) against the dev server.
+2. Confirm onboarding "Get Started" lands on Home without hanging.
+3. Confirm chip balance hydrates (no 0 → 10K flash; instead null → authoritative).
+4. Sign up → verify email → claim account flow end-to-end on a real device.
+5. Edit profile, save, observe optimistic update + server-confirmed value.
+6. Shop purchase via the test billing path; chips deduct + restore correctly.
+
+Not blocking the PR being open; blocking the merge.
+
 ---
 
 ## C. Multiplayer hardening
