@@ -48,10 +48,15 @@ object AvatarPacks {
         ),
     )
 
+    // Paid packs are curated to be net-new vs [Starter] — buying a pack
+    // should give the user emojis they didn't already have, otherwise the
+    // purchase feels like the bulk of the pack was already free. If you
+    // edit Starter, re-check the paid lists for overlap and keep them
+    // disjoint.
     val Animals: Pack = Pack(
         id = "animals",
         name = "Animals",
-        emojis = listOf("🐱", "🐶", "🐯", "🐼", "🦊", "🐻", "🦁", "🐸"),
+        emojis = listOf("🐶", "🐻", "🐰", "🐨", "🐮", "🐷", "🐔", "🐒"),
         unlockProductId = "avatars_animals",
     )
 
@@ -65,14 +70,14 @@ object AvatarPacks {
     val Sports: Pack = Pack(
         id = "sports",
         name = "Sports",
-        emojis = listOf("⚽", "🏀", "🏈", "⚾", "🎾", "🎯", "🎳", "🥊"),
+        emojis = listOf("⚽", "🏀", "🏈", "⚾", "🎾", "🏓", "🎳", "🥊"),
         unlockProductId = "avatars_sports",
     )
 
     val Fantasy: Pack = Pack(
         id = "fantasy",
         name = "Fantasy",
-        emojis = listOf("🧙", "🧚", "🧛", "🧜", "🦄", "🐉", "🧞", "🐲"),
+        emojis = listOf("🧙", "🧚", "🧛", "🧜", "🐉", "🔮", "🗡️", "🧞"),
         unlockProductId = "avatars_fantasy",
     )
 
