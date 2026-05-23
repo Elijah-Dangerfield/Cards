@@ -213,7 +213,7 @@ private fun ShopHeader(chips: Long) {
             VerticalSpacerD100()
             Text(
                 text = "Spend chips. Stock up. Flex.",
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
         }
@@ -232,7 +232,7 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
             VerticalSpacerD100()
             Text(
                 text = it,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
         }
@@ -781,7 +781,7 @@ private fun EmptyState() {
         VerticalSpacerD200()
         Text(
             text = "Might be a bug? New chip packs and cosmetics drop weekly. Check back soon.",
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )

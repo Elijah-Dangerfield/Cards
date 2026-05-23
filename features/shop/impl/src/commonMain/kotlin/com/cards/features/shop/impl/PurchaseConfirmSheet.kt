@@ -376,7 +376,7 @@ private fun StatusPrompt(
             VerticalSpacerD100()
             Text(
                 text = body,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
             )

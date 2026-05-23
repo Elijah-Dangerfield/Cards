@@ -538,7 +538,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
             )
             Text(
                 text = "Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.",
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.text,
             )
             VerticalSpacerD100()
