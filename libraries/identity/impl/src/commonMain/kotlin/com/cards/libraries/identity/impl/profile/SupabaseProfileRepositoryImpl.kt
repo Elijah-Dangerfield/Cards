@@ -69,12 +69,14 @@ class SupabaseProfileRepositoryImpl(
     private val sharedState: Flow<Profile> = _state.asSharedFlow()
 
     init {
+        logger.d { "init: subscribing to AuthRepository.observe()" }
         // Watch auth state. Every change re-resolves the profile —
         // sign-in flips Fallback → Authenticated; sign-out flips the
         // other way; refresh-after-claim swaps the Authenticated
         // payload to the non-anonymous one.
         appScope.launch {
             authRepository.observe().collect { auth ->
+                logger.d { "Auth changed → resolve (${auth::class.simpleName})" }
                 Catching { resolve(auth) }
                     .logOnFailure { "Profile resolve from auth change failed" }
             }
@@ -91,11 +93,22 @@ class SupabaseProfileRepositoryImpl(
             is AuthState.Unauthenticated -> resolveFallbackLocked()
         }
         _state.emit(resolved)
+        // Info-level — profile emissions are load-bearing observability,
+        // same reason as the auth-state emit logs.
+        when (resolved) {
+            is Profile.Authenticated -> logger.i {
+                "Emitted Profile.Authenticated(id=${resolved.id}, isAnonymous=${resolved.isAnonymous}, hasEmail=${resolved.email != null})"
+            }
+            is Profile.Fallback -> logger.i {
+                "Emitted Profile.Fallback(localId=${resolved.id}) — no auth + no cached profile"
+            }
+        }
         resolved
     }
 
     private suspend fun resolveAuthenticatedLocked(auth: AuthState.Authenticated): Profile =
         Catching {
+            logger.d { "GET /v1/me for ${auth.userId}" }
             val me = profileApi.me()
             val profile = Profile.Authenticated(
                 id = me.userId,
@@ -108,7 +121,6 @@ class SupabaseProfileRepositoryImpl(
             profileCache.writeAuthenticated(profile)
             // Real session resolved — local fallback no longer relevant.
             profileCache.writeLocalId(null)
-            logger.d { "Resolved Authenticated profile for ${profile.id}" }
             profile
         }.fold(
             onSuccess = { it },
@@ -120,7 +132,13 @@ class SupabaseProfileRepositoryImpl(
                 val cached = Catching { profileCache.readAuthenticated() }
                     .logOnFailure { "Profile cache read failed" }
                     .getOrNull()
-                cached ?: Profile.Fallback(id = ensureLocalIdLocked())
+                if (cached != null) {
+                    logger.i { "Cache fallback: using cached profile ${cached.id}" }
+                    cached
+                } else {
+                    logger.i { "Cache empty: emitting Profile.Fallback with localId" }
+                    Profile.Fallback(id = ensureLocalIdLocked())
+                }
             },
         )
 
@@ -131,7 +149,12 @@ class SupabaseProfileRepositoryImpl(
         val cached = Catching { profileCache.readAuthenticated() }
             .logOnFailure { "Profile cache read failed" }
             .getOrNull()
-        return cached ?: Profile.Fallback(id = ensureLocalIdLocked())
+        if (cached != null) {
+            logger.d { "Unauthenticated but cached profile ${cached.id} exists; surfacing it" }
+            return cached
+        }
+        logger.d { "Unauthenticated + no cache; emitting Profile.Fallback" }
+        return Profile.Fallback(id = ensureLocalIdLocked())
     }
 
     private suspend fun ensureLocalIdLocked(): String {
@@ -151,11 +174,25 @@ class SupabaseProfileRepositoryImpl(
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
     ): UpdateProfileOutcome = mutex.withLock {
+        // Don't log the new values themselves — display names are
+        // mildly user-identifying. Just record which fields are
+        // changing.
+        logger.d {
+            "update: fields=[" +
+                listOfNotNull(
+                    "displayName".takeIf { displayName != null },
+                    "avatarEmoji".takeIf { avatarEmoji != null },
+                    "avatarBackgroundColor".takeIf { avatarBackgroundColor != null },
+                    "clearAvatarBackgroundColor".takeIf { clearAvatarBackgroundColor },
+                ).joinToString() +
+                "]"
+        }
         // The auth check here is structural: PATCH /v1/me requires a
         // session, and the request will 401 cleanly if not. Catching
         // that here avoids a network round-trip in the obvious case.
         val auth = authRepository.current()
         if (auth !is AuthState.Authenticated) {
+            logger.w { "update: NotSignedIn (auth is ${auth::class.simpleName})" }
             return@withLock UpdateProfileOutcome.NotSignedIn
         }
 
@@ -176,6 +213,7 @@ class SupabaseProfileRepositoryImpl(
             )
             profileCache.writeAuthenticated(optimistic)
             _state.emit(optimistic)
+            logger.d { "update: optimistic write applied; awaiting server confirm" }
         }
 
         Catching {
@@ -199,14 +237,16 @@ class SupabaseProfileRepositoryImpl(
                 )
                 profileCache.writeAuthenticated(profile)
                 _state.emit(profile)
+                logger.i { "update: Success for ${profile.id}" }
                 UpdateProfileOutcome.Success(profile)
             },
             onFailure = { e ->
                 if (priorProfile != null) {
                     profileCache.writeAuthenticated(priorProfile)
                     _state.emit(priorProfile)
+                    logger.d { "update: rolled back optimistic write" }
                 }
-                when (e) {
+                val outcome = when (e) {
                     is ClientRequestException -> when (e.response.status.value) {
                         409 -> UpdateProfileOutcome.DisplayNameTaken
                         401 -> UpdateProfileOutcome.NotSignedIn
@@ -220,13 +260,19 @@ class SupabaseProfileRepositoryImpl(
                     is ServerResponseException -> UpdateProfileOutcome.Unknown(e)
                     else -> UpdateProfileOutcome.NetworkError(e)
                 }
+                logger.w(e) { "update: ${outcome::class.simpleName}" }
+                outcome
             },
         )
     }
 
-    override suspend fun fetchAvatarPack(): AvatarPackOutcome =
-        Catching { profileApi.avatars() }.fold(
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome {
+        logger.d { "fetchAvatarPack: GET /v1/avatars" }
+        return Catching { profileApi.avatars() }.fold(
             onSuccess = { response ->
+                logger.d {
+                    "fetchAvatarPack: Success (${response.packs.size} packs, ${response.backgroundPalette.size} colors)"
+                }
                 AvatarPackOutcome.Success(
                     packs = response.packs.map { dto ->
                         AvatarPack(
@@ -239,13 +285,16 @@ class SupabaseProfileRepositoryImpl(
                 )
             },
             onFailure = { e ->
-                when (e) {
+                val outcome = when (e) {
                     is ClientRequestException -> AvatarPackOutcome.Unknown(e)
                     is ServerResponseException -> AvatarPackOutcome.Unknown(e)
                     else -> AvatarPackOutcome.NetworkError(e)
                 }
+                logger.w(e) { "fetchAvatarPack: ${outcome::class.simpleName}" }
+                outcome
             },
         )
+    }
 
     private fun lastEmittedAuthenticatedOrNull(): Profile.Authenticated? =
         _state.replayCache.firstOrNull() as? Profile.Authenticated

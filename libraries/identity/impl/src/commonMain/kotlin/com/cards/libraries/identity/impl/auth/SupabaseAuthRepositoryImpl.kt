@@ -72,6 +72,7 @@ class SupabaseAuthRepositoryImpl(
     private val sharedState: Flow<AuthState> = _state.asSharedFlow()
 
     init {
+        logger.d { "init: kicking off initial resolve" }
         appScope.launch {
             Catching { resolve() }
                 .logOnFailure { "Initial auth resolve failed; will retry via AuthRepository.retry()" }
@@ -81,29 +82,46 @@ class SupabaseAuthRepositoryImpl(
     override suspend fun current(): AuthState =
         // .first() on a SharedFlow(replay=1) returns the latest value if
         // one has been emitted, or suspends until the first emission.
+        // No log — this is the hot read path.
         sharedState.first()
 
     override fun observe(): Flow<AuthState> = sharedState
 
     override suspend fun accessToken(): String? {
-        return when (current()) {
-            is AuthState.Authenticated -> supabase.auth.currentSessionOrNull()?.accessToken
+        return when (val state = current()) {
+            is AuthState.Authenticated -> {
+                val token = supabase.auth.currentSessionOrNull()?.accessToken
+                if (token == null) {
+                    // Should be impossible — we're Authenticated but no session?
+                    logger.w { "accessToken: Authenticated state but no session in supabase-kt for ${state.userId}" }
+                }
+                token
+            }
             is AuthState.Unauthenticated -> {
-                logger.w { "Access token requested while Unauthenticated; request will go unauthed." }
+                logger.w { "accessToken: requested while Unauthenticated; request will go unauthed" }
                 null
             }
         }
     }
 
-    override suspend fun refreshAccessToken(): String? = Catching {
-        supabase.auth.refreshCurrentSession()
-        supabase.auth.currentSessionOrNull()?.accessToken
-    }.logOnFailure { "Force refresh of access token failed" }.getOrNull()
+    override suspend fun refreshAccessToken(): String? {
+        logger.d { "refreshAccessToken: forcing supabase session refresh" }
+        return Catching {
+            supabase.auth.refreshCurrentSession()
+            val token = supabase.auth.currentSessionOrNull()?.accessToken
+            logger.d { "refreshAccessToken: ${if (token != null) "got fresh token" else "no session after refresh"}" }
+            token
+        }.logOnFailure { "Force refresh of access token failed" }.getOrNull()
+    }
 
     override suspend fun retry(): AuthState = mutex.withLock {
         // No-op if already authenticated.
         val latest = lastEmittedOrNull()
-        if (latest is AuthState.Authenticated) return@withLock latest
+        if (latest is AuthState.Authenticated) {
+            logger.d { "retry: already Authenticated, no-op" }
+            return@withLock latest
+        }
+        logger.d { "retry: re-running resolve loop (latest=${latest?.let { it::class.simpleName } ?: "null"})" }
         resolveLocked()
     }
 
@@ -196,12 +214,22 @@ class SupabaseAuthRepositoryImpl(
             email = user.email,
         )
         _state.emit(state)
+        // Info-level so this lands in production diagnostic dumps — auth
+        // state transitions are the load-bearing observability moment.
+        logger.i {
+            "Emitted Authenticated(userId=${state.userId}, isAnonymous=${state.isAnonymous}, hasEmail=${state.email != null})"
+        }
         return state
     }
 
     private suspend fun emitUnauthenticatedLocked(cause: Throwable?): AuthState.Unauthenticated {
         val state = AuthState.Unauthenticated(cause = cause)
         _state.emit(state)
+        if (cause != null) {
+            logger.w(cause) { "Emitted Unauthenticated with cause" }
+        } else {
+            logger.i { "Emitted Unauthenticated (no cause — sign-out or exhausted resolve)" }
+        }
         return state
     }
 
@@ -223,6 +251,7 @@ class SupabaseAuthRepositoryImpl(
 
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
         mutex.withLock {
+            logger.d { "signInWithEmail: attempting" }
             Catching {
                 supabase.auth.signInWith(Email) {
                     this.email = email
@@ -230,37 +259,49 @@ class SupabaseAuthRepositoryImpl(
                 }
                 emitAuthenticatedFromSupabaseLocked()
             }.fold(
-                onSuccess = { SignInOutcome.Success },
+                onSuccess = {
+                    logger.i { "signInWithEmail: Success" }
+                    SignInOutcome.Success
+                },
                 onFailure = { e ->
-                    when (e) {
+                    val outcome = when (e) {
                         is RestException -> mapSignInRestException(e, email)
                         is HttpRequestException -> SignInOutcome.NetworkError(e)
                         else -> SignInOutcome.Unknown(e)
                     }
+                    logger.w(e) { "signInWithEmail: ${outcome::class.simpleName}" }
+                    outcome
                 },
             )
         }
 
     override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
         mutex.withLock {
+            logger.d { "signUpWithEmail: attempting" }
             Catching {
                 supabase.auth.signUpWith(Email) {
                     this.email = email
                     this.password = password
                 }
             }.fold(
-                onSuccess = { SignUpOutcome.VerificationRequired(email) },
+                onSuccess = {
+                    logger.i { "signUpWithEmail: VerificationRequired" }
+                    SignUpOutcome.VerificationRequired(email)
+                },
                 onFailure = { e ->
-                    when (e) {
+                    val outcome = when (e) {
                         is RestException -> mapSignUpRestException(e)
                         is HttpRequestException -> SignUpOutcome.NetworkError(e)
                         else -> SignUpOutcome.Unknown(e)
                     }
+                    logger.w(e) { "signUpWithEmail: ${outcome::class.simpleName}" }
+                    outcome
                 },
             )
         }
 
     override suspend fun refreshSession(): RefreshOutcome = mutex.withLock {
+        logger.d { "refreshSession: forcing supabase session refresh" }
         Catching {
             supabase.auth.refreshCurrentSession()
             val session = supabase.auth.currentSessionOrNull()
@@ -273,37 +314,50 @@ class SupabaseAuthRepositoryImpl(
                 RefreshOutcome.StillPending
             }
         }.fold(
-            onSuccess = { it },
+            onSuccess = { outcome ->
+                logger.i { "refreshSession: ${outcome::class.simpleName}" }
+                outcome
+            },
             onFailure = { e ->
-                when (e) {
+                val outcome = when (e) {
                     is RestException ->
                         if (e.statusCode == 401 || e.statusCode == 403) RefreshOutcome.SessionExpired
                         else RefreshOutcome.Unknown(e)
                     is HttpRequestException -> RefreshOutcome.NetworkError(e)
                     else -> RefreshOutcome.Unknown(e)
                 }
+                logger.w(e) { "refreshSession: ${outcome::class.simpleName}" }
+                outcome
             },
         )
     }
 
     // Intentionally no mutex — resend doesn't mutate session state.
-    override suspend fun resendVerificationEmail(email: String): ResendOutcome =
-        Catching {
+    override suspend fun resendVerificationEmail(email: String): ResendOutcome {
+        logger.d { "resendVerificationEmail: requesting" }
+        return Catching {
             supabase.auth.resendEmail(OtpType.Email.SIGNUP, email = email)
         }.fold(
-            onSuccess = { ResendOutcome.Sent },
+            onSuccess = {
+                logger.i { "resendVerificationEmail: Sent" }
+                ResendOutcome.Sent
+            },
             onFailure = { e ->
-                when (e) {
+                val outcome = when (e) {
                     is RestException ->
                         if (e.statusCode == 429) ResendOutcome.RateLimited(retryAfterSeconds = null)
                         else ResendOutcome.Unknown(e)
                     is HttpRequestException -> ResendOutcome.NetworkError(e)
                     else -> ResendOutcome.Unknown(e)
                 }
+                logger.w(e) { "resendVerificationEmail: ${outcome::class.simpleName}" }
+                outcome
             },
         )
+    }
 
     override suspend fun signOut(): Unit = mutex.withLock {
+        logger.i { "signOut: tearing down session" }
         Catching { supabase.auth.signOut() }
             .logOnFailure { "Supabase signOut failed; clearing local state anyway" }
         emitUnauthenticatedLocked(cause = null)
@@ -311,7 +365,9 @@ class SupabaseAuthRepositoryImpl(
     }
 
     override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
+        logger.d { "deleteAccount: attempting" }
         if (supabase.auth.currentSessionOrNull() == null) {
+            logger.w { "deleteAccount: NotSignedIn (no supabase session)" }
             return@withLock DeleteAccountOutcome.NotSignedIn
         }
         val outcome = Catching { profileApi.deleteMe() }.fold(
@@ -340,26 +396,34 @@ class SupabaseAuthRepositoryImpl(
         )
 
         if (outcome is DeleteAccountOutcome.Success) {
+            logger.i { "deleteAccount: Success — signing out + dispatching SignedOut" }
             Catching { supabase.auth.signOut() }
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
             emitUnauthenticatedLocked(cause = null)
             appEventBus.dispatch(AppEvent.SignedOut)
+        } else {
+            logger.w { "deleteAccount: ${outcome::class.simpleName}" }
         }
         outcome
     }
 
     override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
         mutex.withLock {
+            logger.d { "linkOAuthIdentity: attempting with $provider" }
             if (supabase.auth.currentSessionOrNull() == null) {
+                logger.w { "linkOAuthIdentity: NotSignedIn (no supabase session)" }
                 return@withLock LinkIdentityOutcome.NotSignedIn
             }
             Catching {
                 supabase.auth.linkIdentity(provider.toSupabase())
                 emitAuthenticatedFromSupabaseLocked()
             }.fold(
-                onSuccess = { LinkIdentityOutcome.Success },
+                onSuccess = {
+                    logger.i { "linkOAuthIdentity($provider): Success" }
+                    LinkIdentityOutcome.Success
+                },
                 onFailure = { e ->
-                    when (e) {
+                    val outcome = when (e) {
                         is RestException -> mapLinkRestException(e)
                         is HttpRequestException -> LinkIdentityOutcome.NetworkError(e)
                         else ->
@@ -367,19 +431,25 @@ class SupabaseAuthRepositoryImpl(
                                 LinkIdentityOutcome.Cancelled
                             } else LinkIdentityOutcome.Unknown(e)
                     }
+                    logger.w(e) { "linkOAuthIdentity($provider): ${outcome::class.simpleName}" }
+                    outcome
                 },
             )
         }
 
     override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
         mutex.withLock {
+            logger.d { "signInWithOAuth: attempting with $provider" }
             Catching {
                 supabase.auth.signInWith(provider.toSupabase())
                 emitAuthenticatedFromSupabaseLocked()
             }.fold(
-                onSuccess = { SignInOutcome.Success },
+                onSuccess = {
+                    logger.i { "signInWithOAuth($provider): Success" }
+                    SignInOutcome.Success
+                },
                 onFailure = { e ->
-                    when (e) {
+                    val outcome = when (e) {
                         is RestException -> mapOAuthSignInRestException(e)
                         is HttpRequestException -> SignInOutcome.NetworkError(e)
                         else ->
@@ -387,6 +457,8 @@ class SupabaseAuthRepositoryImpl(
                                 SignInOutcome.Cancelled
                             } else SignInOutcome.Unknown(e)
                     }
+                    logger.w(e) { "signInWithOAuth($provider): ${outcome::class.simpleName}" }
+                    outcome
                 },
             )
         }
@@ -395,11 +467,14 @@ class SupabaseAuthRepositoryImpl(
         email: String,
         password: String,
     ): LinkEmailIdentityOutcome = mutex.withLock {
+        logger.d { "linkEmailIdentity: attempting" }
         if (supabase.auth.currentSessionOrNull() == null) {
+            logger.w { "linkEmailIdentity: NotSignedIn (no supabase session)" }
             return@withLock LinkEmailIdentityOutcome.NotSignedIn
         }
         val current = lastEmittedOrNull()
         if (current is AuthState.Authenticated && !current.isAnonymous) {
+            logger.w { "linkEmailIdentity: NotAnonymous — guarded against email-change on a real account" }
             return@withLock LinkEmailIdentityOutcome.NotAnonymous
         }
         Catching {
@@ -408,13 +483,18 @@ class SupabaseAuthRepositoryImpl(
                 this.password = password
             }
         }.fold(
-            onSuccess = { LinkEmailIdentityOutcome.VerificationRequired(email) },
+            onSuccess = {
+                logger.i { "linkEmailIdentity: VerificationRequired" }
+                LinkEmailIdentityOutcome.VerificationRequired(email)
+            },
             onFailure = { e ->
-                when (e) {
+                val outcome = when (e) {
                     is RestException -> mapLinkEmailRestException(e)
                     is HttpRequestException -> LinkEmailIdentityOutcome.NetworkError(e)
                     else -> LinkEmailIdentityOutcome.Unknown(e)
                 }
+                logger.w(e) { "linkEmailIdentity: ${outcome::class.simpleName}" }
+                outcome
             },
         )
     }
