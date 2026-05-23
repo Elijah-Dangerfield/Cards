@@ -88,7 +88,15 @@ internal fun WelcomeDialog(
             verticalArrangement = Arrangement.Top,
         ) {
             Text(
-                text = "Welcome, $displayName",
+                text = "Welcome,",
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.text,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(Dimension.D200))
+
+            Text(
+                text = displayName,
                 typography = AppTheme.typography.Heading.H900,
                 color = AppTheme.colors.text,
                 textAlign = TextAlign.Center,

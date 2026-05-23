@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +45,8 @@ internal fun ActiveRoomBanner(
         modifier = modifier
             .fillMaxWidth()
             .clip(Radii.Card.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.background.color)
+            .border(2.dp, AppTheme.colors.border.color, Radii.Card.shape)
             .padding(Dimension.D600),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -52,7 +54,7 @@ internal fun ActiveRoomBanner(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(Radii.R600.shape)
-                    .background(AppTheme.colors.surfaceTertiary.color),
+                    .background(AppTheme.colors.surfacePrimary.color),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
