@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -104,7 +105,20 @@ internal fun PlayerArea(
     val swipeFoldEnabled = table.isHumanTurn &&
         table.humanLegalActions != null &&
         human.participation != HandParticipation.Folded
-    val swipeFoldThresholdPx = with(LocalDensity.current) { 60.dp.toPx() }
+    // Two commit paths so the gesture reads as intentional, not
+    // accidental:
+    //   • drag past [foldCommitPx] — a deliberate "lift the cards
+    //     out of your hand" motion (~70% of the hole-card height)
+    //   • release with upward velocity past [foldFlickVelocity] and
+    //     at least [foldMinFlickDistancePx] of upward displacement —
+    //     a quick flick gesture
+    // Neither alone is enough; you need *one* of these on release.
+    // Below either threshold, the cards spring back. Distance is the
+    // visual feedback that "I'm trying to fold," velocity is the
+    // expert-user shortcut.
+    val foldCommitPx = with(LocalDensity.current) { 100.dp.toPx() }
+    val foldMinFlickDistancePx = with(LocalDensity.current) { 30.dp.toPx() }
+    val foldFlickVelocityPxPerSec = with(LocalDensity.current) { 1_200.dp.toPx() }
     // Distance the cards travel after the user commits the fold — past the
     // top of the screen so they read as tossed away. Matches the existing
     // hole-card deal-in flight distance for symmetry.
@@ -112,10 +126,12 @@ internal fun PlayerArea(
     val haptics = LocalHapticFeedback.current
     val gestureScope = rememberCoroutineScope()
     val dragOffsetY = remember { Animatable(0f) }
-    // 0..1 progress used to drive the in-flight visual response. Capped at
-    // 1 once the user passes the commit threshold, so the rotation/fade
-    // doesn't keep overshooting if they keep dragging upward.
-    val dragProgress = (abs(dragOffsetY.value) / swipeFoldThresholdPx).coerceIn(0f, 1f)
+    // 0..1 progress used to drive the in-flight visual response.
+    // Visual progress saturates at the commit threshold so the
+    // tilt/fade lands at a clear "ready to fold" peak when the user
+    // is at the commit line — and doesn't keep growing if they
+    // overshoot.
+    val dragProgress = (abs(dragOffsetY.value) / foldCommitPx).coerceIn(0f, 1f)
     // Reset the offset whenever the gate flips back open (e.g. new hand),
     // so we never start with a stale residual translation from a prior
     // commit. Using a Compose effect keyed on `swipeFoldEnabled` keeps the
@@ -147,16 +163,46 @@ internal fun PlayerArea(
                 .weight(1f)
                 .fillMaxHeight()
                 .alpha(if (folded) 0.35f else 1f)
-                .pointerInput(swipeFoldEnabled, swipeFoldThresholdPx) {
+                .pointerInput(swipeFoldEnabled, foldCommitPx, foldFlickVelocityPxPerSec) {
                     if (!swipeFoldEnabled) return@pointerInput
-                    var fired = false
+                    val velocityTracker = VelocityTracker()
                     detectVerticalDragGestures(
                         onDragStart = {
-                            fired = false
+                            velocityTracker.resetTracking()
                             gestureScope.launch { dragOffsetY.snapTo(0f) }
                         },
                         onDragEnd = {
-                            if (!fired) {
+                            // Commit only on release. Two paths qualify:
+                            //   1. Drag past the commit distance.
+                            //   2. Release with an upward flick past the
+                            //      velocity threshold, with at least a
+                            //      minimum displacement so a tap-and-twitch
+                            //      doesn't qualify as a flick.
+                            val finalOffset = dragOffsetY.value
+                            val velocityY = velocityTracker.calculateVelocity().y
+                            val draggedFarEnough = finalOffset <= -foldCommitPx
+                            val flicked = velocityY <= -foldFlickVelocityPxPerSec &&
+                                finalOffset <= -foldMinFlickDistancePx
+                            if (draggedFarEnough || flicked) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                // Continue the upward motion off-screen as
+                                // the fold animation, instead of cutting
+                                // to the folded state. Tween duration
+                                // shortens when the user already flicked
+                                // fast so the toss feels continuous with
+                                // their release velocity.
+                                val durationMs = if (flicked) 220 else 280
+                                gestureScope.launch {
+                                    dragOffsetY.animateTo(
+                                        targetValue = -foldFlightPx,
+                                        animationSpec = tween(
+                                            durationMillis = durationMs,
+                                            easing = FastOutSlowInEasing,
+                                        ),
+                                    )
+                                }
+                                onSwipeFold()
+                            } else {
                                 gestureScope.launch {
                                     dragOffsetY.animateTo(
                                         targetValue = 0f,
@@ -169,35 +215,20 @@ internal fun PlayerArea(
                             }
                         },
                         onDragCancel = {
-                            if (!fired) {
-                                gestureScope.launch {
-                                    dragOffsetY.animateTo(
-                                        targetValue = 0f,
-                                        animationSpec = spring(),
-                                    )
-                                }
+                            gestureScope.launch {
+                                dragOffsetY.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(),
+                                )
                             }
                         },
-                        onVerticalDrag = { _, dy ->
+                        onVerticalDrag = { change, dy ->
                             // Only follow upward motion past the rest point —
                             // dragging downward is a no-op so the cards don't
                             // bob below their resting line.
                             val next = (dragOffsetY.value + dy).coerceAtMost(0f)
                             gestureScope.launch { dragOffsetY.snapTo(next) }
-                            if (!fired && dragOffsetY.value <= -swipeFoldThresholdPx) {
-                                fired = true
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                // Continue the upward motion off-screen as the
-                                // fold animation, instead of cutting to the
-                                // folded state.
-                                gestureScope.launch {
-                                    dragOffsetY.animateTo(
-                                        targetValue = -foldFlightPx,
-                                        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-                                    )
-                                }
-                                onSwipeFold()
-                            }
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
                         },
                     )
                 },
