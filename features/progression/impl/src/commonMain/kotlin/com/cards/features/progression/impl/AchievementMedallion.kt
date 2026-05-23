@@ -195,7 +195,9 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = if (earnedAtEpochMs != null) "Earned" else "How to earn",
+                text = earnedAtEpochMs
+                    ?.let { "Earned · ${formatEarnedAgo(it)}" }
+                    ?: "How to earn",
                 typography = AppTheme.typography.Label.L400,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -224,6 +226,23 @@ private fun rewardLabel(achievement: Achievement): String = buildString {
     append("+${achievement.xpReward} XP")
     if (achievement.chipReward > 0L) append(" · +${achievement.chipReward}")
 }
+
+private const val DayMs: Long = 24L * 60L * 60L * 1000L
+
+internal fun formatEarnedAgo(earnedAtEpochMs: Long, nowEpochMs: Long): String {
+    val days = ((nowEpochMs - earnedAtEpochMs).coerceAtLeast(0L)) / DayMs
+    return when {
+        days == 0L -> "today"
+        days == 1L -> "yesterday"
+        days < 7L -> "${days}d ago"
+        days < 30L -> "${days / 7L}w ago"
+        days < 365L -> "${days / 30L}mo ago"
+        else -> "${days / 365L}y ago"
+    }
+}
+
+private fun formatEarnedAgo(earnedAtEpochMs: Long): String =
+    formatEarnedAgo(earnedAtEpochMs, kotlin.time.Clock.System.now().toEpochMilliseconds())
 
 @Composable
 private fun ShimmerOverlay() {
