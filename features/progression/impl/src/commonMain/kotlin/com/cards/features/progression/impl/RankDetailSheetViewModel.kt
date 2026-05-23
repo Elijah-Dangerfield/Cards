@@ -1,22 +1,23 @@
 package com.dangerfield.cards.features.progression.impl
 
 import androidx.lifecycle.viewModelScope
-import com.dangerfield.cards.libraries.cards.UserRepository
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
 @Inject
 class RankDetailSheetViewModel(
-    userRepository: UserRepository,
+    authRepository: AuthRepository,
 ) : SEAViewModel<RankDetailState, RankDetailEvent, RankDetailAction>(
     initialStateArg = RankDetailState(),
 ) {
 
     init {
         viewModelScope.launch {
-            userRepository.observeUser().collect { user ->
-                val anon = user?.isAnonymous ?: true
+            authRepository.observe().collect { state ->
+                val anon = (state as? AuthState.Authenticated)?.isAnonymous ?: true
                 takeAction(RankDetailAction.UserChanged(isAnonymous = anon))
             }
         }

@@ -35,7 +35,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = dialogEmoji(emoji = "🎲", surface = null),
+        emoji = dialogEmoji(emoji = "🎲"),
     ) {
         Column(
             modifier = Modifier

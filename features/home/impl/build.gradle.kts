@@ -21,6 +21,7 @@ kotlin {
             implementation(projects.libraries.gameplay)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.identity)
             implementation(projects.libraries.rooms)
 
             // Compose dependencies (navigation and lifecycle provided by cards.feature plugin)
@@ -34,6 +35,7 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.identity)
             implementation(projects.libraries.rooms)
             implementation(libs.turbine)
         }

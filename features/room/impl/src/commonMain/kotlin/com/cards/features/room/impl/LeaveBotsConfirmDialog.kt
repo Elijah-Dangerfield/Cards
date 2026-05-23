@@ -35,7 +35,7 @@ internal fun LeaveBotsConfirmDialog(
 ) {
     Dialog(
         onDismissRequest = onStay,
-        emoji = dialogEmoji(emoji = "🚪", surface = null),
+        emoji = dialogEmoji(emoji = "🚪"),
     ) {
         Column(
             modifier = Modifier

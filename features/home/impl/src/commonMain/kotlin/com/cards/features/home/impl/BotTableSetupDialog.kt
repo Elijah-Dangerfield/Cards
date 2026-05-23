@@ -51,7 +51,7 @@ internal fun BotTableSetupDialog(
     var stakeTier by remember { mutableStateOf(StakeTier.Default) }
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = dialogEmoji(emoji = "🤖", surface = null),
+        emoji = dialogEmoji(emoji = "🤖"),
     ) {
         Column(
             modifier = Modifier

@@ -16,10 +16,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryEntity
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
-import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
-import com.dangerfield.cards.libraries.cards.storage.db.SessionEntity
-import com.dangerfield.cards.libraries.cards.storage.db.UserDao
-import com.dangerfield.cards.libraries.cards.storage.db.UserEntity
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageEntity
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
@@ -29,8 +25,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
 
 @Database(
     entities = [
-        UserEntity::class,
-        SessionEntity::class,
         ProgressionEntity::class,
         XpEventEntity::class,
         ChipsEntity::class,
@@ -41,14 +35,12 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         WalletEventEntity::class,
         UserMessageEntity::class,
     ],
-    version = 12, // v12: user_messages table for server-scheduled in-app dialogs + inbox
+    version = 14, // v14: dropped UserEntity (display name + anon flag live on ProfileRepository / AuthRepository)
     exportSchema = true
 )
 @TypeConverters(CoreTypeConverters::class)
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun userDao(): UserDao
-    abstract fun sessionDao(): SessionDao
     abstract fun progressionDao(): ProgressionDao
     abstract fun xpEventDao(): XpEventDao
     abstract fun chipsDao(): ChipsDao

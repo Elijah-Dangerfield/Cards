@@ -7,11 +7,20 @@ import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
-import com.dangerfield.cards.libraries.cards.User
-import com.dangerfield.cards.libraries.cards.UserRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpEventRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -56,31 +65,46 @@ internal class FakeAchievementRepository(
     override suspend fun deleteAll() { /* not used here */ }
 }
 
-internal class FakeUserRepository(initial: User? = null) : UserRepository {
-    val user = MutableStateFlow(initial)
-    override suspend fun ensureUserExists() { /* not used here */ }
-    override fun observeUser(): Flow<User?> = user
-    override suspend fun getUser(): User? = user.value
-    override suspend fun setName(name: String?) {
-        user.value = user.value?.copy(name = name)
+/**
+ * Minimal [AuthRepository] fake — exposes a settable state flow and
+ * stubs every mutation as `error()` since the progression VMs only read.
+ */
+internal class FakeAuthRepository(
+    initial: AuthState? = null,
+) : AuthRepository {
+    val state: MutableSharedFlow<AuthState> = MutableSharedFlow<AuthState>(replay = 1).also {
+        if (initial != null) it.tryEmit(initial)
     }
-    override suspend fun onSessionStarted() { /* not used here */ }
-    override suspend fun onAppOpened() { /* not used here */ }
-    override suspend fun setOnboardingComplete() { /* not used here */ }
-    override suspend fun onShakeDetected() { /* not used here */ }
-    override suspend fun deleteAll() {
-        user.value = null
+
+    override suspend fun current(): AuthState = state.replayCache.first()
+    override fun observe(): Flow<AuthState> = state
+
+    fun emit(next: AuthState) {
+        state.tryEmit(next)
     }
+
+    override suspend fun accessToken(): String? = error("not used")
+    override suspend fun refreshAccessToken(): String? = error("not used")
+    override suspend fun retry(): AuthState = error("not used")
+    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
+        error("not used")
+    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
+        error("not used")
+    override suspend fun refreshSession(): RefreshOutcome = error("not used")
+    override suspend fun resendVerificationEmail(email: String): ResendOutcome =
+        error("not used")
+    override suspend fun signOut() { error("not used") }
+    override suspend fun deleteAccount(): DeleteAccountOutcome = error("not used")
+    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =
+        error("not used")
+    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome =
+        error("not used")
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
+        error("not used")
 }
 
-internal fun anonymousUser(): User = User(
-    name = "QuietAce72",
-    createdAt = 1_700_000_000_000,
-    lastSessionAt = 1_700_000_000_000,
-    hasCompletedOnboarding = true,
-    isAnonymous = true,
-    sessionsCount = 1,
-    appOpenCount = 1,
-)
+internal fun anonymousAuthState(userId: String = "user-1"): AuthState.Authenticated =
+    AuthState.Authenticated(userId = userId, isAnonymous = true, email = null)
 
-internal fun claimedUser(): User = anonymousUser().copy(isAnonymous = false)
+internal fun claimedAuthState(userId: String = "user-1"): AuthState.Authenticated =
+    AuthState.Authenticated(userId = userId, isAnonymous = false, email = "real@example.com")

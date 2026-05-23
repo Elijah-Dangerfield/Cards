@@ -49,7 +49,7 @@ object EmojiBubbleDefaults {
      * the bubble look "set into" the sheet/dialog rather than glued onto
      * its top edge.
      */
-    val RingWidth: Dp = Dimension.D100
+    val RingWidth: Dp = Dimension.D200
 
     /**
      * Breathing room baked **into the bubble's slot**, below the bubble.

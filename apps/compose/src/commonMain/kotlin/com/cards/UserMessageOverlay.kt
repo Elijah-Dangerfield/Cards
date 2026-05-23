@@ -64,7 +64,7 @@ private fun UserMessageDialogContent(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = message.emoji?.takeUnless { it.isBlank() }?.let { dialogEmoji(emoji = it, surface = null) },
+        emoji = message.emoji?.takeUnless { it.isBlank() }?.let { dialogEmoji(emoji = it) },
     ) {
         Column(
             modifier = Modifier

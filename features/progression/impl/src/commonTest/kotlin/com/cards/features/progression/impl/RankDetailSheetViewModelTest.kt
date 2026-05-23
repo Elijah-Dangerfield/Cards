@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.progression.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -15,16 +16,19 @@ class RankDetailSheetViewModelTest : CoroutineTest() {
 
     @Test
     fun initialState_isAnonymous_andRankIsZero() = runUnitTest {
-        val users = FakeUserRepository(initial = null)
-        val vm = RankDetailSheetViewModel(userRepository = users)
-        assertEquals(true, vm.state.isAnonymous, "null user is treated as anonymous")
+        // Before AuthRepository has resolved (no replay yet), the VM
+        // should still default to anonymous + rank 0 — that's the safe
+        // first-frame state.
+        val auth = FakeAuthRepository(initial = null)
+        val vm = RankDetailSheetViewModel(authRepository = auth)
+        assertEquals(true, vm.state.isAnonymous, "unresolved auth treated as anonymous")
         assertEquals(0, vm.state.rank)
     }
 
     @Test
     fun claimedUser_flipsRankTo1200_placeholder() = runUnitTest {
-        val users = FakeUserRepository(initial = claimedUser())
-        val vm = RankDetailSheetViewModel(userRepository = users)
+        val auth = FakeAuthRepository(initial = claimedAuthState())
+        val vm = RankDetailSheetViewModel(authRepository = auth)
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.isAnonymous) last = awaitItem()
@@ -38,8 +42,8 @@ class RankDetailSheetViewModelTest : CoroutineTest() {
 
     @Test
     fun userTransition_anonToClaimed_flipsRank() = runUnitTest {
-        val users = FakeUserRepository(initial = anonymousUser())
-        val vm = RankDetailSheetViewModel(userRepository = users)
+        val auth = FakeAuthRepository(initial = anonymousAuthState())
+        val vm = RankDetailSheetViewModel(authRepository = auth)
         // Initial anon state.
         vm.stateFlow.test {
             var last = awaitItem()
@@ -49,7 +53,7 @@ class RankDetailSheetViewModelTest : CoroutineTest() {
 
         // The user claims their account mid-session — the rank panel
         // should hot-swap to the claimed-user placeholder.
-        users.user.value = claimedUser()
+        auth.emit(claimedAuthState())
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.isAnonymous || last.rank == 0) last = awaitItem()
@@ -61,17 +65,18 @@ class RankDetailSheetViewModelTest : CoroutineTest() {
 
     @Test
     fun claimedUser_signingOut_revertsToAnonymous() = runUnitTest {
-        // After delete-account or sign-out, the user flow emits null —
-        // the VM must collapse rank back to 0 so the screen reads correctly.
-        val users = FakeUserRepository(initial = claimedUser())
-        val vm = RankDetailSheetViewModel(userRepository = users)
+        // After delete-account or sign-out the auth flow emits
+        // Unauthenticated — the VM must collapse rank back to 0 so the
+        // screen reads correctly.
+        val auth = FakeAuthRepository(initial = claimedAuthState())
+        val vm = RankDetailSheetViewModel(authRepository = auth)
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.isAnonymous || last.rank == 0) last = awaitItem()
             cancelAndIgnoreRemainingEvents()
         }
 
-        users.user.value = null
+        auth.emit(AuthState.Unauthenticated())
         vm.stateFlow.test {
             var last = awaitItem()
             while (!last.isAnonymous || last.rank != 0) last = awaitItem()

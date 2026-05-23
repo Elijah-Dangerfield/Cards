@@ -30,7 +30,7 @@ internal fun LastActionExplainer(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = dialogEmoji(emoji = emojiFor(action), surface = null),
+        emoji = dialogEmoji(emoji = emojiFor(action)),
     ) {
         Column(
             modifier = Modifier

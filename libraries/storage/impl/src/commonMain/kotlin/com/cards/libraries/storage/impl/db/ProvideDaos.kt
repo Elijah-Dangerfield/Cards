@@ -6,8 +6,6 @@ import com.dangerfield.cards.libraries.cards.storage.db.ClearableDao
 import com.dangerfield.cards.libraries.cards.storage.db.EquipmentDao
 import com.dangerfield.cards.libraries.cards.storage.db.InventoryDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
-import com.dangerfield.cards.libraries.cards.storage.db.SessionDao
-import com.dangerfield.cards.libraries.cards.storage.db.UserDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
@@ -15,20 +13,6 @@ import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
-
-@SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class, boundType = UserDao::class)
-@ContributesBinding(AppScope::class, multibinding = true, boundType = ClearableDao::class)
-class ProvideUserDao @Inject constructor(
-    provider: AppDatabaseProvider
-) : UserDao by provider.database.userDao()
-
-@SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class, boundType = SessionDao::class)
-@ContributesBinding(AppScope::class, multibinding = true, boundType = ClearableDao::class)
-class ProvideSessionDao @Inject constructor(
-    provider: AppDatabaseProvider
-) : SessionDao by provider.database.sessionDao()
 
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = ProgressionDao::class)

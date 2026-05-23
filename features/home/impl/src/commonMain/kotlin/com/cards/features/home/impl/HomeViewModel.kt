@@ -1,26 +1,34 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
-import com.dangerfield.cards.libraries.cards.UserRepository
+import com.dangerfield.cards.libraries.cards.isFirstEverSession
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
 @Inject
 class HomeViewModel(
-    private val userRepository: UserRepository,
     private val progressionRepository: ProgressionRepository,
     private val chipsRepository: ChipsRepository,
     private val roomRepository: RoomRepository,
+    private val profileRepository: ProfileRepository,
+    private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
     initialStateArg = HomeState()
@@ -29,7 +37,6 @@ class HomeViewModel(
     private val homeLogger = KLog.withTag("HomeViewModel")
 
     init {
-        takeAction(HomeAction.Load)
         takeAction(HomeAction.LoadActiveRooms)
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
@@ -41,28 +48,93 @@ class HomeViewModel(
                 takeAction(HomeAction.ChipsChanged(balance))
             }
         }
+        viewModelScope.launch {
+            // Profile is the canonical source for the user's display
+            // name + anon flag (`isAnonymous` mirrors the JWT claim served
+            // by `/v1/me`). Previously this read from `UserRepository.User`,
+            // which the agent never populated correctly — display name
+            // stayed null forever on fresh installs.
+            profileRepository.observe().collect { profile ->
+                takeAction(HomeAction.ProfileChanged(profile))
+            }
+        }
+        observeWelcomeGate()
+    }
+
+    /**
+     * One-shot starter-grant welcome trigger.
+     *
+     * Combines three upstream signals — chip balance, server profile, and
+     * the [AppData] snapshot (carries both the "already seen" flag and the
+     * "first-ever session" signal via [isFirstEverSession]) — and emits
+     * exactly one [HomeEvent.OpenWelcomeDialog] event the first time they
+     * all line up. The view layer responds by navigating to
+     * [com.dangerfield.cards.features.home.WelcomeDialogRoute].
+     *
+     * "First launch" comes from [AppCache.lastSessionEndedAt] (null = the
+     * app has never backgrounded on this install). That signal is set by
+     * [com.dangerfield.cards.libraries.cards.impl.AppLifecycleTracker] —
+     * a 30-line lifecycle listener that replaces the previous Room-backed
+     * session repository, table, DAO, and entity. Same fact, no DB row.
+     *
+     * Persists `hasSeenStarterWelcome=true` *at emit time* (optimistic), so
+     * a process death between event and dismissal doesn't cause a re-show.
+     * The user has the chips either way; missing the dialog on a crash is
+     * fine.
+     */
+    private fun observeWelcomeGate() {
+        viewModelScope.launch {
+            combine(
+                chipsRepository.observeBalance(),
+                profileRepository.observe(),
+                appCache.updates,
+            ) { chips, profile, appData ->
+                WelcomeGate(
+                    isFirstEverSession = appData.isFirstEverSession(),
+                    chips = chips,
+                    profile = profile,
+                    hasSeenStarterWelcome = appData.hasSeenStarterWelcome,
+                )
+            }
+                .distinctUntilChanged()
+                .onEach { gate ->
+                    homeLogger.i {
+                        "welcomeGates: resolved=${gate.payload() != null} " +
+                            "isFirstEverSession=${gate.isFirstEverSession} " +
+                            "hasSeenStarterWelcome=${gate.hasSeenStarterWelcome} " +
+                            "profile=${gate.profile.debugKind()} " +
+                            "chips=${gate.chips}"
+                    }
+                }
+                // Suspends until the first emission whose four gates align.
+                // No state churn after — the cache flip below makes the
+                // predicate unsatisfiable for the rest of this VM's life.
+                .first { it.payload() != null }
+                .let { gate ->
+                    val payload = gate.payload()!!
+                    appCache.update { it.copy(hasSeenStarterWelcome = true) }
+                    sendEvent(HomeEvent.OpenWelcomeDialog(payload))
+                }
+        }
     }
 
     override suspend fun handleAction(action: HomeAction) {
         when (action) {
-            is HomeAction.Load -> action.loadUser()
-            is HomeAction.Refresh -> {
-                action.loadUser()
-                action.loadActiveRooms()
-            }
+            is HomeAction.Refresh -> action.loadActiveRooms()
             is HomeAction.LoadActiveRooms -> action.loadActiveRooms()
             is HomeAction.Forfeit -> action.forfeit(action.code)
             is HomeAction.XpChanged -> action.updateState { it.copy(xp = action.totalXp) }
             is HomeAction.ChipsChanged -> action.updateState { it.copy(chips = action.balance) }
+            is HomeAction.ProfileChanged -> action.applyProfile(action.profile)
         }
     }
 
-    private suspend fun HomeAction.loadUser() {
-        val user = userRepository.getUser()
+    private suspend fun HomeAction.applyProfile(profile: Profile) {
+        val auth = profile as? Profile.Authenticated
         updateState {
             it.copy(
-                userName = user?.name,
-                isAnonymous = user?.isAnonymous ?: true,
+                userName = auth?.displayName,
+                isAnonymous = auth?.isAnonymous ?: true,
             )
         }
     }
@@ -105,6 +177,43 @@ class HomeViewModel(
     }
 }
 
+/**
+ * Snapshot of all four welcome-dialog preconditions. Lifted to a value
+ * type so the trace log can show every gate's current value on a single
+ * line and so [payload] is the only place the "all aligned" rule lives.
+ */
+private data class WelcomeGate(
+    val isFirstEverSession: Boolean,
+    val chips: Long?,
+    val profile: Profile?,
+    val hasSeenStarterWelcome: Boolean,
+) {
+    fun payload(): WelcomePayload? {
+        if (!isFirstEverSession) return null
+        if (hasSeenStarterWelcome) return null
+        val auth = profile as? Profile.Authenticated ?: return null
+        val balance = chips ?: return null
+        return WelcomePayload(
+            displayName = auth.displayName,
+            avatarEmoji = auth.avatarEmoji,
+            avatarBackgroundColorHex = auth.avatarBackgroundColor,
+            chips = balance,
+        )
+    }
+}
+
+/**
+ * Eager payload for the welcome route — by the time the VM emits the
+ * event, every field has already resolved, so the dialog paints on first
+ * frame instead of waiting on its own observers.
+ */
+data class WelcomePayload(
+    val displayName: String,
+    val avatarEmoji: String,
+    val avatarBackgroundColorHex: String?,
+    val chips: Long,
+)
+
 data class HomeState(
     val userName: String? = null,
     val xp: Long = 0,
@@ -116,17 +225,25 @@ data class HomeState(
     val activeRooms: List<ActiveRoomSummary> = emptyList(),
 )
 
+private fun Profile?.debugKind(): String = when (this) {
+    null -> "null"
+    is Profile.Authenticated -> if (isAnonymous) "Authenticated(anon)" else "Authenticated"
+    is Profile.Fallback -> "Fallback"
+}
+
 data class ActiveRoomSummary(
     val code: String,
 )
 
-sealed interface HomeEvent
+sealed interface HomeEvent {
+    data class OpenWelcomeDialog(val payload: WelcomePayload) : HomeEvent
+}
 
 sealed interface HomeAction {
-    data object Load : HomeAction
     data object Refresh : HomeAction
     data object LoadActiveRooms : HomeAction
     data class Forfeit(val code: String) : HomeAction
     data class XpChanged(val totalXp: Long) : HomeAction
     data class ChipsChanged(val balance: Long?) : HomeAction
+    data class ProfileChanged(val profile: Profile) : HomeAction
 }

@@ -92,12 +92,9 @@ class ProfileFeatureEntryPoint(
             val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
                 .collectAsStateWithLifecycle(initialValue = 0)
             // Profile (display name + avatar + anon flag) is the canonical
-            // source. UserRepository holds local stats only; reading the
-            // name from there missed updates after Edit Profile saved
-            // (server pushed new profile, local user row stayed stale).
-            // `null` while ProfileRepository's first emission is still
-            // resolving — the header renders with safe defaults until
-            // it lands.
+            // source. `null` while ProfileRepository's first emission is
+            // still resolving — the header renders with safe defaults
+            // until it lands.
             val profile by profileRepository.observe()
                 .collectAsStateWithLifecycle(initialValue = null)
             val authenticated = profile as? Profile.Authenticated

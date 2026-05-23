@@ -12,6 +12,7 @@ kotlin {
             implementation(projects.features.progression)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.core)
+            implementation(projects.libraries.identity)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)
@@ -27,6 +28,7 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.identity)
             implementation(libs.turbine)
         }
     }

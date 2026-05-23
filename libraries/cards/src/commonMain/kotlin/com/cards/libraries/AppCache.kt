@@ -65,7 +65,34 @@ data class AppData(
      * — after which the gesture folds silently.
      */
     val swipeFoldGestureAck: Boolean = false,
+
+    /**
+     * Whether the user has seen the starter-grant welcome dialog. False on
+     * a fresh install; flips to true the first time the dialog is dismissed.
+     * Gates a one-shot UI that introduces the chip economy and steers new
+     * users toward the no-risk bot tables. Combined with [isFirstEverSession]
+     * the welcome is gated to brand-new accounts only.
+     */
+    val hasSeenStarterWelcome: Boolean = false,
+
+    /**
+     * Epoch-ms of when the previous session backgrounded, or `null` if
+     * the app has never been backgrounded on this install. Used as the
+     * single source of truth for "is this a fresh install" — see
+     * [isFirstEverSession]. Replaces a dedicated `SessionRepository` +
+     * `SessionEntity` table that existed for this single signal in V1.
+     */
+    val lastSessionEndedAt: Long? = null,
 )
+
+/**
+ * True iff the app has never recorded a session-end on this install — i.e.,
+ * the user has never backgrounded the app. The session-end marker is set by
+ * the foreground/background lifecycle listener, so an abrupt process kill
+ * (e.g. swiping away on iOS before backgrounding) leaves this true; a small
+ * UX cost for keeping the lifecycle plumbing trivial.
+ */
+fun AppData.isFirstEverSession(): Boolean = lastSessionEndedAt == null
 
 interface AppCache : Cache<AppData>
 

@@ -35,7 +35,7 @@ internal fun SwipeFoldConfirmDialog(
     var dontShowAgain by remember { mutableStateOf(true) }
     Dialog(
         onDismissRequest = onCancel,
-        emoji = dialogEmoji(emoji = "🃏", surface = null),
+        emoji = dialogEmoji(emoji = "🃏"),
     ) {
         Column(
             modifier = Modifier

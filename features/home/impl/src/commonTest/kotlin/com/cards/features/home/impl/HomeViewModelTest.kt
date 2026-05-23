@@ -1,15 +1,19 @@
 package com.dangerfield.cards.features.home.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
-import com.dangerfield.cards.libraries.cards.User
-import com.dangerfield.cards.libraries.cards.UserRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
@@ -28,19 +32,22 @@ import kotlin.test.assertTrue
 
 /**
  * Pins [HomeViewModel]'s init-time fan-in. HomeViewModel is the app
- * entry point's surface — three repositories (user, progression, chips)
- * are subscribed at construction and their emissions hydrate the home
- * state. Pinning here protects against silent regressions in:
+ * entry point's surface — three repositories (profile, progression,
+ * chips) are subscribed at construction and their emissions hydrate the
+ * home state. Pinning here protects against silent regressions in:
  *  - chip / xp updates not reaching the home badge after a hand,
  *  - anonymous flag flipping when the user claims their account,
- *  - user name update propagating after edit-profile.
+ *  - display name updates propagating after edit-profile (now sourced
+ *    from [ProfileRepository], not the deleted UserRepository).
  */
 class HomeViewModelTest : CoroutineTest() {
 
     @Test
-    fun init_loadsUser_andSurfacesNameAndAnonFlag() = runUnitTest {
-        val users = FakeUserRepository(initial = anonymousUser(name = "QuietAce72"))
-        val vm = buildVm(users = users)
+    fun authenticatedProfile_surfacesNameAndAnonFlag() = runUnitTest {
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "QuietAce72", isAnonymous = true),
+        )
+        val vm = buildVm(profile = profile)
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.userName == null) last = awaitItem()
@@ -51,15 +58,12 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun init_nullUser_yieldsAnonymousTrue_andNullName() = runUnitTest {
-        // The home screen renders well in a "no user yet" state — the
-        // anon flag must default to true so we don't accidentally show
-        // claimed-only UI on the very first frame.
-        val vm = buildVm(users = FakeUserRepository(initial = null))
-        // Give the init's launch a tick to run the load.
+    fun fallbackProfile_yieldsAnonymousTrue_andNullName() = runUnitTest {
+        // Home renders gracefully when the profile hasn't resolved to a
+        // server-backed row — name stays null, anon flag stays true.
+        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "anon"))
+        val vm = buildVm(profile = profile)
         vm.stateFlow.test {
-            // Either the initial state OR the loaded-null state are fine —
-            // both must have name=null + anon=true.
             val s = awaitItem()
             assertNull(s.userName)
             assertEquals(true, s.isAnonymous)
@@ -68,14 +72,37 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun claimedUser_isAnonymousIsFalse() = runUnitTest {
-        val users = FakeUserRepository(initial = claimedUser(name = "Real Name"))
-        val vm = buildVm(users = users)
+    fun claimedProfile_isAnonymousIsFalse() = runUnitTest {
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "Real Name", isAnonymous = false),
+        )
+        val vm = buildVm(profile = profile)
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.userName == null) last = awaitItem()
             assertEquals(false, last.isAnonymous)
             assertEquals("Real Name", last.userName)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun profileUpdate_propagatesToState() = runUnitTest {
+        // PATCH /v1/me → ProfileRepository emits a new Profile → home
+        // state picks up the new display name without any explicit refresh.
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "OldName", isAnonymous = false),
+        )
+        val vm = buildVm(profile = profile)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.userName != "OldName") last = awaitItem()
+
+            profile.profile.value =
+                authenticatedProfile(displayName = "NewName", isAnonymous = false)
+
+            while (last.userName != "NewName") last = awaitItem()
+            assertEquals("NewName", last.userName)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -122,31 +149,6 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun refresh_reReadsUserSnapshot() = runUnitTest {
-        // The home pull-to-refresh re-reads `getUser()` (not the
-        // observed flow) so a server-side patch via PATCH /v1/me that
-        // hasn't fanned back through the cache yet still updates the
-        // user label. Pin that the action calls into the repo.
-        val users = FakeUserRepository(initial = anonymousUser(name = "OldName"))
-        val vm = buildVm(users = users)
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.userName == null) last = awaitItem()
-            cancelAndIgnoreRemainingEvents()
-        }
-
-        users.user.value = users.user.value?.copy(name = "NewName")
-        vm.takeAction(HomeAction.Refresh)
-
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.userName != "NewName") last = awaitItem()
-            assertTrue(users.getUserCalls >= 2, "Refresh must trigger another getUser() call")
-            cancelAndIgnoreRemainingEvents()
-        }
-    }
-
-    @Test
     fun activeRooms_success_populatesState() = runUnitTest {
         val room = sampleRoom(code = "WXYZ12")
         val rooms = FakeRoomRepository(
@@ -168,14 +170,15 @@ class HomeViewModelTest : CoroutineTest() {
         val rooms = FakeRoomRepository(
             activeRoomsOutcome = GetActiveRoomsOutcome.NetworkError(RuntimeException("boom")),
         )
-        val vm = buildVm(rooms = rooms)
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "Tester", isAnonymous = true),
+        )
+        val vm = buildVm(rooms = rooms, profile = profile)
         vm.stateFlow.test {
-            // Let init drain
+            // Wait until the profile emission has landed — that's the
+            // observable signal that init has drained.
             var last = awaitItem()
-            repeat(3) {
-                if (last.userName != null) return@repeat
-                last = awaitItem()
-            }
+            while (last.userName == null) last = awaitItem()
             assertTrue(last.activeRooms.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
@@ -279,15 +282,17 @@ class HomeViewModelTest : CoroutineTest() {
     // ---------- scaffolding ----------
 
     private fun buildVm(
-        users: FakeUserRepository = FakeUserRepository(initial = anonymousUser()),
         progression: FakeProgressionRepository = FakeProgressionRepository(),
         chips: FakeChipsRepository = FakeChipsRepository(),
         rooms: FakeRoomRepository = FakeRoomRepository(),
+        profile: FakeProfileRepository = FakeProfileRepository(),
+        appCache: FakeAppCache = FakeAppCache(),
     ): HomeViewModel = HomeViewModel(
-        userRepository = users,
         progressionRepository = progression,
         chipsRepository = chips,
         roomRepository = rooms,
+        profileRepository = profile,
+        appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
     )
 
@@ -303,41 +308,20 @@ class HomeViewModelTest : CoroutineTest() {
         members = emptyList(),
     )
 
-    private fun anonymousUser(name: String? = "QuietAce72"): User = User(
-        name = name,
-        createdAt = 1_700_000_000_000,
-        lastSessionAt = 1_700_000_000_000,
-        hasCompletedOnboarding = true,
-        isAnonymous = true,
-        sessionsCount = 1,
-        appOpenCount = 1,
+    private fun authenticatedProfile(
+        displayName: String,
+        isAnonymous: Boolean,
+        id: String = "00000000-0000-0000-0000-000000000001",
+        avatarEmoji: String = "🦊",
+        avatarBackgroundColor: String? = "#F6B26B",
+    ): Profile.Authenticated = Profile.Authenticated(
+        id = id,
+        displayName = displayName,
+        avatarEmoji = avatarEmoji,
+        avatarBackgroundColor = avatarBackgroundColor,
+        email = if (isAnonymous) null else "$displayName@example.com",
+        isAnonymous = isAnonymous,
     )
-
-    private fun claimedUser(name: String? = "RealName"): User =
-        anonymousUser(name = name).copy(isAnonymous = false)
-
-    private class FakeUserRepository(initial: User?) : UserRepository {
-        val user = MutableStateFlow(initial)
-        var getUserCalls: Int = 0
-            private set
-
-        override suspend fun ensureUserExists() { /* not used */ }
-        override fun observeUser(): Flow<User?> = user
-        override suspend fun getUser(): User? {
-            getUserCalls += 1
-            return user.value
-        }
-        override suspend fun setName(name: String?) {
-            user.value = user.value?.copy(name = name)
-        }
-        override suspend fun onSessionStarted() { /* not used */ }
-        override suspend fun onAppOpened() { /* not used */ }
-        override suspend fun setOnboardingComplete() { /* not used */ }
-        override suspend fun onShakeDetected() { /* not used */ }
-        override suspend fun deleteAll() {
-            user.value = null
-        }
-    }
 
     private class FakeChipsRepository(
         initial: Long? = 10_000L,
@@ -394,5 +378,29 @@ class HomeViewModelTest : CoroutineTest() {
         override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
             error("applyAchievementXp not used by HomeViewModel")
         override suspend fun deleteAll() { /* not used */ }
+    }
+
+    private class FakeProfileRepository(
+        initial: Profile = Profile.Fallback(id = "anon"),
+    ) : ProfileRepository {
+        val profile = MutableStateFlow(initial)
+        override suspend fun current(): Profile = profile.value
+        override fun observe(): Flow<Profile> = profile
+        override suspend fun update(
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ): UpdateProfileOutcome = error("not used by HomeViewModel")
+        override suspend fun fetchAvatarPack(): AvatarPackOutcome =
+            error("not used by HomeViewModel")
+    }
+
+    private class FakeAppCache(initial: AppData = AppData()) : AppCache {
+        private val state = MutableStateFlow(initial)
+        override val updates: Flow<AppData> = state
+        override suspend fun get(): AppData = state.value
+        override suspend fun set(value: AppData) { state.value = value }
+        override suspend fun clear() { state.value = AppData() }
     }
 }

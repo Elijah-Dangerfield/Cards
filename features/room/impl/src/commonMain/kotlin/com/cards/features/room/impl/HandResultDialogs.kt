@@ -79,7 +79,7 @@ internal fun ShowdownDialog(
 
     Dialog(
         onDismissRequest = onNextHand,
-        emoji = dialogEmoji(emoji = heroEmoji, surface = null),
+        emoji = dialogEmoji(emoji = heroEmoji),
     ) {
         Column(
             modifier = Modifier
