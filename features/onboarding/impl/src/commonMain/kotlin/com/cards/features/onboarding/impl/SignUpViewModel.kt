@@ -1,19 +1,19 @@
 package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import me.tatarka.inject.annotations.Inject
 
 /**
  * Drives sign-up. On submit:
  *  - validate locally (basic email shape, password ≥ 6 chars)
  *  - if the current session is anonymous (the typical guest-claim path),
- *    call `identityRepository.linkEmailIdentity(...)` so chips / XP /
+ *    call `authRepository.linkEmailIdentity(...)` so chips / XP /
  *    history stay on the same userId; otherwise fall back to
- *    `identityRepository.signUpWithEmail(...)`.
+ *    `authRepository.signUpWithEmail(...)`.
  *  - on success: emit [SignUpEvent.NavigateToVerifyEmail] (we do NOT
  *    set `hasUserOnboarded = true` yet — that happens after the user
  *    actually confirms their email).
@@ -21,7 +21,7 @@ import me.tatarka.inject.annotations.Inject
  */
 @Inject
 class SignUpViewModel(
-    private val identityRepository: IdentityRepository,
+    private val authRepository: AuthRepository,
 ) : SEAViewModel<SignUpState, SignUpEvent, SignUpAction>(
     initialStateArg = SignUpState(),
 ) {
@@ -45,9 +45,7 @@ class SignUpViewModel(
                 val email = current.email.trim()
                 val password = current.password
                 val isAnonymousGuest =
-                    (identityRepository.state.value as? IdentityState.SignedIn)
-                        ?.identity
-                        ?.isAnonymous == true
+                    (authRepository.current() as? AuthState.Authenticated)?.isAnonymous == true
 
                 if (isAnonymousGuest) {
                     handleLinkEmail(email, password)
@@ -59,7 +57,7 @@ class SignUpViewModel(
     }
 
     private suspend fun SignUpAction.Submit.handleLinkEmail(email: String, password: String) {
-        val outcome = identityRepository.linkEmailIdentity(email, password)
+        val outcome = authRepository.linkEmailIdentity(email, password)
         when (outcome) {
             is LinkEmailIdentityOutcome.VerificationRequired -> {
                 updateState { it.copy(isSubmitting = false) }
@@ -86,7 +84,7 @@ class SignUpViewModel(
     }
 
     private suspend fun SignUpAction.Submit.handleSignUp(email: String, password: String) {
-        val outcome = identityRepository.signUpWithEmail(email = email, password = password)
+        val outcome = authRepository.signUpWithEmail(email = email, password = password)
         when (outcome) {
             is SignUpOutcome.VerificationRequired -> {
                 updateState { it.copy(isSubmitting = false) }

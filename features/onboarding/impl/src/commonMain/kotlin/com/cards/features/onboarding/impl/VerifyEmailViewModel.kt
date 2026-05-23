@@ -2,9 +2,9 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 
@@ -25,7 +25,7 @@ import me.tatarka.inject.annotations.Inject
  */
 @Inject
 class VerifyEmailViewModel(
-    private val identityRepository: IdentityRepository,
+    private val authRepository: AuthRepository,
     private val appCache: AppCache,
     @Assisted private val email: String,
 ) : SEAViewModel<VerifyEmailState, VerifyEmailEvent, VerifyEmailAction>(
@@ -41,7 +41,7 @@ class VerifyEmailViewModel(
             is VerifyEmailAction.IClickedTheLink -> action.run {
                 updateState { it.copy(isRefreshing = true, banner = null) }
 
-                when (val outcome = identityRepository.refreshSession()) {
+                when (authRepository.refreshSession()) {
                     is RefreshOutcome.EmailConfirmed -> {
                         appCache.update { it.copy(hasUserOnboarded = true) }
                         updateState { it.copy(isRefreshing = false) }
@@ -74,7 +74,7 @@ class VerifyEmailViewModel(
 
             is VerifyEmailAction.Resend -> action.run {
                 updateState { it.copy(isResending = true, banner = null) }
-                val outcome = identityRepository.resendVerificationEmail(email)
+                val outcome = authRepository.resendVerificationEmail(email)
                 val banner = when (outcome) {
                     is ResendOutcome.Sent -> VerifyEmailState.Banner.ResendSent
                     is ResendOutcome.RateLimited -> VerifyEmailState.Banner.ResendRateLimited

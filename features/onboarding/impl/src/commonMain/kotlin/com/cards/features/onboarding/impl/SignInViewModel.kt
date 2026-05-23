@@ -4,24 +4,26 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import me.tatarka.inject.annotations.Inject
 
 /**
  * Drives the sign-in screen. On submit:
  *  - validate inputs locally (non-empty email + ≥ 6 char password)
- *  - call `identityRepository.signInWithEmail(...)`
+ *  - call `authRepository.signInWithEmail(...)`
  *  - on success: mark onboarded + emit [SignInEvent.NavigateToHome]
  *  - on failure: surface a specific error message
  *
  * No try/catch — the repository returns sealed outcome types so we just
- * pattern-match on the result.
+ * pattern-match on the result. `Success` doesn't carry an identity
+ * payload — the new auth state is on `AuthRepository.observe()` and the
+ * profile follows via `ProfileRepository` automatically.
  */
 @Inject
 class SignInViewModel(
-    private val identityRepository: IdentityRepository,
+    private val authRepository: AuthRepository,
     private val appCache: AppCache,
     appConfigMap: AppConfigMap,
 ) : SEAViewModel<SignInState, SignInEvent, SignInAction>(
@@ -50,7 +52,7 @@ class SignInViewModel(
 
                 updateState { it.copy(isSubmitting = true, error = null) }
                 handleSignInOutcome(
-                    identityRepository.signInWithEmail(
+                    authRepository.signInWithEmail(
                         email = current.email.trim(),
                         password = current.password,
                     ),
@@ -59,7 +61,7 @@ class SignInViewModel(
 
             is SignInAction.SignInWithOAuth -> action.run {
                 updateState { it.copy(isSubmitting = true, error = null) }
-                handleSignInOutcome(identityRepository.signInWithOAuth(action.provider))
+                handleSignInOutcome(authRepository.signInWithOAuth(action.provider))
             }
         }
     }

@@ -3,8 +3,8 @@ package com.dangerfield.cards.features.onboarding.impl
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -32,8 +32,8 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     @Test
     fun iClickedTheLink_emailConfirmed_marksOnboarded_andNavigates() = runUnitTest {
         val cache = FakeAppCache()
-        val identity = FakeIdentityRepository(
-            refreshOutcome = RefreshOutcome.EmailConfirmed(sampleIdentity),
+        val identity = FakeAuthRepository(
+            refreshOutcome = RefreshOutcome.EmailConfirmed,
         )
         val vm = buildVm(identity = identity, appCache = cache)
         vm.takeAction(VerifyEmailAction.IClickedTheLink)
@@ -49,7 +49,7 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     @Test
     fun iClickedTheLink_stillPending_setsStillPendingBanner() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(refreshOutcome = RefreshOutcome.StillPending),
+            identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending),
         )
         vm.takeAction(VerifyEmailAction.IClickedTheLink)
 
@@ -65,7 +65,7 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     fun iClickedTheLink_sessionExpired_emitsNavigateBackToSignIn() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
         val vm = buildVm(
-            identity = FakeIdentityRepository(refreshOutcome = RefreshOutcome.SessionExpired),
+            identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.SessionExpired),
             appCache = cache,
         )
         vm.takeAction(VerifyEmailAction.IClickedTheLink)
@@ -83,7 +83,7 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     @Test
     fun iClickedTheLink_networkError_setsNetworkErrorBanner() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 refreshOutcome = RefreshOutcome.NetworkError(RuntimeException("nope")),
             ),
         )
@@ -99,7 +99,7 @@ class VerifyEmailViewModelTest : CoroutineTest() {
 
     @Test
     fun resend_sent_setsResendSentBanner_andClearsLoading() = runUnitTest {
-        val identity = FakeIdentityRepository(resendOutcome = ResendOutcome.Sent)
+        val identity = FakeAuthRepository(resendOutcome = ResendOutcome.Sent)
         val vm = buildVm(identity = identity)
         vm.takeAction(VerifyEmailAction.Resend)
 
@@ -116,7 +116,7 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     @Test
     fun resend_rateLimited_setsRateLimitedBanner() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 resendOutcome = ResendOutcome.RateLimited(retryAfterSeconds = 30),
             ),
         )
@@ -132,7 +132,7 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     @Test
     fun dismissBanner_clearsBanner() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(refreshOutcome = RefreshOutcome.StillPending),
+            identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending),
         )
         vm.takeAction(VerifyEmailAction.IClickedTheLink)
         vm.stateFlow.test {
@@ -151,10 +151,10 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     // ---------- scaffolding ----------
 
     private fun buildVm(
-        identity: FakeIdentityRepository = FakeIdentityRepository(),
+        identity: FakeAuthRepository = FakeAuthRepository(),
         appCache: FakeAppCache = FakeAppCache(),
     ): VerifyEmailViewModel = VerifyEmailViewModel(
-        identityRepository = identity,
+        authRepository = identity,
         appCache = appCache,
         email = sampleEmail,
     )

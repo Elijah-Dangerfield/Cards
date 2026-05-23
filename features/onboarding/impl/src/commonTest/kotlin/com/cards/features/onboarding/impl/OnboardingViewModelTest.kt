@@ -2,7 +2,7 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.Identity
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import kotlinx.coroutines.launch
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,12 +13,13 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the onboarding finish path:
- *  - On success: AppData.hasUserOnboarded flips true, NavigateToHome fires.
- *  - On generic failure: state.error is the generic friendly message, the
- *    onboarded flag stays false (no dead-end state).
+ *  - On success (AuthState.Authenticated): AppData.hasUserOnboarded flips
+ *    true, NavigateToHome fires.
+ *  - On generic failure (Unauthenticated with a generic cause): state.error
+ *    is the generic friendly message, the onboarded flag stays false (no
+ *    dead-end state).
  *  - On the anonymous-sign-ins-disabled error: state.error names the
- *    specific dashboard setting. This is the load-bearing case for V1 dev
- *    builds since it's the most common Supabase misconfig.
+ *    specific dashboard setting. Load-bearing case for V1 dev builds.
  *  - On invalid-anon-key error: state.error points at IdentityConfig.
  *  - On network error: state.error is the network message.
  *  - DismissError clears.
@@ -28,7 +29,11 @@ class OnboardingViewModelTest : CoroutineTest() {
     @Test
     fun finish_success_persistsFlag_andNavigatesHome() = runUnitTest {
         val cache = FakeAppCache()
-        val repo = FinishIdentityRepository(outcome = FinishOutcome.Success(SAMPLE_IDENTITY))
+        val repo = FinishAuthRepository(outcome = AuthState.Authenticated(
+            userId = "11111111-1111-1111-1111-111111111111",
+            isAnonymous = true,
+            email = null,
+        ))
         val vm = OnboardingViewModel(cache, repo)
         val received = mutableListOf<OnboardingEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
@@ -45,8 +50,8 @@ class OnboardingViewModelTest : CoroutineTest() {
     @Test
     fun finish_failure_leavesFlagFalse_andSurfacesError() = runUnitTest {
         val cache = FakeAppCache()
-        val repo = FinishIdentityRepository(
-            outcome = FinishOutcome.Throws(RuntimeException("network is unreachable")),
+        val repo = FinishAuthRepository(
+            outcome = AuthState.Unauthenticated(RuntimeException("network is unreachable")),
         )
         val vm = OnboardingViewModel(cache, repo)
 
@@ -69,8 +74,8 @@ class OnboardingViewModelTest : CoroutineTest() {
         // during dev — surfacing the dashboard path saves a real
         // round-trip.
         val cache = FakeAppCache()
-        val repo = FinishIdentityRepository(
-            outcome = FinishOutcome.Throws(
+        val repo = FinishAuthRepository(
+            outcome = AuthState.Unauthenticated(
                 RuntimeException("Anonymous sign-ins are disabled"),
             ),
         )
@@ -86,8 +91,8 @@ class OnboardingViewModelTest : CoroutineTest() {
     @Test
     fun finish_invalidAnonKey_surfacesSpecificMessage() = runUnitTest {
         val cache = FakeAppCache()
-        val repo = FinishIdentityRepository(
-            outcome = FinishOutcome.Throws(
+        val repo = FinishAuthRepository(
+            outcome = AuthState.Unauthenticated(
                 RuntimeException("Invalid API key"),
             ),
         )
@@ -103,7 +108,11 @@ class OnboardingViewModelTest : CoroutineTest() {
     @Test
     fun init_alreadyOnboarded_immediatelyNavigatesHome() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
-        val repo = FinishIdentityRepository(outcome = FinishOutcome.Success(SAMPLE_IDENTITY))
+        val repo = FinishAuthRepository(outcome = AuthState.Authenticated(
+            userId = "id",
+            isAnonymous = true,
+            email = null,
+        ))
         val received = mutableListOf<OnboardingEvent>()
 
         val vm = OnboardingViewModel(cache, repo)
@@ -114,13 +123,17 @@ class OnboardingViewModelTest : CoroutineTest() {
             received.firstOrNull(),
             "returning user landing on OnboardingRoute should bounce to home",
         )
-        assertEquals(0, repo.calls, "guard must not trigger identity init")
+        assertEquals(0, repo.calls, "guard must not trigger auth retry")
     }
 
     @Test
     fun init_notOnboarded_doesNotFireNavigateHome() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
-        val repo = FinishIdentityRepository(outcome = FinishOutcome.Success(SAMPLE_IDENTITY))
+        val repo = FinishAuthRepository(outcome = AuthState.Authenticated(
+            userId = "id",
+            isAnonymous = true,
+            email = null,
+        ))
         val received = mutableListOf<OnboardingEvent>()
 
         val vm = OnboardingViewModel(cache, repo)
@@ -132,8 +145,8 @@ class OnboardingViewModelTest : CoroutineTest() {
     @Test
     fun dismissError_clearsErrorState() = runUnitTest {
         val cache = FakeAppCache()
-        val repo = FinishIdentityRepository(
-            outcome = FinishOutcome.Throws(RuntimeException("boom")),
+        val repo = FinishAuthRepository(
+            outcome = AuthState.Unauthenticated(RuntimeException("boom")),
         )
         val vm = OnboardingViewModel(cache, repo)
         vm.takeAction(OnboardingAction.Finish)
@@ -147,39 +160,42 @@ class OnboardingViewModelTest : CoroutineTest() {
     // ---------- Test scaffolding ----------
 
     /**
-     * Minimal identity-repo fake that only stubs [ensureInitialized] — the
-     * one method [OnboardingViewModel] calls. The shared
-     * [FakeIdentityRepository] in `AuthViewModelFakes.kt` errors on this
-     * method intentionally (auth viewmodels don't use it), so onboarding
-     * tests need a dedicated fake.
+     * Auth-repo fake that returns a fixed outcome from [retry] — the one
+     * method [OnboardingViewModel] calls on Finish. Other methods route
+     * through the shared [FakeAuthRepository] defaults.
      */
-    private class FinishIdentityRepository(
-        val outcome: FinishOutcome,
-    ) : NoOpIdentityRepository() {
+    private class FinishAuthRepository(
+        val outcome: AuthState,
+    ) : com.dangerfield.cards.libraries.identity.auth.AuthRepository {
         var calls: Int = 0
             private set
 
-        override suspend fun ensureInitialized(): Identity {
+        private val flow = kotlinx.coroutines.flow.MutableStateFlow(outcome)
+
+        override suspend fun current(): AuthState = outcome
+        override fun observe(): kotlinx.coroutines.flow.Flow<AuthState> = flow
+        override suspend fun accessToken(): String? = null
+        override suspend fun refreshAccessToken(): String? = null
+        override suspend fun retry(): AuthState {
             calls += 1
-            return when (outcome) {
-                is FinishOutcome.Success -> outcome.identity
-                is FinishOutcome.Throws -> throw outcome.cause
-            }
+            return outcome
         }
-    }
-
-    private sealed interface FinishOutcome {
-        data class Success(val identity: Identity) : FinishOutcome
-        data class Throws(val cause: Throwable) : FinishOutcome
-    }
-
-    companion object {
-        private val SAMPLE_IDENTITY = Identity(
-            userId = "11111111-1111-1111-1111-111111111111",
-            displayName = "QuietAce72",
-            avatarEmoji = "🃏",
-            avatarBackgroundColor = null,
-            isAnonymous = true,
-        )
+        override suspend fun signInWithEmail(email: String, password: String) =
+            error("signInWithEmail not used in OnboardingViewModelTest")
+        override suspend fun signUpWithEmail(email: String, password: String) =
+            error("signUpWithEmail not used in OnboardingViewModelTest")
+        override suspend fun refreshSession() =
+            error("refreshSession not used in OnboardingViewModelTest")
+        override suspend fun resendVerificationEmail(email: String) =
+            error("resendVerificationEmail not used in OnboardingViewModelTest")
+        override suspend fun signOut() = Unit
+        override suspend fun deleteAccount() =
+            error("deleteAccount not used in OnboardingViewModelTest")
+        override suspend fun linkOAuthIdentity(provider: com.dangerfield.cards.libraries.identity.auth.OAuthProvider) =
+            error("linkOAuthIdentity not used in OnboardingViewModelTest")
+        override suspend fun linkEmailIdentity(email: String, password: String) =
+            error("linkEmailIdentity not used in OnboardingViewModelTest")
+        override suspend fun signInWithOAuth(provider: com.dangerfield.cards.libraries.identity.auth.OAuthProvider) =
+            error("signInWithOAuth not used in OnboardingViewModelTest")
     }
 }

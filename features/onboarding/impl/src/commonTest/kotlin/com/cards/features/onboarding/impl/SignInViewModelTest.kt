@@ -3,8 +3,8 @@ package com.dangerfield.cards.features.onboarding.impl
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -49,7 +49,7 @@ class SignInViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_whenCantSubmit_doesNotCallRepo() = runUnitTest {
-        val identity = FakeIdentityRepository()
+        val identity = FakeAuthRepository()
         val vm = buildVm(identity = identity)
         vm.takeAction(SignInAction.Submit) // both fields blank
         assertEquals(0, identity.signInCalls, "submit short-circuits without valid inputs")
@@ -58,7 +58,7 @@ class SignInViewModelTest : CoroutineTest() {
     @Test
     fun submit_invalidCredentials_surfacesError_andClearsSubmitting() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(signInOutcome = SignInOutcome.InvalidCredentials),
+            identity = FakeAuthRepository(signInOutcome = SignInOutcome.InvalidCredentials),
         )
         vm.takeAction(SignInAction.EmailChanged("a@b.com"))
         vm.takeAction(SignInAction.PasswordChanged("password"))
@@ -76,7 +76,7 @@ class SignInViewModelTest : CoroutineTest() {
     @Test
     fun submit_networkError_surfacesNetworkMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 signInOutcome = SignInOutcome.NetworkError(RuntimeException("nope")),
             ),
         )
@@ -100,7 +100,7 @@ class SignInViewModelTest : CoroutineTest() {
     fun submit_emailNotConfirmed_emitsNavigateToVerify_andDoesNotOnboard() = runUnitTest {
         val cache = FakeAppCache()
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 signInOutcome = SignInOutcome.EmailNotConfirmed("user@example.com"),
             ),
             appCache = cache,
@@ -124,8 +124,8 @@ class SignInViewModelTest : CoroutineTest() {
     @Test
     fun submit_success_marksOnboarded_andEmitsNavigateToHome() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = false))
-        val identity = FakeIdentityRepository(
-            signInOutcome = SignInOutcome.Success(sampleIdentity),
+        val identity = FakeAuthRepository(
+            signInOutcome = SignInOutcome.Success,
         )
         val vm = buildVm(identity = identity, appCache = cache)
         vm.takeAction(SignInAction.EmailChanged("ok@example.com"))
@@ -141,8 +141,8 @@ class SignInViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_trimsEmail_beforeNetworkCall() = runUnitTest {
-        val identity = FakeIdentityRepository(
-            signInOutcome = SignInOutcome.Success(sampleIdentity),
+        val identity = FakeAuthRepository(
+            signInOutcome = SignInOutcome.Success,
         )
         val vm = buildVm(identity = identity)
         // Note: leading and trailing whitespace; canSubmit still passes
@@ -165,7 +165,7 @@ class SignInViewModelTest : CoroutineTest() {
     @Test
     fun emailChanged_clearsExistingError() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(signInOutcome = SignInOutcome.InvalidCredentials),
+            identity = FakeAuthRepository(signInOutcome = SignInOutcome.InvalidCredentials),
         )
         vm.takeAction(SignInAction.EmailChanged("a@b.com"))
         vm.takeAction(SignInAction.PasswordChanged("password"))
@@ -188,7 +188,7 @@ class SignInViewModelTest : CoroutineTest() {
 
     @Test
     fun signInWithOAuth_providerNotEnabled_surfacesError() = runUnitTest {
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             oauthSignInOutcome = SignInOutcome.ProviderNotEnabled,
         )
         val vm = buildVm(identity = identity)
@@ -207,8 +207,8 @@ class SignInViewModelTest : CoroutineTest() {
     @Test
     fun signInWithOAuth_success_marksOnboarded_andNavigates() = runUnitTest {
         val cache = FakeAppCache()
-        val identity = FakeIdentityRepository(
-            oauthSignInOutcome = SignInOutcome.Success(sampleIdentity),
+        val identity = FakeAuthRepository(
+            oauthSignInOutcome = SignInOutcome.Success,
         )
         val vm = buildVm(identity = identity, appCache = cache)
         vm.takeAction(SignInAction.SignInWithOAuth(OAuthProvider.Apple))
@@ -225,7 +225,7 @@ class SignInViewModelTest : CoroutineTest() {
         // The user dismissing the OAuth tab is not a "failure" from
         // their perspective — UI should not show a red error banner.
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 oauthSignInOutcome = SignInOutcome.Cancelled,
             ),
         )
@@ -243,10 +243,10 @@ class SignInViewModelTest : CoroutineTest() {
     // ---------- scaffolding ----------
 
     private fun buildVm(
-        identity: FakeIdentityRepository = FakeIdentityRepository(),
+        identity: FakeAuthRepository = FakeAuthRepository(),
         appCache: FakeAppCache = FakeAppCache(),
     ): SignInViewModel = SignInViewModel(
-        identityRepository = identity,
+        authRepository = identity,
         appCache = appCache,
         appConfigMap = EmptyAppConfigMap(),
     )

@@ -2,10 +2,9 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -46,7 +45,7 @@ class SignUpViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_whenCantSubmit_doesNotCallRepo() = runUnitTest {
-        val identity = FakeIdentityRepository()
+        val identity = FakeAuthRepository()
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.Submit) // blank
         assertEquals(0, identity.signUpCalls)
@@ -59,7 +58,7 @@ class SignUpViewModelTest : CoroutineTest() {
         // against the same record. The VM must pass through whatever
         // the server says, not whatever the user typed.
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 signUpOutcome = SignUpOutcome.VerificationRequired("ok@example.com"),
             ),
         )
@@ -77,7 +76,7 @@ class SignUpViewModelTest : CoroutineTest() {
     @Test
     fun submit_emailAlreadyRegistered_surfacesSignInHint() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(signUpOutcome = SignUpOutcome.EmailAlreadyRegistered),
+            identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.EmailAlreadyRegistered),
         )
         vm.takeAction(SignUpAction.EmailChanged("dup@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
@@ -97,7 +96,7 @@ class SignUpViewModelTest : CoroutineTest() {
     @Test
     fun submit_weakPassword_surfacesStrengthHint() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(signUpOutcome = SignUpOutcome.WeakPassword),
+            identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.WeakPassword),
         )
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
@@ -117,7 +116,7 @@ class SignUpViewModelTest : CoroutineTest() {
     @Test
     fun submit_invalidEmail_surfacesShapeHint() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(signUpOutcome = SignUpOutcome.InvalidEmail),
+            identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.InvalidEmail),
         )
         // canSubmit only checks for '@' so a server-side reject is the
         // only way to surface "that email doesn't look right" here.
@@ -139,7 +138,7 @@ class SignUpViewModelTest : CoroutineTest() {
     @Test
     fun submit_networkError_surfacesNetworkMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 signUpOutcome = SignUpOutcome.NetworkError(RuntimeException("nope")),
             ),
         )
@@ -161,7 +160,7 @@ class SignUpViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_trimsEmail_beforeNetworkCall() = runUnitTest {
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             signUpOutcome = SignUpOutcome.VerificationRequired("ok@example.com"),
         )
         val vm = buildVm(identity = identity)
@@ -179,7 +178,7 @@ class SignUpViewModelTest : CoroutineTest() {
     @Test
     fun dismissError_clearsError() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(signUpOutcome = SignUpOutcome.EmailAlreadyRegistered),
+            identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.EmailAlreadyRegistered),
         )
         vm.takeAction(SignUpAction.EmailChanged("dup@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
@@ -200,9 +199,9 @@ class SignUpViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_whenAnonymous_routesToLinkEmailIdentity_preservingGuestProgress() = runUnitTest {
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("ok@example.com"),
-            initialIdentityState = IdentityState.SignedIn(anonymousIdentity),
+            initialAuthState = anonymousAuthState,
         )
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
@@ -220,9 +219,9 @@ class SignUpViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_whenNotAnonymous_takesSignUpPath() = runUnitTest {
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             signUpOutcome = SignUpOutcome.VerificationRequired("ok@example.com"),
-            initialIdentityState = IdentityState.SignedIn(nonAnonymousIdentity),
+            initialAuthState = nonAnonymousAuthState,
         )
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
@@ -239,10 +238,10 @@ class SignUpViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_anonymousLinkFails_fallsBackToSignUp_onNotAnonymous() = runUnitTest {
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             linkEmailOutcome = LinkEmailIdentityOutcome.NotAnonymous,
             signUpOutcome = SignUpOutcome.VerificationRequired("ok@example.com"),
-            initialIdentityState = IdentityState.SignedIn(anonymousIdentity),
+            initialAuthState = anonymousAuthState,
         )
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
@@ -260,9 +259,9 @@ class SignUpViewModelTest : CoroutineTest() {
     @Test
     fun submit_anonymousLink_surfacesEmailAlreadyRegistered() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 linkEmailOutcome = LinkEmailIdentityOutcome.EmailAlreadyRegistered,
-                initialIdentityState = IdentityState.SignedIn(anonymousIdentity),
+                initialAuthState = anonymousAuthState,
             ),
         )
         vm.takeAction(SignUpAction.EmailChanged("dup@example.com"))
@@ -283,16 +282,14 @@ class SignUpViewModelTest : CoroutineTest() {
     // ---------- scaffolding ----------
 
     private fun buildVm(
-        identity: FakeIdentityRepository = FakeIdentityRepository(),
-    ): SignUpViewModel = SignUpViewModel(identityRepository = identity)
+        identity: FakeAuthRepository = FakeAuthRepository(),
+    ): SignUpViewModel = SignUpViewModel(authRepository = identity)
 
-    private val anonymousIdentity = Identity(
+    private val anonymousAuthState = AuthState.Authenticated(
         userId = "anon-1",
-        displayName = "QuietAce72",
-        avatarEmoji = "🃏",
-        avatarBackgroundColor = null,
         isAnonymous = true,
+        email = null,
     )
 
-    private val nonAnonymousIdentity = anonymousIdentity.copy(isAnonymous = false)
+    private val nonAnonymousAuthState = anonymousAuthState.copy(isAnonymous = false)
 }
