@@ -25,6 +25,75 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-05-23 — Defer FK + RLS on Supabase profiles/wallets/etc.
+
+**Decision:** Don't add foreign-key constraints to `auth.users` or RLS
+policies on `public.profiles`/`wallets`/`inventory`/`equipment`/
+`user_messages` right now. Carry the analysis forward; revisit once we
+have a per-request DB role story (or once a real orphan / cross-user
+data leak is observed in production).
+
+**Why the FK alone is straightforward but not load-bearing:**
+- Today there's no FK to `auth.users` because Testcontainers (used for
+  integration tests) doesn't ship Supabase's `auth` schema. V1 just
+  comments this out and relies on the application layer for the link
+  (only JWT-verified code paths insert profile rows).
+- Adding one is a Flyway migration + a small Testcontainers stub
+  (`CREATE SCHEMA auth; CREATE TABLE auth.users (id UUID PRIMARY KEY)`
+  before Flyway runs). ON DELETE CASCADE would clean up app rows when a
+  Supabase user is deleted via the dashboard — currently `DELETE /v1/me`
+  is the only path that cleans the row, so a dashboard delete leaves
+  orphans.
+- The diagnostic from the 2026-05-22 UID investigation confirmed orphans
+  aren't actually happening today. The FK is defense-in-depth, not a fix
+  for an observed bug.
+
+**Why RLS is the sharp edge and the real reason to pause:**
+- Supabase's canonical RLS shape is `USING (auth.uid() = user_id)`,
+  which reads the JWT's `sub` claim from PostgREST's per-request session.
+- The Ktor server connects to Postgres via a service-role connection
+  string. Service role has `bypassrls = true` by default. So policies
+  installed today would not fire on any of our queries — they'd be
+  inert documentation.
+- Making them enforce requires the server to `SET LOCAL role` (or
+  `SET LOCAL request.jwt.claims`) per request. That's a non-trivial
+  architectural change: a per-request transaction wrapper, a real role
+  with limited GRANTs, and verification across every route that the
+  isolation actually holds. It also adds a connection-pool wrinkle
+  (`SET LOCAL` is per-transaction, so connection reuse has to either be
+  scoped to the request or reset between requests).
+- Installing inert RLS policies without the enforcement change is "the
+  shape" but a false sense of security — and a future engineer reading
+  the policies might trust them.
+
+**Alternatives considered:**
+- **FK only, skip RLS.** Cleaner immediate value (referential integrity
+  + cascade on account delete) and no false sense of security. But it
+  leaves the "before public launch" defense-in-depth gap noted in the
+  V1 sharp-edges memory. Tabled rather than chosen so the decision
+  pairs with the larger per-request-role conversation.
+- **Use the Supabase CLI to manage policies declaratively.** Considered
+  and rejected: this project's app tables are owned by Flyway
+  migrations in the Ktor server. Adding the Supabase CLI on top would
+  be a parallel migration system, not a simplification. The Supabase
+  CLI is the right tool for projects that let clients talk to Postgres
+  directly via PostgREST + supabase-kt's table API; not for our
+  Ktor-server-as-sole-writer shape.
+
+**What needs to happen before this can ship:**
+1. Decide whether the Ktor server should adopt per-request DB roles
+   (and if so, design the connection-pool / transaction-wrapper shape).
+2. Once (1) is settled, the migration is mostly mechanical: add FKs +
+   RLS policies, seed `auth.users` in Testcontainers, verify the
+   service role / per-request role transition is consistent across
+   routes.
+
+**Status:** Locked as "deferred to design pass." This entry is what
+future-you reads before either picking it up or deciding V1 ships
+without it.
+
+---
+
 ## 2026-05-23 — Split `IdentityRepository` into `AuthRepository` + `ProfileRepository`
 
 **Decision:** The single `IdentityRepository` is split into two narrower repositories with a one-way dependency:
