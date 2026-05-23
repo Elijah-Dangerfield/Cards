@@ -89,7 +89,7 @@ A small but load-bearing health feature. Use the native platform APIs (SKStoreRe
 
 - Cosmetic shop with categories: card backs, table felts, emote packs, avatar frames
 - All shop items chip-priced (single-currency model — [spec §4.1](./product-spec.md#41-chips--the-only-currency))
-- **Unlock-only "trophy case"** showing achievement-earned cosmetics — visible, not buyable ([spec §4.2](./product-spec.md#42-the-unlock-only-catalog))
+- **Unlock-only catalog** — achievement / league / RFT cosmetics that are never in the shop; they land in **My Items** alongside purchased items with an "Earned" badge + source ([spec §4.2](./product-spec.md#42-the-unlock-only-catalog))
 - Native StoreKit + Google Play Billing
 - Three chip packs: $1.99 / $9.99 / $49.99
 - No P2W shop items — all cosmetic, never gameplay-advantage ([spec §4.5](./product-spec.md#45-no-pay-to-win--the-hard-rule))
