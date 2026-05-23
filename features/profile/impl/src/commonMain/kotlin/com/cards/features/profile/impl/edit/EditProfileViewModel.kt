@@ -49,17 +49,26 @@ class EditProfileViewModel(
                 .filterIsInstance<Profile.Authenticated>()
                 .first()
             takeAction(EditProfileAction.SeedFromProfile(profile))
-            // Push any local-only inventory rows to the server BEFORE we
-            // fetch /v1/avatars. The server gates pack availability on
-            // the inventory join — if a recent purchase is still Pending
-            // locally, the picker would render Starter only despite the
-            // user having just bought the pack. Result-based + bounded
-            // by the inventory repo's own timeout; failure here doesn't
-            // block the picker, it just means the user sees stale state
-            // until the next sync.
-            inventoryRepository.sync()
             takeAction(EditProfileAction.LoadAvatarPack)
         }
+        // Live local-inventory observation drives pack visibility. A
+        // freshly-redeemed pack writes its Pending row before sync()
+        // POSTs to the server, so this flow fires the moment the user
+        // taps Redeem — picker re-derives its filter and the new pack
+        // appears without waiting on the network. The fetched
+        // `allAvatarPacks` is the server-defined registry; ownership
+        // is computed locally.
+        viewModelScope.launch {
+            inventoryRepository.observeInventory().collect { items ->
+                takeAction(
+                    EditProfileAction.OwnedProductsChanged(items.map { it.productId }.toSet()),
+                )
+            }
+        }
+        // Best-effort background sync so a future Edit Profile open
+        // sees up-to-date server state. Not awaited — the picker
+        // doesn't need to gate on it.
+        viewModelScope.launch { inventoryRepository.sync() }
     }
 
     override suspend fun handleAction(action: EditProfileAction) {
@@ -82,7 +91,7 @@ class EditProfileViewModel(
                     when (outcome) {
                         is AvatarPackOutcome.Success -> it.copy(
                             isLoadingAvatars = false,
-                            avatarPacks = outcome.packs,
+                            allAvatarPacks = outcome.packs,
                             backgroundPalette = outcome.palette,
                         )
                         is AvatarPackOutcome.NetworkError,
@@ -93,13 +102,17 @@ class EditProfileViewModel(
                             // the user see at least their current emoji and
                             // keep it. Wrap it in a synthetic "current"
                             // pack so the picker still renders something.
-                            avatarPacks = listOfNotNull(it.selectedAvatarEmoji).takeIf { it.isNotEmpty() }
+                            allAvatarPacks = listOfNotNull(it.selectedAvatarEmoji).takeIf { it.isNotEmpty() }
                                 ?.let { listOf(AvatarPack("current", "Current", it)) }
                                 ?: emptyList(),
                             avatarLoadError = true,
                         )
                     }
                 }
+            }
+
+            is EditProfileAction.OwnedProductsChanged -> action.updateState {
+                it.copy(ownedProductIds = action.productIds)
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
@@ -172,13 +185,36 @@ data class EditProfileState(
     val selectedAvatarEmoji: String? = null,
     val initialAvatarBackgroundColor: String? = null,
     val selectedAvatarBackgroundColor: String? = null,
-    val avatarPacks: List<AvatarPack> = emptyList(),
+    /**
+     * Full server-defined pack registry (Starter + every premium pack).
+     * The picker filters this against [ownedProductIds] — see
+     * [avatarPacks]. Premium packs the user doesn't own are present
+     * here but filtered out of the rendered list.
+     */
+    val allAvatarPacks: List<AvatarPack> = emptyList(),
+    /**
+     * Live snapshot of product ids in the local inventory (Pending +
+     * Confirmed). Drives optimistic pack visibility — a freshly-
+     * redeemed pack flips its row into this set before the inventory
+     * sync POST lands, so the picker shows the new pack immediately.
+     */
+    val ownedProductIds: Set<String> = emptySet(),
     val backgroundPalette: List<String> = emptyList(),
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
     val error: String? = null,
 ) {
+    /**
+     * Packs the user can actually pick from. Starter (no
+     * [AvatarPack.unlockProductId]) is always included; premium packs
+     * appear once their unlock product is in [ownedProductIds].
+     */
+    val avatarPacks: List<AvatarPack>
+        get() = allAvatarPacks.filter { pack ->
+            pack.unlockProductId == null || pack.unlockProductId in ownedProductIds
+        }
+
     val isNameValid: Boolean
         get() {
             val trimmed = displayName.trim()
@@ -206,6 +242,7 @@ sealed interface EditProfileEvent {
 sealed interface EditProfileAction {
     data class SeedFromProfile(val profile: Profile.Authenticated) : EditProfileAction
     data object LoadAvatarPack : EditProfileAction
+    data class OwnedProductsChanged(val productIds: Set<String>) : EditProfileAction
     data class DisplayNameChanged(val value: String) : EditProfileAction
     data class AvatarSelected(val emoji: String) : EditProfileAction
     data class AvatarBackgroundColorSelected(val color: String) : EditProfileAction

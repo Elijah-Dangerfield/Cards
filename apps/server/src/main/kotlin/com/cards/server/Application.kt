@@ -76,7 +76,7 @@ fun Application.module(config: ServerConfig) {
             component.roomService,
         )
         messageRoutes(component.userMessageRepository, component.provideClock())
-        avatarRoutes(component.inventoryRepository)
+        avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
         roomRoutes(component.roomService, component.profileRepository)
         roomSocketRoutes(component.roomService)

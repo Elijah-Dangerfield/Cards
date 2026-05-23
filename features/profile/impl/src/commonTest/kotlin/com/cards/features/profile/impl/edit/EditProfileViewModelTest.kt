@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -16,6 +17,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
@@ -55,12 +57,11 @@ class EditProfileViewModelTest : CoroutineTest() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun init_awaitsInventorySync_beforeFetchingAvatarPack() = runUnitTest {
-        // Regression: after buying an avatar pack, Edit Profile would
-        // race a still-in-flight `inventoryRepository.sync()` call and
-        // hit /v1/avatars before the server's inventory table had the
-        // new row — picker showed Starter only. Fix: VM must await sync
-        // before LoadAvatarPack.
+    fun init_fetchesAvatarPack_withoutAwaitingInventorySync() = runUnitTest {
+        // Contract flipped 2026-05-23 from "await sync before fetch" to
+        // "fetch + observe inventory, filter locally." The picker no
+        // longer depends on a server-side inventory join, so the
+        // fetchAvatarPack call must NOT be gated on sync completion.
         val syncGate = CompletableDeferred<Result<Unit>>()
         val inventory = GatedInventoryRepository(syncGate)
         val profile = GatedUpdateProfile(gate = CompletableDeferred())
@@ -72,42 +73,63 @@ class EditProfileViewModelTest : CoroutineTest() {
         )
         runCurrent()
 
-        assertEquals(1, inventory.syncCalls, "sync should have been kicked")
-        assertEquals(
-            0, profile.fetchAvatarPackCalls,
-            "fetchAvatarPack must not run until sync completes",
-        )
-
-        syncGate.complete(Result.success(Unit))
-        runCurrent()
         assertEquals(
             1, profile.fetchAvatarPackCalls,
-            "fetchAvatarPack must run after sync completes",
+            "fetchAvatarPack must run immediately, not wait on sync",
         )
+        assertEquals(1, inventory.syncCalls, "sync still kicked best-effort in background")
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun init_fetchesAvatarPack_evenWhenInventorySyncFails() = runUnitTest {
-        // Failed sync (offline, server down) should not strand the user
-        // on a blank picker — fall through to the server's avatars
-        // endpoint with whatever state it has.
+    fun avatarPacks_filterByLocalInventory_beforeSyncCompletes() = runUnitTest {
+        // The key optimistic-pack invariant: when local inventory
+        // contains the unlock product id for a premium pack, the
+        // derived `avatarPacks` includes it — without waiting on the
+        // server sync. Mirrors the path a fresh redeem takes (Pending
+        // row → live flow → derived list includes the new pack).
         val syncGate = CompletableDeferred<Result<Unit>>()
-        val inventory = GatedInventoryRepository(syncGate)
-        val profile = GatedUpdateProfile(gate = CompletableDeferred())
+        val ownedFlow = MutableStateFlow(emptyList<InventoryItem>())
+        val inventory = ObservableInventoryRepository(syncGate, ownedFlow)
+        val starter = AvatarPack("starter", "Starter pack", listOf("🦊"), unlockProductId = null)
+        val animals = AvatarPack(
+            id = "animals",
+            name = "Animals",
+            emojis = listOf("🐶"),
+            unlockProductId = "avatars_animals",
+        )
+        val profile = GatedUpdateProfile(
+            gate = CompletableDeferred(),
+            packs = listOf(starter, animals),
+        )
 
-        EditProfileViewModel(
+        val vm = EditProfileViewModel(
             profileRepository = profile,
             inventoryRepository = inventory,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
 
-        syncGate.complete(Result.failure(IllegalStateException("network down")))
+        // Before any inventory: starter only.
+        assertEquals(listOf("starter"), vm.state.avatarPacks.map { it.id })
+
+        // Simulate optimistic redeem of the Animals pack — local row
+        // appears (Pending) before any server roundtrip.
+        ownedFlow.value = listOf(
+            InventoryItem(
+                productId = "avatars_animals",
+                state = PurchaseState.Pending,
+                purchasedAtEpochMs = 0L,
+                costChipsAtPurchase = 4000L,
+            ),
+        )
         runCurrent()
+
         assertEquals(
-            1, profile.fetchAvatarPackCalls,
-            "fetchAvatarPack must still run when sync fails",
+            listOf("starter", "animals"),
+            vm.state.avatarPacks.map { it.id },
+            "newly-owned pack must appear on the local-inventory tick, " +
+                "without waiting for server sync",
         )
     }
 
@@ -155,6 +177,9 @@ private val sampleProfile = Profile.Authenticated(
 
 private class GatedUpdateProfile(
     private val gate: CompletableDeferred<UpdateProfileOutcome>,
+    private val packs: List<AvatarPack> = listOf(
+        AvatarPack(id = "starter", name = "Starter", emojis = listOf("🃏", "🦊"), unlockProductId = null),
+    ),
 ) : ProfileRepository {
     var updateStarted: Int = 0
         private set
@@ -184,11 +209,23 @@ private class GatedUpdateProfile(
 
     override suspend fun fetchAvatarPack(): AvatarPackOutcome {
         fetchAvatarPackCalls += 1
-        return AvatarPackOutcome.Success(
-            packs = listOf(AvatarPack(id = "starter", name = "Starter", emojis = listOf("🃏", "🦊"))),
-            palette = emptyList(),
-        )
+        return AvatarPackOutcome.Success(packs = packs, palette = emptyList())
     }
+}
+
+private class ObservableInventoryRepository(
+    private val gate: CompletableDeferred<Result<Unit>>,
+    private val ownedFlow: MutableStateFlow<List<InventoryItem>>,
+) : InventoryRepository {
+    override fun observeInventory(): Flow<List<InventoryItem>> = ownedFlow
+    override suspend fun getInventory(): List<InventoryItem> = ownedFlow.value
+    override suspend fun redeemChipOffer(productId: String, costChips: Long): RedeemResult =
+        RedeemResult.Success
+    override suspend fun markConfirmed(productIds: Collection<String>) = Unit
+    override suspend fun revertPurchase(productId: String) = Unit
+    override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) = Unit
+    override suspend fun deleteAll() = Unit
+    override suspend fun sync(): Result<Unit> = gate.await()
 }
 
 private class GatedInventoryRepository(

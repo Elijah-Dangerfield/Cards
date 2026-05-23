@@ -415,7 +415,7 @@ private fun EditProfileScreenPreview_Loaded() {
                 displayName = "Elijah",
                 initialAvatarEmoji = "🦊",
                 selectedAvatarEmoji = "🦄",
-                avatarPacks = listOf(
+                allAvatarPacks = listOf(
                     AvatarPack(
                         id = "starter",
                         name = "Starter pack",
@@ -439,7 +439,7 @@ private fun EditProfileScreenPreview_TwoPacksOwned() {
                 displayName = "ElijahNew",
                 initialAvatarEmoji = "🦊",
                 selectedAvatarEmoji = "🚀",
-                avatarPacks = listOf(
+                allAvatarPacks = listOf(
                     AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
                     AvatarPack("space", "Space pack", listOf("🚀", "🛸", "🌙", "⭐", "🪐", "☄️")),
                 ),
@@ -480,7 +480,7 @@ private fun EditProfileScreenPreview_LongPalette() {
                 displayName = "Elijah",
                 initialAvatarEmoji = "🦊",
                 selectedAvatarEmoji = "🦊",
-                avatarPacks = listOf(
+                allAvatarPacks = listOf(
                     AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯", "🦄", "🐲", "🦁", "🐸")),
                 ),
                 backgroundPalette = listOf(

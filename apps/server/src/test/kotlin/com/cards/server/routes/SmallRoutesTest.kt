@@ -4,9 +4,6 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.AvatarPacks
-import com.dangerfield.cards.server.domain.InventoryRepository
-import com.dangerfield.cards.server.domain.OwnedItem
-import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
@@ -158,7 +155,7 @@ class SmallRoutesTest {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes(EmptyInventory) }
+                routing { avatarRoutes() }
             }
             val resp = createClient { }.get("/v1/avatars")
             assertEquals(
@@ -169,110 +166,17 @@ class SmallRoutesTest {
     }
 
     @Test
-    fun avatars_returnsStarterPack_forUserWithNoOwnedPacks() = runTest {
+    fun avatars_returnsFullPackRegistry_independentOfInventory() = runTest {
+        // The endpoint no longer joins inventory — it returns every
+        // pack the catalog defines, and the client filters locally
+        // against optimistic inventory state. Pins the contract that
+        // every pack (starter + all paid) lands in the response.
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes(EmptyInventory) }
-            }
-            val client = createClient {
-                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-            }
-            val resp = client.get("/v1/avatars") {
-                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
-            }
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
-            val packs = body["packs"]!!.jsonArray
-            // No owned premium packs → exactly the starter pack, with its
-            // emojis. Pins the wire shape + the inventory-join contract.
-            assertEquals(1, packs.size)
-            val starter = packs[0].jsonObject
-            assertEquals(AvatarPacks.Starter.id, starter["id"]!!.jsonPrimitive.content)
-            assertEquals(
-                AvatarPacks.Starter.emojis,
-                starter["emojis"]!!.jsonArray.map { it.jsonPrimitive.content },
-            )
-        }
-    }
-
-    @Test
-    fun avatars_includesPremiumPack_whenInventoryContainsItsProduct() = runTest {
-        // Regression pin for the picker bug where paid avatar packs
-        // (avatars_food, avatars_animals, etc.) never surfaced even after
-        // purchase: the catalog rows existed but no Pack with a matching
-        // unlockProductId was registered, so the inventory join was a
-        // no-op. Asserting one premium pack here is enough — the filter
-        // is shared.
-        val ownedFood = object : InventoryRepository {
-            override suspend fun listOwned(userId: UserId): List<OwnedItem> = listOf(
-                OwnedItem(
-                    productId = "avatars_food",
-                    costChipsAtPurchase = 4000,
-                    purchasedAt = kotlin.time.Clock.System.now(),
-                ),
-            )
-
-            override suspend fun recordPurchase(
-                userId: UserId,
-                productId: String,
-                costChipsAtPurchase: Long,
-                purchasedAt: kotlin.time.Instant,
-            ): OwnedItem = error("unused")
-
-            override suspend fun recordEarnedGrant(
-                userId: UserId,
-                productId: String,
-                grantedAt: kotlin.time.Instant,
-            ): OwnedItem = error("unused")
-
-            override suspend fun deleteAllForUser(userId: UserId) = Unit
-        }
-        testApplication {
-            application {
-                installSerialization()
-                installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes(ownedFood) }
-            }
-            val client = createClient {
-                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-            }
-            val resp = client.get("/v1/avatars") {
-                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
-            }
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
-            val packs = body["packs"]!!.jsonArray
-            val packIds = packs.map { it.jsonObject["id"]!!.jsonPrimitive.content }
-            assertTrue(
-                AvatarPacks.Starter.id in packIds,
-                "starter pack must always be present, got: $packIds",
-            )
-            assertTrue(
-                AvatarPacks.Food.id in packIds,
-                "owned premium pack (food) must appear, got: $packIds",
-            )
-            val food = packs.single { it.jsonObject["id"]!!.jsonPrimitive.content == AvatarPacks.Food.id }
-            assertEquals(
-                AvatarPacks.Food.emojis,
-                food.jsonObject["emojis"]!!.jsonArray.map { it.jsonPrimitive.content },
-            )
-        }
-    }
-
-    @Test
-    fun avatars_omitsUnownedPremiumPacks() = runTest {
-        // The catalog should never leak unowned premium packs back to the
-        // client. With an empty inventory the response is exactly Starter.
-        testApplication {
-            application {
-                installSerialization()
-                installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes(EmptyInventory) }
+                routing { avatarRoutes() }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -284,22 +188,61 @@ class SmallRoutesTest {
             val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
             val packIds = body["packs"]!!.jsonArray
                 .map { it.jsonObject["id"]!!.jsonPrimitive.content }
-            assertEquals(listOf(AvatarPacks.Starter.id), packIds)
+            assertEquals(
+                AvatarPacks.all.map { it.id },
+                packIds,
+                "endpoint must return the full registry in catalog order",
+            )
         }
     }
 
     @Test
-    fun avatars_setsPrivateCache_so_packsDontBleedAcrossUsers() = runTest {
-        // Per-user payload (we join inventory), so a `private` cache
-        // directive is required — otherwise a CDN could serve user A's
-        // owned packs to user B. A short TTL keeps a new purchase
-        // visible quickly without burning the picker on every open.
+    fun avatars_eachPackCarries_unlockProductId() = runTest {
+        // Client filters against this field — starter pack is null
+        // (always available), premium packs carry their product id.
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { avatarRoutes(EmptyInventory) }
+                routing { avatarRoutes() }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val resp = client.get("/v1/avatars") {
+                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
+            }
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
+            val packs = body["packs"]!!.jsonArray
+            val starter = packs.single { it.jsonObject["id"]!!.jsonPrimitive.content == AvatarPacks.Starter.id }
+            assertTrue(
+                starter.jsonObject["unlockProductId"]?.jsonPrimitive?.isString != true,
+                "starter pack's unlockProductId must be null",
+            )
+            val food = packs.single { it.jsonObject["id"]!!.jsonPrimitive.content == AvatarPacks.Food.id }
+            assertEquals(
+                AvatarPacks.Food.unlockProductId,
+                food.jsonObject["unlockProductId"]!!.jsonPrimitive.content,
+                "paid pack must carry its unlock product id",
+            )
+        }
+    }
+
+    @Test
+    fun avatars_setsPrivateCache_so_packsDontBleedAcrossUsers() = runTest {
+        // The endpoint is no longer per-user (client filters locally),
+        // but it's auth-gated so the `private` directive is still
+        // appropriate — keeps a CDN out of the picture until we
+        // explicitly decide otherwise. A short TTL keeps a server-
+        // deploy that adds a new pack visible quickly.
+        testApplication {
+            application {
+                installSerialization()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing { avatarRoutes() }
             }
             val resp = createClient { }.get("/v1/avatars") {
                 header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
@@ -317,21 +260,4 @@ class SmallRoutesTest {
         }
     }
 
-    private object EmptyInventory : InventoryRepository {
-        override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
-        override suspend fun recordPurchase(
-            userId: UserId,
-            productId: String,
-            costChipsAtPurchase: Long,
-            purchasedAt: kotlin.time.Instant,
-        ): OwnedItem = error("unused")
-
-        override suspend fun recordEarnedGrant(
-            userId: UserId,
-            productId: String,
-            grantedAt: kotlin.time.Instant,
-        ): OwnedItem = error("unused")
-
-        override suspend fun deleteAllForUser(userId: UserId) = Unit
-    }
 }

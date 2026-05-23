@@ -108,15 +108,26 @@ sealed interface UpdateProfileOutcome {
 }
 
 /**
- * An emoji pack the user can pick avatars from. Always includes a
- * starter pack; premium packs appear once the matching product is in
- * inventory. The server is authoritative — the client never invents
- * a pack.
+ * An emoji pack the user can pick avatars from. The server returns the
+ * full registry (starter + every premium pack); the picker filters
+ * against local inventory using [unlockProductId] so a freshly-bought
+ * pack appears immediately on the optimistic local row, without
+ * waiting on a server-side inventory sync round-trip.
+ *
+ * The server is authoritative for what packs exist and what emojis
+ * each contains; the client never invents a pack.
  */
 data class AvatarPack(
     val id: String,
     val name: String,
     val emojis: List<String>,
+    /**
+     * Product id that unlocks this pack. `null` for the starter pack
+     * (always available). Consumers should treat a pack as available
+     * to the user iff `unlockProductId == null` OR the id is present
+     * in the user's local inventory.
+     */
+    val unlockProductId: String? = null,
 )
 
 sealed interface AvatarPackOutcome {

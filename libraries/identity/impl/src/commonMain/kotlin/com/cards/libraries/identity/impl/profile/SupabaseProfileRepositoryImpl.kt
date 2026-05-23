@@ -282,6 +282,7 @@ class SupabaseProfileRepositoryImpl(
                             id = dto.id,
                             name = dto.name,
                             emojis = dto.emojis,
+                            unlockProductId = dto.unlockProductId,
                         )
                     },
                     palette = response.backgroundPalette,

@@ -74,6 +74,14 @@ data class AvatarPackDto(
     val id: String,
     val name: String,
     val emojis: List<String>,
+    /**
+     * Server-side product id that unlocks this pack. `null` for the
+     * starter pack (always available). Premium packs return this so the
+     * client can filter the picker against local inventory without
+     * waiting on a server-side inventory join — newly-purchased packs
+     * show up the moment the optimistic local row is written.
+     */
+    val unlockProductId: String? = null,
 )
 
 @SingleIn(AppScope::class)
