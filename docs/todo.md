@@ -146,19 +146,9 @@ The Fallback case is rare in practice (it requires fresh-install + no network du
 
 The global offline banner from commit `775aa11` sets baseline expectations; this audit is per-surface polish. **Plays best as a designer-in-the-loop pass** — engineering picks up the screens after the per-surface behavior is decided.
 
-### Fly cold-start friction on `cards-server-dev`
+### ~~Fly cold-start friction on `cards-server-dev`~~ (resolved 2026-05-23)
 
-Carried over from the deleted `docs/auth-rework.md` debugging notes.
-
-The dev Fly server has `auto_stop_machines = 'stop'` + `min_machines_running = 0`. Machines auto-stop when idle. Normal cold-start when a request arrives is ~4s and works fine, but there's a known Fly bad-state where the proxy returns "machine was recently stopped and is unavailable to service request" instead of triggering auto-start. When this hits, requests hang until the client times out (30s) or a GitHub Actions cron eventually wakes the machine.
-
-**Two safe mitigations (user dismissed both at the time, but worth pinning):**
-- `min_machines_running = 1` — keeps one machine warm 24/7. Bulletproof. ~$2-5/month.
-- `auto_stop_machines = 'suspend'` — preserves in-memory state; resume is ~50ms instead of seconds. Keeps scale-to-zero behavior.
-
-**Why this matters now:** the new `AppViewModel` splash gate (added 2026-05-23) waits on `profileRepository.observe().first()` before opening Home. On a Fly bad-state hang, splash sits there for 30s. The "Cache as fallback" branch eventually fires after the network timeout, so the user isn't stuck forever — but the UX during that window is rough.
-
-Decide before public launch. Production (`cards-server` proper) should probably have `min_machines_running = 1` regardless; the dev server is the one with the question.
+Flipped `min_machines_running = 0 → 1` in `apps/server/fly.toml` after a fresh-install device log showed the cold-start eating the AppConfig 5s timeout and dragging the first `/v1/me` roundtrip to ~6.4s. The Fly "machine recently stopped" bad-state can no longer hit us because we never let the last machine stop. Same shape will carry to the prod `fly.toml` when we ship.
 
 ### Device smoke test before merging `dev` → `main`
 

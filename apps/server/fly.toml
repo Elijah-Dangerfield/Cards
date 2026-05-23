@@ -29,12 +29,17 @@ primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-e
 [http_service]
   internal_port = 8080
   force_https = true
-  # Scale to zero when idle to keep dev costs near $0. Fly cold-starts in
-  # ~1-2s on shared-cpu-1x, which is fine for dev. Prod fly.toml will set
-  # min_machines_running = 1 to avoid the first-request stall.
+  # Keep one machine warm 24/7. The earlier scale-to-zero config saved
+  # a couple bucks a month but the cold-start tax (6+s end-to-end on
+  # JVM boot, observed 2026-05-23 on a fresh-install device log) was
+  # eating the AppConfig refresh 5s timeout and dragging the first
+  # /v1/me roundtrip well past the splash gate's threshold. Idle
+  # machines past the first one still auto-stop, so we don't pay for
+  # extra capacity — just the always-warm baseline. Same shape will
+  # carry to the prod fly.toml when we ship.
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
   processes = ['app']
 
   [[http_service.checks]]
