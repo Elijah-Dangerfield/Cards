@@ -61,7 +61,7 @@ class InventorySyncServiceImpl(
                 },
             )
 
-            val response: InventorySyncResponseDto = networkClient.client
+            val response: InventorySyncResponseDto = networkClient.authenticatedClient
                 .post("/v1/inventory/sync") {
                     contentType(ContentType.Application.Json)
                     setBody(request)
