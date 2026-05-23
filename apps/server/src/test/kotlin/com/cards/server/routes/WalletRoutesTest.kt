@@ -640,6 +640,79 @@ class WalletRoutesTest {
     }
 
     @Test
+    fun get_welcomeWeek_dialogBody_mentionsGrantAmount() = runTest {
+        // The copy must reference WELCOME_WEEK_DAILY_GRANT verbatim so
+        // tweaking the constant doesn't silently leave stale dollar
+        // amounts in the user-facing text.
+        val createdAt = Instant.fromEpochMilliseconds(0)
+        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
+        val messages = NoopUserMessages()
+        callGet(repo, bearer = validJwt(), messages = messages, clock = fixedClock(createdAt + 1.days)) { _ -> }
+
+        val message = messages.created.single()
+        assertTrue(
+            message.body.contains(Wallet.WELCOME_WEEK_DAILY_GRANT.toString()),
+            "dialog body must reference the per-day grant amount " +
+                "(${Wallet.WELCOME_WEEK_DAILY_GRANT}), got: '${message.body}'",
+        )
+    }
+
+    @Test
+    fun sync_welcomeWeek_queuesDialogMessage_onFirstGrant() = runTest {
+        // Production path: cold-boot fires POST /v1/me/wallet/sync,
+        // which is what the user actually hits when they open the
+        // app each day. Dialog must fire here, not just from the
+        // GET path.
+        val createdAt = Instant.fromEpochMilliseconds(0)
+        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
+        val messages = NoopUserMessages()
+        callSync(
+            repo,
+            request = WalletSyncRequest(events = emptyList()),
+            bearer = validJwt(),
+            messages = messages,
+            clock = fixedClock(createdAt + 1.days),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+        }
+        assertEquals(
+            1, messages.created.size,
+            "POST /v1/me/wallet/sync on day 1 must queue the welcome-week dialog",
+        )
+        assertEquals(
+            com.dangerfield.cards.server.domain.UserMessageKind.Dialog,
+            messages.created.single().kind,
+        )
+        assertEquals("🪙", messages.created.single().emoji)
+    }
+
+    @Test
+    fun sync_welcomeWeek_doesNotDoubleDialog_onRepeatedSyncs() = runTest {
+        // Cold-boot + foreground-resume in the same calendar day fires
+        // sync twice. The day-N idempotency key must collapse the
+        // second to a no-op for both the chip grant AND the dialog.
+        val createdAt = Instant.fromEpochMilliseconds(0)
+        val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
+        val messages = NoopUserMessages()
+        val clock = fixedClock(createdAt + 2.days)
+
+        repeat(2) {
+            callSync(
+                repo,
+                request = WalletSyncRequest(events = emptyList()),
+                bearer = validJwt(),
+                messages = messages,
+                clock = clock,
+            ) { _ -> }
+        }
+
+        assertEquals(
+            1, messages.created.size,
+            "two sync calls same day → still exactly one dialog (per-day idempotency)",
+        )
+    }
+
+    @Test
     fun sync_welcomeWeek_appliesBeforeBatch_soDebitsSeeTheCreditedBalance() = runTest {
         // Clock advanced by 1 day so the day-1 grant fires (signup day
         // no longer grants under the post-2026-05-23 schedule).
