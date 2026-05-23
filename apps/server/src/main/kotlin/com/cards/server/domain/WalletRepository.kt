@@ -46,22 +46,39 @@ data class Wallet(
         const val BUST_PROTECTION_REASON: String = "bust_protection"
 
         /**
-         * Window over which the welcome-week daily grant runs, counted
-         * in whole days since the wallet's `createdAt`. Day 0 is the
-         * first contact; day [WELCOME_WEEK_DAYS] - 1 is the last day
-         * with an eligible grant. Mirrors product-spec.md §4.1: silent
-         * 500/day for the first 7 days post-install / sign-up.
+         * Welcome-week daily grant schedule, counted in whole days
+         * since the wallet's `createdAt`. Signup day (elapsed day 0)
+         * gets the starter grant only — no daily bonus on the same
+         * day the user lands. The daily +500 kicks in the day after
+         * signup ([WELCOME_WEEK_FIRST_DAY]) and runs for
+         * [WELCOME_WEEK_DAYS] consecutive elapsed days, ending on
+         * [WELCOME_WEEK_LAST_DAY] inclusive.
+         *
+         * Total welcome-week chip outlay per user:
+         * [WELCOME_WEEK_DAYS] × [WELCOME_WEEK_DAILY_GRANT] = 3,500.
+         * Stacked on top of [STARTER_GRANT] (10,000), a user who
+         * opens the app every day for the first week ends week one
+         * with 13,500 chips. Missed days are still granted on the
+         * next open — no streak, no expiry. Mirrors product-spec
+         * §4.1 (chips feel sacred, we're generous).
          */
+        const val WELCOME_WEEK_FIRST_DAY: Int = 1
         const val WELCOME_WEEK_DAYS: Int = 7
+        const val WELCOME_WEEK_LAST_DAY: Int = WELCOME_WEEK_FIRST_DAY + WELCOME_WEEK_DAYS - 1
 
         /** Per-day chip count granted by the welcome-week schedule. */
         const val WELCOME_WEEK_DAILY_GRANT: Long = 500L
 
         /**
-         * Idempotency-key prefix for the welcome-week daily grants. The
-         * full key is `${WELCOME_WEEK_KEY_PREFIX}{day}_v1` where `day`
-         * is the day index `0..WELCOME_WEEK_DAYS-1`. Lifetime-once per
-         * (user, day).
+         * Idempotency-key prefix for the welcome-week daily grants.
+         * Full key: `${WELCOME_WEEK_KEY_PREFIX}{day}_v1` where `day`
+         * is the elapsed-day index in
+         * `[WELCOME_WEEK_FIRST_DAY..WELCOME_WEEK_LAST_DAY]`.
+         * Lifetime-once per (user, day). Note: day-0 keys
+         * (`welcome_week_day_0_v1`) exist in the ledger for users who
+         * signed up under the previous schedule; the new loop simply
+         * never writes day 0 again, so those rows are grandfathered
+         * and don't double-grant anything.
          */
         const val WELCOME_WEEK_KEY_PREFIX: String = "welcome_week_day_"
 

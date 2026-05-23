@@ -145,9 +145,16 @@ fun Route.walletRoutes(
 
 /**
  * Apply the welcome-week daily grant for every elapsed day in
- * `[0, min(daysSinceCreatedAt, WELCOME_WEEK_DAYS - 1)]` that hasn't
- * been granted yet. Each day uses a stable per-(user, day)
- * idempotency key so re-applying already-granted days is a no-op via
+ * `[WELCOME_WEEK_FIRST_DAY, min(daysSinceCreatedAt, WELCOME_WEEK_LAST_DAY)]`
+ * that hasn't been granted yet. Signup day (elapsed day 0) is
+ * intentionally skipped — the user already gets the [Wallet.STARTER_GRANT]
+ * on first contact, so layering a daily bonus on top of that on
+ * the same day muddies the "here's your starter chips" moment.
+ * The daily +500 kicks in the day after signup and runs for
+ * [Wallet.WELCOME_WEEK_DAYS] consecutive days.
+ *
+ * Each day uses a stable per-(user, day) idempotency key so re-
+ * applying already-granted days is a no-op via
  * [WalletRepository.apply]'s replay detection.
  *
  * Why iterate every day rather than just "today's" day: the spec
@@ -158,8 +165,8 @@ fun Route.walletRoutes(
  * cheap enough to do unconditionally on every wallet contact.
  *
  * Returns the post-grant balance. Equal to [currentBalance] when
- * either the user is past their welcome week or every eligible day
- * has already been applied.
+ * the user is on signup day, past their welcome week, or every
+ * eligible day has already been applied.
  */
 @OptIn(ExperimentalTime::class)
 private suspend fun maybeApplyWelcomeWeek(
@@ -172,9 +179,10 @@ private suspend fun maybeApplyWelcomeWeek(
     val elapsedDays = (clock.now() - walletCreatedAt).inWholeDays
         .coerceAtLeast(0L)
         .toInt()
-    val lastEligibleDay = elapsedDays.coerceAtMost(Wallet.WELCOME_WEEK_DAYS - 1)
+    val lastEligibleDay = elapsedDays.coerceAtMost(Wallet.WELCOME_WEEK_LAST_DAY)
+    if (lastEligibleDay < Wallet.WELCOME_WEEK_FIRST_DAY) return currentBalance
     var balance = currentBalance
-    for (day in 0..lastEligibleDay) {
+    for (day in Wallet.WELCOME_WEEK_FIRST_DAY..lastEligibleDay) {
         val outcome = wallets.apply(
             userId = userId,
             idempotencyKey = "${Wallet.WELCOME_WEEK_KEY_PREFIX}${day}_v1",

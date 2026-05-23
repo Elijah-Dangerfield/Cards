@@ -122,6 +122,18 @@ internal fun WelcomeDialog(
                 textAlign = TextAlign.Center,
             )
 
+            Spacer(Modifier.height(Dimension.D500))
+            // Sets expectations for the silent welcome-week daily grant
+            // (see Wallet.WELCOME_WEEK_*). The grant lands every wallet
+            // contact post-signup-day with no in-app dialog, so this is
+            // the *only* place the user learns the daily +500 is a thing.
+            Text(
+                text = "Open the app every day this week — we'll add another 500 chips, on us.",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+
             Spacer(Modifier.height(Dimension.D1000))
 
             ButtonPrimary(

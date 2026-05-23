@@ -299,7 +299,13 @@ class WalletRoutesTest {
 
         init {
             if (!welcomeWeekEnabled) {
-                for (d in 0 until Wallet.WELCOME_WEEK_DAYS) {
+                // Pre-seed every welcome-week day's idempotency key as
+                // already-applied so tests that don't care about the
+                // schedule see an inert pass through `maybeApplyWelcomeWeek`.
+                // Schedule shifted 2026-05-23 from days 0..6 to 1..7;
+                // pre-seed both spans so future schedule tweaks don't
+                // require touching this test infra.
+                for (d in 0..Wallet.WELCOME_WEEK_LAST_DAY) {
                     applied["${Wallet.WELCOME_WEEK_KEY_PREFIX}${d}_v1"] =
                         ApplyOutcome.Applied(balance = 0L, wasAlreadyApplied = false)
                 }
@@ -476,16 +482,21 @@ class WalletRoutesTest {
     }
 
     @Test
-    fun get_welcomeWeek_grantsDayZero_onFirstContact() = runTest {
+    fun get_welcomeWeek_skipsSignupDay() = runTest {
+        // Schedule shifted 2026-05-23: signup day (elapsed day 0) is
+        // intentionally starter-only. The daily +500 starts the day
+        // after signup. Keeps the "here's your starter chips" moment
+        // clean and front-loads the bonus arc to feel like an arc
+        // (each day after signup, you find more chips waiting).
         val createdAt = Instant.fromEpochMilliseconds(0)
         val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
         callGet(repo, bearer = validJwt(), clock = fixedClock(createdAt)) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = resp.body<WalletResponse>()
             assertEquals(
-                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT,
+                Wallet.STARTER_GRANT,
                 body.balance,
-                "day-0 welcome grant stacks on the starter grant",
+                "signup day = starter grant only; no daily bonus on day 0",
             )
         }
     }
@@ -502,15 +513,15 @@ class WalletRoutesTest {
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = resp.body<WalletResponse>()
             assertEquals(
-                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT * 4,
+                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT * 3,
                 body.balance,
-                "days 0..3 all granted in one pass — no 'you missed yesterday' penalty",
+                "days 1..3 all granted in one pass — no 'you missed yesterday' penalty",
             )
         }
     }
 
     @Test
-    fun get_welcomeWeek_capsAtSevenDays() = runTest {
+    fun get_welcomeWeek_capsAtSevenGrants() = runTest {
         val createdAt = Instant.fromEpochMilliseconds(0)
         val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
         callGet(
@@ -523,7 +534,8 @@ class WalletRoutesTest {
             assertEquals(
                 Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT * Wallet.WELCOME_WEEK_DAYS,
                 body.balance,
-                "welcome week tops out at WELCOME_WEEK_DAYS grants regardless of how late the user shows up",
+                "welcome week tops out at WELCOME_WEEK_DAYS grants (days 1..7) " +
+                    "regardless of how late the user shows up",
             )
         }
     }
@@ -536,14 +548,15 @@ class WalletRoutesTest {
         callGet(repo, bearer = validJwt(), clock = clock) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             assertEquals(
-                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT * 3,
+                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT * 2,
                 resp.body<WalletResponse>().balance,
+                "two elapsed days → days 1 and 2 both granted",
             )
         }
         callGet(repo, bearer = validJwt(), clock = clock) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             assertEquals(
-                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT * 3,
+                Wallet.STARTER_GRANT + Wallet.WELCOME_WEEK_DAILY_GRANT * 2,
                 resp.body<WalletResponse>().balance,
                 "second wallet contact at the same time replays the same idempotency keys — no double grant",
             )
@@ -552,10 +565,13 @@ class WalletRoutesTest {
 
     @Test
     fun get_welcomeWeek_doesNotQueueUserMessage() = runTest {
+        // Fix the clock past day 0 so the welcome-week grant actually
+        // fires. At day 0 (signup) no grant would happen under the new
+        // schedule and the "no message" assertion would be vacuous.
         val createdAt = Instant.fromEpochMilliseconds(0)
         val repo = FakeWalletRepo(welcomeWeekEnabled = true, walletCreatedAt = createdAt)
         val messages = NoopUserMessages()
-        callGet(repo, bearer = validJwt(), messages = messages, clock = fixedClock(createdAt)) { resp ->
+        callGet(repo, bearer = validJwt(), messages = messages, clock = fixedClock(createdAt + 1.days)) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             assertEquals(
                 0,
@@ -567,6 +583,8 @@ class WalletRoutesTest {
 
     @Test
     fun sync_welcomeWeek_appliesBeforeBatch_soDebitsSeeTheCreditedBalance() = runTest {
+        // Clock advanced by 1 day so the day-1 grant fires (signup day
+        // no longer grants under the post-2026-05-23 schedule).
         val createdAt = Instant.fromEpochMilliseconds(0)
         val repo = FakeWalletRepo(
             seed = mapOf(userId to 100L),
@@ -579,7 +597,7 @@ class WalletRoutesTest {
                 events = listOf(WalletEventDto(idempotencyKey = "spend", delta = -400, reason = "shop")),
             ),
             bearer = validJwt(),
-            clock = fixedClock(createdAt),
+            clock = fixedClock(createdAt + 1.days),
         ) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = resp.body<WalletSyncResponse>()
