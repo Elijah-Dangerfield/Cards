@@ -1,11 +1,15 @@
 package com.dangerfield.cards.server.db
 
 import com.dangerfield.cards.server.config.DatabaseConfig
+import com.dangerfield.cards.server.domain.UserId
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.insertIgnore
 import org.junit.AfterClass
 import org.junit.Assume
 import org.junit.BeforeClass
 import org.testcontainers.DockerClientFactory
 import org.testcontainers.containers.PostgreSQLContainer
+import java.util.UUID
 
 /**
  * Base class for tests that need a real Postgres. Spins up a single
@@ -35,6 +39,28 @@ abstract class DatabaseTest {
     protected val database: Database
         get() = sharedDatabase ?: error("Database not initialized; @BeforeClass must run")
 
+    /**
+     * Insert (or no-op if already present) a row in `auth.users` with the
+     * given UUID and return it as a [UserId]. Tests that create app rows
+     * referencing `user_id` must seed the matching auth row first — the
+     * V11 FK constraint blocks orphan profile/wallet/etc. rows.
+     *
+     * The Testcontainer's `auth.users` table is the minimal stub seeded
+     * by `init-auth.sql` (just `id UUID PRIMARY KEY`); see that file.
+     */
+    protected fun seedAuthUser(id: UUID = UUID.randomUUID()): UserId {
+        database.blockingTransaction {
+            AuthUsersTable.insertIgnore { it[AuthUsersTable.id] = id }
+        }
+        return UserId(id)
+    }
+
+    /** Exposed mapping for the minimal `auth.users` stub. */
+    private object AuthUsersTable : Table("auth.users") {
+        val id = uuid("id")
+        override val primaryKey = PrimaryKey(id)
+    }
+
     companion object {
         private const val POSTGRES_IMAGE = "postgres:16-alpine"
 
@@ -55,6 +81,10 @@ abstract class DatabaseTest {
                 .withDatabaseName("cards_test")
                 .withUsername("cards")
                 .withPassword("cards")
+                // Run before Flyway so the V11 FK to auth.users(id) has
+                // something to point at. The real auth schema is owned
+                // by Supabase Auth; the test stub is just id PRIMARY KEY.
+                .withInitScript("init-auth.sql")
                 .also { it.start() }
             container = c
             sharedDatabase = Database.connect(

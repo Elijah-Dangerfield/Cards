@@ -25,13 +25,22 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
-## 2026-05-23 — Defer FK + RLS on Supabase profiles/wallets/etc.
+## 2026-05-23 — FK to auth.users landed; RLS deferred
 
-**Decision:** Don't add foreign-key constraints to `auth.users` or RLS
-policies on `public.profiles`/`wallets`/`inventory`/`equipment`/
-`user_messages` right now. Carry the analysis forward; revisit once we
-have a per-request DB role story (or once a real orphan / cross-user
-data leak is observed in production).
+**Decision (landed):** Added foreign-key constraints with `ON DELETE
+CASCADE` from each per-user table (`profiles`, `wallets`,
+`wallet_events`, `inventory`, `equipment`, `user_messages`) to
+`auth.users(id)` via Flyway V11. Testcontainers got a minimal
+`auth.users` stub (`init-auth.sql` in the test resources) and a
+`seedAuthUser()` helper on `DatabaseTest`. Hard-delete remains the
+account-deletion path; see "Account deletion: hard-delete now"
+section below.
+
+**Decision (deferred):** RLS policies on the same tables stay off.
+The "per-request DB role" architectural change they'd require isn't
+worth it for V1, and installing inert policies would create a
+false sense of security. Revisit if/when the trust model changes
+(e.g. opening up PostgREST to clients directly).
 
 **Why the FK alone is straightforward but not load-bearing:**
 - Today there's no FK to `auth.users` because Testcontainers (used for
@@ -88,9 +97,47 @@ data leak is observed in production).
    service role / per-request role transition is consistent across
    routes.
 
-**Status:** Locked as "deferred to design pass." This entry is what
-future-you reads before either picking it up or deciding V1 ships
-without it.
+**Status:** FK landed; RLS half deferred until the trust model
+changes.
+
+---
+
+## 2026-05-23 — Account deletion: hard-delete now, soft-delete later if needed
+
+**Decision:** `DELETE /v1/me` is a hard-delete: row goes away, no
+recovery window, no tombstone. The new V11 FK with `ON DELETE
+CASCADE` on `auth.users` means deleting a user (either via the
+server's `DELETE /v1/me` flow or via the Supabase admin dashboard)
+wipes their profile + wallet + ledger + inventory + equipment +
+messages in a single atomic step.
+
+**Why not a soft-delete + recovery window now:**
+- No support inbox yet. The "I deleted by mistake, can you restore?"
+  email has no recipient, so a 30-day recovery window adds no
+  user-visible value in V1.
+- No EU users (or any user-facing privacy compliance ask) yet, so
+  GDPR's 30-day "right to erasure" window isn't applying pressure.
+- The migration path to soft-delete is cheap when it's needed: add
+  `deleted_at TIMESTAMPTZ` to `profiles`, flip `DELETE /v1/me` to
+  `UPDATE profiles SET deleted_at = now()`, add an admin sweep
+  endpoint that runs daily and hard-deletes rows older than 30 days
+  (following the existing `sweep-anon` / `sweep-rooms` pattern in
+  `.github/workflows/`).
+
+**Triggers to revisit:**
+- We get a support inbox + a real "restore my account" request.
+- We get our first EU user, or App Store review flags data
+  retention.
+- A second team member starts handling account-related ops and
+  needs the recovery safety net.
+
+**Alternatives considered:**
+- **Tombstone forever (mark deleted but keep row).** Doesn't survive
+  GDPR; deferred plumbing without the safety net of soft-delete.
+- **Anonymize instead of delete.** Right for apps with audit
+  obligations on transactional data; overkill for a poker app.
+
+**Status:** Locked for V1.
 
 ---
 

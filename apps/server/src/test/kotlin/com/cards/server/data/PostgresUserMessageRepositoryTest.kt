@@ -332,7 +332,9 @@ class PostgresUserMessageRepositoryTest : DatabaseTest() {
     private fun newRepo(clock: Clock = FixedClock(fixedNow)): PostgresUserMessageRepository =
         PostgresUserMessageRepository(database = database, clock = clock)
 
-    private fun newUser(): UserId = UserId(UUID.randomUUID())
+    /** Mints a fresh UUID + seeds the matching auth.users row so the
+     *  V11 FK on user_messages is satisfied. */
+    private fun newUser(): UserId = seedAuthUser()
 
     private class FixedClock(private val now: Instant) : Clock {
         override fun now(): Instant = now

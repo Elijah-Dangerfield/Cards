@@ -30,7 +30,7 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     @Test
     fun findOrCreate_firstCall_createsFreshProfile() = runTest {
         val repo = newRepository()
-        val userId = UserId(UUID.randomUUID())
+        val userId = seedAuthUser()
 
         val profile = repo.findOrCreate(userId)
 
@@ -43,7 +43,7 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     @Test
     fun findOrCreate_isIdempotentForSameUserId() = runTest {
         val repo = newRepository()
-        val userId = UserId(UUID.randomUUID())
+        val userId = seedAuthUser()
 
         val first = repo.findOrCreate(userId)
         val second = repo.findOrCreate(userId)
@@ -62,7 +62,7 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     @Test
     fun findById_returnsExistingProfile() = runTest {
         val repo = newRepository()
-        val userId = UserId(UUID.randomUUID())
+        val userId = seedAuthUser()
         repo.findOrCreate(userId)
 
         val found = repo.findById(userId)
@@ -79,8 +79,8 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         )
         val repo = newRepository(usernameGenerator = gen)
 
-        val first = repo.findOrCreate(UserId(UUID.randomUUID()))
-        val second = repo.findOrCreate(UserId(UUID.randomUUID()))
+        val first = repo.findOrCreate(seedAuthUser())
+        val second = repo.findOrCreate(seedAuthUser())
 
         assertEquals("Twin-Ace-100", first.displayName)
         assertEquals("Twin-Ace-200", second.displayName)
@@ -89,8 +89,8 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     @Test
     fun differentUserIds_getDifferentProfiles() = runTest {
         val repo = newRepository()
-        val a = repo.findOrCreate(UserId(UUID.randomUUID()))
-        val b = repo.findOrCreate(UserId(UUID.randomUUID()))
+        val a = repo.findOrCreate(seedAuthUser())
+        val b = repo.findOrCreate(seedAuthUser())
 
         assertNotEquals(a.userId, b.userId)
         assertNotEquals(a.displayName, b.displayName)
@@ -99,7 +99,7 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     @Test
     fun delete_removesExistingProfile() = runTest {
         val repo = newRepository()
-        val userId = UserId(UUID.randomUUID())
+        val userId = seedAuthUser()
         repo.findOrCreate(userId)
         assertNotNull(repo.findById(userId))
 

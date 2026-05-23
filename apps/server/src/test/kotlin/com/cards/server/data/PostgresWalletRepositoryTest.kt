@@ -215,7 +215,9 @@ class PostgresWalletRepositoryTest : DatabaseTest() {
     private fun newRepo(clock: Clock = Clock.System): PostgresWalletRepository =
         PostgresWalletRepository(database = database, clock = clock)
 
-    private fun newUser(): UserId = UserId(UUID.randomUUID())
+    /** Mints a fresh UUID + seeds the matching auth.users row so the
+     *  V11 FK on wallets / wallet_events is satisfied. */
+    private fun newUser(): UserId = seedAuthUser()
 
     /**
      * Hand-cranked Clock that advances 1ms on each `now()` call so the
