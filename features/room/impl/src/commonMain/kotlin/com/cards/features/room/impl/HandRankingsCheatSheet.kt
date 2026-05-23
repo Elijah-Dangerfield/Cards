@@ -407,7 +407,7 @@ private fun ActionRow(
             VerticalSpacerD50()
             Text(
                 text = desc,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
         }
@@ -432,7 +432,7 @@ private fun RankingCard(entry: RankingEntry) {
             )
             Text(
                 text = entry.tagline,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
         }

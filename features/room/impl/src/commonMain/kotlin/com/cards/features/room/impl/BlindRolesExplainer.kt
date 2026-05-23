@@ -95,7 +95,7 @@ private fun RoleRow(label: String, bg: Color, title: String, description: String
             VerticalSpacerD50()
             Text(
                 text = description,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
         }
