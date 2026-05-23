@@ -159,26 +159,18 @@ private fun MedallionFront(
             )
             if (!isMysteryLocked) {
                 Spacer(modifier = Modifier.height(4.dp))
-                // For locked quantitative achievements (target > 1) we show
-                // "current / target" so the user has a real chase number.
-                // Earned tiles show the reward instead — the progress count
-                // would just read as "target / target" once they're past it.
                 val target = achievement.criterion.target
-                if (!isEarned && target > 1) {
-                    Text(
-                        text = "$progress / $target",
-                        typography = AppTheme.typography.Label.L400,
-                        color = rarityColorResource,
-                        textAlign = TextAlign.Center,
-                    )
-                } else {
-                    Text(
-                        text = "+${achievement.xpReward} XP",
-                        typography = AppTheme.typography.Label.L400,
-                        color = rarityColorResource,
-                        textAlign = TextAlign.Center,
-                    )
+                val label = when {
+                    isEarned -> "Earned"
+                    target > 1 -> "$progress / $target"
+                    else -> "+${achievement.xpReward} XP"
                 }
+                Text(
+                    text = label,
+                    typography = AppTheme.typography.Label.L400,
+                    color = rarityColorResource,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }
