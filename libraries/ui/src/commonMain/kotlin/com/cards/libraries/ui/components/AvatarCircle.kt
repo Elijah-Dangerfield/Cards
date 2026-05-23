@@ -17,15 +17,6 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.typography.TypographyResource
 
-private val avatarHues: List<Color> = listOf(
-    Color(0xFFE07AB1),
-    Color(0xFFF6B26B),
-    Color(0xFFFFD966),
-    Color(0xFF93C47D),
-    Color(0xFF76A5AF),
-    Color(0xFF8E7CC3),
-)
-
 @Composable
 fun AvatarCircle(
     name: String,
@@ -40,20 +31,14 @@ fun AvatarCircle(
     emoji: String? = null,
     /**
      * Server-driven user choice. `#rrggbb` (palette-validated server-side
-     * via [com.dangerfield.cards.server.domain.AvatarPalette]). Null =
-     * fall back to the legacy name-seeded hue so anonymous / un-customized
-     * avatars still feel distinct. Pass `Color.Unspecified` (via the
-     * String null path) to mean "use default."
+     * via `AvatarPalette`). Every fresh profile now ships with a real
+     * value, so null/unparseable hits the surfaceSecondary fallback rather
+     * than the old name-seeded hue. Single source of truth — every avatar
+     * surface routes through [resolveAvatarBackground].
      */
     backgroundColorHex: String? = null,
 ) {
-    val parsedBg = backgroundColorHex?.let { Catching { parseHexColor(it) }.getOrNull() }
-    val bg = if (parsedBg != null) {
-        parsedBg
-    } else {
-        val seed = name.hashCode()
-        avatarHues[((seed % avatarHues.size) + avatarHues.size) % avatarHues.size]
-    }
+    val bg = resolveAvatarBackground(backgroundColorHex)
     val initial = name.firstOrNull()?.uppercase() ?: "?"
     Box(
         modifier = modifier
@@ -69,6 +54,24 @@ fun AvatarCircle(
             color = AppTheme.colors.text,
         )
     }
+}
+
+/**
+ * Resolve a server-supplied `#rrggbb` hex into the avatar's background
+ * color, or fall back to the DS `surfaceSecondary` token for null /
+ * unparseable values.
+ *
+ * Single source of truth — the welcome dialog's emoji bubble, the
+ * profile screen's avatar, the edit-profile hero, and the picker swatch
+ * preview all route through this so the same input always renders the
+ * same color. The legacy name-seeded hue fallback is gone — every fresh
+ * profile gets a real palette value at create time
+ * ([com.dangerfield.cards.server.data.PostgresProfileRepository]).
+ */
+@Composable
+fun resolveAvatarBackground(hex: String?): Color {
+    val parsed = hex?.let { Catching { parseHexColor(it) }.getOrNull() }
+    return parsed ?: AppTheme.colors.surfaceSecondary.color
 }
 
 /**

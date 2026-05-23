@@ -149,18 +149,22 @@ class PostgresProfileRepository(
         val now = clock.now()
         val nowJava = now.toJavaInstant()
         val emoji = avatarGenerator.random()
+        // Every fresh profile gets a real background color so all client
+        // rendering surfaces have one source of truth — null is no longer
+        // a steady-state. See plan: foamy-tickling-meerkat.md.
+        val backgroundColor = avatarGenerator.randomBackgroundColor()
 
         // The Reddit-style `Adj-Noun-NNN` space is ~450M combos at our
         // word-list size, so collisions are vanishingly rare — but loop
         // anyway as a defense against future shrinkage of either list.
         repeat(MAX_ATTEMPTS) {
             val name = usernameGenerator.random()
-            if (tryInsert(userId, name, emoji, nowJava)) {
+            if (tryInsert(userId, name, emoji, backgroundColor, nowJava)) {
                 return Profile(
                     userId = userId,
                     displayName = name,
                     avatarEmoji = emoji,
-                    avatarBackgroundColor = null,
+                    avatarBackgroundColor = backgroundColor,
                     createdAt = now,
                     updatedAt = now,
                 )
@@ -173,6 +177,7 @@ class PostgresProfileRepository(
         userId: UserId,
         displayName: String,
         avatarEmoji: String,
+        avatarBackgroundColor: String,
         now: java.time.Instant,
     ): Boolean {
         // Wrap the insert in a SAVEPOINT so a unique-constraint violation
@@ -188,6 +193,7 @@ class PostgresProfileRepository(
                 it[ProfilesTable.userId] = userId.value
                 it[ProfilesTable.displayName] = displayName
                 it[ProfilesTable.avatarEmoji] = avatarEmoji
+                it[ProfilesTable.avatarBackgroundColor] = avatarBackgroundColor
                 it[createdAt] = now
                 it[updatedAt] = now
             }

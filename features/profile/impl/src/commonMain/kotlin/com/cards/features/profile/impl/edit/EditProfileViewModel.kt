@@ -197,8 +197,7 @@ sealed interface EditProfileAction {
     data object LoadAvatarPack : EditProfileAction
     data class DisplayNameChanged(val value: String) : EditProfileAction
     data class AvatarSelected(val emoji: String) : EditProfileAction
-    /** Null = pick "default" (clear back to theme color). */
-    data class AvatarBackgroundColorSelected(val color: String?) : EditProfileAction
+    data class AvatarBackgroundColorSelected(val color: String) : EditProfileAction
     data object Submit : EditProfileAction
     data object DismissError : EditProfileAction
 }

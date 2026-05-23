@@ -39,6 +39,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
+import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -200,13 +201,11 @@ fun EditProfileScreen(
 
 @Composable
 private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
-    val parsedColor = backgroundColorHex?.let {
-        Catching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
-    }
-    // Hero uses an explicit neutral fallback (not the name-seeded hue
-    // AvatarCircle defaults to) so the disc doesn't flicker through
-    // random colors while the emoji animates between picks.
-    val bg = parsedColor ?: AppTheme.colors.surfaceSecondary.color
+    // Same resolver every other avatar surface uses — Welcome dialog
+    // bubble, Profile screen AvatarCircle, picker swatch preview. Single
+    // source of truth so the hero color can never drift from what the
+    // user sees elsewhere.
+    val bg = resolveAvatarBackground(backgroundColorHex)
     val previewSize = 112.dp
     Row(
         horizontalArrangement = Arrangement.Center,
@@ -363,23 +362,18 @@ private fun BackgroundColorPicker(
     palette: List<String>,
     selected: String?,
     enabled: Boolean,
-    onSelect: (String?) -> Unit,
+    onSelect: (String) -> Unit,
 ) {
-    // First swatch represents "no override" / theme default — null in
-    // state. Subsequent swatches are server-supplied hex strings. Scrolls
-    // horizontally so a wide palette can't clip the last swatch off-screen.
+    // Server-supplied palette only — every fresh profile lands with a
+    // real color, so a "no color" swatch would surface a state the user
+    // can't reach for new accounts and shouldn't be able to opt back into.
+    // Scrolls horizontally so a wide palette can't clip off-screen.
     Row(
         horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScrollWithBar(rememberScrollState()),
     ) {
-        ColorSwatch(
-            colorHex = null,
-            isSelected = selected == null,
-            enabled = enabled,
-            onClick = { onSelect(null) },
-        )
         palette.forEach { hex ->
             ColorSwatch(
                 colorHex = hex,
@@ -393,36 +387,22 @@ private fun BackgroundColorPicker(
 
 @Composable
 private fun ColorSwatch(
-    colorHex: String?,
+    colorHex: String,
     isSelected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val parsed = colorHex?.let {
-        Catching { com.dangerfield.cards.libraries.ui.components.parseHexColor(it) }.getOrNull()
-    }
-    val swatchColor = parsed ?: AppTheme.colors.surfaceSecondary.color
+    val swatchColor = resolveAvatarBackground(colorHex)
     val borderColor = if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
     val borderWidth = if (isSelected) 3.dp else 1.dp
     Box(
-        contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
             .background(swatchColor)
             .border(borderWidth, borderColor, CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
-    ) {
-        // The "default" swatch shows a subtle dot to signal "no override"
-        // — otherwise it could read as a missing tile against the surface.
-        if (colorHex == null) {
-            Text(
-                text = "—",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
-            )
-        }
-    }
+    )
 }
 
 @org.jetbrains.compose.ui.tooling.preview.Preview

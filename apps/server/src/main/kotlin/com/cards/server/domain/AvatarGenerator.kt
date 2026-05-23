@@ -11,4 +11,16 @@ package com.dangerfield.cards.server.domain
  */
 interface AvatarGenerator {
     fun random(): String
+
+    /**
+     * Picks the random background color used as a fresh identity's avatar
+     * disc fill. Returns a `#rrggbb` hex string drawn from [AvatarPalette].
+     *
+     * The avatar background is part of identity (same role as the display
+     * name and emoji) — every new account gets a real value so all
+     * rendering surfaces have one color to agree on. See
+     * [docs/decisions.md] for the 2026-05-23 design call to make this
+     * non-null at create time.
+     */
+    fun randomBackgroundColor(): String
 }

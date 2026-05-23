@@ -21,7 +21,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -30,7 +29,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
-import com.dangerfield.cards.libraries.ui.components.parseHexColor
+import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
@@ -44,11 +43,12 @@ import com.dangerfield.cards.system.Dimension
  * sets expectations about where those chips can be spent.
  *
  * The emoji bubble carries the user's chosen avatar emoji + background
- * color so the dialog feels personal from the first frame. When
- * [avatarBackgroundColorHex] is null (un-customized profile), the bubble
- * falls back to the DS surface-tertiary token rather than guessing a hue —
- * the avatar-circle's name-seeded fallback is keyed off display name and
- * doesn't translate cleanly to a single ColorResource here.
+ * color so the dialog feels personal from the first frame. Color
+ * resolution routes through `resolveAvatarBackground` so the bubble, the
+ * Profile screen's `AvatarCircle`, and the Edit Profile hero all paint
+ * the same fill for the same `#rrggbb` input. The server seeds a real
+ * palette value at profile create time; null only fires for malformed
+ * input on read, which falls back to the DS `surfaceSecondary`.
  */
 @Composable
 internal fun WelcomeDialog(
@@ -59,12 +59,10 @@ internal fun WelcomeDialog(
     onDismiss: () -> Unit,
     state: DialogState = rememberDialogState(),
 ) {
-    val bubbleSurface: BubbleSurface? = remember(avatarBackgroundColorHex) {
-        val parsed = avatarBackgroundColorHex
-            ?.let { Catching { parseHexColor(it) }.getOrNull() }
-            ?: return@remember null
+    val resolvedAvatarBg = resolveAvatarBackground(avatarBackgroundColorHex)
+    val bubbleSurface: BubbleSurface = remember(resolvedAvatarBg) {
         BubbleSurface.Solid(
-            color = ColorResource.FromColor(parsed, "user-avatar-bg"),
+            color = ColorResource.FromColor(resolvedAvatarBg, "user-avatar-bg"),
         )
     }
     val chipGold = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }

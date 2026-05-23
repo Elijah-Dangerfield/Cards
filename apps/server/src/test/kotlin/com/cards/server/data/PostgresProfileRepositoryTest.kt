@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.data
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.ProfilesTable
 import com.dangerfield.cards.server.domain.AvatarGenerator
+import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UsernameGenerator
 import kotlinx.coroutines.test.runTest
@@ -38,6 +39,19 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         assertTrue(profile.displayName.isNotBlank())
         assertTrue(profile.avatarEmoji.isNotBlank())
         assertEquals(profile.createdAt, profile.updatedAt)
+    }
+
+    @Test
+    fun findOrCreate_seedsRandomBackgroundColorFromPalette() = runTest {
+        val repo = newRepository()
+        val profile = repo.findOrCreate(seedAuthUser())
+
+        val color = profile.avatarBackgroundColor
+        assertNotNull(color, "Fresh profile must have a background color")
+        assertTrue(
+            AvatarPalette.isValid(color),
+            "Expected color from AvatarPalette, got: $color",
+        )
     }
 
     @Test

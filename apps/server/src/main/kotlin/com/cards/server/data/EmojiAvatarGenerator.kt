@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.AvatarGenerator
+import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.AvatarStarterPack
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -25,4 +26,6 @@ class EmojiAvatarGenerator(
 ) : AvatarGenerator {
 
     override fun random(): String = AvatarStarterPack.values.random(random)
+
+    override fun randomBackgroundColor(): String = AvatarPalette.values.random(random)
 }
