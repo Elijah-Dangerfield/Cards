@@ -217,6 +217,21 @@ class SupabaseIdentityRepository(
             return@withLock UpdateProfileOutcome.NotSignedIn
         }
 
+        val priorIdentity = (_state.value as? IdentityState.SignedIn)?.identity
+        if (priorIdentity != null) {
+            val optimistic = priorIdentity.copy(
+                displayName = displayName?.trim()?.takeIf { it.isNotEmpty() } ?: priorIdentity.displayName,
+                avatarEmoji = avatarEmoji ?: priorIdentity.avatarEmoji,
+                avatarBackgroundColor = when {
+                    clearAvatarBackgroundColor -> null
+                    avatarBackgroundColor != null -> avatarBackgroundColor
+                    else -> priorIdentity.avatarBackgroundColor
+                },
+            )
+            identityCache.write(optimistic)
+            _state.value = IdentityState.SignedIn(optimistic)
+        }
+
         Catching {
             profileApi.patchMe(
                 PatchMeRequest(
@@ -241,14 +256,15 @@ class SupabaseIdentityRepository(
                 UpdateProfileOutcome.Success(identity)
             },
             onFailure = { e ->
+                if (priorIdentity != null) {
+                    identityCache.write(priorIdentity)
+                    _state.value = IdentityState.SignedIn(priorIdentity)
+                }
                 when (e) {
                     is ClientRequestException -> when (e.response.status.value) {
                         409 -> UpdateProfileOutcome.DisplayNameTaken
                         401 -> UpdateProfileOutcome.NotSignedIn
                         400 -> when {
-                            // Server returns 400 for invalid_display_name,
-                            // invalid_avatar_emoji, or invalid_avatar_background_color.
-                            // Infer which based on what the caller submitted.
                             displayName != null -> UpdateProfileOutcome.InvalidDisplayName
                             avatarEmoji != null -> UpdateProfileOutcome.InvalidAvatarEmoji
                             else -> UpdateProfileOutcome.InvalidAvatarBackgroundColor

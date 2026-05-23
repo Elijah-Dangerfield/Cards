@@ -8,8 +8,8 @@ import com.dangerfield.cards.libraries.identity.Identity
 import com.dangerfield.cards.libraries.identity.IdentityRepository
 import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.identity.awaitIdentity
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 
@@ -105,46 +105,43 @@ class EditProfileViewModel(
                 updateState { it.copy(isSubmitting = true, error = null) }
 
                 val colorChanged = current.selectedAvatarBackgroundColor != current.initialAvatarBackgroundColor
-                val outcome = appScope.async {
-                    identityRepository.updateProfile(
-                        displayName = current.displayName
-                            .takeIf { it.trim() != current.initialDisplayName?.trim() }
-                            ?.trim(),
-                        avatarEmoji = current.selectedAvatarEmoji
-                            .takeIf { it != current.initialAvatarEmoji },
-                        avatarBackgroundColor = current.selectedAvatarBackgroundColor
-                            ?.takeIf { colorChanged },
-                        clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null,
-                    )
-                }.await()
+                val displayName = current.displayName
+                    .takeIf { it.trim() != current.initialDisplayName?.trim() }
+                    ?.trim()
+                val avatarEmoji = current.selectedAvatarEmoji
+                    .takeIf { it != current.initialAvatarEmoji }
+                val avatarBackgroundColor = current.selectedAvatarBackgroundColor
+                    ?.takeIf { colorChanged }
+                val clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null
 
-                when (outcome) {
-                    is UpdateProfileOutcome.Success -> {
-                        updateState { it.copy(isSubmitting = false) }
-                        sendEvent(EditProfileEvent.Saved)
+                appScope.launch {
+                    val outcome = identityRepository.updateProfile(
+                        displayName = displayName,
+                        avatarEmoji = avatarEmoji,
+                        avatarBackgroundColor = avatarBackgroundColor,
+                        clearAvatarBackgroundColor = clearAvatarBackgroundColor,
+                    )
+                    val errorMessage = when (outcome) {
+                        is UpdateProfileOutcome.Success -> null
+                        is UpdateProfileOutcome.DisplayNameTaken ->
+                            "Couldn't save — that name is already taken."
+                        is UpdateProfileOutcome.InvalidDisplayName ->
+                            "Couldn't save — that name isn't allowed."
+                        is UpdateProfileOutcome.InvalidAvatarEmoji ->
+                            "Couldn't save — that avatar isn't available."
+                        is UpdateProfileOutcome.InvalidAvatarBackgroundColor ->
+                            "Couldn't save — that color isn't available."
+                        is UpdateProfileOutcome.NotSignedIn ->
+                            "Couldn't save — sign in first."
+                        is UpdateProfileOutcome.NetworkError ->
+                            "Couldn't save changes — check your connection."
+                        is UpdateProfileOutcome.Unknown ->
+                            "Couldn't save changes. Try again."
                     }
-                    is UpdateProfileOutcome.DisplayNameTaken -> updateState {
-                        it.copy(isSubmitting = false, error = "That name is already taken. Try another.")
-                    }
-                    is UpdateProfileOutcome.InvalidDisplayName -> updateState {
-                        it.copy(isSubmitting = false, error = "That name isn't allowed. Pick something 1-32 characters.")
-                    }
-                    is UpdateProfileOutcome.InvalidAvatarEmoji -> updateState {
-                        it.copy(isSubmitting = false, error = "That avatar isn't in the starter pack. Pick another.")
-                    }
-                    is UpdateProfileOutcome.InvalidAvatarBackgroundColor -> updateState {
-                        it.copy(isSubmitting = false, error = "That color isn't available. Pick another.")
-                    }
-                    is UpdateProfileOutcome.NotSignedIn -> updateState {
-                        it.copy(isSubmitting = false, error = "Sign in first to edit your profile.")
-                    }
-                    is UpdateProfileOutcome.NetworkError -> updateState {
-                        it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
-                    }
-                    is UpdateProfileOutcome.Unknown -> updateState {
-                        it.copy(isSubmitting = false, error = "Couldn't save changes. Try again.")
-                    }
+                    if (errorMessage != null) showSnackBar(message = errorMessage)
                 }
+
+                sendEvent(EditProfileEvent.Saved)
             }
         }
     }
@@ -185,7 +182,12 @@ data class EditProfileState(
 }
 
 sealed interface EditProfileEvent {
-    /** Save succeeded — caller can navigate back. */
+    /**
+     * Save was dispatched. Caller navigates back immediately — the network
+     * call is optimistic-with-rollback inside [IdentityRepository.updateProfile],
+     * so the user sees the change before the server confirms. Any failure
+     * rolls the local Identity back and surfaces a global snackbar.
+     */
     data object Saved : EditProfileEvent
 }
 

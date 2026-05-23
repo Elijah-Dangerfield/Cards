@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
+import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.AvatarPack
@@ -53,6 +54,36 @@ class EditProfileViewModelTest : CoroutineTest() {
             1, identity.updateFinished,
             "updateProfile must complete despite VM teardown",
         )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_emitsSavedImmediately_withoutWaitingOnNetwork() = runUnitTest {
+        val gate = CompletableDeferred<UpdateProfileOutcome>()
+        val identity = GatedUpdateProfileIdentity(gate)
+        val vm = EditProfileViewModel(
+            identityRepository = identity,
+            appScope = AppCoroutineScope(dispatchers),
+        )
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(EditProfileAction.DisplayNameChanged("NewName"))
+            vm.takeAction(EditProfileAction.AvatarSelected("🦊"))
+            vm.takeAction(EditProfileAction.Submit)
+
+            assertEquals(EditProfileEvent.Saved, awaitItem())
+            assertEquals(
+                1, identity.updateStarted,
+                "updateProfile should be in-flight while Saved already emitted",
+            )
+            assertEquals(
+                0, identity.updateFinished,
+                "Saved must not block on the network roundtrip",
+            )
+
+            gate.complete(UpdateProfileOutcome.Success(sampleIdentity))
+        }
     }
 }
 
