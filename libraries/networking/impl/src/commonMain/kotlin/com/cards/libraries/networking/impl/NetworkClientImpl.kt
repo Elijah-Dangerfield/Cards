@@ -112,22 +112,113 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         h.countryCode?.let { headers.append(ClientHeaders.HEADER_COUNTRY_CODE, it) }
     }
     if (BuildInfo.isDebug) {
-        // Debug-only by design: BODY-level logging dumps full request +
-        // response payloads which we don't want in release builds
-        // (privacy + log volume). KLog tag "Network" lets you filter
-        // the device log for just HTTP traffic. Bumped to ALL so
-        // headers + bodies are both visible; raised to INFO severity
-        // so it stays in logcat at default filter levels rather than
-        // hiding under DEBUG.
+        // Debug-only by design: bodies are valuable for debugging but
+        // dumping them in release would blow up log volume and risk
+        // leaking PII. Bodies stay LogLevel.BODY (covers headers + the
+        // payload). We post-process Ktor's multi-line emit into a
+        // single line per call via [CompactNetworkLogger] — filter the
+        // device log for tag "Network" to scan API traffic at a glance.
         install(Logging) {
-            level = LogLevel.ALL
-            logger = object : Logger {
-                private val log = KLog.withTag("Network")
-                override fun log(message: String) {
-                    log.i { message }
-                }
-            }
+            level = LogLevel.BODY
+            logger = CompactNetworkLogger
+            // Belt-and-suspenders if we ever turn header logging back
+            // on: bearer tokens never get echoed verbatim.
+            sanitizeHeader { it.equals(HttpHeaders.Authorization, ignoreCase = true) }
         }
     }
     expectSuccess = true
+}
+
+/**
+ * One-line-per-call network log. Ktor's default `Logging` plugin emits
+ * ~20 lines per request (headers, body markers, etc.); this collapses
+ * each emit into:
+ *
+ *  - `→ POST /v1/inventory/sync  ⇢ {"purchases":[]}`
+ *  - `← 200 OK POST /v1/inventory/sync (412ms)  ⇠ {"schemaVersion":...}`
+ *  - `✗ GET /v1/app-config — Timed out waiting for 5000 ms`
+ *
+ * The plugin emits one log() call per multi-line block, so parsing
+ * happens here rather than via a custom Ktor interceptor. Unknown
+ * formats fall through verbatim so future Ktor changes don't silently
+ * eat output.
+ */
+private object CompactNetworkLogger : Logger {
+    private val log = KLog.withTag("Network")
+    private const val BODY_PREVIEW_MAX = 500
+
+    override fun log(message: String) {
+        log.i { formatCompact(message) }
+    }
+
+    private fun formatCompact(raw: String): String {
+        val trimmed = raw.trimEnd()
+        if (trimmed.isEmpty()) return trimmed
+        val lines = trimmed.lines()
+        val first = lines.first()
+        return when {
+            first.startsWith("REQUEST:") -> formatRequest(lines)
+            first.startsWith("REQUEST ") && first.contains(" failed ") -> formatFailure(first)
+            first.startsWith("RESPONSE:") -> formatResponse(lines)
+            else -> trimmed
+        }
+    }
+
+    private fun formatRequest(lines: List<String>): String {
+        val url = lines.first().substringAfter("REQUEST:").trim()
+        val method = lines.lookupOneLine("METHOD:") ?: "?"
+        val body = extractBody(lines)
+        return buildString {
+            append("→ $method ${extractPath(url)}")
+            if (body.isNotBlank()) append("  ⇢ $body")
+        }
+    }
+
+    private fun formatResponse(lines: List<String>): String {
+        val status = lines.first().substringAfter("RESPONSE:").trim()
+        val method = lines.lookupOneLine("METHOD:") ?: "?"
+        val url = lines.lookupOneLine("FROM:") ?: ""
+        val body = extractBody(lines)
+        return buildString {
+            append("← $status $method ${extractPath(url)}")
+            if (body.isNotBlank()) append("  ⇠ $body")
+        }
+    }
+
+    private fun formatFailure(line: String): String {
+        // Shape: "REQUEST <url> failed with exception: <message...>"
+        val afterRequest = line.substringAfter("REQUEST").trim()
+        val url = afterRequest.substringBefore(" failed").trim()
+        val reason = afterRequest.substringAfter("failed with exception:", missingDelimiterValue = afterRequest).trim()
+        return "✗ ${extractPath(url)} — $reason"
+    }
+
+    private fun List<String>.lookupOneLine(prefix: String): String? =
+        firstOrNull { it.startsWith(prefix) }?.substringAfter(prefix)?.trim()
+
+    /**
+     * Pull the lines between `BODY START` and `BODY END`. Joins multi-
+     * line bodies with a space (JSON serializes on one line for the
+     * routes we care about, so this is mostly cosmetic for stray
+     * pretty-printed responses) and caps the preview length.
+     */
+    private fun extractBody(lines: List<String>): String {
+        val start = lines.indexOfFirst { it == "BODY START" }
+        val end = lines.indexOfFirst { it == "BODY END" }
+        if (start < 0 || end < 0 || end <= start + 1) return ""
+        val body = lines.subList(start + 1, end).joinToString(" ").trim()
+        if (body.isEmpty()) return ""
+        return if (body.length > BODY_PREVIEW_MAX) {
+            body.substring(0, BODY_PREVIEW_MAX) + "… (${body.length} chars)"
+        } else {
+            body
+        }
+    }
+
+    private fun extractPath(url: String): String {
+        if (url.isBlank()) return ""
+        val withoutScheme = url.substringAfter("://", url)
+        val firstSlash = withoutScheme.indexOf('/')
+        return if (firstSlash >= 0) withoutScheme.substring(firstSlash) else withoutScheme
+    }
 }
