@@ -20,8 +20,9 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * interface so impl-module tests can fake it trivially.
  *
  * Uses [NetworkClient.authenticatedClient] — the Bearer token is the
- * Supabase JWT held by [SupabaseAuthTokenProvider]. The server validates
- * that JWT and treats us as the user whose `sub` claim it carries.
+ * Supabase JWT produced by `AuthRepository.accessToken()`. The server
+ * validates that JWT and treats us as the user whose `sub` claim it
+ * carries.
  */
 interface ProfileApi {
     /** `GET /v1/me` — server is get-or-create. */

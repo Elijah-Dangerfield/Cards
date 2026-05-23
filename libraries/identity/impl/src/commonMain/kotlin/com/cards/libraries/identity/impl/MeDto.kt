@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 /**
  * Wire type mirroring the server's `GET /v1/me` response. Internal to
  * `:libraries:identity:impl` — feature code consumes the domain
- * [com.dangerfield.cards.libraries.identity.Identity] type instead.
+ * [com.dangerfield.cards.libraries.identity.profile.Profile.Authenticated]
+ * type instead.
  */
 @Serializable
 data class MeDto(

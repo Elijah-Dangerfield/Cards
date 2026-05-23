@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.Flow
  *
  * **Source of truth for the access token.** [accessToken] is what the
  * networking layer calls before attaching the bearer header. No separate
- * `AuthTokenProvider` — auth owns its token end-to-end.
+ * separate token provider — auth owns its token end-to-end.
  *
  * Errors from auth operations are returned as sealed outcome types
  * rather than thrown, because the UI wants to render specific messages

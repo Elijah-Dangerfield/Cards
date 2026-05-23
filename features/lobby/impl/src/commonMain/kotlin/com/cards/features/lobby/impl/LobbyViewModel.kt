@@ -261,7 +261,7 @@ data class LobbyState(
     val room: Room? = null,
     val connectionStatus: ConnectionStatus = ConnectionStatus.Disconnected,
     val error: String? = null,
-    /** Filled at init from IdentityRepository so the UI can tell who's host. */
+    /** Filled at init from AuthRepository so the UI can tell who's host. */
     val currentUserId: String? = null,
 ) {
     val isBusy: Boolean get() = creating || joining || leaving

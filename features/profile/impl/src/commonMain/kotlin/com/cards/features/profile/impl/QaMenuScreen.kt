@@ -205,7 +205,7 @@ private fun UserIdBlock(userId: String?) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = when {
-                userId == null -> "Identity not resolved yet — check IdentityRepository."
+                userId == null -> "Profile not resolved yet — check ProfileRepository."
                 copied -> "Copied"
                 else -> "Long-press to copy"
             },

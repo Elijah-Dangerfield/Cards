@@ -23,7 +23,7 @@ interface NetworkClient {
 
     /**
      * Use for authenticated requests. Adds the bearer token from
-     * [AuthTokenProvider] on every call and refreshes on 401.
+     * `AuthRepository.accessToken()` on every call and refreshes on 401.
      */
     val authenticatedClient: HttpClient
 }

@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
  * directly — it goes through this interface so screen code is provider-
  * agnostic and previewable.
  *
- * Conceptually mirrors how [com.dangerfield.cards.libraries.identity.IdentityRepository]
+ * Conceptually mirrors how [com.dangerfield.cards.libraries.identity.auth.AuthRepository]
  * hides Supabase from feature code: the interface lives in the api
  * module; the [SingleIn] platform implementation lives in `impl` and is
  * provided per-platform via build flavors.

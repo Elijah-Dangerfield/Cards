@@ -19,8 +19,8 @@ import me.tatarka.inject.annotations.Inject
  * directly pattern or duplicate it. Cleaner to keep this small.
  *
  * The actual navigation back to onboarding lives in the entry point —
- * the VM emits an event when sign-out completes, the entry point watches
- * `IdentityRepository.state` for `Unknown` and routes accordingly.
+ * the VM emits an event when sign-out completes, the entry point routes
+ * to the onboarding root on receipt.
  */
 @Inject
 class AccountActionsViewModel(

@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
 
 /**
  * Pins [SignInViewModel]'s outcome → state mapping. The VM is a thin
- * orchestrator over [com.dangerfield.cards.libraries.identity.IdentityRepository],
+ * orchestrator over [com.dangerfield.cards.libraries.identity.auth.AuthRepository],
  * so the assertions stay on the branching: which error message renders,
  * when `isSubmitting` clears, when `hasUserOnboarded` flips, when an
  * event fires.
