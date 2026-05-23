@@ -452,6 +452,7 @@ class SupabaseProfileRepositoryImplTest : CoroutineTest() {
             avatarBackgroundColor = "#abc",
             email = "old@b.com",
             isAnonymous = false,
+            createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
         )
     }
 }

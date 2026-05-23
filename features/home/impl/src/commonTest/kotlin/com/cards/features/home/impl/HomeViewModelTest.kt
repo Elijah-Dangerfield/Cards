@@ -321,6 +321,7 @@ class HomeViewModelTest : CoroutineTest() {
         avatarBackgroundColor = avatarBackgroundColor,
         email = if (isAnonymous) null else "$displayName@example.com",
         isAnonymous = isAnonymous,
+        createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
     )
 
     private class FakeChipsRepository(

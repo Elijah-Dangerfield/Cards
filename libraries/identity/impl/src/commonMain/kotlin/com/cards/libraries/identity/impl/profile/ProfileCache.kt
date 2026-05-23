@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.storage.Cache
 import com.dangerfield.cards.libraries.storage.CacheFactory
 import com.dangerfield.cards.libraries.storage.versionedJsonSerializer
+import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -52,6 +53,11 @@ class ProfileCache(
             avatarBackgroundColor = record.avatarBackgroundColor,
             email = record.email,
             isAnonymous = record.isAnonymous,
+            // JSON-on-disk is Long epoch ms; domain type is Instant.
+            // The serialized format stays Long for compactness +
+            // forward-compat with cache records written by earlier
+            // versions; conversion happens here at the boundary.
+            createdAt = Instant.fromEpochMilliseconds(record.createdAtEpochMs),
         )
     }
 
@@ -65,6 +71,7 @@ class ProfileCache(
                 avatarBackgroundColor = profile.avatarBackgroundColor,
                 isAnonymous = profile.isAnonymous,
                 email = profile.email,
+                createdAtEpochMs = profile.createdAt.toEpochMilliseconds(),
             ),
         )
     }
@@ -95,6 +102,11 @@ class ProfileCache(
         val isAnonymous: Boolean,
         val email: String? = null,
         val localId: String? = null,
+        // Defaulted so an existing on-disk cache from before this field
+        // was added still deserializes — old records just lose precise
+        // "member since" info until the next /v1/me sync rewrites the
+        // record with the server-issued value.
+        val createdAtEpochMs: Long = 0L,
     ) {
         companion object {
             fun empty() = ProfileRecord(
@@ -105,6 +117,7 @@ class ProfileCache(
                 isAnonymous = true,
                 email = null,
                 localId = null,
+                createdAtEpochMs = 0L,
             )
         }
     }

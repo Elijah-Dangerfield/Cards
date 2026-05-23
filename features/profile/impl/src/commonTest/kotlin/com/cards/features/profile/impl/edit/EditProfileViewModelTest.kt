@@ -86,6 +86,7 @@ private val sampleProfile = Profile.Authenticated(
     avatarBackgroundColor = null,
     email = null,
     isAnonymous = false,
+    createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
 )
 
 private class GatedUpdateProfile(

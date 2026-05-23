@@ -95,6 +95,7 @@ internal fun authenticatedWith(email: String?): Profile.Authenticated = Profile.
     avatarBackgroundColor = null,
     isAnonymous = email == null,
     email = email,
+    createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
 )
 
 /**

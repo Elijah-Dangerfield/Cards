@@ -170,6 +170,7 @@ class TelemetryUserBinderTest : CoroutineTest() {
         avatarBackgroundColor = null,
         isAnonymous = true,
         email = email,
+        createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
     )
 
     private class RecordingTelemetry : Telemetry {

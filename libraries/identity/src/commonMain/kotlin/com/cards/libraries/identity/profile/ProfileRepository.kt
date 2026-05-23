@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.identity.profile
 
+import kotlin.time.Instant
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -75,6 +76,15 @@ sealed interface Profile {
         val avatarBackgroundColor: String?,
         val email: String?,
         val isAnonymous: Boolean,
+        /**
+         * Server-issued wall-clock when the profile row was first
+         * created. Stable across reloads + survives device-switch via
+         * a claimed account. Useful for "member since" / "you've been
+         * playing for N days" rendering — UI does
+         * `Clock.System.now() - profile.createdAt` and gets a
+         * [kotlin.time.Duration] back directly.
+         */
+        val createdAt: Instant,
     ) : Profile
 
     /**

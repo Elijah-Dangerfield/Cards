@@ -242,6 +242,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
             avatarBackgroundColor = "#58E47C",
             email = null,
             isAnonymous = true,
+            createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
         )
         val profileRepo = FakeProfileRepository().apply { emit(profile) }
         val session = FakePokerSession()

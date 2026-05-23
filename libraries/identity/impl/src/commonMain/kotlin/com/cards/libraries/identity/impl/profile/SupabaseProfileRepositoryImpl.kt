@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -117,6 +118,7 @@ class SupabaseProfileRepositoryImpl(
                 avatarBackgroundColor = me.avatarBackgroundColor,
                 email = auth.email,
                 isAnonymous = me.isAnonymous,
+                createdAt = Instant.fromEpochMilliseconds(me.createdAtEpochMs),
             )
             profileCache.writeAuthenticated(profile)
             // Real session resolved — local fallback no longer relevant.
@@ -234,6 +236,7 @@ class SupabaseProfileRepositoryImpl(
                     avatarBackgroundColor = updated.avatarBackgroundColor,
                     isAnonymous = updated.isAnonymous,
                     email = auth.email,
+                    createdAt = Instant.fromEpochMilliseconds(updated.createdAtEpochMs),
                 )
                 profileCache.writeAuthenticated(profile)
                 _state.emit(profile)
