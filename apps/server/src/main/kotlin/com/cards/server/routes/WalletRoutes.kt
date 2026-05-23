@@ -75,6 +75,7 @@ fun Route.walletRoutes(
                 walletCreatedAt = initial.createdAt,
                 currentBalance = initial.balance,
                 wallets = repository,
+                messages = messages,
                 clock = clock,
             )
             val balance = maybeApplyBustProtection(
@@ -97,6 +98,7 @@ fun Route.walletRoutes(
                     walletCreatedAt = initial.createdAt,
                     currentBalance = initial.balance,
                     wallets = repository,
+                    messages = messages,
                     clock = clock,
                 )
                 val results = body.events.map { event ->
@@ -144,29 +146,32 @@ fun Route.walletRoutes(
 }
 
 /**
- * Apply the welcome-week daily grant for every elapsed day in
- * `[WELCOME_WEEK_FIRST_DAY, min(daysSinceCreatedAt, WELCOME_WEEK_LAST_DAY)]`
- * that hasn't been granted yet. Signup day (elapsed day 0) is
- * intentionally skipped — the user already gets the [Wallet.STARTER_GRANT]
- * on first contact, so layering a daily bonus on top of that on
- * the same day muddies the "here's your starter chips" moment.
- * The daily +500 kicks in the day after signup and runs for
- * [Wallet.WELCOME_WEEK_DAYS] consecutive days.
+ * Try to apply the welcome-week daily grant for *today's* elapsed
+ * day. The grant is a reward for opening the app on that specific
+ * day, not a catch-up: missed days stay forfeit. The schedule runs
+ * `[WELCOME_WEEK_FIRST_DAY..WELCOME_WEEK_LAST_DAY]` (= days 1..7
+ * post-signup). Signup day (elapsed 0) is skipped — that's the
+ * starter-grant moment.
  *
- * Each day uses a stable per-(user, day) idempotency key so re-
- * applying already-granted days is a no-op via
- * [WalletRepository.apply]'s replay detection.
+ * Idempotency: the per-day key
+ * `${WELCOME_WEEK_KEY_PREFIX}${day}_v1` makes multiple wallet
+ * contacts on the same day collapse to one grant.
+ * [WalletRepository.apply]'s replay detection means it's safe to
+ * call this on every wallet contact.
  *
- * Why iterate every day rather than just "today's" day: the spec
- * says no expiry and no "you missed yesterday" copy. A user who
- * skips a day still gets that day's chips on their next open. The
- * apply path short-circuits on the existing idempotency key, so the
- * additional cost is at most [Wallet.WELCOME_WEEK_DAYS] reads —
- * cheap enough to do unconditionally on every wallet contact.
+ * Forfeiture: a missed day's key is never written. A user who
+ * opens the app on day 1, skips day 2, opens day 3 → gets days
+ * 1 and 3 only. Day 2 is gone, no copy or backfill (spec calls
+ * this out — the daily bonus is a reward for being there).
  *
- * Returns the post-grant balance. Equal to [currentBalance] when
- * the user is on signup day, past their welcome week, or every
- * eligible day has already been applied.
+ * Dialog: when the grant actually moves chips (not on replay),
+ * enqueue a Dialog [UserMessage] so the user sees a friendly
+ * "here's another 500 chips" pop. Day 7 gets distinct copy
+ * marking it as the last bonus.
+ *
+ * Returns the post-grant balance, equal to [currentBalance] when
+ * either the user is on signup day, past day 7, or has already
+ * claimed today's grant on an earlier contact.
  */
 @OptIn(ExperimentalTime::class)
 private suspend fun maybeApplyWelcomeWeek(
@@ -174,24 +179,60 @@ private suspend fun maybeApplyWelcomeWeek(
     walletCreatedAt: Instant,
     currentBalance: Long,
     wallets: WalletRepository,
+    messages: UserMessageRepository,
     clock: Clock,
 ): Long {
     val elapsedDays = (clock.now() - walletCreatedAt).inWholeDays
         .coerceAtLeast(0L)
         .toInt()
-    val lastEligibleDay = elapsedDays.coerceAtMost(Wallet.WELCOME_WEEK_LAST_DAY)
-    if (lastEligibleDay < Wallet.WELCOME_WEEK_FIRST_DAY) return currentBalance
-    var balance = currentBalance
-    for (day in Wallet.WELCOME_WEEK_FIRST_DAY..lastEligibleDay) {
-        val outcome = wallets.apply(
-            userId = userId,
-            idempotencyKey = "${Wallet.WELCOME_WEEK_KEY_PREFIX}${day}_v1",
-            delta = Wallet.WELCOME_WEEK_DAILY_GRANT,
-            reason = Wallet.WELCOME_WEEK_REASON,
-        )
-        balance = outcome.balance
+    if (elapsedDays !in Wallet.WELCOME_WEEK_FIRST_DAY..Wallet.WELCOME_WEEK_LAST_DAY) {
+        return currentBalance
     }
-    return balance
+    val outcome = wallets.apply(
+        userId = userId,
+        idempotencyKey = "${Wallet.WELCOME_WEEK_KEY_PREFIX}${elapsedDays}_v1",
+        delta = Wallet.WELCOME_WEEK_DAILY_GRANT,
+        reason = Wallet.WELCOME_WEEK_REASON,
+    )
+    if (outcome is ApplyOutcome.Applied && !outcome.wasAlreadyApplied) {
+        val (title, body) = welcomeWeekCopy(elapsedDays)
+        messages.create(
+            id = UUID.randomUUID(),
+            userId = userId,
+            idempotencyKey = "${Wallet.WELCOME_WEEK_KEY_PREFIX}${elapsedDays}_msg_v1",
+            kind = UserMessageKind.Dialog,
+            // Coin emoji renders as the "chips" bubble — distinct from
+            // bust protection's 💰 so the user can tell the two
+            // celebratory-grant moments apart.
+            emoji = "🪙",
+            title = title,
+            body = body,
+            deepLink = null,
+            expiresAt = null,
+        )
+    }
+    return outcome.balance
+}
+
+/**
+ * Title + body copy for the welcome-week dialog, branched on the
+ * elapsed day so day 7 reads as a finale and earlier days set the
+ * "come back tomorrow" expectation.
+ */
+private fun welcomeWeekCopy(day: Int): Pair<String, String> {
+    val amount = Wallet.WELCOME_WEEK_DAILY_GRANT
+    val total = Wallet.WELCOME_WEEK_DAYS
+    return when (day) {
+        Wallet.WELCOME_WEEK_LAST_DAY -> Pair(
+            "Day $day of $total — last one",
+            "Another $amount chips on us. That's the end of your welcome-week bonus — " +
+                "hope you stick around.",
+        )
+        else -> Pair(
+            "Day $day of $total — welcome bonus",
+            "Another $amount chips on us. Open the app tomorrow to grab the next one.",
+        )
+    }
 }
 
 /**
