@@ -208,10 +208,16 @@ class SupabaseAuthRepositoryImpl(
             ?: error("emitAuthenticatedFromSupabaseLocked called without a session")
         val user = session.user
             ?: error("Supabase session has no user — should be impossible for an Authenticated status")
+        val isAnon = isAnonymousFromSession()
         val state = AuthState.Authenticated(
             userId = user.id,
-            isAnonymous = isAnonymousFromSession(),
-            email = user.email,
+            isAnonymous = isAnon,
+            // Supabase auto-generates a placeholder email for anonymous
+            // users that we'd otherwise pass through to the UI (the
+            // feedback / bug-report screens pre-fill from profile.email).
+            // Null it out — anonymous users don't have a real email for
+            // our purposes.
+            email = if (isAnon) null else user.email,
         )
         _state.emit(state)
         // Info-level so this lands in production diagnostic dumps — auth
