@@ -206,13 +206,19 @@ data class EditProfileState(
     val error: String? = null,
 ) {
     /**
-     * Packs the user can actually pick from. Starter (no
-     * [AvatarPack.unlockProductId]) is always included; premium packs
-     * appear once their unlock product is in [ownedProductIds].
+     * Display projection: every server pack, paired with whether the
+     * user owns it. Locked packs render dimmed with a 🔒 overlay and
+     * a "Get in shop" CTA so the user sees the breadth of what's
+     * available (incentive to buy) instead of an artificially short
+     * grid. The picker disables tap on locked tiles — the CTA is the
+     * only path forward.
      */
-    val avatarPacks: List<AvatarPack>
-        get() = allAvatarPacks.filter { pack ->
-            pack.unlockProductId == null || pack.unlockProductId in ownedProductIds
+    val avatarPacks: List<AvatarPackDisplay>
+        get() = allAvatarPacks.map { pack ->
+            AvatarPackDisplay(
+                pack = pack,
+                isLocked = pack.unlockProductId != null && pack.unlockProductId !in ownedProductIds,
+            )
         }
 
     val isNameValid: Boolean
@@ -234,6 +240,16 @@ data class EditProfileState(
         const val MAX_NAME_LENGTH = 32
     }
 }
+
+/**
+ * One row in the avatar picker. Wraps the server [AvatarPack] with the
+ * locally-derived ownership state so the screen layer doesn't have to
+ * cross-reference inventory itself.
+ */
+data class AvatarPackDisplay(
+    val pack: AvatarPack,
+    val isLocked: Boolean,
+)
 
 sealed interface EditProfileEvent {
     data object Saved : EditProfileEvent

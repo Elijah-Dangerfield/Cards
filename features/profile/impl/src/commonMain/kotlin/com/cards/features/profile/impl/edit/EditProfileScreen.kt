@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
 import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.button.Button
@@ -66,6 +68,10 @@ fun EditProfileScreen(
     state: EditProfileState,
     onAction: (EditProfileAction) -> Unit,
     onBack: () -> Unit,
+    // Tapping "Get in shop" on a locked pack routes here with the
+    // unlock product id, so the shop can open the purchase sheet for
+    // it directly. Null = navigate to the shop tab with no deep-link.
+    onNavigateToShop: (productId: String?) -> Unit = {},
 ) {
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
@@ -156,6 +162,7 @@ fun EditProfileScreen(
                     loadError = state.avatarLoadError,
                     enabled = !state.isSubmitting,
                     onSelect = { onAction(EditProfileAction.AvatarSelected(it)) },
+                    onUnlockPack = { productId -> onNavigateToShop(productId) },
                 )
 
                 if (state.backgroundPalette.isNotEmpty()) {
@@ -236,12 +243,13 @@ private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
 
 @Composable
 private fun AvatarPicker(
-    packs: List<AvatarPack>,
+    packs: List<AvatarPackDisplay>,
     selected: String?,
     isLoading: Boolean,
     loadError: Boolean,
     enabled: Boolean,
     onSelect: (String) -> Unit,
+    onUnlockPack: (productId: String) -> Unit,
 ) {
     if (isLoading && packs.isEmpty()) {
         Text(
@@ -263,25 +271,57 @@ private fun AvatarPicker(
         )
     }
 
-    packs.forEachIndexed { index, pack ->
+    packs.forEachIndexed { index, display ->
         if (index > 0) Spacer(modifier = Modifier.height(Dimension.D700))
-        // Only show the pack name when there's more than one — a single
-        // "Starter pack" header would be visual noise for the common case
-        // (no premium packs owned yet).
-        if (packs.size > 1) {
-            Text(
-                text = pack.name,
-                typography = AppTheme.typography.Label.L500,
-                color = AppTheme.colors.onSurfaceSecondary,
+        val pack = display.pack
+        // Show the pack name whenever there are multiple packs OR any
+        // pack is locked — locked rows need a header so the "Get in
+        // shop" CTA has somewhere to live, and so the user can read
+        // the pack's name before deciding to buy.
+        val showHeader = packs.size > 1 || display.isLocked
+        if (showHeader) {
+            PackHeader(
+                name = pack.name,
+                isLocked = display.isLocked,
+                onUnlock = pack.unlockProductId?.let { id -> { onUnlockPack(id) } },
             )
             Spacer(modifier = Modifier.height(Dimension.D300))
         }
         AvatarGrid(
             emojis = pack.emojis,
             selected = selected,
-            enabled = enabled,
+            enabled = enabled && !display.isLocked,
+            isLocked = display.isLocked,
             onSelect = onSelect,
         )
+    }
+}
+
+@Composable
+private fun PackHeader(
+    name: String,
+    isLocked: Boolean,
+    onUnlock: (() -> Unit)?,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = if (isLocked) "🔒  $name" else name,
+            typography = AppTheme.typography.Label.L500,
+            color = if (isLocked) AppTheme.colors.onSurfaceSecondary else AppTheme.colors.onSurfaceSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        if (isLocked && onUnlock != null) {
+            Button(
+                onClick = onUnlock,
+                style = ButtonStyle.Outlined,
+                size = ButtonSize.Small,
+            ) {
+                Text("Get in shop")
+            }
+        }
     }
 }
 
@@ -290,6 +330,7 @@ private fun AvatarGrid(
     emojis: List<String>,
     selected: String?,
     enabled: Boolean,
+    isLocked: Boolean = false,
     onSelect: (String) -> Unit,
 ) {
     // Plain chunked Column-of-Rows. A LazyVerticalGrid inside a vertical
@@ -311,6 +352,7 @@ private fun AvatarGrid(
                         emoji = emoji,
                         isSelected = emoji == selected,
                         enabled = enabled,
+                        isLocked = isLocked,
                         onClick = { onSelect(emoji) },
                         modifier = Modifier.weight(1f),
                     )
@@ -330,6 +372,7 @@ private fun AvatarTile(
     emoji: String,
     isSelected: Boolean,
     enabled: Boolean,
+    isLocked: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -348,10 +391,33 @@ private fun AvatarTile(
             .border(borderWidth, borderColor, CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
     ) {
+        // Locked tiles dim the source emoji + stamp a small lock badge
+        // in the bottom-right so the user can still see what's inside
+        // the pack (the actual sell) while it's clearly inert. The
+        // 0.35 alpha is the same treatment we use on disabled DS
+        // buttons — keeps the locked visual consistent with the rest
+        // of the app.
         Text(
             text = emoji,
             typography = avatarEmojiTypographyFor(maxWidth),
+            modifier = if (isLocked) Modifier.alpha(0.35f) else Modifier,
         )
+        if (isLocked) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(4.dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.surfacePrimary.color),
+            ) {
+                Text(
+                    text = "🔒",
+                    typography = AppTheme.typography.Label.L400,
+                )
+            }
+        }
     }
 }
 
@@ -441,8 +507,50 @@ private fun EditProfileScreenPreview_TwoPacksOwned() {
                 selectedAvatarEmoji = "🚀",
                 allAvatarPacks = listOf(
                     AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
-                    AvatarPack("space", "Space pack", listOf("🚀", "🛸", "🌙", "⭐", "🪐", "☄️")),
+                    AvatarPack(
+                        id = "space",
+                        name = "Space pack",
+                        emojis = listOf("🚀", "🛸", "🌙", "⭐", "🪐", "☄️"),
+                        unlockProductId = "avatars_space",
+                    ),
                 ),
+                ownedProductIds = setOf("avatars_space"),
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_PremiumPackLocked() {
+    // Pins the new locked-pack visual: every server pack still
+    // renders, premium packs the user doesn't own show with a
+    // dimmed grid + 🔒 stamp + "Get in shop" CTA in the header.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "Elijah",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🦊",
+                allAvatarPacks = listOf(
+                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯", "🦄", "🐲", "🦁", "🐸")),
+                    AvatarPack(
+                        id = "animals",
+                        name = "Animal Avatars",
+                        emojis = listOf("🐶", "🐯", "🐼", "🦊", "🐻", "🦁", "🐸", "🦒"),
+                        unlockProductId = "avatars_animals",
+                    ),
+                    AvatarPack(
+                        id = "fantasy",
+                        name = "Fantasy Avatars",
+                        emojis = listOf("🧙", "🧚", "🧛", "🧜", "🦄", "🐉", "🧞", "🐲"),
+                        unlockProductId = "avatars_fantasy",
+                    ),
+                ),
+                ownedProductIds = emptySet(),
             ),
             onAction = {},
             onBack = {},

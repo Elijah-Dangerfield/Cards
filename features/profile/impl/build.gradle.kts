@@ -12,6 +12,7 @@ kotlin {
             implementation(projects.features.home)
             implementation(projects.features.profile)
             implementation(projects.features.progression)
+            implementation(projects.features.shop)
             implementation(projects.features.upgrade)
             implementation(projects.features.onboarding)
             implementation(projects.libraries.cards)

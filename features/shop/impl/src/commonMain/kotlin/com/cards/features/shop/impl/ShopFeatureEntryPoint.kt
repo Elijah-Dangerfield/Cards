@@ -1,8 +1,10 @@
 package com.dangerfield.cards.features.shop.impl
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.toRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -22,9 +24,23 @@ class ShopFeatureEntryPoint(
     private val shopVmFactory: () -> ShopViewModel,
 ) : FeatureEntryPoint {
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
-        screen<ShopRoute> {
+        screen<ShopRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<ShopRoute>()
             val viewModel: ShopViewModel = viewModel(key = "shop") { shopVmFactory() }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+
+            // Deep-link from outside the shop ("Get in shop" on Edit
+            // profile, etc.): fire one OpenSheetForProductId action and
+            // let the VM hold the request until the catalog has the
+            // product. Keyed on the route's pendingProductId so a fresh
+            // navigation with a different id re-fires; the VM dedupes
+            // by clearing its pending field after it dispatches the
+            // sheet so revisits to a stale id are silent.
+            route.pendingProductId?.let { productId ->
+                LaunchedEffect(productId) {
+                    viewModel.takeAction(ShopAction.OpenSheetForProductId(productId))
+                }
+            }
 
             viewModel.ObserveEvents { event ->
                 when (event) {

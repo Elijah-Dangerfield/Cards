@@ -1,7 +1,11 @@
 package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -13,9 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.typography.TypographyResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun AvatarCircle(
@@ -111,4 +117,68 @@ fun parseHexColor(hex: String): Color {
     val g = cleaned.substring(2, 4).toInt(16)
     val b = cleaned.substring(4, 6).toInt(16)
     return Color(red = r, green = g, blue = b)
+}
+
+// ---------------------------------------------------------------------------
+// Previews — one per axis of variation the component handles. Together they
+// pin the emoji-to-circle ratio at each size band, the initial fallback when
+// no emoji is set, and the palette-vs-default background path.
+// ---------------------------------------------------------------------------
+
+@Preview
+@Composable
+private fun AvatarCirclePreview_ScaleRow_Emoji() {
+    PreviewContent {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(16.dp),
+        ) {
+            AvatarCircle(name = "E", emoji = "🦊", backgroundColorHex = "#E48A58", size = 28.dp)
+            AvatarCircle(name = "E", emoji = "🦊", backgroundColorHex = "#E48A58", size = 44.dp)
+            AvatarCircle(name = "E", emoji = "🦊", backgroundColorHex = "#E48A58", size = 72.dp)
+            AvatarCircle(name = "E", emoji = "🦊", backgroundColorHex = "#E48A58", size = 100.dp)
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun AvatarCirclePreview_InitialFallback() {
+    // Emoji null → first letter of name renders in the configured
+    // typography (not the emoji scale). Pins the "user hasn't picked
+    // an avatar yet" branch.
+    PreviewContent {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(16.dp),
+        ) {
+            AvatarCircle(name = "Elijah", emoji = null, backgroundColorHex = "#5894E4")
+            AvatarCircle(name = "kat", emoji = null, backgroundColorHex = "#A8E458", size = 72.dp)
+            AvatarCircle(name = "", emoji = null, backgroundColorHex = null, size = 72.dp)
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun AvatarCirclePreview_BackgroundResolution() {
+    // Left → valid palette hex → renders that color.
+    // Middle → null → resolveAvatarBackground falls back to
+    // surfaceSecondary token.
+    // Right → malformed string → parser throws, Catching swallows,
+    // same surfaceSecondary fallback. Pins the resolver's contract.
+    PreviewContent {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(16.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AvatarCircle(name = "E", emoji = "🦄", backgroundColorHex = "#C658E4", size = 72.dp)
+                AvatarCircle(name = "E", emoji = "🦄", backgroundColorHex = null, size = 72.dp)
+                AvatarCircle(name = "E", emoji = "🦄", backgroundColorHex = "not-a-hex", size = 72.dp)
+            }
+        }
+    }
 }

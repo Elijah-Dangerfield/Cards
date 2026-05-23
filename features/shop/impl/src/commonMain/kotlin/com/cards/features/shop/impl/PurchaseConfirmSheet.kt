@@ -301,7 +301,7 @@ private fun ChipOfferConfirmContent(
             is PurchaseSheetMode.Owned -> StatusPrompt(
                 emoji = "✓",
                 title = "You own this",
-                body = "Equip from Your Items in your profile. (Coming soon.)",
+                body = ownedBodyFor(offer),
             )
         }
         VerticalSpacerD700()
@@ -460,6 +460,34 @@ private fun SheetButtons(
     }
 }
 
+/**
+ * "You own this" body copy, routed by what the user can actually DO
+ * with the offer now that they own it. Three buckets:
+ *  - Equippable cosmetics (felts, card backs, titles, table themes,
+ *    tools): point at My items where the equip toggle lives.
+ *  - Avatar packs (id prefix `avatars_`): point at Edit profile —
+ *    owning the pack unlocks new emoji choices in the picker, not an
+ *    equip toggle.
+ *  - Emote packs (id prefix `emotes_`): point at the in-game tray —
+ *    emotes are sent ad-hoc per hand, not pre-equipped.
+ *
+ * We route on id prefix instead of [Product.ChipOffer.isEquippable]
+ * for the avatar/emote split because both are non-equippable but
+ * direct the user to different places. The catalog id is the only
+ * field that distinguishes them today; if a `kind` field gets added
+ * later, swap this for a proper enum match.
+ */
+private fun ownedBodyFor(offer: Product.ChipOffer): String = when {
+    offer.id.startsWith("avatars_") ->
+        "Your new avatars are unlocked — pick one from Edit profile."
+    offer.id.startsWith("emotes_") ->
+        "Reactions ready — send them from the in-game emote tray."
+    offer.isEquippable ->
+        "Equip it from My items in your profile."
+    else ->
+        "It's yours. Enjoy."
+}
+
 @Composable
 private fun platformStoreName(): String =
     when (com.dangerfield.cards.libraries.core.BuildInfo.platform) {
@@ -576,7 +604,7 @@ private fun PurchaseConfirmSheetPreview_ChipOfferLocked() {
 
 @Preview
 @Composable
-private fun PurchaseConfirmSheetPreview_ChipOfferOwned() {
+private fun PurchaseConfirmSheetPreview_ChipOfferOwned_Equippable() {
     PreviewContent {
         PurchaseConfirmSheet(
             pending = PendingPurchase.ChipOffer(
@@ -588,6 +616,64 @@ private fun PurchaseConfirmSheetPreview_ChipOfferOwned() {
                     iconEmoji = "🂠",
                     costChips = 6_000,
                     grantsKey = "cardback.marble",
+                    isEquippable = true,
+                ),
+            ),
+            mode = PurchaseSheetMode.Owned,
+            chipBalance = 12_450,
+            timeAnchor = null,
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PurchaseConfirmSheetPreview_ChipOfferOwned_AvatarPack() {
+    // Owned avatar pack — body routes user to Edit profile rather
+    // than My items, because avatar packs unlock emoji choices in
+    // the picker (no equip toggle).
+    PreviewContent {
+        PurchaseConfirmSheet(
+            pending = PendingPurchase.ChipOffer(
+                Product.ChipOffer(
+                    id = "avatars_animals",
+                    title = "Animal Avatars",
+                    subtitle = "Avatar pack · 8 emojis",
+                    description = "Unlocks 🐱 🐶 🐯 🐼 🦊 🐻 🦁 🐸 as avatar choices in your profile.",
+                    iconEmoji = "🦊",
+                    costChips = 4_000,
+                    grantsKey = "avatars.animals",
+                    isEquippable = false,
+                ),
+            ),
+            mode = PurchaseSheetMode.Owned,
+            chipBalance = 12_450,
+            timeAnchor = null,
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PurchaseConfirmSheetPreview_ChipOfferOwned_EmotePack() {
+    // Owned emote pack — body routes user to the in-game emote
+    // tray; emotes are sent per-hand rather than pre-equipped.
+    PreviewContent {
+        PurchaseConfirmSheet(
+            pending = PendingPurchase.ChipOffer(
+                Product.ChipOffer(
+                    id = "emotes_drama",
+                    title = "Drama Emote Pack",
+                    subtitle = "Emotes · 4 reactions",
+                    description = "Unlocks 💃 🧂 🎭 🤦 — send big, screen-filling reactions to the table.",
+                    iconEmoji = "💃",
+                    costChips = 3_500,
+                    grantsKey = "emotes.drama",
+                    isEquippable = false,
                 ),
             ),
             mode = PurchaseSheetMode.Owned,

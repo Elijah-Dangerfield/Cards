@@ -39,6 +39,7 @@ import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.StatsRoute
+import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.Progression
@@ -179,6 +180,9 @@ class ProfileFeatureEntryPoint(
                 state = state,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
+                onNavigateToShop = { productId ->
+                    router.navigate(ShopRoute(pendingProductId = productId))
+                },
             )
         }
 

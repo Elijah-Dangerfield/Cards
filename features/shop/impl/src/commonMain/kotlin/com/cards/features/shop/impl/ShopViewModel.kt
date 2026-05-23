@@ -66,6 +66,16 @@ class ShopViewModel @Inject constructor(
 
     private val logger = KLog.withTag("ShopViewModel")
 
+    /**
+     * Holds a product id requested via [ShopAction.OpenSheetForProductId]
+     * while we're waiting for the catalog to hydrate. Cleared after we
+     * either fulfill it (catalog had the product → opened the sheet) or
+     * discover the catalog dropped it. Private var rather than UI state
+     * because the field has no visual representation — it's just a
+     * latch.
+     */
+    private var pendingProductRequest: String? = null
+
     init {
         viewModelScope.launch {
             productsRepository.observeCatalog().collect { catalog ->
@@ -126,8 +136,12 @@ class ShopViewModel @Inject constructor(
             is ShopAction.RefreshFailed -> action.updateState {
                 it.copy(errorMessage = action.message)
             }
-            is ShopAction.CatalogChanged -> action.updateState {
-                it.copy(catalog = action.catalog)
+            is ShopAction.CatalogChanged -> {
+                action.updateState { it.copy(catalog = action.catalog) }
+                // Deep-link arrived before catalog hydrated. Now that
+                // we have products, try again. No-op if no request is
+                // parked.
+                tryFulfillPendingProductRequest()
             }
             is ShopAction.ChipsChanged -> action.updateState {
                 it.copy(chipBalance = action.balance)
@@ -149,6 +163,17 @@ class ShopViewModel @Inject constructor(
             }
 
             // ---- Purchase intent flow ----
+
+            is ShopAction.OpenSheetForProductId -> {
+                // Deep-link entry from outside the shop (e.g. "Get in
+                // shop" on Edit profile). Park the requested id, then
+                // try to resolve immediately — the catalog may already
+                // be hot from a previous tab visit. If not, the
+                // CatalogChanged handler will retry once the fetch
+                // lands.
+                pendingProductRequest = action.productId
+                tryFulfillPendingProductRequest()
+            }
 
             is ShopAction.RequestPurchase -> {
                 // Open the sheet for ANY non-expired state — Owned,
@@ -288,6 +313,24 @@ class ShopViewModel @Inject constructor(
                 sendEvent(ShopEvent.AlreadyOwned(offer))
             }
         }
+    }
+
+    /**
+     * If a deep-link product id is parked and the catalog now has it,
+     * fire the same [ShopAction.RequestPurchase] the grid would have
+     * fired on tap. Clears the parked id whether we found it or not —
+     * a missing id (catalog dropped it, or it was never valid) is a
+     * silent no-op rather than a stuck pending request that would
+     * re-open the sheet every time the catalog re-emits.
+     */
+    private fun tryFulfillPendingProductRequest() {
+        val requestedId = pendingProductRequest ?: return
+        val catalog = state.catalog
+        if (catalog.isEmpty) return // wait — CatalogChanged retries later.
+        val product = catalog.chipPacks.firstOrNull { it.id == requestedId }
+            ?: catalog.chipOffers.firstOrNull { it.id == requestedId }
+        pendingProductRequest = null
+        if (product != null) takeAction(ShopAction.RequestPurchase(product))
     }
 
     private suspend fun autoEquipIfSlotFree(productId: String) {
@@ -489,6 +532,16 @@ sealed interface ShopAction {
 
     /** User tapped a product row → open the purchase confirmation sheet. */
     data class RequestPurchase(val product: Product) : ShopAction
+
+    /**
+     * Deep-link request from outside the shop (e.g. "Get in shop" CTA
+     * on Edit profile when the user taps a locked avatar pack). Opens
+     * the purchase sheet for [productId] once the catalog has it.
+     * Silently no-ops if the catalog doesn't contain the id by the
+     * time it hydrates (server may have dropped the product between
+     * the caller building the link and this firing).
+     */
+    data class OpenSheetForProductId(val productId: String) : ShopAction
 
     /** User tapped the confirm CTA inside the sheet → commit. */
     data object ConfirmPendingPurchase : ShopAction

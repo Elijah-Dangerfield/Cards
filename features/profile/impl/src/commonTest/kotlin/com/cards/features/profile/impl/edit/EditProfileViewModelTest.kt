@@ -82,12 +82,14 @@ class EditProfileViewModelTest : CoroutineTest() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun avatarPacks_filterByLocalInventory_beforeSyncCompletes() = runUnitTest {
-        // The key optimistic-pack invariant: when local inventory
-        // contains the unlock product id for a premium pack, the
-        // derived `avatarPacks` includes it — without waiting on the
-        // server sync. Mirrors the path a fresh redeem takes (Pending
-        // row → live flow → derived list includes the new pack).
+    fun avatarPacks_flipLockedByLocalInventory_beforeSyncCompletes() = runUnitTest {
+        // Contract (2026-05-23 revision): every server pack is always
+        // present in the derived `avatarPacks` — locked premium packs
+        // render dimmed with a "Get in shop" CTA. The invariant pinned
+        // here is that ownership flips a pack from locked → unlocked
+        // off the local-inventory flow, without waiting on the server
+        // sync. Mirrors the optimistic redeem path (Pending row →
+        // live flow → isLocked = false on the next tick).
         val syncGate = CompletableDeferred<Result<Unit>>()
         val ownedFlow = MutableStateFlow(emptyList<InventoryItem>())
         val inventory = ObservableInventoryRepository(syncGate, ownedFlow)
@@ -110,8 +112,11 @@ class EditProfileViewModelTest : CoroutineTest() {
         )
         runCurrent()
 
-        // Before any inventory: starter only.
-        assertEquals(listOf("starter"), vm.state.avatarPacks.map { it.id })
+        // Before any inventory: both packs present, premium pack locked.
+        assertEquals(
+            listOf("starter" to false, "animals" to true),
+            vm.state.avatarPacks.map { it.pack.id to it.isLocked },
+        )
 
         // Simulate optimistic redeem of the Animals pack — local row
         // appears (Pending) before any server roundtrip.
@@ -126,9 +131,9 @@ class EditProfileViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertEquals(
-            listOf("starter", "animals"),
-            vm.state.avatarPacks.map { it.id },
-            "newly-owned pack must appear on the local-inventory tick, " +
+            listOf("starter" to false, "animals" to false),
+            vm.state.avatarPacks.map { it.pack.id to it.isLocked },
+            "owned premium pack must unlock on the local-inventory tick, " +
                 "without waiting for server sync",
         )
     }
