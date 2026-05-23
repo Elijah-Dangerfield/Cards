@@ -3,8 +3,8 @@ package com.dangerfield.cards.features.profile.impl.account
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
 import kotlinx.coroutines.async
 import me.tatarka.inject.annotations.Inject
 
@@ -23,7 +23,7 @@ import me.tatarka.inject.annotations.Inject
  */
 @Inject
 class DeleteAccountViewModel(
-    private val identityRepository: IdentityRepository,
+    private val authRepository: AuthRepository,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<DeleteAccountState, DeleteAccountEvent, DeleteAccountAction>(
@@ -44,7 +44,7 @@ class DeleteAccountViewModel(
 
                 updateState { it.copy(isSubmitting = true, error = null) }
 
-                val outcome = appScope.async { identityRepository.deleteAccount() }.await()
+                val outcome = appScope.async { authRepository.deleteAccount() }.await()
                 when (outcome) {
                     is DeleteAccountOutcome.Success -> {
                         appCache.update { it.copy(hasUserOnboarded = false) }

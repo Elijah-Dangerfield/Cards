@@ -4,60 +4,52 @@ import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.features.profile.impl.account.FakeAppCache
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
-import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
-import com.dangerfield.cards.libraries.identity.SignInOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
-import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.Router
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Pins the email-pre-fill contract for the Feedback screen: a claimed
- * identity's email seeds the initial state so the user doesn't have to
- * retype it; anon identities and the not-yet-resolved race window both
- * leave the field blank.
+ * Pins the email-pre-fill contract for the Feedback screen: an
+ * authenticated profile's email seeds the initial state asynchronously
+ * (via the VM's init block + ProfileRepository.current()) so the user
+ * doesn't have to retype it; anon profiles with null email and the
+ * not-yet-resolved race window both leave the field blank.
  */
 class FeedbackViewModelTest : CoroutineTest() {
 
     @Test
-    fun initialState_prefillsEmailFromClaimedIdentity() = runUnitTest {
+    fun seed_prefillsEmailFromAuthenticatedProfile() = runUnitTest {
         val vm = buildVm(
-            identity = StubIdentity(
-                signedInWith(email = "alice@example.com"),
-            ),
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
         )
+        runCurrent()
         assertEquals("alice@example.com", vm.state.email)
     }
 
     @Test
-    fun initialState_anonIdentityWithoutEmail_leavesFieldBlank() = runUnitTest {
-        val vm = buildVm(
-            identity = StubIdentity(signedInWith(email = null)),
-        )
+    fun seed_anonProfileWithoutEmail_leavesFieldBlank() = runUnitTest {
+        val vm = buildVm(profile = StubProfile(authenticatedWith(email = null)))
+        runCurrent()
         assertEquals("", vm.state.email)
     }
 
     @Test
-    fun initialState_identityNotYetResolved_leavesFieldBlank() = runUnitTest {
-        val vm = buildVm(identity = StubIdentity(IdentityState.Unknown))
+    fun seed_profileNotYetResolved_leavesFieldBlank() = runUnitTest {
+        val vm = buildVm(profile = StubProfile(initial = null))
+        runCurrent()
         assertEquals("", vm.state.email)
     }
 
@@ -67,9 +59,10 @@ class FeedbackViewModelTest : CoroutineTest() {
         val gate = CompletableDeferred<Result<Unit>>()
         val repository = ControllableFeedbackRepository(gate)
         val vm = buildVm(
-            identity = StubIdentity(IdentityState.SignedIn(sampleIdentity(email = "alice@example.com"))),
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
             repository = repository,
         )
+        runCurrent()
         vm.takeAction(FeedbackAction.MessageChanged("found a bug"))
         vm.takeAction(FeedbackAction.Submit)
         runCurrent()
@@ -84,25 +77,25 @@ class FeedbackViewModelTest : CoroutineTest() {
     }
 
     private fun buildVm(
-        identity: IdentityRepository,
+        profile: ProfileRepository,
         repository: FeedbackRepository = NoopFeedbackRepository,
     ): FeedbackViewModel = FeedbackViewModel(
         repository = repository,
         router = NoopRouter,
         appCache = FakeAppCache(),
         appScope = AppCoroutineScope(dispatchers),
-        identityRepository = identity,
-    )
-
-    private fun sampleIdentity(email: String?) = Identity(
-        userId = "u1",
-        displayName = "Alice",
-        avatarEmoji = "🃏",
-        avatarBackgroundColor = null,
-        isAnonymous = email == null,
-        email = email,
+        profileRepository = profile,
     )
 }
+
+internal fun authenticatedWith(email: String?): Profile.Authenticated = Profile.Authenticated(
+    id = "u1",
+    displayName = "Alice",
+    avatarEmoji = "🃏",
+    avatarBackgroundColor = null,
+    isAnonymous = email == null,
+    email = email,
+)
 
 /**
  * Variant of [NoopFeedbackRepository] that gates `submitFeedback` on an
@@ -131,18 +124,6 @@ internal class ControllableFeedbackRepository(
     }
 }
 
-private fun signedInWith(email: String?): IdentityState =
-    IdentityState.SignedIn(
-        Identity(
-            userId = "u1",
-            displayName = "Alice",
-            avatarEmoji = "🃏",
-            avatarBackgroundColor = null,
-            isAnonymous = email == null,
-            email = email,
-        ),
-    )
-
 internal object NoopRouter : Router {
     override fun navigate(route: Route, options: NavigationOptions) = Unit
     override fun goBack() = Unit
@@ -160,25 +141,23 @@ internal object NoopFeedbackRepository : FeedbackRepository {
     ): Result<Unit> = Result.success(Unit)
 }
 
-internal class StubIdentity(initial: IdentityState) : IdentityRepository {
-    private val _state = MutableStateFlow(initial)
-    override val state: StateFlow<IdentityState> = _state
+internal class StubProfile(initial: Profile? = null) : ProfileRepository {
+    private val flow = MutableSharedFlow<Profile>(replay = 1, extraBufferCapacity = 1)
 
-    override suspend fun ensureInitialized(): Identity = error("unused")
-    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
-    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")
-    override suspend fun refreshSession(): RefreshOutcome = error("unused")
-    override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
-    override suspend fun signOut() = Unit
-    override suspend fun updateProfile(
+    init {
+        if (initial != null) flow.tryEmit(initial)
+    }
+
+    override suspend fun current(): Profile = flow.replayCache.firstOrNull() ?: flow.first()
+
+    override fun observe(): Flow<Profile> = flow
+
+    override suspend fun update(
         displayName: String?,
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
     ): UpdateProfileOutcome = error("unused")
+
     override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("unused")
-    override suspend fun deleteAccount(): DeleteAccountOutcome = error("unused")
-    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
-    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
-    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
 }

@@ -1,15 +1,17 @@
 package com.dangerfield.cards.features.profile.impl.bugreport
 
+import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.currentIdentity
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Duration.Companion.seconds
@@ -20,7 +22,7 @@ class BugReportViewModel(
     private val router: Router,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
-    identityRepository: IdentityRepository,
+    private val profileRepository: ProfileRepository,
     @Assisted logId: String? = null,
     @Assisted errorCode: Int? = null,
     @Assisted contextMessage: String? = null,
@@ -29,9 +31,18 @@ class BugReportViewModel(
         logId = logId,
         errorCode = errorCode,
         contextMessage = contextMessage,
-        email = identityRepository.currentIdentity?.email.orEmpty(),
-    )
+    ),
 ) {
+
+    init {
+        viewModelScope.launch {
+            val current = profileRepository.current() as? Profile.Authenticated
+            val email = current?.email.orEmpty()
+            if (email.isNotEmpty()) {
+                takeAction(BugReportAction.EmailChanged(email))
+            }
+        }
+    }
 
     override suspend fun handleAction(action: BugReportAction) {
         when (action) {

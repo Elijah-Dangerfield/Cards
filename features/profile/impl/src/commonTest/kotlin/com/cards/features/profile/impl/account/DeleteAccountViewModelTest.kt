@@ -5,23 +5,20 @@ import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
-import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
-import com.dangerfield.cards.libraries.identity.SignInOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
-import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
@@ -32,11 +29,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Pins [DeleteAccountViewModel]'s outcome → state mapping. The VM is a
- * thin orchestrator over [com.dangerfield.cards.libraries.identity.IdentityRepository]
- * + [com.dangerfield.cards.libraries.cards.AppCache]; the assertions stay
- * on the branching: which message renders, when `isSubmitting` clears,
- * when `hasUserOnboarded` flips, when the event fires.
+ * Pins [DeleteAccountViewModel]'s outcome → state mapping.
  *
  * What we pin:
  *  - canSubmit gates on the literal "delete" phrase (case-insensitive, trimmed)
@@ -76,17 +69,17 @@ class DeleteAccountViewModelTest : CoroutineTest() {
 
     @Test
     fun submit_whenCantSubmit_doesNotCallRepo() = runUnitTest {
-        val identity = FakeIdentityRepository()
-        val vm = buildVm(identity = identity)
+        val auth = FakeAuthRepository()
+        val vm = buildVm(auth = auth)
         vm.takeAction(DeleteAccountAction.ConfirmDelete) // empty input
-        assertEquals(0, identity.deleteCalls, "short-circuit before any network call")
+        assertEquals(0, auth.deleteCalls, "short-circuit before any network call")
     }
 
     @Test
     fun submit_success_flipsOnboardedFalse_andEmitsDeleted() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
         val vm = buildVm(
-            identity = FakeIdentityRepository(deleteOutcome = DeleteAccountOutcome.Success),
+            auth = FakeAuthRepository(deleteOutcome = DeleteAccountOutcome.Success),
             appCache = cache,
         )
         vm.takeAction(DeleteAccountAction.ConfirmationChanged("delete"))
@@ -109,7 +102,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
         // gone. Bounce to onboarding.
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
         val vm = buildVm(
-            identity = FakeIdentityRepository(deleteOutcome = DeleteAccountOutcome.NotSignedIn),
+            auth = FakeAuthRepository(deleteOutcome = DeleteAccountOutcome.NotSignedIn),
             appCache = cache,
         )
         vm.takeAction(DeleteAccountAction.ConfirmationChanged("delete"))
@@ -126,7 +119,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     fun submit_notConfigured_surfacesNotAvailable_andKeepsOnboardingFlag() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
         val vm = buildVm(
-            identity = FakeIdentityRepository(deleteOutcome = DeleteAccountOutcome.NotConfigured),
+            auth = FakeAuthRepository(deleteOutcome = DeleteAccountOutcome.NotConfigured),
             appCache = cache,
         )
         vm.takeAction(DeleteAccountAction.ConfirmationChanged("delete"))
@@ -152,7 +145,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     @Test
     fun submit_networkError_surfacesNetworkMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            auth = FakeAuthRepository(
                 deleteOutcome = DeleteAccountOutcome.NetworkError(RuntimeException("offline")),
             ),
         )
@@ -175,7 +168,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     @Test
     fun submit_unknown_surfacesGenericMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            auth = FakeAuthRepository(
                 deleteOutcome = DeleteAccountOutcome.Unknown(RuntimeException("boom")),
             ),
         )
@@ -194,7 +187,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     @Test
     fun confirmationChanged_clearsExistingError_andPreservesInput() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            auth = FakeAuthRepository(
                 deleteOutcome = DeleteAccountOutcome.NetworkError(RuntimeException("offline")),
             ),
         )
@@ -206,8 +199,6 @@ class DeleteAccountViewModelTest : CoroutineTest() {
             cancelAndIgnoreRemainingEvents()
         }
 
-        // The user edits the field after a failure — the error should clear
-        // so the form looks fresh, but the new input is what they typed.
         vm.takeAction(DeleteAccountAction.ConfirmationChanged("delete!"))
         val s = vm.state
         assertNull(s.error, "typing into the field clears the inline error")
@@ -217,7 +208,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     @Test
     fun dismissError_clearsError_withoutMutatingInput() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            auth = FakeAuthRepository(
                 deleteOutcome = DeleteAccountOutcome.NetworkError(RuntimeException("offline")),
             ),
         )
@@ -242,45 +233,49 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     @Test
     fun submit_deleteCallSurvivesViewModelTeardown() = runUnitTest {
         val gate = CompletableDeferred<DeleteAccountOutcome>()
-        val identity = GatedDeleteIdentity(gate)
+        val auth = GatedDeleteAuth(gate)
         val vm = DeleteAccountViewModel(
-            identityRepository = identity,
+            authRepository = auth,
             appCache = FakeAppCache(),
             appScope = AppCoroutineScope(dispatchers),
         )
         vm.takeAction(DeleteAccountAction.ConfirmationChanged("delete"))
         vm.takeAction(DeleteAccountAction.ConfirmDelete)
         runCurrent()
-        assertEquals(1, identity.deleteStarted, "deleteAccount should be in-flight")
+        assertEquals(1, auth.deleteStarted, "deleteAccount should be in-flight")
 
         vm.viewModelScope.coroutineContext.job.cancel()
         runCurrent()
 
         gate.complete(DeleteAccountOutcome.Success)
         runCurrent()
-        assertEquals(1, identity.deleteFinished, "deleteAccount must complete despite VM teardown")
+        assertEquals(1, auth.deleteFinished, "deleteAccount must complete despite VM teardown")
     }
 
     private fun buildVm(
-        identity: FakeIdentityRepository = FakeIdentityRepository(),
+        auth: FakeAuthRepository = FakeAuthRepository(),
         appCache: FakeAppCache = FakeAppCache(),
     ): DeleteAccountViewModel = DeleteAccountViewModel(
-        identityRepository = identity,
+        authRepository = auth,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
     )
 }
 
-private class GatedDeleteIdentity(
+private class GatedDeleteAuth(
     private val gate: CompletableDeferred<DeleteAccountOutcome>,
-) : IdentityRepository {
+) : AuthRepository {
     var deleteStarted: Int = 0
         private set
     var deleteFinished: Int = 0
         private set
 
-    private val _state = MutableStateFlow<IdentityState>(IdentityState.Unknown)
-    override val state: StateFlow<IdentityState> = _state
+    private val state = MutableStateFlow<AuthState>(AuthState.Unauthenticated())
+    override suspend fun current(): AuthState = state.value
+    override fun observe(): Flow<AuthState> = state
+    override suspend fun accessToken(): String? = null
+    override suspend fun refreshAccessToken(): String? = null
+    override suspend fun retry(): AuthState = state.value
 
     override suspend fun deleteAccount(): DeleteAccountOutcome {
         deleteStarted += 1
@@ -289,19 +284,11 @@ private class GatedDeleteIdentity(
         return outcome
     }
 
-    override suspend fun ensureInitialized(): Identity = error("unused")
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
     override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")
     override suspend fun refreshSession(): RefreshOutcome = error("unused")
     override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
     override suspend fun signOut() = Unit
-    override suspend fun updateProfile(
-        displayName: String?,
-        avatarEmoji: String?,
-        avatarBackgroundColor: String?,
-        clearAvatarBackgroundColor: Boolean,
-    ): UpdateProfileOutcome = error("unused")
-    override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("unused")
     override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
     override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
     override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")

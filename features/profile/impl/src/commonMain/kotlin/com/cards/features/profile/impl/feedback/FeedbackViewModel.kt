@@ -1,14 +1,16 @@
 package com.dangerfield.cards.features.profile.impl.feedback
 
+import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.cards.AppCache
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.currentIdentity
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import kotlin.time.Duration.Companion.seconds
 
@@ -18,12 +20,23 @@ class FeedbackViewModel(
     private val router: Router,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
-    identityRepository: IdentityRepository,
+    private val profileRepository: ProfileRepository,
 ) : SEAViewModel<FeedbackState, Unit, FeedbackAction>(
-    initialStateArg = FeedbackState(
-        email = identityRepository.currentIdentity?.email.orEmpty(),
-    )
+    initialStateArg = FeedbackState(),
 ) {
+
+    init {
+        // Seed email from the authenticated profile once it resolves.
+        // Fallback profiles have no email, so we just leave the field
+        // empty in that branch and let the user type one in.
+        viewModelScope.launch {
+            val current = profileRepository.current() as? Profile.Authenticated
+            val email = current?.email.orEmpty()
+            if (email.isNotEmpty()) {
+                takeAction(FeedbackAction.EmailChanged(email))
+            }
+        }
+    }
 
     override suspend fun handleAction(action: FeedbackAction) {
         when (action) {

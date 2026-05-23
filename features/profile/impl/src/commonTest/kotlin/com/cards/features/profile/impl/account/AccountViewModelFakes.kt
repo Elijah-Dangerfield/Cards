@@ -3,37 +3,39 @@ package com.dangerfield.cards.features.profile.impl.account
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.config.AppConfigMap
-import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
-import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
-import com.dangerfield.cards.libraries.identity.SignInOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
-import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
+import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
- * Pluggable in-memory [IdentityRepository] for unit-testing the account
- * ViewModels (Delete + Claim). Mirrors the onboarding `FakeIdentityRepository`
- * pattern — methods the account VMs never touch are `error()`-stubbed so a
- * future refactor reaching for them fails loudly instead of silently passing.
+ * Pluggable in-memory [AuthRepository] for unit-testing the account
+ * ViewModels (Delete + Claim). Methods the account VMs never touch are
+ * `error()`-stubbed so a future refactor reaching for them fails loudly
+ * instead of silently passing.
  *
  * Defaults: every outcome is `Unknown` so a test that forgets to stub the
  * branch it cares about fails at the assertion instead of getting a
  * misleading "no error" pass.
  */
-internal class FakeIdentityRepository(
+internal class FakeAuthRepository(
     val deleteOutcome: DeleteAccountOutcome = DeleteAccountOutcome.Unknown(RuntimeException("not stubbed")),
     val linkOutcome: LinkIdentityOutcome = LinkIdentityOutcome.Unknown(RuntimeException("not stubbed")),
     val oauthSignInOutcome: SignInOutcome = SignInOutcome.Unknown(RuntimeException("not stubbed")),
-) : IdentityRepository {
+) : AuthRepository {
 
     var deleteCalls: Int = 0
         private set
@@ -46,13 +48,13 @@ internal class FakeIdentityRepository(
     var lastOAuthProvider: OAuthProvider? = null
         private set
 
-    private val identityState =
-        MutableStateFlow<IdentityState>(IdentityState.Unknown)
+    private val state = MutableStateFlow<AuthState>(AuthState.Unauthenticated())
 
-    override val state: kotlinx.coroutines.flow.StateFlow<IdentityState> = identityState
-
-    override suspend fun ensureInitialized(): Identity =
-        error("ensureInitialized not used by the account ViewModels")
+    override suspend fun current(): AuthState = state.value
+    override fun observe(): Flow<AuthState> = state
+    override suspend fun accessToken(): String? = null
+    override suspend fun refreshAccessToken(): String? = null
+    override suspend fun retry(): AuthState = state.value
 
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
         error("signInWithEmail not used by the account ViewModels")
@@ -67,16 +69,6 @@ internal class FakeIdentityRepository(
         error("resendVerificationEmail not used by the account ViewModels")
 
     override suspend fun signOut() { /* not used here */ }
-
-    override suspend fun updateProfile(
-        displayName: String?,
-        avatarEmoji: String?,
-        avatarBackgroundColor: String?,
-        clearAvatarBackgroundColor: Boolean,
-    ): UpdateProfileOutcome = error("updateProfile not used by the account ViewModels")
-
-    override suspend fun fetchAvatarPack(): AvatarPackOutcome =
-        error("fetchAvatarPack not used by the account ViewModels")
 
     override suspend fun deleteAccount(): DeleteAccountOutcome {
         deleteCalls += 1
@@ -97,6 +89,56 @@ internal class FakeIdentityRepository(
         lastOAuthProvider = provider
         return oauthSignInOutcome
     }
+}
+
+/**
+ * Pluggable in-memory [ProfileRepository] for unit-testing VMs that
+ * read profile data (Edit, Feedback, BugReport).
+ */
+internal class FakeProfileRepository(
+    initial: Profile? = null,
+    private val updateOutcome: UpdateProfileOutcome = UpdateProfileOutcome.Unknown(RuntimeException("not stubbed")),
+    private val avatarPackOutcome: AvatarPackOutcome = AvatarPackOutcome.Success(emptyList()),
+) : ProfileRepository {
+    private val flow = MutableSharedFlow<Profile>(replay = 1, extraBufferCapacity = 8)
+
+    init {
+        if (initial != null) flow.tryEmit(initial)
+    }
+
+    var updateCalls: Int = 0
+        private set
+    var lastUpdateArgs: Quadruple? = null
+        private set
+
+    fun emit(profile: Profile) {
+        flow.tryEmit(profile)
+    }
+
+    override suspend fun current(): Profile = flow.replayCache.firstOrNull()
+        ?: error("Profile.current called before any value emitted")
+
+    override fun observe(): Flow<Profile> = flow
+
+    override suspend fun update(
+        displayName: String?,
+        avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
+    ): UpdateProfileOutcome {
+        updateCalls += 1
+        lastUpdateArgs = Quadruple(displayName, avatarEmoji, avatarBackgroundColor, clearAvatarBackgroundColor)
+        return updateOutcome
+    }
+
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome = avatarPackOutcome
+
+    data class Quadruple(
+        val displayName: String?,
+        val avatarEmoji: String?,
+        val avatarBackgroundColor: String?,
+        val clearAvatarBackgroundColor: Boolean,
+    )
 }
 
 /**
@@ -135,10 +177,11 @@ internal class TestAppConfigMap(
     }
 }
 
-internal val sampleIdentity = Identity(
-    userId = "11111111-1111-1111-1111-111111111111",
+internal val sampleProfile = Profile.Authenticated(
+    id = "11111111-1111-1111-1111-111111111111",
     displayName = "QuietAce72",
     avatarEmoji = "🃏",
     avatarBackgroundColor = null,
+    email = null,
     isAnonymous = false,
 )

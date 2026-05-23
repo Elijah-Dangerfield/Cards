@@ -6,12 +6,11 @@ import com.dangerfield.cards.features.profile.impl.feedback.ControllableFeedback
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.NoopFeedbackRepository
 import com.dangerfield.cards.features.profile.impl.feedback.NoopRouter
-import com.dangerfield.cards.features.profile.impl.feedback.StubIdentity
+import com.dangerfield.cards.features.profile.impl.feedback.StubProfile
+import com.dangerfield.cards.features.profile.impl.feedback.authenticatedWith
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.job
@@ -27,29 +26,25 @@ import kotlin.test.assertEquals
 class BugReportViewModelTest : CoroutineTest() {
 
     @Test
-    fun initialState_prefillsEmailFromClaimedIdentity() = runUnitTest {
+    fun seed_prefillsEmailFromAuthenticatedProfile() = runUnitTest {
         val vm = buildVm(
-            identity = StubIdentity(
-                IdentityState.SignedIn(
-                    sampleIdentity(email = "alice@example.com"),
-                ),
-            ),
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
         )
+        runCurrent()
         assertEquals("alice@example.com", vm.state.email)
     }
 
     @Test
-    fun initialState_anonIdentity_leavesFieldBlank() = runUnitTest {
-        val vm = buildVm(
-            identity = StubIdentity(IdentityState.SignedIn(sampleIdentity(email = null))),
-        )
+    fun seed_anonProfileWithoutEmail_leavesFieldBlank() = runUnitTest {
+        val vm = buildVm(profile = StubProfile(authenticatedWith(email = null)))
+        runCurrent()
         assertEquals("", vm.state.email)
     }
 
     @Test
     fun initialState_carriesAssistedContextThrough() = runUnitTest {
         val vm = buildVm(
-            identity = StubIdentity(IdentityState.Unknown),
+            profile = StubProfile(initial = null),
             logId = "log-42",
             errorCode = 500,
             contextMessage = "boom",
@@ -65,9 +60,10 @@ class BugReportViewModelTest : CoroutineTest() {
         val gate = CompletableDeferred<Result<Unit>>()
         val repository = ControllableFeedbackRepository(gate)
         val vm = buildVm(
-            identity = StubIdentity(IdentityState.SignedIn(sampleIdentity(email = "alice@example.com"))),
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
             repository = repository,
         )
+        runCurrent()
         vm.takeAction(BugReportAction.MessageChanged("crash on tap"))
         vm.takeAction(BugReportAction.Submit)
         runCurrent()
@@ -82,7 +78,7 @@ class BugReportViewModelTest : CoroutineTest() {
     }
 
     private fun buildVm(
-        identity: IdentityRepository,
+        profile: ProfileRepository,
         repository: FeedbackRepository = NoopFeedbackRepository,
         logId: String? = null,
         errorCode: Int? = null,
@@ -92,18 +88,9 @@ class BugReportViewModelTest : CoroutineTest() {
         router = NoopRouter,
         appCache = FakeAppCache(),
         appScope = AppCoroutineScope(dispatchers),
-        identityRepository = identity,
+        profileRepository = profile,
         logId = logId,
         errorCode = errorCode,
         contextMessage = contextMessage,
-    )
-
-    private fun sampleIdentity(email: String?) = Identity(
-        userId = "u1",
-        displayName = "Alice",
-        avatarEmoji = "🃏",
-        avatarBackgroundColor = null,
-        isAnonymous = email == null,
-        email = email,
     )
 }

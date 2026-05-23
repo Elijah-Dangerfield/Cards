@@ -2,9 +2,9 @@ package com.dangerfield.cards.features.profile.impl.account
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -58,8 +58,8 @@ class ClaimAccountViewModelTest : CoroutineTest() {
 
     @Test
     fun claim_success_emitsClaimedEvent_andClearsSubmitting() = runUnitTest {
-        val identity = FakeIdentityRepository(
-            linkOutcome = LinkIdentityOutcome.Success(sampleIdentity),
+        val identity = FakeAuthRepository(
+            linkOutcome = LinkIdentityOutcome.Success,
         )
         val vm = buildVm(identity = identity)
         vm.takeAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google))
@@ -76,7 +76,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     fun claim_alreadyOnAnotherAccount_stashesConflict_andSurfacesWarning() = runUnitTest {
         // The key invariant: this path must NOT auto-call signInWithOAuth.
         // The user has to explicitly confirm losing guest progress first.
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             linkOutcome = LinkIdentityOutcome.AlreadyOnAnotherAccount,
         )
         val vm = buildVm(identity = identity)
@@ -102,7 +102,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
 
     @Test
     fun confirmSwitch_withoutConflict_doesNothing() = runUnitTest {
-        val identity = FakeIdentityRepository()
+        val identity = FakeAuthRepository()
         val vm = buildVm(identity = identity)
         vm.takeAction(ClaimAccountAction.ConfirmSwitchToExisting)
         assertEquals(
@@ -113,9 +113,9 @@ class ClaimAccountViewModelTest : CoroutineTest() {
 
     @Test
     fun confirmSwitch_afterConflict_callsSignInWithOAuth_andEmitsSwitched() = runUnitTest {
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             linkOutcome = LinkIdentityOutcome.AlreadyOnAnotherAccount,
-            oauthSignInOutcome = SignInOutcome.Success(sampleIdentity),
+            oauthSignInOutcome = SignInOutcome.Success,
         )
         val vm = buildVm(identity = identity)
 
@@ -144,7 +144,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     @Test
     fun claim_notSignedIn_surfacesSignInFirstMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(linkOutcome = LinkIdentityOutcome.NotSignedIn),
+            identity = FakeAuthRepository(linkOutcome = LinkIdentityOutcome.NotSignedIn),
         )
         vm.takeAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google))
 
@@ -162,7 +162,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     @Test
     fun claim_cancelled_clearsSubmitting_andDoesNotShowError() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(linkOutcome = LinkIdentityOutcome.Cancelled),
+            identity = FakeAuthRepository(linkOutcome = LinkIdentityOutcome.Cancelled),
         )
         vm.takeAction(ClaimAccountAction.ClaimWith(OAuthProvider.Apple))
 
@@ -177,7 +177,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     @Test
     fun claim_providerNotEnabled_surfacesProviderMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(linkOutcome = LinkIdentityOutcome.ProviderNotEnabled),
+            identity = FakeAuthRepository(linkOutcome = LinkIdentityOutcome.ProviderNotEnabled),
         )
         vm.takeAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google))
 
@@ -199,7 +199,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     @Test
     fun claim_networkError_surfacesNetworkMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 linkOutcome = LinkIdentityOutcome.NetworkError(RuntimeException("offline")),
             ),
         )
@@ -219,7 +219,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     @Test
     fun claim_unknown_surfacesGenericMessage() = runUnitTest {
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 linkOutcome = LinkIdentityOutcome.Unknown(RuntimeException("boom")),
             ),
         )
@@ -236,7 +236,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
 
     @Test
     fun confirmSwitch_signInNetworkError_surfacesNetworkMessage() = runUnitTest {
-        val identity = FakeIdentityRepository(
+        val identity = FakeAuthRepository(
             linkOutcome = LinkIdentityOutcome.AlreadyOnAnotherAccount,
             oauthSignInOutcome = SignInOutcome.NetworkError(RuntimeException("offline")),
         )
@@ -268,7 +268,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         // the stashed conflictingProvider so a fresh claim attempt starts
         // from a clean slate.
         val vm = buildVm(
-            identity = FakeIdentityRepository(
+            identity = FakeAuthRepository(
                 linkOutcome = LinkIdentityOutcome.AlreadyOnAnotherAccount,
             ),
         )
@@ -288,10 +288,10 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     // ---------- scaffolding ----------
 
     private fun buildVm(
-        identity: FakeIdentityRepository = FakeIdentityRepository(),
+        identity: FakeAuthRepository = FakeAuthRepository(),
         config: TestAppConfigMap = TestAppConfigMap.withOAuthEnabled(),
     ): ClaimAccountViewModel = ClaimAccountViewModel(
-        identityRepository = identity,
+        authRepository = identity,
         appConfigMap = config,
     )
 }

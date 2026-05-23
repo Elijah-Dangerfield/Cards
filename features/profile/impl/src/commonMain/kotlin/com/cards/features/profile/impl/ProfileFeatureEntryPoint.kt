@@ -45,8 +45,8 @@ import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
@@ -80,7 +80,7 @@ class ProfileFeatureEntryPoint(
     private val editProfileViewModelFactory: () -> EditProfileViewModel,
     private val claimAccountViewModelFactory: () -> ClaimAccountViewModel,
     private val myItemsViewModelFactory: () -> MyItemsViewModel,
-    private val identityRepository: IdentityRepository,
+    private val profileRepository: ProfileRepository,
     private val appCache: AppCache,
     private val userMessageRepository: UserMessageRepository,
 ) : FeatureEntryPoint {
@@ -91,14 +91,17 @@ class ProfileFeatureEntryPoint(
                 .collectAsStateWithLifecycle(initialValue = Progression.Empty)
             val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
                 .collectAsStateWithLifecycle(initialValue = 0)
-            // Identity (display name + avatar + anon flag) is the canonical
+            // Profile (display name + avatar + anon flag) is the canonical
             // source. UserRepository holds local stats only; reading the
             // name from there missed updates after Edit Profile saved
-            // (server pushed new identity, local user row stayed stale).
-            val identityState by identityRepository.state
-                .collectAsStateWithLifecycle(initialValue = IdentityState.Unknown)
-            val identity = (identityState as? IdentityState.SignedIn)?.identity
-            val isAnon = identity?.isAnonymous ?: true
+            // (server pushed new profile, local user row stayed stale).
+            // `null` while ProfileRepository's first emission is still
+            // resolving — the header renders with safe defaults until
+            // it lands.
+            val profile by profileRepository.observe()
+                .collectAsStateWithLifecycle(initialValue = null)
+            val authenticated = profile as? Profile.Authenticated
+            val isAnon = authenticated?.isAnonymous ?: true
             val appData by appCache.updates.collectAsState(initial = AppData())
             val scope = rememberCoroutineScope()
 
@@ -117,9 +120,9 @@ class ProfileFeatureEntryPoint(
 
             ProfileScreen(
                 settings = ProfileSettings(
-                    displayName = identity?.displayName ?: "You",
-                    avatarEmoji = identity?.avatarEmoji,
-                    avatarBackgroundColor = identity?.avatarBackgroundColor,
+                    displayName = authenticated?.displayName ?: "You",
+                    avatarEmoji = authenticated?.avatarEmoji,
+                    avatarBackgroundColor = authenticated?.avatarBackgroundColor,
                     // Rank stays 0 ("Unranked") until the user claims their account
                     // and plays multiplayer — see docs/decisions.md (2026-05-14).
                     rank = if (isAnon) 0 else 1200,
@@ -155,9 +158,9 @@ class ProfileFeatureEntryPoint(
         }
 
         screen<QaMenuRoute> {
-            val identityState by identityRepository.state
-                .collectAsStateWithLifecycle(initialValue = IdentityState.Unknown)
-            val userId = (identityState as? IdentityState.SignedIn)?.identity?.userId
+            val profile by profileRepository.observe()
+                .collectAsStateWithLifecycle(initialValue = null)
+            val userId = (profile as? Profile.Authenticated)?.id
             QaMenuScreen(
                 configStream = appConfigRepository.configStream(),
                 initialConfig = appConfigRepository.config(),

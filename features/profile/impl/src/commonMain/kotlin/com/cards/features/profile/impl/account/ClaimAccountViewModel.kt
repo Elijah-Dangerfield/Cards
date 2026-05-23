@@ -3,10 +3,10 @@ package com.dangerfield.cards.features.profile.impl.account
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import me.tatarka.inject.annotations.Inject
 
 /**
@@ -30,7 +30,7 @@ import me.tatarka.inject.annotations.Inject
  */
 @Inject
 class ClaimAccountViewModel(
-    private val identityRepository: IdentityRepository,
+    private val authRepository: AuthRepository,
     appConfigMap: AppConfigMap,
 ) : SEAViewModel<ClaimAccountState, ClaimAccountEvent, ClaimAccountAction>(
     initialStateArg = run {
@@ -50,7 +50,7 @@ class ClaimAccountViewModel(
 
             is ClaimAccountAction.ClaimWith -> action.run {
                 updateState { it.copy(isSubmitting = true, error = null, conflictingProvider = null) }
-                when (val outcome = identityRepository.linkOAuthIdentity(action.provider)) {
+                when (val outcome = authRepository.linkOAuthIdentity(action.provider)) {
                     is LinkIdentityOutcome.Success -> {
                         updateState { it.copy(isSubmitting = false) }
                         sendEvent(ClaimAccountEvent.Claimed)
@@ -88,7 +88,7 @@ class ClaimAccountViewModel(
             is ClaimAccountAction.ConfirmSwitchToExisting -> action.run {
                 val provider = state.conflictingProvider ?: return@run
                 updateState { it.copy(isSubmitting = true, error = null, conflictingProvider = null) }
-                when (val outcome = identityRepository.signInWithOAuth(provider)) {
+                when (val outcome = authRepository.signInWithOAuth(provider)) {
                     is SignInOutcome.Success -> {
                         updateState { it.copy(isSubmitting = false) }
                         sendEvent(ClaimAccountEvent.SwitchedAccounts)

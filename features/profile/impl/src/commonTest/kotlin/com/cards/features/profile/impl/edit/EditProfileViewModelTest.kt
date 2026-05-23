@@ -4,24 +4,15 @@ import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.AvatarPack
-import com.dangerfield.cards.libraries.identity.AvatarPackOutcome
-import com.dangerfield.cards.libraries.identity.DeleteAccountOutcome
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome
-import com.dangerfield.cards.libraries.identity.LinkIdentityOutcome
-import com.dangerfield.cards.libraries.identity.OAuthProvider
-import com.dangerfield.cards.libraries.identity.RefreshOutcome
-import com.dangerfield.cards.libraries.identity.ResendOutcome
-import com.dangerfield.cards.libraries.identity.SignInOutcome
-import com.dangerfield.cards.libraries.identity.SignUpOutcome
-import com.dangerfield.cards.libraries.identity.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.identity.profile.AvatarPack
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
@@ -33,9 +24,9 @@ class EditProfileViewModelTest : CoroutineTest() {
     @Test
     fun submit_updateProfileCallSurvivesViewModelTeardown() = runUnitTest {
         val gate = CompletableDeferred<UpdateProfileOutcome>()
-        val identity = GatedUpdateProfileIdentity(gate)
+        val profile = GatedUpdateProfile(gate)
         val vm = EditProfileViewModel(
-            identityRepository = identity,
+            profileRepository = profile,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -44,16 +35,16 @@ class EditProfileViewModelTest : CoroutineTest() {
         vm.takeAction(EditProfileAction.AvatarSelected("🦊"))
         vm.takeAction(EditProfileAction.Submit)
         runCurrent()
-        assertEquals(1, identity.updateStarted, "updateProfile should be in-flight")
+        assertEquals(1, profile.updateStarted, "update should be in-flight")
 
         vm.viewModelScope.coroutineContext.job.cancel()
         runCurrent()
 
-        gate.complete(UpdateProfileOutcome.Success(sampleIdentity))
+        gate.complete(UpdateProfileOutcome.Success(sampleProfile))
         runCurrent()
         assertEquals(
-            1, identity.updateFinished,
-            "updateProfile must complete despite VM teardown",
+            1, profile.updateFinished,
+            "update must complete despite VM teardown",
         )
     }
 
@@ -61,9 +52,9 @@ class EditProfileViewModelTest : CoroutineTest() {
     @Test
     fun submit_emitsSavedImmediately_withoutWaitingOnNetwork() = runUnitTest {
         val gate = CompletableDeferred<UpdateProfileOutcome>()
-        val identity = GatedUpdateProfileIdentity(gate)
+        val profile = GatedUpdateProfile(gate)
         val vm = EditProfileViewModel(
-            identityRepository = identity,
+            profileRepository = profile,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -75,39 +66,44 @@ class EditProfileViewModelTest : CoroutineTest() {
 
             assertEquals(EditProfileEvent.Saved, awaitItem())
             assertEquals(
-                1, identity.updateStarted,
-                "updateProfile should be in-flight while Saved already emitted",
+                1, profile.updateStarted,
+                "update should be in-flight while Saved already emitted",
             )
             assertEquals(
-                0, identity.updateFinished,
+                0, profile.updateFinished,
                 "Saved must not block on the network roundtrip",
             )
 
-            gate.complete(UpdateProfileOutcome.Success(sampleIdentity))
+            gate.complete(UpdateProfileOutcome.Success(sampleProfile))
         }
     }
 }
 
-private val sampleIdentity = Identity(
-    userId = "11111111-1111-1111-1111-111111111111",
+private val sampleProfile = Profile.Authenticated(
+    id = "11111111-1111-1111-1111-111111111111",
     displayName = "QuietAce72",
     avatarEmoji = "🃏",
     avatarBackgroundColor = null,
+    email = null,
     isAnonymous = false,
 )
 
-private class GatedUpdateProfileIdentity(
+private class GatedUpdateProfile(
     private val gate: CompletableDeferred<UpdateProfileOutcome>,
-) : IdentityRepository {
+) : ProfileRepository {
     var updateStarted: Int = 0
         private set
     var updateFinished: Int = 0
         private set
 
-    private val _state = MutableStateFlow<IdentityState>(IdentityState.SignedIn(sampleIdentity))
-    override val state: StateFlow<IdentityState> = _state
+    private val flow = MutableSharedFlow<Profile>(replay = 1, extraBufferCapacity = 1).apply {
+        tryEmit(sampleProfile)
+    }
 
-    override suspend fun updateProfile(
+    override suspend fun current(): Profile = sampleProfile
+    override fun observe(): Flow<Profile> = flow
+
+    override suspend fun update(
         displayName: String?,
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
@@ -124,15 +120,4 @@ private class GatedUpdateProfileIdentity(
             packs = listOf(AvatarPack(id = "starter", name = "Starter", emojis = listOf("🃏", "🦊"))),
             palette = emptyList(),
         )
-
-    override suspend fun ensureInitialized(): Identity = error("unused")
-    override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
-    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")
-    override suspend fun refreshSession(): RefreshOutcome = error("unused")
-    override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
-    override suspend fun signOut() = Unit
-    override suspend fun deleteAccount(): DeleteAccountOutcome = error("unused")
-    override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
-    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")
-    override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome = error("unused")
 }

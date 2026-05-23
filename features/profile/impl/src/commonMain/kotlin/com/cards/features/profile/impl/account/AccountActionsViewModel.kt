@@ -3,7 +3,7 @@ package com.dangerfield.cards.features.profile.impl.account
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import kotlinx.coroutines.async
 import me.tatarka.inject.annotations.Inject
 
@@ -24,7 +24,7 @@ import me.tatarka.inject.annotations.Inject
  */
 @Inject
 class AccountActionsViewModel(
-    private val identityRepository: IdentityRepository,
+    private val authRepository: AuthRepository,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<AccountActionsState, AccountActionsEvent, AccountActionsAction>(
@@ -36,7 +36,7 @@ class AccountActionsViewModel(
             is AccountActionsAction.ConfirmSignOut -> action.run {
                 updateState { it.copy(isSigningOut = true) }
                 appScope.async {
-                    identityRepository.signOut()
+                    authRepository.signOut()
                     appCache.update { it.copy(hasUserOnboarded = false) }
                 }.await()
                 updateState { it.copy(isSigningOut = false) }
