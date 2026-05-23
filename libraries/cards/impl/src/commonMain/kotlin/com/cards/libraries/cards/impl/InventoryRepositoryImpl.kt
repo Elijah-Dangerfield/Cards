@@ -23,6 +23,8 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -61,7 +63,14 @@ class InventoryRepositoryImpl(
 ) : InventoryRepository, AppEventListener {
 
     private val syncLogger = KLog.withTag("InventorySync")
+    // Single-flight gate. The mutex guards lookup/start of [inFlight];
+    // the Deferred itself is the in-flight work. Concurrent sync()
+    // callers all `.await()` the same Deferred — no stacking of N
+    // back-to-back POSTs when shop init + redeem + edit-profile entry
+    // collide. Started in [appScope] so the network call outlives any
+    // VM-scope caller that gets torn down mid-await.
     private val syncMutex = Mutex()
+    private var inFlight: Deferred<Result<Unit>>? = null
 
     override fun observeInventory(): Flow<List<InventoryItem>> =
         inventoryDao.observeAll().map { rows -> rows.map { it.toDomain() } }
@@ -164,7 +173,21 @@ class InventoryRepositoryImpl(
         appScope.launch { sync() }
     }
 
-    override suspend fun sync(): Result<Unit> = syncMutex.withLock {
+    override suspend fun sync(): Result<Unit> {
+        // True single-flight: if another caller already started a sync,
+        // await its result instead of stacking a second POST.
+        val deferred = syncMutex.withLock {
+            val existing = inFlight
+            if (existing != null && !existing.isCompleted) {
+                existing
+            } else {
+                appScope.async { doSync() }.also { inFlight = it }
+            }
+        }
+        return deferred.await()
+    }
+
+    private suspend fun doSync(): Result<Unit> =
         // Always POSTs — even with an empty pending set — because the
         // response carries the server's authoritative `owned` snapshot.
         // That doubles as the cold-start fetch for "what does the user
@@ -256,7 +279,6 @@ class InventoryRepositoryImpl(
             syncLogger.d { "Sync complete: ${confirmedIds.size} confirmed, ${authoritative.size} server-owned." }
             Unit
         }.onFailure { syncLogger.w(it) { "Inventory sync failed; pending rows stay Pending." } }
-    }
 
     private fun InventoryEntity.toDomain(): InventoryItem = InventoryItem(
         productId = productId,

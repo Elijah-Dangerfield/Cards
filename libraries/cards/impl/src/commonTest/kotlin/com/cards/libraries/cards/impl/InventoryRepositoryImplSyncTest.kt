@@ -22,9 +22,12 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -223,6 +226,79 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun concurrentSyncs_shareSingleInFlightPost() = runUnitTest {
+        // Regression: ShopVM init + Shop redeem + EditProfile init can
+        // call sync() in quick succession. Today's single-flight gate
+        // must dedupe — N concurrent callers share one in-flight POST,
+        // not N back-to-back POSTs.
+        //
+        // Gate the first call inside the DAO (rather than the Ktor
+        // handler) so the suspension is on a dispatcher the test scope
+        // owns. The Ktor MockEngine internally dispatches off the test
+        // scheduler, which makes a handler-suspended gate flaky.
+        val gate = CompletableDeferred<Unit>()
+        var getAllCalls = 0
+        val invDao = GatedInventoryDao(gate = gate, onGetAllEntered = { getAllCalls++ })
+        val chips = FakeChipsRepository()
+        var hitCount = 0
+        val repo = buildRepo(invDao, chips) {
+            hitCount++
+            respondJson(
+                """
+                {"schemaVersion":1,"results":[],"owned":[]}
+                """.trimIndent(),
+            )
+        }
+
+        val a = async { repo.sync() }
+        val b = async { repo.sync() }
+        runCurrent()
+
+        // First sync hit the DAO and suspended on the gate. Second sync
+        // saw the in-flight Deferred and awaited it — no second DAO
+        // entry, no second POST.
+        assertEquals(
+            1, getAllCalls,
+            "second sync() must reuse the in-flight call, not re-enter doSync()",
+        )
+        assertEquals(0, hitCount, "no POST yet — handler is downstream of the DAO gate")
+
+        gate.complete(Unit)
+        val resultA = a.await()
+        val resultB = b.await()
+
+        assertTrue(resultA.isSuccess && resultB.isSuccess)
+        // Two concurrent callers, exactly one POST. The DAO call-count
+        // can land >1 because applyServerSnapshot does its own getAll()
+        // after the network response — that's still inside the one
+        // in-flight doSync(), so it doesn't break the contract.
+        assertEquals(1, hitCount, "exactly one POST for two concurrent sync() callers")
+    }
+
+    @Test
+    fun sequentialSyncs_eachFireOwnPost() = runUnitTest {
+        // Counterpart to the single-flight test: once a sync completes,
+        // the next caller starts a fresh POST. Single-flight is about
+        // *concurrent* callers, not "skip if recently synced".
+        val invDao = FakeInventoryDao()
+        val chips = FakeChipsRepository()
+        var hitCount = 0
+        val repo = buildRepo(invDao, chips) {
+            hitCount++
+            respondJson(
+                """
+                {"schemaVersion":1,"results":[],"owned":[]}
+                """.trimIndent(),
+            )
+        }
+
+        repo.sync()
+        repo.sync()
+
+        assertEquals(2, hitCount, "sequential sync() callers each get their own POST")
+    }
+
+    @Test
     fun unknownOutcome_leavesRowPending() = runUnitTest {
         val invDao = FakeInventoryDao().apply { seed(pendingItem("emote_dance", cost = 2_500)) }
         val chips = FakeChipsRepository()
@@ -250,10 +326,10 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
     // ---------- scaffolding ----------
 
     private fun buildRepo(
-        invDao: FakeInventoryDao,
+        invDao: InventoryDao,
         chips: FakeChipsRepository,
         equipment: FakeEquipmentRepository = FakeEquipmentRepository(),
-        handler: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): InventoryRepositoryImpl {
         val mockEngine = MockEngine(handler)
         val client = HttpClient(mockEngine) {
@@ -349,6 +425,37 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
         override suspend fun deleteAll() {
             rows.value = emptyList()
         }
+    }
+
+    /**
+     * Delegates to a [FakeInventoryDao] for behavior but blocks [getAll]
+     * on a CompletableDeferred so the test can pin a sync() in-flight at
+     * a known suspension point. The [onGetAllEntered] hook fires before
+     * the await so the test can count entries from outside.
+     */
+    private class GatedInventoryDao(
+        private val gate: CompletableDeferred<Unit>,
+        private val onGetAllEntered: () -> Unit,
+        private val delegate: FakeInventoryDao = FakeInventoryDao(),
+    ) : InventoryDao {
+        override fun observeAll(): Flow<List<InventoryEntity>> = delegate.observeAll()
+        override suspend fun getAll(): List<InventoryEntity> {
+            onGetAllEntered()
+            gate.await()
+            return delegate.getAll()
+        }
+        override suspend fun getByProductId(productId: String): InventoryEntity? =
+            delegate.getByProductId(productId)
+        override suspend fun getPending(): List<InventoryEntity> = delegate.getPending()
+        override suspend fun insertIfMissing(entity: InventoryEntity): Long =
+            delegate.insertIfMissing(entity)
+        override suspend fun insertAll(rows: List<InventoryEntity>) = delegate.insertAll(rows)
+        override suspend fun markConfirmed(productIds: Collection<String>) =
+            delegate.markConfirmed(productIds)
+        override suspend fun delete(productId: String) = delegate.delete(productId)
+        override suspend fun deleteConfirmed(productIds: Collection<String>) =
+            delegate.deleteConfirmed(productIds)
+        override suspend fun deleteAll() = delegate.deleteAll()
     }
 
     private class FakeChipsRepository : ChipsRepository {
