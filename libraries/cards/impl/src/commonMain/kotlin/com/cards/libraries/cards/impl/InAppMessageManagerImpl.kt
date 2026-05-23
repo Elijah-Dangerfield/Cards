@@ -8,8 +8,7 @@ import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.awaitIdentity
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,8 +24,9 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Implements the "one dialog per foreground" policy by reacting to
  * cold-boot + warm-foreground events. On each event:
  *
- *   1. Await identity (avoid 401ing the sync against an onboarding
- *      anonymous user mid-creation).
+ *   1. Await auth (avoid 401ing the sync against an onboarding
+ *      anonymous user mid-creation). We only need to know auth landed —
+ *      not the profile details.
  *   2. Best-effort sync — pulls fresh server state, ships pending acks.
  *      Failure is non-fatal: we fall through to step 3 on the cached
  *      local DB.
@@ -45,12 +45,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class InAppMessageManagerImpl(
     private val repository: UserMessageRepository,
-    private val identityRepositoryProvider: () -> IdentityRepository,
+    private val authRepositoryProvider: () -> AuthRepository,
     private val appScope: AppCoroutineScope,
 ) : InAppMessageManager, AppEventListener {
 
     private val logger = KLog.withTag("InAppMessages")
-    private val identityRepository: IdentityRepository by lazy { identityRepositoryProvider() }
+    private val authRepository: AuthRepository by lazy { authRepositoryProvider() }
     private val serializeForegroundsMutex = Mutex()
     private val _current = MutableStateFlow<UserMessage?>(null)
 
@@ -77,7 +77,7 @@ class InAppMessageManagerImpl(
 
     private suspend fun onForegroundLikeEvent() = serializeForegroundsMutex.withLock {
         Catching {
-            identityRepository.awaitIdentity()
+            authRepository.current()
             // Best-effort sync — we still consume from cache on failure
             // so an offline user sees their previously-cached messages.
             repository.sync()

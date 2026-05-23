@@ -4,10 +4,12 @@ import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
-import com.dangerfield.cards.libraries.identity.Identity
-import com.dangerfield.cards.libraries.identity.IdentityRepository
-import com.dangerfield.cards.libraries.identity.IdentityState
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -17,14 +19,14 @@ import kotlin.test.assertTrue
 class TelemetryUserBinderTest : CoroutineTest() {
 
     @Test
-    fun coldBoot_thenSignedIn_forwardsToTelemetry() = runUnitTest {
-        val identity = FakeIdentity()
+    fun coldBoot_thenAuthenticatedProfile_forwardsToTelemetry() = runUnitTest {
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
-        identity.emit(IdentityState.SignedIn(sample(id = "u1", name = "Alice")))
+        profile.emit(sample(id = "u1", name = "Alice"))
         runCurrent()
 
         assertEquals(1, telemetry.setUserCalls.size)
@@ -33,11 +35,14 @@ class TelemetryUserBinderTest : CoroutineTest() {
     }
 
     @Test
-    fun signedInBeforeColdBoot_isPickedUp() = runUnitTest {
-        val identity = FakeIdentity(initial = IdentityState.SignedIn(sample(id = "u1", name = "Alice")))
+    fun emittedBeforeColdBoot_isPickedUp() = runUnitTest {
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
+        // Replay = 1 so the latest emission is available to a late
+        // subscriber, mirroring SharedFlow(replay = 1) in the real impl.
+        profile.emit(sample(id = "u1", name = "Alice"))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
 
@@ -46,28 +51,29 @@ class TelemetryUserBinderTest : CoroutineTest() {
 
     @Test
     fun multipleColdBoots_subscribeOnce() = runUnitTest {
-        val identity = FakeIdentity()
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
         binder.onColdBoot(AppEvent.ColdBoot)
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
-        identity.emit(IdentityState.SignedIn(sample(id = "u1", name = "Alice")))
+        profile.emit(sample(id = "u1", name = "Alice"))
         runCurrent()
 
         assertEquals(1, telemetry.setUserCalls.size, "second cold-boot should not start a second collector")
     }
 
     @Test
-    fun unchangedIdentity_doesNotReEmit() = runUnitTest {
-        val identity = FakeIdentity(initial = IdentityState.SignedIn(sample(id = "u1", name = "Alice")))
+    fun unchangedProfile_doesNotReEmit() = runUnitTest {
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
+        profile.emit(sample(id = "u1", name = "Alice"))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
-        identity.emit(IdentityState.SignedIn(sample(id = "u1", name = "Alice")))
+        profile.emit(sample(id = "u1", name = "Alice"))
         runCurrent()
 
         assertEquals(1, telemetry.setUserCalls.size)
@@ -75,13 +81,14 @@ class TelemetryUserBinderTest : CoroutineTest() {
 
     @Test
     fun displayNameChange_reEmits() = runUnitTest {
-        val identity = FakeIdentity(initial = IdentityState.SignedIn(sample(id = "u1", name = "Alice")))
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
+        profile.emit(sample(id = "u1", name = "Alice"))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
-        identity.emit(IdentityState.SignedIn(sample(id = "u1", name = "Renamed")))
+        profile.emit(sample(id = "u1", name = "Renamed"))
         runCurrent()
 
         assertEquals(2, telemetry.setUserCalls.size)
@@ -90,10 +97,11 @@ class TelemetryUserBinderTest : CoroutineTest() {
 
     @Test
     fun signedOut_clearsTelemetryUser() = runUnitTest {
-        val identity = FakeIdentity(initial = IdentityState.SignedIn(sample(id = "u1", name = "Alice")))
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
+        profile.emit(sample(id = "u1", name = "Alice"))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
         binder.onSignedOut(AppEvent.SignedOut)
@@ -106,14 +114,11 @@ class TelemetryUserBinderTest : CoroutineTest() {
 
     @Test
     fun email_forwardedWhenPresent() = runUnitTest {
-        val identity = FakeIdentity(
-            initial = IdentityState.SignedIn(
-                sample(id = "u1", name = "Alice", email = "alice@example.com"),
-            ),
-        )
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
+        profile.emit(sample(id = "u1", name = "Alice", email = "alice@example.com"))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
 
@@ -122,19 +127,14 @@ class TelemetryUserBinderTest : CoroutineTest() {
 
     @Test
     fun emailChange_reEmits() = runUnitTest {
-        val identity = FakeIdentity(
-            initial = IdentityState.SignedIn(
-                sample(id = "u1", name = "Alice", email = null),
-            ),
-        )
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
+        profile.emit(sample(id = "u1", name = "Alice", email = null))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
-        identity.emit(
-            IdentityState.SignedIn(sample(id = "u1", name = "Alice", email = "alice@example.com")),
-        )
+        profile.emit(sample(id = "u1", name = "Alice", email = "alice@example.com"))
         runCurrent()
 
         assertEquals(2, telemetry.setUserCalls.size)
@@ -143,26 +143,28 @@ class TelemetryUserBinderTest : CoroutineTest() {
     }
 
     @Test
-    fun unknownIdentityState_doesNotSet() = runUnitTest {
-        val identity = FakeIdentity(initial = IdentityState.Unknown)
+    fun fallbackProfile_doesNotSet() = runUnitTest {
+        // Fallback isn't a real user — no telemetry attribution to do.
+        val profile = FakeProfile()
         val telemetry = RecordingTelemetry()
-        val binder = build(identity, telemetry)
+        val binder = build(profile, telemetry)
 
+        profile.emit(Profile.Fallback(id = "local-uuid"))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
 
         assertTrue(telemetry.setUserCalls.isEmpty())
     }
 
-    private fun build(identity: FakeIdentity, telemetry: RecordingTelemetry) =
+    private fun build(profile: FakeProfile, telemetry: RecordingTelemetry) =
         TelemetryUserBinder(
-            identityProvider = { identity },
+            profileProvider = { profile },
             telemetry = telemetry,
             appScope = AppCoroutineScope(dispatchers),
         )
 
-    private fun sample(id: String, name: String, email: String? = null) = Identity(
-        userId = id,
+    private fun sample(id: String, name: String, email: String? = null) = Profile.Authenticated(
+        id = id,
         displayName = name,
         avatarEmoji = "🙂",
         avatarBackgroundColor = null,
@@ -189,47 +191,21 @@ class TelemetryUserBinderTest : CoroutineTest() {
         ) = Unit
     }
 
-    private class FakeIdentity(initial: IdentityState = IdentityState.Unknown) : IdentityRepository {
-        private val _state = MutableStateFlow(initial)
-        override val state = _state
+    private class FakeProfile : ProfileRepository {
+        private val flow = MutableSharedFlow<Profile>(replay = 1, extraBufferCapacity = 8)
 
-        fun emit(next: IdentityState) {
-            _state.value = next
+        fun emit(profile: Profile) {
+            flow.tryEmit(profile)
         }
 
-        override suspend fun ensureInitialized(): Identity = error("unused")
-        override suspend fun signInWithEmail(
-            email: String,
-            password: String,
-        ): com.dangerfield.cards.libraries.identity.SignInOutcome = error("unused")
-        override suspend fun signUpWithEmail(
-            email: String,
-            password: String,
-        ): com.dangerfield.cards.libraries.identity.SignUpOutcome = error("unused")
-        override suspend fun refreshSession(): com.dangerfield.cards.libraries.identity.RefreshOutcome = error("unused")
-        override suspend fun resendVerificationEmail(
-            email: String,
-        ): com.dangerfield.cards.libraries.identity.ResendOutcome = error("unused")
-        override suspend fun signOut() = Unit
-        override suspend fun updateProfile(
+        override suspend fun current(): Profile = error("not used in binder tests")
+        override fun observe(): Flow<Profile> = flow
+        override suspend fun update(
             displayName: String?,
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
-        ): com.dangerfield.cards.libraries.identity.UpdateProfileOutcome = error("unused")
-        override suspend fun fetchAvatarPack():
-            com.dangerfield.cards.libraries.identity.AvatarPackOutcome = error("unused")
-        override suspend fun deleteAccount():
-            com.dangerfield.cards.libraries.identity.DeleteAccountOutcome = error("unused")
-        override suspend fun linkOAuthIdentity(
-            provider: com.dangerfield.cards.libraries.identity.OAuthProvider,
-        ): com.dangerfield.cards.libraries.identity.LinkIdentityOutcome = error("unused")
-        override suspend fun linkEmailIdentity(
-            email: String,
-            password: String,
-        ): com.dangerfield.cards.libraries.identity.LinkEmailIdentityOutcome = error("unused")
-        override suspend fun signInWithOAuth(
-            provider: com.dangerfield.cards.libraries.identity.OAuthProvider,
-        ): com.dangerfield.cards.libraries.identity.SignInOutcome = error("unused")
+        ): UpdateProfileOutcome = error("unused")
+        override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("unused")
     }
 }
