@@ -42,7 +42,16 @@ kotlin {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.networking)
+            // ProfileCache depends on storage's Cache / CacheFactory;
+            // AppEventBus is in :libraries:cards (needed by the impl ctor).
+            implementation(projects.libraries.storage)
+            implementation(projects.libraries.cards)
             implementation(libs.ktor.client.contentNegotiation)
+            // MockEngine is the easiest way to synthesize a real Ktor
+            // ClientRequestException with a given HTTP status — the impl's
+            // outcome mapping branches on status codes, so we need real
+            // exception shapes (not hand-rolled ones).
+            implementation("io.ktor:ktor-client-mock:3.3.3")
         }
     }
 }
