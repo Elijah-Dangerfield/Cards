@@ -7,7 +7,6 @@ import androidx.navigation.toRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.libraries.bots.BotDifficulty
-import com.dangerfield.cards.libraries.gameplay.StakeTier
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
@@ -30,7 +29,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class PlayPokerFeatureEntryPoint(
-    private val soloFactoryFactory: (difficulty: BotDifficulty, seatCount: Int, stakeTier: StakeTier) -> SoloBotsPokerSessionFactory,
+    private val soloFactoryFactory: (difficulty: BotDifficulty, seatCount: Int) -> SoloBotsPokerSessionFactory,
     private val playPokerVmFactory: (sessionFactory: PokerSessionFactory) -> PlayPokerViewModel,
 ) : FeatureEntryPoint {
 
@@ -40,9 +39,8 @@ class PlayPokerFeatureEntryPoint(
             val difficulty = BotDifficulty.entries.firstOrNull { it.name == route.difficulty }
                 ?: BotDifficulty.Standard
             val seatCount = route.seatCount.coerceIn(2, 6)
-            val stakeTier = StakeTier.fromName(route.stakeTier)
-            val viewModel: PlayPokerViewModel = viewModel(key = "play-poker-${difficulty.name}-$seatCount-${stakeTier.name}") {
-                val factory = soloFactoryFactory(difficulty, seatCount, stakeTier)
+            val viewModel: PlayPokerViewModel = viewModel(key = "play-poker-${difficulty.name}-$seatCount") {
+                val factory = soloFactoryFactory(difficulty, seatCount)
                 playPokerVmFactory(factory)
             }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value

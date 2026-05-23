@@ -23,18 +23,21 @@ import me.tatarka.inject.annotations.Inject
  * picked. When MP lands (Phase 4), a sibling `RemotePokerSessionFactory`
  * will satisfy the same interface using server-supplied occupant metadata.
  *
- * Assisted-injected on the [BotDifficulty], seat count, and stake-tier
- * parameters — the `FeatureEntryPoint` constructs an instance per route.
+ * Assisted-injected on the [BotDifficulty] + seat count parameters — the
+ * `FeatureEntryPoint` constructs an instance per route. Stakes are derived
+ * from the difficulty so the three home-screen entry points (Casual /
+ * Standard / Challenging) each map to a fixed [StakeTier].
  */
 class SoloBotsPokerSessionFactory @Inject constructor(
     @Assisted private val difficulty: BotDifficulty,
     @Assisted private val seatCount: Int,
-    @Assisted private val stakeTier: StakeTier,
     private val dispatchers: DispatcherProvider,
 ) : PokerSessionFactory {
 
     private val botPersonalities: List<BotPersonality> =
         BotPersonality.forDifficulty(difficulty, seatCount - 1)
+
+    private val stakeTier: StakeTier = difficulty.toStakeTier()
 
     override val difficultyName: String = difficulty.name
 
@@ -104,4 +107,10 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         lastActionBySeat = lastActionBySeat,
         humanProfile = humanProfile,
     )
+}
+
+private fun BotDifficulty.toStakeTier(): StakeTier = when (this) {
+    BotDifficulty.Casual -> StakeTier.Casual
+    BotDifficulty.Standard -> StakeTier.Standard
+    BotDifficulty.Challenging -> StakeTier.High
 }

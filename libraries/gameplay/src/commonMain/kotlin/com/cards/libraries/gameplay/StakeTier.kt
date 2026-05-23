@@ -9,9 +9,10 @@ import kotlinx.serialization.Serializable
  * 100× big blind ("deep stack"), so a seated player has ~100 hands of
  * pressure before bust-and-rebuy.
  *
- * Public-room matchmaking uses these as buckets. Bot tables let the
- * player pick directly via [com.dangerfield.cards.features.home.impl.BotTableSetupDialog]
- * so the stake-tier concept is discoverable in solo play, ahead of MP.
+ * Public-room matchmaking uses these as buckets. Bot tables derive
+ * their tier from the bot-difficulty entry on the home screen (Casual /
+ * Standard / Challenging → Casual / Standard / High) so the player
+ * doesn't have to think about stakes during solo practice.
  *
  * Calibration is a Phase-8 chip-economy modeling exercise — see
  * [product-spec.md item 12](../../../../../docs/product/product-spec.md).
