@@ -53,12 +53,13 @@ fun HomeScreen(
     // and the RankDetailSheet explainer). XP and chips are live via repos.
     HomeScreenContent(
         rank = if (state.isAnonymous) 0 else 1200,
-        // First-sync hydrate normally lands during the splash gate; on
-        // the rare path where home renders before the chip sync hits,
-        // fall back to 0 rather than passing null through every leaf
-        // component. UI polish to render a true "loading" placeholder
-        // is a separate follow-up.
-        chips = state.chips ?: 0L,
+        // Nullable on purpose: null = "local DB hasn't emitted yet"
+        // (first launch or post-wipe). The chip badge + hero render a
+        // placeholder ("—") in that state rather than flashing "0"
+        // before the sync lands. Once Room emits the row (existing
+        // session) or the sync writes a balance (fresh session), the
+        // value flows in and the placeholder swaps to the real number.
+        chips = state.chips,
         xp = state.xp,
         activeRooms = state.activeRooms,
         onPlayBots = onPlayBots,
@@ -76,7 +77,7 @@ fun HomeScreen(
 @Composable
 private fun HomeScreenContent(
     rank: Int,
-    chips: Long,
+    chips: Long?,
     xp: Long,
     activeRooms: List<ActiveRoomSummary>,
     onPlayBots: (difficulty: String) -> Unit,
@@ -170,7 +171,7 @@ private fun HomeScreenContent(
 }
 
 @Composable
-private fun HeroChips(amount: Long) {
+private fun HeroChips(amount: Long?) {
     val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -183,11 +184,24 @@ private fun HeroChips(amount: Long) {
             textAlign = TextAlign.Center,
         )
         VerticalSpacerD300()
-        AnimatedNumberText(
-            value = amount,
-            typography = AppTheme.typography.Display.D1200,
-            color = goldText,
-        )
+        if (amount == null) {
+            // Hero placeholder mirrors the badge — same Display.D1200
+            // size so the layout doesn't jump when the real number
+            // arrives. textSecondary signals "not yet hydrated"
+            // versus the gold-on-text contrast of a real balance.
+            Text(
+                text = "—",
+                typography = AppTheme.typography.Display.D1200,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+        } else {
+            AnimatedNumberText(
+                value = amount,
+                typography = AppTheme.typography.Display.D1200,
+                color = goldText,
+            )
+        }
     }
 }
 

@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun BalancePillSlot(
-    chips: Long,
+    chips: Long?,
     modifier: Modifier = Modifier,
     onChipsClick: (() -> Unit)? = null,
     leading: @Composable RowScope.() -> Unit,

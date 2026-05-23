@@ -16,7 +16,7 @@ import com.dangerfield.cards.system.AppTheme
 
 @Composable
 fun ChipBadge(
-    amount: Long,
+    amount: Long?,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
 ) {
@@ -32,12 +32,25 @@ fun ChipBadge(
         // with every other "this is chips" treatment across the app.
         ChipCoin()
         Spacer(modifier = Modifier.width(8.dp))
-        AnimatedNumberText(
-            value = amount,
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
-            formatter = { formatThousands(it) },
-        )
+        if (amount == null) {
+            // Null = local Room hasn't emitted yet (first-launch / post-
+            // wipe). Render a placeholder rather than "0" so the user
+            // doesn't see a momentary "you have no chips" flash before
+            // sync lands. A real value tagged width keeps the badge
+            // from resizing when chips arrive.
+            com.dangerfield.cards.libraries.ui.components.text.Text(
+                text = "—",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.textSecondary,
+            )
+        } else {
+            AnimatedNumberText(
+                value = amount,
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+                formatter = { formatThousands(it) },
+            )
+        }
     }
 }
 
