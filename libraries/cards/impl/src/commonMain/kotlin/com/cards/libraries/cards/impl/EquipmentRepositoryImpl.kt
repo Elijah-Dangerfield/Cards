@@ -16,6 +16,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -168,7 +169,7 @@ class EquipmentRepositoryImpl(
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
-        networkClient.authedCall("equipment.sync") { client ->
+        networkClient.authedCall("equipment.sync", retry = RetryPolicy.idempotent()) { client ->
             val all = getAll()
             val pending = all.filter { it.syncState == EquipmentSyncState.Pending }
 

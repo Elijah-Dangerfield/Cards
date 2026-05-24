@@ -319,6 +319,7 @@ Top-edge emoji bubbles attach to both dialog and sheet layers — dialogs via `e
 
 - Code like a staff engineer
 - Use `Catching { }` from libraries/core instead of `runCatching`. `runCatching` swallows `CancellationException`, which breaks structured concurrency in suspend functions and coroutine scopes. `Catching` rethrows it (while preserving `TimeoutCancellationException`). Use it everywhere for consistency, not just inside coroutines.
+- Authed HTTP calls go through `networkClient.authedCall("description") { client -> … }` (unauthed via `unauthedCall`). The default `retry = RetryPolicy.None` — opt in to retry only when the endpoint is idempotent, with `retry = RetryPolicy.idempotent()` (or a custom chain like `.exponential().withJitter().maxRetries(N)`). The factory's name is documentation: by choosing it you're affirming the server can safely process the same request twice (idempotency key, upsert, etc.). Non-idempotent POSTs leave retry at `None`.
 - No comments in code
 - Custom UI components in libraries/ui—avoid Material directly
 - Check `ComposeApp.h` for Swift names of Kotlin types before using in Swift

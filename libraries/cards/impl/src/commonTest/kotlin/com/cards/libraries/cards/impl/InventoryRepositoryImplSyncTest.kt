@@ -207,6 +207,41 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun transient5xxThenSuccess_succeedsAfterRetry() = runUnitTest {
+        // inventory.sync runs under RetryPolicy.idempotent() — server upserts
+        // by (userId, productId), so a transient 5xx should not bubble up.
+        val invDao = FakeInventoryDao().apply { seed(pendingItem("emote_dance", cost = 2_500)) }
+        val chips = FakeChipsRepository()
+        var hitCount = 0
+        val repo = buildRepo(invDao, chips) {
+            hitCount++
+            if (hitCount == 1) {
+                respond("", HttpStatusCode.InternalServerError)
+            } else {
+                respondJson(
+                    """
+                    {
+                      "schemaVersion": 1,
+                      "results": [{"productId":"emote_dance","outcome":"Confirmed"}],
+                      "owned": [{"productId":"emote_dance","costChipsAtPurchase":2500,"purchasedAtEpochMs":1000}]
+                    }
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        val result = repo.sync()
+
+        assertTrue(result.isSuccess)
+        assertEquals(2, hitCount, "1 transient 5xx + 1 successful retry")
+        assertEquals(
+            PurchaseState.Confirmed.name,
+            invDao.getAll().single().syncState,
+            "successful retry flips the pending row to Confirmed",
+        )
+    }
+
+    @Test
     fun networkFailure_returnsFailureResult_leavesRowsPending() = runUnitTest {
         val invDao = FakeInventoryDao().apply { seed(pendingItem("emote_dance", cost = 2_500)) }
         val chips = FakeChipsRepository()
@@ -341,6 +376,8 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
                     },
                 )
             }
+            // Match production: 4xx/5xx throws so the retry predicate can see it.
+            expectSuccess = true
         }
         val networkClient = object : NetworkClient {
             override val client: HttpClient = client

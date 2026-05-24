@@ -184,6 +184,33 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun transient5xxThenSuccess_succeedsAfterRetry() = runUnitTest {
+        // wallet.sync runs under RetryPolicy.idempotent() — server's
+        // (user_id, idempotency_key) PK makes the endpoint safe to replay,
+        // so a transient 5xx should NOT bubble up to the user.
+        val walletDao = FakeWalletEventDao().apply {
+            insert(walletEvent("k1", delta = 50))
+        }
+        val chipsDao = FakeChipsDao(seedBalance = 4242L)
+        var hitCount = 0
+        val repo = buildRepo(chipsDao, walletDao) {
+            hitCount++
+            if (hitCount == 1) {
+                respond(content = ByteReadChannel(""), status = HttpStatusCode.InternalServerError)
+            } else {
+                respondJson("""{"schemaVersion":1,"balance":4292,"results":[{"idempotencyKey":"k1","outcome":"Applied","balance":4292}]}""")
+            }
+        }
+
+        val result = repo.sync()
+
+        assertTrue(result.isSuccess)
+        assertEquals(2, hitCount, "1 transient 5xx + 1 successful retry")
+        assertTrue(walletDao.getAll().isEmpty(), "applied event is purged on success")
+        assertEquals(4292L, chipsDao.getChips()?.balance, "balance updated to server's value")
+    }
+
+    @Test
     fun networkFailure_returnsFailure_keepsRowsPending() = runUnitTest {
         val walletDao = FakeWalletEventDao().apply {
             insert(walletEvent("k1", delta = 50))
@@ -262,6 +289,10 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
                     },
                 )
             }
+            // Match production: 4xx/5xx throws (ServerResponse/ClientRequestException).
+            // Required so the retry policy's `is ResponseException` branch sees a 5xx
+            // instead of a downstream JSON-parse failure on an empty error body.
+            expectSuccess = true
         }
         val networkClient = object : NetworkClient {
             override val client: HttpClient = client

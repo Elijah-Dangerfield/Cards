@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -196,7 +197,7 @@ class InventoryRepositoryImpl(
         // closes the equipment-without-inventory drift bug: on a fresh
         // install the server's snapshot brings the inventory back in line
         // before the equipment consistency invariant fires.
-        networkClient.authedCall("inventory.sync") { client ->
+        networkClient.authedCall("inventory.sync", retry = RetryPolicy.idempotent()) { client ->
             val pending = getInventory()
                 .filter { it.state == PurchaseState.Pending }
 

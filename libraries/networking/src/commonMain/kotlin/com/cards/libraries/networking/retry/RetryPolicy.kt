@@ -136,6 +136,23 @@ class RetryPolicy private constructor(
             jitter = Jitter.None,
             retryIf = ::isTransientNetworkFailure,
         )
+
+        /**
+         * The recommended preset for **idempotent endpoints** — exponential
+         * backoff with equal jitter, retrying transient network failures
+         * (timeout / 5xx / IO). 3 retries (4 attempts total).
+         *
+         * The factory's *name* encodes the precondition: by reaching for
+         * `RetryPolicy.idempotent()`, the caller is affirming that the
+         * server tolerates the same request landing more than once
+         * (idempotency keys, upserts, snapshot reconciliation, etc.). If
+         * that isn't true for your endpoint, leave [retry] at
+         * [RetryPolicy.None] — a duplicate POST that the server processed
+         * twice double-spends.
+         *
+         * See [RetryPolicy] header for the broader idempotency tradeoffs.
+         */
+        fun idempotent(): RetryPolicy = exponential().withJitter()
     }
 }
 

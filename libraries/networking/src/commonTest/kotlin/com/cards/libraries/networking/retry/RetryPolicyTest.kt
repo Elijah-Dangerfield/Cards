@@ -103,4 +103,12 @@ class RetryPolicyTest {
         // dedicated test below that uses MockEngine.
         assertFalse(isTransientNetworkFailure(IllegalArgumentException("validation")))
     }
+
+    @Test
+    fun idempotent_preset_isExponentialWithEqualJitter_3Retries() {
+        val p = RetryPolicy.idempotent()
+        assertEquals(4, p.maxAttempts, "3 retries + initial = 4 attempts")
+        assertTrue(p.backoff is Backoff.Exponential)
+        assertEquals(Jitter.Equal, p.jitter)
+    }
 }

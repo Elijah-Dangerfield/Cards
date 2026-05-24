@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -143,7 +144,7 @@ class ChipsRepositoryImpl(
         // Always POST — an empty events list is a valid "hydrate
         // balance" call. That's how a second device picks up a chip
         // grant the user collected elsewhere.
-        networkClient.authedCall("wallet.sync") { client ->
+        networkClient.authedCall("wallet.sync", retry = RetryPolicy.idempotent()) { client ->
             val pending = walletEventDao.getAll()
 
             val request = WalletSyncRequestDto(

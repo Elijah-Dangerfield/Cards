@@ -199,6 +199,48 @@ class EquipmentRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun transient5xxThenSuccess_succeedsAfterRetry() = runUnitTest {
+        // equipment.sync runs under RetryPolicy.idempotent() — last-write-wins
+        // on the (productId, timestamp) key on the server, so a transient 5xx
+        // should not bubble up.
+        val dao = FakeEquipmentDao().apply {
+            seed(
+                EquipmentEntity(
+                    productId = "cardback_marble",
+                    isEquipped = true,
+                    syncState = "Pending",
+                    updatedAtEpochMs = 100,
+                ),
+            )
+        }
+        var hitCount = 0
+        val repo = buildRepo(dao) {
+            hitCount++
+            if (hitCount == 1) {
+                respond(content = ByteReadChannel(""), status = HttpStatusCode.InternalServerError)
+            } else {
+                respondJson(
+                    """
+                    {
+                      "schemaVersion":1,
+                      "equipped":[
+                        {"productId":"cardback_marble","updatedAtEpochMs":150}
+                      ]
+                    }
+                    """.trimIndent(),
+                )
+            }
+        }
+
+        val result = repo.sync()
+
+        assertTrue(result.isSuccess)
+        assertEquals(2, hitCount, "1 transient 5xx + 1 successful retry")
+        val row = dao.getAll().single()
+        assertEquals("Synced", row.syncState, "successful retry resolves the pending row")
+    }
+
+    @Test
     fun networkFailure_returnsFailure_leavesPendingRowsUntouched() = runUnitTest {
         val dao = FakeEquipmentDao().apply {
             seed(
@@ -336,6 +378,8 @@ class EquipmentRepositoryImplSyncTest : CoroutineTest() {
                     },
                 )
             }
+            // Match production: 4xx/5xx throws so the retry predicate can see it.
+            expectSuccess = true
         }
         val networkClient = object : NetworkClient {
             override val client: HttpClient = client
