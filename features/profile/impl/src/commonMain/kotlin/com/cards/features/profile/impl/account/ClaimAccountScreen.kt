@@ -105,10 +105,6 @@ fun ClaimAccountScreen(
                     )
                     Spacer(modifier = Modifier.height(Dimension.D400))
                 }
-                // Email is always offered — users may not have any OAuth
-                // account, and it's also the only path that goes through
-                // an existing-account sign-in (no Supabase link API for
-                // email/password on an anonymous user yet).
                 ProviderButton(
                     label = "Continue with email",
                     enabled = !state.isSubmitting,

@@ -1,0 +1,6 @@
+## fix(profile): route ClaimAccount email to SignUp, not SignIn
+
+**Problem:** Claim Account → "Continue with email" sent anonymous guests to the sign-in form. Anonymous claim is by definition a "create a real account, preserve progress" flow — the sign-up path already routes through `linkEmailIdentity` to keep chips/XP/history.
+**Approach:** `ProfileFeatureEntryPoint.ClaimAccountRoute` now navigates to `SignUpRoute()`. SignUp's "Already have an account? Sign in" stops being a `goBack()` (which would land back on ClaimAccount in the new flow) and instead pops SignUp + navigates to `SignInRoute()` with `launchSingleTop` — works for both the onboarding flow (Onboarding→SignIn→SignUp pops back to SignIn) and the new claim flow (Profile→ClaimAccount→SignUp lands on Profile→ClaimAccount→SignIn).
+**Reviewer notes:** Two enqueued `router` calls in the SignUp `onSignIn` callback (popBackTo + navigate). Order matters and relies on `DelegatingRouter`'s FIFO queue, which is the existing contract — the same pattern would be needed anywhere we want "replace this screen with that one" semantics. Worth a peek at whether to add a `popUpToRoute` field on `NavigationOptions` later, but not for this slice.
+**Deferred:** None.
