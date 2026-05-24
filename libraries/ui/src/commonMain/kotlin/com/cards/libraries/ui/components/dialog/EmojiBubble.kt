@@ -52,12 +52,29 @@ object EmojiBubbleDefaults {
     val RingWidth: Dp = Dimension.D200
 
     /**
-     * Breathing room baked **into the bubble's slot**, below the bubble.
-     * Callers (sheet, dialog, future modals) just stack content after the
-     * bubble — the spacing comes for free, so any change to bubble metrics
-     * propagates without every caller having to know the geometry.
+     * Fraction of the bubble's diameter used as breathing room below the
+     * bubble. At the current 100dp [Size] this resolves to 10dp (D400),
+     * preserving the historic gap. Tied to [Size] so any future caller
+     * that overrides the bubble size sees the gap scale with it instead
+     * of inheriting a hand-tuned 10dp that drifts apart from the bubble.
      */
-    val BodyGap: Dp = Dimension.D400
+    private const val BodyGapFraction: Float = 0.10f
+
+    /**
+     * Minimum gap below the bubble. Prevents the proportional gap from
+     * collapsing for small bubbles where 10% would crowd the content.
+     */
+    private val BodyGapMin: Dp = Dimension.D300
+
+    /**
+     * Breathing room baked **into the bubble's slot**, below the bubble.
+     * Scales proportionally with [size] (see [BodyGapFraction]) with a
+     * [BodyGapMin] floor. Callers (sheet, dialog, future modals) just stack
+     * content after the bubble — the spacing comes for free, so any change
+     * to bubble metrics propagates without every caller having to know the
+     * geometry.
+     */
+    fun bodyGapFor(size: Dp): Dp = (size * BodyGapFraction).coerceAtLeast(BodyGapMin)
 
     /** Squircle corner radius as a fraction of [Size]. */
     private const val SquircleCornerFraction: Float = 0.30f
@@ -112,9 +129,9 @@ object EmojiBubbleDefaults {
  * sized to that same [EmojiBubbleNotchRadius]. The notch is wider than
  * the bubble by [EmojiBubbleDefaults.RingWidth] on every side, so a thin
  * ring of scrim shows around the top half — the "outline halo" look. The
- * extra [EmojiBubbleDefaults.BodyGap] at the bottom of the slot gives any
- * caller automatic breathing room before its first content row, with no
- * caller-side math needed.
+ * extra gap at the bottom of the slot (see [EmojiBubbleDefaults.bodyGapFor])
+ * gives any caller automatic breathing room before its first content row,
+ * scaled proportionally with the bubble size — no caller-side math needed.
  *
  * [emoji] must be non-empty; empty strings would render an invisible
  * bubble (no glanceable cue) which is almost certainly a bug at the call
@@ -132,7 +149,7 @@ internal fun EmojiBubble(
 
     val size = EmojiBubbleDefaults.Size
     val ringWidth = EmojiBubbleDefaults.RingWidth
-    val bodyGap = EmojiBubbleDefaults.BodyGap
+    val bodyGap = EmojiBubbleDefaults.bodyGapFor(size)
     val shape = EmojiBubbleDefaults.shapeFor(style)
     val brush: Brush = when (surface) {
         is BubbleSurface.Solid -> SolidColor(surface.color.color.copy(alpha = surface.alpha))
