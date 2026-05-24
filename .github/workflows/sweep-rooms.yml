@@ -21,8 +21,11 @@
 name: Sweep disconnected room members (dev)
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
+  # Schedule disabled — see docs/todo.md "Replace cron-driven room sweep
+  # with in-process reaper". Manual trigger kept so the endpoint can still
+  # be poked from the Actions UI until the route is removed.
+  # schedule:
+  #   - cron: '*/5 * * * *'
   workflow_dispatch:
 
 concurrency:

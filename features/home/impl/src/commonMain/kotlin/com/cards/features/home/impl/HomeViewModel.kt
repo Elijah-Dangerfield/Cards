@@ -138,6 +138,8 @@ class HomeViewModel(
         updateState {
             it.copy(
                 userName = auth?.displayName,
+                avatarEmoji = auth?.avatarEmoji,
+                avatarBackgroundColorHex = auth?.avatarBackgroundColor,
                 isAnonymous = auth?.isAnonymous ?: true,
             )
         }
@@ -218,6 +220,8 @@ data class WelcomePayload(
 
 data class HomeState(
     val userName: String? = null,
+    val avatarEmoji: String? = null,
+    val avatarBackgroundColorHex: String? = null,
     val xp: Long = 0,
     /** `null` while the first chip sync hasn't hydrated the local row.
      *  HomeScreen hides / placeholder-renders the chip badge while null

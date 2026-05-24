@@ -1,16 +1,19 @@
 package com.dangerfield.cards.features.shop.impl
 
-import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import com.dangerfield.cards.features.shop.ShopGraph
+import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.bottomSheet
+import com.dangerfield.cards.libraries.navigation.graphScopedViewModel
+import com.dangerfield.cards.libraries.navigation.navigation
 import com.dangerfield.cards.libraries.navigation.screen
-import com.dangerfield.cards.libraries.ui.components.SnackbarDuration
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -24,51 +27,84 @@ class ShopFeatureEntryPoint(
     private val shopVmFactory: () -> ShopViewModel,
 ) : FeatureEntryPoint {
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
-        screen<ShopRoute> { backStackEntry ->
-            val route = backStackEntry.toRoute<ShopRoute>()
-            val viewModel: ShopViewModel = viewModel(key = "shop") { shopVmFactory() }
-            val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
-
-            // Deep-link from outside the shop ("Get in shop" on Edit
-            // profile, etc.): fire one OpenSheetForProductId action and
-            // let the VM hold the request until the catalog has the
-            // product. Keyed on the route's pendingProductId so a fresh
-            // navigation with a different id re-fires; the VM dedupes
-            // by clearing its pending field after it dispatches the
-            // sheet so revisits to a stale id are silent.
-            route.pendingProductId?.let { productId ->
-                LaunchedEffect(productId) {
-                    viewModel.takeAction(ShopAction.OpenSheetForProductId(productId))
+        // Nested graph so the grid + purchase sheet share a single
+        // `ShopViewModel` scoped to the graph entry (lives as long as
+        // anything in the Shop tab is on the stack), instead of
+        // coupling the VM lifecycle to the grid's specific entry.
+        navigation<ShopGraph>(startDestination = ShopRoute()) {
+            screen<ShopRoute> {
+                val viewModel = router.graphScopedViewModel<ShopGraph, ShopViewModel> {
+                    shopVmFactory()
                 }
+                val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+
+                viewModel.ObserveEvents { event ->
+                    when (event) {
+                        is ShopEvent.PurchaseFinished -> showPurchaseSnackbar(event.outcome)
+                        is ShopEvent.RedeemSucceeded -> showSnackBar(
+                            title = "Unlocked!",
+                            message = "${event.offer.title} is yours.",
+                            emoji = event.offer.iconEmoji,
+                            duration = SnackbarDuration.Short,
+                        )
+                        is ShopEvent.AlreadyOwned -> showSnackBar(
+                            title = "Already yours",
+                            message = "Look for ${event.offer.title} in your items.",
+                            emoji = event.offer.iconEmoji,
+                            duration = SnackbarDuration.Short,
+                        )
+                        is ShopEvent.OfferExpired -> showSnackBar(
+                            title = "Just missed it",
+                            message = "That offer's window closed. Refreshed the shop.",
+                            duration = SnackbarDuration.Short,
+                        )
+                    }
+                }
+
+                ShopScreen(
+                    state = state,
+                    onAction = viewModel::takeAction,
+                    onProductTap = { productId ->
+                        router.navigate(ShopProductSheetRoute(productId))
+                    },
+                )
             }
 
-            viewModel.ObserveEvents { event ->
-                when (event) {
-                    is ShopEvent.PurchaseFinished -> showPurchaseSnackbar(event.outcome)
-                    is ShopEvent.RedeemSucceeded -> showSnackBar(
-                        title = "Unlocked!",
-                        message = "${event.offer.title} is yours.",
-                        emoji = event.offer.iconEmoji,
-                        duration = SnackbarDuration.Short,
-                    )
-                    is ShopEvent.AlreadyOwned -> showSnackBar(
-                        title = "Already yours",
-                        message = "Look for ${event.offer.title} in your items.",
-                        emoji = event.offer.iconEmoji,
-                        duration = SnackbarDuration.Short,
-                    )
-                    is ShopEvent.OfferExpired -> showSnackBar(
-                        title = "Just missed it",
-                        message = "That offer's window closed. Refreshed the shop.",
-                        duration = SnackbarDuration.Short,
-                    )
+            // Purchase sheet sub-route — same VM as the grid above
+            // because they're in the same graph.
+            bottomSheet<ShopProductSheetRoute> { backStackEntry, sheetState ->
+                val route = backStackEntry.toRoute<ShopProductSheetRoute>()
+                val viewModel = router.graphScopedViewModel<ShopGraph, ShopViewModel> {
+                    shopVmFactory()
                 }
-            }
+                val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+                val product = state.catalog.findById(route.productId)
 
-            ShopScreen(
-                state = state,
-                onAction = viewModel::takeAction,
-            )
+                if (product == null) {
+                    // Catalog hasn't hydrated yet (cold start, deep-link
+                    // arrived before refresh) OR the product genuinely
+                    // isn't in the catalog (server dropped it between
+                    // the caller building the link and this firing).
+                    // For now, silently pop. A polished version would
+                    // render a loading shell + dismiss after a timeout
+                    // — small follow-up.
+                    router.goBack()
+                    return@bottomSheet
+                }
+
+                PurchaseConfirmSheet(
+                    sheetState = sheetState,
+                    product = product,
+                    mode = state.sheetModeFor(product),
+                    chipBalance = state.chipBalance ?: 0L,
+                    timeAnchor = state.timeAnchor,
+                    onConfirm = {
+                        router.goBack()
+                        viewModel.takeAction(ShopAction.ConfirmPurchase(product))
+                    },
+                    onDismiss = { router.goBack() },
+                )
+            }
         }
     }
 }

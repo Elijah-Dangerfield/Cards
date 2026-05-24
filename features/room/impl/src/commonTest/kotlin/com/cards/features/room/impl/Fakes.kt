@@ -8,8 +8,11 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.InventoryItem
+import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
@@ -238,6 +241,26 @@ class FakeEquipmentRepository(
         return orphans
     }
 
+    override suspend fun deleteAll() { state.value = emptyList() }
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+}
+
+// ---------- InventoryRepository ----------
+
+class FakeInventoryRepository(
+    initial: List<InventoryItem> = emptyList(),
+) : InventoryRepository {
+    private val state = MutableStateFlow(initial)
+
+    fun emit(items: List<InventoryItem>) { state.value = items }
+
+    override fun observeInventory(): Flow<List<InventoryItem>> = state
+    override suspend fun getInventory(): List<InventoryItem> = state.value
+    override suspend fun redeemChipOffer(productId: String, costChips: Long): RedeemResult =
+        RedeemResult.Success
+    override suspend fun markConfirmed(productIds: Collection<String>) { }
+    override suspend fun revertPurchase(productId: String) { }
+    override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) { }
     override suspend fun deleteAll() { state.value = emptyList() }
     override suspend fun sync(): Result<Unit> = Result.success(Unit)
 }

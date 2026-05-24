@@ -17,6 +17,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -24,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
@@ -48,6 +51,7 @@ fun StatsScreen(
     state: StatsState,
     onBack: () -> Unit,
     onSeeAllAchievements: () -> Unit = {},
+    onShowExplainers: () -> Unit = {},
 ) {
     val levelProgress = remember(state.progression.totalXp) {
         levelProgressFor(state.progression.totalXp)
@@ -59,6 +63,17 @@ fun StatsScreen(
                 title = "Stats",
                 onNavigateBack = onBack,
                 scrollState = scrollState,
+                actions = {
+
+
+                    IconButton(onClick = onShowExplainers) {
+                        Icon(
+                            imageVector = Icons.Outlined.Info,
+                            contentDescription = "Hand info and rankings",
+                            tint = AppTheme.colors.text.color,
+                        )
+                    }
+                },
             )
         },
     ) { padding ->
@@ -87,18 +102,8 @@ fun StatsScreen(
                 SectionTitle("Recent XP")
                 Spacer(modifier = Modifier.height(8.dp))
                 RecentEventsList(events = state.recentEvents)
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
-
-            SectionTitle("How you earn XP")
-            Spacer(modifier = Modifier.height(8.dp))
-            HowToEarn()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            SectionTitle("What XP does for you")
-            Spacer(modifier = Modifier.height(8.dp))
-            WhatXpDoes()
-            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
@@ -292,40 +297,6 @@ private fun EventRow(event: XpEvent) {
 }
 
 @Composable
-private fun HowToEarn() {
-    InfoCard {
-        Bullet("Finishing a hand — every hand counts, even quick folds")
-        Bullet("Chips you put in the pot — playing more invested hands earns more")
-        Bullet("Reaching showdown — bonus for sticking around to the end")
-        Bullet("Stronger hands at showdown — bigger reveals, bigger reward")
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Bots count at half the rate of multiplayer. XP never depends on whether you win or lose the hand — just on how engaged you were.",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-            textAlign = TextAlign.Start,
-        )
-    }
-}
-
-@Composable
-private fun WhatXpDoes() {
-    InfoCard {
-        Text(
-            text = "XP is your lifetime engagement score. It never goes down. Every session adds to it whether you stack chips or bust out.",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Future updates will unlock cosmetics, table titles, and achievement badges as your XP climbs. Multiplayer earns 2× when it ships.",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-        )
-    }
-}
-
-@Composable
 private fun AchievementsHighlights(
     progress: AchievementProgress,
     onSeeAll: () -> Unit,
@@ -388,37 +359,6 @@ private fun AchievementsHighlights(
                 color = AppTheme.colors.text,
             )
         }
-    }
-}
-
-@Composable
-private fun InfoCard(content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun Bullet(text: String) {
-    Row(verticalAlignment = Alignment.Top) {
-        Text(
-            text = "·",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = text,
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
-        )
     }
 }
 

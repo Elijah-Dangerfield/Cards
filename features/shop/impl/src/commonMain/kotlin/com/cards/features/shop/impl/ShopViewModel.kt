@@ -36,21 +36,21 @@ import me.tatarka.inject.annotations.Inject
  * lands and the server tracks per-user state, that becomes the
  * reconciliation pass.
  *
- * Optimistic redemption flow ([ShopAction.ConfirmPendingPurchase] for a
+ * Optimistic redemption flow ([ShopAction.ConfirmPurchase] for a
  * chip-funded offer):
- *  1. Pre-check chip balance — if insufficient, surface error and close
- *     the sheet without mutating anything. (UI also disables the button
- *     when balance < cost so this path is defensive, not primary.)
- *  2. Call [InventoryRepository.redeemChipOffer] — it atomically inserts
- *     the inventory row as Pending and deducts chips.
- *  3. Close the sheet, emit a confirmation event for the UI to celebrate
- *     (toast, haptic, whatever).
+ *  1. Pre-check chip balance — if insufficient, surface error without
+ *     mutating anything. (UI also disables the button when balance &lt;
+ *     cost so this path is defensive, not primary.)
+ *  2. Call [InventoryRepository.redeemChipOffer] — it atomically
+ *     inserts the inventory row as Pending and deducts chips.
+ *  3. Sheet is already popping (navigation), VM emits a confirmation
+ *     event for the UI to celebrate (toast, haptic, whatever).
  *  4. Best-effort fire [InventoryRepository.sync] in the background so
  *     the row flips Pending → Confirmed before the user closes the app.
  *
- * IAP packs ([ShopAction.ConfirmPendingPurchase] for a chip pack) drive
- * [BillingClient.purchase] and emit a [ShopEvent.PurchaseFinished] once
- * the store sheet resolves (success, cancel, failure). Chips are
+ * IAP packs ([ShopAction.ConfirmPurchase] for a chip pack) drive
+ * [BillingClient.purchase] and emit a [ShopEvent.PurchaseFinished]
+ * once the store sheet resolves (success, cancel, failure). Chips are
  * credited locally via [ChipsRepository.addChips] when the store
  * confirms — server-side receipt validation is deferred.
  */
@@ -65,16 +65,6 @@ class ShopViewModel @Inject constructor(
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
-
-    /**
-     * Holds a product id requested via [ShopAction.OpenSheetForProductId]
-     * while we're waiting for the catalog to hydrate. Cleared after we
-     * either fulfill it (catalog had the product → opened the sheet) or
-     * discover the catalog dropped it. Private var rather than UI state
-     * because the field has no visual representation — it's just a
-     * latch.
-     */
-    private var pendingProductRequest: String? = null
 
     init {
         viewModelScope.launch {
@@ -136,12 +126,8 @@ class ShopViewModel @Inject constructor(
             is ShopAction.RefreshFailed -> action.updateState {
                 it.copy(errorMessage = action.message)
             }
-            is ShopAction.CatalogChanged -> {
-                action.updateState { it.copy(catalog = action.catalog) }
-                // Deep-link arrived before catalog hydrated. Now that
-                // we have products, try again. No-op if no request is
-                // parked.
-                tryFulfillPendingProductRequest()
+            is ShopAction.CatalogChanged -> action.updateState {
+                it.copy(catalog = action.catalog)
             }
             is ShopAction.ChipsChanged -> action.updateState {
                 it.copy(chipBalance = action.balance)
@@ -162,72 +148,30 @@ class ShopViewModel @Inject constructor(
                 it.copy(errorMessage = null)
             }
 
-            // ---- Purchase intent flow ----
+            // ---- Purchase confirm flow ----
+            //
+            // The purchase confirmation sheet is its own navigation
+            // route (`ShopProductSheetRoute`); opening and dismissing
+            // it are pure navigation operations, not VM actions.
+            // The VM only handles the *confirm* leg (commit the
+            // purchase) since that's what depends on the
+            // BillingClient / inventory repository.
 
-            is ShopAction.OpenSheetForProductId -> {
-                // Deep-link entry from outside the shop (e.g. "Get in
-                // shop" on Edit profile). Park the requested id, then
-                // try to resolve immediately — the catalog may already
-                // be hot from a previous tab visit. If not, the
-                // CatalogChanged handler will retry once the fetch
-                // lands.
-                pendingProductRequest = action.productId
-                tryFulfillPendingProductRequest()
-            }
-
-            is ShopAction.RequestPurchase -> {
-                // Open the sheet for ANY non-expired state — Owned,
-                // Locked, Insufficient, Available. The sheet renders
-                // state-appropriate content + CTA, so users can learn
-                // "what does this even do?" before they qualify to buy.
-                //
-                // Expired offers are the one exception: silently refresh
-                // + surface a toast rather than opening a stale sheet.
-                // The catalog filter drops it from the next response.
+            is ShopAction.ConfirmPurchase -> {
+                // Defense-in-depth: the sheet's primary CTA is
+                // disabled for non-buyable states, but the action
+                // layer is the final fence. Anything outside
+                // Available is a no-op.
                 val product = action.product
-                if (state.isExpired(product)) {
-                    sendEvent(ShopEvent.OfferExpired(product.id))
-                    takeAction(ShopAction.Refresh)
-                    return
-                }
-                action.updateState { it.copy(pendingPurchase = PendingPurchase.from(product)) }
-            }
-            is ShopAction.DismissPendingPurchase -> action.updateState {
-                it.copy(pendingPurchase = null)
-            }
-            is ShopAction.ConfirmPendingPurchase -> {
-                // Defense-in-depth: the sheet's primary CTA is disabled
-                // for non-buyable states, but the action layer is the
-                // final fence. Anything outside Available is a no-op.
-                val pending = state.pendingPurchase ?: return
-                val product: Product = when (pending) {
-                    is PendingPurchase.IapPack -> pending.product
-                    is PendingPurchase.ChipOffer -> pending.product
-                }
                 if (state.sheetModeFor(product) !is PurchaseSheetMode.Available) return
                 if (state.isExpired(product)) {
                     sendEvent(ShopEvent.OfferExpired(product.id))
                     takeAction(ShopAction.Refresh)
                     return
                 }
-                when (pending) {
-                    is PendingPurchase.IapPack -> {
-                        // Close the sheet immediately — the platform store
-                        // sheet is its own modal flow. Then drive the purchase
-                        // through BillingClient and surface the outcome via
-                        // ShopEvent.PurchaseFinished, which the screen renders
-                        // as a toast / celebration cue.
-                        //
-                        // Catalog reconciliation already dropped IAP packs the
-                        // platform store doesn't recognize, so by the time we
-                        // get here we trust the
-                        // SKU exists in the store.
-                        action.updateState { it.copy(pendingPurchase = null) }
-                        launchIapPurchase(pending.product)
-                    }
-                    is PendingPurchase.ChipOffer -> {
-                        confirmChipOfferRedeem(pending.product)
-                    }
+                when (product) {
+                    is Product.ChipPack -> launchIapPurchase(product)
+                    is Product.ChipOffer -> confirmChipOfferRedeem(product)
                 }
             }
         }
@@ -280,11 +224,11 @@ class ShopViewModel @Inject constructor(
     }
 
     private suspend fun confirmChipOfferRedeem(offer: Product.ChipOffer) {
-        // Close the sheet first — feedback should be instant; the actual
-        // optimistic write lands in the same frame on UnconfinedTestDispatcher
-        // and a thread-or-two later in production.
-        val action = ShopAction.ConfirmPendingPurchase
-        action.updateState { it.copy(pendingPurchase = null) }
+        // Sheet route is popped synchronously by the caller (sheet
+        // composable's confirm handler runs `router.goBack()` before
+        // dispatching this action), so the sheet is already closing by
+        // the time we land here. No state mutation needed here.
+        val action = ShopAction.ConfirmPurchase(offer)
 
         val result = inventoryRepository.redeemChipOffer(
             productId = offer.id,
@@ -313,24 +257,6 @@ class ShopViewModel @Inject constructor(
                 sendEvent(ShopEvent.AlreadyOwned(offer))
             }
         }
-    }
-
-    /**
-     * If a deep-link product id is parked and the catalog now has it,
-     * fire the same [ShopAction.RequestPurchase] the grid would have
-     * fired on tap. Clears the parked id whether we found it or not —
-     * a missing id (catalog dropped it, or it was never valid) is a
-     * silent no-op rather than a stuck pending request that would
-     * re-open the sheet every time the catalog re-emits.
-     */
-    private fun tryFulfillPendingProductRequest() {
-        val requestedId = pendingProductRequest ?: return
-        val catalog = state.catalog
-        if (catalog.isEmpty) return // wait — CatalogChanged retries later.
-        val product = catalog.chipPacks.firstOrNull { it.id == requestedId }
-            ?: catalog.chipOffers.firstOrNull { it.id == requestedId }
-        pendingProductRequest = null
-        if (product != null) takeAction(ShopAction.RequestPurchase(product))
     }
 
     private suspend fun autoEquipIfSlotFree(productId: String) {
@@ -377,8 +303,6 @@ data class ShopState(
      * resistant remaining time for sale-window offers.
      */
     val timeAnchor: CatalogTimeAnchor? = null,
-    /** Non-null while the purchase confirmation sheet is up. */
-    val pendingPurchase: PendingPurchase? = null,
 ) {
     fun ownsProduct(productId: String): Boolean = productId in ownedProductIds
 
@@ -499,25 +423,6 @@ sealed interface ChipOfferCardState {
     data object Owned : ChipOfferCardState
 }
 
-/**
- * One in-flight purchase, kept on state so the bottom sheet renders.
- *
- * Two variants because the flow downstream is different: IAP packs need
- * the platform billing system to confirm, chip offers complete locally and
- * optimistically.
- */
-sealed interface PendingPurchase {
-    data class IapPack(val product: Product.ChipPack) : PendingPurchase
-    data class ChipOffer(val product: Product.ChipOffer) : PendingPurchase
-
-    companion object {
-        fun from(product: Product): PendingPurchase = when (product) {
-            is Product.ChipPack -> IapPack(product)
-            is Product.ChipOffer -> ChipOffer(product)
-        }
-    }
-}
-
 sealed interface ShopAction {
     /** Pull-to-refresh / initial load. */
     data object Refresh : ShopAction
@@ -530,24 +435,13 @@ sealed interface ShopAction {
     data class TimeAnchorChanged(val anchor: CatalogTimeAnchor?) : ShopAction
     data object DismissError : ShopAction
 
-    /** User tapped a product row → open the purchase confirmation sheet. */
-    data class RequestPurchase(val product: Product) : ShopAction
-
     /**
-     * Deep-link request from outside the shop (e.g. "Get in shop" CTA
-     * on Edit profile when the user taps a locked avatar pack). Opens
-     * the purchase sheet for [productId] once the catalog has it.
-     * Silently no-ops if the catalog doesn't contain the id by the
-     * time it hydrates (server may have dropped the product between
-     * the caller building the link and this firing).
+     * Confirm the purchase of [product] from inside the sheet. Opening
+     * and dismissing the sheet are navigation operations
+     * (`ShopProductSheetRoute`), not actions — only the commit step
+     * runs through the VM.
      */
-    data class OpenSheetForProductId(val productId: String) : ShopAction
-
-    /** User tapped the confirm CTA inside the sheet → commit. */
-    data object ConfirmPendingPurchase : ShopAction
-
-    /** User dismissed the sheet (cancel, swipe-down, back press, tap outside). */
-    data object DismissPendingPurchase : ShopAction
+    data class ConfirmPurchase(val product: Product) : ShopAction
 }
 
 sealed interface ShopEvent {

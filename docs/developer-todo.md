@@ -1,8 +1,46 @@
 # Developer TODO
 
-Things only the human (Elijah) can do — credentials to provide, GitHub settings to flip, console configuration to set up. Not part of the engineering punch list ([todo.md](./todo.md) is for that). Automated workers must never touch this file.
+Anything only the human (Elijah) can do — credentials, GitHub settings, dashboard / external-service config, device QA, content writing, deferred product decisions. Not part of the engineering punch list ([todo.md](./todo.md) is for that). Automated **workers** must never touch this file. The nightly **reviewer** may append a one-line entry when a PR creates a new human-only follow-up, but may not edit or delete existing entries.
+
+For per-cycle items tied to a specific PR (visual deltas to eyeball, fixes that need device verification *this* cycle), see the PR's "Heads up" section instead — those don't belong here.
 
 Check items off as you do them; delete when the whole section is empty.
+
+---
+
+## Device QA
+
+- [ ] **App-store review prompt smoke test (Android + iOS).** Engineering is wired end-to-end (`ReviewPromptCoordinator`, `AndroidReviewPrompter`, `SKStoreReviewController`); meet the install-age + cooldown floors, then leave a bots table on a release build. Either outcome — Play Core / `SKStoreReviewController` showing the dialog or suppressing it — is correct per [spec §2.6](./product/product-spec.md#26-app-store-review-prompts). Never build a self-rolled fallback dialog.
+- [ ] **Soft bust protection — device verification.** Server + client wired (`maybeApplyBustProtection` on `GET /v1/me/wallet` and `POST /v1/me/wallet/sync`; `UserMessage` polling picks up the welcome dialog; `ChipsRepository.observeBalance()` sees the +1000 delta). Verify on a real device that the dialog renders correctly with the chip-bubble emoji + body, and that the wallet observer fires after the grant. If the auto-pop dialog placement is wrong (e.g. fires mid-hand), report back and engineering will gate on session-start instead.
+- [ ] **Device smoke test before merging `dev` → `main`.** Minimum checklist before any dev → main merge:
+  1. Fresh install on Android (or iOS) against the dev server.
+  2. Onboarding "Get Started" lands on Home without hanging.
+  3. Chip balance hydrates cleanly (no 0 → 10K flash; null → authoritative).
+  4. Sign up → verify email → claim account flow end-to-end on a real device.
+  5. Edit profile, save, observe optimistic update + server-confirmed value.
+  6. Shop purchase via the test billing path; chips deduct + restore correctly.
+
+---
+
+## Dashboard / external-service config
+
+- [ ] **Supabase email-confirm site URL + redirect URLs + branded template.** Today the confirmation link in the email Supabase sends out still points at the default site URL (localhost) — users can't actually confirm by clicking it. Set the project's site URL + redirect URLs in the Supabase dashboard for dev *and* prod, and while there swap the default Supabase template for a Cards-branded one (copy lives in [voice-and-copy.md §5.x](./product/voice-and-copy.md)). The in-app `VerifyEmailScreen` "I confirmed" no-op is a separate engineering bug — tracked in `docs/todo.md` §B.
+
+---
+
+## Content writing
+
+- [ ] **Privacy policy + Terms of Service page content.** Profile screen deep-links to a web page that is empty / placeholder. Hosting target can stay; just needs the actual copy.
+
+---
+
+## Deferred product decisions
+
+These need a call from you before engineering can pick them up. Once decided, move the item into `docs/todo.md` (or close it out).
+
+- [ ] **Notifications (Phase 6).** Opt-in event-driven push only — league placement, friend activity, battle-pass tier, Rare/Legendary achievement unlock. Never time-of-day modeled, never "your chips are lonely," never "come back" pings (see [spec §8](./product/product-spec.md#8-notifications)). Per-category opt-in granularity, not just global on/off. **Explicitly Phase 6** on the roadmap — kept here so it doesn't drift into worker scope.
+- [ ] **Unlock-only catalog *content*.** Engineering for the earned-grant path is a `docs/todo.md` §B bullet. Choosing *which* legendary / league / RFT / achievement-chain cosmetics ship is a content call — acceptable to ship V1 with the unlock-only catalog empty.
+- [ ] **Orphan-eviction policy after WS sweep.** When the server's WS-sweep evicts a user after a missed-heartbeats grace window (still being built — see `docs/todo.md` §C), should we *sit them out* (auto-fold their hands, hold the seat for a longer grace) or *fully remove* them from the room? Sit out is friendlier; remove is cleaner. Pick before wiring the sweep behavior.
 
 ---
 

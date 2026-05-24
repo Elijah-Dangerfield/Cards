@@ -45,13 +45,13 @@ internal fun SwipeFoldConfirmDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Swipe up to fold",
+                text = "Fold this hand?",
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "Toss your hand by swiping up on your cards. Fold this one?",
+                text = "You'll forfeit the round and any chips already in the pot.",
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,

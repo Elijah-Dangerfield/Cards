@@ -290,6 +290,13 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.text,
             )
+            if (earned.achievement.description.isNotBlank()) {
+                Text(
+                    text = earned.achievement.description,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.textSecondary,
+                )
+            }
             val rewardSummary = buildString {
                 append("+${earned.achievement.xpReward} XP")
                 if (earned.achievement.chipReward > 0L) {

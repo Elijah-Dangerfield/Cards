@@ -244,7 +244,7 @@ Achievements already carry the "give me a near-term reason to play" load on a lo
 - **Chip-free bot tables.** Rejected: hides the mechanic from solo users until they hit MP, which is the worst time to learn it. Bot tables are the discovery surface.
 - **Buy-in as a spent fee** (not returned on leave). Rejected: doesn't match real-poker mental model, and the "chips never disappear unless lost to other players" principle (§4.1) is structural.
 
-**Status:** Locked. Closes the [todo.md §A blocker on MP buy-in / ante](./todo.md). Engineering work tracked in [todo.md §C](./todo.md).
+**Status:** Locked. Engineering work tracked in [todo.md §B](./todo.md) (multiplayer hardening).
 
 ---
 
@@ -1528,3 +1528,54 @@ Out of scope here; flagged for a follow-up.
 device A → server ledger → device B's next sync picks up the new
 balance.
 
+
+
+## 2026-05-24 — Tab roots are arg-less; overlays on tab roots are sub-routes
+
+**Decision:** Bottom-bar tab routes (`HomeRoute`, `ShopRoute`,
+`ProfileRoute`) take no constructor args. Any "show me X" intent that
+deep-links into a tab — opening a purchase sheet, highlighting an
+achievement, jumping to a notification thread — lives on a **sub-route
+of that tab**, not on a field of the tab root.
+
+For overlay UI (bottom sheets, dialogs) on top of a tab root: model it
+as a sub-destination using the existing `NavGraphBuilder.bottomSheet<T>`
+or `NavGraphBuilder.dialog<T>` builders. Sub-routes take args freely.
+Deep-link from another tab = `router.switchTab(TabRoot())` then
+`router.navigate(SubRoute(args))`.
+
+**Why:** `Router.switchTab` uses NavController's
+`popUpTo(saveState=true) + launchSingleTop + restoreState=true` recipe
+so each tab keeps its own back-stack across tab switches. The recipe
+restores entries **with their original args** — new args you pass on
+a fresh `switchTab(SameRoute(newArgs))` are silently dropped because
+NavController matches on destination class, not args. Putting one-shot
+intent on a tab-root field therefore manifests as two coupled bugs:
+the deep-link never fires (saved entry's stale args clobber yours) AND
+once it does fire it keeps re-firing on every tab visit (restored
+entry replays the args forever).
+
+Modeling the overlay as a sub-route sidesteps both bugs: the sub-route
+isn't a tab root, doesn't participate in tab saveState, gets fresh
+args every push, and pops cleanly on dismiss.
+
+**Alternatives considered:**
+- *One-shot intent service* (singleton holding the requested productId
+  / target id, the destination consumes on mount): clean separation,
+  matches the existing `InAppMessageManager` pattern, no NavController
+  gymnastics. Rejected as the default because modeling overlays as
+  navigation destinations earns back-gesture handling, deep-link
+  composability, and lifecycle-correctness for free. Still the right
+  call for overlays that *can't* be a route (e.g. a transient global
+  banner). For everything that's already a sheet or dialog, the
+  sub-route is the better trade.
+- *Drop saveState/restoreState from `switchTab`*: would fix the
+  args-clobber but lose the tab-scoped back-stack (scroll position,
+  in-flight forms). Bad trade.
+- *Mutate the entry's `SavedStateHandle` to consume the arg after
+  dispatch*: only fixes the recurring-fire half. The new-args-clobbered
+  half — the user's actual repro — stays broken.
+
+**Status:** Landed (Shop purchase sheet migrated to
+`ShopProductSheetRoute`). Apply to other overlays opportunistically as
+they need deep-link entry; no big-bang rewrite required.

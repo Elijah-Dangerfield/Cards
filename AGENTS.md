@@ -10,13 +10,16 @@ This is **Kotlin Multiplatform**—most code is shared, but some platform featur
 
 ## Where work comes from
 
-The repo has three task surfaces. Each has a distinct role; agents must respect the boundary.
+The repo has three standing task surfaces plus one ephemeral one. Each has a distinct role; agents must respect the boundary.
 
-| Doc | Who picks from it | Contents |
-| --- | --- | --- |
-| [`docs/todo.md`](docs/todo.md) | AI workers + human | Active engineering work — current ship target. §A "Blocked — needs human decision" is **off-limits** to automated runs. |
-| [`docs/backlog.md`](docs/backlog.md) | Human-curated, AI appends | Someday/maybe ideas and follow-ups. Workers don't pick from here, but **append** new items here when they notice good follow-ups outside their current scope. |
-| [`docs/developer-todo.md`](docs/developer-todo.md) | Human only | Credentials, GitHub settings, console config. **Automated workers must never edit this file.** |
+| Surface | Shelf life | Who picks from it | Contents |
+| --- | --- | --- | --- |
+| [`docs/todo.md`](docs/todo.md) | Standing | AI workers + human | Active engineering work — current ship target. **Everything in this file is worker-pickable.** No "needs the human" carve-out here. |
+| [`docs/backlog.md`](docs/backlog.md) | Standing | Human curates; AI may append | Someday/maybe ideas and follow-ups. Workers don't pick from here, but **append** new items here when they notice good follow-ups outside their current scope. |
+| [`docs/developer-todo.md`](docs/developer-todo.md) | Standing | Human curates; reviewer may append | Anything only the human can do — credentials, GitHub settings, dashboard / external-service config, device QA, content writing, deferred product decisions. **Automated workers must never edit this file.** The reviewer may *append* a one-line entry when a PR creates a new human-only follow-up, but may not edit or delete existing entries. |
+| PR "Heads up" section | Ephemeral (per PR) | Reviewer writes; human reads | Per-cycle follow-ups tied to *this* PR's diff — visual deltas to eyeball, scope calls made, untested paths to QA, reminders that the PR depends on a still-open `developer-todo.md` entry. Lives in the PR body, not in any tracked file. |
+
+**Routing rule for human-only follow-ups:** if it dies the moment the human acts on it this cycle, it goes in the PR Heads up. If it's a standing item the human still owes across many cycles, it goes in `developer-todo.md` (and may be mentioned once in Heads up so it's not invisible).
 
 If you complete or close out a `docs/todo.md` item, also drop a short entry in [`docs/decisions.md`](docs/decisions.md) when the change involved a non-trivial architectural call (see "Decisions log" below).
 
@@ -197,11 +200,33 @@ Routes are `@Serializable` data classes extending `Route`. Register in `FeatureE
 screen<MyRoute> { backStackEntry -> MyScreen(...) }
 bottomSheet<SheetRoute> { backStackEntry, sheetState -> ... }
 dialog<DialogRoute> { backStackEntry, dialogState -> ... }
+navigation<MyGraph>(startDestination = MyRoute()) { screen<...>; bottomSheet<...> }
 ```
 
 **Use `bottomSheet<>` for transient picker / overlay UIs** (a settings list, a "select an item" sheet) rather than pushing a full screen. The backstack stays one entry deep, the underlying screen is visible under a scrim, and `sheetState.dismiss()` is a clean exit. Reach for full `screen<>` only when the destination is its own context (settings page, detail view).
 
 **Open external URLs via `Router.openWebLink(url)`** — don't roll your own platform `Intent.ACTION_VIEW` / `UIApplication.shared.open` plumbing. The implementation is in `libraries/navigation/impl/.../{Android,Ios,Jvm}WebLinkLauncher.kt` and is already wired into the DI graph and the `Router` interface.
+
+### Routing rules
+
+**Composables don't route.** Navigation is initiated from a ViewModel or a feature entry point (the `buildNavGraph` lambdas), not from a leaf view. If a button needs to navigate, the view fires a callback / action and the entry point or VM translates it to a `Router` call. This keeps the navigation graph greppable from one place and makes screens trivially previewable.
+
+**`Router` is the only navigation API.** There's no `LocalNavController` and no other handle to `NavHostController`. If you find yourself wanting one, the operation you need probably belongs on `Router` — promote it there. The single supported escape hatch for **VM scoping** is `Router.backStackEntryFor<T>()`, wrapped by `Router.graphScopedViewModel<TGraph, TVm>(factory)`. Don't use it for anything else.
+
+**Tab roots are arg-less.** `HomeRoute`, `ShopRoute`, `ProfileRoute` and any future tab destinations take no constructor args. Tab switching uses `saveState` + `restoreState`, which restores the saved entry's original args verbatim — new args on a fresh `switchTab(SameRoute(newArgs))` are silently dropped. Put one-shot intent on a **sub-route** of the tab, not on the tab root. See `docs/decisions.md` (2026-05-24).
+
+**Cross-tab deep-links chain through `Router.batch`.** If you need to switch tabs and push a sub-route on top, do it in one atomic block:
+
+```kotlin
+router.batch {
+    switchTab(ShopRoute())
+    navigate(ShopProductSheetRoute(productId))
+}
+```
+
+Don't write the two calls sequentially — if the caller's scope (a VM, a composable) is torn down between calls, the second one will never run. `batch` queues the whole block as one op so the caller can't strand itself mid-sequence.
+
+**Share a ViewModel across screens in the same tab by nesting in a graph.** Wrap the tab's routes in `navigation<TabGraph>(startDestination = TabRoot()) { ... }` and resolve the VM via `router.graphScopedViewModel<TabGraph, TabViewModel> { factory() }` from each screen. The VM lives as long as anything in the graph is on the back stack, which is the natural scope for tab-wide state.
 
 ## App-wide state
 

@@ -14,6 +14,9 @@ import com.dangerfield.cards.libraries.ui.components.BottomBarItem
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogHost
 import com.dangerfield.cards.libraries.ui.components.dialog.LocalDialogHostState
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogHostState
+import com.dangerfield.cards.libraries.ui.snackbar.LocalSnackbarHostState
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarHost
+import com.dangerfield.cards.libraries.ui.snackbar.rememberSnackbarHostState
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
@@ -83,11 +86,13 @@ fun PreviewContent(
     content: @Composable () -> Unit,
 ) {
     val dialogHostState = rememberDialogHostState()
+    val snackbarHostState = rememberSnackbarHostState()
     CompositionLocalProvider(
         LocalAppState provides appState,
         LocalClock provides Clock.fixed(Instant.parse("2023-01-01T00:00:00Z")),
         LocalBuildInfo provides BuildInfo,
-        LocalDialogHostState provides dialogHostState
+        LocalDialogHostState provides dialogHostState,
+        LocalSnackbarHostState provides snackbarHostState,
     ) {
         AppThemeProvider {
             Box(
@@ -104,6 +109,11 @@ fun PreviewContent(
                 DialogHost(
                     modifier = Modifier.matchParentSize(),
                     hostState = dialogHostState
+                )
+
+                SnackbarHost(
+                    modifier = Modifier.matchParentSize(),
+                    hostState = snackbarHostState,
                 )
             }
         }

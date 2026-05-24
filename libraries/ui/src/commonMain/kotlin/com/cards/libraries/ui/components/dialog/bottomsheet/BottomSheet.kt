@@ -70,7 +70,7 @@ fun BottomSheet(
     shouldDismissOnBackPress: Boolean = true,
     shouldDismissOnClickOutside: Boolean = true,
     dragHandle: BottomSheetDragHandle = BottomSheetDragHandle.Basic,
-    backgroundColor: ColorResource = AppTheme.colors.background,
+    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
     contentAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     topPadding: Dp = defaultTopPaddingFor(dragHandle),
     stickyTopContent: @Composable () -> Unit = {},

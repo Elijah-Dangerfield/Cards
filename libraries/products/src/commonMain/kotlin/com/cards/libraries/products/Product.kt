@@ -132,6 +132,12 @@ data class ProductCatalog(
     val isEmpty: Boolean
         get() = chipPacks.isEmpty() && chipOffers.isEmpty()
 
+    /** Linear scan across both buckets — catalog is small (handful of
+     *  packs + handful of offers), so the simple version wins. */
+    fun findById(productId: String): Product? =
+        chipPacks.firstOrNull { it.id == productId }
+            ?: chipOffers.firstOrNull { it.id == productId }
+
     companion object {
         val Empty: ProductCatalog = ProductCatalog()
     }

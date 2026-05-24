@@ -40,7 +40,30 @@ class SignUpViewModelTest : CoroutineTest() {
 
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("123456"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("123456"))
         assertEquals(true, vm.state.canSubmit)
+    }
+
+    @Test
+    fun canSubmit_isFalseWhenConfirmPasswordMismatches() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("passwxrd"))
+        assertEquals(false, vm.state.canSubmit)
+        assertEquals(true, vm.state.passwordMismatch)
+    }
+
+    @Test
+    fun submit_withMismatchedConfirm_doesNotCallRepoAndSurfacesError() = runUnitTest {
+        val identity = FakeAuthRepository()
+        val vm = buildVm(identity = identity)
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("passwxrd"))
+        vm.takeAction(SignUpAction.Submit)
+        assertEquals(0, identity.signUpCalls)
+        assertEquals(0, identity.linkEmailCalls)
     }
 
     @Test
@@ -64,6 +87,7 @@ class SignUpViewModelTest : CoroutineTest() {
         )
         vm.takeAction(SignUpAction.EmailChanged("OK@Example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.eventFlow.test {
@@ -80,6 +104,7 @@ class SignUpViewModelTest : CoroutineTest() {
         )
         vm.takeAction(SignUpAction.EmailChanged("dup@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.stateFlow.test {
@@ -100,6 +125,7 @@ class SignUpViewModelTest : CoroutineTest() {
         )
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.stateFlow.test {
@@ -122,6 +148,7 @@ class SignUpViewModelTest : CoroutineTest() {
         // only way to surface "that email doesn't look right" here.
         vm.takeAction(SignUpAction.EmailChanged("weird@x"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.stateFlow.test {
@@ -144,6 +171,7 @@ class SignUpViewModelTest : CoroutineTest() {
         )
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.stateFlow.test {
@@ -166,6 +194,7 @@ class SignUpViewModelTest : CoroutineTest() {
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("  ok@example.com  "))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.eventFlow.test {
@@ -182,6 +211,7 @@ class SignUpViewModelTest : CoroutineTest() {
         )
         vm.takeAction(SignUpAction.EmailChanged("dup@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
         vm.stateFlow.test {
             var last = awaitItem()
@@ -206,6 +236,7 @@ class SignUpViewModelTest : CoroutineTest() {
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.eventFlow.test {
@@ -226,6 +257,7 @@ class SignUpViewModelTest : CoroutineTest() {
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.eventFlow.test {
@@ -246,6 +278,7 @@ class SignUpViewModelTest : CoroutineTest() {
         val vm = buildVm(identity = identity)
         vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.eventFlow.test {
@@ -266,6 +299,7 @@ class SignUpViewModelTest : CoroutineTest() {
         )
         vm.takeAction(SignUpAction.EmailChanged("dup@example.com"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
 
         vm.stateFlow.test {

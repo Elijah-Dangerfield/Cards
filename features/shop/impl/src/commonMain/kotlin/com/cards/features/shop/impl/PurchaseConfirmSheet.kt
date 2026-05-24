@@ -24,6 +24,7 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetValue
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.bottomSheetEmojiHandle
@@ -42,37 +43,46 @@ import com.dangerfield.cards.system.VerticalSpacerD700
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Bottom sheet that confirms a purchase before committing it. Two flavors,
- * picked by the [pending] variant:
- *  - [PendingPurchase.IapPack] → real-money pack via the platform store.
- *  - [PendingPurchase.ChipOffer] → chip-funded cosmetic / equippable.
+ * Bottom sheet that confirms a purchase before committing it. Two
+ * flavors, picked by the [product] subtype:
+ *  - [Product.ChipPack] → real-money pack via the platform store.
+ *  - [Product.ChipOffer] → chip-funded cosmetic / equippable.
  *
- * Drag-handle slot uses the DS [IconBubbleDragHandle] with a chip-themed
- * bubble — sets a recognizable "you're about to spend chips" feel before
- * the user reads a single word.
+ * Drag-handle slot uses the DS [bottomSheetEmojiHandle] with a chip-
+ * themed bubble — sets a recognizable "you're about to spend chips"
+ * feel before the user reads a single word.
+ *
+ * Mounted as the content of a `bottomSheet<ShopProductSheetRoute>`
+ * destination, which is why [sheetState] is passed in rather than
+ * `remember`'d here: it's owned by the destination so the route's
+ * lifecycle drives the slide-in / slide-out animation.
  *
  * Dismiss animation contract: cancel and confirm both route through
- * `state.dismiss()` so the slide-down animation plays before the terminal
- * action fires. Without this, flipping `pendingPurchase = null` from a
- * synchronous click handler yanks the sheet out of composition mid-animation
- * and the user sees a hard snap.
+ * `sheetState.dismiss()` so the slide-down animation plays before the
+ * terminal action fires. Without this, popping the sheet route from a
+ * synchronous click handler yanks the sheet out of composition mid-
+ * animation and the user sees a hard snap.
  *
- * The [pendingTerminalAction] holds "what to fire when the hide animation
+ * [pendingTerminalAction] holds "what to fire when the hide animation
  * completes":
  *  - Cancel sets it to [onDismiss]
  *  - Confirm sets it to [onConfirm]
- *  - Scrim tap / swipe / back press leave it null → fall back to [onDismiss]
+ *  - Scrim tap / swipe / back press leave it null → fall back to
+ *    [onDismiss]
+ *
+ * Both [onConfirm] and [onDismiss] are expected to pop the sheet
+ * route; the caller wires that.
  */
 @Composable
 internal fun PurchaseConfirmSheet(
-    pending: PendingPurchase,
+    sheetState: BottomSheetState,
+    product: Product,
     mode: PurchaseSheetMode,
     chipBalance: Long,
     timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberBottomSheetState()
     var pendingTerminalAction by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     // Bubble icon = the product's own emoji from the server. The
@@ -82,10 +92,6 @@ internal fun PurchaseConfirmSheet(
     // bubble's fill mirrors the product's grid-card tile (gold tint, accent
     // tint, or the featured-pack gradient) so the tap-to-sheet transition
     // feels visually continuous.
-    val product = when (pending) {
-        is PendingPurchase.IapPack -> pending.product
-        is PendingPurchase.ChipOffer -> pending.product
-    }
     val handle: BottomSheetDragHandle = bottomSheetEmojiHandle(
         emoji = product.iconEmoji,
         style = EmojiHandleStyle.Squircle,
@@ -111,16 +117,16 @@ internal fun PurchaseConfirmSheet(
             pendingTerminalAction = onDismiss
             sheetState.dismiss()
         }
-        when (pending) {
-            is PendingPurchase.IapPack -> IapPackConfirmContent(
-                pack = pending.product,
+        when (product) {
+            is Product.ChipPack -> IapPackConfirmContent(
+                pack = product,
                 timeAnchor = timeAnchor,
                 onConfirm = animatedConfirm,
                 onCancel = animatedCancel,
                 onExpired = animatedCancel,
             )
-            is PendingPurchase.ChipOffer -> ChipOfferConfirmContent(
-                offer = pending.product,
+            is Product.ChipOffer -> ChipOfferConfirmContent(
+                offer = product,
                 mode = mode,
                 chipBalance = chipBalance,
                 timeAnchor = timeAnchor,
@@ -504,17 +510,16 @@ private fun platformStoreName(): String =
 private fun PurchaseConfirmSheetPreview_IapPack() {
     PreviewContent {
         PurchaseConfirmSheet(
-            pending = PendingPurchase.IapPack(
-                Product.ChipPack(
-                    id = "chip_pack_medium",
-                    title = "Tall Stack",
-                    subtitle = "30,000 chips",
-                    iconEmoji = "💰",
-                    featured = true,
-                    badge = "BEST VALUE",
-                    grantsChips = 30_000,
-                    store = StoreSku("chips_medium", "$4.99"),
-                ),
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipPack(
+                id = "chip_pack_medium",
+                title = "Tall Stack",
+                subtitle = "30,000 chips",
+                iconEmoji = "💰",
+                featured = true,
+                badge = "BEST VALUE",
+                grantsChips = 30_000,
+                store = StoreSku("chips_medium", "$4.99"),
             ),
             mode = PurchaseSheetMode.Available,
             chipBalance = 12_450,
@@ -530,16 +535,15 @@ private fun PurchaseConfirmSheetPreview_IapPack() {
 private fun PurchaseConfirmSheetPreview_ChipOfferAvailable() {
     PreviewContent {
         PurchaseConfirmSheet(
-            pending = PendingPurchase.ChipOffer(
-                Product.ChipOffer(
-                    id = "emote_dance",
-                    title = "Victory Dance",
-                    subtitle = "Emote",
-                    description = "Send a celebration dance to the table when you win a hand — fills everyone's screen for a beat. Equip from your items.",
-                    iconEmoji = "💃",
-                    costChips = 2_500,
-                    grantsKey = "emote.dance",
-                ),
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "emote_dance",
+                title = "Victory Dance",
+                subtitle = "Emote",
+                description = "Send a celebration dance to the table when you win a hand — fills everyone's screen for a beat. Equip from your items.",
+                iconEmoji = "💃",
+                costChips = 2_500,
+                grantsKey = "emote.dance",
             ),
             mode = PurchaseSheetMode.Available,
             chipBalance = 12_450,
@@ -555,17 +559,16 @@ private fun PurchaseConfirmSheetPreview_ChipOfferAvailable() {
 private fun PurchaseConfirmSheetPreview_ChipOfferInsufficient() {
     PreviewContent {
         PurchaseConfirmSheet(
-            pending = PendingPurchase.ChipOffer(
-                Product.ChipOffer(
-                    id = "title_high_roller",
-                    title = "High Roller",
-                    subtitle = "Player title",
-                    description = "Rare title — shows under your name at the table for everyone to see. Equip from your items.",
-                    iconEmoji = "🏆",
-                    badge = "RARE",
-                    costChips = 25_000,
-                    grantsKey = "title.high_roller",
-                ),
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "title_high_roller",
+                title = "High Roller",
+                subtitle = "Player title",
+                description = "Rare title — shows under your name at the table for everyone to see. Equip from your items.",
+                iconEmoji = "🏆",
+                badge = "RARE",
+                costChips = 25_000,
+                grantsKey = "title.high_roller",
             ),
             mode = PurchaseSheetMode.Insufficient(shortBy = 23_500),
             chipBalance = 1_500,
@@ -581,17 +584,16 @@ private fun PurchaseConfirmSheetPreview_ChipOfferInsufficient() {
 private fun PurchaseConfirmSheetPreview_ChipOfferLocked() {
     PreviewContent {
         PurchaseConfirmSheet(
-            pending = PendingPurchase.ChipOffer(
-                Product.ChipOffer(
-                    id = "title_shark",
-                    title = "The Shark",
-                    subtitle = "Player title",
-                    description = "For the player who reads the table. Shows under your name.",
-                    iconEmoji = "🦈",
-                    costChips = 18_000,
-                    grantsKey = "title.shark",
-                    unlockLevel = 15,
-                ),
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "title_shark",
+                title = "The Shark",
+                subtitle = "Player title",
+                description = "For the player who reads the table. Shows under your name.",
+                iconEmoji = "🦈",
+                costChips = 18_000,
+                grantsKey = "title.shark",
+                unlockLevel = 15,
             ),
             mode = PurchaseSheetMode.Locked(requiredLevel = 15),
             chipBalance = 25_000,
@@ -607,17 +609,16 @@ private fun PurchaseConfirmSheetPreview_ChipOfferLocked() {
 private fun PurchaseConfirmSheetPreview_ChipOfferOwned_Equippable() {
     PreviewContent {
         PurchaseConfirmSheet(
-            pending = PendingPurchase.ChipOffer(
-                Product.ChipOffer(
-                    id = "cardback_marble",
-                    title = "Marble",
-                    subtitle = "Card back",
-                    description = "Marble-pattern card back — replaces the default. Equip from your items.",
-                    iconEmoji = "🂠",
-                    costChips = 6_000,
-                    grantsKey = "cardback.marble",
-                    isEquippable = true,
-                ),
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "cardback_marble",
+                title = "Marble",
+                subtitle = "Card back",
+                description = "Marble-pattern card back — replaces the default. Equip from your items.",
+                iconEmoji = "🂠",
+                costChips = 6_000,
+                grantsKey = "cardback.marble",
+                isEquippable = true,
             ),
             mode = PurchaseSheetMode.Owned,
             chipBalance = 12_450,
@@ -636,17 +637,16 @@ private fun PurchaseConfirmSheetPreview_ChipOfferOwned_AvatarPack() {
     // the picker (no equip toggle).
     PreviewContent {
         PurchaseConfirmSheet(
-            pending = PendingPurchase.ChipOffer(
-                Product.ChipOffer(
-                    id = "avatars_animals",
-                    title = "Animal Avatars",
-                    subtitle = "Avatar pack · 8 emojis",
-                    description = "Unlocks 🐱 🐶 🐯 🐼 🦊 🐻 🦁 🐸 as avatar choices in your profile.",
-                    iconEmoji = "🦊",
-                    costChips = 4_000,
-                    grantsKey = "avatars.animals",
-                    isEquippable = false,
-                ),
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "avatars_animals",
+                title = "Animal Avatars",
+                subtitle = "Avatar pack · 8 emojis",
+                description = "Unlocks 🐱 🐶 🐯 🐼 🦊 🐻 🦁 🐸 as avatar choices in your profile.",
+                iconEmoji = "🦊",
+                costChips = 4_000,
+                grantsKey = "avatars.animals",
+                isEquippable = false,
             ),
             mode = PurchaseSheetMode.Owned,
             chipBalance = 12_450,
@@ -664,17 +664,16 @@ private fun PurchaseConfirmSheetPreview_ChipOfferOwned_EmotePack() {
     // tray; emotes are sent per-hand rather than pre-equipped.
     PreviewContent {
         PurchaseConfirmSheet(
-            pending = PendingPurchase.ChipOffer(
-                Product.ChipOffer(
-                    id = "emotes_drama",
-                    title = "Drama Emote Pack",
-                    subtitle = "Emotes · 4 reactions",
-                    description = "Unlocks 💃 🧂 🎭 🤦 — send big, screen-filling reactions to the table.",
-                    iconEmoji = "💃",
-                    costChips = 3_500,
-                    grantsKey = "emotes.drama",
-                    isEquippable = false,
-                ),
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "emotes_drama",
+                title = "Drama Emote Pack",
+                subtitle = "Emotes · 4 reactions",
+                description = "Unlocks 💃 🧂 🎭 🤦 — send big, screen-filling reactions to the table.",
+                iconEmoji = "💃",
+                costChips = 3_500,
+                grantsKey = "emotes.drama",
+                isEquippable = false,
             ),
             mode = PurchaseSheetMode.Owned,
             chipBalance = 12_450,

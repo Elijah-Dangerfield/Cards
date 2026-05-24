@@ -1,0 +1,59 @@
+package com.dangerfield.cards.features.home.impl
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.bottomSheetEmojiHandle
+import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD800
+
+/**
+ * Generic "this isn't built yet" bottom sheet for Home CTAs that
+ * point at unbuilt features (Quick Match before public-rooms exist,
+ * Tournament for V2). Keeps the marketing-shaped surface up top
+ * without making the V1 build pretend the feature works.
+ *
+ * Per voice-and-copy.md: no urgency, no begging, no "Join the
+ * waitlist!". Just an honest "here's when this lands."
+ */
+@Composable
+internal fun ComingSoonSheet(
+    title: String,
+    body: String,
+    emoji: String,
+    onDismiss: () -> Unit,
+) {
+    BottomSheet(
+        onDismissRequest = onDismiss,
+        backgroundColor = AppTheme.colors.surfacePrimary,
+        dragHandle = bottomSheetEmojiHandle(
+            emoji = emoji,
+            surface = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
+        ),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Heading.H800,
+                color = AppTheme.colors.onSurfacePrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            VerticalSpacerD500()
+            Text(
+                text = body,
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.onSurfaceSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            VerticalSpacerD800()
+        }
+    }
+}

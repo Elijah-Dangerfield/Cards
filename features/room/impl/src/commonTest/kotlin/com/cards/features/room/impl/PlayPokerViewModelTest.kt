@@ -95,6 +95,119 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals(true, vm.state.swipeFoldGestureAck)
     }
 
+    // ---------- Emoji tray + cooldown + mute ----------
+
+    @Test
+    fun availableEmojis_defaultsToEmpty_whenNoPacksOwned() = runUnitTest {
+        // Emoji blasts are a paid surface — a fresh user with no pack
+        // should see no emojis. Screen relies on this to hide the tray.
+        val vm = buildVm()
+        assertEquals(emptyList(), vm.state.availableEmojis)
+    }
+
+    @Test
+    fun inventoryEmission_populatesAvailableEmojisFromOwnedPacks() = runUnitTest {
+        val inventory = FakeInventoryRepository()
+        val vm = buildVm(inventoryRepository = inventory)
+        inventory.emit(
+            listOf(
+                com.dangerfield.cards.libraries.cards.InventoryItem(
+                    productId = "emotes_cute",
+                    state = com.dangerfield.cards.libraries.cards.PurchaseState.Confirmed,
+                    purchasedAtEpochMs = 0L,
+                    costChipsAtPurchase = 0L,
+                ),
+            ),
+        )
+
+        assertTrue("🥺" in vm.state.availableEmojis)
+        assertTrue("🥰" in vm.state.availableEmojis)
+    }
+
+    @Test
+    fun blastEmoji_setsBlastAndCooldownDeadline() = runUnitTest {
+        val fixedNow = 1_000_000L
+        val vm = buildVm(clock = FixedClock(fixedNow))
+
+        vm.takeAction(PlayPokerAction.BlastEmoji("🔥"))
+
+        assertEquals("🔥", vm.state.emojiBlast?.emoji)
+        assertEquals(fixedNow, vm.state.emojiBlast?.emittedAtEpochMs)
+        assertEquals(fixedNow + 8_000L, vm.state.emojiCooldownEndsAtMs)
+    }
+
+    @Test
+    fun blastEmoji_duringCooldown_isIgnored() = runUnitTest {
+        val clock = MutableFixedClock(1_000_000L)
+        val vm = buildVm(clock = clock)
+
+        vm.takeAction(PlayPokerAction.BlastEmoji("🔥"))
+        val firstBlastTs = vm.state.emojiBlast?.emittedAtEpochMs
+
+        // Still inside the 8s window — second tap is dropped.
+        clock.advanceTo(1_005_000L)
+        vm.takeAction(PlayPokerAction.BlastEmoji("🎉"))
+
+        assertEquals("🔥", vm.state.emojiBlast?.emoji)
+        assertEquals(firstBlastTs, vm.state.emojiBlast?.emittedAtEpochMs)
+    }
+
+    @Test
+    fun blastEmoji_afterCooldown_succeeds() = runUnitTest {
+        val clock = MutableFixedClock(1_000_000L)
+        val vm = buildVm(clock = clock)
+
+        vm.takeAction(PlayPokerAction.BlastEmoji("🔥"))
+        vm.takeAction(PlayPokerAction.EmojiBlastConsumed(1_000_000L))
+        assertEquals(null, vm.state.emojiBlast)
+
+        // Past the 8s cooldown boundary.
+        clock.advanceTo(1_009_000L)
+        vm.takeAction(PlayPokerAction.BlastEmoji("🎉"))
+
+        assertEquals("🎉", vm.state.emojiBlast?.emoji)
+        assertEquals(1_009_000L, vm.state.emojiBlast?.emittedAtEpochMs)
+    }
+
+    @Test
+    fun emojiBlastConsumed_clearsOnlyMatchingBlast() = runUnitTest {
+        val clock = MutableFixedClock(1_000_000L)
+        val vm = buildVm(clock = clock)
+
+        vm.takeAction(PlayPokerAction.BlastEmoji("🔥"))
+        val firstTs = vm.state.emojiBlast!!.emittedAtEpochMs
+
+        // A stale "consumed" from a different blast id is a no-op.
+        vm.takeAction(PlayPokerAction.EmojiBlastConsumed(emittedAtEpochMs = 999L))
+        assertEquals("🔥", vm.state.emojiBlast?.emoji)
+
+        vm.takeAction(PlayPokerAction.EmojiBlastConsumed(emittedAtEpochMs = firstTs))
+        assertEquals(null, vm.state.emojiBlast)
+    }
+
+    @Test
+    fun toggleMutePlayer_addsThenRemovesFromAppCache() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+
+        vm.takeAction(PlayPokerAction.ToggleMutePlayer("Jane"))
+        assertEquals(setOf("Jane"), cache.get().mutedEmojiPlayerKeys)
+        assertEquals(setOf("Jane"), vm.state.mutedEmojiPlayerKeys)
+
+        vm.takeAction(PlayPokerAction.ToggleMutePlayer("Jane"))
+        assertEquals(emptySet<String>(), cache.get().mutedEmojiPlayerKeys)
+        assertEquals(emptySet<String>(), vm.state.mutedEmojiPlayerKeys)
+    }
+
+    @Test
+    fun mutedSet_mirroredFromAppCacheOnEmission() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+
+        cache.emit(AppData(mutedEmojiPlayerKeys = setOf("David", "Steve")))
+        assertEquals(setOf("David", "Steve"), vm.state.mutedEmojiPlayerKeys)
+    }
+
     // ---------- XP mirror (ProgressionRepository → state) ----------
 
     // ---------- Connection state mirror (PokerSession → state) ----------
@@ -607,16 +720,32 @@ class PlayPokerViewModelTest : CoroutineTest() {
         appCache: FakeAppCache = FakeAppCache(),
         profileRepository: FakeProfileRepository = FakeProfileRepository(),
         reviewPromptCoordinator: FakeReviewPromptCoordinator = FakeReviewPromptCoordinator(),
+        inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
+        clock: kotlin.time.Clock = kotlin.time.Clock.System,
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
         progressionRepository = progressionRepository,
         achievementRepository = achievementRepository,
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
+        inventoryRepository = inventoryRepository,
         profileRepository = profileRepository,
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
+        clock = clock,
     )
+
+    private class FixedClock(private val nowMs: Long) : kotlin.time.Clock {
+        override fun now(): kotlin.time.Instant =
+            kotlin.time.Instant.fromEpochMilliseconds(nowMs)
+    }
+
+    private class MutableFixedClock(initialMs: Long) : kotlin.time.Clock {
+        private var nowMs: Long = initialMs
+        fun advanceTo(ms: Long) { nowMs = ms }
+        override fun now(): kotlin.time.Instant =
+            kotlin.time.Instant.fromEpochMilliseconds(nowMs)
+    }
 
     private fun testEarnedAchievement(
         rarity: AchievementRarity = AchievementRarity.COMMON,

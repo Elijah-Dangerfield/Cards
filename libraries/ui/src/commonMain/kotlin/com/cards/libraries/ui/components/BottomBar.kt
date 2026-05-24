@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.bounceClick
@@ -132,12 +133,24 @@ fun AppBottomBar(
     }
 }
 
-// used by screens with the bottom bar + scrolling to ensure all content is visible.
+/**
+ * Reserves bottom space equal to the app's [AppBottomBar] resting
+ * height so trailing content (footer text, last CTA) stays visible
+ * regardless of whether the bar is animating in or out.
+ *
+ * Use as the last child of a scrolling Column on tab screens (Home,
+ * Shop, Profile). Non-tab screens hide the bar entirely and shouldn't
+ * reserve it.
+ *
+ * A constant reservation (rather than reading live `paddingValues`)
+ * keeps scroll position stable while the bar animates — content
+ * doesn't reflow as the bar slides on or off screen.
+ */
 @Composable
 fun BottomBarSpacer(modifier: Modifier = Modifier) {
     Spacer(
         modifier = modifier
-            .height(BottomBarSizes.BottomBarVerticalHeight + Dimension.D500) // adds just a little so content isnt right up against the bar
+            .height(BottomBarSizes.BottomBarVerticalHeight + Dimension.D500)
             .bottomSafeAreaPadding()
     )
 }
@@ -311,18 +324,16 @@ object BottomBarSizes {
 }
 
 /**
- * Reserves bottom space equal to the app's [AppBottomBar] resting height so
- * trailing content (footer text, last CTA) stays visible regardless of whether
- * the bar is animating in or out.
+ * Reports the height of the currently-visible [AppBottomBar] (without
+ * system safe-area inset; consumers add that themselves). `0.dp` means
+ * "no bar showing", which is the default for non-tab screens.
  *
- * Use as the last child of a scrolling Column on tab screens (Home, Shop,
- * Profile). Non-tab screens hide the bar entirely and shouldn't reserve it.
- *
- * A constant reservation (rather than reading live `paddingValues`) keeps
- * scroll position stable while the bar animates — content doesn't reflow as
- * the bar slides on or off screen.
+ * Set by `AppNavigation` based on whether the bar slot is rendered.
+ * Read by overlays (the snackbar host, in-app message banners, future
+ * floating toasts) that need to float *above* the bar instead of being
+ * occluded by it. Single source of truth: changing the bar height
+ * propagates to every overlay automatically.
  */
-@Composable
-fun BottomBarSpacer() {
-    Spacer(modifier = Modifier.height(BottomBarSizes.BottomBarVerticalHeight))
-}
+val LocalAppBottomBarHeight: androidx.compose.runtime.ProvidableCompositionLocal<Dp> =
+    androidx.compose.runtime.compositionLocalOf { 0.dp }
+

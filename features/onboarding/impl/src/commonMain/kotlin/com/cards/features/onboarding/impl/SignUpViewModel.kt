@@ -34,11 +34,18 @@ class SignUpViewModel(
             is SignUpAction.PasswordChanged -> action.updateState {
                 it.copy(password = action.value, error = null)
             }
+            is SignUpAction.ConfirmPasswordChanged -> action.updateState {
+                it.copy(confirmPassword = action.value, error = null)
+            }
             is SignUpAction.DismissError -> action.updateState { it.copy(error = null) }
 
             is SignUpAction.Submit -> action.run {
                 val current = state
                 if (!current.canSubmit) return@run
+                if (current.password != current.confirmPassword) {
+                    updateState { it.copy(error = "Passwords don't match.") }
+                    return@run
+                }
 
                 updateState { it.copy(isSubmitting = true, error = null) }
 
@@ -112,11 +119,18 @@ class SignUpViewModel(
 data class SignUpState(
     val email: String = "",
     val password: String = "",
+    val confirmPassword: String = "",
     val isSubmitting: Boolean = false,
     val error: String? = null,
 ) {
+    val passwordMismatch: Boolean
+        get() = confirmPassword.isNotEmpty() && password != confirmPassword
+
     val canSubmit: Boolean
-        get() = !isSubmitting && email.contains('@') && password.length >= MIN_PASSWORD_LENGTH
+        get() = !isSubmitting &&
+            email.contains('@') &&
+            password.length >= MIN_PASSWORD_LENGTH &&
+            confirmPassword == password
 
     companion object {
         const val MIN_PASSWORD_LENGTH = 6
@@ -130,6 +144,7 @@ sealed interface SignUpEvent {
 sealed interface SignUpAction {
     data class EmailChanged(val value: String) : SignUpAction
     data class PasswordChanged(val value: String) : SignUpAction
+    data class ConfirmPasswordChanged(val value: String) : SignUpAction
     data object Submit : SignUpAction
     data object DismissError : SignUpAction
 }

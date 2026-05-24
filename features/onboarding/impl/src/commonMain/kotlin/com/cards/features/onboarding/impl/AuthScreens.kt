@@ -198,9 +198,20 @@ fun SignUpScreen(
             value = state.password,
             enabled = !state.isSubmitting,
             onChange = { onAction(SignUpAction.PasswordChanged(it)) },
-            imeAction = ImeAction.Go,
+            imeAction = ImeAction.Next,
             onSubmitImeAction = { onAction(SignUpAction.Submit) },
             helper = "At least ${SignUpState.MIN_PASSWORD_LENGTH} characters",
+        )
+        Spacer(modifier = Modifier.height(Dimension.D500))
+        PasswordField(
+            value = state.confirmPassword,
+            enabled = !state.isSubmitting,
+            onChange = { onAction(SignUpAction.ConfirmPasswordChanged(it)) },
+            imeAction = ImeAction.Go,
+            onSubmitImeAction = { onAction(SignUpAction.Submit) },
+            label = "Confirm password",
+            helper = if (state.passwordMismatch) "Passwords don't match" else null,
+            isError = state.passwordMismatch,
         )
 
         state.error?.let {
@@ -320,7 +331,9 @@ private fun PasswordField(
     onChange: (String) -> Unit,
     imeAction: ImeAction,
     onSubmitImeAction: () -> Unit,
+    label: String = "Password",
     helper: String? = null,
+    isError: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -328,13 +341,17 @@ private fun PasswordField(
             onValueChange = onChange,
             enabled = enabled,
             singleLine = true,
+            isError = isError,
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
                 imeAction = imeAction,
             ),
-            keyboardActions = KeyboardActions(onGo = { onSubmitImeAction() }),
-            label = { Text("Password") },
+            keyboardActions = KeyboardActions(
+                onGo = { onSubmitImeAction() },
+                onNext = { onSubmitImeAction() },
+            ),
+            label = { Text(label) },
             modifier = Modifier.fillMaxWidth(),
         )
         helper?.let {
@@ -342,7 +359,7 @@ private fun PasswordField(
             Text(
                 text = it,
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = if (isError) AppTheme.colors.danger else AppTheme.colors.onSurfaceSecondary,
             )
         }
     }
@@ -428,7 +445,28 @@ private fun SignInScreenPreview_Error() {
 private fun SignUpScreenPreview() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         SignUpScreen(
-            state = SignUpState(email = "elijah@example.com", password = "hunter22ish"),
+            state = SignUpState(
+                email = "elijah@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22ish",
+            ),
+            onAction = {},
+            onBack = {},
+            onSignIn = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun SignUpScreenPreview_PasswordMismatch() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        SignUpScreen(
+            state = SignUpState(
+                email = "elijah@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22is",
+            ),
             onAction = {},
             onBack = {},
             onSignIn = {},
