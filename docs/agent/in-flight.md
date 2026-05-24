@@ -32,3 +32,10 @@
 **Approach:** One-line swap in `libraries/ui/.../DropDown.kt:36` from `surfacePrimary` → `surfaceTertiary`. The only `DropdownMenu` callsites in the app (profile bot-speed / feedback overflows + `DropdownSettingRow`) all route through this wrapper, so the change is app-wide without touching feature code.
 **Reviewer notes:** None.
 **Deferred:** None.
+
+## feat(room): show achievement description in showdown unlock callout
+
+**Problem:** The hand-end achievement-unlock callout rendered the achievement's icon + name + reward summary, but not its description. Some achievement names ("Comeback Kid", "Don't Call It a Comeback") are opaque without their descriptor.
+**Approach:** Added a `Body.B400 / textSecondary` line underneath the achievement name in `AchievementUnlockedCallout` (HandResultDialogs.kt), guarded by `isNotBlank()` so registry rows that ever ship with empty descriptions don't render a stray gap. Same Body.B400/textSecondary treatment as the "Achievement unlocked" header line above and the reward summary line below, so the description reads as the middle layer of a three-tier callout.
+**Reviewer notes:** Possible visual concern — three lines of body + a reward line stacks taller than before; the surrounding hand-result dialog already scrolls so it shouldn't clip. Worth eyeballing on-device with a long-description achievement (e.g. "Don't Call It a Comeback").
+**Deferred:** None.
