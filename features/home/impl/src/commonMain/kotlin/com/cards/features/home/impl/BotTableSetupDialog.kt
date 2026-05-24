@@ -28,18 +28,19 @@ import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 
 /**
- * Pre-game configuration dialog for the bot table. Picks the seat count
- * before navigating into the game. The difficulty is locked by the
- * home-screen entry point that opened the dialog, and the stake values
- * are derived from that difficulty downstream — see
- * [PlayPokerFeatureEntryPoint][com.dangerfield.cards.features.room.impl.PlayPokerFeatureEntryPoint].
+ * Pre-game configuration dialog for the bot table. Picks both
+ * difficulty and seat count in one place — Home's single Practice
+ * CTA opens this directly, no second picker. Stake values derive
+ * from the chosen difficulty downstream
+ * ([PlayPokerFeatureEntryPoint][com.dangerfield.cards.features.room.impl.PlayPokerFeatureEntryPoint]).
  */
 @Composable
 internal fun BotTableSetupDialog(
-    difficultyLabel: String,
-    onStart: (seatCount: Int) -> Unit,
+    onStart: (difficulty: String, seatCount: Int) -> Unit,
     onDismiss: () -> Unit,
+    initialDifficulty: String = "Standard",
 ) {
+    var difficulty by remember { mutableStateOf(initialDifficulty) }
     var seatCount by remember { mutableStateOf(4) }
     Dialog(
         onDismissRequest = onDismiss,
@@ -51,17 +52,38 @@ internal fun BotTableSetupDialog(
                 .padding(horizontal = 24.dp, vertical = 28.dp),
         ) {
             Text(
-                text = "Table size",
+                text = "Practice table",
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
             )
             VerticalSpacerD300()
             Text(
-                text = subtitleFor(seatCount, difficultyLabel),
+                text = subtitleFor(seatCount, difficulty),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
             VerticalSpacerD800()
+            // Difficulty first — it changes the table's feel; seat
+            // count is the lighter follow-up choice.
+            Text(
+                text = "Difficulty",
+                typography = AppTheme.typography.Label.L400,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+            VerticalSpacerD300()
+            OptionPillRow(
+                options = listOf("Casual", "Standard", "Challenging"),
+                selected = difficulty,
+                onSelect = { difficulty = it },
+                label = { it },
+            )
+            VerticalSpacerD500()
+            Text(
+                text = "Seats",
+                typography = AppTheme.typography.Label.L400,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+            VerticalSpacerD300()
             OptionPillRow(
                 options = listOf(2, 4, 6),
                 selected = seatCount,
@@ -86,7 +108,7 @@ internal fun BotTableSetupDialog(
                 modifier = Modifier.fillMaxWidth(),
             )
             VerticalSpacerD500()
-            ConfirmPill(label = "Start") { onStart(seatCount) }
+            ConfirmPill(label = "Start") { onStart(difficulty, seatCount) }
         }
     }
 }
@@ -122,8 +144,7 @@ private fun ConfirmPill(label: String, onClick: () -> Unit) {
 private fun BotTableSetupDialogPreview() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         BotTableSetupDialog(
-            difficultyLabel = "Casual",
-            onStart = { _ -> },
+            onStart = { _, _ -> },
             onDismiss = {},
         )
     }

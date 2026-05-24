@@ -54,27 +54,66 @@ class HomeFeatureEntryPoint(
                     }
                 }
             }
-            // The bot-table setup dialog is parameterized on the difficulty
-            // the user tapped so we can route to that difficulty after they
-            // pick a seat count.
-            var setupDifficulty by remember { mutableStateOf<String?>(null) }
+            // The bot-table setup dialog now picks difficulty *and*
+            // seat count in one place, so Home's single Practice CTA
+            // opens it directly — no intermediate difficulty picker.
+            var botSetupOpen by remember { mutableStateOf(false) }
+            // "Coming soon" sheet state, parameterized so the same
+            // surface serves Quick Match (not built) and Tournament
+            // (V2). Null = closed.
+            var comingSoon by remember { mutableStateOf<ComingSoonContent?>(null) }
 
             HomeScreen(
                 viewModel = viewModel,
-                onPlayBots = { difficulty -> setupDifficulty = difficulty },
+                onPlayBots = { botSetupOpen = true },
+                onQuickMatch = {
+                    // Spec §5.3 — Quick Match needs the public-rooms
+                    // matchmaker. Until that lands, surface an honest
+                    // "coming soon" sheet rather than a stub navigation.
+                    comingSoon = ComingSoonContent(
+                        title = "Quick Match",
+                        emoji = "⚯",
+                        body = "Public matchmaking ships once we have enough humans " +
+                            "playing to keep wait times short. Until then, grab a " +
+                            "Friend Game or a Practice table.",
+                    )
+                },
+                // Friend Game = the existing lobby flow (create/join via
+                // room code). Spec §5.2 calls this the "Friend Game"
+                // entry point; the lobby screen is the actual surface.
+                onFriendGame = { router.navigate(LobbyRoute()) },
+                onTournament = {
+                    comingSoon = ComingSoonContent(
+                        title = "Tournament",
+                        emoji = "♛",
+                        body = "The Royal Flush Tournament arrives in V2. Quarterly " +
+                            "championship — top finishers across every league.",
+                    )
+                },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
                 onTapXp = { router.navigate(StatsRoute()) },
                 onTapCash = { router.switchTab(ShopRoute()) },
-                onStartGame = { router.navigate(LobbyRoute()) },
-                onJoinGame = { router.navigate(LobbyRoute()) },
                 onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
+                onTapFeaturedDrop = { router.switchTab(ShopRoute()) },
+                // No standalone Friends surface yet — tapping the strip
+                // shows what's coming and where it'll live. Once the
+                // friends graph exists this routes to that surface
+                // instead.
+                onTapFriends = {
+                    comingSoon = ComingSoonContent(
+                        title = "Friends in the Hall",
+                        emoji = "✦",
+                        body = "Adding friends and seeing who's online ships with " +
+                            "Friend Games. We'll surface the table they're at, the " +
+                            "stake, and a one-tap join.",
+                    )
+                },
             )
 
-            setupDifficulty?.let { difficulty ->
+            if (botSetupOpen) {
                 BotTableSetupDialog(
-                    difficultyLabel = difficulty,
-                    onStart = { seatCount ->
-                        setupDifficulty = null
+                    onStart = { difficulty, seatCount ->
+                        botSetupOpen = false
                         router.navigate(
                             PlayBotsRoute(
                                 difficulty = difficulty,
@@ -82,7 +121,16 @@ class HomeFeatureEntryPoint(
                             ),
                         )
                     },
-                    onDismiss = { setupDifficulty = null },
+                    onDismiss = { botSetupOpen = false },
+                )
+            }
+
+            comingSoon?.let { content ->
+                ComingSoonSheet(
+                    title = content.title,
+                    body = content.body,
+                    emoji = content.emoji,
+                    onDismiss = { comingSoon = null },
                 )
             }
         }
@@ -104,3 +152,14 @@ class HomeFeatureEntryPoint(
         }
     }
 }
+
+/**
+ * Payload for the generic "this isn't built yet" sheet. Keeps the
+ * Home entry point flat — one nullable state slot drives every
+ * unbuilt-feature CTA, regardless of which one triggered it.
+ */
+private data class ComingSoonContent(
+    val title: String,
+    val emoji: String,
+    val body: String,
+)
