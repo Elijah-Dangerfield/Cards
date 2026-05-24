@@ -254,12 +254,15 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_firstEverSession_firesEvenWhenChipsHaventHydrated() = runUnitTest {
+    fun welcomeGate_neverSeen_firesEvenWhenChipsHaventHydrated() = runUnitTest {
+        // hasSeenStarterWelcome=false + Profile.Authenticated → fire, even if
+        // chips are still loading. The dialog renders a placeholder for the
+        // chip reveal until the wallet sync lands.
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "FreshInstall", isAnonymous = true),
         )
         val chips = FakeChipsRepository(initial = null)
-        val appCache = FakeAppCache(initial = AppData(lastSessionEndedAt = null))
+        val appCache = FakeAppCache(initial = AppData(hasSeenStarterWelcome = false))
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
         vm.eventFlow.test {
@@ -276,11 +279,13 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_returningSession_doesNotFire() = runUnitTest {
+    fun welcomeGate_alreadySeen_doesNotFire() = runUnitTest {
+        // hasSeenStarterWelcome=true → don't fire, even on a fresh session
+        // (lastSessionEndedAt is now irrelevant to the gate).
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "Returning", isAnonymous = false),
         )
-        val appCache = FakeAppCache(initial = AppData(lastSessionEndedAt = 1_700_000_000_000))
+        val appCache = FakeAppCache(initial = AppData(hasSeenStarterWelcome = true))
         val vm = buildVm(profile = profile, appCache = appCache)
 
         vm.eventFlow.test {
@@ -290,13 +295,23 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_fallbackProfile_doesNotFire() = runUnitTest {
+    fun welcomeGate_profileFallback_doesNotFire_butFiresOnceProfileResolves() = runUnitTest {
+        // Regression: previous gate flipped `isFirstEverSession` to false the
+        // first time the app backgrounded, which permanently locked a user
+        // out of the welcome if the /v1/me call failed (Fly cold-boot timeout
+        // → Profile.Fallback). Now the gate just waits for an Authenticated
+        // profile — when it eventually arrives, the welcome fires.
         val profile = FakeProfileRepository(initial = Profile.Fallback(id = "anon"))
-        val appCache = FakeAppCache(initial = AppData(lastSessionEndedAt = null))
+        val appCache = FakeAppCache(initial = AppData(hasSeenStarterWelcome = false))
         val vm = buildVm(profile = profile, appCache = appCache)
 
         vm.eventFlow.test {
             expectNoEvents()
+            // Server eventually responds — profile resolves to Authenticated.
+            profile.emit(authenticatedProfile(displayName = "Eventually", isAnonymous = true))
+            val event = awaitItem()
+            assertTrue(event is HomeEvent.OpenWelcomeDialog)
+            assertEquals("Eventually", event.payload.displayName)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -433,6 +448,7 @@ class HomeViewModelTest : CoroutineTest() {
         initial: Profile = Profile.Fallback(id = "anon"),
     ) : ProfileRepository {
         val profile = MutableStateFlow(initial)
+        suspend fun emit(next: Profile) { profile.emit(next) }
         override suspend fun current(): Profile = profile.value
         override fun observe(): Flow<Profile> = profile
         override suspend fun update(

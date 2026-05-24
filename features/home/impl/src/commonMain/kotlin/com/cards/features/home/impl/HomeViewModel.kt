@@ -4,7 +4,6 @@ import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
-import com.dangerfield.cards.libraries.cards.isFirstEverSession
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -64,24 +63,24 @@ class HomeViewModel(
     /**
      * One-shot starter-grant welcome trigger.
      *
-     * Combines three upstream signals — chip balance, server profile, and
-     * the [AppData] snapshot (carries both the "already seen" flag and the
-     * "first-ever session" signal via [isFirstEverSession]) — and emits
-     * exactly one [HomeEvent.OpenWelcomeDialog] event the first time the
-     * non-chip gates line up. The view layer responds by navigating to
+     * Combines two upstream signals — server profile and the [AppData]
+     * "already seen" flag — and emits exactly one
+     * [HomeEvent.OpenWelcomeDialog] event the first time both align. The
+     * view layer responds by navigating to
      * [com.dangerfield.cards.features.home.WelcomeDialogRoute].
      *
      * Chip balance rides along as a *latest snapshot* — the dialog renders
      * with a placeholder when chips haven't hydrated yet, instead of
-     * blocking the welcome on the wallet round-trip. A fresh-install user
-     * on a slow connection was missing the dialog entirely when
-     * `/v1/me/wallet` lagged behind anonymous sign-in.
+     * blocking the welcome on the wallet round-trip.
      *
-     * "First launch" comes from [AppCache.lastSessionEndedAt] (null = the
-     * app has never backgrounded on this install). That signal is set by
-     * [com.dangerfield.cards.libraries.cards.impl.AppLifecycleTracker] —
-     * a 30-line lifecycle listener that replaces the previous Room-backed
-     * session repository, table, DAO, and entity. Same fact, no DB row.
+     * Note we no longer gate on `isFirstEverSession`. That flag flipped to
+     * `false` the first time the app backgrounded, which permanently locked
+     * a user out of the welcome if their profile failed to load before
+     * they backgrounded (e.g. /v1/me timed out on a Fly cold-boot →
+     * Profile.Fallback → user backgrounds → flag flips → welcome never
+     * fires again). `hasSeenStarterWelcome` is now the sole "have we shown
+     * this user the welcome yet" signal, set only when the dialog
+     * *actually opens*.
      *
      * Persists `hasSeenStarterWelcome=true` *at emit time* (optimistic), so
      * a process death between event and dismissal doesn't cause a re-show.
@@ -96,7 +95,6 @@ class HomeViewModel(
                 appCache.updates,
             ) { chips, profile, appData ->
                 WelcomeGate(
-                    isFirstEverSession = appData.isFirstEverSession(),
                     chips = chips,
                     profile = profile,
                     hasSeenStarterWelcome = appData.hasSeenStarterWelcome,
@@ -106,7 +104,6 @@ class HomeViewModel(
                 .onEach { gate ->
                     homeLogger.i {
                         "welcomeGates: resolved=${gate.payload() != null} " +
-                            "isFirstEverSession=${gate.isFirstEverSession} " +
                             "hasSeenStarterWelcome=${gate.hasSeenStarterWelcome} " +
                             "profile=${gate.profile.debugKind()} " +
                             "chips=${gate.chips}"
@@ -190,13 +187,11 @@ class HomeViewModel(
  * line and so [payload] is the only place the "all aligned" rule lives.
  */
 private data class WelcomeGate(
-    val isFirstEverSession: Boolean,
     val chips: Long?,
     val profile: Profile?,
     val hasSeenStarterWelcome: Boolean,
 ) {
     fun payload(): WelcomePayload? {
-        if (!isFirstEverSession) return null
         if (hasSeenStarterWelcome) return null
         val auth = profile as? Profile.Authenticated ?: return null
         return WelcomePayload(
