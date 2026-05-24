@@ -620,8 +620,6 @@ class ShopViewModelTest : CoroutineTest() {
         private val _state = MutableStateFlow(initialState)
         override suspend fun current(): AuthState = _state.value
         override fun observe(): Flow<AuthState> = _state.asStateFlow()
-        override suspend fun accessToken(): String? = null
-        override suspend fun refreshAccessToken(): String? = null
         override suspend fun retry(): AuthState = _state.value
 
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =

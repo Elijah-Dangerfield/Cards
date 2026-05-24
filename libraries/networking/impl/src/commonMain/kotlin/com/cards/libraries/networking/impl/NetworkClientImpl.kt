@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
+import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
@@ -31,6 +32,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 @Inject
+@OptIn(InternalNetworkingApi::class)
 class NetworkClientImpl(
     private val config: NetworkConfig,
     private val tokenProvider: AuthTokenProvider,
@@ -48,12 +50,12 @@ class NetworkClientImpl(
             applyCommonConfig(config, headersProvider)
             install(Auth) {
                 bearer {
+                    // By the time loadTokens runs, authedCall has already
+                    // called [awaitAuthReady], so the gateway peek is
+                    // synchronous and instant. Null means there's no
+                    // session (anon disabled, offline before first auth) —
+                    // request goes unauthed and the server 401s cleanly.
                     loadTokens {
-                        // tokenProvider.accessToken() suspends until the
-                        // auth subsystem has resolved a session (first-launch
-                        // anon sign-in, persisted-session hydration). Null
-                        // means we know there's no session — request goes
-                        // unauthed and the server 401s cleanly.
                         val token = tokenProvider.accessToken()
                             ?: return@loadTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
@@ -66,14 +68,18 @@ class NetworkClientImpl(
                     sendWithoutRequest { true }
                 }
             }
-            // WebSocket plugin so callers like :libraries:rooms:impl can
-            // open room sockets via the same authenticated client (the
-            // Auth bearer is attached on the WS handshake). The plugin
-            // is additive — existing HTTP calls don't notice it.
+            // WebSocket plugin so callers can open room sockets via the
+            // same authenticated client (the Auth bearer is attached on
+            // the WS handshake). The plugin is additive — existing HTTP
+            // calls don't notice it.
             install(WebSockets) {
                 pingIntervalMillis = 15.seconds.inWholeMilliseconds
             }
         }
+    }
+
+    override suspend fun awaitAuthReady() {
+        tokenProvider.awaitReady()
     }
 }
 

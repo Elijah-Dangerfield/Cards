@@ -190,9 +190,11 @@ class UserMessageRepositoryImplSyncTest : CoroutineTest() {
             // Match production: 4xx/5xx throws so the retry predicate can see it.
             expectSuccess = true
         }
+        @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
         val networkClient = object : NetworkClient {
             override val client: HttpClient = client
             override val authenticatedClient: HttpClient = client
+            override suspend fun awaitAuthReady() = Unit
         }
         return UserMessageRepositoryImpl(dao, networkClient, fixedClock)
     }

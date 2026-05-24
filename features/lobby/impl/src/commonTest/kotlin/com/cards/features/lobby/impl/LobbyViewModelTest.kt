@@ -321,8 +321,6 @@ class LobbyViewModelTest : CoroutineTest() {
 
         override suspend fun current(): AuthState = authenticated
         override fun observe(): kotlinx.coroutines.flow.Flow<AuthState> = flow
-        override suspend fun accessToken(): String? = "token"
-        override suspend fun refreshAccessToken(): String? = "token"
         override suspend fun retry(): AuthState = authenticated
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
             SignInOutcome.Success

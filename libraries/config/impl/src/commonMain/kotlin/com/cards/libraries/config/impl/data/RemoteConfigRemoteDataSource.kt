@@ -8,6 +8,8 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.flatMap
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
+import com.dangerfield.cards.libraries.networking.unauthedCall
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.withContext
@@ -34,11 +36,13 @@ class RemoteConfigRemoteDataSource @Inject constructor(
     private val logger = KLog.withTag("RemoteConfigDataSource")
 
     override suspend fun getConfig(): Catching<AppConfigMap> = withContext(dispatcherProvider.io) {
-        Catching {
-            networkClient.client.get("/v1/app-config").body<String>()
+        networkClient.unauthedCall(
+            description = "appConfig.fetch",
+            retry = RetryPolicy.idempotent(),
+        ) { client ->
+            client.get("/v1/app-config").body<String>()
         }
             .flatMap { raw -> converter.decodeToMap(raw).map { BasicMapAppConfig(it) } }
             .onSuccess { logger.d { "Fetched remote app config" } }
-            .onFailure { logger.w(it) { "Failed to fetch remote app config" } }
     }
 }

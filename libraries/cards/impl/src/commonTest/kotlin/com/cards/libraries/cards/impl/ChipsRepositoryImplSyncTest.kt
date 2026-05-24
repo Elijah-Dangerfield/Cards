@@ -294,9 +294,11 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             // instead of a downstream JSON-parse failure on an empty error body.
             expectSuccess = true
         }
+        @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
         val networkClient = object : NetworkClient {
             override val client: HttpClient = client
             override val authenticatedClient: HttpClient = client
+            override suspend fun awaitAuthReady() = Unit
         }
         return ChipsRepositoryImpl(
             chipsDao = chipsDao,

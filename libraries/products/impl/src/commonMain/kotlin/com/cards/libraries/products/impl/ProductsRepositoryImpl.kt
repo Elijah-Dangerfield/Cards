@@ -79,7 +79,7 @@ class ProductsRepositoryImpl(
 
     override suspend fun refresh(): Result<ProductCatalog> = refreshMutex.withLock {
         Catching {
-            val dto = dataSource.fetchCatalog()
+            val dto = dataSource.fetchCatalog().getOrThrow()
             val rawCatalog = dto.toDomain()
 
             val storeProducts = queryStoreFor(rawCatalog)

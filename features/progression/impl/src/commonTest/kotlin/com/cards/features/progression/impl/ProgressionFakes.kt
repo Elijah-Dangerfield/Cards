@@ -83,8 +83,6 @@ internal class FakeAuthRepository(
         state.tryEmit(next)
     }
 
-    override suspend fun accessToken(): String? = error("not used")
-    override suspend fun refreshAccessToken(): String? = error("not used")
     override suspend fun retry(): AuthState = error("not used")
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
         error("not used")

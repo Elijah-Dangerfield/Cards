@@ -174,8 +174,6 @@ class OnboardingViewModelTest : CoroutineTest() {
 
         override suspend fun current(): AuthState = outcome
         override fun observe(): kotlinx.coroutines.flow.Flow<AuthState> = flow
-        override suspend fun accessToken(): String? = null
-        override suspend fun refreshAccessToken(): String? = null
         override suspend fun retry(): AuthState {
             calls += 1
             return outcome

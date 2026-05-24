@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.identity.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -90,18 +92,36 @@ data class AvatarPackDto(
 class HttpProfileApi(
     private val networkClient: NetworkClient,
 ) : ProfileApi {
+
+    // GET /v1/me is server-side get-or-create — same userId returns the
+    // same row, replays are no-ops. Safe to retry. This is the call that
+    // hung for 30s on Fly cold-boot in production logs and dumped users
+    // into Profile.Fallback; the retry covers that case.
     override suspend fun me(): MeDto =
-        networkClient.authenticatedClient.get("/v1/me").body()
+        networkClient.authedCall("me.fetch", retry = RetryPolicy.idempotent()) { client ->
+            client.get("/v1/me").body<MeDto>()
+        }.getOrThrow()
 
+    // PATCH is a write — leave retry at None. ClientRequestException on
+    // 4xx still surfaces so the repository can map 409 → name-taken etc.
     override suspend fun patchMe(request: PatchMeRequest): MeDto =
-        networkClient.authenticatedClient.patch("/v1/me") {
-            contentType(ContentType.Application.Json)
-            setBody(request)
-        }.body()
+        networkClient.authedCall("me.patch") { client ->
+            client.patch("/v1/me") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }.body<MeDto>()
+        }.getOrThrow()
 
+    // GET /v1/avatars is read-only — safe to retry.
     override suspend fun avatars(): AvatarPackResponseDto =
-        networkClient.authenticatedClient.get("/v1/avatars").body()
+        networkClient.authedCall("avatars.fetch", retry = RetryPolicy.idempotent()) { client ->
+            client.get("/v1/avatars").body<AvatarPackResponseDto>()
+        }.getOrThrow()
 
+    // DELETE /v1/me is one-shot. No retry; the auth repo branches on the
+    // raw HttpResponse status. Caller wraps in its own Catching to do that.
     override suspend fun deleteMe(): HttpResponse =
-        networkClient.authenticatedClient.delete("/v1/me")
+        networkClient.authedCall("me.delete") { client ->
+            client.delete("/v1/me")
+        }.getOrThrow()
 }
