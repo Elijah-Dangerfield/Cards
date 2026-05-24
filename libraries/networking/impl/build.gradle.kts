@@ -12,7 +12,6 @@ kotlin {
             implementation(projects.libraries.networking)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
-            implementation(projects.libraries.identity)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentNegotiation)

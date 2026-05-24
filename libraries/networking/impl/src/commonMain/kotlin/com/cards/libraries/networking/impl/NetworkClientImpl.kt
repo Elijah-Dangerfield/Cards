@@ -2,7 +2,7 @@ package com.dangerfield.cards.libraries.networking.impl
 
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
@@ -33,17 +33,9 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class NetworkClientImpl(
     private val config: NetworkConfig,
-    private val authRepositoryProvider: () -> AuthRepository,
+    private val tokenProvider: AuthTokenProvider,
     private val headersProvider: ClientHeadersProvider,
 ) : NetworkClient {
-
-    // Lazy provider rather than direct injection: [AuthRepository] (in
-    // `:libraries:identity:impl`) depends on [ProfileApi] which depends
-    // on [NetworkClient] for the `/v1/me`-flavored calls. That'd form a
-    // construction-time DI cycle (network → auth → network). Both sides
-    // are singletons; the lazy resolves the same instance, it just
-    // defers when the graph walks through it.
-    private val authRepository: AuthRepository by lazy { authRepositoryProvider() }
 
     override val client: HttpClient by lazy {
         HttpClient {
@@ -57,17 +49,17 @@ class NetworkClientImpl(
             install(Auth) {
                 bearer {
                     loadTokens {
-                        // AuthRepository.accessToken() suspends until auth
-                        // resolves — internally it waits on the auth state
-                        // flow's first emission. No more polling, no 5s
-                        // ceiling here: the auth layer's resolve is the
-                        // backstop.
-                        val token = authRepository.accessToken()
+                        // tokenProvider.accessToken() suspends until the
+                        // auth subsystem has resolved a session (first-launch
+                        // anon sign-in, persisted-session hydration). Null
+                        // means we know there's no session — request goes
+                        // unauthed and the server 401s cleanly.
+                        val token = tokenProvider.accessToken()
                             ?: return@loadTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
                     }
                     refreshTokens {
-                        val token = authRepository.refreshAccessToken()
+                        val token = tokenProvider.refreshAccessToken()
                             ?: return@refreshTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
                     }

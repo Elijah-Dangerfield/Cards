@@ -181,67 +181,8 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertIs<AuthState.Authenticated>(pending.await())
     }
 
-    // ---------- accessToken ----------
-
-    @Test
-    fun accessToken_returnsGatewayToken_whenAuthenticated() = runUnitTest {
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.Authenticated,
-            session = claimedSession(accessToken = "tok-123"),
-        )
-        val repo = build(gateway = gateway)
-        advanceUntilIdle()
-
-        assertEquals("tok-123", repo.accessToken())
-    }
-
-    @Test
-    fun accessToken_returnsNull_whenUnauthenticated() = runUnitTest {
-        // Network requests fired during a long offline stretch will hit
-        // this path — the bearer plugin gets null and the request goes
-        // unauthed (the server then 401s on protected routes).
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.NotAuthenticated,
-            session = null,
-            onSignInAnonymously = { throw RuntimeException("no network") },
-        )
-        val repo = build(gateway = gateway)
-        advanceUntilIdle()
-
-        assertIs<AuthState.Unauthenticated>(repo.current())
-        assertNull(repo.accessToken())
-    }
-
-    @Test
-    fun refreshAccessToken_callsGatewayRefresh_andReturnsFreshToken() = runUnitTest {
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.Authenticated,
-            session = claimedSession(accessToken = "tok-old"),
-        )
-        val repo = build(gateway = gateway)
-        advanceUntilIdle()
-
-        gateway.onRefreshSession = {
-            gateway.replaceSession(claimedSession(accessToken = "tok-new"))
-        }
-        assertEquals("tok-new", repo.refreshAccessToken())
-        assertEquals(1, gateway.refreshSessionCalls)
-    }
-
-    @Test
-    fun refreshAccessToken_swallowsError_andReturnsNull() = runUnitTest {
-        // The bearer plugin calls this on 401; a thrown error must NOT
-        // crash the surrounding request flow.
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.Authenticated,
-            session = claimedSession(),
-            onRefreshSession = { throw RuntimeException("refresh failed") },
-        )
-        val repo = build(gateway = gateway)
-        advanceUntilIdle()
-
-        assertNull(repo.refreshAccessToken())
-    }
+    // Token methods (accessToken / refreshAccessToken) live on
+    // [GatewayAuthTokenProvider] now — see [GatewayAuthTokenProviderTest].
 
     // ---------- retry ----------
 
@@ -322,6 +263,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         appEventBus: AppEventBus = NoOpEventBus,
     ): SupabaseAuthRepositoryImpl = SupabaseAuthRepositoryImpl(
         gateway = gateway,
+        authBootstrap = AuthBootstrap(gateway),
         profileApi = UnusedProfileApi,
         appEventBus = appEventBus,
         appScope = AppCoroutineScope(dispatchers),
@@ -417,6 +359,15 @@ internal class FakeSupabaseAuthGateway(
 
     fun replaceSession(session: GatewaySession?) {
         this.session = session
+    }
+
+    /**
+     * Force [currentStatus] to start returning [next] on subsequent reads.
+     * Used to model a gateway whose status flipped out of band (e.g. signOut
+     * cleared the session — next status read should be NotAuthenticated).
+     */
+    fun setStatus(next: AuthGatewayStatus) {
+        status = next
     }
 
     override suspend fun awaitInitialization() { /* no-op for tests */ }
