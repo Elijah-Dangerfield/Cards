@@ -10,7 +10,6 @@ import com.dangerfield.cards.libraries.core.logging.Logger
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.cards.impl.logging.KermitLogTree
 import com.dangerfield.cards.libraries.cards.impl.logging.SentryLogTree
-import co.touchlab.kermit.CommonWriter
 import co.touchlab.kermit.Logger as KermitLogger
 import co.touchlab.kermit.Severity as KermitSeverity
 import io.sentry.kotlin.multiplatform.Sentry
@@ -46,18 +45,16 @@ private class ConfiguredTelemetry(
 
         KLog.plant(KermitLogTree())
 
-        // Kermit's default iOS sink is OSLogWriter, which goes through
-        // Apple's os_log — that pipeline silently drops DEBUG/VERBOSE
-        // entries before any IDE (Android Studio Run window, Xcode console,
-        // Console.app) can see them. CommonWriter routes the same entries
-        // through `println` → stdout, which every IDE captures. We bump
-        // the global min-severity to Verbose so nothing is pre-filtered
-        // on the Kermit side; LogTree-level filtering still applies.
+        // Debug-only: drop Kermit's global min-severity to Verbose so nothing
+        // is pre-filtered before reaching the platform writer (OSLogWriter on
+        // iOS → Xcode console; LogcatWriter on Android → logcat). LogTree-
+        // level filtering still applies on top.
         //
-        // Debug builds only — release shouldn't be spamming stdout.
+        // Android Studio logcat note: the Logcat tool window has its own level
+        // filter that defaults above Debug — drop it to "Verbose" or "Debug"
+        // to see the same entries Xcode shows by default.
         if (BuildInfo.isDebug) {
             KermitLogger.setMinSeverity(KermitSeverity.Verbose)
-            KermitLogger.addLogWriter(CommonWriter())
         }
 
         val config = configProvider()
