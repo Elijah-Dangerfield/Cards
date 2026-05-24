@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -138,11 +139,17 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
                 color = AppTheme.colors.onSurfacePrimary,
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = item.subtitle,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.subtitle,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.onSurfaceSecondary,
+                )
+                if (item.isEquippable && item.acquisitionSource == AcquisitionSource.Earned) {
+                    Spacer(modifier = Modifier.size(Dimension.D200))
+                    EarnedTag()
+                }
+            }
             item.description?.let { desc ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -152,22 +159,25 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
                 )
             }
         }
-        // Unlock-style products (avatar packs, emote packs) render in the
-        // list because the user *does* own them, but they have no equip
-        // state to toggle — owning the pack is the entire effect (it
-        // expands the relevant picker). Surface a quiet "Unlocked" badge
-        // so the row doesn't look incomplete.
         Spacer(modifier = Modifier.size(Dimension.D400))
         if (item.isEquippable) {
             EquipToggleButton(isEquipped = item.isEquipped, onClick = onToggle)
         } else {
-            UnlockedBadge()
+            OwnershipBadge(source = item.acquisitionSource)
         }
     }
 }
 
 @Composable
-private fun UnlockedBadge() {
+private fun OwnershipBadge(source: AcquisitionSource) {
+    val label = when (source) {
+        AcquisitionSource.Earned -> "Earned"
+        AcquisitionSource.Purchased -> "Unlocked"
+    }
+    val textColor = when (source) {
+        AcquisitionSource.Earned -> AppTheme.colors.accentSecondary
+        AcquisitionSource.Purchased -> AppTheme.colors.onSurfaceSecondary
+    }
     Box(
         modifier = Modifier
             .clip(Radii.R500.shape)
@@ -175,9 +185,25 @@ private fun UnlockedBadge() {
             .padding(horizontal = Dimension.D400, vertical = Dimension.D200),
     ) {
         Text(
-            text = "Unlocked",
+            text = label,
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = textColor,
+        )
+    }
+}
+
+@Composable
+private fun EarnedTag() {
+    Box(
+        modifier = Modifier
+            .clip(Radii.R400.shape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
+    ) {
+        Text(
+            text = "Earned",
+            typography = AppTheme.typography.Label.L300,
+            color = AppTheme.colors.accentSecondary,
         )
     }
 }
@@ -277,6 +303,44 @@ private fun OwnedItemRowPreview_Equipped_AndUnequipped() {
                     iconEmoji = "🐶",
                     isEquipped = false,
                     isEquippable = false,
+                ),
+                onToggle = {},
+            )
+        }
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OwnedItemRowPreview_Earned() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(Dimension.D400),
+            modifier = Modifier.padding(Dimension.D500),
+        ) {
+            OwnedItemRow(
+                item = OwnedItem(
+                    productId = "ck.legendary",
+                    title = "Legendary felt",
+                    subtitle = "Felt",
+                    description = "Earned for a legendary-tier achievement.",
+                    iconEmoji = "🏆",
+                    isEquipped = false,
+                    isEquippable = true,
+                    acquisitionSource = AcquisitionSource.Earned,
+                ),
+                onToggle = {},
+            )
+            OwnedItemRow(
+                item = OwnedItem(
+                    productId = "emote_pack.legendary",
+                    title = "Legendary emote pack",
+                    subtitle = "Emote pack",
+                    description = "Unlocked from an achievement chain.",
+                    iconEmoji = "✨",
+                    isEquipped = false,
+                    isEquippable = false,
+                    acquisitionSource = AcquisitionSource.Earned,
                 ),
                 onToggle = {},
             )
