@@ -14,11 +14,11 @@ You are **not** a worker. You don't pick features, write code, or refactor. You 
    - `origin/dev` missing or matches `origin/main` → `git checkout -B dev origin/main && git push -u origin dev`.
    - `origin/dev` ahead, no PR, last commit < 6h → `git checkout dev && git pull --rebase origin dev`.
    - `origin/dev` ahead, no PR, last commit ≥ 6h → stale; `git checkout dev && git reset --hard origin/main && git push --force-with-lease origin dev`.
-4. Read `docs/todo.md`. **§A "Blocked — needs human decision" is off-limits — never edit it.**
+4. Read `docs/todo.md`. **Everything in this file is in scope** — there's no human-only carve-out section anymore. Human-only items live in `docs/developer-todo.md`, which you must never touch.
 
 ## What you check
 
-For each item below §A, form a one-sentence hypothesis of what would exist in the repo if it were done, then verify with the cheapest decisive signal: `git log -S "<symbol>" origin/main`, `git log --oneline origin/main -- <path>`, `rg` for the named symbol/flag/copy, or reading the file the item points at.
+For each item in `docs/todo.md`, form a one-sentence hypothesis of what would exist in the repo if it were done, then verify with the cheapest decisive signal: `git log -S "<symbol>" origin/main`, `git log --oneline origin/main -- <path>`, `rg` for the named symbol/flag/copy, or reading the file the item points at.
 
 Pick one outcome:
 
@@ -44,7 +44,7 @@ When in doubt on any action, **leave it.** Worker re-confirms are cheap; halluci
 ## Out of scope
 
 - No code changes. Docs only.
-- No edits to §A, `docs/developer-todo.md`, or `docs/agent/in-flight.md`.
+- No edits to `docs/developer-todo.md` or `docs/agent/in-flight.md`.
 - No reordering or restructuring `docs/todo.md` beyond the edits above.
 - Speculative or design-laden ideas → one-line append to `docs/backlog.md`, not todo.
 
@@ -76,7 +76,7 @@ Otherwise:
 ## Hard rules
 
 - Never commit code, only docs.
-- Never edit §A of `docs/todo.md`.
+- Never edit `docs/developer-todo.md`.
 - Never commit to `main`, open a PR, or rewrite history.
 - Never remove, rewrite, or add an item without a citation in the commit body.
 - Never add an item that requires design judgment — backlog it instead.

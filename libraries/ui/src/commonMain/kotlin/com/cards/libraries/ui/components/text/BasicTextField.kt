@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.typography.TypographyResource
@@ -42,6 +43,7 @@ fun BasicTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     onTextLayout: (TextLayoutResult) -> Unit = {},
     cursorBrush: Brush = SolidColor(AppTheme.colors.accentPrimary.color),
+    textAlign: TextAlign? = null,
     decorationBox: @Composable (innerTextField: @Composable () -> Unit) -> Unit =
         @Composable { innerTextField -> innerTextField() },
 ) {
@@ -58,7 +60,8 @@ fun BasicTextField(
                 modifier = modifier,
                 enabled = enabled,
                 readOnly = readOnly,
-                textStyle = typographyToken.style(if (enabled) color else disabledColor),
+                textStyle = typographyToken.style(if (enabled) color else disabledColor)
+                    .let { if (textAlign != null) it.copy(textAlign = textAlign) else it },
                 keyboardOptions = keyboardOptions,
                 keyboardActions = keyboardActions,
                 singleLine = singleLine,

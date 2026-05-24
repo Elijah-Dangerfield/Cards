@@ -10,13 +10,16 @@ This is **Kotlin Multiplatform**—most code is shared, but some platform featur
 
 ## Where work comes from
 
-The repo has three task surfaces. Each has a distinct role; agents must respect the boundary.
+The repo has three standing task surfaces plus one ephemeral one. Each has a distinct role; agents must respect the boundary.
 
-| Doc | Who picks from it | Contents |
-| --- | --- | --- |
-| [`docs/todo.md`](docs/todo.md) | AI workers + human | Active engineering work — current ship target. §A "Blocked — needs human decision" is **off-limits** to automated runs. |
-| [`docs/backlog.md`](docs/backlog.md) | Human-curated, AI appends | Someday/maybe ideas and follow-ups. Workers don't pick from here, but **append** new items here when they notice good follow-ups outside their current scope. |
-| [`docs/developer-todo.md`](docs/developer-todo.md) | Human only | Credentials, GitHub settings, console config. **Automated workers must never edit this file.** |
+| Surface | Shelf life | Who picks from it | Contents |
+| --- | --- | --- | --- |
+| [`docs/todo.md`](docs/todo.md) | Standing | AI workers + human | Active engineering work — current ship target. **Everything in this file is worker-pickable.** No "needs the human" carve-out here. |
+| [`docs/backlog.md`](docs/backlog.md) | Standing | Human curates; AI may append | Someday/maybe ideas and follow-ups. Workers don't pick from here, but **append** new items here when they notice good follow-ups outside their current scope. |
+| [`docs/developer-todo.md`](docs/developer-todo.md) | Standing | Human curates; reviewer may append | Anything only the human can do — credentials, GitHub settings, dashboard / external-service config, device QA, content writing, deferred product decisions. **Automated workers must never edit this file.** The reviewer may *append* a one-line entry when a PR creates a new human-only follow-up, but may not edit or delete existing entries. |
+| PR "Heads up" section | Ephemeral (per PR) | Reviewer writes; human reads | Per-cycle follow-ups tied to *this* PR's diff — visual deltas to eyeball, scope calls made, untested paths to QA, reminders that the PR depends on a still-open `developer-todo.md` entry. Lives in the PR body, not in any tracked file. |
+
+**Routing rule for human-only follow-ups:** if it dies the moment the human acts on it this cycle, it goes in the PR Heads up. If it's a standing item the human still owes across many cycles, it goes in `developer-todo.md` (and may be mentioned once in Heads up so it's not invisible).
 
 If you complete or close out a `docs/todo.md` item, also drop a short entry in [`docs/decisions.md`](docs/decisions.md) when the change involved a non-trivial architectural call (see "Decisions log" below).
 

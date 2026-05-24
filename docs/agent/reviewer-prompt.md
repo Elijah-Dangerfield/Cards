@@ -44,6 +44,30 @@ Each in-flight block may have a `**Deferred:**` field listing things the worker 
 
 You're the second pair of eyes on deferred items — workers tend to defer conservatively, so expect that some of these belong in the PR.
 
+## Surfacing human follow-ups (`developer-todo.md` awareness)
+
+After the per-commit review, glance at [`docs/developer-todo.md`](../developer-todo.md) — the human-only TODO surface (Device QA, Dashboard / external-service config, Content writing, Deferred product decisions, GitHub repo settings, Secrets). For each subsection, ask: does this PR's diff *touch* anything tied to one of those entries?
+
+- A new fix that needs device verification on a real Android/iOS build → `Device QA`.
+- A new feature that depends on a dashboard setting the human hasn't done yet → `Dashboard / external-service config`.
+- A new flow that surfaces empty copy on a page that needs real content → `Content writing`.
+- A worker correctly punted a decision to the human → `Deferred product decisions`.
+
+If yes, add a one-line "Heads up" entry on the PR naming the `developer-todo.md` item the human still owes. **Don't restate every entry every PR** — only the ones tied to *this* PR's diff. This keeps the human's follow-up loop visible in their PR notifications instead of buried in `developer-todo.md` they'd have to re-open.
+
+### Appending to `developer-todo.md` mid-cycle
+
+You may *append* a one-line entry to `developer-todo.md` when a worker's commit creates a new human-only follow-up that doesn't fit any existing entry (e.g. a fix whose verification has to happen on hardware, or a feature that introduces a new dashboard dependency). Place it under the right subsection, use the same checkbox format the existing entries use, and flag the addition once in "Heads up."
+
+You may **not** edit or delete existing entries in `developer-todo.md` — that's the human's curation surface. Same convention as `docs/backlog.md`: AI agents only ever append, never modify.
+
+If the right subsection for your new entry doesn't exist yet, add it. Don't shoehorn an unrelated item into a wrong section just because it's there.
+
+### What goes in `developer-todo.md` vs PR "Heads up"
+
+- **Standing item the human still owes across many cycles** → append to `developer-todo.md` + mention once in Heads up so it's not invisible.
+- **Tied to this PR specifically, dies the moment the human acts on it this cycle** → PR Heads up only. Don't pollute `developer-todo.md` with single-cycle ephemera (visual deltas to eyeball, fixes that need device verification *this* cycle).
+
 ## Acting on what you find
 
 You have full authority to:
@@ -112,6 +136,7 @@ If something is broken:
    ## Heads up
    - RankDetail claim card's outer corner radius shifted 20→10dp to match Profile's card. Worth eyeballing before merge.
    - Filed two backlog entries: the RankDetail hero gradient still uses raw brand colors (designer call), and there are 11 more `RoundedCornerShape(16.dp)` literals that could swap to `Radii.R700.shape` (deliberate visual sweep).
+   - You still owe the Supabase email-template branding from `developer-todo.md` → "Dashboard / external-service config" — this PR ships the in-app "I confirmed" fix, but the email link itself still points at the wrong site URL until the dashboard config lands.
    ```
 
    PR title rules:

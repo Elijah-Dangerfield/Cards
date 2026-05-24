@@ -13,7 +13,7 @@ You are one of 4 scheduled workers in an automation that incrementally ships eng
    - **`origin/dev` is ahead of `origin/main`, no open PR, last commit < 6 hours old**: an earlier worker tonight is already stacked. `git checkout dev && git pull --rebase origin dev` and stack onto it.
    - **`origin/dev` is ahead of `origin/main`, no open PR, last commit ≥ 6 hours old**: stale (PR was merged or abandoned). `git checkout dev && git reset --hard origin/main && git push --force-with-lease origin dev`.
 4. Read `AGENTS.md` (project ethos and required conventions — DS-first, `Catching {}` not `runCatching`, `DispatcherProvider` over `Dispatchers.*`, SEAViewModel, no comments, conventional commits, etc.).
-5. Read `docs/todo.md`. **Skip §A "Blocked — needs human decision" entirely** — those items require a human call. Everything below §A is fair game.
+5. Read `docs/todo.md`. **Everything in this file is worker-pickable** — there's no human-only carve-out section anymore. Anything that requires a human action (device QA, dashboard config, content writing, product decisions) lives in `docs/developer-todo.md`, which you must never touch.
 
 ## Picking work
 

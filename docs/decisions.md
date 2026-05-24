@@ -244,7 +244,7 @@ Achievements already carry the "give me a near-term reason to play" load on a lo
 - **Chip-free bot tables.** Rejected: hides the mechanic from solo users until they hit MP, which is the worst time to learn it. Bot tables are the discovery surface.
 - **Buy-in as a spent fee** (not returned on leave). Rejected: doesn't match real-poker mental model, and the "chips never disappear unless lost to other players" principle (§4.1) is structural.
 
-**Status:** Locked. Closes the [todo.md §A blocker on MP buy-in / ante](./todo.md). Engineering work tracked in [todo.md §C](./todo.md).
+**Status:** Locked. Engineering work tracked in [todo.md §B](./todo.md) (multiplayer hardening).
 
 ---
 

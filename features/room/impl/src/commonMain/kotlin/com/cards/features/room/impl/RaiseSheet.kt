@@ -262,7 +262,10 @@ private fun StepperRow(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 typographyToken = AppTheme.typography.Heading.H700,
-                modifier = Modifier.focusRequester(focusRequester),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
             )
         }
         StepperButton(
