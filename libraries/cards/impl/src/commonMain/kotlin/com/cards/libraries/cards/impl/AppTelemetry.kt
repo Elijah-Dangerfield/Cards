@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.LogLevel
 import com.dangerfield.cards.libraries.core.logging.Logger
 import com.dangerfield.cards.libraries.cards.Telemetry
+import com.dangerfield.cards.libraries.cards.impl.logging.DevConsoleWriter
 import com.dangerfield.cards.libraries.cards.impl.logging.KermitLogTree
 import com.dangerfield.cards.libraries.cards.impl.logging.SentryLogTree
 import co.touchlab.kermit.Logger as KermitLogger
@@ -46,15 +47,15 @@ private class ConfiguredTelemetry(
         KLog.plant(KermitLogTree())
 
         // Debug-only: drop Kermit's global min-severity to Verbose so nothing
-        // is pre-filtered before reaching the platform writer (OSLogWriter on
-        // iOS → Xcode console; LogcatWriter on Android → logcat). LogTree-
-        // level filtering still applies on top.
-        //
-        // Android Studio logcat note: the Logcat tool window has its own level
-        // filter that defaults above Debug — drop it to "Verbose" or "Debug"
-        // to see the same entries Xcode shows by default.
+        // is pre-filtered before reaching any writer. The platform writers
+        // (OSLogWriter on iOS, LogcatWriter on Android) handle Info+ natively.
+        // [DevConsoleWriter] adds a pretty stdout-only path for Debug-and-
+        // below entries, because Android Studio's KMM plugin filters those
+        // out of its Run window when running iOS apps. See the writer's
+        // header for the full reasoning.
         if (BuildInfo.isDebug) {
             KermitLogger.setMinSeverity(KermitSeverity.Verbose)
+            KermitLogger.addLogWriter(DevConsoleWriter())
         }
 
         val config = configProvider()
