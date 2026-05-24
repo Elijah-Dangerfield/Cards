@@ -79,13 +79,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 - **Confirmation dialog before email-claim submit.** Add a `ConfirmSwitchToExisting`-style dialog: "this turns your guest into a real account; chips/XP/avatars come with you." Mirrors the existing OAuth conflict copy but framed positively. Lift when a designer's in the loop; the engineering safety net (`linkEmailIdentity` preserves progress) is already in place either way.
 
-### Cron cleanup
-- [ ] Replace cron-driven room sweep with in-process reaper
-    - Today: `POST /v1/admin/sweep-disconnected-room-members` runs every 5 min via GHA. Wrong tool for live gameplay state — worst-case seat-block is ~10 min (TTL + cron interval), and it adds an external dep for state that lives in RAM on the same Fly instance as the socket.
-    - Do: in the websocket disconnect path (`RoomSocketRoutes.kt`, after `markConnected(false)`), launch a delayed reaper on an app-scoped coroutine — `delay(5.min)` then reap iff the member is still disconnected with the same `disconnectedAt` stamp (so reconnect+redrop schedules a fresh timer).
-    - Cleanup: delete the admin route, the GHA workflow, and the `ROOM_DISCONNECTED_MEMBER_TTL_MINUTES` HTTP plumbing. Keep `RoomService.sweepDisconnected` as a test utility or inline it.
-
-
 ### Achievements
 
 - **Bot-vs-human achievement split — per-achievement design call (not a straight duplicate).** `FIRST_BUST_DEALT` / `BUST_DEALT_5` are bot-only via `mode = BOTS`; the "Beat Jane 10 times" entries are bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`. The work isn't "duplicate every achievement for humans" — it's a per-achievement audit asking *which mode does this actually belong in, and if both, do they need separate ids with different thresholds?* Concrete example: "be at a table with a pot over 5K" is trivial at the Challenging bots tier (stakes are 100/200/20k, so a 5K pot is normal) but a real accomplishment in MP at lower stakes — so a single shared id with one threshold misrepresents both modes. Two ways out: (a) split into `POT_5K_BOTS` (tier-aware threshold) and `POT_5K_MP`, or (b) rebalance the bot table stakes so the bot variant means something. Probably some of both. Decide at MP-launch time for prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) whether human-only variants with separate ids are warranted. **Pairs with:** the buy-in / stack mechanic bullet in §B — stake tiers are the lever for both bot difficulty and achievement thresholds.

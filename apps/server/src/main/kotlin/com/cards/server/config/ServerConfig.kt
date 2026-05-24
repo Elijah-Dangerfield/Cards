@@ -120,24 +120,11 @@ data class HttpConfig(
 data class AdminConfig(
     val apiToken: String?,
     val orphanAnonTtlDays: Int,
-    /**
-     * Grace window before a disconnected room member's seat is freed by
-     * [/v1/admin/sweep-disconnected-room-members]. Short by design — V1
-     * rooms are ephemeral and seats blocked by phantom members hurt UX
-     * fast. Five minutes is enough for a poker hand to finish if the
-     * dropper's phone is reconnecting, but short enough that an
-     * abandoned room is reusable within one cron cycle.
-     */
-    val disconnectedRoomMemberTtlMinutes: Int,
 ) {
     companion object {
         fun fromEnv(env: Env): AdminConfig = AdminConfig(
             apiToken = env["ADMIN_API_TOKEN"],
             orphanAnonTtlDays = env.int("ORPHAN_ANON_TTL_DAYS", default = 30),
-            disconnectedRoomMemberTtlMinutes = env.int(
-                "ROOM_DISCONNECTED_MEMBER_TTL_MINUTES",
-                default = 5,
-            ),
         )
     }
 }

@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.application
 import io.ktor.server.websocket.WebSocketServerSession
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.CloseReason
@@ -13,11 +14,14 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * `GET /v1/rooms/{code}/socket` (WebSocket upgrade) — the per-room
@@ -39,20 +43,26 @@ import org.slf4j.LoggerFactory
  *     Seat is held; other clients see the presence flip. The user can
  *     reopen another socket to resume — same userId, same seat.
  *
- * Reconnect grace: there's no explicit timer here. On disconnect we
- * stamp the member with `disconnectedAt = now`; the cron-triggered
- * `RoomService.sweepDisconnected` reaps anyone past the configured
- * grace window. That keeps this handler stateless w.r.t. timers — the
- * cleanup runs out of band. Same broadcast machinery handles the
- * sweep's effect: the room flow re-emits and subscribers see a
- * `member_left` delta for each reaped seat.
+ * Reconnect grace: on disconnect we stamp the member with
+ * `disconnectedAt = now` and schedule a per-member reaper on the
+ * Application's coroutine scope — `delay(reaperGrace)` then
+ * [RoomService.reapIfStillDisconnected] with the captured stamp. If the
+ * user reconnects (stamp cleared) or re-drops (stamp refreshed) the
+ * original reaper short-circuits to a no-op and the fresh disconnect
+ * schedules its own timer. Same broadcast machinery handles the reap's
+ * effect: the room flow re-emits and subscribers see a `member_left`
+ * delta for the freed seat.
  *
  * Delta computation: we keep the previous snapshot per-subscription
  * and diff against the new one to emit the right delta events. The
  * Snapshot itself is always sent first so clients have a fallback
  * even if they miss a delta during flaky network.
  */
-fun Route.roomSocketRoutes(rooms: RoomService) {
+fun Route.roomSocketRoutes(
+    rooms: RoomService,
+    reaperGrace: Duration = DEFAULT_REAPER_GRACE,
+) {
+    val app = application
     authenticate(SUPABASE_JWT_AUTH) {
         webSocket("/v1/rooms/{code}/socket") {
             val code = call.parameters["code"]?.uppercase()
@@ -131,14 +141,40 @@ fun Route.roomSocketRoutes(rooms: RoomService) {
                     .warn("Socket for room=$code user=$userId died reading", e)
             } finally {
                 publisher.cancel()
-                // Mark disconnected regardless of close cause. The seat
-                // is held for the configured grace window; the cron-
-                // triggered sweep decides when it's stale enough to free.
-                rooms.markConnected(code, userId, connected = false)
+                // Mark disconnected regardless of close cause. Capture
+                // the stamp the service just set so the reaper can
+                // cross-check that the user didn't reconnect (or
+                // re-drop) during the grace window.
+                val afterDisconnect = rooms.markConnected(code, userId, connected = false)
+                val droppedAt = afterDisconnect?.memberFor(userId)?.disconnectedAt
+                if (droppedAt != null) {
+                    app.launch {
+                        try {
+                            delay(reaperGrace)
+                            rooms.reapIfStillDisconnected(code, userId, droppedAt)
+                        } catch (_: CancellationException) {
+                            // Server shutdown — leave the member; the
+                            // next process boot won't have them anyway
+                            // (rooms are in-memory).
+                        } catch (e: Throwable) {
+                            LoggerFactory.getLogger("RoomSocket")
+                                .warn("Reaper for room=$code user=$userId failed", e)
+                        }
+                    }
+                }
             }
         }
     }
 }
+
+/**
+ * Default grace window before a disconnected member's seat is freed.
+ * Short by design — V1 rooms are ephemeral and a blocked seat hurts
+ * UX fast. Five minutes is enough for a typical reconnect on a flaky
+ * cellular drop but short enough that an abandoned room is reusable
+ * inside one hand of play.
+ */
+val DEFAULT_REAPER_GRACE: Duration = 5.minutes
 
 private val JSON = Json {
     classDiscriminator = "type"

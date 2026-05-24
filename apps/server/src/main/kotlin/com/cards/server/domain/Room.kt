@@ -133,11 +133,26 @@ interface RoomService {
      * [leave]'s last-out branch. The room codes never resurrect — a
      * future join attempt against a swept code returns [JoinResult.RoomNotFound].
      *
-     * Idempotent. Safe to call from a cron at any cadence the operator
-     * wants — V1 ships it as a token-gated admin endpoint to match the
-     * orphan-anon sweep pattern.
+     * Idempotent. Kept as a test utility; in production each disconnect
+     * schedules its own per-member reaper via [reapIfStillDisconnected],
+     * so the live system doesn't depend on a periodic sweep.
      */
     suspend fun sweepDisconnected(maxIdle: Duration): RoomSweepResult
+
+    /**
+     * Per-member reaper used by the socket route's in-process grace
+     * timer. Removes the member only when they're still disconnected
+     * AND their `disconnectedAt` stamp matches [expectedDisconnectedAt]
+     * — meaning no reconnect/redrop happened during the grace window.
+     *
+     * Returns true when the member was actually reaped. A reconnect
+     * followed by a fresh disconnect schedules a new reaper with the
+     * updated stamp, so the original call short-circuits to no-op.
+     *
+     * When this empties the room, the room itself is GC'd just like
+     * [leave]'s last-out branch and [sweepDisconnected].
+     */
+    suspend fun reapIfStillDisconnected(code: String, userId: UserId, expectedDisconnectedAt: Instant): Boolean
 
     /**
      * Lightweight summary of every live room, ordered for stable display.

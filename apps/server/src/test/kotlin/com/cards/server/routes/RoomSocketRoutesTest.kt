@@ -27,6 +27,8 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.serialization.json.Json
 import java.util.Date
 import java.util.UUID
@@ -171,6 +173,51 @@ class RoomSocketRoutesTest {
     }
 
     @Test
+    fun disconnect_schedulesReaper_thatFreesTheSeat() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        // Tight grace so the test doesn't sit on a real timer.
+        withApp(rooms, reaperGrace = 50.milliseconds) { client ->
+            client.openSocket(room.code, asUser = alice) { aliceSession ->
+                aliceSession.receiveOne() // drain the snapshot
+            }
+            // Reaper fires after the grace window — alice's seat
+            // should disappear without anyone calling sweepDisconnected.
+            awaitReaped(rooms, room.code, alice)
+            val survivors = rooms.find(room.code)!!.members
+            assertEquals(1, survivors.size)
+            assertEquals(host, survivors.single().userId)
+        }
+    }
+
+    @Test
+    fun reconnectBeforeGrace_cancelsReaperEffect() = runTest {
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+        // First disconnect schedules a reaper with stamp1; the reconnect
+        // clears that stamp before the grace elapses, so the original
+        // reaper must short-circuit and alice stays seated.
+        withApp(rooms, reaperGrace = 250.milliseconds) { client ->
+            client.openSocket(room.code, asUser = alice) { first ->
+                first.receiveOne()
+            }
+            client.openSocket(room.code, asUser = alice) { second ->
+                second.receiveOne()
+                // Hold this socket open past the first reaper's grace
+                // window so we can observe it no-op.
+                delay(500)
+                assertEquals(
+                    2,
+                    rooms.find(room.code)!!.members.size,
+                    "reconnect before grace must invalidate the prior reaper",
+                )
+            }
+        }
+    }
+
+    @Test
     fun reconnectSameUser_preservesSeat_andDoesNotDuplicateMember() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
@@ -215,6 +262,7 @@ class RoomSocketRoutesTest {
 
     private suspend fun withApp(
         rooms: InMemoryRoomService,
+        reaperGrace: kotlin.time.Duration = 5.minutes,
         block: suspend (SocketClient) -> Unit,
     ) {
         testApplication {
@@ -223,7 +271,7 @@ class RoomSocketRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 installWebSockets()
-                routing { roomSocketRoutes(rooms) }
+                routing { roomSocketRoutes(rooms, reaperGrace = reaperGrace) }
             }
             val raw = createClient {
                 install(ClientWebSockets)
@@ -231,6 +279,21 @@ class RoomSocketRoutesTest {
             }
             block(SocketClient(raw))
         }
+    }
+
+    private suspend fun awaitReaped(
+        rooms: InMemoryRoomService,
+        code: String,
+        userId: UserId,
+        timeoutMs: Long = 2_000,
+    ) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val member = rooms.find(code)?.memberFor(userId)
+            if (member == null) return
+            delay(20)
+        }
+        error("Member $userId still seated after ${timeoutMs}ms — reaper didn't fire")
     }
 
     private inner class SocketClient(private val raw: io.ktor.client.HttpClient) {
