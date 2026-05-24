@@ -254,6 +254,54 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun welcomeGate_firstEverSession_firesEvenWhenChipsHaventHydrated() = runUnitTest {
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "FreshInstall", isAnonymous = true),
+        )
+        val chips = FakeChipsRepository(initial = null)
+        val appCache = FakeAppCache(initial = AppData(lastSessionEndedAt = null))
+        val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
+
+        vm.eventFlow.test {
+            val event = awaitItem()
+            assertTrue(event is HomeEvent.OpenWelcomeDialog)
+            assertEquals(null, event.payload.chips)
+            assertEquals("FreshInstall", event.payload.displayName)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(
+            true, appCache.get().hasSeenStarterWelcome,
+            "gate must persist hasSeenStarterWelcome at emit time so it doesn't re-fire",
+        )
+    }
+
+    @Test
+    fun welcomeGate_returningSession_doesNotFire() = runUnitTest {
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "Returning", isAnonymous = false),
+        )
+        val appCache = FakeAppCache(initial = AppData(lastSessionEndedAt = 1_700_000_000_000))
+        val vm = buildVm(profile = profile, appCache = appCache)
+
+        vm.eventFlow.test {
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun welcomeGate_fallbackProfile_doesNotFire() = runUnitTest {
+        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "anon"))
+        val appCache = FakeAppCache(initial = AppData(lastSessionEndedAt = null))
+        val vm = buildVm(profile = profile, appCache = appCache)
+
+        vm.eventFlow.test {
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun forfeit_networkError_rehydratesFromServer() = runUnitTest {
         // A leave that fails over the wire must NOT silently drop the room from
         // the user's view — the server's truth is still "you're in." Reload.

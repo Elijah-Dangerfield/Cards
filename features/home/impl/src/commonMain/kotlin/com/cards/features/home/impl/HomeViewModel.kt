@@ -67,9 +67,15 @@ class HomeViewModel(
      * Combines three upstream signals — chip balance, server profile, and
      * the [AppData] snapshot (carries both the "already seen" flag and the
      * "first-ever session" signal via [isFirstEverSession]) — and emits
-     * exactly one [HomeEvent.OpenWelcomeDialog] event the first time they
-     * all line up. The view layer responds by navigating to
+     * exactly one [HomeEvent.OpenWelcomeDialog] event the first time the
+     * non-chip gates line up. The view layer responds by navigating to
      * [com.dangerfield.cards.features.home.WelcomeDialogRoute].
+     *
+     * Chip balance rides along as a *latest snapshot* — the dialog renders
+     * with a placeholder when chips haven't hydrated yet, instead of
+     * blocking the welcome on the wallet round-trip. A fresh-install user
+     * on a slow connection was missing the dialog entirely when
+     * `/v1/me/wallet` lagged behind anonymous sign-in.
      *
      * "First launch" comes from [AppCache.lastSessionEndedAt] (null = the
      * app has never backgrounded on this install). That signal is set by
@@ -106,9 +112,10 @@ class HomeViewModel(
                             "chips=${gate.chips}"
                     }
                 }
-                // Suspends until the first emission whose four gates align.
-                // No state churn after — the cache flip below makes the
-                // predicate unsatisfiable for the rest of this VM's life.
+                // Suspends until the first emission whose non-chip gates
+                // align. No state churn after — the cache flip below makes
+                // the predicate unsatisfiable for the rest of this VM's
+                // life.
                 .first { it.payload() != null }
                 .let { gate ->
                     val payload = gate.payload()!!
@@ -192,26 +199,26 @@ private data class WelcomeGate(
         if (!isFirstEverSession) return null
         if (hasSeenStarterWelcome) return null
         val auth = profile as? Profile.Authenticated ?: return null
-        val balance = chips ?: return null
         return WelcomePayload(
             displayName = auth.displayName,
             avatarEmoji = auth.avatarEmoji,
             avatarBackgroundColorHex = auth.avatarBackgroundColor,
-            chips = balance,
+            chips = chips,
         )
     }
 }
 
 /**
- * Eager payload for the welcome route — by the time the VM emits the
- * event, every field has already resolved, so the dialog paints on first
- * frame instead of waiting on its own observers.
+ * Eager payload for the welcome route — the non-chip fields have resolved
+ * by gate-fire time so the dialog paints on first frame. Chips ride along
+ * as a snapshot and may be null on slow networks; the dialog falls back to
+ * a placeholder rather than blocking the welcome on the wallet round-trip.
  */
 data class WelcomePayload(
     val displayName: String,
     val avatarEmoji: String,
     val avatarBackgroundColorHex: String?,
-    val chips: Long,
+    val chips: Long?,
 )
 
 data class HomeState(
