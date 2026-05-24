@@ -56,6 +56,8 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Gameplay & table UX
 
 - **Bots render as busted mid-hand when they go all-in.** Confirmed UX rendering bug: [OpponentsRow.kt:234–236](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/OpponentsRow.kt#L234) flags busted on `!seatEmpty && stack <= 0L && participation != NotDealt`. An all-in pre-flop has `stack == 0` and `participation == AllIn`, so the bust stamp fires while cards are still active. Engine state is correct — `runShowdown` distributes the pot before stacks read as 0; this is purely renderer logic. Fix: gate busted on `participation == Folded || (stack == 0 && street == Complete)`, or equivalent given the seat model.
+- **Tap-an-opponent → mini profile sheet (humans + bots).** Today tapping another seat opens the mute sheet only. Expand it into a proper "who is this" sheet: avatar, display name, level (or rank, for ranked players), human-vs-bot label, "playing since {createdAt}" / "{N} hands at the table" duration line, and recent hand-style cues if available. The bot variant surfaces their personality + difficulty tier, so the player can read the table without guessing. The human variant is the seed for the "Add friend" affordance (pairs with the social-graph todo) and the "view full profile" tap-through once profile-of-a-stranger is a real route. Mute toggle moves into this sheet as one row among several rather than being the only thing in there. **Files / hints:** [MutePlayerSheet.kt](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/MutePlayerSheet.kt) is today's surface — rename + extend, or replace with a new `PlayerProfileSheet`. Seat metadata: [SeatView.kt](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/TableUiState.kt) currently doesn't carry level / member-since / hand count — extend the projection in `SeatView.fromSeat(...)` to pull those from the profile + room-membership rows.
+- **Show level (or rank) on the play screen — small badge under the avatar.** Closely tied to the bullet above — even before the profile sheet exists, the at-a-glance "this is a Lvl 14 / Rank 1320 opponent" cue helps the player read the table. Tiny pill below each seat's avatar; collapses to "Bot · Standard" for bots. Avoid clutter: only render when the seat is in-hand and the player has enough vertical room. **Files / hints:** [OpponentsRow.kt](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/OpponentsRow.kt) for the layout slot; reuse the same `levelFor(xp)` derivation [HomeHeader / Profile use](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt) so the value stays consistent across surfaces. **Out of scope:** showing chip balance, hand history, win rate at the seat — those belong in the mini-profile sheet, not the table itself.
 
 ### Shop polish
 
@@ -77,6 +79,13 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Claim Account screen
 
 - **Confirmation dialog before email-claim submit.** Add a `ConfirmSwitchToExisting`-style dialog: "this turns your guest into a real account; chips/XP/avatars come with you." Mirrors the existing OAuth conflict copy but framed positively. Lift when a designer's in the loop; the engineering safety net (`linkEmailIdentity` preserves progress) is already in place either way.
+
+### Cron cleanup
+- [ ] Replace cron-driven room sweep with in-process reaper
+    - Today: `POST /v1/admin/sweep-disconnected-room-members` runs every 5 min via GHA. Wrong tool for live gameplay state — worst-case seat-block is ~10 min (TTL + cron interval), and it adds an external dep for state that lives in RAM on the same Fly instance as the socket.
+    - Do: in the websocket disconnect path (`RoomSocketRoutes.kt`, after `markConnected(false)`), launch a delayed reaper on an app-scoped coroutine — `delay(5.min)` then reap iff the member is still disconnected with the same `disconnectedAt` stamp (so reconnect+redrop schedules a fresh timer).
+    - Cleanup: delete the admin route, the GHA workflow, and the `ROOM_DISCONNECTED_MEMBER_TTL_MINUTES` HTTP plumbing. Keep `RoomService.sweepDisconnected` as a test utility or inline it.
+
 
 ### Achievements
 
