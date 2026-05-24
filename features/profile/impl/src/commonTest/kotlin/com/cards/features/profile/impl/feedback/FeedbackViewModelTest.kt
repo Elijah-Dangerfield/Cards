@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.TabRoute
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -129,7 +130,8 @@ internal object NoopRouter : Router {
     override fun navigate(route: Route, options: NavigationOptions) = Unit
     override fun goBack() = Unit
     override fun popBackTo(route: Route, inclusive: Boolean) = Unit
-    override fun switchTab(route: Route) = Unit
+    override fun switchTab(route: TabRoute) = Unit
+    override fun enterTab(route: TabRoute) = Unit
     override fun openWebLink(url: String) = Unit
 }
 

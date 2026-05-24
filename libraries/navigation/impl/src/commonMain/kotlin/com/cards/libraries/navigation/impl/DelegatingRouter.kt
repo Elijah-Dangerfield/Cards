@@ -22,6 +22,7 @@ import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.TabRoute
 import com.dangerfield.cards.libraries.navigation.WebLinkLauncher
 import com.dangerfield.cards.libraries.navigation.NavigableWhileBlocked
 import kotlinx.coroutines.CompletableDeferred
@@ -117,7 +118,7 @@ class DelegatingRouter(
         }
     }
 
-    override fun switchTab(route: Route) {
+    override fun switchTab(route: TabRoute) {
         enqueueNavigation(
             description = "switchTab to ${route.nameForLogs()}",
             route = route,
@@ -129,6 +130,18 @@ class DelegatingRouter(
                 }
                 launchSingleTop = true
                 restoreState = true
+            }
+        }
+    }
+
+    override fun enterTab(route: TabRoute) {
+        enqueueNavigation(
+            description = "enterTab to ${route.nameForLogs()}",
+            route = route,
+        ) {
+            navigate(route) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
             }
         }
     }

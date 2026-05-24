@@ -1,7 +1,5 @@
 package com.dangerfield.cards.features.shop
 
-import com.dangerfield.cards.libraries.navigation.AnimationType
-import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.TabRoute
 import kotlinx.serialization.Serializable
 
@@ -18,8 +16,4 @@ import kotlinx.serialization.Serializable
 @Serializable
 class ShopRoute(
     val pendingProductId: String? = null,
-) : Route(
-    enter = AnimationType.FadeIn,
-    exit = AnimationType.FadeOut,
-    popExit = AnimationType.FadeOut,
-), TabRoute
+) : TabRoute()
