@@ -83,6 +83,19 @@ data class AppData(
      * `SessionEntity` table that existed for this single signal in V1.
      */
     val lastSessionEndedAt: Long? = null,
+
+    /**
+     * Stable-identity keys of opponents whose table-side emoji blasts the
+     * user has muted. Set via the tap-avatar surface in the play-poker
+     * screen and consulted before rendering an inbound blast animation.
+     *
+     * Keying is opponent-side display name today (the only inbound source
+     * shipping in V1 is single-player bots, whose names are stable per
+     * personality). Forward-compatible: when MP/reactive-bot blasts land,
+     * the same set filters them — the key just needs to identify the
+     * emitter the same way.
+     */
+    val mutedEmojiPlayerKeys: Set<String> = emptySet(),
 )
 
 /**

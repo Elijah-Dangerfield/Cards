@@ -118,6 +118,7 @@ fun PlayPokerScreen(
     var stackExplainerOpen by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
+    var muteSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     // Action / bet / hand-label explainers carry their own context so each
     // dialog can render specific copy instead of opening the whole cheat sheet.
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
@@ -194,6 +195,8 @@ fun PlayPokerScreen(
                         humanWinPercent = state.humanWinPercent,
                         humanTitle = state.equippedTitle,
                         silentSwipeFold = state.swipeFoldGestureAck,
+                        availableEmojis = state.availableEmojis,
+                        emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { raiseSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -210,6 +213,12 @@ fun PlayPokerScreen(
                             } else {
                                 swipeFoldConfirmOpen = true
                             }
+                        },
+                        onOpponentTap = { seat ->
+                            seatMuteKey(seat)?.let { muteSheetSeat = seat }
+                        },
+                        onBlastEmoji = { emoji ->
+                            onAction(PlayPokerAction.BlastEmoji(emoji))
                         },
                     )
                 }
@@ -306,6 +315,32 @@ fun PlayPokerScreen(
                         onAction(PlayPokerAction.Submit(PlayerIntent.Fold(humanIndex)))
                     }
                 },
+            )
+        }
+
+        // Full-screen 1.5s emoji blast overlay. Renders at the top-level
+        // Box so it floats over the table without being clipped by the
+        // inner Column's padding. Skipped if the emitter is muted —
+        // forward-infrastructure for MP, no-op in V1 (only the human emits).
+        state.emojiBlast?.let { blast ->
+            EmojiBlastOverlay(
+                blast = blast,
+                onAnimationComplete = { ts ->
+                    onAction(PlayPokerAction.EmojiBlastConsumed(ts))
+                },
+            )
+        }
+
+        muteSheetSeat?.let { seat ->
+            MutePlayerSheet(
+                seat = seat,
+                isMuted = seatMuteKey(seat) in state.mutedEmojiPlayerKeys,
+                onToggle = {
+                    seatMuteKey(seat)?.let { key ->
+                        onAction(PlayPokerAction.ToggleMutePlayer(key))
+                    }
+                },
+                onDismiss = { muteSheetSeat = null },
             )
         }
 
@@ -429,6 +464,8 @@ private fun ActiveTable(
     humanWinPercent: Int?,
     humanTitle: String?,
     silentSwipeFold: Boolean = false,
+    availableEmojis: List<String> = emptyList(),
+    emojiCooldownEndsAtEpochMs: Long = 0L,
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -438,6 +475,8 @@ private fun ActiveTable(
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
+    onOpponentTap: (SeatView) -> Unit = {},
+    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
     // Pinned-bottom layout: opponents + board scroll if needed, but the
     // player's hand and the action bar always sit at the bottom in reach.
@@ -460,6 +499,7 @@ private fun ActiveTable(
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,
+                onAvatarTap = onOpponentTap,
             )
 
             VerticalSpacerD800()
@@ -497,6 +537,17 @@ private fun ActiveTable(
                 onSwipeFold = onSwipeFold,
             )
             QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
+            // Emoji blast tray — sits below the action bar so it never
+            // displaces the primary actions when expanded. The VM owns
+            // cooldown enforcement; the tray just renders the dimmed
+            // toggle + countdown while cooling.
+            onBlastEmoji?.let { handler ->
+                EmojiTray(
+                    emojis = availableEmojis,
+                    cooldownEndsAtEpochMs = emojiCooldownEndsAtEpochMs,
+                    onBlast = handler,
+                )
+            }
             VerticalSpacerD500()
         }
     }

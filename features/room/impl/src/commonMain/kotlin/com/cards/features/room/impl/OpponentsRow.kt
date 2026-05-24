@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -62,6 +63,7 @@ internal fun OpponentsRow(
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit = { _, _ -> },
+    onAvatarTap: (SeatView) -> Unit = {},
 ) {
     val opponents = table.seats.filter { !it.isHuman }
     val winners = table.handResult?.winners?.map { it.seatIndex }?.toSet().orEmpty()
@@ -73,6 +75,7 @@ internal fun OpponentsRow(
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
+            onAvatarTap = onAvatarTap,
         )
     } else {
         PackedOpponentsRow(
@@ -81,6 +84,7 @@ internal fun OpponentsRow(
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
+            onAvatarTap = onAvatarTap,
         )
     }
 }
@@ -94,6 +98,7 @@ private fun PackedOpponentsRow(
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+    onAvatarTap: (SeatView) -> Unit = {},
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val rowWidth = maxWidth
@@ -117,6 +122,7 @@ private fun PackedOpponentsRow(
                         onBlindClick = onBlindClick,
                         onBetPillClick = onBetPillClick,
                         onLastActionClick = onLastActionClick,
+                        onAvatarTap = { onAvatarTap(seat) },
                     )
                 }
             }
@@ -132,6 +138,7 @@ private fun ScrollingOpponentsRow(
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+    onAvatarTap: (SeatView) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     var suppressAutoScroll by remember { mutableStateOf(false) }
@@ -229,6 +236,7 @@ private fun OpponentSeat(
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+    onAvatarTap: () -> Unit = {},
 ) {
     val folded = seat.participation == HandParticipation.Folded
     val busted = !seat.seatEmpty &&
@@ -252,7 +260,12 @@ private fun OpponentSeat(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(horizontal = 2.dp),
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ringSize)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(ringSize)
+                .clickable(onClick = onAvatarTap),
+        ) {
             // Faded subtree — everything that's "the seat" semantically.
             Box(modifier = Modifier.size(ringSize).then(dimMod), contentAlignment = Alignment.Center) {
                 if (seat.isActing) PulsingActiveRing(modifier = Modifier.size(ringSize))

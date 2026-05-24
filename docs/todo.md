@@ -66,9 +66,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 - **Save as floating bottom button + colors moved to top + bigger color circles.** Three layout changes: (a) the save button should float at the bottom of the screen (with enough bottom padding on the scrollable content above so the last row scrolls clear of the button); (b) move the color picker to the top of the form; (c) make the color circles substantially bigger — if that means two rows or a horizontal scroll, that's fine, the goal is "big bubbly UI." **Files / hints:** `EditProfileScreen` / its sub-components.
 - **Display-name uniqueness — verify the server-side check + client error surface.** When a user changes their display name, do we check it's not already taken and surface an error if so? Confirm: (a) server validation in the profile-update path; (b) the client maps the rejection into a user-facing error on the field, not a generic snackbar. If either is missing, add it. **Files / hints:** profile update endpoint on the server; `EditProfileViewModel` for the client mapping.
 
-### Table-side social
-
-- **Emoji sending in games.** [product-spec.md §5.5](./product/product-spec.md#55-table-side-social) commits to emoji blasts (~12 base emojis, 8s cooldown, mute-this-player) as a V1 feature. Not built yet. Bottom-tray surface, full-screen 1.5s animation per emit.
 
 ### Email & deep linking
 

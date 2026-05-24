@@ -211,9 +211,11 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             achievementRepository = achievements,
             appCache = appCache,
             equipmentRepository = FakeEquipmentRepository(),
+            inventoryRepository = FakeInventoryRepository(),
             profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,
+            clock = kotlin.time.Clock.System,
         )
         return TestVm(
             vm = vm,

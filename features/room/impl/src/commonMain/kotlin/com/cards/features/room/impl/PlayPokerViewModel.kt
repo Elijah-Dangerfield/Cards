@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
+import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -42,6 +43,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
+import kotlin.time.Clock
 
 /**
  * The bot/human-agnostic ViewModel that backs the play-poker screen.
@@ -67,9 +69,11 @@ class PlayPokerViewModel @Inject constructor(
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
     private val equipmentRepository: EquipmentRepository,
+    private val inventoryRepository: InventoryRepository,
     private val profileRepository: ProfileRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
+    private val clock: Clock,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
     initialStateArg = PlayPokerState(),
 ) {
@@ -146,6 +150,21 @@ class PlayPokerViewModel @Inject constructor(
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
+                takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
+            }
+        }
+        // Inventory mirror — folds owned emote-pack product IDs into the
+        // blast tray's available pool. Base pool ([EmojiPackCatalog.BaseEmojiPool])
+        // is always present; owning an `emotes_*` pack appends that pack's
+        // emojis to the available list.
+        viewModelScope.launch {
+            inventoryRepository.observeInventory().collect { items ->
+                val ownedIds = items.map { it.productId }.toSet()
+                takeAction(
+                    PlayPokerAction.AvailableEmojisChanged(
+                        EmojiPackCatalog.availableEmojisFor(ownedIds),
+                    ),
+                )
             }
         }
         // Profile → re-project the table so the human seat picks up the
@@ -251,6 +270,8 @@ class PlayPokerViewModel @Inject constructor(
 
     private companion object {
         const val TOOL_WIN_ODDS_PRODUCT_ID = "tool_win_odds"
+        /** Per product-spec.md §5.5 — 8 seconds between human-tapped emoji blasts. */
+        const val EMOJI_COOLDOWN_MS: Long = 8_000
         /**
          * 400 Monte Carlo iterations balances accuracy with phone CPU
          * — empirically converges to within ~1% of the true equity by
@@ -435,9 +456,68 @@ class PlayPokerViewModel @Inject constructor(
                     appCache.update { it.copy(swipeFoldGestureAck = true) }
                 }
             }
+            is PlayPokerAction.AvailableEmojisChanged -> action.updateState {
+                it.copy(availableEmojis = action.emojis)
+            }
+            is PlayPokerAction.MutedEmojiPlayersChanged -> action.updateState {
+                it.copy(mutedEmojiPlayerKeys = action.keys)
+            }
+            is PlayPokerAction.BlastEmoji -> {
+                // Local cooldown gate. We trust state.emojiCooldownEndsAtMs
+                // as the single source of truth so concurrent taps during
+                // the same animation frame all see the post-emit deadline.
+                val now = clock.now().toEpochMilliseconds()
+                val currentState = stateFlow.value
+                if (now < currentState.emojiCooldownEndsAtMs) return
+                action.updateState {
+                    it.copy(
+                        emojiBlast = EmojiBlast(emoji = action.emoji, emittedAtEpochMs = now),
+                        emojiCooldownEndsAtMs = now + EMOJI_COOLDOWN_MS,
+                    )
+                }
+            }
+            is PlayPokerAction.EmojiBlastConsumed -> action.updateState {
+                // Identity guard: only clear if the consumed blast is still
+                // the one we last emitted — protects against a "consumed"
+                // arriving after a new blast has replaced it.
+                if (it.emojiBlast?.emittedAtEpochMs == action.emittedAtEpochMs) {
+                    it.copy(emojiBlast = null)
+                } else {
+                    it
+                }
+            }
+            is PlayPokerAction.ToggleMutePlayer -> {
+                viewModelScope.launch {
+                    appCache.update { data ->
+                        val next = data.mutedEmojiPlayerKeys.toMutableSet().apply {
+                            if (action.key in this) remove(action.key) else add(action.key)
+                        }
+                        data.copy(mutedEmojiPlayerKeys = next)
+                    }
+                }
+            }
         }
     }
+
 }
+
+/**
+ * One-shot blast event the screen renders as a full-screen 1.5s animation.
+ * `emittedAtEpochMs` doubles as the identity used by [PlayPokerAction.EmojiBlastConsumed]
+ * to clear the state without racing the next blast.
+ */
+data class EmojiBlast(
+    val emoji: String,
+    val emittedAtEpochMs: Long,
+)
+
+/**
+ * Stable identity key used for muting a seat's table-side emoji. Returns
+ * null for the human seat (you can't mute yourself) and the seat's display
+ * name otherwise — which is the stable per-personality name for bots in
+ * V1 solo. When MP/reactive blasts land, the same key wires through.
+ */
+fun seatMuteKey(seat: SeatView): String? = if (seat.isHuman) null else seat.displayName
 
 // ---------- MVI types ----------
 
@@ -500,6 +580,40 @@ data class PlayPokerState(
      * inside that dialog.
      */
     val swipeFoldGestureAck: Boolean = false,
+
+    /**
+     * Emojis the user can blast from the in-game tray. Always starts with
+     * [EmojiPackCatalog.BaseEmojiPool] (~12 emojis from product-spec.md
+     * §5.5); owning an `emotes_*` chip-offer pack appends that pack's
+     * emojis. Order is stable across reorderings of inventory.
+     */
+    val availableEmojis: List<String> = EmojiPackCatalog.BaseEmojiPool,
+
+    /**
+     * Per-seat mute set, mirrored from `AppData.mutedEmojiPlayerKeys`.
+     * Keys come from [seatMuteKey]. Read by the avatar-tap surface to
+     * show the toggle's current state. Today no inbound emoji exists
+     * (single-player vs bots is one-way), so this set drives no
+     * filtering yet — it's forward-infrastructure for MP / V1.x
+     * reactive-bot blasts (product-spec.md §5.5).
+     */
+    val mutedEmojiPlayerKeys: Set<String> = emptySet(),
+
+    /**
+     * The current blast animation the screen should render full-screen.
+     * Set the moment the VM accepts a [PlayPokerAction.BlastEmoji];
+     * cleared when the screen reports the animation finished via
+     * [PlayPokerAction.EmojiBlastConsumed].
+     */
+    val emojiBlast: EmojiBlast? = null,
+
+    /**
+     * Epoch-ms after which the user can blast again. 0 = no cooldown
+     * active. Compared against `clock.now()` server-side (VM owns the
+     * clock) to gate `BlastEmoji`; the screen reads this to dim the
+     * tray and show a countdown.
+     */
+    val emojiCooldownEndsAtMs: Long = 0L,
 )
 
 sealed interface PlayPokerAction {
@@ -562,6 +676,31 @@ sealed interface PlayPokerAction {
      * stays flipped across sessions.
      */
     data object AcknowledgeSwipeFoldGesture : PlayPokerAction
+
+    /** Fired by the inventory subscription. */
+    data class AvailableEmojisChanged(val emojis: List<String>) : PlayPokerAction
+
+    /** Fired by the AppCache mirror. */
+    data class MutedEmojiPlayersChanged(val keys: Set<String>) : PlayPokerAction
+
+    /**
+     * Fired when the user taps an emoji in the in-game tray. VM gates on
+     * the current cooldown deadline; ignored if still cooling. On accept,
+     * sets [PlayPokerState.emojiBlast] for the screen to animate.
+     */
+    data class BlastEmoji(val emoji: String) : PlayPokerAction
+
+    /**
+     * Fired by the screen when the 1.5s blast animation finishes. The
+     * emit timestamp guards against clearing a freshly-replaced blast.
+     */
+    data class EmojiBlastConsumed(val emittedAtEpochMs: Long) : PlayPokerAction
+
+    /**
+     * Fired by the avatar-tap mute sheet. Idempotent toggle on the
+     * persisted set in AppCache.
+     */
+    data class ToggleMutePlayer(val key: String) : PlayPokerAction
 }
 
 sealed interface PlayPokerEvent {
