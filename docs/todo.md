@@ -180,11 +180,11 @@ Decision options:
 Lean: revisit when we add the next feature config. Not blocking V1. Capture the open question here so it doesn't get re-derived.
 
 ### Network retry / `authedCall` helper
-**Problem:** `NetworkClient` still only exposes `client` + `authenticatedClient`; there is no `authedCall { client -> … }` builder. Each repo runs its own try/catch around `authenticatedClient` with no shared retry classification (401-with-token-refresh, 5xx-with-backoff, network-error categorization, structured logging). Cold-boot 401s are no longer the problem — that race was fixed in the 2026-05-21 token-await change — but the consolidation work itself never landed.
+**Landed 2026-05-24 (reference impl):** `NetworkClient.authedCall(description) { client -> … }` extension lives in `:libraries:networking`. Hands the authenticated `HttpClient` to the block, wraps in `Catching`, and emits a structured failure log with a classification tag (`timeout` / `http <status>` / exception-class) keyed by the `description` so cross-repo failures aggregate cleanly. Cooperative-cancellation semantics match `Catching { }`. Token refresh on 401 still rides Ktor's `Auth` plugin (unchanged). `InventoryRepositoryImpl.doSync()` is the migrated reference — the redundant per-repo failure warn was dropped since the helper covers it.
 
-**Acceptance:** `NetworkClient.authedCall { … }` (or sibling) exists, takes a Ktor builder lambda, returns a `Catching`-compatible result, and at least one repo is migrated as the reference implementation. Migrating the rest is follow-up.
-
-Not blocking V1, but worth doing before we add more repos.
+**Remaining (follow-up):**
+- Migrate the rest of the repos: `ChipsRepositoryImpl` (`/v1/me/wallet/sync`, `/v1/me/wallet`), `RoomRepositoryImpl` (`/v1/rooms/create`, `/v1/rooms/join`, `/v1/me/active-rooms`, `leaveRoom`), `EquipmentRepositoryImpl`, `UserMessageRepositoryImpl`, `IdentityRepositoryImpl`'s server hops, etc. Each is a mechanical sed; do as the surrounding area opens up rather than as a sweep.
+- `withBackoffRetry` composition: callsite-opt-in only. The helper deliberately doesn't auto-retry — most calls shouldn't (POSTs may not be idempotent). Repos that want retry can wrap: `withBackoffRetry { networkClient.authedCall(...) { ... } }`.
 
 ### Post-rework identity follow-ups
 The 2026-05-23 Auth/Profile split landed `SupabaseAuthGateway` (interface) + `RealSupabaseAuthGateway` + `SupabaseAuthRepositoryImpl` with a 464-line `SupabaseAuthRepositoryImplTest`. `SupabaseProfileRepositoryImpl` coverage is also in place. Remaining structural concerns:
