@@ -10,8 +10,8 @@ import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
-import com.dangerfield.cards.features.progression.RankDetailSheetRoute
-import com.dangerfield.cards.features.progression.StatsRoute
+import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -90,22 +90,50 @@ class HomeFeatureEntryPoint(
                             "championship — top finishers across every league.",
                     )
                 },
-                onTapRank = { router.navigate(RankDetailSheetRoute()) },
-                onTapXp = { router.navigate(StatsRoute()) },
+                // Avatar tap → profile tab (where level / rank / claim
+                // status / settings live). Home stays focused on what's
+                // happening; profile owns identity management.
+                onTapAvatar = { router.switchTab(ProfileRoute()) },
                 onTapCash = { router.switchTab(ShopRoute()) },
                 onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
                 onTapFeaturedDrop = { router.switchTab(ShopRoute()) },
-                // No standalone Friends surface yet — tapping the strip
-                // shows what's coming and where it'll live. Once the
-                // friends graph exists this routes to that surface
-                // instead.
+                onTapAchievements = { router.navigate(AchievementsRoute()) },
+                // No standalone Friends surface yet — friend graph,
+                // online presence, and the requests inbox all ship
+                // together in V1.x. Until then a "coming soon" sheet
+                // explains what's planned.
                 onTapFriends = {
                     comingSoon = ComingSoonContent(
                         title = "Friends in the Hall",
                         emoji = "✦",
-                        body = "Adding friends and seeing who's online ships with " +
-                            "Friend Games. We'll surface the table they're at, the " +
-                            "stake, and a one-tap join.",
+                        body = "Adding friends, seeing who's online, and managing " +
+                            "requests ships with Friend Games in an upcoming update. " +
+                            "We'll surface tables, stakes, and a one-tap join.",
+                    )
+                },
+                // Recent opponents — the social cold-start lever. Once
+                // the friends graph exists this fires an outbound
+                // request and the tile flips to "Sent" (already wired
+                // in [RecentOpponent.requestSent]). For V1 it surfaces
+                // the same explainer sheet as the friends strip so the
+                // user understands the surface exists but the wiring
+                // doesn't yet.
+                onAddRecentOpponent = { _ ->
+                    comingSoon = ComingSoonContent(
+                        title = "Friend requests",
+                        emoji = "🤝",
+                        body = "Sending friend requests ships with the friend graph. " +
+                            "We hang onto who you've played with so you can opt in " +
+                            "the moment that lands.",
+                    )
+                },
+                onSeeAllRecentOpponents = {
+                    comingSoon = ComingSoonContent(
+                        title = "Recently played with",
+                        emoji = "🃏",
+                        body = "The full history of humans you've played comes with " +
+                            "Quick Match + Friend Games. For now we're showing the " +
+                            "most recent at the table.",
                     )
                 },
             )

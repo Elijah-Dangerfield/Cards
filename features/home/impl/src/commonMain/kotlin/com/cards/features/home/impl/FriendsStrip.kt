@@ -41,10 +41,11 @@ import com.dangerfield.cards.system.Radii
 @Composable
 internal fun FriendsStrip(
     friends: List<FriendOnline>,
+    pendingRequests: Int,
     onSeeAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (friends.isEmpty()) return
+    if (friends.isEmpty() && pendingRequests <= 0) return
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -58,7 +59,7 @@ internal fun FriendsStrip(
         HorizontalSpacerD500()
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "${friends.size} ${if (friends.size == 1) "friend" else "friends"} in the Hall",
+                text = friendsHeadline(friends.size, pendingRequests),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.text,
             )
@@ -69,7 +70,17 @@ internal fun FriendsStrip(
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.textSecondary,
                 )
+            } else if (pendingRequests > 0) {
+                Text(
+                    text = "Tap to review.",
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.textSecondary,
+                )
             }
+        }
+        if (pendingRequests > 0) {
+            PendingBadge(count = pendingRequests)
+            HorizontalSpacerD500()
         }
         Icon(
             imageVector = Icons.Default.ChevronRight,
@@ -77,6 +88,28 @@ internal fun FriendsStrip(
             tint = AppTheme.colors.textSecondary.color,
         )
     }
+}
+
+@Composable
+private fun PendingBadge(count: Int) {
+    Box(
+        modifier = Modifier
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(AppTheme.colors.accentPrimary.color)
+            .padding(horizontal = Dimension.D400, vertical = Dimension.D200),
+    ) {
+        Text(
+            text = if (count > 9) "9+" else "$count",
+            typography = AppTheme.typography.Label.L400,
+            color = AppTheme.colors.onAccentPrimary,
+        )
+    }
+}
+
+private fun friendsHeadline(onlineCount: Int, pendingRequests: Int): String = when {
+    onlineCount > 0 -> "$onlineCount ${if (onlineCount == 1) "friend" else "friends"} in the Hall"
+    pendingRequests == 1 -> "1 friend request"
+    else -> "$pendingRequests friend requests"
 }
 
 @Composable
