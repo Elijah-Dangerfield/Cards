@@ -193,6 +193,7 @@ fun PlayPokerScreen(
                         table = active,
                         humanWinPercent = state.humanWinPercent,
                         humanTitle = state.equippedTitle,
+                        silentSwipeFold = state.swipeFoldGestureAck,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { raiseSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -427,6 +428,7 @@ private fun ActiveTable(
     table: TableUiState.Active,
     humanWinPercent: Int?,
     humanTitle: String?,
+    silentSwipeFold: Boolean = false,
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -486,6 +488,7 @@ private fun ActiveTable(
             PlayerArea(
                 table = table,
                 humanTitle = humanTitle,
+                silentSwipeFold = silentSwipeFold,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,

@@ -83,6 +83,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun PlayerArea(
     table: TableUiState.Active,
     humanTitle: String? = null,
+    silentSwipeFold: Boolean = false,
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit = { _, _ -> },
@@ -185,21 +186,41 @@ internal fun PlayerArea(
                                 finalOffset <= -foldMinFlickDistancePx
                             if (draggedFarEnough || flicked) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                // Continue the upward motion off-screen as
-                                // the fold animation, instead of cutting
-                                // to the folded state. Tween duration
-                                // shortens when the user already flicked
-                                // fast so the toss feels continuous with
-                                // their release velocity.
-                                val durationMs = if (flicked) 220 else 280
-                                gestureScope.launch {
-                                    dragOffsetY.animateTo(
-                                        targetValue = -foldFlightPx,
-                                        animationSpec = tween(
-                                            durationMillis = durationMs,
-                                            easing = FastOutSlowInEasing,
-                                        ),
-                                    )
+                                if (silentSwipeFold) {
+                                    // User has already acknowledged the
+                                    // gesture — continue the upward motion
+                                    // off-screen as the fold animation
+                                    // instead of cutting to the folded
+                                    // state. Tween duration shortens when
+                                    // the user flicked fast so the toss
+                                    // feels continuous with their release
+                                    // velocity.
+                                    val durationMs = if (flicked) 220 else 280
+                                    gestureScope.launch {
+                                        dragOffsetY.animateTo(
+                                            targetValue = -foldFlightPx,
+                                            animationSpec = tween(
+                                                durationMillis = durationMs,
+                                                easing = FastOutSlowInEasing,
+                                            ),
+                                        )
+                                    }
+                                } else {
+                                    // First-time gesture: the confirm
+                                    // dialog is the moment, not the
+                                    // flight. Spring back so cancel leaves
+                                    // the cards in place and confirm hands
+                                    // off to the engine's folded-state
+                                    // alpha treatment.
+                                    gestureScope.launch {
+                                        dragOffsetY.animateTo(
+                                            targetValue = 0f,
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                stiffness = Spring.StiffnessMediumLow,
+                                            ),
+                                        )
+                                    }
                                 }
                                 onSwipeFold()
                             } else {
