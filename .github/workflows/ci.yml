@@ -9,8 +9,10 @@
 #               always — green or red, so post-mortem on a failed test
 #               doesn't require re-running locally) and the debug APK
 #               on push-to-main only (30 days). PR runs upload reports
-#               but not APKs. Ship by cutting a release via the
-#               release-please PR → release.yml.
+#               but not APKs. Also publishes test results as an inline
+#               check via dorny/test-reporter so failures don't require
+#               the artifact zip to diagnose. Ship by cutting a release
+#               via the release-please PR → release.yml.
 # Edit to change: compile commands or the test task below.
 # See: docs/release-automation.md
 # ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +38,14 @@ on:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+# dorny/test-reporter posts a new check with pass/fail counts and failing-test
+# detail, so failures don't require downloading the artifact zip. checks:write
+# is needed to publish that check.
+permissions:
+  contents: read
+  checks: write
+  pull-requests: read
 
 jobs:
   build-and-test:
@@ -94,6 +104,19 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
+      - name: Publish unit test results
+        # Parses the JUnit XML and posts an inline check ("Unit tests") with
+        # pass/fail counts + click-through to failing assertions, so a failed
+        # CI run doesn't require downloading the artifact zip to diagnose.
+        # Informational only — `Build + test` is the gating check.
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Unit tests
+          path: '**/build/test-results/testDebugUnitTest/*.xml'
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Upload unit test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -141,6 +164,17 @@ jobs:
 
       - name: Run server tests
         run: ./gradlew :apps:server:test
+
+      - name: Publish server test results
+        # See the client job's matching step. Informational only — `Server
+        # tests` is the gating check.
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Server unit tests
+          path: 'apps/server/build/test-results/test/*.xml'
+          reporter: java-junit
+          fail-on-error: false
 
       - name: Upload server test reports
         if: always()
