@@ -271,3 +271,32 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 **Tradeoff:** Sweep already handles this on a TTL, so it's a UX-invisible cleanup tightening — no user-facing change. Worth it for keeping the anon table small and avoiding a window where a churned guest still exists server-side. The "only after success" gate is the load-bearing detail — the V1 risk is a bug that fires the delete before sign-in confirms and leaves the user signed out with nothing.
 
 **Status:** Backlog. Pairs with the existing `DefaultOrphanAnonymousSweep`; pull when the next identity-layer pass opens.
+
+---
+
+## Live chip updates inside the welcome dialog after slow-network open
+
+**Idea (raised 2026-05-24):** The welcome dialog now opens regardless of whether `/v1/me/wallet` has hydrated (see `WelcomePayload.chips: Long?` and the `ChipRevealPlaceholder` fallback in [WelcomeDialog.kt](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/WelcomeDialog.kt)). When chips arrive late, the dialog still shows the em-dash placeholder until dismissal — the route param is static. Home shows the real balance the moment they dismiss, so the user-visible gap is narrow, but a long fresh-install round-trip would leave the placeholder visible the whole time the user reads the dialog.
+
+**Sketch:**
+- Lift `ChipsRepository` into the dialog destination scope (it currently lives in Home's scope) and have the dialog observe the live balance flow.
+- Or: add a small dialog-scoped `WelcomeDialogViewModel` that owns the observer and re-renders the reveal once chips land.
+- Either way, the navigation argument stays static (kept for back-stack restoration) but the dialog reads through the live source.
+
+**Tradeoff:** Adds plumbing for a narrow window most users won't hit. The placeholder is acceptable per the original todo framing. Pull only if device QA shows the placeholder feels long enough to notice on real-world slow networks.
+
+**Status:** Backlog. Confirmed as follow-up, not in the slice that landed 2026-05-24.
+
+---
+
+## Earn-source attribution on My Items "Earned" rows
+
+**Idea (raised 2026-05-24):** Earned cosmetics in [MyItemsScreen.kt](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/items/MyItemsScreen.kt) now render an "Earned" badge, but don't surface *what* earned them ("from Comeback Kid achievement", "from Bronze league"). `InventoryItem` doesn't carry the source id today.
+
+**Sketch:**
+- New wire field on the server's grant path — `earnedFromKind` (achievement / league / RFT) + `earnedFromId` (the source row id).
+- Client-side resolver from `(kind, id)` → display string (achievement name, league tier, etc.) — most of the source name catalogs already exist on the client.
+- Render the line under the subtitle on earned rows; keep the inline `EarnedTag` chip exactly as it is for equippable rows.
+- Pairs with the still-open "celebratory unlock dialog at the moment of earning" item already tracked in `docs/todo.md` under "Catalog gating — unlock-only vs purchasable" — same source-name resolver feeds both.
+
+**Status:** Backlog. Earned-badge rendering already shipped; this is the deeper prestige attribution.
