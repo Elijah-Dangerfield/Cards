@@ -39,6 +39,7 @@ import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.StatsRoute
+import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
@@ -181,7 +182,17 @@ class ProfileFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onNavigateToShop = { productId ->
-                    router.switchTab(ShopRoute(pendingProductId = productId))
+                    // Cross-tab deep-link to a specific product —
+                    // batched so the two ops run as one queued unit.
+                    // (We can't pack the productId onto `ShopRoute`
+                    // itself; tab-root args get clobbered by
+                    // restoreState. See docs/decisions.md.)
+                    router.batch {
+                        switchTab(ShopRoute())
+                        if (productId != null) {
+                            navigate(ShopProductSheetRoute(productId))
+                        }
+                    }
                 },
             )
         }

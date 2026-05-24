@@ -88,6 +88,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun ShopScreen(
     state: ShopState,
     onAction: (ShopAction) -> Unit,
+    onProductTap: (productId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Screen(modifier = modifier) { padding ->
@@ -95,7 +96,7 @@ fun ShopScreen(
             when {
                 !state.hasLoaded && state.isRefreshing -> LoadingState()
                 state.hasLoaded && state.catalog.isEmpty -> EmptyState()
-                else -> CatalogContent(state = state, onAction = onAction)
+                else -> CatalogContent(state = state, onAction = onAction, onProductTap = onProductTap)
             }
 
             state.errorMessage?.let { message ->
@@ -110,25 +111,12 @@ fun ShopScreen(
                 )
             }
         }
-
-        // Purchase confirmation overlay — rendered last so it sits on top.
-        // Sheet opens for ALL states (owned / locked / insufficient /
-        // available) so users can read product details; the rendered
-        // content + CTA varies. See PurchaseSheetMode in ShopViewModel.kt.
-        state.pendingPurchase?.let { pending ->
-            val product: Product = when (pending) {
-                is PendingPurchase.IapPack -> pending.product
-                is PendingPurchase.ChipOffer -> pending.product
-            }
-            PurchaseConfirmSheet(
-                pending = pending,
-                mode = state.sheetModeFor(product),
-                chipBalance = state.chipBalance ?: 0L,
-                timeAnchor = state.timeAnchor,
-                onConfirm = { onAction(ShopAction.ConfirmPendingPurchase) },
-                onDismiss = { onAction(ShopAction.DismissPendingPurchase) },
-            )
-        }
+        // The purchase confirmation sheet used to render here as
+        // overlay UI driven by `state.pendingPurchase`. It's now its
+        // own navigation destination (`ShopProductSheetRoute`) mounted
+        // via `NavGraphBuilder.bottomSheet` in `ShopFeatureEntryPoint`,
+        // so this screen is purely the grid. Tap → `onProductTap` →
+        // the entry point navigates to the sheet route.
     }
 }
 
@@ -140,6 +128,7 @@ fun ShopScreen(
 private fun CatalogContent(
     state: ShopState,
     onAction: (ShopAction) -> Unit,
+    onProductTap: (productId: String) -> Unit,
 ) {
     val featured = state.catalog.chipPacks.firstOrNull { it.featured }
     val otherPacks = state.catalog.chipPacks.filterNot { it.id == featured?.id }
@@ -161,7 +150,7 @@ private fun CatalogContent(
         featured?.let {
             FeaturedPackHero(
                 pack = it,
-                onClick = { onAction(ShopAction.RequestPurchase(it)) },
+                onClick = { onProductTap(it.id) },
             )
             VerticalSpacerD800()
         }
@@ -177,7 +166,7 @@ private fun CatalogContent(
                     pack = pack,
                     timeAnchor = state.timeAnchor,
                     onExpired = { onAction(ShopAction.Refresh) },
-                    onClick = { onAction(ShopAction.RequestPurchase(pack)) },
+                    onClick = { onProductTap(pack.id) },
                 )
             }
             VerticalSpacerD800()
@@ -195,7 +184,7 @@ private fun CatalogContent(
                     cardState = state.classify(offer),
                     timeAnchor = state.timeAnchor,
                     onExpired = { onAction(ShopAction.Refresh) },
-                    onClick = { onAction(ShopAction.RequestPurchase(offer)) },
+                    onClick = { onProductTap(offer.id) },
                 )
             }
         }
@@ -843,6 +832,7 @@ private fun ShopScreenPreview_Loading() {
         ShopScreen(
             state = ShopState(isRefreshing = true, hasLoaded = false, chipBalance = 12_450),
             onAction = {},
+            onProductTap = {},
         )
     }
 }
@@ -854,6 +844,7 @@ private fun ShopScreenPreview_Empty() {
         ShopScreen(
             state = ShopState(hasLoaded = true, chipBalance = 12_450),
             onAction = {},
+            onProductTap = {},
         )
     }
 }
@@ -869,6 +860,7 @@ private fun ShopScreenPreview_FullCatalog() {
                 catalog = previewFullCatalog(),
             ),
             onAction = {},
+            onProductTap = {},
         )
     }
 }
@@ -900,6 +892,7 @@ private fun ShopScreenPreview_MixedOwnedAndDisabled() {
                 ownedProductIds = setOf("emote_dance", "cardback_marble"),
             ),
             onAction = {},
+            onProductTap = {},
         )
     }
 }
@@ -916,6 +909,7 @@ private fun ShopScreenPreview_ErrorWithPriorCatalog() {
                 errorMessage = "Offline — pulled the cached shop.",
             ),
             onAction = {},
+            onProductTap = {},
         )
     }
 }

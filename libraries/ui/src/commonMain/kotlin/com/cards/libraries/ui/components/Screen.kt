@@ -16,12 +16,20 @@ import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.components.text.LocalTextConfig
 
+/**
+ * Snackbars no longer mount per-screen — the app has a single
+ * `SnackbarHost` near the root (alongside `DialogHost`), and any
+ * Composable can register one via `Snackbar(...)` or fire one from a
+ * ViewModel via `showSnackBar(...)`. There is no `snackbarHost` slot
+ * here on purpose: it would either compete with the root host or
+ * silently swallow snackbars depending on which screen happened to
+ * mount it.
+ */
 @Composable
 fun Screen(
     modifier: Modifier = Modifier,
     topBar: @Composable () -> Unit = {},
     bottomBar: @Composable () -> Unit = {},
-    snackbarHost: @Composable () -> Unit = {},
     containerColor: Color = AppTheme.colors.background.color,
     contentColor: Color = contentColorFor(containerColor),
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
@@ -39,7 +47,6 @@ fun Screen(
             modifier = modifier,
             topBar = topBar,
             bottomBar = bottomBar,
-            snackbarHost = snackbarHost,
             containerColor = containerColor,
             contentColor = contentColor,
             contentWindowInsets = contentWindowInsets

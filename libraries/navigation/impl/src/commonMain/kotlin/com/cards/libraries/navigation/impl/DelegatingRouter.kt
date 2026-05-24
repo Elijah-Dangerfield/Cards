@@ -18,13 +18,16 @@ import com.dangerfield.cards.libraries.core.shouldNotBeCaught
 import com.dangerfield.cards.libraries.core.throwIfDebug
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.observeWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.RouterBatch
 import com.dangerfield.cards.libraries.navigation.TabRoute
 import com.dangerfield.cards.libraries.navigation.WebLinkLauncher
 import com.dangerfield.cards.libraries.navigation.NavigableWhileBlocked
+import kotlin.reflect.KClass
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -91,18 +94,7 @@ class DelegatingRouter(
             description = "navigate to ${route.nameForLogs()}",
             route = route,
         ) {
-            navigate(route) {
-
-                if (options.clearBackStack) {
-                    popUpTo(0) { inclusive = true }
-                }
-                if (options.launchSingleTop) {
-                    launchSingleTop = true
-                }
-                if (options.restoreState) {
-                    restoreState = true
-                }
-            }
+            executeNavigate(route, options)
         }
     }
 
@@ -123,14 +115,7 @@ class DelegatingRouter(
             description = "switchTab to ${route.nameForLogs()}",
             route = route,
         ) {
-            val startDestinationId = graph.findStartDestination().id
-            navigate(route) {
-                popUpTo(startDestinationId) {
-                    saveState = true
-                }
-                launchSingleTop = true
-                restoreState = true
-            }
+            executeSwitchTab(route)
         }
     }
 
@@ -143,6 +128,74 @@ class DelegatingRouter(
                 popUpTo(0) { inclusive = true }
                 launchSingleTop = true
             }
+        }
+    }
+
+    override fun batch(block: RouterBatch.() -> Unit) {
+        enqueueNavigation("batch") {
+            // The batch scope dispatches against `this` (the
+            // NavHostController already pulled off the queue), so
+            // every sub-op runs synchronously inside this single
+            // queued execution. Caller scope death between sequential
+            // calls inside [block] can't strand the tail because the
+            // block has already been captured into the queued lambda.
+            val controller = this
+            val scope = object : RouterBatch {
+                override fun navigate(route: Route, options: NavigationOptions) {
+                    if (controller.shouldBlockNavigation(route)) {
+                        logger.w { "Blocked batch navigate to ${route.nameForLogs()} (blocking error active)" }
+                        return
+                    }
+                    controller.executeNavigate(route, options)
+                }
+
+                override fun switchTab(route: TabRoute) {
+                    if (controller.shouldBlockNavigation(route)) {
+                        logger.w { "Blocked batch switchTab to ${route.nameForLogs()} (blocking error active)" }
+                        return
+                    }
+                    controller.executeSwitchTab(route)
+                }
+
+                override fun popBackTo(route: Route, inclusive: Boolean) {
+                    controller.popBackStack(route, inclusive)
+                }
+
+                override fun goBack() {
+                    controller.popBackStack()
+                }
+            }
+            scope.block()
+        }
+    }
+
+    override fun <T : Route> backStackEntryFor(routeClass: KClass<T>): NavBackStackEntry? =
+        Catching { navController?.getBackStackEntry(routeClass) }
+            .logOnFailure("Could not resolve back stack entry for ${routeClass.simpleName}")
+            .getOrNull()
+
+    private fun NavHostController.executeNavigate(route: Route, options: NavigationOptions) {
+        navigate(route) {
+            if (options.clearBackStack) {
+                popUpTo(0) { inclusive = true }
+            }
+            if (options.launchSingleTop) {
+                launchSingleTop = true
+            }
+            if (options.restoreState) {
+                restoreState = true
+            }
+        }
+    }
+
+    private fun NavHostController.executeSwitchTab(route: TabRoute) {
+        val startDestinationId = graph.findStartDestination().id
+        navigate(route) {
+            popUpTo(startDestinationId) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
         }
     }
 

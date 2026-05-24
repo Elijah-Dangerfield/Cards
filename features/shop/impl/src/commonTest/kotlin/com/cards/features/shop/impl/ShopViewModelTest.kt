@@ -50,18 +50,24 @@ import kotlin.test.assertTrue
  *    and refresh + sync both fire on construction.
  *  - Pull-to-refresh: success populates catalog, failure leaves prior
  *    catalog intact + surfaces errorMessage.
- *  - Purchase intent flow: RequestPurchase opens the right kind of sheet,
- *    dismiss closes it, confirm commits.
+ *  - Sheet mode classification: `sheetModeFor` returns the right
+ *    PurchaseSheetMode given owned / locked / insufficient / available.
+ *  - Confirm guard: `ConfirmPurchase` is a no-op for owned items (the
+ *    sheet's CTA is disabled too, but the action layer is the final fence).
  *  - Optimistic redeem: chip deduction happens immediately via repo,
  *    sync service fires in the background, event emitted.
  *  - Affordability guard: confirming a too-expensive offer surfaces an
  *    error instead of mutating state.
  *  - Idempotent re-redeem: AlreadyOwned path emits a benign event without
  *    duplicating the chip charge.
- *  - IAP path: ConfirmPendingPurchase drives BillingClient.purchase and
+ *  - IAP path: `ConfirmPurchase` drives BillingClient.purchase and
  *    emits the right PurchaseFinished outcome for each branch (success,
  *    cancel, already-owned, store-unavailable, no-user). Success credits
  *    chips locally; cancel and failures leave the chip balance alone.
+ *
+ * Sheet open/dismiss aren't VM concerns anymore — the purchase sheet
+ * is its own navigation route (`ShopProductSheetRoute`). Tests for
+ * that surface live with the navigation graph, not here.
  */
 class ShopViewModelTest : CoroutineTest() {
 
@@ -120,91 +126,49 @@ class ShopViewModelTest : CoroutineTest() {
         assertFalse(vm.state.ownsProduct("emote_tilt"))
     }
 
-    // ---------- Purchase intent flow ----------
+    // ---------- Sheet mode classification ----------
+    //
+    // Sheet open/dismiss is navigation, not a VM concern — see
+    // `ShopProductSheetRoute`. What still lives on the VM is the
+    // *mode* the sheet should render in for a given product, plus the
+    // confirm-purchase gate. Those are what this section pins.
 
     @Test
-    fun requestPurchase_chipPack_opensIapSheet() = runUnitTest {
-        val vm = buildVm()
-        val pack = SAMPLE_CATALOG.chipPacks.first()
-
-        vm.takeAction(ShopAction.RequestPurchase(pack))
-
-        val pending = vm.state.pendingPurchase
-        assertTrue(pending is PendingPurchase.IapPack, "got: $pending")
-        assertEquals(pack.id, (pending as PendingPurchase.IapPack).product.id)
-    }
-
-    @Test
-    fun requestPurchase_chipOffer_opensChipOfferSheet() = runUnitTest {
-        val vm = buildVm()
-        val offer = SAMPLE_CATALOG.chipOffers.first()
-
-        vm.takeAction(ShopAction.RequestPurchase(offer))
-
-        val pending = vm.state.pendingPurchase
-        assertTrue(pending is PendingPurchase.ChipOffer)
-        assertEquals(offer.id, (pending as PendingPurchase.ChipOffer).product.id)
-    }
-
-    @Test
-    fun requestPurchase_ownedOffer_opensSheetInOwnedMode() = runUnitTest {
-        // The sheet now opens for owned items too — users can re-read
-        // the description and find the "manage in profile" guidance.
-        // Buying is still gated at the Confirm action.
+    fun sheetModeFor_ownedOffer_isOwned() = runUnitTest {
         val inv = FakeInventoryRepository().apply {
             emit(listOf(SAMPLE_PENDING_INVENTORY_ITEM))
         }
         val vm = buildVm(inventoryRepository = inv)
         val ownedOffer = SAMPLE_CATALOG.chipOffers.first { it.id == "emote_dance" }
 
-        vm.takeAction(ShopAction.RequestPurchase(ownedOffer))
-
-        assertNotNull(vm.state.pendingPurchase, "owned items now open the sheet")
-        assertTrue(
-            vm.state.sheetModeFor(ownedOffer) is PurchaseSheetMode.Owned,
-            "and the mode classifier returns Owned",
-        )
+        assertTrue(vm.state.sheetModeFor(ownedOffer) is PurchaseSheetMode.Owned)
     }
 
     @Test
-    fun confirmPendingPurchase_isNoOpForOwnedItem() = runUnitTest {
+    fun confirmPurchase_isNoOpForOwnedItem() = runUnitTest {
         // The Confirm action is the real fence — defense in depth.
         val inv = FakeInventoryRepository().apply {
             emit(listOf(SAMPLE_PENDING_INVENTORY_ITEM))
         }
         val vm = buildVm(inventoryRepository = inv)
         val ownedOffer = SAMPLE_CATALOG.chipOffers.first { it.id == "emote_dance" }
-        vm.takeAction(ShopAction.RequestPurchase(ownedOffer))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(ownedOffer))
 
-        // Sheet still up (no-op), no repo redeem called.
-        assertNotNull(vm.state.pendingPurchase, "Confirm is a no-op for Owned")
-    }
-
-    @Test
-    fun dismissPendingPurchase_clearsSheet() = runUnitTest {
-        val vm = buildVm()
-        val offer = SAMPLE_CATALOG.chipOffers.first()
-        vm.takeAction(ShopAction.RequestPurchase(offer))
-        assertNotNull(vm.state.pendingPurchase)
-
-        vm.takeAction(ShopAction.DismissPendingPurchase)
-        assertNull(vm.state.pendingPurchase)
+        // No-op: no repo redeem call should have fired.
+        assertTrue(inv.redeemCalls.isEmpty(), "Confirm is a no-op for Owned")
     }
 
     // ---------- Optimistic chip-offer redemption ----------
 
     @Test
-    fun confirmChipOffer_success_closesSheet_andCallsRepo() = runUnitTest {
+    fun confirmChipOffer_success_callsRepo() = runUnitTest {
         val inv = FakeInventoryRepository()
         val vm = buildVm(inventoryRepository = inv)
         val offer = SAMPLE_CATALOG.chipOffers.first()  // cost 2_500
-        vm.takeAction(ShopAction.RequestPurchase(offer))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
-        assertNull(vm.state.pendingPurchase, "sheet closed")
         assertEquals(
             listOf("emote_dance" to 2_500L),
             inv.redeemCalls,
@@ -220,9 +184,8 @@ class ShopViewModelTest : CoroutineTest() {
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val offer = SAMPLE_CATALOG.chipOffers.first()
-        vm.takeAction(ShopAction.RequestPurchase(offer))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
         val event = received.firstOrNull { it is ShopEvent.RedeemSucceeded }
         assertNotNull(event, "RedeemSucceeded should fire")
@@ -236,15 +199,11 @@ class ShopViewModelTest : CoroutineTest() {
         }
         val vm = buildVm(inventoryRepository = inv)
         val offer = SAMPLE_CATALOG.chipOffers.first()
-        vm.takeAction(ShopAction.RequestPurchase(offer))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
         assertNotNull(vm.state.errorMessage, "error surfaced")
         assertTrue(vm.state.errorMessage!!.contains(offer.title, ignoreCase = true))
-        // Sheet still closes optimistically — the failure is surfaced as a
-        // toast, not by reopening the sheet.
-        assertNull(vm.state.pendingPurchase)
     }
 
     @Test
@@ -256,9 +215,8 @@ class ShopViewModelTest : CoroutineTest() {
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val offer = SAMPLE_CATALOG.chipOffers.first()
-        vm.takeAction(ShopAction.RequestPurchase(offer))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
         assertTrue(received.any { it is ShopEvent.AlreadyOwned })
         assertNull(vm.state.errorMessage, "AlreadyOwned isn't surfaced as an error")
@@ -271,9 +229,8 @@ class ShopViewModelTest : CoroutineTest() {
         val equipment = FakeEquipmentRepository()
         val vm = buildVm(equipmentRepository = equipment)
         val felt = SAMPLE_CATALOG.chipOffers.first { it.id == "felt_royal_red" }
-        vm.takeAction(ShopAction.RequestPurchase(felt))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(felt))
 
         assertEquals(listOf("felt_royal_red"), equipment.equipCalls)
         assertTrue(equipment.syncCalls >= 1, "equipment sync should fire after auto-equip")
@@ -296,9 +253,8 @@ class ShopViewModelTest : CoroutineTest() {
         )
         val vm = buildVm(equipmentRepository = equipment)
         val felt = SAMPLE_CATALOG.chipOffers.first { it.id == "felt_royal_red" }
-        vm.takeAction(ShopAction.RequestPurchase(felt))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(felt))
 
         assertTrue(equipment.equipCalls.isEmpty(), "should not auto-equip when slot already occupied")
     }
@@ -311,9 +267,8 @@ class ShopViewModelTest : CoroutineTest() {
         val equipment = FakeEquipmentRepository()
         val vm = buildVm(equipmentRepository = equipment)
         val emote = SAMPLE_CATALOG.chipOffers.first { it.id == "emote_dance" }
-        vm.takeAction(ShopAction.RequestPurchase(emote))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(emote))
 
         assertTrue(equipment.equipCalls.isEmpty(), "non-slot products should not auto-equip")
     }
@@ -321,7 +276,7 @@ class ShopViewModelTest : CoroutineTest() {
     // ---------- IAP path ----------
 
     @Test
-    fun confirmIapPack_success_creditsChips_emitsPurchaseFinished_closesSheet() = runUnitTest {
+    fun confirmIapPack_success_creditsChips_emitsPurchaseFinished() = runUnitTest {
         val inv = FakeInventoryRepository()
         val billing = FakeBillingClient(nextResult = PurchaseResult.Success(SAMPLE_TRANSACTION))
         val chips = FakeChipsRepository(initialBalance = 0)
@@ -329,11 +284,9 @@ class ShopViewModelTest : CoroutineTest() {
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val pack = SAMPLE_CATALOG.chipPacks.first()
-        vm.takeAction(ShopAction.RequestPurchase(pack))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(pack))
 
-        assertNull(vm.state.pendingPurchase)
         assertEquals(1, billing.purchaseCalls, "billing client should have been called once")
         assertEquals(pack.grantsChips, chips.getBalance(), "chips should be credited locally")
         assertEquals(1, billing.acknowledgeCalls, "purchase should be acknowledged on success")
@@ -353,9 +306,8 @@ class ShopViewModelTest : CoroutineTest() {
         val vm = buildVm(chipsRepository = chips, billingClient = billing)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
-        vm.takeAction(ShopAction.RequestPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
         assertEquals(0L, chips.getBalance(), "no chip credit on user cancel")
         assertEquals(0, billing.acknowledgeCalls, "nothing to acknowledge on cancel")
@@ -373,9 +325,8 @@ class ShopViewModelTest : CoroutineTest() {
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val pack = SAMPLE_CATALOG.chipPacks.first()
-        vm.takeAction(ShopAction.RequestPurchase(pack))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(pack))
 
         // Treat as idempotent: re-credit so a lost-purchase client recovers.
         assertEquals(pack.grantsChips, chips.getBalance())
@@ -391,9 +342,8 @@ class ShopViewModelTest : CoroutineTest() {
         val vm = buildVm(chipsRepository = chips, billingClient = billing)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
-        vm.takeAction(ShopAction.RequestPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
         assertEquals(0L, chips.getBalance())
         val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
@@ -412,9 +362,8 @@ class ShopViewModelTest : CoroutineTest() {
         val vm = buildVm(billingClient = billing, authRepository = identity)
         val received = mutableListOf<ShopEvent>()
         backgroundScope.launch { vm.eventFlow.collect { received += it } }
-        vm.takeAction(ShopAction.RequestPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
-        vm.takeAction(ShopAction.ConfirmPendingPurchase)
+        vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
 
         assertEquals(0, billing.purchaseCalls, "should not call billing without a userId")
         val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }

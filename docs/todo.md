@@ -59,8 +59,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Shop polish
 
 - **Auto-grant the default 'black/Default' felt to new users in `inventory` on signup**, so My Items shows something from day one. Charcoal stays purchasable in the shop unchanged. Use the same `recordEarnedGrant` path the unlock-only catalog uses (or a starter-inventory seed at user creation). Pairs with the unlock-only earned-grant wiring above.
-- **Shop deep-link sheet keeps reopening on every visit.** Repro 2026-05-24: profile → edit profile → "go to shop" opens a specific sheet in the shop. Every subsequent visit to the shop reopens that same sheet — the deep-link target isn't consumed. Needs a one-shot / consume pattern: a `SavedStateHandle.remove(...)` after read, an explicit "consumed" flag, or a more deep-linky setup where the target sheet lives at its own route (so going back to "Shop root" is a different destination than "Shop with sheet open"). Lean on whichever pattern we already use elsewhere; this is a small recurring footgun in event-shaped navigation args. **Files / hints:** Shop route, whatever wires `ShopViewModel` to the incoming deep-link target.
-
 ### Edit profile
 
 - **Save as floating bottom button + colors moved to top + bigger color circles.** Three layout changes: (a) the save button should float at the bottom of the screen (with enough bottom padding on the scrollable content above so the last row scrolls clear of the button); (b) move the color picker to the top of the form; (c) make the color circles substantially bigger — if that means two rows or a horizontal scroll, that's fine, the goal is "big bubbly UI." **Files / hints:** `EditProfileScreen` / its sub-components.

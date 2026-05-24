@@ -13,6 +13,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.ComposeNavigatorDestinationBuilder
 import androidx.navigation.get
+import androidx.navigation.navigation as composeNestedGraph
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
 import com.dangerfield.cards.libraries.navigation.floatingwindow.DialogDestination
@@ -89,6 +90,40 @@ inline fun <reified T : Route> NavGraphBuilder.dialog(
     )
 }
 
+
+/**
+ * Type-safe nested graph wrapper. Use to group a tab's start
+ * destination with its sub-routes (sheets, dialogs, detail screens) so
+ * a shared `ViewModel` can be scoped to the **graph entry** instead of
+ * one of the leaf entries.
+ *
+ * Pattern (Shop tab):
+ * ```
+ * navigation<ShopGraph>(startDestination = ShopRoute()) {
+ *     screen<ShopRoute> { ... }
+ *     bottomSheet<ShopProductSheetRoute> { ... }
+ * }
+ * ```
+ *
+ * Both the screen and the sheet resolve the same `ShopViewModel` via
+ * `router.graphScopedViewModel<ShopGraph, ShopViewModel> { ... }` —
+ * the graph entry survives as long as **anything** in the tab is on
+ * the stack, which is the natural scope for shop-wide state.
+ */
+inline fun <reified T : Route> NavGraphBuilder.navigation(
+    startDestination: Route,
+    typeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = emptyMap(),
+    noinline builder: NavGraphBuilder.() -> Unit,
+) {
+    val resolvedTypeMap = typeMap + mapOf(
+        typeOf<AnimationType>() to serializableType<AnimationType>(),
+    )
+    composeNestedGraph<T>(
+        startDestination = startDestination,
+        typeMap = resolvedTypeMap,
+        builder = builder,
+    )
+}
 
 inline fun <reified T : Route> NavGraphBuilder.bottomSheet(
     typeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = emptyMap(),

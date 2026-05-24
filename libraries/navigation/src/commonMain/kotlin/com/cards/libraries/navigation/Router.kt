@@ -1,8 +1,10 @@
 package com.dangerfield.cards.libraries.navigation
 
-import com.dangerfield.cards.libraries.ui.snackbar.SnackBarPresenter
+import androidx.navigation.NavBackStackEntry
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import kotlin.reflect.KClass
 
 data class NavigationOptions(
     val clearBackStack: Boolean = false,
@@ -47,6 +49,68 @@ interface Router {
     fun enterTab(route: TabRoute)
 
     fun openWebLink(url: String)
+
+    /**
+     * Run a sequence of navigation operations atomically against the
+     * underlying controller. The whole block runs inside a single
+     * queued op, so caller scope death (a ViewModel being torn down,
+     * a composable disposing) between sequential calls can't strand
+     * the tail of the sequence.
+     *
+     * Use for deep-link patterns like "switch to Shop tab and push
+     * the purchase sheet on top":
+     * ```
+     * router.batch {
+     *     switchTab(ShopRoute())
+     *     navigate(ShopProductSheetRoute(productId))
+     * }
+     * ```
+     *
+     * The receiver is a narrowed [RouterBatch] — only the navigation
+     * primitives are exposed inside, no `batch` recursion, no
+     * `openWebLink`.
+     */
+    fun batch(block: RouterBatch.() -> Unit)
+
+    /**
+     * Resolve an existing back-stack entry by route class. Intended
+     * for **graph-scoped ViewModel resolution** (see
+     * `Router.graphScopedViewModel`), where the caller needs a
+     * specific `NavBackStackEntry` to use as a `ViewModelStoreOwner`.
+     *
+     * Don't use this to navigate, read current state, or short-circuit
+     * the navigation API. If you find yourself reaching for the entry
+     * for anything else, the operation probably belongs on [Router]
+     * directly — promote it.
+     *
+     * Returns null if the entry isn't on the back stack (e.g., the
+     * graph hasn't been entered yet, or you asked for the wrong type).
+     */
+    fun <T : Route> backStackEntryFor(routeClass: KClass<T>): NavBackStackEntry?
+}
+
+inline fun <reified T : Route> Router.backStackEntryFor(): NavBackStackEntry? =
+    backStackEntryFor(T::class)
+
+/**
+ * Narrowed navigation surface available inside [Router.batch] blocks.
+ * Mirrors [Router]'s nav primitives but each call runs immediately
+ * against the controller instead of being individually queued.
+ */
+interface RouterBatch {
+    fun navigate(route: Route, options: NavigationOptions = NavigationOptions())
+
+    @Deprecated(
+        message = "TabRoute must go through switchTab() inside a batch too.",
+        replaceWith = ReplaceWith("switchTab(route)"),
+        level = DeprecationLevel.ERROR,
+    )
+    fun navigate(route: TabRoute, options: NavigationOptions = NavigationOptions()): Nothing =
+        throw UnsupportedOperationException("Compile-time guard only — use switchTab(route).")
+
+    fun switchTab(route: TabRoute)
+    fun popBackTo(route: Route, inclusive: Boolean)
+    fun goBack()
 }
 
 fun <T> Catching<T>.blockingScreenOnError(
@@ -97,7 +161,7 @@ fun <T> Catching<T>.toastOnError(
     title: String = "Oops something went wrong",
     subtitle: String = "Please try again",
 ): Catching<T> = this.onFailure {
-    SnackBarPresenter.show(
+    showSnackBar(
         title = title,
         message = subtitle,
     )

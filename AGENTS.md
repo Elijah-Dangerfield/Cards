@@ -200,11 +200,33 @@ Routes are `@Serializable` data classes extending `Route`. Register in `FeatureE
 screen<MyRoute> { backStackEntry -> MyScreen(...) }
 bottomSheet<SheetRoute> { backStackEntry, sheetState -> ... }
 dialog<DialogRoute> { backStackEntry, dialogState -> ... }
+navigation<MyGraph>(startDestination = MyRoute()) { screen<...>; bottomSheet<...> }
 ```
 
 **Use `bottomSheet<>` for transient picker / overlay UIs** (a settings list, a "select an item" sheet) rather than pushing a full screen. The backstack stays one entry deep, the underlying screen is visible under a scrim, and `sheetState.dismiss()` is a clean exit. Reach for full `screen<>` only when the destination is its own context (settings page, detail view).
 
 **Open external URLs via `Router.openWebLink(url)`** — don't roll your own platform `Intent.ACTION_VIEW` / `UIApplication.shared.open` plumbing. The implementation is in `libraries/navigation/impl/.../{Android,Ios,Jvm}WebLinkLauncher.kt` and is already wired into the DI graph and the `Router` interface.
+
+### Routing rules
+
+**Composables don't route.** Navigation is initiated from a ViewModel or a feature entry point (the `buildNavGraph` lambdas), not from a leaf view. If a button needs to navigate, the view fires a callback / action and the entry point or VM translates it to a `Router` call. This keeps the navigation graph greppable from one place and makes screens trivially previewable.
+
+**`Router` is the only navigation API.** There's no `LocalNavController` and no other handle to `NavHostController`. If you find yourself wanting one, the operation you need probably belongs on `Router` — promote it there. The single supported escape hatch for **VM scoping** is `Router.backStackEntryFor<T>()`, wrapped by `Router.graphScopedViewModel<TGraph, TVm>(factory)`. Don't use it for anything else.
+
+**Tab roots are arg-less.** `HomeRoute`, `ShopRoute`, `ProfileRoute` and any future tab destinations take no constructor args. Tab switching uses `saveState` + `restoreState`, which restores the saved entry's original args verbatim — new args on a fresh `switchTab(SameRoute(newArgs))` are silently dropped. Put one-shot intent on a **sub-route** of the tab, not on the tab root. See `docs/decisions.md` (2026-05-24).
+
+**Cross-tab deep-links chain through `Router.batch`.** If you need to switch tabs and push a sub-route on top, do it in one atomic block:
+
+```kotlin
+router.batch {
+    switchTab(ShopRoute())
+    navigate(ShopProductSheetRoute(productId))
+}
+```
+
+Don't write the two calls sequentially — if the caller's scope (a VM, a composable) is torn down between calls, the second one will never run. `batch` queues the whole block as one op so the caller can't strand itself mid-sequence.
+
+**Share a ViewModel across screens in the same tab by nesting in a graph.** Wrap the tab's routes in `navigation<TabGraph>(startDestination = TabRoot()) { ... }` and resolve the VM via `router.graphScopedViewModel<TabGraph, TabViewModel> { factory() }` from each screen. The VM lives as long as anything in the graph is on the back stack, which is the natural scope for tab-wide state.
 
 ## App-wide state
 
