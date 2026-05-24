@@ -13,43 +13,11 @@ When an item points at a file path or system, the assumption is that path/system
 > **Files / hints:** where to start looking.
 > **Out of scope:** what NOT to drag in.
 
-Anything in §A is **off-limits to automated workers** — those items need a human action (device QA, dashboard config, content writing, product decision). Everything below §A is fair game.
+Everything in this file is worker-pickable. Items that need a human action — device QA, dashboard config, content writing, product decisions — live in [`docs/developer-todo.md`](./developer-todo.md) instead. Per-cycle follow-ups tied to a specific PR's diff live in the PR's "Heads up" section.
 
 ---
 
-## A. 🚫 Out of agent scope
-
-Items here can't be picked up by an automated worker — they need a human action. Workers **must not** pick from §A. Reviewers should glance at §A when opening each nightly PR and surface anything that the PR's diff specifically touches under the PR's "Heads up," so the human's follow-up loop stays visible in the PR notifications rather than buried in this file.
-
-### Device QA
-
-- **App-store review prompt smoke test (Android + iOS).** Engineering is wired end-to-end (`ReviewPromptCoordinator`, `AndroidReviewPrompter`, `SKStoreReviewController`); meet the install-age + cooldown floors, then leave a bots table on a release build. Either outcome — Play Core / `SKStoreReviewController` showing the dialog or suppressing it — is correct per [spec §2.6](./product/product-spec.md#26-app-store-review-prompts). Never build a self-rolled fallback dialog.
-- **Soft bust protection — device verification.** Server + client wired (`maybeApplyBustProtection` on `GET /v1/me/wallet` and `POST /v1/me/wallet/sync`; `UserMessage` polling picks up the welcome dialog; `ChipsRepository.observeBalance()` sees the +1000 delta). Verify on a real device that the dialog renders correctly with the chip-bubble emoji + body, and that the wallet observer fires after the grant. If the auto-pop dialog placement is wrong (e.g. fires mid-hand), gate on session-start instead.
-- **Device smoke test before merging `dev` → `main`.** Minimum checklist before any dev → main merge:
-  1. Fresh install on Android (or iOS) against the dev server.
-  2. Onboarding "Get Started" lands on Home without hanging.
-  3. Chip balance hydrates cleanly (no 0 → 10K flash; null → authoritative).
-  4. Sign up → verify email → claim account flow end-to-end on a real device.
-  5. Edit profile, save, observe optimistic update + server-confirmed value.
-  6. Shop purchase via the test billing path; chips deduct + restore correctly.
-
-### Dashboard / external config
-
-- **Supabase email-confirm site URL + redirect URLs + branded template.** Today the confirmation link in the email Supabase sends out still points at the default site URL (localhost) — users can't actually confirm by clicking it. Set the project's site URL + redirect URLs in the Supabase dashboard for dev *and* prod, and while there swap the default Supabase template for a Cards-branded one (copy lives in [voice-and-copy.md §5.x](./product/voice-and-copy.md)). The in-app `VerifyEmailScreen` "I confirmed" no-op is a separate engineering bug — stays in §B.
-
-### Content writing
-
-- **Privacy policy + Terms of Service page content.** Profile screen deep-links to a web page that is empty / placeholder. Hosting target can stay; just needs the actual copy.
-
-### Product decisions deferred
-
-- **Notifications (Phase 6).** Opt-in event-driven push only — league placement, friend activity, battle-pass tier, Rare/Legendary achievement unlock. Never time-of-day modeled, never "your chips are lonely," never "come back" pings (see [spec §8](./product/product-spec.md#8-notifications)). Per-category opt-in granularity, not just global on/off. **Explicitly Phase 6** on the roadmap, kept here so it doesn't drift into worker scope.
-- **Unlock-only catalog *content*.** Engineering for the earned-grant path is a §B bullet. Choosing *which* legendary / league / RFT / achievement-chain cosmetics ship is a content call — acceptable to ship V1 with the unlock-only catalog empty.
-- **Orphan-eviction policy after WS sweep.** When the server's WS-sweep evicts a user after a missed-heartbeats grace window (still being built — see §C), should we *sit them out* (auto-fold their hands, hold the seat for a longer grace) or *fully remove* them from the room? Sit out is friendlier; remove is cleaner. Pick before wiring the sweep behavior.
-
----
-
-## B. UX gaps observed in the build
+## A. UX gaps observed in the build
 
 These are bugs / polish items found playing the app or scanning the code. Cheap individually; collectively the V1 quality bar.
 
@@ -109,7 +77,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Email & deep linking
 
 - **Friend-game link previews.** [product-spec.md §5.2](./product/product-spec.md#52-friend-games) promises iMessage/WhatsApp previews showing a Cards-branded card with stakes + seat count. Needs (a) iOS Universal Links + Android App Links configured for the friend-code URL, (b) a small web endpoint serving Open Graph meta (`og:title`, `og:image`, `og:description`) keyed by the code, (c) image rendering for the preview card (static-with-placeholders is fine for V1). **V1-polish** — friend games work today via copy-code; the rich preview is a social-virality nicety, not a blocker.
-- **In-app "I confirmed" email button is a no-op.** Repro'd 2026-05-24: tapped the button on an unconfirmed account, was admitted, used the app normally. The button needs to re-check the auth state (e.g. `auth.refreshSession()` + inspect `user.emailConfirmedAt`) and bounce back with an error if still unconfirmed. **Files / hints:** `VerifyEmailScreen` / `VerifyEmailViewModel`, and whatever wires the verified-gate into the post-auth route. (The Supabase-dashboard half of this bug — wrong email link target — is in §A.)
+- **In-app "I confirmed" email button is a no-op.** Repro'd 2026-05-24: tapped the button on an unconfirmed account, was admitted, used the app normally. The button needs to re-check the auth state (e.g. `auth.refreshSession()` + inspect `user.emailConfirmedAt`) and bounce back with an error if still unconfirmed. **Files / hints:** `VerifyEmailScreen` / `VerifyEmailViewModel`, and whatever wires the verified-gate into the post-auth route. (The Supabase-dashboard half of this bug — wrong email link target — lives in [`developer-todo.md`](./developer-todo.md).)
 
 ### Claim Account screen
 
@@ -117,7 +85,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Achievements
 
-- **Bot-vs-human achievement split — per-achievement design call (not a straight duplicate).** `FIRST_BUST_DEALT` / `BUST_DEALT_5` are bot-only via `mode = BOTS`; the "Beat Jane 10 times" entries are bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`. The work isn't "duplicate every achievement for humans" — it's a per-achievement audit asking *which mode does this actually belong in, and if both, do they need separate ids with different thresholds?* Concrete example: "be at a table with a pot over 5K" is trivial at the Challenging bots tier (stakes are 100/200/20k, so a 5K pot is normal) but a real accomplishment in MP at lower stakes — so a single shared id with one threshold misrepresents both modes. Two ways out: (a) split into `POT_5K_BOTS` (tier-aware threshold) and `POT_5K_MP`, or (b) rebalance the bot table stakes so the bot variant means something. Probably some of both. Decide at MP-launch time for prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) whether human-only variants with separate ids are warranted. **Pairs with:** the buy-in / stack mechanic bullet in §C — stake tiers are the lever for both bot difficulty and achievement thresholds.
+- **Bot-vs-human achievement split — per-achievement design call (not a straight duplicate).** `FIRST_BUST_DEALT` / `BUST_DEALT_5` are bot-only via `mode = BOTS`; the "Beat Jane 10 times" entries are bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`. The work isn't "duplicate every achievement for humans" — it's a per-achievement audit asking *which mode does this actually belong in, and if both, do they need separate ids with different thresholds?* Concrete example: "be at a table with a pot over 5K" is trivial at the Challenging bots tier (stakes are 100/200/20k, so a 5K pot is normal) but a real accomplishment in MP at lower stakes — so a single shared id with one threshold misrepresents both modes. Two ways out: (a) split into `POT_5K_BOTS` (tier-aware threshold) and `POT_5K_MP`, or (b) rebalance the bot table stakes so the bot variant means something. Probably some of both. Decide at MP-launch time for prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) whether human-only variants with separate ids are warranted. **Pairs with:** the buy-in / stack mechanic bullet in §B — stake tiers are the lever for both bot difficulty and achievement thresholds.
 - **Locked-tile treatment on the Achievements page.** Today's locked tiles render the rarity-color gradient at 0.45 alpha plus a "$progress / $target" chase chip — they read as "faded," not "locked." Spec asks for a fully separate "greyscale silhouette + lock glyph + '???'" treatment. Also still open: a My Items "Earned" filter pair so users can scope the view. Designer call on whether to push further; the at-a-glance bar is mostly met by today's treatment.
 
 ### Rank screen
@@ -151,13 +119,13 @@ The global offline banner sets baseline expectations; this audit is per-surface 
 
 ---
 
-## C. Multiplayer hardening
+## B. Multiplayer hardening
 
-**MP doesn't work end-to-end today** — the bullet below blocks the rest of §C from being end-to-end testable. Fix it before working on anything else in this section.
+**MP doesn't work end-to-end today** — the bullet below blocks the rest of §B from being end-to-end testable. Fix it before working on anything else in this section.
 
 - **Creating a new MP game flips the room into "Reconnecting" immediately and surfaces socket errors.** Smell: [RoomRepositoryImpl.kt:36](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/RoomRepositoryImpl.kt#L36) returns from `createRoom()` as soon as the POST succeeds, and the client then attaches to `ReconnectingRoomSocket.observe(code)` ([ReconnectingRoomSocket.kt:63](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/ReconnectingRoomSocket.kt#L63)), which emits `Connecting` and — if the handshake doesn't land — `Reconnecting` with backoff. Likely the WS attach is racing the room being fully provisioned server-side (missing membership-row commit before the WS handler is reachable). Diagnostic logging is in place: the socket logs the handshake status code, and 4xx rejections classify as `Closed(Rejected)` terminal instead of looping. **What's left:** fix the underlying server-side race so the create-flow doesn't bounce off a 4xx. Then decide how `Closed(Rejected)` is handled by the collector — today it surfaces as the same "room closed" treatment as `RoomDeleted`; whether to auto re-POST `/join` + re-subscribe is still open.
 
-Once the create-flow above is fixed, the rest of §C becomes exercisable:
+Once the create-flow above is fixed, the rest of §B becomes exercisable:
 
 - **Implement buy-in / stack / re-buy mechanic.** Spec landed in [product-spec.md §4.1 → Wallet, stack & buy-ins](./product/product-spec.md#wallet-stack--buy-ins); engineering still needs to do it. Sketch:
   - **Server:** new "table reservations" concept — buy-in moves wallet → table-held balance on sit; reverses on stand / sweep-evict. Hand resolution moves chips between table-held balances (no wallet touch mid-hand). Wallet sync is unchanged.
@@ -172,13 +140,13 @@ Once the create-flow above is fixed, the rest of §C becomes exercisable:
   - User taps back → leave the room (currently the WS may stay attached; verify the back path tears down).
   - App dies / disconnect → keep the seat warm via the existing `disconnectedAt` grace timer. The sweep cron (`POST /v1/admin/sweep-disconnected-room-members`, default 5 min) already evicts. After eviction the user's next launch should *(a)* tell them the seat was forfeited and *(b)* show what their stack returned.
   - On app launch, before allowing a Join → check `GET /v1/me/active-rooms`. Client-side Home-screen `ActiveRoomBanner` already wires Rejoin/Forfeit; verify end-to-end on device once the create-flow blocker above is unstuck.
-  - **Treat >1 active rooms as recovery, not a normal state.** Client-side reconciliation is in place (Home auto-leaves stale rooms). **Still open — server side:** tighten the contract so the multi-room state can't happen in the first place. WS heartbeat (Ktor has ping-pong built in) plus a sweep that hard-evicts after N missed pings instead of just marking `disconnectedAt`. Client reconciliation stays as belt-and-suspenders. The post-eviction "sit out vs remove" product call is in §A.
+  - **Treat >1 active rooms as recovery, not a normal state.** Client-side reconciliation is in place (Home auto-leaves stale rooms). **Still open — server side:** tighten the contract so the multi-room state can't happen in the first place. WS heartbeat (Ktor has ping-pong built in) plus a sweep that hard-evicts after N missed pings instead of just marking `disconnectedAt`. Client reconciliation stays as belt-and-suspenders. The post-eviction "sit out vs remove" product call is in [`developer-todo.md`](./developer-todo.md).
   - The reconnecting-while-mid-hand path inside `ReconnectingRoomSocket` already exists; that's not the gap. The gap is the *user surface* for "you have an ongoing game."
 - **Forfeit-then-spectator behavior after timeout.** Today the sweep evicts and the seat opens. Alternative: after timeout, auto-fold the user's hand for the rest of the session, leave them subscribed read-only, let them reconnect into spectate. Phase 4.2 question — noted here so we don't re-derive it.
 
 ---
 
-## D. Engineering / structural
+## C. Engineering / structural
 
 Quality issues the user has flagged across the codebase. None are blockers, but they compound. Track them here; pull each in when the surrounding area is open.
 
@@ -230,7 +198,7 @@ Capture as a deliberate refactor pass. Do not entangle it with feature work.
 
 ---
 
-## E. Already on the books elsewhere
+## D. Already on the books elsewhere
 
 For completeness; don't re-derive these here when the link below tracks them.
 
