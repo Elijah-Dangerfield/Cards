@@ -52,3 +52,34 @@
 **Approach:** Picked Option 3 from the todo's fix sketch ("don't commit off-screen until confirm") with the "(or sprung back)" variant. Added a `silentSwipeFold: Boolean` parameter to `PlayerArea` threaded down from `PlayPokerScreen` via `ActiveTable`, wired to `state.swipeFoldGestureAck`. When the gesture commits past threshold: if acked → existing flight animation + `onSwipeFold()` (silent fold); if not acked → spring cards back to rest + `onSwipeFold()` (opens the dialog). The dialog is now the visual moment for first-time users; cancel leaves cards already at rest, confirm hands off to the engine's folded-state alpha treatment via the normal Fold intent.
 **Reviewer notes:** Gesture visuals aren't unit-testable in commonTest — verification was build + existing `:features:room:impl:test` suite (`PlayPokerViewModelTest.appCacheEmission_mirrorsSwipeFoldGestureAck` and friends still pass). The acked path is unchanged so device behavior for users who've already dismissed the dialog stays identical to today. First-time-user behavior on device is the new state to eyeball.
 
+## refactor(cards): route EquipmentRepositoryImpl.sync through authedCall
+
+**Problem:** Follow-up to the helper that landed in `d3538bd`. `EquipmentRepositoryImpl.sync()` still hand-rolled its `Catching { … networkClient.authenticatedClient.post(...) … }.onFailure { syncLogger.w(it) { "Equipment sync failed; pending rows stay Pending." } }` — duplicating both the catching and the failure-classification work `authedCall` now centralizes.
+**Approach:** Same mechanical migration `ChipsRepositoryImpl` got in `aca5403`. Swapped to `networkClient.authedCall("equipment.sync") { client → … }`. Dropped the now-redundant repo-local failure warn — the helper logs the failure with classification (`timeout` / `http <status>` / exception class) keyed by `"equipment.sync"` so aggregation matches `inventory.sync` / `wallet.sync`. `Catching` import stays — `toDomain()` still uses it to decay unknown enum names.
+**Reviewer notes:** Existing `EquipmentRepositoryImplTest` (toggle behavior, NoChange suppression, `applyServerSnapshot` in isolation, unknown-enum decay) passes unchanged — that suite stubs the network entirely (`StubNetworkClient` returns 501), so its tests don't touch the sync HTTP path. New full-sync coverage lands in the dedicated `EquipmentRepositoryImplSyncTest` in the third commit of this cycle. Description string `"equipment.sync"` matches the naming convention.
+**Deferred:** Remaining repos to migrate (`RoomRepositoryImpl`, `IdentityRepositoryImpl`'s networked paths) — held back per the todo's "migrate one at a time" guidance. The `RoomRepositoryImpl` migration is also non-trivial (per-method sealed-outcome mapping doesn't map cleanly onto `Catching` alone) — flagged in the updated todo bullet so the next attempt sees that note before they start.
+
+## refactor(cards): route UserMessageRepositoryImpl.sync through authedCall
+
+**Problem:** Same mechanical follow-up — `UserMessageRepositoryImpl.sync()` was the last unmigrated `Catching { … }.onFailure { syncLogger.w … }` pattern in `:libraries:cards:impl`.
+**Approach:** Migrated to `networkClient.authedCall("messages.sync") { client → … }`. Dropped the local failure warn (`"User-message sync failed; cache + ack queue untouched."`) since the helper covers it with the same classification + description-keyed prefix. The `Catching` import was no longer used by this file once the wrapper went away — removed it.
+**Reviewer notes:** Existing `UserMessageRepositoryImplSyncTest` is comprehensive (6 tests: pending acks in POST body, empty acks still POSTs, kind + expiry round-trip through response, unknown kind fallback, 5xx returns `Result.failure` leaving cache + ack queue untouched, exact endpoint + method) and passes unchanged — the public `sync()` contract (`Result<Unit>`, single-flight via `syncMutex`, 5xx leaves cache + acks intact) is unchanged. The 5xx-failure test specifically pinned the failure return shape that the migration preserves.
+**Deferred:** None for this repo. Same broader follow-up applies (Room / Identity migrations) — covered in the equipment in-flight block above.
+
+## test(cards): add HTTP-mocked sync test for EquipmentRepositoryImpl
+
+**Problem:** `EquipmentRepositoryImplTest` stubs the network entirely (`StubNetworkClient` returns 501 for anything that touches HTTP), so the actual `sync()` flow — POST body shape, 200 response handling, the three-step `applyServerSnapshot` reconciliation (server-confirm flips Pending → Synced, Pending unequip absent from server gets marked Synced and purged, local Synced equip absent from server flips to Synced-unequipped and gets purged), failure semantics — had **no** coverage. The migration to `authedCall` two commits earlier exposed how thin that coverage was: there was no test that would have caught a regression in the request shape or the reconciliation branches.
+**Approach:** New `EquipmentRepositoryImplSyncTest` mirrors `ChipsRepositoryImplSyncTest` exactly (Ktor `MockEngine` + private `FakeEquipmentDao` + JSON `ContentNegotiation`). Eight tests pinning the sync contract:
+- empty Pending still POSTs (server snapshot lands as the cross-device equip catch-up)
+- Pending equip the server confirms → Synced with the server's `updatedAtEpochMs` winning
+- Pending unequip the server agrees with → marked Synced → purged by `purgeSyncedUnequips`
+- cross-device unequip: local Synced equip absent from server → flipped to Synced-unequipped → purged
+- server introduces a new product → inserted as Synced equipped
+- 5xx → `Result.failure`, local Pending rows untouched
+- endpoint + method are stable (`POST /v1/equipment/sync`), POST body carries each Pending op with its `equip` flag
+- mixed reconciliation across all three branches (A=Pending equip confirmed, B=Synced equip dropped, C=Pending unequip dropped) → only A survives
+
+The Fake DAO is a near-duplicate of the one in `EquipmentRepositoryImplTest` — both files keep their own private fakes (same pattern as the chips/inventory pair).
+**Reviewer notes:** Tests pass clean (`./gradlew :libraries:cards:impl:test`). One existing warning shows up in the build output but it predates this change (`InventoryRepositoryImplSyncTest.kt:403` — `rows` parameter naming) — flagging here only so it doesn't read as caused by this commit. The new test file uses the same JSON config (`ignoreUnknownKeys = true`, `explicitNulls = false`, `coerceInputValues = true`) that the others use, so wire-shape forward-compat behaves identically.
+**Deferred:** None.
+
