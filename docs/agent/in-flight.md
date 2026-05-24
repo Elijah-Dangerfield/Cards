@@ -18,3 +18,10 @@
 **Approach:** `BasicTextField` in `:libraries:ui` was missing a `textAlign` knob — the todo noted this as a small DS gap. Added an optional `textAlign: TextAlign? = null` parameter that overrides the resolved text style's alignment when set. Callsite in `RaiseSheet` now passes `TextAlign.Center` plus `fillMaxWidth()` so the inner text field fills the pill and its content is centered.
 **Reviewer notes:** Added the parameter as nullable so existing callsites get the typography's default alignment unchanged. The `.copy(textAlign = ...)` happens once per recomposition at the text-style layer; no measurable perf cost.
 **Deferred:** None.
+
+## fix(room): soften fold-confirm dialog copy
+
+**Problem:** The swipe-fold confirm dialog still read as educational ("Swipe up to fold" / "Toss your hand by swiping up on your cards. Fold this one?") even though the "don't show again" checkbox already defaults to `true` (line 35 of `SwipeFoldConfirmDialog.kt`). On the rare repeat the user sees it, the copy reteaches gesture mechanics they already know.
+**Approach:** Heading: "Swipe up to fold" → "Fold this hand?". Body: replaced the gesture-teach line with a one-liner consequence: "You'll forfeit the round and any chips already in the pot." Default-checkbox-on was already in place from a prior change, so this slice is purely the copy half of the bullet.
+**Reviewer notes:** No behavior change — just strings. The `swipeFoldGestureAck` system that suppresses the dialog after first acknowledged use is untouched.
+**Deferred:** None.
