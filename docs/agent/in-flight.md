@@ -25,3 +25,10 @@
 **Approach:** Heading: "Swipe up to fold" → "Fold this hand?". Body: replaced the gesture-teach line with a one-liner consequence: "You'll forfeit the round and any chips already in the pot." Default-checkbox-on was already in place from a prior change, so this slice is purely the copy half of the bullet.
 **Reviewer notes:** No behavior change — just strings. The `swipeFoldGestureAck` system that suppresses the dialog after first acknowledged use is untouched.
 **Deferred:** None.
+
+## chore(ui): use surfaceTertiary for DropdownMenu chrome
+
+**Problem:** The DS `DropdownMenu` wrapper passed `surfacePrimary` as the container color — the overflow surface read closer to the page background than the rest of the app's elevated chrome (`Snackbar`, `LastActionPill`, `SelectableCard` all use `surfaceTertiary`).
+**Approach:** One-line swap in `libraries/ui/.../DropDown.kt:36` from `surfacePrimary` → `surfaceTertiary`. The only `DropdownMenu` callsites in the app (profile bot-speed / feedback overflows + `DropdownSettingRow`) all route through this wrapper, so the change is app-wide without touching feature code.
+**Reviewer notes:** None.
+**Deferred:** None.

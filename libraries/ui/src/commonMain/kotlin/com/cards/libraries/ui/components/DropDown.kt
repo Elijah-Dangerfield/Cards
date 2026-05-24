@@ -33,7 +33,7 @@ fun DropdownMenu(
     MaterialDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
-        containerColor = AppTheme.colors.surfacePrimary.color,
+        containerColor = AppTheme.colors.surfaceTertiary.color,
         modifier = modifier,
         offset = offset,
         properties = properties,
