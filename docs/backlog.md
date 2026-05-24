@@ -300,3 +300,17 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 - Pairs with the still-open "celebratory unlock dialog at the moment of earning" item already tracked in `docs/todo.md` under "Catalog gating — unlock-only vs purchasable" — same source-name resolver feeds both.
 
 **Status:** Backlog. Earned-badge rendering already shipped; this is the deeper prestige attribution.
+
+---
+
+## Offline-aware retry — defer requests until connectivity returns
+
+**Idea (raised 2026-05-24):** The new `RetryPolicy` system (in [`:libraries:networking`](../libraries/networking/src/commonMain/kotlin/com/cards/libraries/networking/retry/RetryPolicy.kt)) retries on `HttpRequestTimeoutException` by default — but a timeout doesn't actually tell you whether the user is offline or the server is slow. On a truly offline device the retry loop just burns its budget (4–11 attempts depending on policy) hitting the same DNS / TCP failure, then surfaces the error. The user-facing UX is the same as a single failure with extra latency.
+
+**Sketch:**
+- New `Backoff.OnceOnline` (or an orthogonal `awaitOnline = true` flag on `RetryPolicy`) that suspends the next attempt on a `ConnectivityObserver.online.first { it }` instead of (or in addition to) the time-based backoff.
+- Or, more honestly: this isn't really a retry-loop problem — it's a deferred-execution problem. The real shape is a small persistent queue ("when online, fire request X") with idempotency guarantees, so a write that the user kicked off offline still lands when they reconnect, even if the app got killed in between. That's significantly more architecture (WorkManager on Android, BGProcessingTask on iOS, schema for the queue, idempotency keys on the server) and deserves its own design pass.
+
+**Tradeoff:** The cheap version (await-online before each retry) is a marginal UX improvement — it just makes the same retry happen at a better moment. The expensive version (deferred queue) is what actually matters for the "user did this offline, expects it to land" case. Pick based on what we're actually trying to solve.
+
+**Status:** Backlog. Today's retry policy is honest about its limitation in the [`RetryPolicy` header](../libraries/networking/src/commonMain/kotlin/com/cards/libraries/networking/retry/RetryPolicy.kt). Pull when an offline-write scenario actually surfaces.
