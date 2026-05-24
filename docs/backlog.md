@@ -314,3 +314,34 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 **Tradeoff:** The cheap version (await-online before each retry) is a marginal UX improvement — it just makes the same retry happen at a better moment. The expensive version (deferred queue) is what actually matters for the "user did this offline, expects it to land" case. Pick based on what we're actually trying to solve.
 
 **Status:** Backlog. Today's retry policy is honest about its limitation in the [`RetryPolicy` header](../libraries/networking/src/commonMain/kotlin/com/cards/libraries/networking/retry/RetryPolicy.kt). Pull when an offline-write scenario actually surfaces.
+
+---
+
+## Country / segment-scoped `/v1/app-config`
+
+**Idea (raised 2026-05-24):** Today the server returns one global config blob — [`AppConfigSource.read()`](../apps/server/src/main/kotlin/com/cards/server/data/AppConfigSource.kt) takes no parameters; every client gets the same JSON. The `ClientContext` (platform, app version, CF country header) is parsed on the request but not threaded into the config source.
+
+**Sketch:**
+- Change the source signature: `suspend fun read(): JsonObject` → `suspend fun read(ctx: ClientContext): JsonObject`.
+- `AppConfigRoutes` passes `call.clientContext()` through.
+- Source impls decide what to scope on — country code for price floors / store availability, user id for A/B cohorts, app version for feature flags tied to client capabilities.
+- Client-side merges overrides on top of whatever the server sends; no client changes needed.
+
+**Tradeoff:** Each scope dimension adds complexity at the source. The current global blob is honest about its limitation — no per-region pricing, no A/B testing. Add it when one of those needs lands.
+
+**Status:** Backlog. Surfaced during a `docs/todo.md` cleanup pass — the user asked whether we could give different users different configs, today we can't.
+
+---
+
+## Preview button on shop felt tiles
+
+**Idea (raised 2026-05-24):** Today the shop renders each felt as a tile with its name + price + maybe a thumbnail. The user can buy a felt without seeing how it actually looks behind the cards / chips / player avatars in-context. Add a Preview button on each felt tile that previews the felt rendered at the play-table surface so the user can see what they're about to buy.
+
+**Sketch:**
+- Per-tile "Preview" affordance — bottom sheet or full-screen take-over.
+- Render a minimal play-table preview (felt color + a few chip stacks + a placeholder hand) with the chosen felt applied via the existing cosmetic system.
+- "Apply" button on the preview if the user already owns the felt; "Buy + apply" if they don't.
+
+**Tradeoff:** Bespoke preview surface per-cosmetic-type drifts toward a maintenance pit — but the felt is the highest-stakes purchase visually (it dominates the play screen), so it's worth a one-off for now. Generalize only if other cosmetic categories (card backs, avatars) feel similarly purchase-blind.
+
+**Status:** Backlog. Surfaced during the 2026-05-24 todo cleanup — user suggested it during the charcoal-default correction.
