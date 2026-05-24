@@ -129,6 +129,7 @@ internal object NoopRouter : Router {
     override fun navigate(route: Route, options: NavigationOptions) = Unit
     override fun goBack() = Unit
     override fun popBackTo(route: Route, inclusive: Boolean) = Unit
+    override fun switchTab(route: Route) = Unit
     override fun openWebLink(url: String) = Unit
 }
 

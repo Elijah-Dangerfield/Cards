@@ -8,6 +8,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.coroutineScope
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
@@ -113,6 +114,22 @@ class DelegatingRouter(
     override fun popBackTo(route: Route, inclusive: Boolean) {
         enqueueNavigation("popBackTo ${route.nameForLogs()}") {
             popBackStack(route, inclusive)
+        }
+    }
+
+    override fun switchTab(route: Route) {
+        enqueueNavigation(
+            description = "switchTab to ${route.nameForLogs()}",
+            route = route,
+        ) {
+            val startDestinationId = graph.findStartDestination().id
+            navigate(route) {
+                popUpTo(startDestinationId) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
 

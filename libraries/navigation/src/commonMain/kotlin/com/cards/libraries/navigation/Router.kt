@@ -18,6 +18,16 @@ interface Router {
 
     fun popBackTo(route: Route, inclusive: Boolean)
 
+    /**
+     * Switch to a top-level destination, saving the current tab's stack and restoring any
+     * previously-saved stack for the target. Use this for any cross-tab navigation —
+     * bottom-bar taps OR a feature that needs to deep-link into a different tab (e.g.
+     * Edit Profile → Shop). Plain [navigate] from within one tab into a destination that
+     * belongs to another tab leaves the back stack mis-rooted and breaks subsequent
+     * tab swaps.
+     */
+    fun switchTab(route: Route)
+
     fun openWebLink(url: String)
 }
 
