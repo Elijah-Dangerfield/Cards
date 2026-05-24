@@ -11,3 +11,10 @@
 **Approach:** Added `confirmPassword: String` + `passwordMismatch: Boolean` derived field to `SignUpState`, plus a `ConfirmPasswordChanged` action. `canSubmit` now requires the confirmation to match, and `Submit` short-circuits with a "Passwords don't match." error if state ever desyncs. `SignUpScreen` renders a second `PasswordField` underneath the first; the helper switches to a danger-colored "Passwords don't match" copy when the confirm value diverges. Existing `PasswordField` helper picked up `label`, `isError`, and an `onNext` IME handler so we don't need to fork it. Added two coverage tests (mismatch blocks submit, matched fields pass canSubmit) and a `_PasswordMismatch` preview.
 **Reviewer notes:** None — straightforward state-machine extension. The existing 10-test suite still passes.
 **Deferred:** None.
+
+## fix(room): center raise-amount text in RaiseSheet stepper
+
+**Problem:** The raise-amount text in `RaiseSheet`'s stepper sat left-aligned in its pill, not centered like the rest of the stepper geometry implied.
+**Approach:** `BasicTextField` in `:libraries:ui` was missing a `textAlign` knob — the todo noted this as a small DS gap. Added an optional `textAlign: TextAlign? = null` parameter that overrides the resolved text style's alignment when set. Callsite in `RaiseSheet` now passes `TextAlign.Center` plus `fillMaxWidth()` so the inner text field fills the pill and its content is centered.
+**Reviewer notes:** Added the parameter as nullable so existing callsites get the typography's default alignment unchanged. The `.copy(textAlign = ...)` happens once per recomposition at the text-style layer; no measurable perf cost.
+**Deferred:** None.
