@@ -55,16 +55,21 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.ui.components.AppBottomBar
 import com.dangerfield.cards.libraries.ui.components.BottomBarItem
+import com.dangerfield.cards.libraries.ui.components.BottomBarSizes
+import com.dangerfield.cards.libraries.ui.components.LocalAppBottomBarHeight
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogHost
 import com.dangerfield.cards.libraries.ui.components.dialog.LocalDialogHostState
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogHostState
 import com.dangerfield.cards.libraries.ui.debug.RecompositionCounter
-import com.dangerfield.cards.libraries.ui.snackbar.PresenterSnackbarHost
+import com.dangerfield.cards.libraries.ui.snackbar.LocalSnackbarHostState
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarHost
+import com.dangerfield.cards.libraries.ui.snackbar.rememberSnackbarHostState
 import com.dangerfield.cards.libraries.ui.snackbar.showDebugSnackBar
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
@@ -82,6 +87,7 @@ fun App(appComponent: AppComponent) {
     val appRecomposeLogger = remember { KLog.withTag("AppRecompose") }
     val router = remember { appComponent.delegatingRouter }
     val dialogHostState = rememberDialogHostState()
+    val snackbarHostState = rememberSnackbarHostState()
 
     val shakeHandler = remember { appComponent.shakeHandler }
     val deepLinkBridge = remember { appComponent.deepLinkBridge }
@@ -140,7 +146,8 @@ fun App(appComponent: AppComponent) {
         LocalAppState provides appComponent.appState,
         LocalClock provides appComponent.provideClock(),
         LocalBuildInfo provides BuildInfo,
-        LocalDialogHostState provides dialogHostState
+        LocalDialogHostState provides dialogHostState,
+        LocalSnackbarHostState provides snackbarHostState,
     ) {
         AppThemeProvider {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -185,6 +192,21 @@ fun App(appComponent: AppComponent) {
                     modifier = Modifier.matchParentSize(),
                     hostState = dialogHostState
                 )
+
+                // Read the back-stack entry *inside* a nested composable so
+                // App() itself doesn't recompose on every navigation event.
+                // Reading nav state at the App root would re-invoke
+                // AppGuardGate's content lambda and rebuild AppNavigation /
+                // NavHost — which re-pushes the start destination onto the
+                // back stack, churning HomeViewModel and flooding the
+                // active-rooms endpoint. Same isolation pattern as
+                // [SplashGate].
+                AppBottomBarHeightProvider(navController) {
+                    SnackbarHost(
+                        modifier = Modifier.matchParentSize(),
+                        hostState = snackbarHostState,
+                    )
+                }
             }
         }
     }
@@ -209,19 +231,25 @@ private fun AppNavigation(
 
     Screen(
         topBar = topBar,
-        snackbarHost = {
-            PresenterSnackbarHost()
-        },
         bottomBar = {
             AnimatedVisibility(
                 visible = !shouldHideBottomBar,
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it },
             ) {
+                // The Shop tab counts as selected for both the grid
+                // (`ShopRoute`) and its sheet sub-route
+                // (`ShopProductSheetRoute`) — both belong to the Shop tab
+                // visually. Treat tap as already-selected if either route
+                // is current so we don't re-fire navigation while a sheet
+                // is open.
+                val isShopSelected = currentDestination?.hasRoute<ShopRoute>() == true ||
+                    currentDestination?.hasRoute<ShopProductSheetRoute>() == true
+
                 AppBottomBar(
                     items = listOf(
                         BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
-                        BottomBarItem.Shop(isSelected = currentDestination?.hasRoute<ShopRoute>() == true),
+                        BottomBarItem.Shop(isSelected = isShopSelected),
                         BottomBarItem.Profile(
                             isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
                             badgeAmount = unreadNotifications,
@@ -230,7 +258,7 @@ private fun AppNavigation(
                     onItemClick = { item ->
                         val (isAlreadySelected, route) = when (item) {
                             is BottomBarItem.Home -> (currentDestination?.hasRoute<HomeRoute>() == true) to HomeRoute()
-                            is BottomBarItem.Shop -> (currentDestination?.hasRoute<ShopRoute>() == true) to ShopRoute()
+                            is BottomBarItem.Shop -> isShopSelected to ShopRoute()
                             is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
                         }
 
@@ -313,6 +341,7 @@ private fun AnimatedContentTransitionScope<NavBackStackEntry>.isSwitchingTabs():
 private fun NavBackStackEntry.tabString(): String? = when {
     destination.hasRoute<HomeRoute>() -> "Home"
     destination.hasRoute<ShopRoute>() -> "Shop"
+    destination.hasRoute<ShopProductSheetRoute>() -> "Shop"
     destination.hasRoute<ProfileRoute>() -> "Profile"
     else -> null
 }
@@ -341,6 +370,29 @@ private fun AppGuardGate(
         onClearOverrides = onClearOverrides,
     ) {
         content(guardState)
+    }
+}
+
+/**
+ * Reads the current back-stack entry and provides [LocalAppBottomBarHeight]
+ * for the subtree (SnackbarHost + any future overlays). Lives in its own
+ * composable so the back-stack state read can't trigger an App() recompose
+ * — App-level recomposition rebuilds AppNavigation / NavHost which
+ * re-pushes the start destination and churns the route's ViewModel
+ * (HomeViewModel was being reconstructed on every nav event, firing
+ * `GET /v1/me/active-rooms` in a tight loop). Same isolation pattern as
+ * [SplashGate].
+ */
+@Composable
+private fun AppBottomBarHeightProvider(
+    navController: NavHostController,
+    content: @Composable () -> Unit,
+) {
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val shouldHide = currentBackStackEntry?.tabString() == null
+    val height = if (shouldHide) 0.dp else BottomBarSizes.BottomBarVerticalHeight
+    CompositionLocalProvider(LocalAppBottomBarHeight provides height) {
+        content()
     }
 }
 
