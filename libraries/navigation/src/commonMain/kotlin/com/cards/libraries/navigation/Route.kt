@@ -100,7 +100,20 @@ open class Route(
     companion object
 }
 
-interface TabRoute
+/**
+ * A bottom-bar destination. Strictly a subtype of [Route] so the nav graph still accepts
+ * it, but narrow enough to type-gate cross-tab navigation through [Router.switchTab] —
+ * plain [Router.navigate] of a `TabRoute` is a compile-time error.
+ *
+ * All tabs share the cross-fade animation since switching tabs isn't a back-stack push
+ * conceptually — there's no "from-the-right slide" semantic for a tab swap.
+ */
+abstract class TabRoute : Route(
+    enter = AnimationType.FadeIn,
+    exit = AnimationType.FadeOut,
+    popExit = AnimationType.FadeOut,
+)
+
 inline fun <reified T> NavBackStackEntry.toRouteOrNull(): T? = Catching<T> { toRoute(T::class) }
     .logOnFailure()
     .getOrNull()

@@ -194,7 +194,7 @@ Buying a cosmetic:
 > *Purely cosmetic. Visible to other players at the table.*
 > `[Buy]` `[Cancel]`
 
-Trophy case (unlock-only items):
+Earned item shown in My Items (unlock-only):
 
 > **Royal Flush Champion — Season 1**
 > *Awarded to the player who won the Royal Flush Tournament during Season 1. Not for sale.*

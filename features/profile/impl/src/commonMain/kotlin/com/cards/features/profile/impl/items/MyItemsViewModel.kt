@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.profile.impl.items
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -135,6 +136,14 @@ data class OwnedItem(
      * silently show an Equip button that doesn't do anything.
      */
     val isEquippable: Boolean,
+    /**
+     * Server-driven provenance. Drives the "Earned" affordance on the row
+     * for cosmetics granted by an achievement / league / RFT path rather
+     * than a chip purchase. Defaults to [AcquisitionSource.Purchased] so a
+     * row built from a pre-V13 inventory snapshot doesn't accidentally
+     * claim earned-prestige.
+     */
+    val acquisitionSource: AcquisitionSource = AcquisitionSource.Purchased,
 )
 
 data class MyItemsState(
@@ -156,6 +165,7 @@ data class MyItemsState(
                     iconEmoji = product?.iconEmoji ?: "🎁",
                     isEquipped = item.productId in equippedIds,
                     isEquippable = product?.isEquippable ?: false,
+                    acquisitionSource = item.acquisitionSource,
                 )
             }
         }

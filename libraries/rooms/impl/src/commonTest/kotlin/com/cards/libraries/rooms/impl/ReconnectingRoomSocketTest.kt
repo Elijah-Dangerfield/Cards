@@ -182,9 +182,11 @@ class ReconnectingRoomSocketTest {
         )
     }
 
+    @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
     private class FakeNetworkClient(private val httpClient: HttpClient) : NetworkClient {
         override val client: HttpClient get() = httpClient
         override val authenticatedClient: HttpClient get() = httpClient
+        override suspend fun awaitAuthReady() = Unit
     }
 
     private class FakeNetworkConfig(

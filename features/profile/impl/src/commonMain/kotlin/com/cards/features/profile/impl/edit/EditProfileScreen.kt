@@ -378,36 +378,36 @@ private fun AvatarTile(
 ) {
     val borderColor = if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
     val borderWidth = if (isSelected) 3.dp else 1.dp
-    // BoxWithConstraints so the emoji typography scales with the actual
-    // measured tile width (depends on screen size + column count). Keeps
-    // the picker's emoji-to-tile ratio aligned with the rest of the
-    // avatar surfaces.
-    BoxWithConstraints(
+    Box(
+        modifier = modifier.aspectRatio(1f),
         contentAlignment = Alignment.Center,
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(CircleShape)
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .border(borderWidth, borderColor, CircleShape)
-            .clickable(enabled = enabled, onClick = onClick),
     ) {
-        // Locked tiles dim the source emoji + stamp a small lock badge
-        // in the bottom-right so the user can still see what's inside
-        // the pack (the actual sell) while it's clearly inert. The
-        // 0.35 alpha is the same treatment we use on disabled DS
-        // buttons — keeps the locked visual consistent with the rest
-        // of the app.
-        Text(
-            text = emoji,
-            typography = avatarEmojiTypographyFor(maxWidth),
-            modifier = if (isLocked) Modifier.alpha(0.35f) else Modifier,
-        )
+        // BoxWithConstraints so the emoji typography scales with the actual
+        // measured tile width (depends on screen size + column count). Keeps
+        // the picker's emoji-to-tile ratio aligned with the rest of the
+        // avatar surfaces. Clipped to a circle so the emoji + dim alpha
+        // overlay stay inside the tile shape — the lock badge sits on
+        // the unclipped outer box below so its full chip is visible.
+        BoxWithConstraints(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(AppTheme.colors.surfaceSecondary.color)
+                .border(borderWidth, borderColor, CircleShape)
+                .clickable(enabled = enabled, onClick = onClick),
+        ) {
+            Text(
+                text = emoji,
+                typography = avatarEmojiTypographyFor(maxWidth),
+                modifier = if (isLocked) Modifier.alpha(0.35f) else Modifier,
+            )
+        }
         if (isLocked) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(4.dp)
                     .size(18.dp)
                     .clip(CircleShape)
                     .background(AppTheme.colors.surfacePrimary.color),

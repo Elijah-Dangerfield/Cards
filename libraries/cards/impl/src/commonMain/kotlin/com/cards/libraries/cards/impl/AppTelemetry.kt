@@ -8,9 +8,9 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.core.logging.LogLevel
 import com.dangerfield.cards.libraries.core.logging.Logger
 import com.dangerfield.cards.libraries.cards.Telemetry
+import com.dangerfield.cards.libraries.cards.impl.logging.DevConsoleWriter
 import com.dangerfield.cards.libraries.cards.impl.logging.KermitLogTree
 import com.dangerfield.cards.libraries.cards.impl.logging.SentryLogTree
-import co.touchlab.kermit.CommonWriter
 import co.touchlab.kermit.Logger as KermitLogger
 import co.touchlab.kermit.Severity as KermitSeverity
 import io.sentry.kotlin.multiplatform.Sentry
@@ -46,18 +46,16 @@ private class ConfiguredTelemetry(
 
         KLog.plant(KermitLogTree())
 
-        // Kermit's default iOS sink is OSLogWriter, which goes through
-        // Apple's os_log — that pipeline silently drops DEBUG/VERBOSE
-        // entries before any IDE (Android Studio Run window, Xcode console,
-        // Console.app) can see them. CommonWriter routes the same entries
-        // through `println` → stdout, which every IDE captures. We bump
-        // the global min-severity to Verbose so nothing is pre-filtered
-        // on the Kermit side; LogTree-level filtering still applies.
-        //
-        // Debug builds only — release shouldn't be spamming stdout.
+        // Debug-only: drop Kermit's global min-severity to Verbose so nothing
+        // is pre-filtered before reaching any writer. The platform writers
+        // (OSLogWriter on iOS, LogcatWriter on Android) handle Info+ natively.
+        // [DevConsoleWriter] adds a pretty stdout-only path for Debug-and-
+        // below entries, because Android Studio's KMM plugin filters those
+        // out of its Run window when running iOS apps. See the writer's
+        // header for the full reasoning.
         if (BuildInfo.isDebug) {
             KermitLogger.setMinSeverity(KermitSeverity.Verbose)
-            KermitLogger.addLogWriter(CommonWriter())
+            KermitLogger.addLogWriter(DevConsoleWriter())
         }
 
         val config = configProvider()

@@ -373,8 +373,6 @@ class SupabaseProfileRepositoryImplTest : CoroutineTest() {
 
         override suspend fun current(): AuthState = state.first()
         override fun observe(): Flow<AuthState> = state
-        override suspend fun accessToken(): String? = "token"
-        override suspend fun refreshAccessToken(): String? = "token"
         override suspend fun retry(): AuthState = state.first()
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
             error("unused")

@@ -181,7 +181,7 @@ class ProfileFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onNavigateToShop = { productId ->
-                    router.navigate(ShopRoute(pendingProductId = productId))
+                    router.switchTab(ShopRoute(pendingProductId = productId))
                 },
             )
         }

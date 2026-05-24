@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.authedCall
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -21,6 +22,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Returns raw [HttpResponse] for status-aware mapping at the repo
  * layer — outcome enums (Full, NotFound, etc.) live one layer up so
  * this stays decode-only.
+ *
+ * All methods route through [NetworkClient.authedCall] for the pre-flight
+ * [NetworkClient.awaitAuthReady] + structured failure logging. Retry is
+ * left at [RetryPolicy.None] across the board — joining a full room or
+ * leaving a stale room is a user action whose result the repo wants to
+ * map deterministically, not retry around.
  */
 interface RoomApi {
     suspend fun create(request: CreateRoomRequestDto): HttpResponse
@@ -38,25 +45,35 @@ class HttpRoomApi(
 ) : RoomApi {
 
     override suspend fun create(request: CreateRoomRequestDto): HttpResponse =
-        networkClient.authenticatedClient.post("/v1/rooms") {
-            contentType(ContentType.Application.Json)
-            setBody(request)
-        }
+        networkClient.authedCall("rooms.create") { client ->
+            client.post("/v1/rooms") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+        }.getOrThrow()
 
     override suspend fun join(code: String): HttpResponse =
-        networkClient.authenticatedClient.post("/v1/rooms/$code/join") {
-            contentType(ContentType.Application.Json)
-            setBody("{}")
-        }
+        networkClient.authedCall("rooms.join") { client ->
+            client.post("/v1/rooms/$code/join") {
+                contentType(ContentType.Application.Json)
+                setBody("{}")
+            }
+        }.getOrThrow()
 
     override suspend fun leave(code: String): HttpResponse =
-        networkClient.authenticatedClient.delete("/v1/rooms/$code/me")
+        networkClient.authedCall("rooms.leave") { client ->
+            client.delete("/v1/rooms/$code/me")
+        }.getOrThrow()
 
     override suspend fun fetch(code: String): HttpResponse =
-        networkClient.authenticatedClient.get("/v1/rooms/$code")
+        networkClient.authedCall("rooms.fetch") { client ->
+            client.get("/v1/rooms/$code")
+        }.getOrThrow()
 
     override suspend fun listActive(): HttpResponse =
-        networkClient.authenticatedClient.get("/v1/me/active-rooms")
+        networkClient.authedCall("rooms.activeList") { client ->
+            client.get("/v1/me/active-rooms")
+        }.getOrThrow()
 }
 
 internal suspend inline fun <reified T> HttpResponse.bodyOrNull(): T? = try {

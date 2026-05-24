@@ -8,6 +8,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.coroutineScope
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
@@ -21,6 +22,7 @@ import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.TabRoute
 import com.dangerfield.cards.libraries.navigation.WebLinkLauncher
 import com.dangerfield.cards.libraries.navigation.NavigableWhileBlocked
 import kotlinx.coroutines.CompletableDeferred
@@ -113,6 +115,34 @@ class DelegatingRouter(
     override fun popBackTo(route: Route, inclusive: Boolean) {
         enqueueNavigation("popBackTo ${route.nameForLogs()}") {
             popBackStack(route, inclusive)
+        }
+    }
+
+    override fun switchTab(route: TabRoute) {
+        enqueueNavigation(
+            description = "switchTab to ${route.nameForLogs()}",
+            route = route,
+        ) {
+            val startDestinationId = graph.findStartDestination().id
+            navigate(route) {
+                popUpTo(startDestinationId) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
+    override fun enterTab(route: TabRoute) {
+        enqueueNavigation(
+            description = "enterTab to ${route.nameForLogs()}",
+            route = route,
+        ) {
+            navigate(route) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
+            }
         }
     }
 

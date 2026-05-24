@@ -31,15 +31,17 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Supabase-backed [AuthRepository]. Owns the user lifecycle + access
- * token end-to-end.
+ * Supabase-backed [AuthRepository]. Owns the user lifecycle (sign-in /
+ * sign-up / link / delete) and the public [AuthState] stream.
  *
- * On construction, the resolve loop runs once: it waits for
- * `gateway.awaitInitialization()` (so supabase-kt has loaded any
- * persisted session), inspects [AuthGatewayStatus], and either settles
- * on an [AuthState] or advances the gateway's state (signing in anon
- * when unauthenticated) before re-polling. See [resolveLocked] for the
- * branch table.
+ * The "is there a session — sign in anon if not" policy lives on
+ * [AuthBootstrap]; this class waits on [AuthBootstrap.awaitResolved] to
+ * derive its initial [AuthState], and calls [AuthBootstrap.invalidate]
+ * after signOut / deleteAccount so the next consumer's resolve runs
+ * fresh. Splitting that policy out is what breaks the construction-time
+ * `NetworkClient → AuthRepository → ProfileApi → NetworkClient` cycle
+ * the codebase used to dodge with a lazy provider — see the
+ * [AuthBootstrap] header for the wiring.
  *
  * Mutex serializes session-mutating operations; [state] is the source
  * of truth flipped under the lock. No in-flight sentinel exposed — the
@@ -55,6 +57,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class SupabaseAuthRepositoryImpl(
     private val gateway: SupabaseAuthGateway,
+    private val authBootstrap: AuthBootstrap,
     private val profileApi: ProfileApi,
     private val appEventBus: AppEventBus,
     appScope: AppCoroutineScope,
@@ -65,9 +68,9 @@ class SupabaseAuthRepositoryImpl(
     private val state = MutableSharedFlow<AuthState>(replay = 1)
 
     init {
-        logger.d { "init: kicking off initial resolve" }
+        logger.d { "init: awaiting initial bootstrap resolve" }
         appScope.launch {
-            Catching { resolve() }
+            Catching { resolveAndEmit() }
                 .logOnFailure { "Initial auth resolve failed; will retry via AuthRepository.retry()" }
         }
     }
@@ -80,116 +83,36 @@ class SupabaseAuthRepositoryImpl(
 
     override fun observe(): Flow<AuthState> = state
 
-    override suspend fun accessToken(): String? {
-        return when (val s = current()) {
-            is AuthState.Authenticated -> {
-                val token = gateway.currentSession()?.accessToken
-                if (token == null) {
-                    // Should be impossible — we're Authenticated but no session?
-                    logger.w { "accessToken: Authenticated state but no session in gateway for ${s.userId}" }
-                }
-                token
-            }
-            is AuthState.Unauthenticated -> {
-                logger.w { "accessToken: requested while Unauthenticated; request will go unauthed" }
-                null
-            }
-        }
-    }
-
-    override suspend fun refreshAccessToken(): String? {
-        logger.d { "refreshAccessToken: forcing gateway session refresh" }
-        return Catching {
-            gateway.refreshSession()
-            val token = gateway.currentSession()?.accessToken
-            logger.d { "refreshAccessToken: ${if (token != null) "got fresh token" else "no session after refresh"}" }
-            token
-        }.logOnFailure { "Force refresh of access token failed" }.getOrNull()
-    }
-
     override suspend fun retry(): AuthState = mutex.withLock {
-        // No-op if already authenticated.
         val latest = lastEmittedOrNull()
         if (latest is AuthState.Authenticated) {
             logger.d { "retry: already Authenticated, no-op" }
             return@withLock latest
         }
-        logger.d { "retry: re-running resolve loop (latest=${latest?.let { it::class.simpleName } ?: "null"})" }
-        resolveLocked()
+        logger.d { "retry: invalidating bootstrap + re-resolving (latest=${latest?.let { it::class.simpleName } ?: "null"})" }
+        authBootstrap.invalidate()
+        resolveAndEmitLocked()
     }
 
-    private suspend fun resolve() = mutex.withLock { resolveLocked() }
+    private suspend fun resolveAndEmit(): AuthState = mutex.withLock { resolveAndEmitLocked() }
 
-    /**
-     * The resolve loop. Each iteration calls [resolveOnceLocked] and acts
-     * on the [ResolveStep]:
-     *  - [ResolveStep.Settled] → return the resolved state.
-     *  - [ResolveStep.Advanced] → we mutated the gateway's state (anon
-     *    sign-in); loop to pick up the new status.
-     *  - [ResolveStep.Transient] → the gateway is mid-init or mid-refresh;
-     *    loop to re-poll. No backoff (these settle in ms in practice).
-     *
-     * On an exception we fail fast — calling `signInAnonymously()` again
-     * after it threw would just throw the same way, so retrying without
-     * backoff is pure waste. The caller gets [AuthState.Unauthenticated]
-     * with the cause and can re-attempt explicitly via [retry].
-     *
-     * [MaxResolveAttempts] bounds the pathological case where the gateway
-     * keeps reporting a transient status. In practice we see ≤ 2 iters.
-     */
-    private suspend fun resolveLocked(): AuthState {
-        repeat(MaxResolveAttempts) { attempt ->
-            val step = Catching { resolveOnceLocked(attempt) }
-                .fold(onSuccess = { it }, onFailure = { ResolveStep.Failed(it) })
-            when (step) {
-                is ResolveStep.Settled -> return step.state
-                is ResolveStep.Advanced, ResolveStep.Transient -> Unit // loop
-                is ResolveStep.Failed -> {
-                    logger.w(step.cause) { "Auth resolve failed at attempt ${attempt + 1}" }
-                    return emitUnauthenticatedLocked(cause = step.cause)
+    private suspend fun resolveAndEmitLocked(): AuthState {
+        val outcome = authBootstrap.awaitResolved()
+        return when (outcome) {
+            is BootstrapOutcome.Authenticated -> {
+                val next = AuthState.Authenticated(
+                    userId = outcome.userId,
+                    isAnonymous = outcome.isAnonymous,
+                    email = outcome.email,
+                )
+                state.emit(next)
+                logger.i {
+                    "Emitted Authenticated(userId=${next.userId}, isAnonymous=${next.isAnonymous}, hasEmail=${next.email != null})"
                 }
+                next
             }
+            is BootstrapOutcome.Failed -> emitUnauthenticatedLocked(cause = outcome.cause)
         }
-        // Exhausted the loop with only Transient/Advanced steps and never
-        // landed on Authenticated. Treat as Unauthenticated with no cause —
-        // we never saw an error, the gateway just never settled.
-        return emitUnauthenticatedLocked(cause = null)
-    }
-
-    /**
-     * Single resolve pass. Returns a [ResolveStep] describing what
-     * happened; doesn't loop. Exceptions propagate to [resolveLocked]'s
-     * Catching wrapper.
-     */
-    private suspend fun resolveOnceLocked(attempt: Int): ResolveStep {
-        gateway.awaitInitialization()
-        val status = gateway.currentStatus()
-        logger.d { "Resolve attempt ${attempt + 1}/$MaxResolveAttempts; status=${status::class.simpleName}" }
-        return when (status) {
-            AuthGatewayStatus.Authenticated -> ResolveStep.Settled(emitAuthenticatedFromGatewayLocked())
-            AuthGatewayStatus.NotAuthenticated -> {
-                gateway.signInAnonymously()
-                ResolveStep.Advanced
-            }
-            AuthGatewayStatus.Initializing,
-            is AuthGatewayStatus.RefreshFailure -> ResolveStep.Transient
-        }
-    }
-
-    /**
-     * What a single resolve pass produced. The three "loop again" cases
-     * (Advanced vs Transient) are named instead of crammed into a nullable
-     * return so the loop's intent is readable.
-     */
-    private sealed interface ResolveStep {
-        /** Landed on a session — we're done. */
-        data class Settled(val state: AuthState.Authenticated) : ResolveStep
-        /** We mutated the gateway's state (signed in anon); loop to re-poll. */
-        data object Advanced : ResolveStep
-        /** The gateway is mid-init or mid-refresh; loop to re-poll. */
-        data object Transient : ResolveStep
-        /** An exception escaped the pass — caller should NOT retry. */
-        data class Failed(val cause: Throwable) : ResolveStep
     }
 
     /**
@@ -334,21 +257,35 @@ class SupabaseAuthRepositoryImpl(
         logger.i { "signOut: tearing down session" }
         Catching { gateway.signOut() }
             .logOnFailure { "Supabase signOut failed; clearing local state anyway" }
+        // Invalidate the bootstrap so a subsequent retry() runs a fresh
+        // resolve (which will anon-sign-in unless the user signs in /
+        // signs up first).
+        authBootstrap.invalidate()
         emitUnauthenticatedLocked(cause = null)
         appEventBus.dispatch(AppEvent.SignedOut)
     }
 
     override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
         logger.d { "deleteAccount: attempting" }
-        if (gateway.currentSession() == null) {
+        val session = gateway.currentSession()
+        if (session == null) {
             logger.w { "deleteAccount: NotSignedIn (no supabase session)" }
             return@withLock DeleteAccountOutcome.NotSignedIn
+        }
+        if (session.isAnonymous) {
+            // Belt-and-braces with the server: the JWT carries is_anonymous
+            // and the server rejects too. The client check is the fast
+            // path that keeps anon users out of the delete-confirmation
+            // typing dance entirely.
+            logger.w { "deleteAccount: AnonymousNotAllowed (session is anonymous)" }
+            return@withLock DeleteAccountOutcome.AnonymousNotAllowed
         }
         val outcome = Catching { profileApi.deleteMe() }.fold(
             onSuccess = { response ->
                 when (response.status.value) {
                     204, 200, 404 -> DeleteAccountOutcome.Success
                     401 -> DeleteAccountOutcome.NotSignedIn
+                    403 -> DeleteAccountOutcome.AnonymousNotAllowed
                     503 -> DeleteAccountOutcome.NotConfigured
                     else -> DeleteAccountOutcome.Unknown(
                         IllegalStateException("Unexpected status ${response.status.value}"),
@@ -359,6 +296,7 @@ class SupabaseAuthRepositoryImpl(
                 when (e) {
                     is io.ktor.client.plugins.ClientRequestException -> when (e.response.status.value) {
                         401 -> DeleteAccountOutcome.NotSignedIn
+                        403 -> DeleteAccountOutcome.AnonymousNotAllowed
                         else -> DeleteAccountOutcome.Unknown(e)
                     }
                     is io.ktor.client.plugins.ServerResponseException ->
@@ -373,6 +311,7 @@ class SupabaseAuthRepositoryImpl(
             logger.i { "deleteAccount: Success — signing out + dispatching SignedOut" }
             Catching { gateway.signOut() }
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
+            authBootstrap.invalidate()
             emitUnauthenticatedLocked(cause = null)
             appEventBus.dispatch(AppEvent.SignedOut)
         } else {
@@ -528,5 +467,3 @@ class SupabaseAuthRepositoryImpl(
         }
     }
 }
-
-private const val MaxResolveAttempts: Int = 5

@@ -68,8 +68,6 @@ private class GatedSignOutAuthRepo(
 
     override suspend fun current(): AuthState = state.value
     override fun observe(): Flow<AuthState> = state
-    override suspend fun accessToken(): String? = null
-    override suspend fun refreshAccessToken(): String? = null
     override suspend fun retry(): AuthState = state.value
 
     override suspend fun signOut() {

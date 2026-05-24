@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.profile.impl.items
 
+import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
@@ -72,6 +73,21 @@ class MyItemsViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun ownedItems_propagatesAcquisitionSourceFromInventory() = runUnitTest {
+        val inventory = FakeInventoryRepository(
+            initial = listOf(
+                inventoryItem("ck.gold", AcquisitionSource.Purchased),
+                inventoryItem("ck.legendary", AcquisitionSource.Earned),
+            ),
+        )
+        val vm = buildVm(inventoryRepository = inventory)
+
+        val owned = vm.state.ownedItems.associateBy { it.productId }
+        assertEquals(AcquisitionSource.Purchased, owned.getValue("ck.gold").acquisitionSource)
+        assertEquals(AcquisitionSource.Earned, owned.getValue("ck.legendary").acquisitionSource)
+    }
+
+    @Test
     fun toggleEquipped_nonSlotProduct_doesNotTouchOtherEquipment() = runUnitTest {
         // Tools / avatar packs / emote packs don't claim a slot — the
         // user can have several on at once.
@@ -103,8 +119,21 @@ class MyItemsViewModelTest : CoroutineTest() {
         updatedAtEpochMs = 0L,
     )
 
-    private class FakeInventoryRepository : InventoryRepository {
-        private val state = MutableStateFlow<List<InventoryItem>>(emptyList())
+    private fun inventoryItem(
+        productId: String,
+        source: AcquisitionSource,
+    ): InventoryItem = InventoryItem(
+        productId = productId,
+        state = PurchaseState.Confirmed,
+        purchasedAtEpochMs = 0L,
+        costChipsAtPurchase = 0L,
+        acquisitionSource = source,
+    )
+
+    private class FakeInventoryRepository(
+        initial: List<InventoryItem> = emptyList(),
+    ) : InventoryRepository {
+        private val state = MutableStateFlow(initial)
         override fun observeInventory(): Flow<List<InventoryItem>> = state.asStateFlow()
         override suspend fun getInventory(): List<InventoryItem> = state.value
         override suspend fun redeemChipOffer(productId: String, costChips: Long): RedeemResult =

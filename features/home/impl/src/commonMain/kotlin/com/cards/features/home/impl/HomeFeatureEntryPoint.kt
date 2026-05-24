@@ -17,7 +17,6 @@ import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
-import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
@@ -38,7 +37,7 @@ class HomeFeatureEntryPoint(
         screen<HomeRoute> {
             val viewModel: HomeViewModel = viewModel { homeViewModelFactory() }
             LaunchedEffect(Unit) {
-                KLog.withTag("HomeFeatureEntryPoint").i { "Home route entered" }
+                KLog.withTag("HomeFeatureEntryPoint").d { "Home route entered" }
             }
             ObserveWithLifecycle(viewModel.eventFlow) { event ->
                 when (event) {
@@ -65,12 +64,7 @@ class HomeFeatureEntryPoint(
                 onPlayBots = { difficulty -> setupDifficulty = difficulty },
                 onTapRank = { router.navigate(RankDetailSheetRoute()) },
                 onTapXp = { router.navigate(StatsRoute()) },
-                onTapCash = {
-                    router.navigate(
-                        ShopRoute(),
-                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
-                    )
-                },
+                onTapCash = { router.switchTab(ShopRoute()) },
                 onStartGame = { router.navigate(LobbyRoute()) },
                 onJoinGame = { router.navigate(LobbyRoute()) },
                 onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },

@@ -36,10 +36,7 @@ class OnboardingFeatureEntryPoint(
 
             viewModel.ObserveEvents { event ->
                 when (event) {
-                    OnboardingEvent.NavigateToHome -> router.navigate(
-                        HomeRoute(),
-                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
-                    )
+                    OnboardingEvent.NavigateToHome -> router.enterTab(HomeRoute())
                 }
             }
 
@@ -57,10 +54,7 @@ class OnboardingFeatureEntryPoint(
 
             viewModel.ObserveEvents { event ->
                 when (event) {
-                    SignInEvent.NavigateToHome -> router.navigate(
-                        HomeRoute(),
-                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
-                    )
+                    SignInEvent.NavigateToHome -> router.enterTab(HomeRoute())
                     is SignInEvent.NavigateToVerifyEmail -> router.navigate(
                         VerifyEmailRoute(event.email),
                     )
@@ -102,10 +96,7 @@ class OnboardingFeatureEntryPoint(
 
             viewModel.ObserveEvents { event ->
                 when (event) {
-                    VerifyEmailEvent.NavigateToHome -> router.navigate(
-                        HomeRoute(),
-                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
-                    )
+                    VerifyEmailEvent.NavigateToHome -> router.enterTab(HomeRoute())
                     VerifyEmailEvent.NavigateBackToSignIn -> router.navigate(
                         SignInRoute(),
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),

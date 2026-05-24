@@ -236,16 +236,7 @@ private fun AppNavigation(
 
                         if (!isAlreadySelected) {
                             KLog.d { "Navigating to bottom bar route: ${item.title}" }
-                            navController.navigate(route) {
-                                // Pop back to the start destination so the back stack stays shallow
-                                popUpTo(HomeRoute::class) {
-                                    saveState = true
-                                }
-                                // Avoid multiple copies of the same destination
-                                launchSingleTop = true
-                                // Restore inner-tab state when reselecting a previously selected tab
-                                restoreState = true
-                            }
+                            router.switchTab(route)
                         }
                     },
                 )

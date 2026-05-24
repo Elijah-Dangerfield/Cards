@@ -11,16 +11,18 @@ import kotlinx.serialization.Serializable
  * gate aligns, the entry point navigates here, and dismissal pops the
  * dialog like any other route.
  *
- * Params are passed eagerly: the dialog doesn't re-fetch the profile or
- * the chip balance. By the time the VM fires the event, those have already
- * resolved, so the dialog can paint on first frame.
+ * Profile params are passed eagerly. Chips is nullable — the gate fires
+ * independently of wallet hydration so a fresh-install user on a slow
+ * network still sees the welcome. The dialog falls back to a chip-icon
+ * placeholder when chips haven't synced yet; the real balance shows on
+ * Home immediately after dismissal.
  */
 @Serializable
 data class WelcomeDialogRoute(
     val displayName: String,
     val avatarEmoji: String,
     val avatarBackgroundColorHex: String?,
-    val chips: Long,
+    val chips: Long?,
 ) : Route(
     enter = AnimationType.SlideUp,
     exit = AnimationType.SlideDown,

@@ -4,13 +4,13 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
+import com.dangerfield.cards.libraries.networking.authedWebSocketSession
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.websocket.WebSocketException
-import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.http.HttpMethod
 import io.ktor.http.URLProtocol
@@ -74,9 +74,9 @@ class ReconnectingRoomSocket(
 
         while (!stop) {
             val session = try {
-                networkClient.authenticatedClient.webSocketSession {
+                networkClient.authedWebSocketSession("rooms.socket") {
                     socketRequest(code)
-                }
+                }.getOrThrow()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: ClientRequestException) {

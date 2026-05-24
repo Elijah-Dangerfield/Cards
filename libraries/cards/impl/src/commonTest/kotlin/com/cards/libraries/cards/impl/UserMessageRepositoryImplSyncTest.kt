@@ -113,6 +113,31 @@ class UserMessageRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun transient5xxThenSuccess_succeedsAfterRetry() = runUnitTest {
+        // messages.sync runs under RetryPolicy.idempotent() — server has a
+        // (user_id, idempotency_key) unique index on user_messages, and
+        // ack'd ids are no-ops if re-acked. Safe to replay.
+        val dao = FakeUserMessageDao().apply {
+            put(entity("a", kind = "dialog", ackedPending = true))
+        }
+        var hitCount = 0
+        val repo = buildRepo(dao) {
+            hitCount++
+            if (hitCount == 1) {
+                respond(content = ByteReadChannel(""), status = HttpStatusCode.InternalServerError)
+            } else {
+                respondJson("""{"messages":[]}""")
+            }
+        }
+
+        val result = repo.sync()
+
+        assertTrue(result.isSuccess)
+        assertEquals(2, hitCount, "1 transient 5xx + 1 successful retry")
+        assertTrue(dao.getAll().isEmpty(), "ack'd message purged after successful sync")
+    }
+
+    @Test
     fun sync_serverError_returnsFailure_leavesRepoUntouched() = runUnitTest {
         val dao = FakeUserMessageDao().apply {
             put(entity("a", kind = "dialog", ackedPending = true))
@@ -162,10 +187,14 @@ class UserMessageRepositoryImplSyncTest : CoroutineTest() {
                     coerceInputValues = true
                 })
             }
+            // Match production: 4xx/5xx throws so the retry predicate can see it.
+            expectSuccess = true
         }
+        @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
         val networkClient = object : NetworkClient {
             override val client: HttpClient = client
             override val authenticatedClient: HttpClient = client
+            override suspend fun awaitAuthReady() = Unit
         }
         return UserMessageRepositoryImpl(dao, networkClient, fixedClock)
     }

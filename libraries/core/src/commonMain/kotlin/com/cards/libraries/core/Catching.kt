@@ -1,12 +1,10 @@
 package com.dangerfield.cards.libraries.core
 
 import com.dangerfield.cards.libraries.core.logging.KLog
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlin.reflect.KClass
-import kotlin.time.Duration.Companion.seconds
 
 typealias Catching<T> = Result<T>
 
@@ -80,29 +78,3 @@ inline fun <T, reified E : Throwable> Catching<T>.recoverFrom(
 }
 
 
-/**
- * Retry an operation a certain number of times with an exponential backoff by default
- */
-suspend inline fun <T> withBackoffRetry(
-    retries: Int = 0,
-    initialDelayMillis: Long = 0.5.seconds.inWholeMilliseconds,
-    maxDelayMillis: Long = 10.seconds.inWholeMilliseconds,
-    factor: Double = 2.0,
-    block: (attempt: Int) -> Catching<T>
-): Catching<T> {
-
-    var currentDelay = initialDelayMillis
-
-    repeat(retries) {
-        val result = block(it)
-        when {
-            result.isSuccess -> return result
-            result.isFailure -> {
-                delay(currentDelay)
-                currentDelay = (currentDelay * factor).toLong().coerceAtMost(maxDelayMillis)
-            }
-        }
-    }
-
-    return block(retries)
-}

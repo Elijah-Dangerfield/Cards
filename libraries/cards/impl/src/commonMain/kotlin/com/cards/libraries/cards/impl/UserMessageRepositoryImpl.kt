@@ -8,9 +8,10 @@ import com.dangerfield.cards.libraries.cards.impl.dto.MessageSyncResponseDto
 import com.dangerfield.cards.libraries.cards.impl.dto.UserMessageDto
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageDao
 import com.dangerfield.cards.libraries.cards.storage.db.UserMessageEntity
-import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -60,9 +61,9 @@ class UserMessageRepositoryImpl(
     override suspend fun pendingAckIds(): List<String> = dao.pendingAckIds()
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
-        Catching {
+        networkClient.authedCall("messages.sync", retry = RetryPolicy.idempotent()) { client ->
             val pendingAcks = pendingAckIds()
-            val response: MessageSyncResponseDto = networkClient.authenticatedClient
+            val response: MessageSyncResponseDto = client
                 .post("/v1/me/messages/sync") {
                     contentType(ContentType.Application.Json)
                     setBody(MessageSyncRequestDto(ackedIds = pendingAcks))
@@ -73,8 +74,6 @@ class UserMessageRepositoryImpl(
                 "Sync ok: sent ${pendingAcks.size} ack(s), got ${response.messages.size} unread."
             }
             Unit
-        }.onFailure {
-            syncLogger.w(it) { "User-message sync failed; cache + ack queue untouched." }
         }
     }
 

@@ -55,7 +55,7 @@ internal fun WelcomeDialog(
     displayName: String,
     avatarEmoji: String,
     avatarBackgroundColorHex: String?,
-    chips: Long,
+    chips: Long?,
     onDismiss: () -> Unit,
     state: DialogState = rememberDialogState(),
 ) {
@@ -102,10 +102,14 @@ internal fun WelcomeDialog(
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(Dimension.D600))
-            AnimatedChipReveal(
-                amount = chips,
-                color = chipGold,
-            )
+            if (chips != null) {
+                AnimatedChipReveal(
+                    amount = chips,
+                    color = chipGold,
+                )
+            } else {
+                ChipRevealPlaceholder(color = chipGold)
+            }
             Spacer(Modifier.height(Dimension.D1000))
             Text(
                 text = "Here's a little gift from us to start with.",
@@ -190,6 +194,28 @@ private fun AnimatedChipReveal(
     }
 }
 
+/**
+ * Static fallback shown when the wallet hasn't hydrated by the time the
+ * welcome gate fires (slow network on fresh install). Same chip-coin +
+ * em-dash silhouette as the live reveal so the dialog layout doesn't
+ * jump; the user sees the real balance on Home the moment they dismiss.
+ */
+@Composable
+private fun ChipRevealPlaceholder(color: ColorResource) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ChipCoin(
+            size = 40.dp,
+            textTypography = AppTheme.typography.Heading.H700,
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "—",
+            typography = AppTheme.typography.Display.D1100,
+            color = color,
+        )
+    }
+}
+
 private fun formatWithThousands(value: Long): String {
     val s = value.toString()
     val sb = StringBuilder()
@@ -238,6 +264,20 @@ private fun WelcomeDialogPreview_LargerGrant() {
             avatarEmoji = "🐳",
             avatarBackgroundColorHex = "#8E7CC3",
             chips = 25_000L,
+            onDismiss = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun WelcomeDialogPreview_ChipsNotHydrated() {
+    PreviewContent {
+        WelcomeDialog(
+            displayName = "Slow-Network-721",
+            avatarEmoji = "🦊",
+            avatarBackgroundColorHex = "#F6B26B",
+            chips = null,
             onDismiss = {},
         )
     }

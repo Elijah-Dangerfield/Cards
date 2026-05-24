@@ -53,6 +53,14 @@ sealed interface DeleteAccountOutcome {
     data object Success : DeleteAccountOutcome
     data object NotConfigured : DeleteAccountOutcome
     data object NotSignedIn : DeleteAccountOutcome
+    /**
+     * Anonymous accounts can't be deleted — there's nothing to delete that
+     * a sign-out wouldn't already cover. Both the client and the server
+     * reject the request; the client check is the fast path, the server
+     * check is the authoritative one (JWT carries the `is_anonymous`
+     * claim).
+     */
+    data object AnonymousNotAllowed : DeleteAccountOutcome
     data class NetworkError(val cause: Throwable) : DeleteAccountOutcome
     data class Unknown(val cause: Throwable) : DeleteAccountOutcome
 }

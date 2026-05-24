@@ -11,10 +11,11 @@ import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventEntity
-import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -140,16 +141,16 @@ class ChipsRepositoryImpl(
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
-        Catching {
+        // Always POST — an empty events list is a valid "hydrate
+        // balance" call. That's how a second device picks up a chip
+        // grant the user collected elsewhere.
+        networkClient.authedCall("wallet.sync", retry = RetryPolicy.idempotent()) { client ->
             val pending = walletEventDao.getAll()
 
-            // Always POST — an empty events list is a valid "hydrate
-            // balance" call. That's how a second device picks up a chip
-            // grant the user collected elsewhere.
             val request = WalletSyncRequestDto(
                 events = pending.map { it.toDto() },
             )
-            val response: WalletSyncResponseDto = networkClient.authenticatedClient
+            val response: WalletSyncResponseDto = client
                 .post("/v1/me/wallet/sync") {
                     contentType(ContentType.Application.Json)
                     setBody(request)
@@ -191,8 +192,6 @@ class ChipsRepositoryImpl(
                     "balance now ${response.balance}."
             }
             Unit
-        }.onFailure {
-            syncLogger.w(it) { "Chips sync failed; pending events stay queued for next launch." }
         }
     }
 

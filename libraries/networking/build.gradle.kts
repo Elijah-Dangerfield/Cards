@@ -24,5 +24,9 @@ kotlin {
 
             implementation(projects.libraries.core)
         }
+        commonTest.dependencies {
+            implementation(projects.libraries.flowroutines.testing)
+            implementation(projects.libraries.core)
+        }
     }
 }

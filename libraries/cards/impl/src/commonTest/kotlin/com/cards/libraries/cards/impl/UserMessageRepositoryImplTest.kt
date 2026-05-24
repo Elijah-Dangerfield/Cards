@@ -232,12 +232,14 @@ class UserMessageRepositoryImplTest : CoroutineTest() {
     }
 }
 
+@OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
 private object StubNetworkClient : NetworkClient {
     private val unused = HttpClient(MockEngine {
         respond(content = ByteReadChannel(""), status = HttpStatusCode.NotImplemented)
     })
     override val client: HttpClient = unused
     override val authenticatedClient: HttpClient = unused
+    override suspend fun awaitAuthReady() = Unit
     val instance: StubNetworkClient = this
 }
 

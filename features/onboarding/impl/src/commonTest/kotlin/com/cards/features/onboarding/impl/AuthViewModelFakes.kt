@@ -63,8 +63,6 @@ internal class FakeAuthRepository(
 
     override suspend fun current(): AuthState = state.value
     override fun observe(): Flow<AuthState> = state
-    override suspend fun accessToken(): String? = (state.value as? AuthState.Authenticated)?.let { "token" }
-    override suspend fun refreshAccessToken(): String? = accessToken()
     override suspend fun retry(): AuthState = state.value
 
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome {

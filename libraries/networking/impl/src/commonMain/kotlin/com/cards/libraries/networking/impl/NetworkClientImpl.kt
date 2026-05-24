@@ -2,8 +2,9 @@ package com.dangerfield.cards.libraries.networking.impl
 
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.networking.AuthTokenProvider
 import com.dangerfield.cards.libraries.networking.ClientHeaders
+import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
@@ -31,19 +32,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 @Inject
+@OptIn(InternalNetworkingApi::class)
 class NetworkClientImpl(
     private val config: NetworkConfig,
-    private val authRepositoryProvider: () -> AuthRepository,
+    private val tokenProvider: AuthTokenProvider,
     private val headersProvider: ClientHeadersProvider,
 ) : NetworkClient {
-
-    // Lazy provider rather than direct injection: [AuthRepository] (in
-    // `:libraries:identity:impl`) depends on [ProfileApi] which depends
-    // on [NetworkClient] for the `/v1/me`-flavored calls. That'd form a
-    // construction-time DI cycle (network → auth → network). Both sides
-    // are singletons; the lazy resolves the same instance, it just
-    // defers when the graph walks through it.
-    private val authRepository: AuthRepository by lazy { authRepositoryProvider() }
 
     override val client: HttpClient by lazy {
         HttpClient {
@@ -56,32 +50,36 @@ class NetworkClientImpl(
             applyCommonConfig(config, headersProvider)
             install(Auth) {
                 bearer {
+                    // By the time loadTokens runs, authedCall has already
+                    // called [awaitAuthReady], so the gateway peek is
+                    // synchronous and instant. Null means there's no
+                    // session (anon disabled, offline before first auth) —
+                    // request goes unauthed and the server 401s cleanly.
                     loadTokens {
-                        // AuthRepository.accessToken() suspends until auth
-                        // resolves — internally it waits on the auth state
-                        // flow's first emission. No more polling, no 5s
-                        // ceiling here: the auth layer's resolve is the
-                        // backstop.
-                        val token = authRepository.accessToken()
+                        val token = tokenProvider.accessToken()
                             ?: return@loadTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
                     }
                     refreshTokens {
-                        val token = authRepository.refreshAccessToken()
+                        val token = tokenProvider.refreshAccessToken()
                             ?: return@refreshTokens null
                         BearerTokens(accessToken = token, refreshToken = "")
                     }
                     sendWithoutRequest { true }
                 }
             }
-            // WebSocket plugin so callers like :libraries:rooms:impl can
-            // open room sockets via the same authenticated client (the
-            // Auth bearer is attached on the WS handshake). The plugin
-            // is additive — existing HTTP calls don't notice it.
+            // WebSocket plugin so callers can open room sockets via the
+            // same authenticated client (the Auth bearer is attached on
+            // the WS handshake). The plugin is additive — existing HTTP
+            // calls don't notice it.
             install(WebSockets) {
                 pingIntervalMillis = 15.seconds.inWholeMilliseconds
             }
         }
+    }
+
+    override suspend fun awaitAuthReady() {
+        tokenProvider.awaitReady()
     }
 }
 

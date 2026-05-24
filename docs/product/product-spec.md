@@ -368,6 +368,8 @@ These items are explicitly **never** in the shop. Whales can buy chips, and chip
 
 This is the structural anti-P2W mechanism: the items players see on rival profiles and recognize as prestige cannot be bought with money. The shop catalog and the unlock catalog are disjoint.
 
+**Where earned items live.** There is no separate "trophy case" surface. Earned cosmetics land in the user's **My Items** shelf alongside purchased cosmetics, distinguished by an "Earned" badge and the source (achievement / league / RFT / season). The prestige moment is the **unlock dialog at the moment of earning**, not a quiet shelf afterward. Earned items rendered in shop search show as "Owned" so the user never sees them as missing.
+
 ### 4.3 Shop
 
 **Categories** (all chip-priced):
@@ -383,7 +385,8 @@ This is the structural anti-P2W mechanism: the items players see on rival profil
 - **Featured** — current season chip-priced items, rotates weekly
 - **Browse** — full catalog, filter by category, owned indicators
 - **Vault** — past-season items shown on profiles but never re-listed
-- **Trophy case** — unlock-only inventory display (not buyable; visible only)
+
+Earned (unlock-only) items are **not** a shop surface — they live in the user's **My Items** shelf, see §4.2.
 
 **No random loot boxes.** Every item shows price + identity before purchase. Sidesteps app-store odds-disclosure entirely.
 
@@ -756,7 +759,7 @@ Phases 1 (game engine) and 2 (defensive infra) are done. V1 progression UX is sh
 | **5** | Public rooms + table-side social + moderation | **Public rooms + Quick Match + Browse + stake tiers.** Emoji blasts + reactive emoji, tap-avatar preview. Block / report + manual human review (no auto-bans). Chat deferred to V1.x. | ✅ |
 | **6** | Notifications | Event-driven push notifications (league / friend / battle pass / Rare+ achievement) | ✅ |
 | **7** | Weekly leagues | 10 tiers, 30-player cohorts, top-7/mid-18/bottom-5, Monday reset, Royal Flush Tournament | V1.1 |
-| **8** | Shop + chip IAP | Catalog by category, three chip packs, common cosmetics + unlock-only trophy case | ✅ |
+| **8** | Shop + chip IAP | Catalog by category, three chip packs, common cosmetics; earned cosmetics live in My Items (§4.2), not the shop | ✅ |
 | **9** | Seasonal battle pass | 6-week seasons, free + premium tracks, themed rotation, vault mechanic | V1.3 |
 | **10** | Profile depth | Play-style heat map, hand history viewer, session recap, bio + pinned achievements | V1.2 |
 | **11+** | V2 expansion | Tournaments (sit-and-go first), additional games (Blackjack first), clans, spectator mode, ML integrity, ban appeals | V2 |

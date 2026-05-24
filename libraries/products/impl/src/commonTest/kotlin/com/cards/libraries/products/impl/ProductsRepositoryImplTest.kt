@@ -258,10 +258,10 @@ class ProductsRepositoryImplTest : CoroutineTest() {
         var callCount: Int = 0
             private set
 
-        override suspend fun fetchCatalog(): ProductCatalogDto {
+        override suspend fun fetchCatalog(): Result<ProductCatalogDto> {
             callCount++
-            failNext?.let { failNext = null; throw it }
-            return catalog
+            failNext?.let { failNext = null; return Result.failure(it) }
+            return Result.success(catalog)
         }
     }
 
@@ -303,11 +303,13 @@ class ProductsRepositoryImplTest : CoroutineTest() {
         }
     }
 
+    @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
     private object StubNetworkClient : NetworkClient {
         override val client: HttpClient
             get() = error("FakeDataSource overrides fetchCatalog — should not reach HttpClient")
         override val authenticatedClient: HttpClient
             get() = error("not used")
+        override suspend fun awaitAuthReady() = Unit
     }
 
     private suspend fun <T> Flow<T>.firstValue(): T = first()

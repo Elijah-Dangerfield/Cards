@@ -14,9 +14,37 @@ interface Router {
 
     fun navigate(route: Route, options: NavigationOptions = NavigationOptions())
 
+    /**
+     * Compile-time guard: a [TabRoute] must go through [switchTab] so the bottom-bar
+     * tabs' saved back stacks stay aligned. Pushing one with plain [navigate] mis-roots
+     * the new entry under the current tab's stack and breaks subsequent tab swaps.
+     */
+    @Deprecated(
+        message = "TabRoute must go through switchTab() so the tab back stacks stay aligned.",
+        replaceWith = ReplaceWith("switchTab(route)"),
+        level = DeprecationLevel.ERROR,
+    )
+    fun navigate(route: TabRoute, options: NavigationOptions = NavigationOptions()): Nothing =
+        throw UnsupportedOperationException("Compile-time guard only — use switchTab(route).")
+
     fun goBack()
 
     fun popBackTo(route: Route, inclusive: Boolean)
+
+    /**
+     * Switch to a top-level destination from *inside* the tab system, saving the current
+     * tab's stack and restoring any previously-saved stack for the target. Use this for
+     * bottom-bar taps OR a feature that needs to deep-link into a different tab (e.g.
+     * Edit Profile → Shop). Plain [navigate] of a [TabRoute] won't compile.
+     */
+    fun switchTab(route: TabRoute)
+
+    /**
+     * Enter the tab system fresh from *outside* of it — onboarding / sign-in completion.
+     * Clears the back stack so the user can't navigate back into the pre-tab flow.
+     * Use [switchTab] instead once already inside the tab system.
+     */
+    fun enterTab(route: TabRoute)
 
     fun openWebLink(url: String)
 }

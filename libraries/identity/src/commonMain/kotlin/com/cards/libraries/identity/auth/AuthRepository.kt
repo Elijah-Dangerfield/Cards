@@ -14,14 +14,15 @@ import kotlinx.coroutines.flow.Flow
  * is real; [observe] emits only resolved values. UI that wants to render
  * a spinner should do so while waiting on its first emission.
  *
- * **Source of truth for the access token.** [accessToken] is what the
- * networking layer calls before attaching the bearer header. No separate
- * separate token provider — auth owns its token end-to-end.
- *
  * Errors from auth operations are returned as sealed outcome types
  * rather than thrown, because the UI wants to render specific messages
  * for "invalid credentials" vs "network down" vs "email already
  * registered." Try/catch at every call site was the worse alternative.
+ *
+ * **Access tokens live elsewhere.** The networking layer reads tokens via
+ * `AuthTokenProvider` (in `:libraries:networking`), not through this
+ * interface — keeping the network → auth dependency narrow at the type
+ * level.
  */
 interface AuthRepository {
 
@@ -37,24 +38,6 @@ interface AuthRepository {
      * sign-out, account delete, etc.
      */
     fun observe(): Flow<AuthState>
-
-    /**
-     * Supabase access token, ready for `Authorization: Bearer <token>`.
-     * Suspends until [current] resolves. Returns null when the resolved
-     * state is [AuthState.Unauthenticated] — the network layer attaches
-     * no bearer and the request 401s cleanly.
-     */
-    suspend fun accessToken(): String?
-
-    /**
-     * Force-refresh the access token. Called by the networking layer's
-     * bearer plugin on 401. Returns the new token, or null if refresh
-     * failed (in which case the caller treats the request as unauth).
-     *
-     * supabase-kt auto-refreshes in the background anyway; this is the
-     * "401 happened, get me a fresh one right now" path.
-     */
-    suspend fun refreshAccessToken(): String?
 
     /**
      * Re-attempt the get-or-create after a previous failure. Used by the
