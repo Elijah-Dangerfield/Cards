@@ -112,7 +112,7 @@ fun PlayPokerScreen(
     modifier: Modifier = Modifier,
     onTapXp: () -> Unit = {},
 ) {
-    var raiseSheetOpen by remember { mutableStateOf(false) }
+    var actionSheetOpen by remember { mutableStateOf(false) }
     var blindExplainerOpen by remember { mutableStateOf(false) }
     var potExplainerOpen by remember { mutableStateOf(false) }
     var stackExplainerOpen by remember { mutableStateOf(false) }
@@ -128,7 +128,7 @@ fun PlayPokerScreen(
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(active?.isHumanTurn) {
         if (active?.isHumanTurn != true) {
-            raiseSheetOpen = false
+            actionSheetOpen = false
         } else {
             // Fire the configured "your turn" cue. Both Vibrate and the
             // legacy Sound value perform haptics — Sound is hidden from
@@ -198,7 +198,7 @@ fun PlayPokerScreen(
                         availableEmojis = state.availableEmojis,
                         emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
-                        onExpandRaise = { raiseSheetOpen = true },
+                        onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
                         onPotClick = { potExplainerOpen = true },
                         onBetPillClick = { name, amount -> betPillDialog = name to amount },
@@ -230,17 +230,17 @@ fun PlayPokerScreen(
         // expected affordances — drag-to-dismiss, scrim, tap-outside-to-close,
         // and a built-in title + close X — without rolling those ourselves.
         val legal = active?.humanLegalActions
-        if (raiseSheetOpen && active?.isHumanTurn == true && legal != null) {
+        if (actionSheetOpen && active?.isHumanTurn == true && legal != null) {
             BottomSheet(
-                onDismissRequest = { raiseSheetOpen = false },
+                onDismissRequest = { actionSheetOpen = false },
                 backgroundColor = AppTheme.colors.surfacePrimary,
                 showCloseButton = true,
             ) {
-                RaiseSheet(
+                PlayerActionSheet(
                     legal = legal,
                     humanSeatIndex = active.seats.first { it.isHuman }.index,
                     onIntent = { intent ->
-                        raiseSheetOpen = false
+                        actionSheetOpen = false
                         onAction(PlayPokerAction.Submit(intent))
                     },
                 )
@@ -318,16 +318,22 @@ fun PlayPokerScreen(
             )
         }
 
-        // Full-screen 1.5s emoji blast overlay. Renders at the top-level
-        // Box so it floats over the table without being clipped by the
-        // inner Column's padding. Skipped if the emitter is muted —
-        // forward-infrastructure for MP, no-op in V1 (only the human emits).
+        // Full-screen emoji blast overlay. Renders at the top-level Box so
+        // it floats over the table without being clipped by the inner
+        // Column's padding. Emitter avatar is rendered beneath the emoji
+        // so the blast reads as "Bob just threw this", not just an
+        // anonymous emoji on the screen — sets up the MP visual now
+        // even though in V1 only the human emits.
         state.emojiBlast?.let { blast ->
+            val humanSeat = active?.seats?.firstOrNull { it.isHuman }
             EmojiBlastOverlay(
                 blast = blast,
                 onAnimationComplete = { ts ->
                     onAction(PlayPokerAction.EmojiBlastConsumed(ts))
                 },
+                emitterName = humanSeat?.displayName,
+                emitterEmoji = humanSeat?.emoji,
+                emitterColorHex = humanSeat?.avatarBackgroundColorHex,
             )
         }
 
@@ -537,15 +543,19 @@ private fun ActiveTable(
                 onSwipeFold = onSwipeFold,
             )
             QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
-            // Emoji blast tray — sits below the action bar so it never
-            // displaces the primary actions when expanded. The VM owns
-            // cooldown enforcement; the tray just renders the dimmed
-            // toggle + countdown while cooling.
-            onBlastEmoji?.let { handler ->
+            // Emoji blast tray — centered, with generous breathing room
+            // above so it reads as a peripheral / social affordance
+            // rather than another action button. EmojiTray hides itself
+            // when [availableEmojis] is empty (caller owns no `emotes_*`
+            // pack), so default users never see it. The VM owns cooldown
+            // enforcement; the tray just renders the dimmed toggle +
+            // countdown while cooling.
+            if (onBlastEmoji != null && availableEmojis.isNotEmpty()) {
+                VerticalSpacerD800()
                 EmojiTray(
                     emojis = availableEmojis,
                     cooldownEndsAtEpochMs = emojiCooldownEndsAtEpochMs,
-                    onBlast = handler,
+                    onBlast = onBlastEmoji,
                 )
             }
             VerticalSpacerD500()

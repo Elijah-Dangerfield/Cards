@@ -43,7 +43,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * field is always editable, the presets are just shortcuts.
  */
 @Composable
-internal fun RaiseSheet(
+internal fun PlayerActionSheet(
     legal: LegalActions,
     humanSeatIndex: Int,
     onIntent: (PlayerIntent) -> Unit,
@@ -392,9 +392,9 @@ private fun previewLegal(
 
 @Preview
 @Composable
-private fun RaiseSheetPreview_FacingABet() {
+private fun PlayerActionSheetPreview_FacingABet() {
     PreviewContent {
-        RaiseSheet(
+        PlayerActionSheet(
             legal = previewLegal(isOpenBet = false),
             humanSeatIndex = 0,
             onIntent = {},
@@ -404,9 +404,9 @@ private fun RaiseSheetPreview_FacingABet() {
 
 @Preview
 @Composable
-private fun RaiseSheetPreview_OpenBet() {
+private fun PlayerActionSheetPreview_OpenBet() {
     PreviewContent {
-        RaiseSheet(
+        PlayerActionSheet(
             legal = previewLegal(isOpenBet = true, minRaiseTotal = 20, maxRaiseTotal = 1000, potIfYouCall = 30),
             humanSeatIndex = 0,
             onIntent = {},
@@ -416,9 +416,9 @@ private fun RaiseSheetPreview_OpenBet() {
 
 @Preview
 @Composable
-private fun RaiseSheetPreview_CannotRaise() {
+private fun PlayerActionSheetPreview_CannotRaise() {
     PreviewContent {
-        RaiseSheet(
+        PlayerActionSheet(
             legal = previewLegal(canRaise = false, maxRaiseTotal = 15, allInAmount = 15),
             humanSeatIndex = 0,
             onIntent = {},

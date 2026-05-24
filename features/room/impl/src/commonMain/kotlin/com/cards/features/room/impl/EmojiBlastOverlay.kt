@@ -4,7 +4,9 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -12,27 +14,40 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD300
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Renders a single 1.5s "emoji blast" over the play surface. When [blast]
- * becomes non-null the overlay enters, animates, and reports completion
- * via [onAnimationComplete] with the original blast's `emittedAtEpochMs`.
- * Caller clears VM state on that callback; the overlay then leaves the
- * tree.
+ * Renders a single "emoji blast" over the play surface — pop in, hold,
+ * then drift up and fade. When [blast] becomes non-null the overlay
+ * enters, animates, and reports completion via [onAnimationComplete]
+ * with the original blast's `emittedAtEpochMs`. Caller clears VM state
+ * on that callback; the overlay then leaves the tree.
  *
- * Per product-spec.md §5.5: ~1500ms total. Pop in fast, drift upward
- * while scaling + fading — a clear "throw" silhouette without
- * obstructing the table for more than a beat.
+ * Total duration is ~2.2s — long enough for the table to register the
+ * reaction without obstructing play for more than a beat. A short
+ * hold-at-peak between the pop and the drift gives the eye time to
+ * read the emoji before it starts moving.
+ *
+ * The optional emitter avatar (small circle below the emoji) signals
+ * *who* blasted. In V1 only the human emits, but rendering the avatar
+ * unconditionally keeps the visual identical to what MP / reactive-bot
+ * blasts will look like when they ship (product-spec.md §5.5).
  */
 @Composable
 internal fun EmojiBlastOverlay(
     blast: EmojiBlast?,
     onAnimationComplete: (emittedAtEpochMs: Long) -> Unit,
     modifier: Modifier = Modifier,
+    emitterName: String? = null,
+    emitterEmoji: String? = null,
+    emitterColorHex: String? = null,
 ) {
     val current = blast ?: return
 
@@ -49,17 +64,18 @@ internal fun EmojiBlastOverlay(
                 scaleAnim.animateTo(SCALE_PEAK, tween(POP_IN_MS, easing = FastOutSlowInEasing))
             }
         }
+        delay(HOLD_MS.toLong())
         coroutineScope {
             launch {
                 driftAnim.animateTo(
                     targetValue = DRIFT_FRACTION,
-                    animationSpec = tween(BLAST_TOTAL_MS - POP_IN_MS, easing = LinearOutSlowInEasing),
+                    animationSpec = tween(DRIFT_MS, easing = LinearOutSlowInEasing),
                 )
             }
             launch {
                 alphaAnim.animateTo(
                     targetValue = 0f,
-                    animationSpec = tween(BLAST_TOTAL_MS - POP_IN_MS, easing = FastOutSlowInEasing),
+                    animationSpec = tween(DRIFT_MS, easing = FastOutSlowInEasing),
                 )
             }
         }
@@ -70,23 +86,39 @@ internal fun EmojiBlastOverlay(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = current.emoji,
-            typography = AppTheme.typography.Display.D1500,
-            color = AppTheme.colors.text,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
             modifier = Modifier.graphicsLayer {
                 alpha = alphaAnim.value
                 scaleX = scaleAnim.value
                 scaleY = scaleAnim.value
                 translationY = -size.height * driftAnim.value
             },
-        )
+        ) {
+            Text(
+                text = current.emoji,
+                typography = AppTheme.typography.Display.D1500,
+                color = AppTheme.colors.text,
+            )
+            if (emitterName != null) {
+                VerticalSpacerD300()
+                AvatarCircle(
+                    name = emitterName,
+                    emoji = emitterEmoji,
+                    backgroundColorHex = emitterColorHex,
+                    size = 32.dp,
+                )
+            }
+        }
     }
 }
 
-private const val BLAST_TOTAL_MS = 1500
-private const val POP_IN_MS = 200
+private const val POP_IN_MS = 220
+/** Hold the peak-size emoji for this long before starting the drift+fade. */
+private const val HOLD_MS = 700
+private const val DRIFT_MS = 1300
 private const val SCALE_START = 0.4f
 private const val SCALE_PEAK = 1.0f
-/** Drift up by ~30% of the emoji's own height by the end of the animation. */
-private const val DRIFT_FRACTION = 0.30f
+/** Drift up by ~50% of the column's height by the end of the animation. */
+private const val DRIFT_FRACTION = 0.50f

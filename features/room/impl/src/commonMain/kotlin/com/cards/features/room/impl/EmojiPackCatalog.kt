@@ -13,20 +13,11 @@ package com.dangerfield.cards.features.room.impl
  * without shipping an app update, this moves to a server-driven payload —
  * for now the constant table keeps the wire format flat.
  *
- * Base pool ([BaseEmojiPool]) matches product-spec.md §5.5 and is always
- * available regardless of ownership. Owned packs concatenate onto it; the
- * tray dedupes so the user never sees the same emoji twice (e.g. 🔥 lives
- * in both the base pool and the Fierce pack).
+ * Emoji blasts are a paid surface — a user with no `emotes_*` pack gets
+ * nothing back from [availableEmojisFor], which is what the screen uses
+ * to decide whether to render the tray at all.
  */
 internal object EmojiPackCatalog {
-
-    /**
-     * Always-available pool. 12 emojis from product-spec.md §5.5. Order
-     * matters — it's the rendering order in the tray.
-     */
-    val BaseEmojiPool: List<String> = listOf(
-        "🔥", "🎉", "😱", "🤡", "💀", "👀", "🥶", "🤯", "💸", "🙏", "😎", "🥲",
-    )
 
     /**
      * `productId` → emoji list. Keys match `apps/server/.../V5__products.sql`;
@@ -40,14 +31,14 @@ internal object EmojiPackCatalog {
     )
 
     /**
-     * Available blast pool given the user's owned inventory IDs. Base pool
-     * first (always present), then pack-unlocked emojis in pack-key order,
-     * deduped. Order is stable so the tray doesn't shuffle when a new pack
-     * is acquired mid-session.
+     * Available blast pool given the user's owned inventory IDs. Pack-
+     * unlocked emojis in pack-key order, deduped. Order is stable so the
+     * tray doesn't shuffle when a new pack is acquired mid-session. Empty
+     * when the user owns no emote packs — callers should hide the tray
+     * UI entirely in that case rather than rendering an empty picker.
      */
     fun availableEmojisFor(ownedProductIds: Set<String>): List<String> {
-        val result = LinkedHashSet<String>(BaseEmojiPool.size + 16)
-        result.addAll(BaseEmojiPool)
+        val result = LinkedHashSet<String>(16)
         PackEmojis.forEach { (productId, emojis) ->
             if (productId in ownedProductIds) result.addAll(emojis)
         }

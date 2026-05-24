@@ -98,13 +98,15 @@ class PlayPokerViewModelTest : CoroutineTest() {
     // ---------- Emoji tray + cooldown + mute ----------
 
     @Test
-    fun availableEmojis_defaultsToBasePool() = runUnitTest {
+    fun availableEmojis_defaultsToEmpty_whenNoPacksOwned() = runUnitTest {
+        // Emoji blasts are a paid surface — a fresh user with no pack
+        // should see no emojis. Screen relies on this to hide the tray.
         val vm = buildVm()
-        assertEquals(EmojiPackCatalog.BaseEmojiPool, vm.state.availableEmojis)
+        assertEquals(emptyList(), vm.state.availableEmojis)
     }
 
     @Test
-    fun inventoryEmission_extendsAvailableEmojisWithOwnedPacks() = runUnitTest {
+    fun inventoryEmission_populatesAvailableEmojisFromOwnedPacks() = runUnitTest {
         val inventory = FakeInventoryRepository()
         val vm = buildVm(inventoryRepository = inventory)
         inventory.emit(

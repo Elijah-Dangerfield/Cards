@@ -154,9 +154,8 @@ class PlayPokerViewModel @Inject constructor(
             }
         }
         // Inventory mirror — folds owned emote-pack product IDs into the
-        // blast tray's available pool. Base pool ([EmojiPackCatalog.BaseEmojiPool])
-        // is always present; owning an `emotes_*` pack appends that pack's
-        // emojis to the available list.
+        // blast tray's available pool. Empty when the user owns no packs;
+        // the screen hides the tray UI entirely in that case.
         viewModelScope.launch {
             inventoryRepository.observeInventory().collect { items ->
                 val ownedIds = items.map { it.productId }.toSet()
@@ -582,12 +581,12 @@ data class PlayPokerState(
     val swipeFoldGestureAck: Boolean = false,
 
     /**
-     * Emojis the user can blast from the in-game tray. Always starts with
-     * [EmojiPackCatalog.BaseEmojiPool] (~12 emojis from product-spec.md
-     * §5.5); owning an `emotes_*` chip-offer pack appends that pack's
-     * emojis. Order is stable across reorderings of inventory.
+     * Emojis the user can blast from the in-game tray. Sourced entirely
+     * from owned `emotes_*` packs — users with no pack get an empty list
+     * and the tray UI hides. Order is stable across reorderings of
+     * inventory.
      */
-    val availableEmojis: List<String> = EmojiPackCatalog.BaseEmojiPool,
+    val availableEmojis: List<String> = emptyList(),
 
     /**
      * Per-seat mute set, mirrored from `AppData.mutedEmojiPlayerKeys`.

@@ -7,9 +7,11 @@ import kotlin.test.assertTrue
 class EmojiPackCatalogTest {
 
     @Test
-    fun basePool_isAlwaysAvailable_withNoOwnedPacks() {
+    fun noOwnedPacks_returnsEmpty() {
+        // Emoji blasts are a paid surface — no pack, no emojis. Caller
+        // is expected to hide the tray entirely when this list is empty.
         val available = EmojiPackCatalog.availableEmojisFor(ownedProductIds = emptySet())
-        assertEquals(EmojiPackCatalog.BaseEmojiPool, available)
+        assertTrue(available.isEmpty())
     }
 
     @Test
@@ -17,48 +19,29 @@ class EmojiPackCatalogTest {
         val available = EmojiPackCatalog.availableEmojisFor(
             ownedProductIds = setOf("not_a_pack", "tool_win_odds"),
         )
-        assertEquals(EmojiPackCatalog.BaseEmojiPool, available)
+        assertTrue(available.isEmpty())
     }
 
     @Test
-    fun ownedPack_appendsItsEmojis() {
+    fun ownedPack_unlocksItsEmojis() {
         val available = EmojiPackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_cute"),
         )
-        assertTrue(available.containsAll(EmojiPackCatalog.BaseEmojiPool))
-        assertTrue("🥺" in available)
-        assertTrue("🥰" in available)
-        assertTrue("😇" in available)
-        assertTrue("🤗" in available)
+        assertEquals(listOf("🥺", "🥰", "😇", "🤗"), available)
     }
 
     @Test
-    fun overlappingEmojis_areDedupedToFirstOccurrence() {
-        // Fierce pack shares 🔥, 💀, 😎 with the base pool. Those should
-        // not appear twice — the tray would render the same emoji at two
-        // positions otherwise.
-        val available = EmojiPackCatalog.availableEmojisFor(
-            ownedProductIds = setOf("emotes_fierce"),
-        )
-        assertEquals(available.size, available.distinct().size)
-        // Base-pool 🔥 stays at its original index; the pack-side dup is dropped.
-        assertEquals(EmojiPackCatalog.BaseEmojiPool.indexOf("🔥"), available.indexOf("🔥"))
-    }
-
-    @Test
-    fun ownedMultiplePacks_appendAllUniqueEmojis() {
+    fun ownedMultiplePacks_appendInPackOrder_deduped() {
         val available = EmojiPackCatalog.availableEmojisFor(
             setOf("emotes_cute", "emotes_drama"),
         )
-        val expectedAdditions = listOf("🥺", "🥰", "😇", "🤗", "💃", "🧂", "🎭", "🤦")
-        expectedAdditions.forEach { emoji ->
-            assertTrue(emoji in available, "expected $emoji in available list")
-        }
-        // Base pool stays at the head, in original order.
+        // Drama comes first in PackEmojis insertion order regardless of
+        // the input set's iteration order.
         assertEquals(
-            EmojiPackCatalog.BaseEmojiPool,
-            available.take(EmojiPackCatalog.BaseEmojiPool.size),
+            listOf("💃", "🧂", "🎭", "🤦", "🥺", "🥰", "😇", "🤗"),
+            available,
         )
+        assertEquals(available.size, available.distinct().size)
         // Set ordering of input doesn't matter — the same packs always
         // produce the same available list regardless of which order the
         // caller iterates `ownedProductIds`.

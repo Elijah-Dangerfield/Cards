@@ -42,9 +42,14 @@ import kotlinx.coroutines.delay
 import kotlin.time.Clock
 
 /**
- * Bottom-tray emoji blast picker. Sits above [QuickActionBar] and
- * collapses to a single circular toggle button when closed so it doesn't
- * eat the action bar's real estate.
+ * Bottom-tray emoji blast picker. Sits centered below [QuickActionBar]
+ * and collapses to a single circular toggle button when closed so it
+ * doesn't compete with the primary actions.
+ *
+ * Emoji blasts are a paid surface — the tray returns nothing when
+ * [emojis] is empty (caller doesn't own any `emotes_*` pack). That
+ * keeps the entire affordance hidden from default users instead of
+ * dangling an empty picker.
  *
  * The cooldown isn't enforced here — the VM owns the cooldown deadline
  * and rejects taps that arrive before [cooldownEndsAtEpochMs]. This
@@ -60,6 +65,7 @@ internal fun EmojiTray(
     onBlast: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (emojis.isEmpty()) return
     var expanded by remember { mutableStateOf(false) }
 
     // Tick once a second while cooling so the countdown chip refreshes.
@@ -80,6 +86,7 @@ internal fun EmojiTray(
     Row(
         modifier = modifier.fillMaxWidth().padding(horizontal = Dimension.D500),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
         EmojiToggleButton(
             expanded = expanded,
@@ -209,6 +216,6 @@ private fun rememberSecondTicker(active: Boolean): Long {
     return now
 }
 
-private val EmojiToggleSize = 44.dp
-private val EmojiCellSize = 40.dp
-private val EmojiPickerShape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp)
+private val EmojiToggleSize = 52.dp
+private val EmojiCellSize = 48.dp
+private val EmojiPickerShape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp)
