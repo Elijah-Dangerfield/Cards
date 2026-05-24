@@ -39,3 +39,11 @@
 **Approach:** Added a `Body.B400 / textSecondary` line underneath the achievement name in `AchievementUnlockedCallout` (HandResultDialogs.kt), guarded by `isNotBlank()` so registry rows that ever ship with empty descriptions don't render a stray gap. Same Body.B400/textSecondary treatment as the "Achievement unlocked" header line above and the reward summary line below, so the description reads as the middle layer of a three-tier callout.
 **Reviewer notes:** Possible visual concern — three lines of body + a reward line stacks taller than before; the surrounding hand-result dialog already scrolls so it shouldn't clip. Worth eyeballing on-device with a long-description achievement (e.g. "Don't Call It a Comeback").
 **Deferred:** None.
+
+## fix(room): don't render all-in seats as busted mid-hand
+
+**Problem:** `OpponentsRow.OpponentSeat` flagged busted as `!seatEmpty && stack <= 0 && participation != NotDealt`. An AllIn player has `stack == 0` mid-hand, so the bust stamp fired before `runShowdown` distributed pots.
+**Approach:** Lifted busted into `SeatView.isBusted`, computed at projection time in `SeatView.fromSeat(..., street)`. Rule: `!seatEmpty && stack <= 0 && (street == BettingRound.Complete || participation == NotDealt)`. That hides the stamp while the hand is still resolving, keeps it for between-hand `NotDealt` skipped seats, and re-surfaces it once the hand reaches `Complete` (so AllIn losers correctly read as busted in the showdown view). `OpponentsRow` and the three preview-fixture files now read `seat.isBusted` directly. Added `TableUiStateTest.kt` covering: AllIn mid-hand → not busted, AllIn loser at Complete → busted, zero-stack NotDealt → busted, empty seat → not busted.
+**Reviewer notes:** The PlayPokerScreen / PlayerArea / PreviewSamples preview helpers had to learn `isBusted`. PreviewSamples + PlayPokerScreen's `previewBotSeat` default `isBusted = stack <= 0L` so the existing `OpponentsRowPreview_BustedOpponent` (which passes `stack = 0, participation = AllIn`) still renders the busted stamp — that preview's intent is post-hand display, even though it's hand-constructed and bypasses `fromSeat`'s street check. Worth a glance.
+**Deferred:** None.
+

@@ -239,9 +239,7 @@ private fun OpponentSeat(
     onAvatarTap: () -> Unit = {},
 ) {
     val folded = seat.participation == HandParticipation.Folded
-    val busted = !seat.seatEmpty &&
-        seat.stack <= 0L &&
-        seat.participation != HandParticipation.NotDealt
+    val busted = seat.isBusted
     val ringSize = avatarSize + 12.dp
     val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
     val dimAlpha = when {

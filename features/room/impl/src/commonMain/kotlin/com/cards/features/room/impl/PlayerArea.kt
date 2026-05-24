@@ -523,6 +523,7 @@ private fun previewHumanSeat(
     showHoleCardBacks = false,
     participation = participation,
     seatEmpty = false,
+    isBusted = false,
     lastAction = lastAction,
     isDealer = isDealer,
     isSmallBlind = isSmallBlind,

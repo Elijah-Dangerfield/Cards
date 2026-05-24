@@ -60,6 +60,7 @@ sealed interface TableUiState {
                     isDealer = seat.index == gameState.buttonSeatIndex,
                     isSmallBlind = seat.index == sbIndex,
                     isBigBlind = seat.index == bbIndex,
+                    street = gameState.street,
                     humanProfile = humanProfile,
                 )
             }
@@ -133,6 +134,7 @@ data class SeatView(
     val showHoleCardBacks: Boolean,
     val participation: HandParticipation,
     val seatEmpty: Boolean,
+    val isBusted: Boolean,
     val lastAction: PlayerAction?,
     val isDealer: Boolean,
     val isSmallBlind: Boolean,
@@ -150,6 +152,7 @@ data class SeatView(
             isDealer: Boolean,
             isSmallBlind: Boolean,
             isBigBlind: Boolean,
+            street: BettingRound,
             humanProfile: Profile.Authenticated? = null,
         ): SeatView {
             val visibleHole = when {
@@ -177,6 +180,10 @@ data class SeatView(
                 else -> personality?.emoji
             }
             val avatarBackgroundColorHex = if (isHuman) humanProfile?.avatarBackgroundColor else null
+            val seatEmpty = seat.playerId == null
+            val handResolved = street == BettingRound.Complete ||
+                seat.handParticipation == HandParticipation.NotDealt
+            val isBusted = !seatEmpty && seat.stack <= 0L && handResolved
             return SeatView(
                 index = seat.index,
                 displayName = displayName,
@@ -191,7 +198,8 @@ data class SeatView(
                 holeCards = visibleHole,
                 showHoleCardBacks = backs,
                 participation = seat.handParticipation,
-                seatEmpty = seat.playerId == null,
+                seatEmpty = seatEmpty,
+                isBusted = isBusted,
                 lastAction = lastAction,
                 isDealer = isDealer,
                 isSmallBlind = isSmallBlind,
