@@ -312,7 +312,7 @@ private fun PreviewDialog_ChipBubble() {
             emoji = dialogChipBubble(),
         ) {
             Text(
-                modifier = Modifier.padding(Dimension.D800),
+                modifier = Modifier.padding(horizontal = Dimension.D800),
                 text = "Chip-themed dialog (rebuy / bust / chip rewards)",
             )
         }

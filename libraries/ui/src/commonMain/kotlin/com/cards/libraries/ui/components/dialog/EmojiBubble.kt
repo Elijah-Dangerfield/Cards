@@ -57,7 +57,7 @@ object EmojiBubbleDefaults {
      * bubble — the spacing comes for free, so any change to bubble metrics
      * propagates without every caller having to know the geometry.
      */
-    val BodyGap: Dp = Dimension.D400
+    val BodyGap: Dp = Dimension.D300
 
     /** Squircle corner radius as a fraction of [Size]. */
     private const val SquircleCornerFraction: Float = 0.30f
