@@ -2,7 +2,6 @@ package com.dangerfield.cards.libraries.networking
 
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
-import com.dangerfield.cards.libraries.core.shouldNotBeCaught
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.ResponseException
@@ -24,23 +23,14 @@ private val networkCallLogger = KLog.withTag("NetworkCall")
  * retry. Callers that want backoff retry should compose with
  * `withBackoffRetry { authedCall(...) { ... } }`.
  *
- * Cooperative cancellation is preserved: cancellation exceptions are
- * re-thrown (via [shouldNotBeCaught]) rather than swallowed into the
- * Result, matching `Catching { }` semantics.
+ * Cancellation is preserved via [Catching] — `CancellationException` is
+ * re-thrown rather than swallowed.
  */
 suspend fun <T> NetworkClient.authedCall(
     description: String,
     block: suspend (HttpClient) -> T,
-): Catching<T> {
-    val outcome = try {
-        Catching.success(block(authenticatedClient))
-    } catch (t: Throwable) {
-        if (t.shouldNotBeCaught) throw t
-        Catching.failure(t)
-    }
-    return outcome.onFailure { throwable ->
-        networkCallLogger.w(throwable) { "$description failed (${throwable.classifyForLog()})" }
-    }
+): Catching<T> = Catching { block(authenticatedClient) }.onFailure { throwable ->
+    networkCallLogger.w(throwable) { "$description failed (${throwable.classifyForLog()})" }
 }
 
 private fun Throwable.classifyForLog(): String = when (this) {
