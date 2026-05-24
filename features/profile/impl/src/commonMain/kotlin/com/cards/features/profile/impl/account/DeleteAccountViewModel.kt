@@ -65,6 +65,16 @@ class DeleteAccountViewModel(
                         updateState { it.copy(isSubmitting = false) }
                         sendEvent(DeleteAccountEvent.Deleted)
                     }
+                    is DeleteAccountOutcome.AnonymousNotAllowed -> updateState {
+                        // The destination should be gated at the call site
+                        // (no Delete entry point for anon users in Profile),
+                        // so reaching this branch means the UI gate slipped
+                        // or the user ended up here via deep-link.
+                        it.copy(
+                            isSubmitting = false,
+                            error = "Anonymous accounts can't be deleted. Sign out instead, or claim your account first.",
+                        )
+                    }
                     is DeleteAccountOutcome.NetworkError -> updateState {
                         it.copy(
                             isSubmitting = false,

@@ -153,6 +153,20 @@ fun Route.meRoutes(
             delete("/v1/me") {
                 val userId =
                     call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                if (call.isAnonymousUser()) {
+                    // Anonymous accounts have no claimed identity to delete —
+                    // signing out already drops the only handle the client
+                    // has on this user. The client guards against this too,
+                    // but server is authoritative (the JWT carries
+                    // is_anonymous, can't be spoofed).
+                    return@delete call.respond(
+                        HttpStatusCode.Forbidden,
+                        problem(
+                            "anonymous_not_allowed",
+                            "Anonymous accounts can't be deleted. Sign out instead, or claim your account with email or OAuth first.",
+                        ),
+                    )
+                }
                 when (val admin = adminClient.deleteUser(userId)) {
                     DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
                         // Order: admin (revoke auth + sessions) first, then

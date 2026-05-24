@@ -419,6 +419,21 @@ class MeRoutesTest {
         }
     }
 
+    @Test
+    fun delete_returns403_whenJwtIsAnonymous() = runTest {
+        // Authoritative server-side guard: anon JWTs can't trigger account
+        // deletion. The client guards too, but a misbehaving / outdated
+        // build must not be able to slip through.
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val admin = StubAdmin(DeleteUserResult.Success)
+        callDeleteMe(repo, admin, bearer = validJwt(isAnonymous = true)) { resp ->
+            assertEquals(HttpStatusCode.Forbidden, resp.status)
+            assertEquals(0, admin.calls, "admin delete must not fire for anon JWT")
+            assertEquals(0, repo.deleteCalls)
+            assertTrue(resp.bodyAsText().contains("anonymous_not_allowed"))
+        }
+    }
+
     private object EmptyInventory : InventoryRepository {
         override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
         override suspend fun recordPurchase(

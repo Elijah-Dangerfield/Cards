@@ -267,15 +267,25 @@ class SupabaseAuthRepositoryImpl(
 
     override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
         logger.d { "deleteAccount: attempting" }
-        if (gateway.currentSession() == null) {
+        val session = gateway.currentSession()
+        if (session == null) {
             logger.w { "deleteAccount: NotSignedIn (no supabase session)" }
             return@withLock DeleteAccountOutcome.NotSignedIn
+        }
+        if (session.isAnonymous) {
+            // Belt-and-braces with the server: the JWT carries is_anonymous
+            // and the server rejects too. The client check is the fast
+            // path that keeps anon users out of the delete-confirmation
+            // typing dance entirely.
+            logger.w { "deleteAccount: AnonymousNotAllowed (session is anonymous)" }
+            return@withLock DeleteAccountOutcome.AnonymousNotAllowed
         }
         val outcome = Catching { profileApi.deleteMe() }.fold(
             onSuccess = { response ->
                 when (response.status.value) {
                     204, 200, 404 -> DeleteAccountOutcome.Success
                     401 -> DeleteAccountOutcome.NotSignedIn
+                    403 -> DeleteAccountOutcome.AnonymousNotAllowed
                     503 -> DeleteAccountOutcome.NotConfigured
                     else -> DeleteAccountOutcome.Unknown(
                         IllegalStateException("Unexpected status ${response.status.value}"),
@@ -286,6 +296,7 @@ class SupabaseAuthRepositoryImpl(
                 when (e) {
                     is io.ktor.client.plugins.ClientRequestException -> when (e.response.status.value) {
                         401 -> DeleteAccountOutcome.NotSignedIn
+                        403 -> DeleteAccountOutcome.AnonymousNotAllowed
                         else -> DeleteAccountOutcome.Unknown(e)
                     }
                     is io.ktor.client.plugins.ServerResponseException ->
