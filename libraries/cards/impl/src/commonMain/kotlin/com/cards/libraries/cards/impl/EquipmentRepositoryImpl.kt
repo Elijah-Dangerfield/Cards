@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.authedCall
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -167,7 +168,7 @@ class EquipmentRepositoryImpl(
     }
 
     override suspend fun sync(): Result<Unit> = syncMutex.withLock {
-        Catching {
+        networkClient.authedCall("equipment.sync") { client ->
             val all = getAll()
             val pending = all.filter { it.syncState == EquipmentSyncState.Pending }
 
@@ -182,7 +183,7 @@ class EquipmentRepositoryImpl(
             )
 
             syncLogger.d { "Syncing ${pending.size} pending equipment ops." }
-            val response: EquipmentSyncResponseDto = networkClient.authenticatedClient
+            val response: EquipmentSyncResponseDto = client
                 .post("/v1/equipment/sync") {
                     contentType(ContentType.Application.Json)
                     setBody(request)
@@ -200,7 +201,7 @@ class EquipmentRepositoryImpl(
             applyServerSnapshot(authoritative)
             syncLogger.d { "Equipment sync complete: ${authoritative.size} server-equipped." }
             Unit
-        }.onFailure { syncLogger.w(it) { "Equipment sync failed; pending rows stay Pending." } }
+        }
     }
 
     private fun EquipmentEntity.toDomain(): EquipmentEntry = EquipmentEntry(
