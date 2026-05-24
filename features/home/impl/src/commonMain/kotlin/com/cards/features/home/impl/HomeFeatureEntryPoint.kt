@@ -37,7 +37,7 @@ class HomeFeatureEntryPoint(
         screen<HomeRoute> {
             val viewModel: HomeViewModel = viewModel { homeViewModelFactory() }
             LaunchedEffect(Unit) {
-                KLog.withTag("HomeFeatureEntryPoint").i { "Home route entered" }
+                KLog.withTag("HomeFeatureEntryPoint").d { "Home route entered" }
             }
             ObserveWithLifecycle(viewModel.eventFlow) { event ->
                 when (event) {
