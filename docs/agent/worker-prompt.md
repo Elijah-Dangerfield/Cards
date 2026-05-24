@@ -12,8 +12,9 @@ You are one of 4 scheduled workers in an automation that incrementally ships eng
    - **`origin/dev` does not exist or matches `origin/main`**: `git checkout -B dev origin/main && git push -u origin dev`.
    - **`origin/dev` is ahead of `origin/main`, no open PR, last commit < 6 hours old**: an earlier worker tonight is already stacked. `git checkout dev && git pull --rebase origin dev` and stack onto it.
    - **`origin/dev` is ahead of `origin/main`, no open PR, last commit ≥ 6 hours old**: stale (PR was merged or abandoned). `git checkout dev && git reset --hard origin/main && git push --force-with-lease origin dev`.
-4. Read `AGENTS.md` (project ethos and required conventions — DS-first, `Catching {}` not `runCatching`, `DispatcherProvider` over `Dispatchers.*`, SEAViewModel, no comments, conventional commits, etc.).
-5. Read `docs/todo.md`. **Everything in this file is worker-pickable** — there's no human-only carve-out section anymore. Anything that requires a human action (device QA, dashboard config, content writing, product decisions) lives in `docs/developer-todo.md`, which you must never touch.
+4. **Sweep pre-existing working-tree changes into a commit.** If `git status` shows uncommitted modifications, stage them all and commit with `chore: bundle WIP — <one-line summary of what's in it>`. Read the diffs first so the summary actually describes the change; don't include files that look like secrets (`.env`, credentials). Skip only if `git status` is already clean. Rationale: the worker pipeline assumes a clean tree, and pre-existing WIP that doesn't get committed up front gets mixed into your next commit or stranded at the end of the run — both are bad. Bundling it as its own commit at the start gives the reviewer one obvious "this wasn't me" commit to evaluate.
+5. Read `AGENTS.md` (project ethos and required conventions — DS-first, `Catching {}` not `runCatching`, `DispatcherProvider` over `Dispatchers.*`, SEAViewModel, no comments, conventional commits, etc.).
+6. Read `docs/todo.md`. **Everything in this file is worker-pickable** — there's no human-only carve-out section anymore. Anything that requires a human action (device QA, dashboard config, content writing, product decisions) lives in `docs/developer-todo.md`, which you must never touch.
 
 ## Picking work
 
@@ -72,6 +73,6 @@ After your last item, double-check:
 - All commits push cleanly to `origin/dev`.
 - `docs/todo.md` reflects the items you removed.
 - `docs/agent/in-flight.md` has a block for every commit you added tonight.
-- Working tree is clean (`git status` is empty).
+- **Working tree is clean (`git status` is empty)** — non-negotiable. Any stray modifications mean you either skipped step 4 (sweep pre-existing WIP into a `chore: bundle WIP` commit) or left in-progress work behind; both must be resolved before stopping. If a file was modified but you can't account for the change, commit it as part of the WIP bundle rather than leaving it floating.
 
 Then stop. The next worker — or the reviewer — takes it from here.
