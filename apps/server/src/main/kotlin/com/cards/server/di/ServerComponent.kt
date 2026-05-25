@@ -12,6 +12,7 @@ import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
+import com.dangerfield.cards.server.game.GameSessionRegistry
 import me.tatarka.inject.annotations.Provides
 import software.amazon.lastmile.kotlin.inject.anvil.MergeComponent
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -53,6 +54,7 @@ abstract class ServerComponent(
     abstract val walletRepository: WalletRepository
     abstract val userMessageRepository: UserMessageRepository
     abstract val roomService: RoomService
+    abstract val gameSessionRegistry: GameSessionRegistry
 
     /**
      * Wall-clock source. Singleton so every component sees the same "now"

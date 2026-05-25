@@ -80,6 +80,14 @@ dependencies {
     ksp(libs.kotlin.inject.compiler.ksp)
     ksp(libs.anvil.compiler)
 
+    // Shared game code: GameEngine, GameState, PlayerIntent, GameEvent
+    // (and the bot decision logic) all live in client-shared KMP libraries.
+    // The server runs the engine for real multiplayer poker — same code on
+    // both ends so wire-format incompatibilities are impossible. See
+    // libraries/{gameplay,bots}/build.gradle.kts for the jvm() target.
+    implementation(projects.libraries.gameplay)
+    implementation(projects.libraries.bots)
+
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.junit)
