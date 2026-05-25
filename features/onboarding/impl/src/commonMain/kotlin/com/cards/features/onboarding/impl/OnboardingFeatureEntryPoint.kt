@@ -43,8 +43,6 @@ class OnboardingFeatureEntryPoint(
             OnboardingScreen(
                 state = state,
                 onAction = viewModel::takeAction,
-                onSignIn = { router.navigate(SignInRoute()) },
-                onComplete = {},
             )
         }
 
