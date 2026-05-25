@@ -61,7 +61,7 @@ interface Router {
      * the purchase sheet on top":
      * ```
      * router.batch {
-     *     switchTab(ShopRoute())
+     *     switchTab(ShopGraph)
      *     navigate(ShopProductSheetRoute(productId))
      * }
      * ```

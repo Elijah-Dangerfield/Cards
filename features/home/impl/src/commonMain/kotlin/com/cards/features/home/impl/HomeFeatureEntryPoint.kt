@@ -13,7 +13,7 @@ import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
-import com.dangerfield.cards.features.shop.ShopRoute
+import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -85,7 +85,7 @@ class HomeFeatureEntryPoint(
                 // Level pill → Stats — the screen-of-record for the
                 // full level / XP breakdown.
                 onTapLevel = { router.navigate(StatsRoute()) },
-                onTapCash = { router.switchTab(ShopRoute()) },
+                onTapCash = { router.switchTab(ShopGraph) },
                 onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
                 onTapAchievements = { router.navigate(AchievementsRoute()) },
                 // No standalone Friends surface yet — friend graph,

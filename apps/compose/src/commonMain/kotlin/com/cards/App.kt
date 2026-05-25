@@ -57,6 +57,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.ui.components.AppBottomBar
@@ -97,6 +98,15 @@ fun App(appComponent: AppComponent) {
     val ensureAppConfigLoaded = remember { appComponent.ensureAppConfigLoaded }
     val configOverrideRepository = remember { appComponent.configOverrideRepository }
     val appScope = rememberCoroutineScope()
+
+    // Boot-warm every @AutoInit singleton. Resolving the Set forces
+    // each contributor to construct, running their `init {}` blocks —
+    // products catalog hydrates from disk, AppEventDispatcher attaches
+    // its lifecycle observer, ProfileRepository fires its avatar-pack
+    // prefetch. Wrapped in `remember` so this resolves exactly once
+    // per Activity lifetime, even though App() recomposes. See
+    // [AutoInit] for the contract.
+    remember { appComponent.autoInits }
 
     DisposableEffect(shakeHandler) {
         shakeHandler.start()
@@ -267,7 +277,11 @@ private fun AppNavigation(
                     onItemClick = { item ->
                         val (isAlreadySelected, route) = when (item) {
                             is BottomBarItem.Home -> (currentDestination?.hasRoute<HomeRoute>() == true) to HomeRoute()
-                            is BottomBarItem.Shop -> isShopSelected to ShopRoute()
+                            // Tab target is the graph entry, not the leaf — only navigating to
+                            // ShopGraph keeps saveState/restoreState working across tab switches.
+                            // (Targeting the inner ShopRoute silently no-ops restoreState and
+                            // recreates the ShopViewModel on every visit.)
+                            is BottomBarItem.Shop -> isShopSelected to ShopGraph
                             is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
                         }
 
