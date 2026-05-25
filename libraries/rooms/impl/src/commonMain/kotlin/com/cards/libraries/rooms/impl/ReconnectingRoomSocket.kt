@@ -14,6 +14,7 @@ import io.ktor.client.plugins.websocket.WebSocketException
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.http.HttpMethod
 import io.ktor.http.URLProtocol
+import io.ktor.http.Url
 import io.ktor.http.path
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
@@ -164,15 +165,23 @@ class ReconnectingRoomSocket(
         // Auth bearer rides on the authenticated client's Auth plugin —
         // no need to set Authorization here.
         //
-        // Protocol is sourced from [NetworkConfig.baseUrl] directly rather
-        // than `URLBuilder.protocol`: the DefaultRequest plugin merges the
-        // base URL *after* this block runs, so reading the builder's
-        // protocol here always sees the default HTTP and produced a `ws://`
-        // URL even when the base was `https://` (handshake fails against
-        // Fly/Cloudflare which require TLS).
-        val useWss = networkConfig.baseUrl.startsWith("https://", ignoreCase = true)
+        // We set protocol/host/port explicitly from the parsed base URL
+        // instead of leaning on DefaultRequest's merge. Two reasons:
+        //  1. The Ktor WebSockets plugin pre-fills the URLBuilder with
+        //     `protocol = WS, port = 80` before this block runs. If we
+        //     only flip the protocol to WSS, port 80 sticks and Ktor
+        //     attempts TLS against the Fly server's plaintext :80 — the
+        //     handshake fails with `WRONG_VERSION_NUMBER`.
+        //  2. DefaultRequest's URL merge copies host from the base URL
+        //     only when the request host is empty, and it leaves any
+        //     already-set port alone. So we have to populate both
+        //     ourselves to override the WS-plugin defaults.
+        val base = Url(networkConfig.baseUrl)
+        val useWss = base.protocol.name.equals("https", ignoreCase = true)
         url {
             protocol = if (useWss) URLProtocol.WSS else URLProtocol.WS
+            host = base.host
+            port = base.port
             path("v1", "rooms", code.uppercase(), "socket")
         }
         method = HttpMethod.Get

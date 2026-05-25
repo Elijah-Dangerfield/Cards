@@ -140,6 +140,15 @@ class ReconnectingRoomSocketTest {
             requests.any { it.startsWith("wss://") },
             "request should upgrade to wss when base is https; got: $requests",
         )
+        // Pins the prod-broke-iOS fix: the Ktor WebSockets plugin pre-fills
+        // the URLBuilder with `port = 80` before our block runs, and a bare
+        // `protocol = WSS` swap leaves that port intact — producing
+        // `wss://host:80` which TLS-handshakes against Fly's plaintext :80
+        // and fails with WRONG_VERSION_NUMBER.
+        assertTrue(
+            requests.none { it.contains(":80/") || it.endsWith(":80") },
+            "wss handshake must not target port 80; got: $requests",
+        )
     }
 
     @Test
