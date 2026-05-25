@@ -132,6 +132,14 @@ class ReconnectingRoomSocket(
                         is RoomSocketEventDto.MemberLeft,
                         is RoomSocketEventDto.MemberPresenceChanged,
                             -> Unit
+                        // Multiplayer gameplay frames flow on a sibling
+                        // channel (Phase 2b) so PlayPoker can subscribe
+                        // without touching lobby concerns. The lobby
+                        // observer in this when ignores them.
+                        is RoomSocketEventDto.GameStateSnapshot,
+                        is RoomSocketEventDto.GameEventOccurred,
+                        is RoomSocketEventDto.IntentAck,
+                            -> Unit
                         RoomSocketEventDto.RoomClosed -> {
                             // Terminal — no point reconnecting.
                             send(RoomConnection.Closed(ClosedReason.RoomDeleted))

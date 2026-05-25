@@ -20,6 +20,10 @@ kotlin {
             implementation(projects.libraries.networking)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            // Multiplayer wire frames carry GameState / GameEvent /
+            // PlayerIntent. The server runs the same gameplay engine so
+            // the wire types match by construction.
+            implementation(projects.libraries.gameplay)
 
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)

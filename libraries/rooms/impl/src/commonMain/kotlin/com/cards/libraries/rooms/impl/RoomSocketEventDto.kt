@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
+import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.GameState
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -13,6 +15,14 @@ import kotlinx.serialization.Serializable
  * drops the frame rather than crashing the flow. Keeps a stale client
  * tolerant of any new server-side variants without registering
  * placeholders here.
+ *
+ * Variants split into two families:
+ *  - Lobby + presence (Snapshot, MemberJoined, MemberLeft,
+ *    MemberPresenceChanged, RoomClosed) — what the room *is*.
+ *  - Multiplayer gameplay (GameStateSnapshot, GameEventOccurred,
+ *    IntentAck) — what the in-progress hand is doing. The server
+ *    personalizes [GameStateSnapshot] per subscriber so other seats'
+ *    hole cards are scrubbed.
  */
 @Serializable
 internal sealed interface RoomSocketEventDto {
@@ -39,4 +49,20 @@ internal sealed interface RoomSocketEventDto {
     @Serializable
     @SerialName("room_closed")
     data object RoomClosed : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("game_state")
+    data class GameStateSnapshot(val state: GameState) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("game_event")
+    data class GameEventOccurred(val event: GameEvent) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("intent_ack")
+    data class IntentAck(
+        val clientNonce: String,
+        val accepted: Boolean,
+        val error: String? = null,
+    ) : RoomSocketEventDto
 }
