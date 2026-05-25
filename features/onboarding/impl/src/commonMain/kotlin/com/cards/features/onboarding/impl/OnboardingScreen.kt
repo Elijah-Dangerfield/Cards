@@ -1,8 +1,16 @@
 package com.dangerfield.cards.features.onboarding.impl
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseIn
+import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -84,10 +92,32 @@ fun OnboardingScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            when (state.step) {
-                OnboardingStep.Welcome -> WelcomeStep(state, onAction)
-                OnboardingStep.PickIdentity -> PickIdentityStep(state, onAction)
-                OnboardingStep.HowItWorks -> HowItWorksStep(onAction)
+            AnimatedContent(
+                targetState = state.step,
+                transitionSpec = {
+                    val forward = stepIndex(targetState) >= stepIndex(initialState)
+                    val direction = if (forward) SlideDirection.Start else SlideDirection.End
+                    (
+                        fadeIn(tween(300, easing = LinearEasing)) +
+                            slideIntoContainer(
+                                animationSpec = tween(300, easing = EaseIn),
+                                towards = direction,
+                            )
+                    ) togetherWith (
+                        fadeOut(tween(300, easing = LinearEasing)) +
+                            slideOutOfContainer(
+                                animationSpec = tween(300, easing = EaseOut),
+                                towards = direction,
+                            )
+                    )
+                },
+                label = "OnboardingStep",
+            ) { step ->
+                when (step) {
+                    OnboardingStep.Welcome -> WelcomeStep(state, onAction)
+                    OnboardingStep.PickIdentity -> PickIdentityStep(state, onAction)
+                    OnboardingStep.HowItWorks -> HowItWorksStep(onAction)
+                }
             }
         }
     }
@@ -570,6 +600,12 @@ private fun EmojiTile(glyph: String, tint: Color) {
     }
 }
 
+private fun stepIndex(step: OnboardingStep): Int = when (step) {
+    OnboardingStep.Welcome -> 0
+    OnboardingStep.PickIdentity -> 1
+    OnboardingStep.HowItWorks -> 2
+}
+
 // ---------------------------------------------------------------------------
 // Previews
 // ---------------------------------------------------------------------------
@@ -609,7 +645,7 @@ private fun OnboardingScreenPreview_PickIdentity() {
                 step = OnboardingStep.PickIdentity,
                 displayName = "QuietAce72",
                 selectedEmoji = "🦊",
-                selectedBackgroundColor = "#E48A58",
+                selectedBackgroundColor = "#ff6b35",
                 // Default starterPack = the hardcoded onboarding pack.
             ),
             onAction = {},
