@@ -101,6 +101,10 @@ fun Surface(
     border: Border? = null,
     alpha: Float = 1f,
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    // Raw-Color escape hatch for backgrounds that don't map to a DS token
+    // (e.g. per-equipped-felt accent surfaces driven from a CompositionLocal).
+    // Wins over `color` when non-null; default path stays type-safe.
+    colorOverride: androidx.compose.ui.graphics.Color? = null,
     content: @Composable () -> Unit,
 ) {
     Box(
@@ -111,7 +115,8 @@ fun Surface(
                 elevation = elevation,
                 clip = true,
                 alpha = alpha,
-                border = border
+                border = border,
+                colorOverride = colorOverride,
             )
             .semantics(mergeDescendants = false) {
                 isTraversalGroup = true
