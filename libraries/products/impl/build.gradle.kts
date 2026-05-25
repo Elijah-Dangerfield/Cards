@@ -19,6 +19,10 @@ kotlin {
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.billing)
+            // SessionTracker (session-rollover trigger) + CacheFactory
+            // (on-disk catalog snapshot).
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.storage)
 
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core)
@@ -32,6 +36,8 @@ kotlin {
             implementation(projects.libraries.products)
             implementation(projects.libraries.networking)
             implementation(projects.libraries.billing)
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.storage)
         }
     }
 }

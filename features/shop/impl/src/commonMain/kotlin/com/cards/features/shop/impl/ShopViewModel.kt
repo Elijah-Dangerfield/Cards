@@ -73,6 +73,15 @@ class ShopViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            // Mirror the repo's refresh-in-flight signal so the
+            // loading spinner shows for repo-driven refreshes (cold
+            // boot, session rollover) without the VM having to know
+            // *which* call started them.
+            productsRepository.observeIsRefreshing().collect { refreshing ->
+                takeAction(ShopAction.RefreshingChanged(refreshing))
+            }
+        }
+        viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(ShopAction.ChipsChanged(balance))
             }
@@ -102,37 +111,55 @@ class ShopViewModel @Inject constructor(
                 takeAction(ShopAction.TimeAnchorChanged(anchor))
             }
         }
-        // Kick off catalog refresh + inventory sync (these run concurrently).
-        // Screen-entry refresh is non-forced so the repository short-circuits
-        // when the cache is still warm — pull-to-refresh ([ShopAction.Refresh]
-        // with `force = true`) is the only path that always hits the network.
-        // Inventory + chip balance refresh on every entry regardless; those
-        // change with gameplay between shop visits.
-        takeAction(ShopAction.Refresh(force = false))
+        // No explicit catalog refresh on screen entry: the repository
+        // is session-aware and self-triggers on cold boot + on any
+        // background-rollover (see ProductsRepositoryImpl). VM `init`
+        // would otherwise fire a redundant non-forced refresh that
+        // the repository would short-circuit anyway. Pull-to-refresh
+        // (ShopAction.Refresh with force = true) is the only path
+        // that still goes through the VM for the catalog.
+        //
+        // Inventory still syncs on every screen entry — it changes
+        // with gameplay between shop visits and is cheap.
         viewModelScope.launch { inventoryRepository.sync() }
     }
 
     override suspend fun handleAction(action: ShopAction) {
         when (action) {
             is ShopAction.Refresh -> {
-                action.updateState { it.copy(isRefreshing = true, errorMessage = null) }
+                // Errors are cleared optimistically — a fresh user pull
+                // dismisses the prior banner immediately. isRefreshing
+                // is driven by the repo flow (observeIsRefreshing)
+                // rather than set here, so any concurrently in-flight
+                // session-rollover refresh stays correctly reflected.
+                action.updateState { it.copy(errorMessage = null) }
                 viewModelScope.launch {
                     val result = productsRepository.refresh(force = action.force)
                     result.onFailure { failure ->
                         logger.w(failure) { "Catalog refresh failed" }
                         takeAction(ShopAction.RefreshFailed(failure.message ?: "Couldn't load shop"))
                     }
-                    takeAction(ShopAction.RefreshFinished)
                 }
             }
-            is ShopAction.RefreshFinished -> action.updateState {
-                it.copy(isRefreshing = false, hasLoaded = true)
+            is ShopAction.RefreshingChanged -> action.updateState {
+                // `hasLoaded` flips true the first time we see a refresh
+                // *finish* (transition true → false). Until that point,
+                // the screen renders the loading spinner regardless of
+                // whether the catalog is empty (could be a fresh
+                // install fetching for the first time).
+                val hasLoaded = it.hasLoaded || (it.isRefreshing && !action.value)
+                it.copy(isRefreshing = action.value, hasLoaded = hasLoaded)
             }
             is ShopAction.RefreshFailed -> action.updateState {
                 it.copy(errorMessage = action.message)
             }
             is ShopAction.CatalogChanged -> action.updateState {
-                it.copy(catalog = action.catalog)
+                // Disk-hydrated catalog or a successful refresh both
+                // count as "loaded" — once we have any non-empty
+                // catalog the screen can render the grid even if a
+                // refresh is mid-flight.
+                val hasLoaded = it.hasLoaded || !action.catalog.isEmpty
+                it.copy(catalog = action.catalog, hasLoaded = hasLoaded)
             }
             is ShopAction.ChipsChanged -> action.updateState {
                 it.copy(chipBalance = action.balance)
@@ -436,7 +463,12 @@ sealed interface ShopAction {
      * window can short-circuit duplicate fetches.
      */
     data class Refresh(val force: Boolean) : ShopAction
-    data object RefreshFinished : ShopAction
+    /**
+     * Mirrors the repository's [com.dangerfield.cards.libraries.products.ProductsRepository.observeIsRefreshing]
+     * so the loading state stays accurate whether the refresh was
+     * pull-driven or session-rollover-driven.
+     */
+    data class RefreshingChanged(val value: Boolean) : ShopAction
     data class RefreshFailed(val message: String) : ShopAction
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction
     data class ChipsChanged(val balance: Long?) : ShopAction

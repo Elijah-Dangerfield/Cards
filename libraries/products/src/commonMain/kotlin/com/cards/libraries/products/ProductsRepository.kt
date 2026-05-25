@@ -47,4 +47,13 @@ interface ProductsRepository {
      * [CatalogTimeAnchor] for the math.
      */
     fun observeTimeAnchor(): Flow<CatalogTimeAnchor?>
+
+    /**
+     * `true` while a refresh is currently in flight. Drives the
+     * screen's loading indicator regardless of *who* triggered the
+     * refresh — the repository's own session-rollover auto-refresh
+     * looks identical to a pull-to-refresh from the consumer's
+     * perspective. Initial value `false`.
+     */
+    fun observeIsRefreshing(): Flow<Boolean>
 }

@@ -1622,3 +1622,42 @@ admin token usage, the GHA workflow, and the env knob.
 
 **Status:** Landed. Supersedes the cron-sweep design
 [2026-05-19 — Multiplayer: reconnect grace timer + seat sweep](#2026-05-19--multiplayer-reconnect-grace-timer--seat-sweep).
+
+## 2026-05-25 — Session-aware repository refresh (Shop catalog is the first adopter)
+
+**Decision:** Repositories that own server-driven reference data refresh on
+*session boundaries*, not on screen entry or fixed-time TTLs. A new
+`SessionTracker` (`:libraries:cards`) publishes `Session(id, startedAtMs,
+reason)` when the process cold-boots or the app foregrounds after ≥ 15 min
+in background. Repos persist the catalog snapshot via
+`:libraries:storage`'s `Cache<T>` along with `lastFetchSessionId` +
+`fetchedAtEpochMs`, hydrate from disk on init (so the first frame has
+content), and self-trigger a refresh when the session id rolls past
+`lastFetchSessionId`. Pull-to-refresh still forces. Snapshots older than 7
+days are dropped on init. Repos also expose `observeIsRefreshing()` so
+the screen can show its spinner without the VM having to know which call
+triggered the refresh.
+
+**Why:** Two symptoms reported 2026-05-24 — (1) offline cold-starts show
+empty content even though we've cached it before, and (2) hot routes
+over-fetch (15-min in-memory window was doing almost nothing under the
+current `graphScopedViewModel` lifecycle: the VM is alive across tab
+switches, so init refresh only fires once per cold launch anyway). The
+session model maps cleanly onto user intuition ("come back tomorrow → see
+fresh content; come back from the share sheet → don't re-fetch") and
+does the right thing without leaking trigger logic into every consumer.
+
+**Alternatives considered:**
+- **Bump the freshness window to 24h / forever.** Doesn't solve the
+  cold-start-empty problem; relies on the VM-lifetime trick to be
+  load-bearing forever.
+- **Refresh on every tab entry.** Wastes bandwidth; same data, repeated.
+- **`SessionAwareCache<T>` superclass.** Tempting but premature — each
+  repo's "what's too stale to show" + "what triggers a refresh"
+  questions differ enough that a forced abstraction would mostly export
+  hooks. Revisit once a third repo adopts the pattern.
+
+**Status:** Landed (Shop catalog). Remaining surfaces (inventory, avatar
+catalog, achievements, profile) are tracked in
+[`developer-todo.md`](./developer-todo.md) — each needs a per-endpoint
+call before adoption.
