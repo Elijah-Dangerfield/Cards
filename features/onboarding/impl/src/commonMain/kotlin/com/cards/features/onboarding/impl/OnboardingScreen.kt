@@ -345,7 +345,7 @@ private fun PickIdentityStep(
         SectionLabel("STARTER PACK")
         Spacer(modifier = Modifier.height(Dimension.D400))
         StarterPackGrid(
-            state = state.starterPack,
+            avatars = state.starterPack,
             selectedEmoji = state.selectedEmoji,
             onSelect = { option ->
                 onAction(
@@ -392,14 +392,10 @@ private fun PickIdentityStep(
 
 @Composable
 private fun StarterPackGrid(
-    state: AvatarPackState,
+    avatars: List<AvatarOption>,
     selectedEmoji: String?,
     onSelect: (AvatarOption) -> Unit,
 ) {
-    val avatars: List<AvatarOption?> = when (state) {
-        AvatarPackState.Loading -> List(OnboardingViewModel.STARTER_TILE_COUNT) { null }
-        is AvatarPackState.Ready -> state.avatars
-    }
     Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
         avatars.chunked(4).forEach { row ->
             Row(
@@ -408,15 +404,11 @@ private fun StarterPackGrid(
             ) {
                 row.forEach { option ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        if (option == null) {
-                            AvatarSkeleton()
-                        } else {
-                            AvatarTile(
-                                option = option,
-                                isSelected = option.emoji == selectedEmoji,
-                                onClick = { onSelect(option) },
-                            )
-                        }
+                        AvatarTile(
+                            option = option,
+                            isSelected = option.emoji == selectedEmoji,
+                            onClick = { onSelect(option) },
+                        )
                     }
                 }
                 // Pad short trailing row so widths stay consistent.
@@ -455,16 +447,6 @@ private fun AvatarTile(
             size = 56.dp,
         )
     }
-}
-
-@Composable
-private fun AvatarSkeleton() {
-    Box(
-        modifier = Modifier
-            .size(56.dp)
-            .clip(CircleShape)
-            .background(AppTheme.colors.surfaceSecondary.color),
-    )
 }
 
 @Composable
@@ -620,22 +602,7 @@ private fun OnboardingScreenPreview_Welcome_OAuthEnabled() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun OnboardingScreenPreview_PickIdentity_Loading() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        OnboardingScreen(
-            state = OnboardingState(
-                step = OnboardingStep.PickIdentity,
-                displayName = "QuietAce72",
-                starterPack = AvatarPackState.Loading,
-            ),
-            onAction = {},
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@Composable
-private fun OnboardingScreenPreview_PickIdentity_Ready() {
+private fun OnboardingScreenPreview_PickIdentity() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         OnboardingScreen(
             state = OnboardingState(
@@ -643,18 +610,7 @@ private fun OnboardingScreenPreview_PickIdentity_Ready() {
                 displayName = "QuietAce72",
                 selectedEmoji = "🦊",
                 selectedBackgroundColor = "#E48A58",
-                starterPack = AvatarPackState.Ready(
-                    listOf(
-                        AvatarOption("🦊", "#E48A58"),
-                        AvatarOption("😀", "#E4C658"),
-                        AvatarOption("🐼", "#7D8794"),
-                        AvatarOption("🐯", "#C68A3D"),
-                        AvatarOption("🦄", "#C658E4"),
-                        AvatarOption("🐸", "#5DA15D"),
-                        AvatarOption("🦁", "#E4A258"),
-                        AvatarOption("🌶️", "#5DAE5D"),
-                    ),
-                ),
+                // Default starterPack = the hardcoded onboarding pack.
             ),
             onAction = {},
         )

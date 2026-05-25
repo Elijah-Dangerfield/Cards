@@ -5,17 +5,14 @@ import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
-import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,7 +20,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /**
@@ -68,12 +64,6 @@ class OnboardingViewModelTest : CoroutineTest() {
                 avatarEmoji = "🦊",
                 avatarBackgroundColor = "#E48A58",
             ),
-            packOutcome = AvatarPackOutcome.Success(
-                packs = listOf(
-                    AvatarPack(id = "starter", name = "Starter", emojis = listOf("🦊", "🐼")),
-                ),
-                palette = listOf("#E48A58", "#7D8794"),
-            ),
         )
         val vm = newVm(cache = cache, auth = auth, profile = profile)
 
@@ -84,10 +74,11 @@ class OnboardingViewModelTest : CoroutineTest() {
         assertEquals("ServerName42", vm.state.displayName)
         assertEquals("🦊", vm.state.selectedEmoji)
         assertEquals("#E48A58", vm.state.selectedBackgroundColor)
-        // Avatar pack loaded from server with palette colors paired.
-        val ready = vm.state.starterPack as AvatarPackState.Ready
-        assertEquals(listOf("🦊", "🐼"), ready.avatars.map { it.emoji })
-        assertEquals(listOf("#E48A58", "#7D8794"), ready.avatars.map { it.backgroundColorHex })
+        // The avatar picker uses the hardcoded onboarding starter
+        // pack — no server fetch. Pin the count + first emoji so a
+        // future change to STARTER_PACK trips a test.
+        assertEquals(OnboardingViewModel.STARTER_TILE_COUNT, vm.state.starterPack.size)
+        assertEquals("🦊", vm.state.starterPack.first().emoji)
     }
 
     @Test
@@ -311,26 +302,6 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun avatarPack_timeout_fallsBackToHardcodedStarterList() = runUnitTest {
-        val profile = FakeProfileRepository(
-            initial = Profile.Fallback(id = "f"),
-            packFetchBlocks = true,
-        )
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val vm = newVm(auth = auth, profile = profile)
-
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        // Push past the 3-second timeout. Fallback should populate.
-        advanceTimeBy(4.seconds)
-        runCurrent()
-
-        val ready = vm.state.starterPack as AvatarPackState.Ready
-        assertEquals(OnboardingViewModel.STARTER_TILE_COUNT, ready.avatars.size)
-        // Fallback pack starts with the fox emoji we hardcoded.
-        assertEquals("🦊", ready.avatars.first().emoji)
-    }
-
-    @Test
     fun dismissError_clearsErrors() = runUnitTest {
         val auth = FakeAuthRepository(
             initialAuthState = AuthState.Unauthenticated(RuntimeException("boom")),
@@ -387,11 +358,6 @@ internal class FakeProfileRepository(
             createdAt = Instant.fromEpochSeconds(0),
         ),
     ),
-    private val packOutcome: AvatarPackOutcome = AvatarPackOutcome.Success(
-        packs = emptyList(),
-        palette = emptyList(),
-    ),
-    private val packFetchBlocks: Boolean = false,
 ) : ProfileRepository {
     private val flow = MutableStateFlow(initial)
     var lastUpdateArgs: Pair<String?, Pair<String?, String?>>? = null
@@ -412,12 +378,9 @@ internal class FakeProfileRepository(
         return updateOutcome
     }
 
-    override suspend fun fetchAvatarPack(): AvatarPackOutcome {
-        if (packFetchBlocks) {
-            // Suspend forever — the test advances virtual time past
-            // the OnboardingViewModel timeout to verify the fallback path.
-            CompletableDeferred<Unit>().await()
-        }
-        return packOutcome
-    }
+    // Onboarding doesn't fetch the avatar pack anymore — the picker
+    // uses the hardcoded starter list. Stub returns Success(empty) so
+    // any incidental call still satisfies the contract.
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome =
+        AvatarPackOutcome.Success(packs = emptyList(), palette = emptyList())
 }

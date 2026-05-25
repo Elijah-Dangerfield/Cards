@@ -13,7 +13,6 @@ import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
-import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
@@ -90,7 +89,11 @@ class OnboardingViewModel(
         when (action) {
             OnboardingAction.WarmUp -> {
                 action.kickOffProfileLoad()
-                action.kickOffAvatarPackLoad()
+                // No avatar-pack fetch here: the picker uses the
+                // hardcoded starter pack instead so onboarding never
+                // blocks on the authed `/v1/avatars` call. EditProfile
+                // is the only screen that pulls the server-driven
+                // pack, gated by the session-aware cache there.
             }
             OnboardingAction.ContinueAsGuest -> action.handleContinueAsGuest()
             is OnboardingAction.SignInWithOAuth -> action.handleOAuth(action.provider)
@@ -165,23 +168,6 @@ class OnboardingViewModel(
         }
     }
 
-    private fun OnboardingAction.kickOffAvatarPackLoad() {
-        val action = this
-        viewModelScope.launch {
-            val outcome = withTimeoutOrNull(AVATAR_PACK_TIMEOUT) {
-                profileRepository.fetchAvatarPack()
-            }
-            val avatars = when (outcome) {
-                is AvatarPackOutcome.Success -> outcome.toStarterAvatars()
-                null,
-                is AvatarPackOutcome.NetworkError,
-                is AvatarPackOutcome.Unknown,
-                -> fallbackStarterPack()
-            }
-            action.updateState { it.copy(starterPack = AvatarPackState.Ready(avatars)) }
-        }
-    }
-
     private suspend fun OnboardingAction.handleOAuth(provider: OAuthProvider) {
         updateState { it.copy(oauthInFlight = provider, authError = null) }
         when (val outcome = authRepository.signInWithOAuth(provider)) {
@@ -252,23 +238,6 @@ class OnboardingViewModel(
     }
 
     /**
-     * Pair emojis with palette colors by index (mod palette size) so each
-     * tile has a stable, distinct background. If the server returns no
-     * palette, tiles fall back to the DS surfaceSecondary token.
-     */
-    private fun AvatarPackOutcome.Success.toStarterAvatars(): List<AvatarOption> {
-        val starter = packs.firstOrNull { it.unlockProductId == null }
-            ?: packs.firstOrNull()
-            ?: return fallbackStarterPack()
-        return starter.emojis.take(STARTER_TILE_COUNT).mapIndexed { index, emoji ->
-            val color = palette.getOrNull(index % palette.size.coerceAtLeast(1))
-            AvatarOption(emoji = emoji, backgroundColorHex = color)
-        }
-    }
-
-    private fun fallbackStarterPack(): List<AvatarOption> = FALLBACK_STARTER_PACK
-
-    /**
      * Map the underlying exception onto something a user (or a dev
      * looking at the screen) can act on. Pattern-matches against the most
      * common Supabase responses; falls back to a generic line for the
@@ -303,15 +272,15 @@ class OnboardingViewModel(
     companion object {
         internal const val STARTER_TILE_COUNT = 8
         private val PROFILE_TIMEOUT = 3.seconds
-        private val AVATAR_PACK_TIMEOUT = 3.seconds
 
         /**
-         * Used when the avatar-pack endpoint times out or errors. Kept
-         * here rather than in a config because (a) we want the V1
-         * onboarding screen to render *something* even with the network
-         * fully down, and (b) the list rarely changes.
+         * The starter pack onboarding shows. Hardcoded so the picker
+         * renders instantly with zero network — onboarding stays
+         * fast even on a cold install + bad network. EditProfile
+         * (post-onboarding) pulls the full server-driven pack via the
+         * session-aware cache on `ProfileRepository`.
          */
-        private val FALLBACK_STARTER_PACK: List<AvatarOption> = listOf(
+        internal val STARTER_PACK: List<AvatarOption> = listOf(
             AvatarOption("🦊", "#E48A58"),
             AvatarOption("😀", "#E4C658"),
             AvatarOption("🐼", "#7D8794"),
@@ -336,7 +305,14 @@ data class OnboardingState(
 
     val selectedEmoji: String? = null,
     val selectedBackgroundColor: String? = null,
-    val starterPack: AvatarPackState = AvatarPackState.Loading,
+    /**
+     * Hardcoded starter pack the user picks from on the PickIdentity
+     * step. Never null / loading — onboarding doesn't fetch from the
+     * server (that would force the picker to wait on an authed call
+     * during the most fragile bit of the first-time experience).
+     * EditProfile (post-onboarding) pulls the full pack catalog.
+     */
+    val starterPack: List<AvatarOption> = OnboardingViewModel.STARTER_PACK,
 
     val isSavingProfile: Boolean = false,
     val saveError: String? = null,
@@ -353,11 +329,6 @@ sealed interface OnboardingStep {
     data object HowItWorks : OnboardingStep
 }
 
-sealed interface AvatarPackState {
-    data object Loading : AvatarPackState
-    data class Ready(val avatars: List<AvatarOption>) : AvatarPackState
-}
-
 data class AvatarOption(
     val emoji: String,
     val backgroundColorHex: String?,
@@ -368,7 +339,7 @@ sealed interface OnboardingEvent {
 }
 
 sealed interface OnboardingAction {
-    /** Self-dispatched at VM init to warm up profile + avatar pack loads. */
+    /** Self-dispatched at VM init to warm up the profile load. */
     data object WarmUp : OnboardingAction
     data object ContinueAsGuest : OnboardingAction
     data class SignInWithOAuth(val provider: OAuthProvider) : OnboardingAction
