@@ -1,3 +1,10 @@
+## refactor(ui): route Material icon callsites through DS
+
+**Problem:** AppGuardLayer (maintenance Warning), OfflineBanner (CloudOff), and OnboardingScreen (Edit, Lock) were reaching past the DS to `androidx.compose.material3.Icon` + `androidx.compose.material.icons.Icons.*`, leaking Material defaults into screens that otherwise honor the DS.
+**Approach:** Replace each Material call with the DS `Icon(icon = Icons.X(desc), size, color)`. Reused existing DS entries (`Warning`, `Pencil`, `Lock`) and added one new entry `CloudOff` (mapped to `Icons.Default.CloudOff`) to `:libraries:ui:components:icon:Icons` rather than hand-tuning the offline banner. Sizes snap to the nearest existing `IconSize` token (`Smallest`/`Small`); colors swap from raw `Color` to the corresponding `ColorResource` so the DS contract carries through.
+**Reviewer notes:** OnboardingScreen's display-name `OutlinedTextField.trailingIcon` was hand-tuned to `18.dp` — closest DS token is `IconSize.Small` (`D800` = 20dp); 2dp upsize is the visible delta. Avatar-edit pencil and "more packs" lock were already at 14dp = `IconSize.Smallest`, exact match. Builds: `:apps:compose:assembleDebug` + `:apps:compose:compileKotlinIosSimulatorArm64` both green.
+**Deferred:** `:libraries:ui`-internal `FeatureCard.kt` still imports Material `Icon` directly — that's DS authoring and the todo carve-out (`Out of scope: redesigning the DS icon set`) is ambiguous about it; left for the next pass. Stats info-button is also still on Material per the todo's call-out; left for a separate commit since it pairs with the upcoming Stats refactor.
+
 ## refactor(room): migrate PotPill + WinOddsBadge to felt-accent surface
 
 **Problem:** PotPill (BoardArea) and WinOddsBadge sit directly on the table felt but hardcoded `AppTheme.colors.surfaceSecondary`, so on non-default felts they read as alien chrome pasted on a colored background instead of "raised felt."

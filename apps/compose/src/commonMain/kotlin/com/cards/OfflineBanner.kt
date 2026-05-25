@@ -15,9 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
@@ -25,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.system.AppTheme
@@ -52,20 +51,19 @@ fun OfflineBanner() {
 
 @Composable
 private fun OfflineBannerContent() {
-    val warning = AppTheme.colors.status.warning.color
+    val warning = AppTheme.colors.status.warning
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(warning.copy(alpha = 0.18f))
+            .background(warning.color.copy(alpha = 0.18f))
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         Icon(
-            imageVector = Icons.Default.CloudOff,
-            contentDescription = null,
-            tint = warning,
+            icon = Icons.CloudOff(null),
+            color = warning,
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(

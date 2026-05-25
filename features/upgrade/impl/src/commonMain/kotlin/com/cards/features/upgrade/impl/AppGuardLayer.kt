@@ -21,9 +21,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +32,8 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
@@ -104,20 +103,19 @@ private fun MaintenanceBanner(message: String) {
     // Lives in the Scaffold's topBar slot, which draws at y=0 with no
     // implicit insets — so we apply statusBars padding ourselves to keep
     // text out from under the notch while the background bleeds up.
-    val warning = AppTheme.colors.status.warning.color
+    val warning = AppTheme.colors.status.warning
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(warning.copy(alpha = 0.18f))
+            .background(warning.color.copy(alpha = 0.18f))
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         Icon(
-            imageVector = Icons.Default.Warning,
-            contentDescription = null,
-            tint = warning,
+            icon = Icons.Warning(null),
+            color = warning,
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
