@@ -31,7 +31,17 @@ data class SupabaseMetadata(
 }
 
 data class ServerMetadata(
+    /**
+     * The explicit base URL the client should use when `useLocal` is
+     * false. Always populated (gradle.properties carries the team default).
+     */
     val baseUrl: String,
+    /**
+     * Per-dev toggle: when true, the client ignores [baseUrl] and resolves
+     * to `http://localhost:8080` on iOS or `http://10.0.2.2:8080` on
+     * Android at runtime, so a single flag works for both targets.
+     */
+    val useLocal: Boolean,
 )
 
 fun Project.loadVersionMetadata(): VersionMetadata {
@@ -99,18 +109,26 @@ fun BuildConfigExtension.writeSupabaseMetadata(metadata: SupabaseMetadata) {
 }
 
 /**
- * Resolves the Cards server base URL with the following precedence:
- *  1. `server.baseUrl` in `local.properties` (per-dev override, gitignored)
- *  2. `CARDS_SERVER_BASE_URL` env var (CI / shell override)
- *  3. `server.baseUrl` in `gradle.properties` (team default, checked in)
- *  4. Hardcoded fallback — only hit if someone deletes the gradle.properties
- *     entry. Kept in sync with the checked-in default so misconfigured
- *     local checkouts still build against the Fly dev server.
+ * Resolves Cards server connection settings from gradle properties, with
+ * two independent knobs:
  *
- * To point at a local server during development, add to `local.properties`:
- *   server.baseUrl=http://10.0.2.2:8080   (Android emulator)
- *   server.baseUrl=http://localhost:8080  (iOS simulator)
- * Then resync Gradle. No code edits required.
+ * `server.useLocal` (boolean, per-dev) — when true, the client targets
+ *   the dev's own machine at runtime: `http://localhost:8080` on iOS,
+ *   `http://10.0.2.2:8080` on Android. One flag, both platforms.
+ *   Resolution: `local.properties` only. (Doesn't belong in
+ *   gradle.properties — this is a per-dev convenience.)
+ *
+ * `server.baseUrl` (string) — explicit URL for when `useLocal` is false
+ *   or the local presets don't fit (staging, ngrok, teammate's IP).
+ *   Resolution precedence:
+ *     1. `server.baseUrl` in `local.properties` (per-dev override)
+ *     2. `CARDS_SERVER_BASE_URL` env var (CI / shell override)
+ *     3. `server.baseUrl` in `gradle.properties` (team default, checked in)
+ *     4. Hardcoded fallback — only hit if gradle.properties is deleted.
+ *
+ * Typical dev flow: drop `server.useLocal=true` into `local.properties`,
+ * resync Gradle, run `./gradlew :apps:server:run`. Remove the line to go
+ * back to Fly.
  */
 fun Project.loadServerMetadata(): ServerMetadata {
     val properties = Properties()
@@ -121,16 +139,21 @@ fun Project.loadServerMetadata(): ServerMetadata {
 
     fun env(key: String): String? = System.getenv(key)?.takeIf { it.isNotBlank() }
 
+    val useLocal = properties.stringOrNull("server.useLocal")
+        ?.equals("true", ignoreCase = true)
+        ?: false
+
     val baseUrl = properties.stringOrNull("server.baseUrl")
         ?: env("CARDS_SERVER_BASE_URL")
         ?: (findProperty("server.baseUrl") as? String)?.takeIf { it.isNotBlank() }
         ?: "https://cards-server-dev.fly.dev"
 
-    return ServerMetadata(baseUrl = baseUrl)
+    return ServerMetadata(baseUrl = baseUrl, useLocal = useLocal)
 }
 
 fun BuildConfigExtension.writeServerMetadata(metadata: ServerMetadata) {
     buildConfigField("String", "SERVER_BASE_URL", "\"${metadata.baseUrl}\"")
+    buildConfigField("Boolean", "SERVER_USE_LOCAL", metadata.useLocal.toString())
 }
 
 private fun Properties.stringOrNull(key: String): String? =
