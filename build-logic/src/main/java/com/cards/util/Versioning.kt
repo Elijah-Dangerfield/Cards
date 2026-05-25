@@ -32,14 +32,11 @@ data class SupabaseMetadata(
 
 data class ServerMetadata(
     /**
-     * The explicit base URL the client should use when `useLocal` is
-     * false. Always populated (gradle.properties carries the team default).
-     */
-    val baseUrl: String,
-    /**
-     * Per-dev toggle: when true, the client ignores [baseUrl] and resolves
-     * to `http://localhost:8080` on iOS or `http://10.0.2.2:8080` on
-     * Android at runtime, so a single flag works for both targets.
+     * Per-dev toggle: when true, the client points at the dev's own
+     * machine, choosing `http://localhost:8080` on iOS or
+     * `http://10.0.2.2:8080` on Android at runtime. When false, the
+     * client uses hardcoded dev/prod URLs picked by build type (see
+     * `DefaultNetworkConfig`).
      */
     val useLocal: Boolean,
 )
@@ -109,26 +106,23 @@ fun BuildConfigExtension.writeSupabaseMetadata(metadata: SupabaseMetadata) {
 }
 
 /**
- * Resolves Cards server connection settings from gradle properties, with
- * two independent knobs:
+ * Resolves whether the client should point at the dev's local Ktor
+ * server instead of the baked-in dev/prod URLs.
  *
- * `server.useLocal` (boolean, per-dev) — when true, the client targets
- *   the dev's own machine at runtime: `http://localhost:8080` on iOS,
- *   `http://10.0.2.2:8080` on Android. One flag, both platforms.
- *   Resolution: `local.properties` only. (Doesn't belong in
- *   gradle.properties — this is a per-dev convenience.)
+ * `server.useLocal` (boolean) — checked in to `gradle.properties` as
+ * `false` (the documented default), overridable per-dev via
+ * `local.properties` for ad-hoc local backend work. When true, the
+ * client picks `http://localhost:8080` on iOS or `http://10.0.2.2:8080`
+ * on Android at runtime based on `BuildInfo.platform`.
  *
- * `server.baseUrl` (string) — explicit URL for when `useLocal` is false
- *   or the local presets don't fit (staging, ngrok, teammate's IP).
- *   Resolution precedence:
- *     1. `server.baseUrl` in `local.properties` (per-dev override)
- *     2. `CARDS_SERVER_BASE_URL` env var (CI / shell override)
- *     3. `server.baseUrl` in `gradle.properties` (team default, checked in)
- *     4. Hardcoded fallback — only hit if gradle.properties is deleted.
+ * CI guard: if `CI=true` in the environment and `useLocal` is true, the
+ * build fails configuration immediately. This makes accidentally
+ * committing `server.useLocal=true` to gradle.properties a loud, fast
+ * failure rather than a silent shipped-bug.
  *
  * Typical dev flow: drop `server.useLocal=true` into `local.properties`,
- * resync Gradle, run `./gradlew :apps:server:run`. Remove the line to go
- * back to Fly.
+ * resync Gradle, `./gradlew :apps:server:run`. Remove the line to go
+ * back to the dev/prod URL.
  */
 fun Project.loadServerMetadata(): ServerMetadata {
     val properties = Properties()
@@ -137,22 +131,25 @@ fun Project.loadServerMetadata(): ServerMetadata {
         FileInputStream(localProperties).use(properties::load)
     }
 
-    fun env(key: String): String? = System.getenv(key)?.takeIf { it.isNotBlank() }
+    // local.properties wins; otherwise fall through to gradle.properties
+    // (auto-loaded as project properties by Gradle).
+    val useLocalRaw = properties.stringOrNull("server.useLocal")
+        ?: (findProperty("server.useLocal") as? String)?.takeIf { it.isNotBlank() }
+    val useLocal = useLocalRaw?.equals("true", ignoreCase = true) ?: false
 
-    val useLocal = properties.stringOrNull("server.useLocal")
-        ?.equals("true", ignoreCase = true)
-        ?: false
+    if (useLocal && System.getenv("CI")?.equals("true", ignoreCase = true) == true) {
+        error(
+            "server.useLocal=true is set but the build is running in CI " +
+                "(CI=true). Local-server builds must never land on a shared " +
+                "branch. Set server.useLocal=false in gradle.properties / " +
+                "local.properties and rerun."
+        )
+    }
 
-    val baseUrl = properties.stringOrNull("server.baseUrl")
-        ?: env("CARDS_SERVER_BASE_URL")
-        ?: (findProperty("server.baseUrl") as? String)?.takeIf { it.isNotBlank() }
-        ?: "https://cards-server-dev.fly.dev"
-
-    return ServerMetadata(baseUrl = baseUrl, useLocal = useLocal)
+    return ServerMetadata(useLocal = useLocal)
 }
 
 fun BuildConfigExtension.writeServerMetadata(metadata: ServerMetadata) {
-    buildConfigField("String", "SERVER_BASE_URL", "\"${metadata.baseUrl}\"")
     buildConfigField("Boolean", "SERVER_USE_LOCAL", metadata.useLocal.toString())
 }
 

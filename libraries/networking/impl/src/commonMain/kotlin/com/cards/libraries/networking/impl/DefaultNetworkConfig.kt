@@ -10,26 +10,29 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Default network config. When [ServerInfo.useLocal] is true (per-dev
- * flag in `local.properties`), points at the dev's own machine using a
- * platform-aware loopback — `http://localhost:8080` on iOS sim,
- * `http://10.0.2.2:8080` on Android emulator. Otherwise reads the URL
- * from [ServerInfo.baseUrl], which is sourced from `gradle.properties`
- * (team default, checked in) and overridable via `local.properties` or
- * the `CARDS_SERVER_BASE_URL` env var.
+ * Default network config. URL selection:
  *
- * See `ServerInfo` and `Versioning.kt#loadServerMetadata` for details.
+ *  1. `server.useLocal=true` (per-dev, via `local.properties`) → point at
+ *     the dev's own machine, choosing the right loopback for the running
+ *     platform (`localhost:8080` on iOS sim, `10.0.2.2:8080` on Android
+ *     emulator).
+ *  2. Otherwise, pick by build type:
+ *       - debug → [ServerInfo.DEV_BASE_URL]
+ *       - release → [ServerInfo.PROD_BASE_URL]
+ *
+ * See `ServerInfo` and `Versioning.kt#loadServerMetadata` for the
+ * property plumbing and CI guard.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 @Inject
 class DefaultNetworkConfig : NetworkConfig {
-    override val baseUrl: String = if (ServerInfo.useLocal) {
-        when (BuildInfo.platform) {
+    override val baseUrl: String = when {
+        ServerInfo.useLocal -> when (BuildInfo.platform) {
             Platform.iOS -> ServerInfo.LOCAL_URL_IOS
             Platform.Android -> ServerInfo.LOCAL_URL_ANDROID
         }
-    } else {
-        ServerInfo.baseUrl
+        BuildInfo.isDebug -> ServerInfo.DEV_BASE_URL
+        else -> ServerInfo.PROD_BASE_URL
     }
 }
