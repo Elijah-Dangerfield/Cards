@@ -30,6 +30,10 @@ data class SupabaseMetadata(
         ?: ""
 }
 
+data class ServerMetadata(
+    val baseUrl: String,
+)
+
 fun Project.loadVersionMetadata(): VersionMetadata {
     val properties = Properties()
     val metadataFile = rootProject.file("versions.properties")
@@ -92,6 +96,37 @@ fun BuildConfigExtension.writeSupabaseMetadata(metadata: SupabaseMetadata) {
     buildConfigField("String", "SUPABASE_PROJECT_ID", "\"${metadata.projectId}\"")
     buildConfigField("String", "SUPABASE_URL", "\"${metadata.url}\"")
     buildConfigField("String", "SUPABASE_ANON_KEY", "\"${metadata.anonKey}\"")
+}
+
+/**
+ * Resolves the Cards server base URL with the following precedence:
+ *  1. `server.baseUrl` in `local.properties` (per-dev override, gitignored)
+ *  2. `CARDS_SERVER_BASE_URL` env var (CI / shell override)
+ *  3. The deployed Fly dev server (default — what release builds use)
+ *
+ * To point at a local server during development, add to `local.properties`:
+ *   server.baseUrl=http://10.0.2.2:8080   (Android emulator)
+ *   server.baseUrl=http://localhost:8080  (iOS simulator)
+ * Then resync Gradle. No code edits required.
+ */
+fun Project.loadServerMetadata(): ServerMetadata {
+    val properties = Properties()
+    val localProperties = rootProject.file("local.properties")
+    if (localProperties.exists()) {
+        FileInputStream(localProperties).use(properties::load)
+    }
+
+    fun env(key: String): String? = System.getenv(key)?.takeIf { it.isNotBlank() }
+
+    val baseUrl = properties.stringOrNull("server.baseUrl")
+        ?: env("CARDS_SERVER_BASE_URL")
+        ?: "https://cards-server-dev.fly.dev"
+
+    return ServerMetadata(baseUrl = baseUrl)
+}
+
+fun BuildConfigExtension.writeServerMetadata(metadata: ServerMetadata) {
+    buildConfigField("String", "SERVER_BASE_URL", "\"${metadata.baseUrl}\"")
 }
 
 private fun Properties.stringOrNull(key: String): String? =
