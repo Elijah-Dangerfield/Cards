@@ -88,6 +88,13 @@ auth0-jwt = { module = "com.auth0:java-jwt", version.ref = "auth0Jwt" }
 auth0-jwksRsa = { module = "com.auth0:jwks-rsa", version.ref = "auth0JwksRsa" }
 ktor-serverAuth = { module = "io.ktor:ktor-server-auth-jvm", version.ref = "ktor" }
 ktor-serverAuthJwt = { module = "io.ktor:ktor-server-auth-jwt-jvm", version.ref = "ktor" }
+ktor-serverContentNegotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-serverCors = { module = "io.ktor:ktor-server-cors", version.ref = "ktor" }
+ktor-serverStatusPages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
+ktor-serverCallLogging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
+ktor-serverCallId = { module = "io.ktor:ktor-server-call-id", version.ref = "ktor" }
+ktor-serverRateLimit = { module = "io.ktor:ktor-server-rate-limit", version.ref = "ktor" }
+ktor-serverWebsockets = { module = "io.ktor:ktor-server-websockets", version.ref = "ktor" }
 
 coil = { module = "io.coil-kt.coil3:coil-compose", version = "3.3.0" }
 coil-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version = "3.3.0" }
