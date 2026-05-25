@@ -245,6 +245,21 @@ The two reference implementations:
 
 Lean on the cache by default. Showing yesterday's data while a refresh lands is almost always better than showing a loading spinner over an empty surface. New surfaces that read reference data: pick one of these two impls as a template. See [`docs/decisions.md` — "2026-05-25 — Session-aware repository refresh"](docs/decisions.md).
 
+### When this pattern fits — and when it doesn't
+
+Pick the read-path policy **per repository**, not globally. Consistency vs. availability is a real trade-off and different resources sit in different places on it.
+
+| Resource shape | Pattern |
+|---|---|
+| **Server-driven reference data** that changes on the order of days (catalogs, packs, app config, leaderboard tier definitions) | **Session-aware cache** — disk-persisted, refresh on session rollover, pull-to-refresh forces. Shop catalog + avatar pack are the references. |
+| **Per-user mutable state** with optimistic local writes (inventory after a purchase, equipped cosmetics, chip wallet, XP ledger) | **Write-through + sync** — local DB (Room) is the source of truth between syncs; server reconciles. *Not* session-aware: forcing this pattern would make a just-redeemed item "vanish" until the next session boundary. See `InventoryRepositoryImpl` / `EquipmentRepositoryImpl` / `ChipsRepositoryImpl`. |
+| **User-mutable identity / profile** (display name, avatar emoji on `/v1/me`) | **Auth-driven cache** — refresh when auth state changes; writes apply optimistically. *Not* session-aware: a user who just renamed themselves shouldn't see the old name for the rest of the session. See `ProfileRepositoryImpl`'s profile resolve path. |
+| **Time-sensitive per-user inbox** (announcements, urgent banners) | **Refresh-on-entry** with a short freshness window. A missed inbox item is worse than a wasted fetch. |
+| **Live state** (open WebSocket rooms, online presence, current hand) | **Never cache** — subscribe to the live source. |
+| **Money / accuracy-critical reads** (final wallet balance for a purchase confirmation, hand-history audit) | **Always-network**. A stale chip balance shown next to a "Buy" button is a real bug. |
+
+Bias toward cache-first when in doubt, but never force this pattern onto a resource whose contract demands freshness. When extending a repo, write down which row above it falls in — the read-path-policy bullet in `docs/developer-todo.md` tracks the remaining unconverted reads.
+
 ## Compose previews (required for screens)
 
 Every user-facing screen composable needs `@Preview` coverage. Without it, iterating means rebuild → reinstall → navigate → set up state by hand, every change. With previews, Studio renders the screen instantly across states.
