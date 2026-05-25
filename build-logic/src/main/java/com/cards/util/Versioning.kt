@@ -102,7 +102,10 @@ fun BuildConfigExtension.writeSupabaseMetadata(metadata: SupabaseMetadata) {
  * Resolves the Cards server base URL with the following precedence:
  *  1. `server.baseUrl` in `local.properties` (per-dev override, gitignored)
  *  2. `CARDS_SERVER_BASE_URL` env var (CI / shell override)
- *  3. The deployed Fly dev server (default — what release builds use)
+ *  3. `server.baseUrl` in `gradle.properties` (team default, checked in)
+ *  4. Hardcoded fallback — only hit if someone deletes the gradle.properties
+ *     entry. Kept in sync with the checked-in default so misconfigured
+ *     local checkouts still build against the Fly dev server.
  *
  * To point at a local server during development, add to `local.properties`:
  *   server.baseUrl=http://10.0.2.2:8080   (Android emulator)
@@ -120,6 +123,7 @@ fun Project.loadServerMetadata(): ServerMetadata {
 
     val baseUrl = properties.stringOrNull("server.baseUrl")
         ?: env("CARDS_SERVER_BASE_URL")
+        ?: (findProperty("server.baseUrl") as? String)?.takeIf { it.isNotBlank() }
         ?: "https://cards-server-dev.fly.dev"
 
     return ServerMetadata(baseUrl = baseUrl)
