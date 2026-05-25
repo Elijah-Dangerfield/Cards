@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,6 +98,7 @@ fun ShopScreen(
     onProductTap: (productId: String) -> Unit,
     onIdeaTap: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     Screen(modifier = modifier) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -119,6 +121,7 @@ fun ShopScreen(
                             onAction = onAction,
                             onProductTap = onProductTap,
                             onIdeaTap = onIdeaTap,
+                            scrollState = scrollState,
                         )
                     }
                 }
@@ -155,6 +158,7 @@ private fun CatalogContent(
     onAction: (ShopAction) -> Unit,
     onProductTap: (productId: String) -> Unit,
     onIdeaTap: () -> Unit,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     val featured = state.catalog.chipPacks.firstOrNull { it.featured }
     val otherPacks = state.catalog.chipPacks.filterNot { it.id == featured?.id }
@@ -162,7 +166,7 @@ private fun CatalogContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 20.dp),
     ) {
         VerticalSpacerD500()

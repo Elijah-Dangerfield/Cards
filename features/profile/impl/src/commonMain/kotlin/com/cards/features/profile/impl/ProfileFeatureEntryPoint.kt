@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.profile.impl
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +55,7 @@ import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
+import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
 import kotlinx.coroutines.launch
@@ -103,6 +105,10 @@ class ProfileFeatureEntryPoint(
             val isAnon = authenticated?.isAnonymous ?: true
             val appData by appCache.updates.collectAsState(initial = AppData())
             val scope = rememberCoroutineScope()
+            val scrollState = rememberScrollState()
+            router.OnTabReselected(ProfileRoute()) {
+                scope.launch { scrollState.animateScrollTo(0) }
+            }
 
             val accountActionsVm: AccountActionsViewModel =
                 androidx.lifecycle.viewmodel.compose.viewModel { accountActionsViewModelFactory() }
@@ -153,6 +159,7 @@ class ProfileFeatureEntryPoint(
                 onSignOut = { accountActionsVm.takeAction(AccountActionsAction.ConfirmSignOut) },
                 isSigningOut = accountActionsState.isSigningOut,
                 onOpenQaMenu = { router.navigate(QaMenuRoute()) },
+                scrollState = scrollState,
             )
         }
 

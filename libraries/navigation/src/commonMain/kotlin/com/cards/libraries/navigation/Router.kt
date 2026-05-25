@@ -1,10 +1,15 @@
 package com.dangerfield.cards.libraries.navigation
 
+import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavBackStackEntry
+import com.dangerfield.cards.libraries.flowroutines.observeWithLifecycle
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import kotlin.reflect.KClass
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filter
 
 data class NavigationOptions(
     val clearBackStack: Boolean = false,
@@ -40,6 +45,17 @@ interface Router {
      * Edit Profile → Shop). Plain [navigate] of a [TabRoute] won't compile.
      */
     fun switchTab(route: TabRoute)
+
+    /**
+     * Hot stream of tab-reselect events — fired when the user taps the already-active
+     * bottom-nav tab. Tabs subscribe via [OnTabReselected] to react (e.g. scroll their
+     * surface to top, dismiss an open sheet). No event for first-selection or cross-tab
+     * switches; that's just [switchTab]. Use [notifyTabReselected] to publish.
+     */
+    val tabReselects: SharedFlow<TabRoute>
+
+    /** Publish a tab-reselect event. Wired from the bottom-bar onClick when the tap matches the current tab. */
+    fun notifyTabReselected(route: TabRoute)
 
     /**
      * Enter the tab system fresh from *outside* of it — onboarding / sign-in completion.
@@ -165,4 +181,32 @@ fun <T> Catching<T>.toastOnError(
         title = title,
         message = subtitle,
     )
+}
+
+/**
+ * Subscribe a tab to its own reselect events. Pass any instance of the tab's [TabRoute];
+ * matching is by class so it works for plain `class`-based routes (no equals) and
+ * `data object`s alike. Collection respects the host lifecycle — pauses below STARTED,
+ * resumes on return.
+ *
+ * ```
+ * screen<HomeRoute> {
+ *     val scrollState = rememberScrollState()
+ *     val scope = rememberCoroutineScope()
+ *     router.OnTabReselected(HomeRoute()) { scope.launch { scrollState.animateScrollTo(0) } }
+ *     HomeScreen(scrollState = scrollState, ...)
+ * }
+ * ```
+ *
+ * Action runs on the main thread (see [observeWithLifecycle]).
+ */
+@Composable
+fun Router.OnTabReselected(route: TabRoute, onReselected: () -> Unit) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val routeClass = route::class
+    androidx.compose.runtime.LaunchedEffect(routeClass, lifecycle) {
+        tabReselects
+            .filter { it::class == routeClass }
+            .observeWithLifecycle(lifecycle = lifecycle) { onReselected() }
+    }
 }

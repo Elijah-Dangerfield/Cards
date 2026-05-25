@@ -1,9 +1,11 @@
 package com.dangerfield.cards.features.home.impl
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
@@ -17,10 +19,12 @@ import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
+import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -36,6 +40,11 @@ class HomeFeatureEntryPoint(
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<HomeRoute> {
             val viewModel: HomeViewModel = viewModel { homeViewModelFactory() }
+            val scrollState = rememberScrollState()
+            val scope = rememberCoroutineScope()
+            router.OnTabReselected(HomeRoute()) {
+                scope.launch { scrollState.animateScrollTo(0) }
+            }
             LaunchedEffect(Unit) {
                 KLog.withTag("HomeFeatureEntryPoint").d { "Home route entered" }
             }
@@ -126,6 +135,7 @@ class HomeFeatureEntryPoint(
                             "most recent at the table.",
                     )
                 },
+                scrollState = scrollState,
             )
 
             if (botSetupOpen) {

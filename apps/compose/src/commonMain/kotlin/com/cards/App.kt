@@ -285,7 +285,12 @@ private fun AppNavigation(
                             is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
                         }
 
-                        if (!isAlreadySelected) {
+                        if (isAlreadySelected) {
+                            // Re-tap on the active tab — let the tab react (scroll to
+                            // top, dismiss sheet, etc.) instead of swallowing the tap.
+                            // Subscribers wire up via `router.OnTabReselected(...)`.
+                            router.notifyTabReselected(route)
+                        } else {
                             KLog.d { "Navigating to bottom bar route: ${item.title}" }
                             router.switchTab(route)
                         }

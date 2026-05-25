@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.home.impl
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +40,7 @@ fun HomeScreen(
     onAddRecentOpponent: (opponentId: String) -> Unit,
     onSeeAllRecentOpponents: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
     HomeScreenContent(
@@ -62,6 +64,7 @@ fun HomeScreen(
         onSeeAllRecentOpponents = onSeeAllRecentOpponents,
         recentAchievements = state.recentAchievements,
         modifier = modifier,
+        scrollState = scrollState,
     )
 }
 
@@ -82,6 +85,7 @@ private fun HomeScreenContent(
     onAddRecentOpponent: (opponentId: String) -> Unit,
     onSeeAllRecentOpponents: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
     // ----- Fake-data injection points (V1) --------------------------------
     // The friends / recently-played-with shelves take their content as
     // parameters so previews can exercise every state. Production
@@ -99,7 +103,7 @@ private fun HomeScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp),
         ) {
             VerticalSpacerD500()

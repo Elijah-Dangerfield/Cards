@@ -33,8 +33,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -54,6 +58,20 @@ class DelegatingRouter(
 
     private val logger = KLog.withTag("DelegatingRouter")
     private val navigationRequests = Channel<NavHostController.() -> Unit>(Channel.UNLIMITED)
+
+    // Drop-oldest with capacity 1 means a tap during a slow scroll won't queue up
+    // multiple reselects — the most recent intent wins. extraBufferCapacity=1 (not
+    // replay) so a late subscriber doesn't fire on stale taps when navigating back to
+    // a tab that was already reselected.
+    private val _tabReselects = MutableSharedFlow<TabRoute>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    override val tabReselects: SharedFlow<TabRoute> = _tabReselects.asSharedFlow()
+
+    override fun notifyTabReselected(route: TabRoute) {
+        _tabReselects.tryEmit(route)
+    }
 
     private var navController: NavHostController? = null
     private var processingJob: Job? = null

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,6 +89,7 @@ fun ProfileScreen(
     isSigningOut: Boolean = false,
     onOpenQaMenu: () -> Unit = {},
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     var showSignOutDialog by remember { mutableStateOf(false) }
     Screen(modifier = modifier) { padding ->
@@ -95,7 +97,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             ProfileHeader(settings = settings, onEditProfile = onEditProfile)
