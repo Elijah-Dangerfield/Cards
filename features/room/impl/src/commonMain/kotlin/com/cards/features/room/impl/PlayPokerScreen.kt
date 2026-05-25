@@ -1078,3 +1078,59 @@ private fun PlayPokerScreenPreview_WonByFold() {
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Felt-color previews — one per [EquippedFelt] enum value. These pin the
+// visual regression surface so the cosmetic system can't drift without
+// somebody noticing in the IDE preview pane. Each preview reuses the same
+// preflop "your turn" table so the only variable across the set is the
+// felt color itself.
+//
+// New felt? Add the enum value to [EquippedFelt] AND a matching preview
+// below. The convention is intentional — the preview list is the visual
+// regression bar.
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun PlayPokerScreenFeltPreview(felt: EquippedFelt) {
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(),
+                equippedFelt = felt,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Default() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Default)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_RoyalRed() =
+    PlayPokerScreenFeltPreview(EquippedFelt.RoyalRed)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_MidnightBlue() =
+    PlayPokerScreenFeltPreview(EquippedFelt.MidnightBlue)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Charcoal() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Charcoal)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Sunset() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Sunset)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Neon() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Neon)
