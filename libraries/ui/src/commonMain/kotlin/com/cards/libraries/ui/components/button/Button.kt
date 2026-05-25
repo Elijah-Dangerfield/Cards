@@ -102,6 +102,7 @@ fun Button(
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = LocalButtonStyle.current,
     enabled: Boolean = true,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -133,6 +134,7 @@ fun Button(
         icon = icon,
         size = size,
         enabled = enabled,
+        onDisabledTap = onDisabledTap,
         interactionSource = interactionSource,
         content = content
     )
@@ -356,6 +358,7 @@ fun ButtonTertiary(
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Filled,
     enabled: Boolean = true,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -367,6 +370,7 @@ fun ButtonTertiary(
         size = size,
         style = style,
         enabled = enabled,
+        onDisabledTap = onDisabledTap,
         interactionSource = interactionSource,
         content = content
     )

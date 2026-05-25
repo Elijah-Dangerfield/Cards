@@ -48,18 +48,20 @@ internal fun BaseButton(
     icon: IconResource? = null,
     contentPadding: PaddingValues = size.padding(hasIcon = icon != null),
     enabled: Boolean = true,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
 
     CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
 
+        val effectiveOnClick = if (enabled) onClick else onDisabledTap
         Box(
             contentAlignment = Alignment.Center,
-            modifier = modifier.thenIf(enabled) {
+            modifier = modifier.thenIf(effectiveOnClick != null) {
                 bounceClick(
                     mutableInteractionSource = interactionSource,
-                    onClick = onClick
+                    onClick = effectiveOnClick!!
                 )
             }
         ) {
@@ -134,7 +136,6 @@ private val ExtraSmallButtonTextConfig: TextConfig
         typography = AppTheme.typography.Label.L400,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 private val SmallButtonTextConfig: TextConfig
@@ -142,7 +143,6 @@ private val SmallButtonTextConfig: TextConfig
         typography = AppTheme.typography.Label.L500,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 private val MediumButtonTextConfig: TextConfig
@@ -150,15 +150,13 @@ private val MediumButtonTextConfig: TextConfig
         typography = AppTheme.typography.Label.L600,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 private val LargeButtonTextConfig: TextConfig
     @Composable get() = TextConfig(
-        typography = AppTheme.typography.Label.L600.SemiBold,
+        typography = AppTheme.typography.Label.L800,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 
@@ -205,7 +203,7 @@ private val MediumButtonWithIconPadding = PaddingValues(
 
 private val LargeButtonPadding = PaddingValues(
     horizontal = Dimension.D800,
-    vertical = Dimension.D900
+    vertical = Dimension.D800
 )
 
 private val LargeButtonWithIconPadding = PaddingValues(

@@ -1,5 +1,8 @@
 package com.dangerfield.cards.features.onboarding.impl
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +20,6 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,19 +27,28 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
+import com.dangerfield.cards.libraries.ui.components.CardsFan
+import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -91,6 +102,28 @@ private fun WelcomeStep(
     state: OnboardingState,
     onAction: (OnboardingAction) -> Unit,
 ) {
+    // iOS hands off from the splash with cards already fanned, so the fan
+    // animation would visually snap-and-replay. Android has no compose
+    // splash, so animate the fan-out as the cards' entrance. Previews
+    // skip the animation entirely and render the resting state so @Preview
+    // pins are useful for design review.
+    val inPreview = LocalInspectionMode.current
+    val initialFanProgress = if (inPreview || BuildInfo.isiOS()) 1f else 0f
+    val initialReveal = if (inPreview) 1f else 0f
+    val fanProgress = remember { Animatable(initialFanProgress) }
+    val contentReveal = remember { Animatable(initialReveal) }
+    LaunchedEffect(Unit) {
+        if (inPreview) return@LaunchedEffect
+        fanProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 700, easing = EaseOutCubic),
+        )
+        contentReveal.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 450, easing = EaseOutCubic),
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -99,140 +132,102 @@ private fun WelcomeStep(
     ) {
         Spacer(modifier = Modifier.weight(0.8f))
 
-        CardsFan()
+        CardsFan(fanProgress = fanProgress.value)
 
-        Spacer(modifier = Modifier.height(Dimension.D1100))
+        // Cards stay put; the rest of the page fades + slides in around
+        // them. translationY uses the same EaseOutCubic curve as the fan
+        // so the two motions feel like one continuous reveal.
+        val reveal = contentReveal.value
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = reveal
+                    translationY = (1f - reveal) * 24.dp.toPx()
+                },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(modifier = Modifier.height(Dimension.D1100))
 
-        Text(
-            text = "Cards",
-            typography = AppTheme.typography.Display.D1300,
-            color = AppTheme.colors.onSurfacePrimary,
-        )
-        Spacer(modifier = Modifier.height(Dimension.D500))
-        Text(
-            text = "Poker with your friends.\nPractice with bots when they're busy.",
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
-            textAlign = TextAlign.Center,
-        )
+            Text(
+                text = "Cards",
+                typography = AppTheme.typography.Display.D1300,
+                color = AppTheme.colors.text,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D500))
+            Text(
+                text = "Poker with your friends.\nPractice with bots when they're busy.",
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        if (state.authError != null) {
-            Text(
-                text = state.authError,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.danger,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(Dimension.D400))
-        }
-
-        ButtonPrimary(
-            onClick = { onAction(OnboardingAction.ContinueAsGuest) },
-            enabled = !state.isAuthing && state.oauthInFlight == null,
-            modifier = Modifier.fillMaxWidth(),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = reveal
+                    translationY = (1f - reveal) * 24.dp.toPx()
+                },
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(if (state.isAuthing) "One moment…" else "Continue as guest")
-        }
+            if (state.authError != null) {
+                Text(
+                    text = state.authError,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.danger,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(Dimension.D400))
+            }
 
-        if (state.showOAuthRow) {
-            Spacer(modifier = Modifier.height(Dimension.D400))
-            Row(
+            ButtonPrimary(
+                onClick = { onAction(OnboardingAction.ContinueAsGuest) },
+                enabled = !state.isAuthing && state.oauthInFlight == null,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
             ) {
-                if (state.appleEnabled) {
-                    ButtonSecondary(
-                        onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Apple)) },
-                        enabled = state.oauthInFlight == null && !state.isAuthing,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(if (state.oauthInFlight == OAuthProvider.Apple) "…" else " Apple")
+                Text(if (state.isAuthing) "One moment…" else "Continue as guest")
+            }
+
+            if (state.showOAuthRow) {
+                Spacer(modifier = Modifier.height(Dimension.D400))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
+                ) {
+                    if (state.appleEnabled) {
+                        ButtonSecondary(
+                            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Apple)) },
+                            enabled = state.oauthInFlight == null && !state.isAuthing,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(if (state.oauthInFlight == OAuthProvider.Apple) "…" else " Apple")
+                        }
                     }
-                }
-                if (state.googleEnabled) {
-                    ButtonSecondary(
-                        onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
-                        enabled = state.oauthInFlight == null && !state.isAuthing,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(if (state.oauthInFlight == OAuthProvider.Google) "…" else "G  Google")
+                    if (state.googleEnabled) {
+                        ButtonSecondary(
+                            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
+                            enabled = state.oauthInFlight == null && !state.isAuthing,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(if (state.oauthInFlight == OAuthProvider.Google) "…" else "G  Google")
+                        }
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(Dimension.D500))
-        Text(
-            text = "No account required to play.\nSign in later if you want to save your progress.",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(Dimension.D700))
-    }
-}
-
-/**
- * A small fanned stack of four playing-card faces — A♠ K♥ Q♦ J♣ — rendered
- * from primitives rather than a bitmap so the welcome screen scales cleanly
- * across densities and dark/light theme without bundling an asset.
- */
-@Composable
-private fun CardsFan() {
-    val angles = listOf(-22f, -10f, 10f, 22f)
-    val labels = listOf(
-        "A" to "♠",
-        "K" to "♥",
-        "Q" to "♦",
-        "J" to "♣",
-    )
-    val cardWidth = 64.dp
-    val cardHeight = 92.dp
-    val overlap = 28.dp
-    val totalWidth = cardWidth + overlap * 3
-    Box(
-        modifier = Modifier.size(width = totalWidth + 24.dp, height = cardHeight + 32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        labels.forEachIndexed { index, (rank, suit) ->
-            val isRed = suit == "♥" || suit == "♦"
-            Box(
-                modifier = Modifier
-                    .graphicsLayer {
-                        rotationZ = angles[index]
-                        translationX = (index - 1.5f) * overlap.toPx()
-                    }
-                    .size(width = cardWidth, height = cardHeight)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White)
-                    .border(
-                        width = 1.dp,
-                        color = Color(0x22000000),
-                        shape = RoundedCornerShape(10.dp),
-                    )
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                // Card faces are white, so ink uses dark semantic tokens
-                // rather than onSurfacePrimary (which is light, for dark
-                // backgrounds). `background` is the app's dark navy, and
-                // `danger` is the red suit color.
-                val ink = if (isRed) AppTheme.colors.danger else AppTheme.colors.background
-                Text(
-                    text = rank,
-                    typography = AppTheme.typography.Heading.H700,
-                    color = ink,
-                    modifier = Modifier.align(Alignment.TopStart),
-                )
-                Text(
-                    text = suit,
-                    typography = AppTheme.typography.Heading.H800,
-                    color = ink,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-            }
+            Spacer(modifier = Modifier.height(Dimension.D500))
+            Text(
+                text = "No account required to play.\nSign in later if you want to save your progress.",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.onSurfaceSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D700))
         }
     }
 }
@@ -306,7 +301,7 @@ private fun PickIdentityStep(
         Text(
             text = "Other players see this on the table. Change anything you like — or just keep going.",
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -378,7 +373,7 @@ private fun PickIdentityStep(
             Text(
                 text = "More packs in the shop",
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.textSecondary,
             )
         }
 
@@ -508,25 +503,28 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
         Spacer(modifier = Modifier.weight(1f))
 
         InfoCard(
-            glyph = "🎴",
-            glyphTint = Color(0xFF3F5B45),
             title = "Play three ways",
             subtitle = "Bots, strangers, or friends.",
-        )
+        ) {
+            EmojiTile(glyph = "🎴", tint = Color(0xFF3F5B45))
+        }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(
-            glyph = "$",
-            glyphTint = Color(0xFF6F5B2A),
             title = "Chips fund the table",
             subtitle = "Earn at play. Spend in the shop.",
-        )
+        ) {
+            ChipCoin(
+                size = 48.dp,
+                textTypography = AppTheme.typography.Heading.H700,
+            )
+        }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(
-            glyph = "▲",
-            glyphTint = Color(0xFF2F4F66),
             title = "Climb the league",
             subtitle = "Top 7 of 30 promote each week.",
-        )
+        ) {
+            XpBadge(fraction = 0.6f, size = 48.dp)
+        }
 
 
         Spacer(modifier = Modifier.weight(1f))
@@ -543,25 +541,17 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
 
 @Composable
 private fun InfoCard(
-    glyph: String,
-    glyphTint: Color,
     title: String,
     subtitle: String,
+    leading: @Composable () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(Radii.R500.shape)
-                    .background(glyphTint),
+                modifier = Modifier.size(48.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = glyph,
-                    typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.onSurfacePrimary,
-                )
+                leading()
             }
             Spacer(modifier = Modifier.width(Dimension.D700))
             Column(modifier = Modifier.weight(1f)) {
@@ -578,6 +568,23 @@ private fun InfoCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun EmojiTile(glyph: String, tint: Color) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(Radii.R500.shape)
+            .background(tint),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = glyph,
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.onSurfacePrimary,
+        )
     }
 }
 

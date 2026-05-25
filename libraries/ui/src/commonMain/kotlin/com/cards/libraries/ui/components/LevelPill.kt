@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
@@ -54,7 +56,7 @@ fun LevelPill(
         text = "Level ${progress.level}",
         modifier = modifier,
         onClick = onClick,
-        leading = { LevelRing(fraction = progress.fraction) },
+        leading = { XpBadge(fraction = progress.fraction) },
     )
 }
 
@@ -73,29 +75,59 @@ fun LevelPill(
     LevelPill(progress = levelProgressFor(xp), onClick = onClick, modifier = modifier)
 }
 
+/**
+ * Progression badge — gradient disc with a sparkle inside, wrapped by a
+ * ring whose arc length encodes [fraction] (0..1) of XP earned toward
+ * the next level.
+ *
+ * The leading element of [LevelPill]. Lifted out so onboarding /
+ * explainer surfaces can render the same glyph at a larger size without
+ * pulling the "Level N" text along.
+ *
+ * Sizes inside the badge scale proportionally to [size] using the same
+ * ratios as the 18dp default: inner disc ~66%, sparkle ~39%, stroke
+ * ~11%. Use the default for header pills; bump up to ~48dp for
+ * explainer/marketing rows where the badge is the focal point.
+ */
 @Composable
-private fun LevelRing(fraction: Float) {
+fun XpBadge(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    size: Dp = RING_SIZE,
+) {
     // Animate the arc so a fresh XP grant visibly fills the ring rather
     // than snapping. Short tween — Home / play screen are "snap into
     // context" surfaces, not celebratory ones.
-    val animatedFraction by animateFloatAsState(
-        targetValue = fraction.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 600),
-        label = "level-ring-fraction",
-    )
+    //
+    // Skip the animation in previews so @Preview pins render at the
+    // requested fraction instead of catching the ring mid-fill at 0.
+    val target = fraction.coerceIn(0f, 1f)
+    val animatedFraction = if (LocalInspectionMode.current) {
+        target
+    } else {
+        val anim by animateFloatAsState(
+            targetValue = target,
+            animationSpec = tween(durationMillis = 600),
+            label = "level-ring-fraction",
+        )
+        anim
+    }
     val ringColor = RING_HUE
     val trackColor = AppTheme.colors.surfaceTertiary.color
+    val circleSize = size * (12f / 18f)
+    val sparkleSize = size * (7f / 18f)
+    val strokeWidth = size * (2f / 18f)
 
     Box(
-        modifier = Modifier.size(RING_SIZE),
+        modifier = modifier.size(size),
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(RING_SIZE)) {
-            val strokePx = STROKE_WIDTH.toPx()
-            val diameter = size.minDimension - strokePx
+        Canvas(modifier = Modifier.size(size)) {
+            val strokePx = strokeWidth.toPx()
+            val diameter = this.size.minDimension - strokePx
             val topLeft = Offset(
-                x = (size.width - diameter) / 2f,
-                y = (size.height - diameter) / 2f,
+                x = (this.size.width - diameter) / 2f,
+                y = (this.size.height - diameter) / 2f,
             )
             val arcSize = Size(diameter, diameter)
             drawArc(
@@ -121,7 +153,7 @@ private fun LevelRing(fraction: Float) {
         }
         Box(
             modifier = Modifier
-                .size(CIRCLE_SIZE)
+                .size(circleSize)
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
@@ -136,7 +168,7 @@ private fun LevelRing(fraction: Float) {
             // off the center. Drawing it as a Path here puts the visual
             // bounds exactly under our control.
             SparkleGlyph(
-                size = SPARKLE_SIZE,
+                size = sparkleSize,
                 color = AppTheme.colors.text.color,
             )
         }
@@ -169,13 +201,11 @@ private fun SparkleGlyph(size: androidx.compose.ui.unit.Dp, color: Color) {
     }
 }
 
-// Outer ring matches the 18dp footprint of [ChipCoin] (the leading
-// element inside ChipBadge) so the two pills line up at the same
-// height when paired together.
+// Default outer ring matches the 18dp footprint of [ChipCoin] (the
+// leading element inside ChipBadge) so the two pills line up at the
+// same height when paired together. [XpBadge] callers can override
+// for larger marketing / explainer surfaces.
 private val RING_SIZE = 18.dp
-private val CIRCLE_SIZE = 12.dp
-private val SPARKLE_SIZE = 7.dp
-private val STROKE_WIDTH = 2.dp
 
 /** Matches the cyan start of the inner gradient so the ring reads as
  *  the same family of colour as the fill it surrounds. Hardcoded

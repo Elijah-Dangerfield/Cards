@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Adjust
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bathtub
 import androidx.compose.material.icons.filled.Blind
@@ -232,6 +233,10 @@ enum class Icons(
 
     ArrowBack(
         default = androidx.compose.material.icons.Icons.AutoMirrored.Default.ArrowBack,
+    ),
+
+    ArrowUp(
+        default = androidx.compose.material.icons.Icons.Default.ArrowUpward,
     ),
 
     Camera(
