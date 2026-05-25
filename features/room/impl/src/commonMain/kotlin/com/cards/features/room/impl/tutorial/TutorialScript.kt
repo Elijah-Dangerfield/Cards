@@ -15,10 +15,15 @@ import com.dangerfield.cards.libraries.gameplay.Suit
  */
 internal object TutorialScript {
 
-    val steps: List<TutorialStep> = buildList {
-        addAll(handOne())
-        addAll(handTwo())
-        addAll(handThree())
+    // `by lazy` because the per-hand builders below reference the
+    // private opponent vals (ada/ben/cleo) declared later in this object.
+    // Eager init would dereference them before they're populated.
+    val steps: List<TutorialStep> by lazy {
+        buildList {
+            addAll(handOne())
+            addAll(handTwo())
+            addAll(handThree())
+        }
     }
 
     // -- Constants -----------------------------------------------------
