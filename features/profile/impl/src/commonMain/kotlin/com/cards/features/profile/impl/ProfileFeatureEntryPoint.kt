@@ -284,7 +284,10 @@ class ProfileFeatureEntryPoint(
     }
 
     private companion object {
-        const val PRIVACY_POLICY_URL = "https://cards.dangerfield.com/privacy"
-        const val TERMS_OF_SERVICE_URL = "https://cards.dangerfield.com/terms"
+        // GitHub Pages publishes `pages/` on push to main via `.github/workflows/pages.yml`.
+        // Swap to a custom domain (e.g. cards.dangerfield.com/...) by dropping a CNAME file
+        // into `pages/` and pointing DNS at GH Pages; these constants are the single update.
+        const val PRIVACY_POLICY_URL = "https://elijah-dangerfield.github.io/Cards/privacy.html"
+        const val TERMS_OF_SERVICE_URL = "https://elijah-dangerfield.github.io/Cards/terms.html"
     }
 }
