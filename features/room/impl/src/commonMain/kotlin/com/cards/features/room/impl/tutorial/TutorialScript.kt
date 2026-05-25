@@ -1,23 +1,27 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import com.dangerfield.cards.features.room.impl.LegalActions
+import com.dangerfield.cards.features.room.impl.PlayPokerState
+import com.dangerfield.cards.features.room.impl.SeatView
+import com.dangerfield.cards.features.room.impl.TableUiState
+import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 
 /**
- * The full scripted walkthrough. Three hands, each built around a single
- * decision the user should learn: **raise** when strong, **call/check**
- * when the price is right, **fold** when beat.
- *
- * Each hand follows the same shape: orient → set up the scenario → prompt
- * the correct action → explain *why* it was right after the action lands.
- * Steps advance when the user takes the [TutorialStep.expected] action.
+ * Three-hand scripted walkthrough rendered through the live
+ * `PlayPokerScreen`. Each hand teaches one decision by setting up a
+ * scenario, prompting the correct action via the action bar (or swipe-fold
+ * gesture), and explaining *why* after the action lands.
  */
 internal object TutorialScript {
 
-    // `by lazy` because the per-hand builders below reference the
-    // private opponent vals (ada/ben/cleo) declared later in this object.
-    // Eager init would dereference them before they're populated.
+    // `by lazy` because the helper builders below reference the opponent
+    // constants declared later in this object; eager init would NPE.
     val steps: List<TutorialStep> by lazy {
         buildList {
             addAll(handOne())
@@ -28,320 +32,401 @@ internal object TutorialScript {
 
     // -- Constants -----------------------------------------------------
 
-    private const val STARTING_STACK = 10_000L
     private const val SB = 10L
     private const val BB = 20L
-    private const val TOTAL_HANDS = 3
-
-    private val ada = TutorialOpponent(
-        name = "Ada",
-        emoji = "🦊",
-        backgroundColorHex = "#E48A58",
-        stack = STARTING_STACK,
-    )
-    private val ben = TutorialOpponent(
-        name = "Ben",
-        emoji = "💀",
-        backgroundColorHex = "#9E9E9E",
-        stack = STARTING_STACK,
-    )
-    private val cleo = TutorialOpponent(
-        name = "Cleo",
-        emoji = "🐉",
-        backgroundColorHex = "#5DA75A",
-        stack = STARTING_STACK,
-    )
-
-    private const val HERO_NAME = "You"
-    private const val HERO_EMOJI = "🐱"
-    private const val HERO_BG = "#E4B458"
+    private const val HUMAN_INDEX = 0
+    private const val ADA_INDEX = 1
+    private const val BEN_INDEX = 2
+    private const val CLEO_INDEX = 3
 
     // ------------------------------------------------------------------
-    // Hand 1 — Raise when you're strong (AA preflop)
+    // Hand 1 — Raise when you're strong (pocket aces)
     // ------------------------------------------------------------------
     private fun handOne(): List<TutorialStep> {
-        val title = "Raise when you're strong"
-        val handNumber = 1
+        val holeCards = listOf(
+            Card(Rank.Ace, Suit.Spades),
+            Card(Rank.Ace, Suit.Hearts),
+        )
 
-        val holeCards = listOf(card(Rank.Ace, Suit.Spades), card(Rank.Ace, Suit.Hearts))
-
-        fun baseTable(
-            community: List<Card> = emptyList(),
-            pot: Long = SB + BB,
-            opponents: List<TutorialOpponent> = listOf(
-                ada.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - SB),
-                ben.copy(role = BlindRole.BigBlind, stack = STARTING_STACK - BB),
-                cleo.copy(role = BlindRole.Button),
+        // Opponents seeded with blinds posted; human has the button.
+        // Human first-to-act preflop (heads-up convention: SB acts first
+        // preflop AND postflop, so use 4-handed positioning instead — button
+        // is human, SB is Ada, BB is Ben, Cleo is UTG. Cleo folds, Ada calls,
+        // Ben checks → action back to human).
+        // For simplicity we set everyone folded except human + Ada by
+        // step 3 so the pot equals SB+BB+call-amount, and the user just
+        // needs to tap Raise.
+        fun seats(
+            humanContributed: Long = 0,
+            adaContributed: Long = SB,
+            benContributed: Long = BB,
+            cleoContributed: Long = 0,
+            humanLastAction: PlayerAction? = null,
+            adaLastAction: PlayerAction? = null,
+            benLastAction: PlayerAction? = null,
+            cleoLastAction: PlayerAction? = PlayerAction.Fold,
+            cleoFolded: Boolean = true,
+            humanActing: Boolean = false,
+        ): List<SeatView> = listOf(
+            human(
+                holeCards = holeCards,
+                stack = 10_000L - humanContributed,
+                contributed = humanContributed,
+                isActing = humanActing,
+                isDealer = true,
+                lastAction = humanLastAction,
             ),
-            heroStack: Long = STARTING_STACK,
-            heroLastAction: String? = null,
-            heroLabel: String? = "Pocket aces",
-            actions: TutorialLegalActions = TutorialLegalActions(),
-        ) = TutorialTable(
-            handTitle = title,
-            handNumber = handNumber,
-            totalHands = TOTAL_HANDS,
-            opponents = opponents,
-            community = community,
+            bot(
+                index = ADA_INDEX,
+                name = "Ada",
+                emoji = "🦊",
+                stack = 10_000L - adaContributed,
+                contributed = adaContributed,
+                isSmallBlind = true,
+                lastAction = adaLastAction,
+            ),
+            bot(
+                index = BEN_INDEX,
+                name = "Ben",
+                emoji = "💀",
+                stack = 10_000L - benContributed,
+                contributed = benContributed,
+                isBigBlind = true,
+                lastAction = benLastAction,
+            ),
+            bot(
+                index = CLEO_INDEX,
+                name = "Cleo",
+                emoji = "🐉",
+                stack = 10_000L - cleoContributed,
+                contributed = cleoContributed,
+                participation = if (cleoFolded) HandParticipation.Folded else HandParticipation.InHand,
+                lastAction = cleoLastAction,
+            ),
+        )
+
+        fun table(
+            seats: List<SeatView>,
+            pot: Long,
+            potCommitted: Long,
+            community: List<Card> = emptyList(),
+            street: BettingRound = BettingRound.Preflop,
+            actingIndex: Int? = null,
+            legal: LegalActions? = null,
+            handLabel: String? = "Pair of aces",
+        ): TableUiState.Active = TableUiState.Active(
+            street = street,
+            communityCards = community,
             pot = pot,
-            heroName = HERO_NAME,
-            heroEmoji = HERO_EMOJI,
-            heroBackgroundColorHex = HERO_BG,
-            heroHoleCards = holeCards,
-            heroStack = heroStack,
-            heroRole = null,
-            heroLastAction = heroLastAction,
-            heroHandLabel = heroLabel,
-            legalActions = actions,
+            potCommittedThisStreet = potCommitted,
+            seats = seats,
+            actingSeatIndex = actingIndex,
+            isHumanTurn = actingIndex == HUMAN_INDEX,
+            humanLegalActions = legal,
+            humanHandLabel = handLabel,
+            handResult = null,
+            smallBlind = SB,
+            bigBlind = BB,
+            handNumber = 1,
+            buttonSeatIndex = HUMAN_INDEX,
+            smallBlindSeatIndex = ADA_INDEX,
+            bigBlindSeatIndex = BEN_INDEX,
         )
 
         return listOf(
-            // 1 — Orient
+            // 1 — Orient (no actions enabled)
             TutorialStep(
-                table = baseTable(),
+                state = baseState(
+                    table(
+                        seats = seats(),
+                        pot = SB + BB,
+                        potCommitted = SB + BB,
+                    )
+                ),
                 coach = CoachMark(
-                    title = "Welcome",
-                    body = "You're heads-up against three bots. No real chips at stake — we'll walk through three hands.",
-                    anchor = TutorialAnchor.Opponents,
+                    title = "Welcome to the table",
+                    body = "These are your opponents — Ada, Ben, and Cleo. They're bots, and no real chips are at stake. Let's play a hand.",
                     ctaLabel = "Got it",
                 ),
-                expected = TutorialAction.Continue,
             ),
-            // 2 — Blinds
+            // 2 — Blinds explainer
             TutorialStep(
-                table = baseTable(),
+                state = baseState(
+                    table(
+                        seats = seats(),
+                        pot = SB + BB,
+                        potCommitted = SB + BB,
+                    )
+                ),
                 coach = CoachMark(
-                    title = "Small Blind & Big Blind",
-                    body = "Every hand starts with two forced bets. They build the pot before anyone acts, so there's always something to fight for.",
-                    anchor = TutorialAnchor.Opponents,
+                    title = "Small Blind, Big Blind",
+                    body = "Every hand starts with two forced bets — SB (10) and BB (20). They build the pot before anyone acts. Look at Ada and Ben.",
                     ctaLabel = "Next",
                 ),
-                expected = TutorialAction.Continue,
             ),
-            // 3 — The pot
+            // 3 — Hole cards explainer
             TutorialStep(
-                table = baseTable(),
-                coach = CoachMark(
-                    title = "The pot",
-                    body = "Chips go here as the hand plays out. Whoever wins the hand takes the pot.",
-                    anchor = TutorialAnchor.Pot,
-                    ctaLabel = "Next",
+                state = baseState(
+                    table(
+                        seats = seats(),
+                        pot = SB + BB,
+                        potCommitted = SB + BB,
+                    )
                 ),
-                expected = TutorialAction.Continue,
-            ),
-            // 4 — Your hole cards
-            TutorialStep(
-                table = baseTable(),
                 coach = CoachMark(
-                    title = "Your hand",
-                    body = "Pocket aces — the strongest starting hand in poker. You're a clear favorite to win this pot.",
-                    anchor = TutorialAnchor.HoleCards,
+                    title = "Your cards",
+                    body = "Two aces — the strongest starting hand in poker. You're a clear favorite to win this pot.",
                     ctaLabel = "Nice",
                 ),
-                expected = TutorialAction.Continue,
             ),
-            // 5 — Prompt to raise
+            // 4 — Prompt to raise
             TutorialStep(
-                table = baseTable(
-                    actions = TutorialLegalActions(
-                        showFold = true,
-                        showCall = true,
-                        callAmount = BB,
-                        showRaise = true,
-                        raiseAmount = 60L,
-                        enabled = TutorialAction.Raise,
-                    ),
+                state = baseState(
+                    table(
+                        seats = seats(humanActing = true),
+                        pot = SB + BB,
+                        potCommitted = SB + BB,
+                        actingIndex = HUMAN_INDEX,
+                        legal = LegalActions(
+                            canCheck = false,
+                            canCall = true,
+                            callAmount = BB,
+                            canRaise = true,
+                            isOpenBet = false,
+                            minRaiseTotal = 60L,
+                            maxRaiseTotal = 10_000L,
+                            canAllIn = true,
+                            allInAmount = 10_000L,
+                            potIfYouCall = SB + BB + BB,
+                        ),
+                    )
                 ),
                 coach = CoachMark(
                     title = "Raise",
-                    body = "When you have the best of it, raise to build the pot you're likely to win. Tap Raise 60.",
-                    anchor = TutorialAnchor.ActionBar,
+                    body = "When you have the best of it, raise to build the pot. Tap Raise to put more chips in.",
+                    ctaLabel = null,
                 ),
-                expected = TutorialAction.Raise,
+                advanceOn = { it is PlayerIntent.Raise || it is PlayerIntent.Bet },
             ),
-            // 6 — After-raise explanation + showdown auto-resolve
+            // 5 — Result explainer
             TutorialStep(
-                table = baseTable(
-                    pot = SB + BB + 60L + 60L + 60L,
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - 60L, lastAction = "Called 50"),
-                        ben.copy(role = BlindRole.BigBlind, stack = STARTING_STACK - 60L, lastAction = "Called 40"),
-                        cleo.copy(role = BlindRole.Button, stack = STARTING_STACK - 60L, lastAction = "Called 60"),
-                    ),
-                    heroStack = STARTING_STACK - 60L,
-                    heroLastAction = "Raised 60",
+                state = baseState(
+                    table(
+                        seats = seats(
+                            humanContributed = 60L,
+                            adaContributed = 60L,
+                            adaLastAction = PlayerAction.Call(50L),
+                            benContributed = 60L,
+                            benLastAction = PlayerAction.Call(40L),
+                            cleoLastAction = PlayerAction.Fold,
+                            cleoFolded = true,
+                            humanLastAction = PlayerAction.Raise(totalStreetContribution = 60L, raiseAmount = 40L),
+                        ),
+                        pot = SB + BB + 60L + 60L + 60L - SB - BB,
+                        potCommitted = 180L,
+                    )
                 ),
                 coach = CoachMark(
-                    title = "Now there's more to play for",
-                    body = "Raising with strong hands is how you make money over the long run. The bots called — now it's a real pot.",
-                    anchor = TutorialAnchor.Pot,
-                    ctaLabel = "Deal the flop",
-                ),
-                expected = TutorialAction.Continue,
-            ),
-            // 7 — Showdown
-            TutorialStep(
-                table = baseTable(
-                    community = listOf(
-                        card(Rank.Ace, Suit.Clubs),
-                        card(Rank.Seven, Suit.Diamonds),
-                        card(Rank.Two, Suit.Hearts),
-                        card(Rank.Nine, Suit.Spades),
-                        card(Rank.King, Suit.Diamonds),
-                    ),
-                    pot = 240L,
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - 60L, lastAction = "Folded", folded = true),
-                        ben.copy(role = BlindRole.BigBlind, stack = STARTING_STACK - 60L, lastAction = "Folded", folded = true),
-                        cleo.copy(role = BlindRole.Button, stack = STARTING_STACK - 60L, lastAction = "Folded", folded = true),
-                    ),
-                    heroStack = STARTING_STACK - 60L + 240L,
-                    heroLabel = "Three of a kind, aces",
-                ),
-                coach = CoachMark(
-                    title = "You win",
-                    body = "Trips — three aces. The board didn't help anyone else and the bots folded. The pot's yours.",
-                    anchor = TutorialAnchor.Pot,
+                    title = "Now there's something to play for",
+                    body = "Both bots called. The pot's a real pot now. Raising with strong hands is how you make money over the long run.",
                     ctaLabel = "Next hand",
                 ),
-                expected = TutorialAction.Continue,
             ),
         )
     }
 
     // ------------------------------------------------------------------
-    // Hand 2 — Call when the price is right (KQ suited)
+    // Hand 2 — Call when the price is right (KQ suited, then check on flop)
     // ------------------------------------------------------------------
     private fun handTwo(): List<TutorialStep> {
-        val title = "Call when the price is right"
-        val handNumber = 2
+        val holeCards = listOf(
+            Card(Rank.King, Suit.Hearts),
+            Card(Rank.Queen, Suit.Hearts),
+        )
 
-        val holeCards = listOf(card(Rank.King, Suit.Hearts), card(Rank.Queen, Suit.Hearts))
-
-        fun baseTable(
-            community: List<Card> = emptyList(),
-            pot: Long = SB + BB,
-            opponents: List<TutorialOpponent> = listOf(
-                ada.copy(role = BlindRole.Button),
-                ben.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - SB),
-                cleo.copy(role = BlindRole.BigBlind, stack = STARTING_STACK - BB),
+        fun seats(
+            humanContributed: Long = SB,
+            adaContributed: Long = BB,
+            benContributed: Long = 0,
+            cleoContributed: Long = 0,
+            adaLastAction: PlayerAction? = null,
+            benLastAction: PlayerAction? = PlayerAction.Fold,
+            cleoLastAction: PlayerAction? = PlayerAction.Fold,
+            benFolded: Boolean = true,
+            cleoFolded: Boolean = true,
+            humanLastAction: PlayerAction? = null,
+            humanActing: Boolean = false,
+        ): List<SeatView> = listOf(
+            human(
+                holeCards = holeCards,
+                stack = 10_000L - humanContributed,
+                contributed = humanContributed,
+                isActing = humanActing,
+                isSmallBlind = true,
+                lastAction = humanLastAction,
             ),
-            heroStack: Long = STARTING_STACK,
-            heroLastAction: String? = null,
-            heroLabel: String? = "King-Queen suited",
-            actions: TutorialLegalActions = TutorialLegalActions(),
-        ) = TutorialTable(
-            handTitle = title,
-            handNumber = handNumber,
-            totalHands = TOTAL_HANDS,
-            opponents = opponents,
-            community = community,
+            bot(
+                index = ADA_INDEX,
+                name = "Ada",
+                emoji = "🦊",
+                stack = 10_000L - adaContributed,
+                contributed = adaContributed,
+                isBigBlind = true,
+                lastAction = adaLastAction,
+            ),
+            bot(
+                index = BEN_INDEX,
+                name = "Ben",
+                emoji = "💀",
+                stack = 10_000L - benContributed,
+                contributed = benContributed,
+                participation = if (benFolded) HandParticipation.Folded else HandParticipation.InHand,
+                lastAction = benLastAction,
+            ),
+            bot(
+                index = CLEO_INDEX,
+                name = "Cleo",
+                emoji = "🐉",
+                stack = 10_000L - cleoContributed,
+                contributed = cleoContributed,
+                isDealer = true,
+                participation = if (cleoFolded) HandParticipation.Folded else HandParticipation.InHand,
+                lastAction = cleoLastAction,
+            ),
+        )
+
+        fun table(
+            seats: List<SeatView>,
+            pot: Long,
+            potCommitted: Long,
+            community: List<Card> = emptyList(),
+            street: BettingRound = BettingRound.Preflop,
+            actingIndex: Int? = null,
+            legal: LegalActions? = null,
+            handLabel: String? = null,
+        ): TableUiState.Active = TableUiState.Active(
+            street = street,
+            communityCards = community,
             pot = pot,
-            heroName = HERO_NAME,
-            heroEmoji = HERO_EMOJI,
-            heroBackgroundColorHex = HERO_BG,
-            heroHoleCards = holeCards,
-            heroStack = heroStack,
-            heroRole = null,
-            heroLastAction = heroLastAction,
-            heroHandLabel = heroLabel,
-            legalActions = actions,
+            potCommittedThisStreet = potCommitted,
+            seats = seats,
+            actingSeatIndex = actingIndex,
+            isHumanTurn = actingIndex == HUMAN_INDEX,
+            humanLegalActions = legal,
+            humanHandLabel = handLabel,
+            handResult = null,
+            smallBlind = SB,
+            bigBlind = BB,
+            handNumber = 2,
+            buttonSeatIndex = CLEO_INDEX,
+            smallBlindSeatIndex = HUMAN_INDEX,
+            bigBlindSeatIndex = ADA_INDEX,
+        )
+
+        val flop = listOf(
+            Card(Rank.Two, Suit.Hearts),
+            Card(Rank.Seven, Suit.Hearts),
+            Card(Rank.Jack, Suit.Clubs),
+        )
+        val turnAndRiver = flop + listOf(
+            Card(Rank.Four, Suit.Hearts),
+            Card(Rank.Ten, Suit.Spades),
         )
 
         return listOf(
-            // 1 — Setup
+            // 1 — Prompt to call (cheap completion)
             TutorialStep(
-                table = baseTable(),
-                coach = CoachMark(
-                    title = "A new hand",
-                    body = "King-Queen suited. Not a monster like aces, but worth seeing a flop with — it makes flushes and straights.",
-                    anchor = TutorialAnchor.HoleCards,
-                    ctaLabel = "Next",
-                ),
-                expected = TutorialAction.Continue,
-            ),
-            // 2 — Prompt to call
-            TutorialStep(
-                table = baseTable(
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.Button, lastAction = "Folded", folded = true),
-                        ben.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - SB),
-                        cleo.copy(role = BlindRole.BigBlind, stack = STARTING_STACK - BB),
-                    ),
-                    actions = TutorialLegalActions(
-                        showFold = true,
-                        showCall = true,
-                        callAmount = BB,
-                        showRaise = true,
-                        raiseAmount = 60L,
-                        enabled = TutorialAction.Call,
-                    ),
+                state = baseState(
+                    table(
+                        seats = seats(humanActing = true),
+                        pot = SB + BB,
+                        potCommitted = SB + BB,
+                        actingIndex = HUMAN_INDEX,
+                        legal = LegalActions(
+                            canCheck = false,
+                            canCall = true,
+                            callAmount = BB - SB,
+                            canRaise = true,
+                            isOpenBet = false,
+                            minRaiseTotal = BB * 2,
+                            maxRaiseTotal = 10_000L - SB,
+                            canAllIn = true,
+                            allInAmount = 10_000L - SB,
+                            potIfYouCall = BB + BB,
+                        ),
+                        handLabel = "King-Queen suited",
+                    )
                 ),
                 coach = CoachMark(
-                    title = "Call",
-                    body = "It costs you 20 to see three more cards. With a hand that can improve, that's a good deal. Tap Call.",
-                    anchor = TutorialAnchor.ActionBar,
+                    title = "Call when it's cheap",
+                    body = "King-Queen suited. Not a monster, but worth seeing a flop. It only costs 10 to call — tap Call.",
+                    ctaLabel = null,
                 ),
-                expected = TutorialAction.Call,
+                advanceOn = { it is PlayerIntent.Call },
             ),
-            // 3 — Flop comes, prompt to check
+            // 2 — Flop comes; prompt to check
             TutorialStep(
-                table = baseTable(
-                    community = listOf(
-                        card(Rank.Two, Suit.Hearts),
-                        card(Rank.Seven, Suit.Hearts),
-                        card(Rank.Jack, Suit.Clubs),
-                    ),
-                    pot = SB + BB + BB + BB,
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.Button, lastAction = "Folded", folded = true),
-                        ben.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - BB, lastAction = "Called 10"),
-                        cleo.copy(role = BlindRole.BigBlind, stack = STARTING_STACK - BB, lastAction = "Checked"),
-                    ),
-                    heroStack = STARTING_STACK - BB,
-                    heroLastAction = "Called 20",
-                    heroLabel = "Flush draw",
-                    actions = TutorialLegalActions(
-                        showCheck = true,
-                        showFold = true,
-                        showRaise = true,
-                        raiseAmount = 40L,
-                        enabled = TutorialAction.Check,
-                    ),
+                state = baseState(
+                    table(
+                        seats = seats(
+                            humanContributed = 0,
+                            adaContributed = 0,
+                            humanLastAction = null,
+                            adaLastAction = null,
+                            humanActing = true,
+                        ),
+                        pot = BB * 2,
+                        potCommitted = 0,
+                        community = flop,
+                        street = BettingRound.Flop,
+                        actingIndex = HUMAN_INDEX,
+                        legal = LegalActions(
+                            canCheck = true,
+                            canCall = false,
+                            callAmount = 0,
+                            canRaise = true,
+                            isOpenBet = true,
+                            minRaiseTotal = BB,
+                            maxRaiseTotal = 10_000L - BB,
+                            canAllIn = true,
+                            allInAmount = 10_000L - BB,
+                            potIfYouCall = BB * 2,
+                        ),
+                        handLabel = "Flush draw, king-high",
+                    )
                 ),
                 coach = CoachMark(
-                    title = "Check",
-                    body = "Two hearts on the flop — you're one card away from a flush. Nobody bet into you, so check to see the next card for free.",
-                    anchor = TutorialAnchor.ActionBar,
+                    title = "Check for free",
+                    body = "Two hearts on the flop — you have a flush draw. Ada checked. You don't have to bet; tap Check to see the next card for free.",
+                    ctaLabel = null,
                 ),
-                expected = TutorialAction.Check,
+                advanceOn = { it is PlayerIntent.Check },
             ),
-            // 4 — After-check explanation, auto-resolve
+            // 3 — Result + lesson
             TutorialStep(
-                table = baseTable(
-                    community = listOf(
-                        card(Rank.Two, Suit.Hearts),
-                        card(Rank.Seven, Suit.Hearts),
-                        card(Rank.Jack, Suit.Clubs),
-                        card(Rank.Four, Suit.Hearts),
-                        card(Rank.Ten, Suit.Spades),
-                    ),
-                    pot = 60L,
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.Button, lastAction = "Folded", folded = true),
-                        ben.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - BB, lastAction = "Folded", folded = true),
-                        cleo.copy(role = BlindRole.BigBlind, stack = STARTING_STACK - BB, lastAction = "Folded", folded = true),
-                    ),
-                    heroStack = STARTING_STACK - BB + 60L,
-                    heroLabel = "Flush, king-high",
+                state = baseState(
+                    table(
+                        seats = seats(
+                            humanContributed = 0,
+                            adaContributed = 0,
+                            adaLastAction = PlayerAction.Fold,
+                            humanLastAction = PlayerAction.Check,
+                        ).mapIndexed { i, s ->
+                            if (i == ADA_INDEX) s.copy(participation = HandParticipation.Folded)
+                            else s
+                        },
+                        pot = BB * 2,
+                        potCommitted = 0,
+                        community = turnAndRiver,
+                        street = BettingRound.River,
+                        handLabel = "Flush, king-high",
+                    )
                 ),
                 coach = CoachMark(
                     title = "Hearts everywhere",
-                    body = "The turn brought another heart — you made your flush. Bets dried up and the pot's yours. Checking when unsure is free information.",
-                    anchor = TutorialAnchor.Pot,
+                    body = "The turn brought another heart — you made your flush. Ada folded. Calling cheap and checking free is how you win hands without bloating the pot.",
                     ctaLabel = "Next hand",
                 ),
-                expected = TutorialAction.Continue,
             ),
         )
     }
@@ -350,118 +435,204 @@ internal object TutorialScript {
     // Hand 3 — Fold when you're beat (7-2 offsuit vs a raise)
     // ------------------------------------------------------------------
     private fun handThree(): List<TutorialStep> {
-        val title = "Fold when you're beat"
-        val handNumber = 3
+        val holeCards = listOf(
+            Card(Rank.Seven, Suit.Clubs),
+            Card(Rank.Two, Suit.Diamonds),
+        )
 
-        val holeCards = listOf(card(Rank.Seven, Suit.Clubs), card(Rank.Two, Suit.Diamonds))
+        fun seats(humanActing: Boolean = false): List<SeatView> = listOf(
+            human(
+                holeCards = holeCards,
+                stack = 10_000L - BB,
+                contributed = BB,
+                isActing = humanActing,
+                isBigBlind = true,
+            ),
+            bot(
+                index = ADA_INDEX,
+                name = "Ada",
+                emoji = "🦊",
+                stack = 10_000L - SB,
+                contributed = SB,
+                isSmallBlind = true,
+                lastAction = PlayerAction.Fold,
+                participation = HandParticipation.Folded,
+            ),
+            bot(
+                index = BEN_INDEX,
+                name = "Ben",
+                emoji = "💀",
+                stack = 10_000L - 60L,
+                contributed = 60L,
+                isDealer = true,
+                lastAction = PlayerAction.Raise(totalStreetContribution = 60L, raiseAmount = 40L),
+            ),
+            bot(
+                index = CLEO_INDEX,
+                name = "Cleo",
+                emoji = "🐉",
+                stack = 10_000L,
+                contributed = 0,
+                lastAction = PlayerAction.Fold,
+                participation = HandParticipation.Folded,
+            ),
+        )
 
-        fun baseTable(
-            opponents: List<TutorialOpponent>,
-            pot: Long = SB + BB,
-            heroStack: Long = STARTING_STACK - BB,
-            heroLastAction: String? = null,
-            heroLabel: String? = "Seven-deuce offsuit",
-            actions: TutorialLegalActions = TutorialLegalActions(),
-        ) = TutorialTable(
-            handTitle = title,
-            handNumber = handNumber,
-            totalHands = TOTAL_HANDS,
-            opponents = opponents,
-            community = emptyList(),
-            pot = pot,
-            heroName = HERO_NAME,
-            heroEmoji = HERO_EMOJI,
-            heroBackgroundColorHex = HERO_BG,
-            heroHoleCards = holeCards,
-            heroStack = heroStack,
-            heroRole = BlindRole.BigBlind,
-            heroLastAction = heroLastAction,
-            heroHandLabel = heroLabel,
-            legalActions = actions,
+        val potBeforeFold = SB + BB + 60L
+        val tableAction = TableUiState.Active(
+            street = BettingRound.Preflop,
+            communityCards = emptyList(),
+            pot = potBeforeFold,
+            potCommittedThisStreet = potBeforeFold,
+            seats = seats(humanActing = true),
+            actingSeatIndex = HUMAN_INDEX,
+            isHumanTurn = true,
+            humanLegalActions = LegalActions(
+                canCheck = false,
+                canCall = true,
+                callAmount = 40L,
+                canRaise = true,
+                isOpenBet = false,
+                minRaiseTotal = 120L,
+                maxRaiseTotal = 10_000L - BB,
+                canAllIn = true,
+                allInAmount = 10_000L - BB,
+                potIfYouCall = potBeforeFold + 40L,
+            ),
+            humanHandLabel = "Seven-deuce offsuit",
+            handResult = null,
+            smallBlind = SB,
+            bigBlind = BB,
+            handNumber = 3,
+            buttonSeatIndex = BEN_INDEX,
+            smallBlindSeatIndex = ADA_INDEX,
+            bigBlindSeatIndex = HUMAN_INDEX,
         )
 
         return listOf(
-            // 1 — Setup
             TutorialStep(
-                table = baseTable(
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - SB),
-                        ben.copy(role = BlindRole.Button),
-                        cleo,
-                    ),
-                ),
+                // Silent swipe-fold so the swipe gesture commits immediately
+                // — no confirmation dialog interrupts the lesson.
+                state = baseState(tableAction).copy(swipeFoldGestureAck = true),
                 coach = CoachMark(
-                    title = "Your worst nightmare",
-                    body = "Seven-deuce offsuit — statistically the worst starting hand in poker. Different suits, no straights, no flushes.",
-                    anchor = TutorialAnchor.HoleCards,
-                    ctaLabel = "Ouch",
+                    title = "Fold when you're beat",
+                    body = "Seven-two offsuit — the worst hand in poker. Ben raised to 60. Don't put more chips in with junk. Tap ↑ then Fold, or swipe up on your cards.",
+                    ctaLabel = null,
                 ),
-                expected = TutorialAction.Continue,
+                advanceOn = { it is PlayerIntent.Fold },
             ),
-            // 2 — Opponent raises
             TutorialStep(
-                table = baseTable(
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - SB),
-                        ben.copy(role = BlindRole.Button, stack = STARTING_STACK - 60L, lastAction = "Raised 60"),
-                        cleo,
-                    ),
-                    pot = SB + BB + 60L,
-                ),
-                coach = CoachMark(
-                    title = "Ben raised",
-                    body = "To stay in the hand, you'd have to put another 40 in with junk cards against a player who likes their hand. Bad math.",
-                    anchor = TutorialAnchor.Opponents,
-                    ctaLabel = "I see",
-                ),
-                expected = TutorialAction.Continue,
-            ),
-            // 3 — Prompt to fold
-            TutorialStep(
-                table = baseTable(
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - SB, lastAction = "Folded", folded = true),
-                        ben.copy(role = BlindRole.Button, stack = STARTING_STACK - 60L, lastAction = "Raised 60"),
-                        cleo.copy(lastAction = "Folded", folded = true),
-                    ),
-                    pot = SB + BB + 60L,
-                    actions = TutorialLegalActions(
-                        showFold = true,
-                        showCall = true,
-                        callAmount = 40L,
-                        showRaise = true,
-                        raiseAmount = 120L,
-                        enabled = TutorialAction.Fold,
-                    ),
-                ),
-                coach = CoachMark(
-                    title = "Fold",
-                    body = "Folding costs nothing but the 20 you already posted as the blind. Tap Fold.",
-                    anchor = TutorialAnchor.ActionBar,
-                ),
-                expected = TutorialAction.Fold,
-            ),
-            // 4 — After-fold explanation
-            TutorialStep(
-                table = baseTable(
-                    opponents = listOf(
-                        ada.copy(role = BlindRole.SmallBlind, stack = STARTING_STACK - SB, lastAction = "Folded", folded = true),
-                        ben.copy(role = BlindRole.Button, stack = STARTING_STACK - 60L + (SB + BB + 60L), lastAction = "Wins 90"),
-                        cleo.copy(lastAction = "Folded", folded = true),
-                    ),
-                    pot = 0,
-                    heroLastAction = "Folded",
+                state = baseState(
+                    TableUiState.Active(
+                        street = BettingRound.Preflop,
+                        communityCards = emptyList(),
+                        pot = potBeforeFold,
+                        potCommittedThisStreet = potBeforeFold,
+                        seats = seats().mapIndexed { i, s ->
+                            if (i == HUMAN_INDEX) s.copy(
+                                participation = HandParticipation.Folded,
+                                lastAction = PlayerAction.Fold,
+                            ) else s
+                        },
+                        actingSeatIndex = null,
+                        isHumanTurn = false,
+                        humanLegalActions = null,
+                        humanHandLabel = null,
+                        handResult = null,
+                        smallBlind = SB,
+                        bigBlind = BB,
+                        handNumber = 3,
+                        buttonSeatIndex = BEN_INDEX,
+                        smallBlindSeatIndex = ADA_INDEX,
+                        bigBlindSeatIndex = HUMAN_INDEX,
+                    )
                 ),
                 coach = CoachMark(
                     title = "Folding saves money",
-                    body = "Most starting hands aren't worth playing. Folding bad cards quickly is the most profitable habit in poker.",
-                    anchor = TutorialAnchor.HoleCards,
-                    ctaLabel = "Finish tutorial",
+                    body = "Most hands aren't worth playing. Folding the bad ones quickly is the most profitable habit in poker. You're ready for the real tables.",
+                    ctaLabel = "Done",
                 ),
-                expected = TutorialAction.Continue,
             ),
         )
     }
 
-    private fun card(rank: Rank, suit: Suit) = Card(rank, suit)
+    // ------------------------------------------------------------------
+    // Builders
+    // ------------------------------------------------------------------
+
+    private fun baseState(table: TableUiState.Active): PlayPokerState = PlayPokerState(
+        table = table,
+        // Hide the level-pill XP ticker — there's no real progression
+        // happening during the tutorial.
+        humanLevel = null,
+        xp = 0,
+    )
+
+    private fun human(
+        holeCards: List<Card>,
+        stack: Long,
+        contributed: Long,
+        isActing: Boolean,
+        isDealer: Boolean = false,
+        isSmallBlind: Boolean = false,
+        isBigBlind: Boolean = false,
+        lastAction: PlayerAction? = null,
+        participation: HandParticipation = HandParticipation.InHand,
+    ): SeatView = SeatView(
+        index = HUMAN_INDEX,
+        displayName = "You",
+        stack = stack,
+        contributedThisStreet = contributed,
+        isActing = isActing,
+        isHuman = true,
+        isBot = false,
+        avatarKey = null,
+        emoji = "🐱",
+        avatarBackgroundColorHex = "#a18bff",
+        holeCards = holeCards,
+        showHoleCardBacks = false,
+        participation = participation,
+        seatEmpty = false,
+        isBusted = false,
+        lastAction = lastAction,
+        isDealer = isDealer,
+        isSmallBlind = isSmallBlind,
+        isBigBlind = isBigBlind,
+    )
+
+    private fun bot(
+        index: Int,
+        name: String,
+        emoji: String,
+        stack: Long,
+        contributed: Long,
+        isDealer: Boolean = false,
+        isSmallBlind: Boolean = false,
+        isBigBlind: Boolean = false,
+        lastAction: PlayerAction? = null,
+        participation: HandParticipation = HandParticipation.InHand,
+    ): SeatView = SeatView(
+        index = index,
+        displayName = name,
+        stack = stack,
+        contributedThisStreet = contributed,
+        isActing = false,
+        isHuman = false,
+        isBot = true,
+        avatarKey = "avatar_$name",
+        emoji = emoji,
+        avatarBackgroundColorHex = null,
+        // Bots always show backs during in-hand; engine flips them on
+        // showdown via revealedHoleCards. We don't do showdown in the
+        // tutorial, so they stay face-down throughout.
+        holeCards = emptyList(),
+        showHoleCardBacks = participation == HandParticipation.InHand,
+        participation = participation,
+        seatEmpty = false,
+        isBusted = false,
+        lastAction = lastAction,
+        isDealer = isDealer,
+        isSmallBlind = isSmallBlind,
+        isBigBlind = isBigBlind,
+    )
 }

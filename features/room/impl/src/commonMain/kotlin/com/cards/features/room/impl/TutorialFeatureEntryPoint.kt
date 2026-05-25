@@ -16,9 +16,9 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Registers [TutorialRoute] into the nav graph. No params on the route —
- * the script is fixed (see `TutorialScript`). Reachable from the Home
- * tutorial banner and Settings → "How to play".
+ * Registers [TutorialRoute] into the nav graph. The route is parameterless
+ * — the script lives in `TutorialScript`. Reachable from the Home tutorial
+ * banner and Settings → "How to play".
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, multibinding = true)
@@ -33,7 +33,8 @@ class TutorialFeatureEntryPoint(
             val state by viewModel.state.collectAsStateWithLifecycle()
             TutorialPokerScreen(
                 state = state,
-                onAction = viewModel::submit,
+                onIntent = viewModel::submit,
+                onAdvance = viewModel::advance,
                 onExit = { router.goBack() },
             )
         }
