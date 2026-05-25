@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.CompositionLocalProvider
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -109,6 +110,7 @@ internal fun QuickActionBar(
                                     else PlayerIntent.Call(seatIndex),
                                 )
                             },
+                            flat = true,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         ) {
                             Text(
@@ -127,6 +129,7 @@ internal fun QuickActionBar(
                                 )
                             },
                             enabled = legal.canRaise,
+                            flat = true,
                             onDisabledTap = { raiseHintVisible = true },
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         ) {
@@ -138,10 +141,16 @@ internal fun QuickActionBar(
                                 },
                             )
                         }
+                        // Per-felt accent — falls through to the standard
+                        // secondary surface outside the play screen (or
+                        // when felt = Default). Keeps the icon-button
+                        // chrome legible across every felt choice.
+                        val feltAccent = LocalFeltAccentSurface.current
                         IconButton(
                             icon = Icons.ArrowUp("More raise options"),
                             onClick = onExpandRaise,
-                            backgroundColor = AppTheme.colors.surfaceSecondary,
+                            backgroundColor = if (feltAccent != null) null else AppTheme.colors.surfaceSecondary,
+                            backgroundOverride = feltAccent,
                             size = IconButton.Size.Largest,
                         )
                     }

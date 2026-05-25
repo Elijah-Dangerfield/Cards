@@ -42,6 +42,7 @@ fun IconButton(
     size: Size = Size.Medium,
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    backgroundOverride: androidx.compose.ui.graphics.Color? = null,
 ) {
     val padding = size.padding
     val iconSize = size.iconSize
@@ -51,7 +52,12 @@ fun IconButton(
         Surface(
             modifier = modifier,
             contentPadding = PaddingValues(padding),
+            // Caller-supplied raw color (e.g. the per-felt accent on the
+            // play screen) wins over the DS-token `backgroundColor`. The
+            // primary path stays type-safe; the override is for surfaces
+            // whose background isn't expressible as a DS token.
             color = backgroundColor,
+            colorOverride = backgroundOverride,
             contentColor = iconColor,
             radius = Radii.IconButton,
             onClick = onClick,

@@ -183,6 +183,7 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
             "felt.royal_red",
             "felt.midnight_blue",
             "felt.charcoal",
+            "felt.pine_green",
             "felt.sunset",
             "cardback.marble",
             "cardback.gold",

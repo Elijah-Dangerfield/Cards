@@ -123,11 +123,19 @@ fun PlayPokerScreen(
     // toggle felts in My Items and see the table change underneath them
     // without leaving the table.
     val tableSurface = feltSurfaceColor(state.equippedFelt)
+    // Per-felt accent surface — icon-button backgrounds and any "raised
+    // felt" tone elsewhere on the play screen reads this so it stays
+    // legible across felt choices instead of clashing with whichever
+    // surface color the felt picked.
+    val feltAccent = feltAccentSurface(state.equippedFelt)
     // Ambient card-back style — every PlayingCardBack in the composition
     // reads from this without prop-drilling. Same live-toggle story as
     // the felt above; equip a card back from My Items and the opponents'
     // hole-card backs swap underneath them mid-hand.
-    CompositionLocalProvider(LocalCardBackStyle provides state.equippedCardBack) {
+    CompositionLocalProvider(
+        LocalCardBackStyle provides state.equippedCardBack,
+        LocalFeltAccentSurface provides feltAccent,
+    ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
