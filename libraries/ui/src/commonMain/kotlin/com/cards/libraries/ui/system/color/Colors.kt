@@ -98,7 +98,7 @@ val defaultColors = object : Colors {
     override val background = ColorResource.Black
     override val onBackground = ColorResource.Gray50
     override val border = ColorResource.Gray800
-    override val borderSecondary = ColorResource.Amber500
+    override val borderSecondary = ColorResource.Gray400
     override val borderDisabled = ColorResource.Gray800
 
     override val text = ColorResource.Gray50

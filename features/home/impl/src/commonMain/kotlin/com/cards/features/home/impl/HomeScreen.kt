@@ -247,7 +247,7 @@ private fun defaultRecentOpponents(): List<RecentOpponent> = listOf(
 // exercise every conditional in [HomeScreenContent].
 // --------------------------------------------------------------------------
 
-@Preview
+@Preview(heightDp = 1200)
 @Composable
 private fun HomeScreenPreview_FullyHydrated() {
     PreviewContent(bottomBar = PreviewBottomBar.Home) {
