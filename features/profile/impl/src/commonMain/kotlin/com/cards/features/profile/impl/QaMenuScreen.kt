@@ -48,6 +48,8 @@ import com.dangerfield.cards.libraries.config.ConfiguredValue
 import com.dangerfield.cards.libraries.config.FeatureConfig
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Switch
+import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -82,7 +84,7 @@ fun QaMenuScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .screenContentPadding(paddingValues = padding, includeHorizontalInsets = false),
         ) {
             Row(
                 modifier = Modifier
@@ -108,7 +110,7 @@ fun QaMenuScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
+                    .padding(screenHorizontalInsets),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 Text(

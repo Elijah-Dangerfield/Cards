@@ -65,6 +65,8 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -90,7 +92,11 @@ fun OnboardingScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .screenContentPadding(
+                    paddingValues = padding,
+                    includeHorizontalInsets = false,
+                    includeImePadding = true,
+                ),
         ) {
             AnimatedContent(
                 targetState = state.step,
@@ -157,7 +163,7 @@ private fun WelcomeStep(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = Dimension.D800),
+            .padding(screenHorizontalInsets),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(modifier = Modifier.weight(0.8f))
@@ -275,7 +281,7 @@ private fun PickIdentityStep(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = Dimension.D800),
+            .padding(screenHorizontalInsets),
     ) {
         Row(
             modifier = Modifier
@@ -497,7 +503,7 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = Dimension.D800),
+            .padding(screenHorizontalInsets),
     ) {
         Spacer(modifier = Modifier.height(Dimension.D900))
         Text(

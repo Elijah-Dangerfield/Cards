@@ -46,6 +46,7 @@ import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -96,9 +97,9 @@ fun ProfileScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .screenContentPadding(paddingValues = padding)
+                .padding(vertical = 16.dp),
         ) {
             ProfileHeader(settings = settings, onEditProfile = onEditProfile)
             VerticalSpacerD900()

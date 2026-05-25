@@ -26,6 +26,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -89,14 +90,19 @@ internal fun NotificationsScreenContent(
         },
     ) { paddingValues ->
         if (messages.isEmpty()) {
-            EmptyState(modifier = Modifier.padding(paddingValues))
+            EmptyState(
+                modifier = Modifier.screenContentPadding(
+                    paddingValues = paddingValues,
+                    includeHorizontalInsets = false,
+                ),
+            )
         } else {
             Column(
                 modifier = Modifier
-                    .padding(paddingValues)
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(horizontal = Dimension.D600, vertical = Dimension.D400),
+                    .screenContentPadding(paddingValues = paddingValues)
+                    .padding(vertical = Dimension.D400),
                 verticalArrangement = Arrangement.spacedBy(Dimension.D400),
             ) {
                 messages.forEach { message ->

@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -50,6 +49,8 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.horizontalScrollWithBar
+import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 
@@ -86,14 +87,17 @@ fun EditProfileScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .imePadding(),
+                .screenContentPadding(
+                    paddingValues = padding,
+                    includeHorizontalInsets = false,
+                    includeImePadding = true,
+                ),
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Dimension.D800)
+                    .padding(screenHorizontalInsets)
                     // Bottom padding leaves enough room for the floating
                     // Save bar (~80dp) so the last form row scrolls
                     // clear instead of sitting under the button.
@@ -237,7 +241,8 @@ private fun FloatingSaveBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = Dimension.D800, vertical = Dimension.D500),
+            .padding(screenHorizontalInsets)
+            .padding(vertical = Dimension.D500),
     ) {
         Button(
             onClick = onClick,

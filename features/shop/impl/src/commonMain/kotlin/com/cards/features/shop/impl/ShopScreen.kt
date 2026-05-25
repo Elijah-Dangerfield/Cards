@@ -52,6 +52,8 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -101,7 +103,14 @@ fun ShopScreen(
     scrollState: ScrollState = rememberScrollState(),
 ) {
     Screen(modifier = modifier) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .screenContentPadding(
+                    paddingValues = padding,
+                    includeHorizontalInsets = false,
+                ),
+        ) {
             when {
                 !state.hasLoaded && state.isRefreshing -> LoadingState()
                 state.hasLoaded && state.catalog.isEmpty -> EmptyState()
@@ -167,7 +176,7 @@ private fun CatalogContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 20.dp),
+            .padding(screenHorizontalInsets),
     ) {
         VerticalSpacerD500()
         // First-sync hydrate normally lands during the splash gate; rare

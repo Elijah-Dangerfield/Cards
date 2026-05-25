@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -36,6 +35,7 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -68,36 +68,29 @@ fun LobbyScreen(
             )
         },
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .imePadding(),
+                .verticalScroll(rememberScrollState())
+                .screenContentPadding(paddingValues = padding, includeImePadding = true),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Dimension.D800),
-            ) {
-                Spacer(modifier = Modifier.height(Dimension.D300))
+            Spacer(modifier = Modifier.height(Dimension.D300))
 
-                if (!state.isInRoom) {
-                    IdleContent(state = state, onAction = onAction)
-                } else {
-                    InRoomContent(state = state, onAction = onAction)
-                }
-
-                state.error?.let { err ->
-                    Spacer(modifier = Modifier.height(Dimension.D500))
-                    Text(
-                        text = err,
-                        typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.danger,
-                    )
-                }
-                Spacer(modifier = Modifier.height(Dimension.D900))
+            if (!state.isInRoom) {
+                IdleContent(state = state, onAction = onAction)
+            } else {
+                InRoomContent(state = state, onAction = onAction)
             }
+
+            state.error?.let { err ->
+                Spacer(modifier = Modifier.height(Dimension.D500))
+                Text(
+                    text = err,
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.danger,
+                )
+            }
+            Spacer(modifier = Modifier.height(Dimension.D900))
         }
     }
 }

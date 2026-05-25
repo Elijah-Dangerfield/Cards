@@ -1,14 +1,12 @@
 package com.dangerfield.cards.features.profile.impl.account
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -17,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -46,18 +45,13 @@ fun ClaimAccountScreen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .verticalScroll(rememberScrollState())
+                .screenContentPadding(paddingValues = padding),
+            verticalArrangement = Arrangement.Top,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Dimension.D800),
-                verticalArrangement = Arrangement.Top,
-            ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
                 IconButton(
                     icon = Icons.ArrowBack("Back"),
@@ -136,8 +130,7 @@ fun ClaimAccountScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Dimension.D800))
-            }
+            Spacer(modifier = Modifier.height(Dimension.D800))
         }
     }
 }
