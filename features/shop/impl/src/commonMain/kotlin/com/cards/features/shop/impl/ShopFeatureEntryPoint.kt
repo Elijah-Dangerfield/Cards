@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.shop.impl
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
@@ -67,6 +68,7 @@ class ShopFeatureEntryPoint(
                     onProductTap = { productId ->
                         router.navigate(ShopProductSheetRoute(productId))
                     },
+                    onIdeaTap = { router.navigate(FeedbackRoute()) },
                 )
             }
 

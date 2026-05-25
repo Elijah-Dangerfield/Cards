@@ -133,6 +133,10 @@ internal object NoopRouter : Router {
     override fun switchTab(route: TabRoute) = Unit
     override fun enterTab(route: TabRoute) = Unit
     override fun openWebLink(url: String) = Unit
+    override fun batch(block: com.dangerfield.cards.libraries.navigation.RouterBatch.() -> Unit) = Unit
+    override fun <T : Route> backStackEntryFor(
+        routeClass: kotlin.reflect.KClass<T>,
+    ): androidx.navigation.NavBackStackEntry? = null
 }
 
 internal object NoopFeedbackRepository : FeedbackRepository {

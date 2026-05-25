@@ -10,8 +10,8 @@ import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
-import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
+import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -82,21 +82,11 @@ class HomeFeatureEntryPoint(
                 // room code). Spec §5.2 calls this the "Friend Game"
                 // entry point; the lobby screen is the actual surface.
                 onFriendGame = { router.navigate(LobbyRoute()) },
-                onTournament = {
-                    comingSoon = ComingSoonContent(
-                        title = "Tournament",
-                        emoji = "♛",
-                        body = "The Royal Flush Tournament arrives in V2. Quarterly " +
-                            "championship — top finishers across every league.",
-                    )
-                },
-                // Avatar tap → profile tab (where level / rank / claim
-                // status / settings live). Home stays focused on what's
-                // happening; profile owns identity management.
-                onTapAvatar = { router.switchTab(ProfileRoute()) },
+                // Level pill → Stats — the screen-of-record for the
+                // full level / XP breakdown.
+                onTapLevel = { router.navigate(StatsRoute()) },
                 onTapCash = { router.switchTab(ShopRoute()) },
                 onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
-                onTapFeaturedDrop = { router.switchTab(ShopRoute()) },
                 onTapAchievements = { router.navigate(AchievementsRoute()) },
                 // No standalone Friends surface yet — friend graph,
                 // online presence, and the requests inbox all ship

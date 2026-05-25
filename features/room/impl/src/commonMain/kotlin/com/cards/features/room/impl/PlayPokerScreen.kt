@@ -76,7 +76,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Slider
-import com.dangerfield.cards.libraries.ui.components.XpBadge
+import com.dangerfield.cards.libraries.ui.components.LevelPill
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -417,9 +417,10 @@ private fun TopBar(
     onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
 ) {
-    // Minimal top row — navigation, lifetime XP, info. XP appears here so the
-    // counter ticks up live during a session and the player feels progress
-    // even when they lose a hand.
+    // Minimal top row — navigation, level + ring, info. The level pill
+    // ticks up live as the player earns XP, and the gradient ring fills
+    // toward the next level so the player feels progress even when they
+    // lose a hand.
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -432,7 +433,7 @@ private fun TopBar(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
-        XpBadge(xp = xp, onClick = onTapXp)
+        LevelPill(xp = xp, onClick = onTapXp)
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onCheatSheet) {
             Icon(

@@ -1,9 +1,14 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -24,6 +29,7 @@ import me.tatarka.inject.annotations.Inject
 @Inject
 class HomeViewModel(
     private val progressionRepository: ProgressionRepository,
+    private val achievementRepository: AchievementRepository,
     private val chipsRepository: ChipsRepository,
     private val roomRepository: RoomRepository,
     private val profileRepository: ProfileRepository,
@@ -39,12 +45,21 @@ class HomeViewModel(
         takeAction(HomeAction.LoadActiveRooms)
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
-                takeAction(HomeAction.XpChanged(progression.totalXp))
+                takeAction(HomeAction.ProgressionChanged(levelProgressFor(progression.totalXp)))
             }
         }
         viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(HomeAction.ChipsChanged(balance))
+            }
+        }
+        viewModelScope.launch {
+            // Drive the "Recent unlocks" shelf on Home. The earned map
+            // carries per-achievement unlock timestamps; we sort desc and
+            // take the head so the shelf reads "what did I just do."
+            // Strip auto-hides when the list is empty (fresh user).
+            achievementRepository.observeProgress().collect { progress ->
+                takeAction(HomeAction.RecentUnlocksChanged(progress.toRecentUnlocks(limit = 5)))
             }
         }
         viewModelScope.launch {
@@ -127,9 +142,14 @@ class HomeViewModel(
             is HomeAction.Refresh -> action.loadActiveRooms()
             is HomeAction.LoadActiveRooms -> action.loadActiveRooms()
             is HomeAction.Forfeit -> action.forfeit(action.code)
-            is HomeAction.XpChanged -> action.updateState { it.copy(xp = action.totalXp) }
+            is HomeAction.ProgressionChanged -> action.updateState {
+                it.copy(levelProgress = action.progress)
+            }
             is HomeAction.ChipsChanged -> action.updateState { it.copy(chips = action.balance) }
             is HomeAction.ProfileChanged -> action.applyProfile(action.profile)
+            is HomeAction.RecentUnlocksChanged -> action.updateState {
+                it.copy(recentAchievements = action.items)
+            }
         }
     }
 
@@ -222,14 +242,47 @@ data class HomeState(
     val userName: String? = null,
     val avatarEmoji: String? = null,
     val avatarBackgroundColorHex: String? = null,
-    val xp: Long = 0,
+    /** Level + XP-into-level snapshot. Drives the header LevelPill's
+     *  ring + label. Defaults to a fresh-user shape so the pill always
+     *  renders something before progression has hydrated. */
+    val levelProgress: LevelProgress = LevelProgress(
+        level = 1,
+        totalXp = 0,
+        xpAtLevelStart = 0,
+        xpForNextLevel = 100,
+    ),
     /** `null` while the first chip sync hasn't hydrated the local row.
      *  HomeScreen hides / placeholder-renders the chip badge while null
      *  rather than flashing a guessed value. */
     val chips: Long? = null,
     val isAnonymous: Boolean = true,
     val activeRooms: List<ActiveRoomSummary> = emptyList(),
+    /** Most-recent achievement unlocks (newest first), capped at 5. Empty
+     *  for fresh users — the Home shelf auto-hides in that case. */
+    val recentAchievements: List<RecentAchievement> = emptyList(),
 )
+
+/**
+ * Pluck the most-recently-earned achievements from [AchievementProgress]
+ * and shape them for the Home shelf. Carries the full [Achievement] so
+ * the rendering can reuse the shared
+ * [com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion].
+ * Unknown ids (would only happen if a row in the local DB references an
+ * id we no longer ship) are dropped.
+ */
+private fun AchievementProgress.toRecentUnlocks(limit: Int): List<RecentAchievement> =
+    earned.entries
+        .sortedByDescending { it.value }
+        .asSequence()
+        .mapNotNull { (id, earnedAt) ->
+            val achievement = AllAchievementsById[id] ?: return@mapNotNull null
+            RecentAchievement(
+                achievement = achievement,
+                earnedAtEpochMs = earnedAt,
+            )
+        }
+        .take(limit)
+        .toList()
 
 private fun Profile?.debugKind(): String = when (this) {
     null -> "null"
@@ -249,7 +302,8 @@ sealed interface HomeAction {
     data object Refresh : HomeAction
     data object LoadActiveRooms : HomeAction
     data class Forfeit(val code: String) : HomeAction
-    data class XpChanged(val totalXp: Long) : HomeAction
+    data class ProgressionChanged(val progress: LevelProgress) : HomeAction
     data class ChipsChanged(val balance: Long?) : HomeAction
     data class ProfileChanged(val profile: Profile) : HomeAction
+    data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
 }

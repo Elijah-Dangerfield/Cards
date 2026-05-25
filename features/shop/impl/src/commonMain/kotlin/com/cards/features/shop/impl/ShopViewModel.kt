@@ -103,7 +103,12 @@ class ShopViewModel @Inject constructor(
             }
         }
         // Kick off catalog refresh + inventory sync (these run concurrently).
-        takeAction(ShopAction.Refresh)
+        // Screen-entry refresh is non-forced so the repository short-circuits
+        // when the cache is still warm — pull-to-refresh ([ShopAction.Refresh]
+        // with `force = true`) is the only path that always hits the network.
+        // Inventory + chip balance refresh on every entry regardless; those
+        // change with gameplay between shop visits.
+        takeAction(ShopAction.Refresh(force = false))
         viewModelScope.launch { inventoryRepository.sync() }
     }
 
@@ -112,7 +117,7 @@ class ShopViewModel @Inject constructor(
             is ShopAction.Refresh -> {
                 action.updateState { it.copy(isRefreshing = true, errorMessage = null) }
                 viewModelScope.launch {
-                    val result = productsRepository.refresh()
+                    val result = productsRepository.refresh(force = action.force)
                     result.onFailure { failure ->
                         logger.w(failure) { "Catalog refresh failed" }
                         takeAction(ShopAction.RefreshFailed(failure.message ?: "Couldn't load shop"))
@@ -166,7 +171,7 @@ class ShopViewModel @Inject constructor(
                 if (state.sheetModeFor(product) !is PurchaseSheetMode.Available) return
                 if (state.isExpired(product)) {
                     sendEvent(ShopEvent.OfferExpired(product.id))
-                    takeAction(ShopAction.Refresh)
+                    takeAction(ShopAction.Refresh(force = true))
                     return
                 }
                 when (product) {
@@ -424,8 +429,13 @@ sealed interface ChipOfferCardState {
 }
 
 sealed interface ShopAction {
-    /** Pull-to-refresh / initial load. */
-    data object Refresh : ShopAction
+    /**
+     * Initial load + pull-to-refresh. [force] = true on pull-to-refresh
+     * (and other "user clearly wants fresh" triggers like an expired
+     * offer tap); false on screen-entry so the repository's freshness
+     * window can short-circuit duplicate fetches.
+     */
+    data class Refresh(val force: Boolean) : ShopAction
     data object RefreshFinished : ShopAction
     data class RefreshFailed(val message: String) : ShopAction
     data class CatalogChanged(val catalog: ProductCatalog) : ShopAction

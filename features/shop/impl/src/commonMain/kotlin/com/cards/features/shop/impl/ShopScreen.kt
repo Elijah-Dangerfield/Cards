@@ -19,6 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,10 +31,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.PurchaseState
+import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
+import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
@@ -42,8 +46,10 @@ import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Surface
+import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -55,7 +61,6 @@ import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD700
 import com.dangerfield.cards.system.VerticalSpacerD800
-import com.dangerfield.cards.system.VerticalSpacerD1000
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -84,11 +89,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  - Sheet + sub-content + balance preview: [PurchaseConfirmSheet].
  *  - Icon tiles / shared pills / emoji placeholder map: [ShopComponents].
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ShopScreen(
     state: ShopState,
     onAction: (ShopAction) -> Unit,
     onProductTap: (productId: String) -> Unit,
+    onIdeaTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Screen(modifier = modifier) { padding ->
@@ -96,13 +103,31 @@ fun ShopScreen(
             when {
                 !state.hasLoaded && state.isRefreshing -> LoadingState()
                 state.hasLoaded && state.catalog.isEmpty -> EmptyState()
-                else -> CatalogContent(state = state, onAction = onAction, onProductTap = onProductTap)
+                else -> {
+                    // PullToRefreshBox owns the gesture + indicator. We
+                    // bind it to `isRefreshing` so the spinner stays
+                    // visible during the background refetch — the
+                    // cached catalog continues to render underneath
+                    // (stale-while-revalidate).
+                    PullToRefreshBox(
+                        isRefreshing = state.isRefreshing,
+                        onRefresh = { onAction(ShopAction.Refresh(force = true)) },
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        CatalogContent(
+                            state = state,
+                            onAction = onAction,
+                            onProductTap = onProductTap,
+                            onIdeaTap = onIdeaTap,
+                        )
+                    }
+                }
             }
 
             state.errorMessage?.let { message ->
                 ErrorBanner(
                     message = message,
-                    onRetry = { onAction(ShopAction.Refresh) },
+                    onRetry = { onAction(ShopAction.Refresh(force = true)) },
                     onDismiss = { onAction(ShopAction.DismissError) },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -129,6 +154,7 @@ private fun CatalogContent(
     state: ShopState,
     onAction: (ShopAction) -> Unit,
     onProductTap: (productId: String) -> Unit,
+    onIdeaTap: () -> Unit,
 ) {
     val featured = state.catalog.chipPacks.firstOrNull { it.featured }
     val otherPacks = state.catalog.chipPacks.filterNot { it.id == featured?.id }
@@ -165,7 +191,7 @@ private fun CatalogContent(
                 ChipPackCard(
                     pack = pack,
                     timeAnchor = state.timeAnchor,
-                    onExpired = { onAction(ShopAction.Refresh) },
+                    onExpired = { onAction(ShopAction.Refresh(force = true)) },
                     onClick = { onProductTap(pack.id) },
                 )
             }
@@ -183,14 +209,34 @@ private fun CatalogContent(
                     offer = offer,
                     cardState = state.classify(offer),
                     timeAnchor = state.timeAnchor,
-                    onExpired = { onAction(ShopAction.Refresh) },
+                    onExpired = { onAction(ShopAction.Refresh(force = true)) },
                     onClick = { onProductTap(offer.id) },
                 )
             }
         }
 
-        VerticalSpacerD1000()
+        VerticalSpacerD700()
+        IdeaFooter(onClick = onIdeaTap)
+        VerticalSpacerD500()
         BottomBarSpacer()
+    }
+}
+
+/**
+ * Subtle text-button at the bottom of the shop scroll. Opens the general
+ * feedback sheet — surfaces the channel without taking up real estate
+ * meant for product cards.
+ */
+@Composable
+private fun IdeaFooter(onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Button(
+            onClick = onClick,
+            size = ButtonSize.Small,
+            style = ButtonStyle.Text,
+        ) {
+            Text("Got an idea? Tell us")
+        }
     }
 }
 
@@ -540,6 +586,21 @@ private fun ChipOfferCard(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.alpha(dimmableAlpha),
                 )
+                if (isPersonalCosmetic(offer.id)) {
+                    // "Only you see this" — heads off the V1 paper cut
+                    // where a player buys a felt expecting other seats
+                    // at the table to see it. Stays dimmed alongside
+                    // the subtitle since it reads as auxiliary metadata
+                    // about the product, not state of the purchase.
+                    VerticalSpacerD100()
+                    Text(
+                        text = "Only you see this",
+                        typography = AppTheme.typography.Label.L300,
+                        color = AppTheme.colors.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.alpha(dimmableAlpha),
+                    )
+                }
                 // Push the footer to the bottom edge — see ChipPackCard
                 // for the rationale.
                 Spacer(modifier = Modifier.weight(1f, fill = true))
@@ -828,11 +889,12 @@ private fun ErrorBanner(
 @Preview
 @Composable
 private fun ShopScreenPreview_Loading() {
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
             state = ShopState(isRefreshing = true, hasLoaded = false, chipBalance = 12_450),
             onAction = {},
             onProductTap = {},
+            onIdeaTap = {},
         )
     }
 }
@@ -840,11 +902,12 @@ private fun ShopScreenPreview_Loading() {
 @Preview
 @Composable
 private fun ShopScreenPreview_Empty() {
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
             state = ShopState(hasLoaded = true, chipBalance = 12_450),
             onAction = {},
             onProductTap = {},
+            onIdeaTap = {},
         )
     }
 }
@@ -852,7 +915,7 @@ private fun ShopScreenPreview_Empty() {
 @Preview
 @Composable
 private fun ShopScreenPreview_FullCatalog() {
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
             state = ShopState(
                 hasLoaded = true,
@@ -861,6 +924,7 @@ private fun ShopScreenPreview_FullCatalog() {
             ),
             onAction = {},
             onProductTap = {},
+            onIdeaTap = {},
         )
     }
 }
@@ -869,7 +933,7 @@ private fun ShopScreenPreview_FullCatalog() {
 @Composable
 private fun ShopScreenPreview_MixedOwnedAndDisabled() {
     val catalog = previewFullCatalog()
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
             state = ShopState(
                 hasLoaded = true,
@@ -893,6 +957,7 @@ private fun ShopScreenPreview_MixedOwnedAndDisabled() {
             ),
             onAction = {},
             onProductTap = {},
+            onIdeaTap = {},
         )
     }
 }
@@ -900,7 +965,7 @@ private fun ShopScreenPreview_MixedOwnedAndDisabled() {
 @Preview
 @Composable
 private fun ShopScreenPreview_ErrorWithPriorCatalog() {
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
             state = ShopState(
                 hasLoaded = true,
@@ -910,6 +975,7 @@ private fun ShopScreenPreview_ErrorWithPriorCatalog() {
             ),
             onAction = {},
             onProductTap = {},
+            onIdeaTap = {},
         )
     }
 }

@@ -1,11 +1,6 @@
 package com.dangerfield.cards
 
 import com.dangerfield.cards.libraries.core.ShakeDetector
-import com.dangerfield.cards.libraries.core.ShakeEvent
-import com.dangerfield.cards.libraries.core.ShakeMessageContext
-import com.dangerfield.cards.libraries.core.ShakeMessageProvider
-import com.dangerfield.cards.libraries.identity.profile.Profile
-import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.ShakeDialogRoute
 import kotlinx.coroutines.CoroutineScope
@@ -20,8 +15,6 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 class ShakeHandler(
     private val shakeDetector: ShakeDetector,
-    private val shakeMessageProvider: ShakeMessageProvider,
-    private val profileRepository: ProfileRepository,
     private val router: Router,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -30,8 +23,10 @@ class ShakeHandler(
     fun start() {
         shakeDetector.start()
         scope.launch {
-            shakeDetector.shakeEvents.collect { event ->
-                handleShake(event)
+            shakeDetector.shakeEvents.collect {
+                if (isShowingDialog) return@collect
+                isShowingDialog = true
+                router.navigate(ShakeDialogRoute())
             }
         }
     }
@@ -40,33 +35,10 @@ class ShakeHandler(
         shakeDetector.stop()
     }
 
+    // Called by `ShakeDialogEntryPoint` when the dialog leaves composition,
+    // so the next shake can open it again. Without this hook the gate stays
+    // closed for the rest of the process lifetime.
     fun onDialogDismissed() {
         isShowingDialog = false
-    }
-
-    private suspend fun handleShake(event: ShakeEvent) {
-        if (isShowingDialog) return
-
-        // Pull the display name from the profile (server-authoritative).
-        // `shakeCount` / `isFirstSession` are no longer tracked — every
-        // shake uses the "first shake" pool, which has enough variety on
-        // its own. See ShakeMessageProviderImpl's branch table.
-        val displayName = (profileRepository.current() as? Profile.Authenticated)?.displayName
-
-        val context = ShakeMessageContext(
-            intensity = event.intensity,
-            isLateNight = false,
-            userName = displayName,
-        )
-
-        val message = shakeMessageProvider.getMessage(context)
-
-        isShowingDialog = true
-        router.navigate(
-            ShakeDialogRoute(
-                headline = message.headline,
-                subtext = message.subtext,
-            )
-        )
     }
 }

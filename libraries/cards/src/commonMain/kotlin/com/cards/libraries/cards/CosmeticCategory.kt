@@ -32,3 +32,25 @@ fun cosmeticSlotFor(productId: String): CosmeticSlot? = when {
     productId.startsWith("tool_") -> CosmeticSlot.Tool
     else -> null
 }
+
+/**
+ * Whether a cosmetic is *only* rendered for the wearer (felt under the
+ * cards, card back of your own hand, utility overlays like Win Odds) vs.
+ * visible to the rest of the table (player titles, emote blasts).
+ *
+ * Buying a personal cosmetic expecting other seats to see it is the
+ * sharpest paper cut the shop produces today — so we surface it as a
+ * small "Only visible to you" badge on both the shop product card and
+ * the equipped-item tile in My Items.
+ *
+ * Single source of truth so the shop and My Items can't drift on the
+ * same idea. Defaults to false (public) for unrecognised ids — better
+ * to under-label than to mis-label a future emote pack as personal.
+ */
+fun isPersonalCosmetic(productId: String): Boolean = when (cosmeticSlotFor(productId)) {
+    CosmeticSlot.Felt -> true
+    CosmeticSlot.CardBack -> true
+    CosmeticSlot.Tool -> true
+    CosmeticSlot.Title -> false
+    null -> false
+}

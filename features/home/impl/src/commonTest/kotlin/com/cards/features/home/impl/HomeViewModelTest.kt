@@ -1,9 +1,13 @@
 package com.dangerfield.cards.features.home.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.AchievementHandContext
+import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -135,15 +139,15 @@ class HomeViewModelTest : CoroutineTest() {
         val vm = buildVm(progression = progression)
         vm.stateFlow.test {
             var last = awaitItem()
-            while (last.xp != 250L) last = awaitItem()
+            while (last.levelProgress.totalXp != 250L) last = awaitItem()
             cancelAndIgnoreRemainingEvents()
         }
 
         progression.progression.value = progression.progression.value.copy(totalXp = 1_750L)
         vm.stateFlow.test {
             var last = awaitItem()
-            while (last.xp != 1_750L) last = awaitItem()
-            assertEquals(1_750L, last.xp)
+            while (last.levelProgress.totalXp != 1_750L) last = awaitItem()
+            assertEquals(1_750L, last.levelProgress.totalXp)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -346,12 +350,14 @@ class HomeViewModelTest : CoroutineTest() {
 
     private fun buildVm(
         progression: FakeProgressionRepository = FakeProgressionRepository(),
+        achievements: FakeAchievementRepository = FakeAchievementRepository(),
         chips: FakeChipsRepository = FakeChipsRepository(),
         rooms: FakeRoomRepository = FakeRoomRepository(),
         profile: FakeProfileRepository = FakeProfileRepository(),
         appCache: FakeAppCache = FakeAppCache(),
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
+        achievementRepository = achievements,
         chipsRepository = chips,
         roomRepository = rooms,
         profileRepository = profile,
@@ -459,6 +465,19 @@ class HomeViewModelTest : CoroutineTest() {
         ): UpdateProfileOutcome = error("not used by HomeViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by HomeViewModel")
+    }
+
+    private class FakeAchievementRepository(
+        initial: AchievementProgress = AchievementProgress.Empty,
+    ) : AchievementRepository {
+        val progress = MutableStateFlow(initial)
+        override fun observeProgress(): Flow<AchievementProgress> = progress
+        override suspend fun getProgress(): AchievementProgress = progress.value
+        override suspend fun recordHand(
+            summary: HandResultSummary,
+            context: AchievementHandContext,
+        ): List<EarnedAchievement> = error("recordHand not used by HomeViewModel")
+        override suspend fun deleteAll() { /* not used */ }
     }
 
     private class FakeAppCache(initial: AppData = AppData()) : AppCache {

@@ -26,6 +26,7 @@ import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -239,6 +240,22 @@ fun SignUpScreen(
         ) {
             Text("Already have an account? Sign in")
         }
+    }
+
+    if (state.awaitingClaimConfirm) {
+        // Positive framing — this is the moment a guest commits their
+        // chips/XP/achievements to a real account. The OAuth-conflict
+        // dialog (`ConfirmSwitchToExisting`) covers the destructive case;
+        // this covers the constructive one.
+        Dialog(
+            title = "Save your progress to ${state.email.trim()}?",
+            description = "We'll send a verification link. Your chips, XP, and unlocks come with you to the new account.",
+            primaryButtonText = "Send link",
+            secondaryButtonText = "Not yet",
+            onPrimaryButtonClicked = { onAction(SignUpAction.ConfirmClaim) },
+            onSecondaryButtonClicked = { onAction(SignUpAction.DismissClaimConfirm) },
+            onDismissRequest = { onAction(SignUpAction.DismissClaimConfirm) },
+        )
     }
 }
 

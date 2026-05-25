@@ -1,93 +1,83 @@
 package com.dangerfield.cards.features.home.impl
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.libraries.ui.components.AnimatedNumberText
-import com.dangerfield.cards.libraries.ui.components.AvatarCircle
-import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
-import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
+import com.dangerfield.cards.libraries.ui.components.LevelPill
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Slim "you are here" header for Home — a tappable avatar that
- * jumps to the profile screen, plus the chip pill anchored opposite.
+ * Slim "you are here" header for Home. Two affordances, opposite ends:
  *
- * Intentionally minimal: name + level + rank are the profile
- * screen's job, not Home's. Duplicating them up top would clutter
- * the surface and bury the activity ticker / CTAs that Home is
- * actually about. The avatar acts as the affordance back into
- * profile, the chip pill as the affordance into the shop — both
- * one-tap, one-glance.
+ *  - Left: [LevelPill] — current level + a gradient ring encoding XP
+ *    progress to the next level. Taps into Stats.
+ *  - Right: chip-balance pill via [BalancePillSlot] so the wallet
+ *    affordance reads identically on Home and Shop. Taps into Shop.
+ *
+ * No avatar on Home — profile is the avatar's home (bottom-nav tab).
+ * Duplicating it here cluttered the header without adding a real
+ * tap-back path users were missing.
  */
 @Composable
 internal fun HomeHeader(
-    avatarName: String?,
-    avatarEmoji: String?,
-    avatarBackgroundColorHex: String?,
+    levelProgress: LevelProgress,
     chips: Long?,
-    onTapAvatar: () -> Unit,
+    onTapLevel: () -> Unit,
     onTapChips: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        AvatarCircle(
-            name = avatarName.orEmpty(),
-            emoji = avatarEmoji,
-            backgroundColorHex = avatarBackgroundColorHex,
-            size = 40.dp,
-            modifier = Modifier
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .clickable(onClick = onTapAvatar),
+    BalancePillSlot(
+        chips = chips,
+        onChipsClick = onTapChips,
+        modifier = modifier,
+        leading = {
+            // BalancePillSlot's row uses Alignment.Top; anchor the level
+            // pill to vertical center so its ring sits at the same y as
+            // the chip badge's text.
+            Box(
+                modifier = Modifier,
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                LevelPill(progress = levelProgress, onClick = onTapLevel)
+            }
+        },
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Previews — fully hydrated mid-level + a cold-boot null-chips state so the
+// chip pill's em-dash placeholder is exercised next to the live ring.
+// ---------------------------------------------------------------------------
+
+@Preview
+@Composable
+private fun HomeHeaderPreview_MidLevel() {
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        HomeHeader(
+            levelProgress = levelProgressFor(totalXp = 1_140),
+            chips = 12_300,
+            onTapLevel = {},
+            onTapChips = {},
         )
-        ChipPill(chips = chips, onClick = onTapChips)
     }
 }
 
+@Preview
 @Composable
-private fun ChipPill(chips: Long?, onClick: () -> Unit) {
-    val goldText = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold")
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
-        modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .clickable(onClick = onClick)
-            .padding(horizontal = Dimension.D500, vertical = Dimension.D300),
-    ) {
-        Text(
-            text = "◆",
-            typography = AppTheme.typography.Body.B500,
-            color = goldText,
+private fun HomeHeaderPreview_HydratingFromCold() {
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        HomeHeader(
+            levelProgress = LevelProgress(level = 1, totalXp = 0, xpAtLevelStart = 0, xpForNextLevel = 100),
+            chips = null,
+            onTapLevel = {},
+            onTapChips = {},
         )
-        if (chips == null) {
-            Text(
-                text = "—",
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.textSecondary,
-            )
-        } else {
-            AnimatedNumberText(
-                value = chips,
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
-            )
-        }
     }
 }

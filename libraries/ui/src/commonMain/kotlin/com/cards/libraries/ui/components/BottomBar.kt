@@ -1,9 +1,11 @@
 package com.dangerfield.cards.libraries.ui.components
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,17 +45,26 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.icon.Outlined
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.animateColorResourceAsState
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD1600
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+/**
+ * A tab in the [AppBottomBar]. Each item owns two composable slots —
+ * one for the selected state and one for unselected — and the bar
+ * crossfades between them on selection change. Slots can render
+ * anything (a tinted [Icon], an [AvatarCircle], etc.), so adding a new
+ * tab shape doesn't require touching the bar layout itself.
+ *
+ * The slots run inside a [BadgedBox], so the badge composes on top of
+ * whatever the slot renders for free.
+ */
 sealed class BottomBarItem(
     val title: String,
-    val selectedIcon: @Composable () -> IconResource,
-    val unselectedIcon: @Composable () -> IconResource,
+    val selectedContent: @Composable () -> Unit,
+    val unselectedContent: @Composable () -> Unit,
     open val badgeAmount: Int,
     open val isSelected: Boolean,
 ) {
@@ -61,28 +73,92 @@ sealed class BottomBarItem(
         BottomBarItem(
             title = "Home",
             isSelected = isSelected,
-            selectedIcon = { Icons.Home.Filled("Home") },
-            unselectedIcon = { Icons.Home.Outlined("Home") },
-            badgeAmount = badgeAmount
+            badgeAmount = badgeAmount,
+            selectedContent = { BottomBarTabIcon(Icons.Home.Filled("Home"), selected = true) },
+            unselectedContent = { BottomBarTabIcon(Icons.Home.Outlined("Home"), selected = false) },
         )
 
     data class Shop(override val isSelected: Boolean, override val badgeAmount: Int = 0) :
         BottomBarItem(
             title = "Shop",
             isSelected = isSelected,
-            selectedIcon = { Icons.Shop.Filled("Shop Tab") },
-            unselectedIcon = { Icons.Shop.Outlined("Shop Tab") },
-            badgeAmount = badgeAmount
+            badgeAmount = badgeAmount,
+            selectedContent = { BottomBarTabIcon(Icons.Shop.Filled("Shop Tab"), selected = true) },
+            unselectedContent = { BottomBarTabIcon(Icons.Shop.Outlined("Shop Tab"), selected = false) },
         )
 
-    data class Profile(override val isSelected: Boolean, override val badgeAmount: Int = 0) :
-        BottomBarItem(
-            title = "Profile",
-            isSelected = isSelected,
-            selectedIcon = { Icons.Person.Filled("Profile Tab") },
-            unselectedIcon = { Icons.Person.Outlined("Profile Tab") },
-            badgeAmount = badgeAmount
-        )
+    data class Profile(
+        override val isSelected: Boolean,
+        override val badgeAmount: Int = 0,
+        /**
+         * When [avatarDisplayName] is non-null, the Profile tab renders
+         * the user's [AvatarCircle] in place of the generic person icon.
+         * Unauthenticated / pre-resolve states pass null and get the
+         * icon fallback.
+         */
+        val avatarDisplayName: String? = null,
+        val avatarEmoji: String? = null,
+        val avatarBackgroundColor: String? = null,
+    ) : BottomBarItem(
+        title = "Profile",
+        isSelected = isSelected,
+        badgeAmount = badgeAmount,
+        selectedContent = {
+            if (avatarDisplayName != null) {
+                ProfileAvatarTab(avatarDisplayName, avatarEmoji, avatarBackgroundColor, selected = true)
+            } else {
+                BottomBarTabIcon(Icons.Person.Filled("Profile Tab"), selected = true)
+            }
+        },
+        unselectedContent = {
+            if (avatarDisplayName != null) {
+                ProfileAvatarTab(avatarDisplayName, avatarEmoji, avatarBackgroundColor, selected = false)
+            } else {
+                BottomBarTabIcon(Icons.Person.Outlined("Profile Tab"), selected = false)
+            }
+        },
+    )
+}
+
+/**
+ * Default rendering for an icon-based bottom bar tab. Subclasses pass
+ * the icon resource (filled or outlined) along with whether the tab is
+ * currently selected; this helper picks the text vs. textDisabled tint.
+ * Exposed so future tabs don't need to re-derive the tint pair.
+ */
+@Composable
+fun BottomBarTabIcon(icon: IconResource, selected: Boolean) {
+    Icon(
+        size = BottomBarSizes._IconSize,
+        icon = icon,
+        color = if (selected) AppTheme.colors.text else AppTheme.colors.textDisabled,
+    )
+}
+
+/**
+ * Profile-tab avatar rendering. The selection ring uses the same
+ * text/textDisabled pair as [BottomBarTabIcon] so the avatar variant
+ * reads as "this tab is selected" the same way an icon tab would.
+ */
+@Composable
+private fun ProfileAvatarTab(
+    displayName: String,
+    emoji: String?,
+    backgroundColorHex: String?,
+    selected: Boolean,
+) {
+    val ringColor = if (selected) AppTheme.colors.text else AppTheme.colors.textDisabled
+    AvatarCircle(
+        name = displayName,
+        emoji = emoji,
+        backgroundColorHex = backgroundColorHex,
+        size = BottomBarSizes._IconSize.dp,
+        modifier = Modifier.border(
+            width = 1.5.dp,
+            color = ringColor.color,
+            shape = CircleShape,
+        ),
+    )
 }
 
 @Composable
@@ -170,16 +246,6 @@ private fun MagnifyingBottomBarItem(
         label = "scale"
     )
 
-    val iconColor by animateColorResourceAsState(
-        targetValue = if (isSelected) {
-            AppTheme.colors.text
-        } else {
-            AppTheme.colors.textDisabled
-        },
-        animationSpec = tween(220),
-        label = "iconColor"
-    )
-
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -195,15 +261,18 @@ private fun MagnifyingBottomBarItem(
                     }
                 }
             ) {
-                Box(
-                    modifier = Modifier,
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        size = BottomBarSizes._IconSize,
-                        icon = if (isSelected) item.selectedIcon() else item.unselectedIcon(),
-                        color = iconColor
-                    )
+                // Crossfade between the two slots so selection feels
+                // smooth regardless of what each slot renders (a
+                // filled-vs-outlined icon, an avatar with/without
+                // ring, etc.). The old code interpolated icon color
+                // directly; Crossfade is the generalized version that
+                // works for any slot content.
+                Crossfade(
+                    targetState = isSelected,
+                    animationSpec = tween(220),
+                    label = "tabContent",
+                ) { selected ->
+                    if (selected) item.selectedContent() else item.unselectedContent()
                 }
             }
         }
@@ -303,6 +372,94 @@ private fun BottomBarPreviewProfile() {
                 onItemClick = {},
             )
 
+            VerticalSpacerD1600()
+        }
+    }
+}
+
+// Pins the avatar-variant path: when the Profile item carries a name +
+// emoji + palette hex, the tab swaps the generic person icon for the
+// user's AvatarCircle. Unselected here — ring uses textDisabled.
+@Preview(heightDp = 200)
+@Composable
+private fun BottomBarPreviewProfileAvatar_Unselected() {
+    PreviewContent(
+        backgroundColor = ColorResource.White
+    ) {
+        Column {
+            VerticalSpacerD1600()
+            AppBottomBar(
+                items = listOf(
+                    BottomBarItem.Home(isSelected = true),
+                    BottomBarItem.Shop(isSelected = false),
+                    BottomBarItem.Profile(
+                        isSelected = false,
+                        avatarDisplayName = "Elijah",
+                        avatarEmoji = "🦊",
+                        avatarBackgroundColor = "#E48A58",
+                    ),
+                ),
+                onItemClick = {},
+            )
+            VerticalSpacerD1600()
+        }
+    }
+}
+
+// Selected avatar — ring uses the text token, scale animates up. Also
+// pins the badge stacking on top of the avatar (notifications still
+// land on the Profile tab regardless of icon vs. avatar rendering).
+@Preview(heightDp = 200)
+@Composable
+private fun BottomBarPreviewProfileAvatar_SelectedWithBadge() {
+    PreviewContent(
+        backgroundColor = ColorResource.White
+    ) {
+        Column {
+            VerticalSpacerD1600()
+            AppBottomBar(
+                items = listOf(
+                    BottomBarItem.Home(isSelected = false),
+                    BottomBarItem.Shop(isSelected = false),
+                    BottomBarItem.Profile(
+                        isSelected = true,
+                        badgeAmount = 4,
+                        avatarDisplayName = "Elijah",
+                        avatarEmoji = "🦊",
+                        avatarBackgroundColor = "#E48A58",
+                    ),
+                ),
+                onItemClick = {},
+            )
+            VerticalSpacerD1600()
+        }
+    }
+}
+
+// Pins the fallback branch: even if the Profile item *is* the avatar
+// variant in shape, a missing displayName (pre-resolve / unauthenticated
+// fallback) falls back to the person icon so the bar still renders.
+@Preview(heightDp = 200)
+@Composable
+private fun BottomBarPreviewProfileAvatar_FallbackToIcon() {
+    PreviewContent(
+        backgroundColor = ColorResource.White
+    ) {
+        Column {
+            VerticalSpacerD1600()
+            AppBottomBar(
+                items = listOf(
+                    BottomBarItem.Home(isSelected = false),
+                    BottomBarItem.Shop(isSelected = false),
+                    BottomBarItem.Profile(
+                        isSelected = true,
+                        avatarDisplayName = null,
+                        avatarEmoji = "🦊",
+                        avatarBackgroundColor = "#E48A58",
+                    ),
+                ),
+                onItemClick = {},
+            )
             VerticalSpacerD1600()
         }
     }

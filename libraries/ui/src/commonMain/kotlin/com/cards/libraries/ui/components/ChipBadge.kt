@@ -1,17 +1,8 @@
 package com.dangerfield.cards.libraries.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 
 @Composable
@@ -20,38 +11,31 @@ fun ChipBadge(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    ) {
-        // Use the canonical chip-coin primitive so this badge stays in lockstep
-        // with every other "this is chips" treatment across the app.
-        ChipCoin()
-        Spacer(modifier = Modifier.width(8.dp))
-        if (amount == null) {
-            // Null = local Room hasn't emitted yet (first-launch / post-
-            // wipe). Render a placeholder rather than "0" so the user
-            // doesn't see a momentary "you have no chips" flash before
-            // sync lands. A real value tagged width keeps the badge
-            // from resizing when chips arrive.
-            com.dangerfield.cards.libraries.ui.components.text.Text(
-                text = "—",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
-            )
-        } else {
-            AnimatedNumberText(
-                value = amount,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
-                formatter = { formatThousands(it) },
-            )
-        }
-    }
+    LeadingPill(
+        modifier = modifier,
+        onClick = onClick,
+        leading = { ChipCoin() },
+        trailing = {
+            if (amount == null) {
+                // Null = local Room hasn't emitted yet (first-launch /
+                // post-wipe). Render a placeholder rather than "0" so
+                // the user doesn't see a momentary "you have no chips"
+                // flash before sync lands.
+                Text(
+                    text = "—",
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.textSecondary,
+                )
+            } else {
+                AnimatedNumberText(
+                    value = amount,
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.text,
+                    formatter = { formatThousands(it) },
+                )
+            }
+        },
+    )
 }
 
 internal fun formatThousands(value: Long): String {

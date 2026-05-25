@@ -10,6 +10,9 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.features.shop)
+            // FeedbackRoute lives in :features:profile (the routes-only
+            // module). Used by the shop's "Got an idea?" footer.
+            implementation(projects.features.profile)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)

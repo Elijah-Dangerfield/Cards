@@ -5,10 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -27,6 +27,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * "Recently played with" shelf — the humans the user faced at MP
@@ -52,24 +53,11 @@ internal fun RecentlyPlayedWithStrip(
 ) {
     if (opponents.isEmpty()) return
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onSeeAll),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "Recently played with",
-                typography = AppTheme.typography.Heading.H500,
-                color = AppTheme.colors.text,
-            )
-            Text(
-                text = "See all",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
-            )
-        }
+        SectionHeader(
+            title = "Recently played with",
+            trailingLabel = "See all",
+            onClick = onSeeAll,
+        )
         VerticalSpacerD500()
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
@@ -88,19 +76,19 @@ private fun OpponentTile(opponent: RecentOpponent, onAddFriend: () -> Unit) {
         modifier = Modifier
             .width(TILE_WIDTH)
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = Dimension.D400, vertical = Dimension.D500),
     ) {
         AvatarCircle(
             name = opponent.displayName,
             emoji = opponent.emoji,
             backgroundColorHex = opponent.avatarBackgroundColorHex,
-            size = 48.dp,
+            size = 64.dp,
         )
         VerticalSpacerD200()
         Text(
             text = opponent.displayName,
-            typography = AppTheme.typography.Body.B500,
+            typography = AppTheme.typography.Body.B600,
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -147,4 +135,38 @@ internal data class RecentOpponent(
     val requestSent: Boolean = false,
 )
 
-private val TILE_WIDTH = 116.dp
+private val TILE_WIDTH = 132.dp
+
+// ---------------------------------------------------------------------------
+// Previews — a fresh list with one tile already showing "Sent" (the
+// idempotent state the friend-graph wire-up flips into), and a single-tile
+// state so the see-all link is exercised against a thin scroll.
+// ---------------------------------------------------------------------------
+
+@Preview
+@Composable
+private fun RecentlyPlayedWithStripPreview_MixedState() {
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        RecentlyPlayedWithStrip(
+            opponents = listOf(
+                RecentOpponent("u1", "Patrice", "🦁", "#C658E4"),
+                RecentOpponent("u2", "Jules", "🐙", "#58C0E4", requestSent = true),
+                RecentOpponent("u3", "Omar", "🦅", "#A8E458"),
+            ),
+            onAddFriend = {},
+            onSeeAll = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun RecentlyPlayedWithStripPreview_SingleOpponent() {
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        RecentlyPlayedWithStrip(
+            opponents = listOf(RecentOpponent("u1", "Patrice", "🦁", "#C658E4")),
+            onAddFriend = {},
+            onSeeAll = {},
+        )
+    }
+}

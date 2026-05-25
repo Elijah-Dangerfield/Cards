@@ -87,7 +87,7 @@ class ShopViewModelTest : CoroutineTest() {
         assertEquals(2, vm.state.catalog.chipPacks.size)
 
         repo.nextRefreshResult = Result.failure(RuntimeException("offline"))
-        vm.takeAction(ShopAction.Refresh)
+        vm.takeAction(ShopAction.Refresh(force = true))
 
         assertEquals(2, vm.state.catalog.chipPacks.size, "prior catalog preserved")
         assertEquals("offline", vm.state.errorMessage)
@@ -416,7 +416,7 @@ class ShopViewModelTest : CoroutineTest() {
         override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> =
             timeAnchor.asStateFlow()
 
-        override suspend fun refresh(): Result<ProductCatalog> {
+        override suspend fun refresh(force: Boolean): Result<ProductCatalog> {
             val result = nextRefreshResult
             if (result != null) {
                 nextRefreshResult = null

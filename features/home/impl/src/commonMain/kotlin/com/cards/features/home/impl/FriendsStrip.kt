@@ -1,42 +1,46 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
-import com.dangerfield.cards.system.HorizontalSpacerD500
-import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.VerticalSpacerD200
+import com.dangerfield.cards.system.VerticalSpacerD500
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * "Friends in the Hall" surface per product-spec §2.4 — avatars of
- * the friends currently playing, with a one-line preview of what
- * they're up to. V1 ships this with fake data because the friends
- * graph is V1.x; the surface is shaped so once
- * `FriendsRepository.observeOnline()` exists we can swap [friends]
- * to the real list without touching layout.
+ * "Friends online" shelf — header (title + see-all) plus a horizontal
+ * scroll of friend tiles. Each tile is avatar + display name + a small
+ * presence label ("Practice", "Quick match", "Friend room"). Mirrors the
+ * recent-achievements / recently-played-with shelves so the three
+ * surfaces feel like siblings.
  *
- * Renders nothing when [friends] is empty — empty-state copy lives
- * elsewhere (the spec asks for honest "Play a hand with a friend"
- * encouragement, but only after the friends system exists).
+ * Auto-hides when there are no online friends AND no pending requests
+ * — per the spec's voice rule, Home doesn't push a "make a friend!"
+ * empty state. Pending requests alone still surface so the user sees
+ * the inbox indicator at the see-all link.
  */
 @Composable
 internal fun FriendsStrip(
@@ -46,112 +50,150 @@ internal fun FriendsStrip(
     modifier: Modifier = Modifier,
 ) {
     if (friends.isEmpty() && pendingRequests <= 0) return
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .clickable(onClick = onSeeAll)
-            .padding(horizontal = Dimension.D600, vertical = Dimension.D500),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AvatarStack(friends = friends.take(MAX_AVATARS))
-        HorizontalSpacerD500()
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = friendsHeadline(friends.size, pendingRequests),
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
-            )
-            val preview = friends.firstOrNull()
-            if (preview != null) {
-                Text(
-                    text = "${preview.displayName} · ${preview.tableLabel}",
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
-                )
-            } else if (pendingRequests > 0) {
-                Text(
-                    text = "Tap to review.",
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
-                )
+    Column(modifier = modifier.fillMaxWidth()) {
+        SectionHeader(
+            title = "Friends",
+            trailingLabel = seeAllLabel(onlineCount = friends.size, pendingRequests = pendingRequests),
+            onClick = onSeeAll,
+        )
+        VerticalSpacerD500()
+        if (friends.isNotEmpty()) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+            ) {
+                items(items = friends, key = { it.id }) { friend ->
+                    FriendTile(friend = friend, onClick = onSeeAll)
+                }
             }
         }
-        if (pendingRequests > 0) {
-            PendingBadge(count = pendingRequests)
-            HorizontalSpacerD500()
-        }
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = AppTheme.colors.textSecondary.color,
-        )
     }
 }
 
 @Composable
-private fun PendingBadge(count: Int) {
-    Box(
+private fun FriendTile(friend: FriendOnline, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(AppTheme.colors.accentPrimary.color)
-            .padding(horizontal = Dimension.D400, vertical = Dimension.D200),
+            .width(TILE_WIDTH)
+            .clickable(onClick = onClick),
     ) {
-        Text(
-            text = if (count > 9) "9+" else "$count",
-            typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.onAccentPrimary,
-        )
-    }
-}
-
-private fun friendsHeadline(onlineCount: Int, pendingRequests: Int): String = when {
-    onlineCount > 0 -> "$onlineCount ${if (onlineCount == 1) "friend" else "friends"} in the Hall"
-    pendingRequests == 1 -> "1 friend request"
-    else -> "$pendingRequests friend requests"
-}
-
-@Composable
-private fun AvatarStack(friends: List<FriendOnline>) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Start,
-    ) {
-        friends.forEachIndexed { index, friend ->
-            val offset = if (index == 0) 0.dp else -(STACK_OVERLAP * index)
+        Box(contentAlignment = Alignment.BottomEnd) {
+            AvatarCircle(
+                name = friend.displayName,
+                emoji = friend.emoji,
+                backgroundColorHex = friend.avatarBackgroundColorHex,
+                size = AVATAR_SIZE,
+            )
+            // Green presence dot — visual echo of the see-all "N online"
+            // count. Bordered so it pops against any avatar background
+            // tint without a separate scrim.
             Box(
                 modifier = Modifier
-                    .offset(x = offset)
-                    .size(AVATAR_SIZE + 4.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(AppTheme.colors.surfaceSecondary.color),
-                contentAlignment = Alignment.Center,
-            ) {
-                AvatarCircle(
-                    name = friend.displayName,
-                    emoji = friend.emoji,
-                    backgroundColorHex = friend.avatarBackgroundColorHex,
-                    size = AVATAR_SIZE,
-                )
-            }
+                    .size(PRESENCE_DOT_SIZE)
+                    .clip(CircleShape)
+                    .background(AppTheme.colors.status.okay.color)
+                    .border(
+                        width = 2.dp,
+                        color = AppTheme.colors.background.color,
+                        shape = CircleShape,
+                    ),
+            )
         }
+        VerticalSpacerD200()
+        Text(
+            text = friend.displayName,
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.text,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = friend.tableLabel,
+            typography = AppTheme.typography.Label.L300,
+            color = AppTheme.colors.textSecondary,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 /**
- * Lightweight DTO for the friends strip — shaped to drop in once
- * the friends graph lands. `tableLabel` is the one-line preview
- * ("$50/$100 standard table", "Heads-up vs Bob", etc.).
+ * Right-side label on the section header. Prefers the online count when
+ * any friends are online, falls back to the pending-requests count
+ * otherwise so the strip still earns its space when only the inbox is
+ * non-empty.
+ */
+private fun seeAllLabel(onlineCount: Int, pendingRequests: Int): String = when {
+    onlineCount > 0 -> "$onlineCount online · See all"
+    pendingRequests == 1 -> "1 request · See all"
+    pendingRequests > 1 -> "$pendingRequests requests · See all"
+    else -> "See all"
+}
+
+/**
+ * Lightweight DTO for the friends strip — shaped to drop in once the
+ * friends graph lands. `tableLabel` is the short status ("Practice",
+ * "Quick match", "Friend room") that renders under the display name.
  */
 @Immutable
 internal data class FriendOnline(
+    val id: String,
     val displayName: String,
     val emoji: String?,
     val avatarBackgroundColorHex: String?,
     val tableLabel: String,
 )
 
-private val AVATAR_SIZE = 36.dp
-private val STACK_OVERLAP = 12.dp
-private const val MAX_AVATARS = 3
+private val TILE_WIDTH = 84.dp
+private val AVATAR_SIZE = 64.dp
+private val PRESENCE_DOT_SIZE = 14.dp
+
+// ---------------------------------------------------------------------------
+// Previews — three online friends (matches the screenshot), one friend +
+// pending requests so the see-all label flips, empty-with-pending so the
+// strip survives on inbox alone.
+// ---------------------------------------------------------------------------
+
+@Preview
+@Composable
+private fun FriendsStripPreview_ThreeOnline() {
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        FriendsStrip(
+            friends = listOf(
+                FriendOnline("f1", "Jordan", "🦊", "#E48A58", "Friend room"),
+                FriendOnline("f2", "Priya", "💀", "#9E9E9E", "Practice"),
+                FriendOnline("f3", "Marcus", "🐉", "#5DA75A", "Quick match"),
+            ),
+            pendingRequests = 0,
+            onSeeAll = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun FriendsStripPreview_OneOnlineWithPending() {
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        FriendsStrip(
+            friends = listOf(FriendOnline("f1", "Jordan", "🦊", "#E48A58", "Friend room")),
+            pendingRequests = 2,
+            onSeeAll = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun FriendsStripPreview_EmptyButPending() {
+    // Friend graph is empty but the inbox has requests — strip still
+    // renders so the user sees the inbox indicator.
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        FriendsStrip(
+            friends = emptyList(),
+            pendingRequests = 1,
+            onSeeAll = {},
+        )
+    }
+}

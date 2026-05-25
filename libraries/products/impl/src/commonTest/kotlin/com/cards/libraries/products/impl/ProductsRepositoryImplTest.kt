@@ -75,12 +75,14 @@ class ProductsRepositoryImplTest : CoroutineTest() {
         val source = FakeDataSource(catalog = SAMPLE_DTO)
         val repo = ProductsRepositoryImpl(source, FakeBillingAvailability.passthrough())
         // Prime with a successful refresh, then make the next call fail.
+        // Force the second call so we don't short-circuit on the freshness
+        // window — we're verifying error handling, not the cache TTL.
         repo.refresh()
         val baseline = repo.observeCatalog().firstValue()
         assertEquals(1, baseline.chipPacks.size)
 
         source.failNext = RuntimeException("simulated server 500")
-        val result = repo.refresh()
+        val result = repo.refresh(force = true)
         assertTrue(result.isFailure)
         assertEquals(
             "simulated server 500",
@@ -110,8 +112,10 @@ class ProductsRepositoryImplTest : CoroutineTest() {
         val repo = ProductsRepositoryImpl(source, FakeBillingAvailability.passthrough())
         // Launch 4 refreshes "concurrently". UnconfinedTestDispatcher means
         // they suspend on the same mutex, then run serially through it. The
-        // contract: the mutex coalesces actual data-source calls.
-        // (NB: this verifies single-flight from a single suspension point.
+        // contract: the mutex serializes calls; once one succeeds the
+        // freshness window short-circuits the remaining three. Net effect:
+        // exactly one data-source call for the burst.
+        // (NB: this verifies coalescing from a single suspension point.
         // True parallel-thread coalescing would need an in-flight Deferred —
         // out of scope for V1.)
         val results = listOf(
@@ -121,8 +125,52 @@ class ProductsRepositoryImplTest : CoroutineTest() {
             async { repo.refresh() },
         ).awaitAll()
         assertTrue(results.all { it.isSuccess })
+        assertEquals(1, source.callCount, "freshness window should fold the burst into one fetch")
         // All callers see the same final catalog.
         assertEquals(1, repo.observeCatalog().firstValue().chipPacks.size)
+    }
+
+    @Test
+    fun refresh_withinFreshnessWindow_doesNotHitNetwork() = runUnitTest {
+        val source = FakeDataSource(catalog = SAMPLE_DTO)
+        val repo = ProductsRepositoryImpl(source, FakeBillingAvailability.passthrough())
+
+        assertTrue(repo.refresh().isSuccess)
+        val callsAfterFirst = source.callCount
+        assertEquals(1, callsAfterFirst)
+
+        // Second call within the freshness window — should short-circuit.
+        assertTrue(repo.refresh().isSuccess)
+        assertEquals(callsAfterFirst, source.callCount, "cached refresh should not call the data source")
+    }
+
+    @Test
+    fun refresh_forceTrue_bypassesFreshnessWindow() = runUnitTest {
+        val source = FakeDataSource(catalog = SAMPLE_DTO)
+        val repo = ProductsRepositoryImpl(source, FakeBillingAvailability.passthrough())
+
+        assertTrue(repo.refresh().isSuccess)
+        val callsAfterFirst = source.callCount
+
+        // Pull-to-refresh path — must always hit the data source.
+        assertTrue(repo.refresh(force = true).isSuccess)
+        assertEquals(callsAfterFirst + 1, source.callCount, "force should bypass the freshness window")
+    }
+
+    @Test
+    fun refresh_failureDoesNotMarkCacheFresh() = runUnitTest {
+        val source = FakeDataSource(catalog = SAMPLE_DTO).apply {
+            failNext = RuntimeException("first call fails")
+        }
+        val repo = ProductsRepositoryImpl(source, FakeBillingAvailability.passthrough())
+
+        assertTrue(repo.refresh().isFailure)
+        assertEquals(1, source.callCount)
+
+        // Cache was never marked fresh — next non-forced refresh should still
+        // hit the network so the user isn't stuck with the empty state.
+        assertTrue(repo.refresh().isSuccess)
+        assertEquals(2, source.callCount)
     }
 
     // ---------- Reconciliation ----------
@@ -241,9 +289,10 @@ class ProductsRepositoryImplTest : CoroutineTest() {
         assertEquals(1, repo.observeCatalog().firstValue().chipPacks.size)
 
         // Second refresh: store reports NotConnected. With the snapshot
-        // still populated, the pack should remain.
+        // still populated, the pack should remain. Force so the freshness
+        // window doesn't short-circuit us before reconciliation runs.
         firstStoreState.nextResult = QueryProductsResult.NotConnected
-        repo.refresh()
+        repo.refresh(force = true)
         val after = repo.observeCatalog().firstValue()
         assertEquals(1, after.chipPacks.size)
         assertFalse(after.chipPacks.isEmpty())

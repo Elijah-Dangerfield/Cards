@@ -20,6 +20,10 @@ import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
 
 /**
  * In-memory products repository. Holds the most recent successful catalog in
@@ -73,11 +77,20 @@ class ProductsRepositoryImpl(
     private val timeAnchor = MutableStateFlow<CatalogTimeAnchor?>(null)
     private val refreshMutex = Mutex()
 
+    // Marks the elapsed time since the most recent successful refresh.
+    // Null until the first one lands. Used to short-circuit non-forced
+    // `refresh()` calls within [FRESHNESS_WINDOW] — see the interface
+    // doc for the screen-entry vs pull-to-refresh split.
+    private var lastSuccessfulRefresh: TimeMark? = null
+
     override fun observeCatalog(): StateFlow<ProductCatalog> = state.asStateFlow()
 
     override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = timeAnchor.asStateFlow()
 
-    override suspend fun refresh(): Result<ProductCatalog> = refreshMutex.withLock {
+    override suspend fun refresh(force: Boolean): Result<ProductCatalog> = refreshMutex.withLock {
+        if (!force && lastSuccessfulRefresh?.let { it.elapsedNow() < FRESHNESS_WINDOW } == true) {
+            return@withLock Result.success(state.value)
+        }
         Catching {
             val dto = dataSource.fetchCatalog().getOrThrow()
             val rawCatalog = dto.toDomain()
@@ -91,6 +104,7 @@ class ProductsRepositoryImpl(
             // with TimeSource.Monotonic.markNow() inside `capture()`.
             timeAnchor.value = CatalogTimeAnchor.capture(serverNowEpochMs = dto.serverNowEpochMs)
             state.value = reconciled
+            lastSuccessfulRefresh = TimeSource.Monotonic.markNow()
             reconciled
         }
     }
@@ -115,6 +129,13 @@ class ProductsRepositoryImpl(
                 billingAvailability.snapshot()
             }
         }
+    }
+
+    private companion object {
+        // Catalog turnover happens on the order of days. 15 minutes keeps
+        // multi-screen navigations cheap while still picking up server
+        // pushes within the same session. Pull-to-refresh bypasses this.
+        val FRESHNESS_WINDOW: Duration = 15.minutes
     }
 }
 

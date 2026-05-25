@@ -49,8 +49,8 @@ sealed class ColorResource(val color: Color, val designSystemName: String) {
     object Gray500 : ColorResource(Color(0xFF9E9E9E), "gray-500")
     object Gray600 : ColorResource(Color(0xFF757575), "gray-600")
     object Gray700 : ColorResource(Color(0xFF494949), "gray-700")
-    object Gray800 : ColorResource(Color(0xFF424242), "gray-800")
-    object Gray900 : ColorResource(Color(0xFF212121), "gray-900")
+    object Gray800 : ColorResource(Color(0xFF363636), "gray-800")
+    object Gray900 : ColorResource(Color(0xFF1A1A1A), "gray-900")
 
     // Blue - Primary accent
     object Blue50 : ColorResource(Color(0xFFE3F2FD), "blue-50")

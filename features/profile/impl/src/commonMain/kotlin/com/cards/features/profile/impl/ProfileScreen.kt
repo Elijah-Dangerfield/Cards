@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.ui.PreviewBottomBar
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
@@ -563,7 +565,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_Anonymous() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Anon-1742",
@@ -598,7 +600,7 @@ private fun ProfileScreenPreview_Anonymous() {
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_Claimed() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Elijah",
@@ -633,7 +635,7 @@ private fun ProfileScreenPreview_Claimed() {
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_DebugBuild() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Elijah",

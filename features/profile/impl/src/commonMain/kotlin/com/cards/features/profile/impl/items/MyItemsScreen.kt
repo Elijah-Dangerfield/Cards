@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -149,6 +150,10 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
                     Spacer(modifier = Modifier.size(Dimension.D200))
                     EarnedTag()
                 }
+                if (isPersonalCosmetic(item.productId)) {
+                    Spacer(modifier = Modifier.size(Dimension.D200))
+                    PersonalCosmeticTag()
+                }
             }
             item.description?.let { desc ->
                 Spacer(modifier = Modifier.height(4.dp))
@@ -204,6 +209,27 @@ private fun EarnedTag() {
             text = "Earned",
             typography = AppTheme.typography.Label.L300,
             color = AppTheme.colors.accentSecondary,
+        )
+    }
+}
+
+/**
+ * Mirrors the shop's per-tile "Only you" badge so the user sees the same
+ * affordance pre- and post-purchase. Categorisation lives in
+ * [isPersonalCosmetic].
+ */
+@Composable
+private fun PersonalCosmeticTag() {
+    Box(
+        modifier = Modifier
+            .clip(Radii.R400.shape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
+    ) {
+        Text(
+            text = "Only you see this",
+            typography = AppTheme.typography.Label.L300,
+            color = AppTheme.colors.onSurfaceSecondary,
         )
     }
 }
