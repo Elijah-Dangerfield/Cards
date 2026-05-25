@@ -89,6 +89,7 @@ fun ProfileScreen(
     onSignOut: () -> Unit,
     isSigningOut: Boolean = false,
     onOpenQaMenu: () -> Unit = {},
+    onOpenTutorial: () -> Unit = {},
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
 ) {
@@ -152,6 +153,7 @@ fun ProfileScreen(
                 turnFeedback = settings.turnFeedback,
                 onBotSpeedChange = onBotSpeedChange,
                 onTurnFeedbackChange = onTurnFeedbackChange,
+                onOpenTutorial = onOpenTutorial,
             )
 
             VerticalSpacerD800()
@@ -318,6 +320,7 @@ private fun GameplaySection(
     turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
     onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
+    onOpenTutorial: () -> Unit = {},
 ) {
     var botSpeedExpanded by remember { mutableStateOf(false) }
     var turnFeedbackExpanded by remember { mutableStateOf(false) }
@@ -325,6 +328,11 @@ private fun GameplaySection(
     ListSection(
         title = "Gameplay",
         items = listOf(
+            ListSectionItem(
+                headlineText = "How to play",
+                supportingText = "Replay the 2-minute poker tutorial",
+                onClick = onOpenTutorial,
+            ),
             ListSectionItem(
                 headlineText = "Bot speed",
                 supportingText = "How fast the bots think and act",

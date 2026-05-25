@@ -76,6 +76,15 @@ data class AppData(
     val hasSeenStarterWelcome: Boolean = false,
 
     /**
+     * Whether the user has dismissed the Home-screen tutorial banner.
+     * False on a fresh install — the banner shows above the header
+     * inviting the user into the 2-minute scripted walkthrough. Flips
+     * to true the first time the user taps the X. The tutorial itself
+     * remains accessible from Settings → "How to play" regardless.
+     */
+    val tutorialBannerDismissed: Boolean = false,
+
+    /**
      * Epoch-ms of when the previous session backgrounded, or `null` if
      * the app has never been backgrounded on this install. Used as the
      * single source of truth for "is this a fresh install" — see

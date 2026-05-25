@@ -32,6 +32,7 @@ fun HomeScreen(
     onPlayBots: () -> Unit,
     onQuickMatch: () -> Unit,
     onFriendGame: () -> Unit,
+    onStartTutorial: () -> Unit,
     onTapLevel: () -> Unit,
     onTapCash: () -> Unit,
     onRejoinRoom: (code: String) -> Unit,
@@ -51,6 +52,9 @@ fun HomeScreen(
         // before the sync lands.
         chips = state.chips,
         activeRooms = state.activeRooms,
+        showTutorialBanner = !state.tutorialBannerDismissed,
+        onStartTutorial = onStartTutorial,
+        onDismissTutorialBanner = { viewModel.takeAction(HomeAction.DismissTutorialBanner) },
         onPlayBots = onPlayBots,
         onQuickMatch = onQuickMatch,
         onFriendGame = onFriendGame,
@@ -73,6 +77,9 @@ private fun HomeScreenContent(
     levelProgress: LevelProgress,
     chips: Long?,
     activeRooms: List<ActiveRoomSummary>,
+    showTutorialBanner: Boolean = false,
+    onStartTutorial: () -> Unit = {},
+    onDismissTutorialBanner: () -> Unit = {},
     onPlayBots: () -> Unit,
     onQuickMatch: () -> Unit,
     onFriendGame: () -> Unit,
@@ -116,6 +123,14 @@ private fun HomeScreenContent(
                 onTapLevel = onTapLevel,
                 onTapChips = onTapCash,
             )
+
+            if (showTutorialBanner) {
+                VerticalSpacerD600()
+                TutorialBanner(
+                    onStart = onStartTutorial,
+                    onDismiss = onDismissTutorialBanner,
+                )
+            }
 
             activeRooms.forEach { room ->
                 VerticalSpacerD600()
@@ -254,6 +269,7 @@ private fun HomeScreenPreview_FullyHydrated() {
             levelProgress = levelProgressFor(totalXp = 1_140),
             chips = 12_300,
             activeRooms = emptyList(),
+            showTutorialBanner = true,
             onPlayBots = {},
             onQuickMatch = {},
             onFriendGame = {},
