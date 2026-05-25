@@ -12,9 +12,8 @@ You are one of 4 scheduled workers shipping incremental engineering work for Car
 2. `gh pr list --head dev --state open --json number,url`. **If a PR exists, exit with no commits** — yesterday's is still under human review.
 3. Align `dev` with current state:
    - `origin/dev` missing or matches `origin/main`: `git checkout -B dev origin/main && git push -u origin dev`.
-   - `origin/dev` ahead, no PR, last commit < 6h old: another worker tonight is stacked. `git checkout dev && git pull --rebase origin dev`.
-   - `origin/dev` ahead, no PR, last commit ≥ 6h old: stale. `git checkout dev && git reset --hard origin/main && git push --force-with-lease origin dev`.
-4. **Sweep pre-existing WIP.** If `git status` is dirty, stage everything and commit `chore: bundle WIP — <one-line summary>`. Read the diff first so the summary is accurate; skip files that look like secrets (`.env`, credentials). The pipeline assumes a clean tree — leaving WIP floating either mixes into your next commit or strands at end-of-run.
+   - `origin/dev` ahead: `git checkout dev && git pull --rebase origin dev`. You stack on whatever's there — prior workers, ad-hoc human commits, in-flight features. **Never reset dev to main.** If dev has gone off the rails, it's the human's call to trim it, not yours.
+4. **Stash pre-existing WIP — don't commit it.** If `git status` is dirty, run `git stash push -u -m "worker-presweep-$(date +%Y%m%d-%H%M%S)"` to tuck it away with a timestamped label, then note the stash label under a top-level `**Stashed WIP:**` line in `docs/agent/in-flight.md` so the human sees it. The WIP belongs to the human — your job is to work around it on a clean tree, not absorb it into a commit. (Previous policy bundled WIP into a `chore:` commit, which silently committed unfinished work.) Skip the stash step only if the tree is already clean.
 5. Read `AGENTS.md` (DS-first, `Catching {}`, `DispatcherProvider`, SEAViewModel, no comments, conventional commits).
 6. Read `docs/todo.md`. Everything in it is worker-pickable. Human-only items live in `docs/developer-todo.md` — never touch that file.
 
@@ -70,6 +69,7 @@ If a pushed commit was broken, push a `fix:` on top or `git revert` — never re
 - All commits pushed to `origin/dev`.
 - `docs/todo.md` reflects what you removed.
 - `docs/agent/in-flight.md` has a block per commit you added tonight.
-- **`git status` is empty** — non-negotiable. Stray modifications mean you skipped the WIP sweep or left work behind; resolve before stopping.
+- **Restore the human's WIP**: if you stashed at start of run, `git stash pop` now. A clean pop is the happy path. If pop reports conflicts, leave them in the working tree as-is — that's how the human will see "your work overlapped mine, please resolve." Do not try to clean up conflicts yourself, and never `git stash drop` an unresolved stash.
+- **Tree state matches pre-run**: if you stashed → tree has the popped WIP (clean or conflicted); if you didn't stash → tree is empty. Stray modifications beyond that mean you left work behind — resolve before stopping.
 
 Then stop.
