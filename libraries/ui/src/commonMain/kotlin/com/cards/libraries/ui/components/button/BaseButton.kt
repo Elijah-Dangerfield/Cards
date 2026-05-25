@@ -154,7 +154,7 @@ private val MediumButtonTextConfig: TextConfig
 
 private val LargeButtonTextConfig: TextConfig
     @Composable get() = TextConfig(
-        typography = AppTheme.typography.Label.L800,
+        typography = AppTheme.typography.Label.L700,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
     )

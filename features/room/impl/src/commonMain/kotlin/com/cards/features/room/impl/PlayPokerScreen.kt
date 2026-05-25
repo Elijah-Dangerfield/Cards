@@ -77,6 +77,8 @@ import com.dangerfield.cards.libraries.ui.components.LevelPill
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
@@ -176,8 +178,6 @@ fun PlayPokerScreen(
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                 ConnectionBanner(connection = state.connection)
                 TopBar(
-                    handNumber = active?.handNumber,
-                    street = active?.street,
                     xp = state.xp,
                     onBack = requestLeave,
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
@@ -407,8 +407,6 @@ private fun ConnectionBanner(connection: ConnectionState) {
 
 @Composable
 private fun TopBar(
-    handNumber: Int?,
-    street: BettingRound?,
     xp: Long,
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
@@ -422,15 +420,16 @@ private fun TopBar(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        com.dangerfield.cards.libraries.ui.components.icon.IconButton(
-            icon = com.dangerfield.cards.libraries.ui.components.icon.Icons.ArrowBack("Back"),
+        IconButton(
+            icon = Icons.ArrowBack("Back"),
             onClick = onBack,
         )
         Spacer(modifier = Modifier.weight(1f))
         LevelPill(xp = xp, onClick = onTapXp)
         Spacer(modifier = Modifier.weight(1f))
-        com.dangerfield.cards.libraries.ui.components.icon.IconButton(
-            icon = com.dangerfield.cards.libraries.ui.components.icon.Icons.Question(
+        IconButton(
+            backgroundColor = AppTheme.colors.surfacePrimary,
+            icon = Icons.Question(
                 "Hand info and rankings",
             ),
             onClick = onCheatSheet,
@@ -438,14 +437,6 @@ private fun TopBar(
     }
 }
 
-private fun streetLabel(street: BettingRound): String = when (street) {
-    BettingRound.Preflop -> "Preflop"
-    BettingRound.Flop -> "Flop"
-    BettingRound.Turn -> "Turn"
-    BettingRound.River -> "River"
-    BettingRound.Showdown -> "Showdown"
-    BettingRound.Complete -> "Hand complete"
-}
 
 @Composable
 private fun LoadingTable() {

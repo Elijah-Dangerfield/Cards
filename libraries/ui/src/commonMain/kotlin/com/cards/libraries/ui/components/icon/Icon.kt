@@ -14,6 +14,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension.D1000
+import com.dangerfield.cards.system.Dimension.D1100
 import com.dangerfield.cards.system.Dimension.D1200
 import com.dangerfield.cards.system.Dimension.D1300
 import com.dangerfield.cards.system.Dimension.D600
@@ -84,10 +85,10 @@ fun LargeIcon(
 enum class IconSize(val dp: Dp) {
     Smallest(D600),
     Small(D800),
-    AppBar(D850),
-    Medium(D1000),
-    Large(D1200),
-    Largest(D1300),
+    AppBar(D900),
+    Medium(D900),
+    Large(D1000),
+    Largest(D1100),
 }
 
 @Preview

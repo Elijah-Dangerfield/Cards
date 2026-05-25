@@ -37,7 +37,7 @@ fun IconButton(
     icon: IconResource,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    backgroundColor: ColorResource? = null,
+    backgroundColor: ColorResource? = AppTheme.colors.surfacePrimary,
     iconColor: ColorResource = LocalContentColor.current,
     size: Size = Size.Medium,
     enabled: Boolean = true,
@@ -83,10 +83,10 @@ object IconButton {
 internal val Size.padding: Dp
     get() = when (this) {
         Size.Smallest -> Dimension.D100
-        Size.Small -> Dimension.D100
-        Size.Medium -> Dimension.D100
-        Size.Large -> Dimension.D200
-        Size.Largest -> Dimension.D300
+        Size.Small -> Dimension.D200
+        Size.Medium -> Dimension.D300
+        Size.Large -> Dimension.D400
+        Size.Largest -> Dimension.D400
     }
 
 internal val Size.iconSize: IconSize
