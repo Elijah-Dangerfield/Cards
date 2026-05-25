@@ -17,7 +17,6 @@ import com.github.gmazzo.buildconfig.BuildConfigExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
-import org.jetbrains.kotlin.gradle.internal.config.AnalysisFlags.optIn
 
 /**
  * Convention plugin for pure Kotlin multiplatform library modules without UI dependencies.

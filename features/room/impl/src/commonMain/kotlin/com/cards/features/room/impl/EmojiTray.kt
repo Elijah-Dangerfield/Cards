@@ -1,28 +1,11 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddReaction
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,35 +14,46 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.Surface
+import com.dangerfield.cards.libraries.ui.components.icon.EmojiButton
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.iconSize
+import com.dangerfield.cards.libraries.ui.components.icon.padding
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.AppTheme
-import kotlinx.coroutines.delay
+import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 import kotlin.time.Clock
+import kotlinx.coroutines.delay
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Bottom-tray emoji blast picker. Sits centered below [QuickActionBar]
- * and collapses to a single circular toggle button when closed so it
- * doesn't compete with the primary actions.
+ * Compact emoji-blast button suitable for the TopBar. Renders a DS
+ * [EmojiButton] (sibling of [IconButton], same Size scale + shape) so
+ * the cluster reads as one set of controls. Tap opens a popup containing
+ * the [EmojiPickerRow]. Hidden entirely when [emojis] is empty (default
+ * users without any `emotes_*` pack), so the chrome stays clean.
  *
- * Emoji blasts are a paid surface — the tray returns nothing when
- * [emojis] is empty (caller doesn't own any `emotes_*` pack). That
- * keeps the entire affordance hidden from default users instead of
- * dangling an empty picker.
+ * Cooldown: while [cooldownEndsAtEpochMs] is in the future, the button
+ * is replaced by a same-sized non-tappable surface showing remaining
+ * seconds. The popup auto-closes the moment a cooldown begins, since
+ * the dimmed picker is useless mid-cooldown. The VM is still
+ * authoritative — the disabled-on-cooldown gate here just keeps the
+ * animation noise out of the channel.
  *
- * The cooldown isn't enforced here — the VM owns the cooldown deadline
- * and rejects taps that arrive before [cooldownEndsAtEpochMs]. This
- * composable just renders the visual: dims the emojis and shows a
- * countdown timer over the toggle while cooling. The redundant local
- * check on tap keeps it from firing animation noise into the VM channel
- * during cooldown, but the VM is still authoritative.
+ * The popup's picker cells are intentionally a notch larger than the
+ * trigger ([CellSize] > [TriggerSize]) so they're comfortable to tap
+ * once the tray is open — the tray no longer inherits its height from
+ * the trigger.
  */
 @Composable
-internal fun EmojiTray(
+internal fun TopBarEmojiButton(
     emojis: List<String>,
     cooldownEndsAtEpochMs: Long,
     onBlast: (String) -> Unit,
@@ -68,91 +62,79 @@ internal fun EmojiTray(
     if (emojis.isEmpty()) return
     var expanded by remember { mutableStateOf(false) }
 
-    // Tick once a second while cooling so the countdown chip refreshes.
-    // Cheap — the inner state only ever flips between the same handful
-    // of integers, so most ticks are no-ops at the composition level.
     val now = rememberSecondTicker(active = cooldownEndsAtEpochMs > 0L)
     val cooling = now < cooldownEndsAtEpochMs
     val remainingSeconds = if (cooling) {
         ((cooldownEndsAtEpochMs - now) / 1000L + 1L).coerceAtLeast(1L)
     } else 0L
 
-    // Collapse the tray the moment a cooldown begins — there's nothing
-    // useful to tap on, and the dimmed-out picker looks broken.
     LaunchedEffect(cooling) {
         if (cooling) expanded = false
     }
 
-    Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = Dimension.D500),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        EmojiToggleButton(
-            expanded = expanded,
-            cooldownSecondsRemaining = remainingSeconds,
-            enabled = !cooling,
-            onClick = { expanded = !expanded },
-        )
-
-        AnimatedVisibility(
-            visible = expanded && !cooling,
-            enter = slideInVertically(animationSpec = tween(200)) { it / 2 } +
-                fadeIn(animationSpec = tween(200)),
-            exit = slideOutVertically(animationSpec = tween(160)) { it / 2 } +
-                fadeOut(animationSpec = tween(140)),
-        ) {
-            EmojiPickerRow(
-                emojis = emojis,
-                onPick = { emoji ->
-                    onBlast(emoji)
-                    expanded = false
-                },
-                modifier = Modifier.padding(start = Dimension.D300),
+    Box(modifier = modifier) {
+        if (cooling) {
+            CooldownChip(remainingSeconds = remainingSeconds)
+        } else {
+            EmojiButton(
+                emoji = TriggerEmoji,
+                size = TriggerSize,
+                onClick = { expanded = !expanded },
             )
+        }
+
+        if (expanded && !cooling) {
+            // Anchored popup directly under the trigger. Offset pushes
+            // the picker below using the trigger's own footprint so the
+            // gap stays consistent if the Size scale changes. Aligned
+            // to TopEnd so the row hugs the right edge — same side as
+            // the trigger.
+            val triggerFootprint = TriggerSize.iconSize.dp + TriggerSize.padding * 2
+            val offsetY = with(LocalDensity.current) {
+                (triggerFootprint + Dimension.D200).roundToPx()
+            }
+            Popup(
+                alignment = Alignment.TopEnd,
+                offset = IntOffset(x = 0, y = offsetY),
+                onDismissRequest = { expanded = false },
+                properties = PopupProperties(
+                    focusable = true,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true,
+                ),
+            ) {
+                EmojiPickerRow(
+                    emojis = emojis,
+                    onPick = { emoji ->
+                        onBlast(emoji)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun EmojiToggleButton(
-    expanded: Boolean,
-    cooldownSecondsRemaining: Long,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val alpha by animateFloatAsState(
-        targetValue = if (enabled) 1f else 0.5f,
-        animationSpec = tween(200),
-        label = "emoji-toggle-alpha",
-    )
-    Box(
-        modifier = Modifier
-            .size(EmojiToggleSize)
-            .alpha(alpha)
-            .clip(CircleShape)
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
+private fun CooldownChip(remainingSeconds: Long) {
+    // Same Surface + radius as EmojiButton at TriggerSize, sized to match
+    // the icon footprint exactly so the chrome doesn't jump as cooldown
+    // toggles.
+    Surface(
+        color = AppTheme.colors.surfacePrimary,
+        contentColor = AppTheme.colors.textSecondary,
+        radius = Radii.IconButton,
+        contentPadding = PaddingValues(TriggerSize.padding),
     ) {
-        if (cooldownSecondsRemaining > 0L) {
+        Box(
+            modifier = Modifier.size(TriggerSize.iconSize.dp),
+            contentAlignment = Alignment.Center,
+        ) {
             Text(
-                text = "${cooldownSecondsRemaining}s",
+                text = "${remainingSeconds}s",
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
-            )
-        } else if (expanded) {
-            Icon(
-                imageVector = Icons.Default.KeyboardArrowDown,
-                contentDescription = "Close emoji tray",
-                tint = AppTheme.colors.text.color,
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.AddReaction,
-                contentDescription = "Send emoji",
-                tint = AppTheme.colors.text.color,
             )
         }
     }
@@ -164,44 +146,36 @@ private fun EmojiPickerRow(
     onPick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyRow(
-        modifier = modifier
-            .height(EmojiToggleSize)
-            .clip(EmojiPickerShape)
-            .background(AppTheme.colors.surfaceSecondary.color),
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D200),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            horizontal = Dimension.D400,
+    Surface(
+        modifier = modifier,
+        color = AppTheme.colors.surfaceSecondary,
+        contentColor = AppTheme.colors.text,
+        radius = Radii.Round,
+        contentPadding = PaddingValues(
+            horizontal = Dimension.D300,
+            vertical = Dimension.D200,
         ),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(items = emojis, key = { it }) { emoji ->
-            EmojiPickerCell(emoji = emoji, onClick = { onPick(emoji) })
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D100),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items(items = emojis, key = { it }) { emoji ->
+                EmojiButton(
+                    emoji = emoji,
+                    size = CellSize,
+                    backgroundColor = null,
+                    onClick = { onPick(emoji) },
+                )
+            }
         }
     }
 }
 
-@Composable
-private fun EmojiPickerCell(emoji: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(EmojiCellSize)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = emoji,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
-        )
-    }
-}
-
 /**
- * Returns wall-clock epoch-ms, refreshed once per second while [active].
- * Inactive while there's no cooldown in flight so we don't keep
- * recomposing the action bar for nothing.
+ * Wall-clock epoch-ms, refreshed every 250ms while [active] so the
+ * countdown chip ticks down smoothly. Inactive otherwise so the
+ * TopBar isn't recomposing for nothing.
  */
 @Composable
 private fun rememberSecondTicker(active: Boolean): Long {
@@ -216,6 +190,40 @@ private fun rememberSecondTicker(active: Boolean): Long {
     return now
 }
 
-private val EmojiToggleSize = 52.dp
-private val EmojiCellSize = 48.dp
-private val EmojiPickerShape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp)
+private val TriggerSize = IconButton.Size.Medium
+private val CellSize = IconButton.Size.Large
+private const val TriggerEmoji = "😀"
+
+private val PreviewEmojis = listOf("🔥", "😂", "👀", "💀", "🎉", "🤝")
+
+@Preview
+@Composable
+private fun TopBarEmojiButtonPreview_Idle() {
+    PreviewContent {
+        TopBarEmojiButton(
+            emojis = PreviewEmojis,
+            cooldownEndsAtEpochMs = 0L,
+            onBlast = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun TopBarEmojiButtonPreview_Cooldown() {
+    PreviewContent {
+        TopBarEmojiButton(
+            emojis = PreviewEmojis,
+            cooldownEndsAtEpochMs = Clock.System.now().toEpochMilliseconds() + 5_000L,
+            onBlast = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun EmojiPickerRowPreview() {
+    PreviewContent {
+        EmojiPickerRow(emojis = PreviewEmojis, onPick = {})
+    }
+}

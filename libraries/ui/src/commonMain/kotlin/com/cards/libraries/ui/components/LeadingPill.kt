@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -48,7 +49,7 @@ fun LeadingPill(
             .clip(RoundedCornerShape(50))
             .background(AppTheme.colors.surfaceSecondary.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = Dimension.D400, vertical = Dimension.D400),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading()

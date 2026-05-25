@@ -44,8 +44,12 @@ kotlin {
             implementation(projects.libraries.networking)
             // ProfileCache depends on storage's Cache / CacheFactory;
             // AppEventBus is in :libraries:cards (needed by the impl ctor).
+            // :libraries:core for AutoInit (ProfileRepositoryImpl's
+            // supertype — the test compiler has to load it to type-
+            // check references to the impl class).
             implementation(projects.libraries.storage)
             implementation(projects.libraries.cards)
+            implementation(projects.libraries.core)
             implementation(libs.ktor.client.contentNegotiation)
             // MockEngine is the easiest way to synthesize a real Ktor
             // ClientRequestException with a given HTTP status — the impl's

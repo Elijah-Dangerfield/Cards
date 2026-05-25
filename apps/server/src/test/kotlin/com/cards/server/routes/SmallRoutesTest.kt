@@ -1,15 +1,11 @@
 package com.dangerfield.cards.server.routes
 
-import com.auth0.jwt.JWT
-import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.AvatarPacks
-import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -25,8 +21,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
-import java.util.Date
-import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -43,11 +37,12 @@ import kotlin.test.assertTrue
  *    invariants are: shape is a JSON object (never an array, never a
  *    primitive), empty object is fine, the tree is returned verbatim.
  *    Documented in the AppConfigRoutes header but not pinned.
- *  - `/v1/avatars` must stay behind the JWT plugin (it's our rate-limit
- *    chokepoint per-user), must serve the curated starter pack as-is,
- *    and must cache long enough that pickers don't refetch on every
- *    open. A regression to "no cache" wouldn't break behavior but would
- *    burn quota; cheap to pin.
+ *  - `/v1/avatars` is anonymous on purpose — the response is identical
+ *    for every caller (full registry; client filters locally against
+ *    inventory) and the fetch needs to fly before the Supabase JWT
+ *    lands during onboarding. Pin: anon-callable, full registry,
+ *    public cache (CDN-friendly), short enough TTL that adding a pack
+ *    is visible quickly.
  */
 class SmallRoutesTest {
 
@@ -131,37 +126,18 @@ class SmallRoutesTest {
 
     // ---------- /v1/avatars ----------
 
-    private val testIssuer = "https://test-project.supabase.co/auth/v1"
-    private val testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef"
-    private val userId = UUID.fromString("11111111-1111-1111-1111-111111111111")
-
-    private val testVerifier = JWT.require(Algorithm.HMAC256(testSecret))
-        .withIssuer(testIssuer)
-        .withAudience("authenticated")
-        .build()
-
-    private fun validJwt(): String = JWT.create()
-        .withIssuer(testIssuer)
-        .withAudience("authenticated")
-        .withSubject(userId.toString())
-        .withIssuedAt(Date())
-        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
-        .sign(Algorithm.HMAC256(testSecret))
-
     @Test
-    fun avatars_returns401_withoutBearer() = runTest {
+    fun avatars_returns200_anonymously() = runTest {
+        // Anon access is the whole point — the picker can warm its
+        // cache before the Supabase JWT lands during onboarding.
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
                 routing { avatarRoutes() }
             }
             val resp = createClient { }.get("/v1/avatars")
-            assertEquals(
-                HttpStatusCode.Unauthorized, resp.status,
-                "/v1/avatars must stay JWT-gated — required for per-user rate limiting",
-            )
+            assertEquals(HttpStatusCode.OK, resp.status)
         }
     }
 
@@ -175,15 +151,12 @@ class SmallRoutesTest {
             application {
                 installSerialization()
                 installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
                 routing { avatarRoutes() }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             }
-            val resp = client.get("/v1/avatars") {
-                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
-            }
+            val resp = client.get("/v1/avatars")
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
             val packIds = body["packs"]!!.jsonArray
@@ -204,15 +177,12 @@ class SmallRoutesTest {
             application {
                 installSerialization()
                 installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
                 routing { avatarRoutes() }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             }
-            val resp = client.get("/v1/avatars") {
-                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
-            }
+            val resp = client.get("/v1/avatars")
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = Json.parseToJsonElement(resp.bodyAsText()).jsonObject
             val packs = body["packs"]!!.jsonArray
@@ -231,27 +201,23 @@ class SmallRoutesTest {
     }
 
     @Test
-    fun avatars_setsPrivateCache_so_packsDontBleedAcrossUsers() = runTest {
-        // The endpoint is no longer per-user (client filters locally),
-        // but it's auth-gated so the `private` directive is still
-        // appropriate — keeps a CDN out of the picture until we
-        // explicitly decide otherwise. A short TTL keeps a server-
-        // deploy that adds a new pack visible quickly.
+    fun avatars_setsPublicCache_soCdnCanShareTheResponse() = runTest {
+        // Response is identical for every caller — public cache lets
+        // a CDN or shared proxy serve it without per-user revalidation.
+        // Short TTL keeps a server-deploy that adds a new pack visible
+        // quickly.
         testApplication {
             application {
                 installSerialization()
                 installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
                 routing { avatarRoutes() }
             }
-            val resp = createClient { }.get("/v1/avatars") {
-                header(HttpHeaders.Authorization, "Bearer ${validJwt()}")
-            }
+            val resp = createClient { }.get("/v1/avatars")
             assertEquals(HttpStatusCode.OK, resp.status)
             val cacheControl = resp.headers[HttpHeaders.CacheControl] ?: ""
             assertTrue(
-                cacheControl.contains("private"),
-                "expected `private` directive, got: $cacheControl",
+                cacheControl.contains("public"),
+                "expected `public` directive, got: $cacheControl",
             )
             assertTrue(
                 cacheControl.contains("max-age=60"),

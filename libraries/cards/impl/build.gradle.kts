@@ -36,6 +36,10 @@ kotlin {
             implementation(projects.libraries.networking)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.flowroutines.testing)
+            // :libraries:core for AutoInit (AppEventDispatcher's
+            // supertype — the test compiler has to load it to type-
+            // check references to the impl class).
+            implementation(projects.libraries.core)
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation("io.ktor:ktor-client-mock:3.3.3")

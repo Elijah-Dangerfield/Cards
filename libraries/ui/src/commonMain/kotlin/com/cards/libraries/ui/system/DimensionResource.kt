@@ -16,14 +16,21 @@ sealed class DimensionResource(val dp: Dp) {
     data object D500 : DimensionResource(12.dp)
     data object D600 : DimensionResource(14.dp)
     data object D700 : DimensionResource(16.dp)
+    data object D750 : DimensionResource(18.dp)
     data object D800 : DimensionResource(20.dp)
     data object D850 : DimensionResource(22.dp)
     data object D900 : DimensionResource(24.dp)
+    data object D950 : DimensionResource(26.dp)
     data object D1000 : DimensionResource(28.dp)
+    data object D1050 : DimensionResource(32.dp)
     data object D1100 : DimensionResource(34.dp)
+    data object D1150 : DimensionResource(36.dp)
     data object D1200 : DimensionResource(40.dp)
+    data object D1250 : DimensionResource(44.dp)
     data object D1300 : DimensionResource(48.dp)
+    data object D1350 : DimensionResource(52.dp)
     data object D1400 : DimensionResource(58.dp)
+    data object D1450 : DimensionResource(64.dp)
     data object D1500 : DimensionResource(70.dp)
     data object D1600 : DimensionResource(84.dp)
     data object D1700 : DimensionResource(90.dp)
@@ -43,15 +50,22 @@ object Dimension {
     val D500 = DimensionResource.D500.dp  // 12 dp
     val D600 = DimensionResource.D600.dp  // 14 dp
     val D700 = DimensionResource.D700.dp  // 16 dp
+    val D750 = DimensionResource.D750.dp  // 18 dp
     val D800 = DimensionResource.D800.dp  // 20 dp
     val D850 = DimensionResource.D850.dp  // 22 dp
 
     val D900 = DimensionResource.D900.dp  // 24 dp
+    val D950 = DimensionResource.D950.dp  // 26 dp
     val D1000 = DimensionResource.D1000.dp // 28 dp
+    val D1050 = DimensionResource.D1050.dp // 32 dp
     val D1100 = DimensionResource.D1100.dp // 34 dp
+    val D1150 = DimensionResource.D1150.dp // 36 dp
     val D1200 = DimensionResource.D1200.dp // 40 dp
+    val D1250 = DimensionResource.D1250.dp // 44 dp
     val D1300 = DimensionResource.D1300.dp // 48 dp
+    val D1350 = DimensionResource.D1350.dp // 52 dp
     val D1400 = DimensionResource.D1400.dp // 58 dp
+    val D1450 = DimensionResource.D1450.dp // 64 dp
     val D1500 = DimensionResource.D1500.dp // 70 dp
     val D1600 = DimensionResource.D1600.dp // 84 dp
     val D1700 = DimensionResource.D1700.dp // 90 dp

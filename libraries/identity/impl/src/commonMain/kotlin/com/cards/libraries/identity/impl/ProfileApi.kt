@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.identity.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.unauthedCall
 import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -112,9 +113,14 @@ class HttpProfileApi(
             }.body<MeDto>()
         }.getOrThrow()
 
-    // GET /v1/avatars is read-only — safe to retry.
+    // GET /v1/avatars is public — server is anonymous on this route so
+    // the response is identical for every caller, and the fetch can
+    // race out at process start without waiting on the Supabase JWT.
+    // That's the whole point: on a cold install with a slow auth
+    // bootstrap, the starter pack still lands before onboarding's
+    // picker renders. Read-only — safe to retry.
     override suspend fun avatars(): AvatarPackResponseDto =
-        networkClient.authedCall("avatars.fetch", retry = RetryPolicy.idempotent()) { client ->
+        networkClient.unauthedCall("avatars.fetch", retry = RetryPolicy.idempotent()) { client ->
             client.get("/v1/avatars").body<AvatarPackResponseDto>()
         }.getOrThrow()
 

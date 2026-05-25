@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.billing.BillingAvailability
 import com.dangerfield.cards.libraries.billing.BillingProduct
 import com.dangerfield.cards.libraries.billing.QueryProductsResult
 import com.dangerfield.cards.libraries.cards.SessionTracker
+import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -88,7 +89,8 @@ import kotlin.time.Duration.Companion.days
  * the desired pre-launch state.
  */
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = ProductsRepository::class)
+@ContributesBinding(AppScope::class, boundType = AutoInit::class, multibinding = true)
 @Inject
 class ProductsRepositoryImpl(
     private val dataSource: ProductsHttpDataSource,
@@ -97,7 +99,7 @@ class ProductsRepositoryImpl(
     private val clock: Clock,
     private val appScope: AppCoroutineScope,
     cacheFactory: CacheFactory,
-) : ProductsRepository {
+) : ProductsRepository, AutoInit {
 
     private val logger = KLog.withTag("ProductsRepository")
     private val state = MutableStateFlow(ProductCatalog.Empty)

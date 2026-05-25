@@ -277,6 +277,38 @@ class ProfileRepositoryImplTest : CoroutineTest() {
     // ---------- fetchAvatarPack ----------
 
     @Test
+    fun init_eagerlyWarmsAvatarPack_soEditProfileOpensHot() = runUnitTest {
+        // ProfileRepositoryImpl is AutoInit. Per the contract on
+        // [AutoInit], construction at app boot must also kick off the
+        // avatar-pack warm-up so EditProfile (and the future "new
+        // items in shop"-style surfaces that read the cached pack)
+        // opens with a populated picker on first tap, even for
+        // returning users who skip onboarding. Session-aware cache
+        // dedupes if the user later opens EditProfile in the same
+        // session.
+        val auth = FakeAuthRepository().also {
+            it.emit(AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null))
+        }
+        val api = FakeProfileApi(
+            meResult = Result.success(SAMPLE_ME),
+            avatarPackResult = Result.success(
+                AvatarPackResponseDto(
+                    packs = listOf(AvatarPackDto(id = "starter", name = "Starter", emojis = listOf("🃏"))),
+                    backgroundPalette = listOf("#abc"),
+                ),
+            ),
+        )
+        build(auth, api)
+        advanceUntilIdle()
+
+        assertEquals(
+            1, api.avatarPackCallCount,
+            "constructing ProfileRepositoryImpl must fire /v1/avatars on its own — onboarding " +
+                "and EditProfile no longer kick this off explicitly",
+        )
+    }
+
+    @Test
     fun fetchAvatarPack_success_mapsResponse() = runUnitTest {
         val auth = FakeAuthRepository().also {
             it.emit(AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null))
@@ -307,6 +339,13 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         // the network failed once. Without a disk snapshot, the repo
         // returns its hardcoded fallback pack. With a disk snapshot,
         // it returns the snapshot (covered by the disk-cache tests).
+        //
+        // The fallback emojis must match the canonical list the server's
+        // append-only Starter pack guarantees forever — see
+        // `AvatarPacksTest.starter_includesAllClientFallbackEmojis`.
+        // If you change FALLBACK_AVATAR_PACK, mirror the change on the
+        // server first and confirm the new emojis are append-additions
+        // to Starter (never replacements).
         val auth = FakeAuthRepository().also {
             it.emit(AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null))
         }
@@ -318,11 +357,27 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         advanceUntilIdle()
 
         val success = assertIs<AvatarPackOutcome.Success>(repo.fetchAvatarPack())
-        assertTrue(success.packs.isNotEmpty(), "fallback pack should not be empty")
-        assertTrue(
-            success.packs.first().emojis.isNotEmpty(),
-            "fallback pack should carry emojis",
+        val fallbackPack = success.packs.single()
+        assertEquals(
+            listOf("🦊", "🐱", "🐼", "🐯", "🐸", "🦁", "🃏", "🎲"),
+            fallbackPack.emojis,
+            "fallback emojis must match the canonical client/server-synced starter set",
         )
+        assertEquals(
+            null, fallbackPack.unlockProductId,
+            "fallback pack must be marked as the always-available starter (unlockProductId = null)",
+        )
+        // Palette colors must all be in the server's AvatarPalette form
+        // (lowercase #rrggbb) so a patchMe with any of them passes
+        // server-side validation. Catches the original bug where the
+        // client shipped a different palette than the server validated.
+        success.palette.forEach { hex ->
+            assertTrue(
+                hex.matches(Regex("^#[0-9a-f]{6}$")),
+                "fallback palette color $hex is not lowercase #rrggbb — server validates against AvatarPalette which is lowercase only",
+            )
+        }
+        assertEquals(8, success.palette.size, "fallback palette should match the server palette size")
     }
 
     @Test

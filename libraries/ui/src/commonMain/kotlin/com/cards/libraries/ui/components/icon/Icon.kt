@@ -85,7 +85,7 @@ fun LargeIcon(
 enum class IconSize(val dp: Dp) {
     Smallest(D600),
     Small(D800),
-    AppBar(D900),
+    AppBar(D1000),
     Medium(D900),
     Large(D1000),
     Largest(D1100),

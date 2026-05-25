@@ -22,6 +22,7 @@ import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMeda
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -48,6 +49,9 @@ fun AchievementsScreen(
                 .padding(padding)
                 .padding(horizontal = 20.dp),
         ) {
+
+            VerticalSpacerD500()
+
             Text(
                 text = "$earned of $total earned",
                 typography = AppTheme.typography.Body.B500,

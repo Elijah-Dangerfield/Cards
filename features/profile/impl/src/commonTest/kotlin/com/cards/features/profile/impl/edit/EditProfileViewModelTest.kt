@@ -143,6 +143,52 @@ class EditProfileViewModelTest : CoroutineTest() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    fun avatarPacks_renderUnlockedPacksBeforeLockedOnes() = runUnitTest {
+        // The picker puts what the user can *actually* pick from at the
+        // top — Starter + any owned premium packs — and pushes locked
+        // upsell rows below. Server order is preserved within each
+        // group via stable sort; if the server returns
+        // [Starter, Animals(locked), Food(unlocked), Fantasy(locked)],
+        // the picker renders [Starter, Food, Animals, Fantasy] so the
+        // user's choices sit contiguous at the top.
+        val ownedFlow = MutableStateFlow(
+            listOf(
+                InventoryItem(
+                    productId = "avatars_food",
+                    state = PurchaseState.Confirmed,
+                    purchasedAtEpochMs = 0L,
+                    costChipsAtPurchase = 4000L,
+                ),
+            ),
+        )
+        val inventory = ObservableInventoryRepository(
+            gate = CompletableDeferred(),
+            ownedFlow = ownedFlow,
+        )
+        val starter = AvatarPack("starter", "Starter", listOf("🦊"), unlockProductId = null)
+        val animals = AvatarPack("animals", "Animals", listOf("🐶"), unlockProductId = "avatars_animals")
+        val food = AvatarPack("food", "Food", listOf("🍕"), unlockProductId = "avatars_food")
+        val fantasy = AvatarPack("fantasy", "Fantasy", listOf("🧙"), unlockProductId = "avatars_fantasy")
+
+        val vm = EditProfileViewModel(
+            profileRepository = GatedUpdateProfile(
+                gate = CompletableDeferred(),
+                packs = listOf(starter, animals, food, fantasy),
+            ),
+            inventoryRepository = inventory,
+            appScope = AppCoroutineScope(dispatchers),
+        )
+        runCurrent()
+
+        assertEquals(
+            listOf("starter" to false, "food" to false, "animals" to true, "fantasy" to true),
+            vm.state.avatarPacks.map { it.pack.id to it.isLocked },
+            "unlocked packs render first; server order is preserved within each group",
+        )
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
     fun submit_avatarOnlyChange_emitsSavedImmediately_withoutWaitingOnNetwork() = runUnitTest {
         // Avatar-only edits can't fail validation in a way the user
         // needs to fix before leaving the screen, so we stay optimistic

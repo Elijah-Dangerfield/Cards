@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -30,6 +31,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -238,7 +240,7 @@ private fun MagnifyingBottomBarItem(
     modifier: Modifier
 ) {
     val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.2f else 1f,
+        targetValue = if (isSelected) 1.1f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium
@@ -255,9 +257,12 @@ private fun MagnifyingBottomBarItem(
             contentAlignment = Alignment.Center
         ) {
             BadgedBox(
+                badgeTranslation = DpOffset(x = (-5).dp, y = (5).dp),
                 badge = {
                     if (item.badgeAmount > 0) {
-                        BottomBarBadge(item.badgeAmount)
+                        BottomBarBadge(
+                            count = item.badgeAmount
+                        )
                     }
                 }
             ) {
@@ -282,8 +287,12 @@ private fun MagnifyingBottomBarItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BottomBarBadge(count: Int) {
+fun BottomBarBadge(
+    count: Int,
+    modifier: Modifier = Modifier
+) {
     Badge(
+        modifier = modifier,
         containerColor = AppTheme.colors.accentPrimary.color,
         contentColor = AppTheme.colors.onSurfacePrimary.color
     ) {

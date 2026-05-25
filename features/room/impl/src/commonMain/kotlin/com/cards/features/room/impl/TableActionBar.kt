@@ -102,7 +102,7 @@ internal fun QuickActionBar(
                         horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        ButtonTertiary(
+                        ButtonSecondary(
                             onClick = {
                                 onIntent(
                                     if (legal.canCheck) PlayerIntent.Check(seatIndex)

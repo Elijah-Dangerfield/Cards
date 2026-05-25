@@ -277,14 +277,22 @@ data class EditProfileState(
      * available (incentive to buy) instead of an artificially short
      * grid. The picker disables tap on locked tiles — the CTA is the
      * only path forward.
+     *
+     * **Order:** unlocked packs first (starter + every owned premium),
+     * then locked packs. Server order is preserved within each group
+     * via stable sort — what the user *can* actually pick from sits
+     * at the top of the picker; the locked aspirational rows sit
+     * below as the upsell shelf.
      */
     val avatarPacks: List<AvatarPackDisplay>
-        get() = allAvatarPacks.map { pack ->
-            AvatarPackDisplay(
-                pack = pack,
-                isLocked = pack.unlockProductId != null && pack.unlockProductId !in ownedProductIds,
-            )
-        }
+        get() = allAvatarPacks
+            .map { pack ->
+                AvatarPackDisplay(
+                    pack = pack,
+                    isLocked = pack.unlockProductId != null && pack.unlockProductId !in ownedProductIds,
+                )
+            }
+            .sortedBy { it.isLocked }
 
     val isNameValid: Boolean
         get() {

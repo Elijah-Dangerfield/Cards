@@ -55,6 +55,40 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun starterPack_pinsCanonicalEmojis_inSyncWithServerStarter() {
+        // The onboarding picker is hardcoded — no network — so what
+        // ships in STARTER_PACK is what the user will pick from on a
+        // cold install. The server's `AvatarPacks.Starter` must contain
+        // every emoji here forever (append-only invariant), enforced
+        // by `AvatarPacksTest.starter_includesAllClientFallbackEmojis`.
+        // If you change either side without the other, profile saves
+        // will reject with `invalid_avatar_emoji` for any user that
+        // picks a drifted emoji.
+        val expectedEmojis = listOf("🦊", "🐱", "🐼", "🐯", "🐸", "🦁", "🃏", "🎲")
+        assertEquals(expectedEmojis, OnboardingViewModel.STARTER_PACK.map { it.emoji })
+        assertEquals(OnboardingViewModel.STARTER_TILE_COUNT, OnboardingViewModel.STARTER_PACK.size)
+    }
+
+    @Test
+    fun starterPack_defaultBackgroundColors_matchServerPaletteForm() {
+        // The server validates `avatarBackgroundColor` against
+        // `AvatarPalette` which normalizes to lowercase `#rrggbb`. The
+        // original bug shipped uppercase / different hex values so
+        // every onboarding save was getting rejected on color
+        // validation. Pin the format so a future palette edit can't
+        // silently break onboarding again.
+        OnboardingViewModel.STARTER_PACK.forEach { option ->
+            val color = option.backgroundColorHex
+                ?: error("STARTER_PACK ${option.emoji} is missing a default background color")
+            assertTrue(
+                color.matches(Regex("^#[0-9a-f]{6}$")),
+                "STARTER_PACK color $color for ${option.emoji} " +
+                    "must be lowercase #rrggbb — server's AvatarPalette is lowercase only",
+            )
+        }
+    }
+
+    @Test
     fun continueAsGuest_success_advancesToPickIdentity_andPrefillsFromProfile() = runUnitTest {
         val cache = FakeAppCache()
         val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
@@ -62,7 +96,7 @@ class OnboardingViewModelTest : CoroutineTest() {
             initial = authenticatedProfile(
                 displayName = "ServerName42",
                 avatarEmoji = "🦊",
-                avatarBackgroundColor = "#E48A58",
+                avatarBackgroundColor = "#ff6b35",
             ),
         )
         val vm = newVm(cache = cache, auth = auth, profile = profile)
@@ -73,10 +107,12 @@ class OnboardingViewModelTest : CoroutineTest() {
         assertEquals(OnboardingStep.PickIdentity, vm.state.step)
         assertEquals("ServerName42", vm.state.displayName)
         assertEquals("🦊", vm.state.selectedEmoji)
-        assertEquals("#E48A58", vm.state.selectedBackgroundColor)
+        assertEquals("#ff6b35", vm.state.selectedBackgroundColor)
         // The avatar picker uses the hardcoded onboarding starter
-        // pack — no server fetch. Pin the count + first emoji so a
-        // future change to STARTER_PACK trips a test.
+        // pack — fetched in parallel from the server to warm the
+        // EditProfile cache, but the picker itself always renders
+        // STARTER_PACK. Pin the count + first emoji so a future
+        // change to STARTER_PACK trips a test.
         assertEquals(OnboardingViewModel.STARTER_TILE_COUNT, vm.state.starterPack.size)
         assertEquals("🦊", vm.state.starterPack.first().emoji)
     }
@@ -204,11 +240,11 @@ class OnboardingViewModelTest : CoroutineTest() {
     fun selectAvatar_storesEmojiAndBackground() = runUnitTest {
         val vm = newVm()
 
-        vm.takeAction(OnboardingAction.SelectAvatar("🐯", "#C68A3D"))
+        vm.takeAction(OnboardingAction.SelectAvatar("🐯", "#a18bff"))
         runCurrent()
 
         assertEquals("🐯", vm.state.selectedEmoji)
-        assertEquals("#C68A3D", vm.state.selectedBackgroundColor)
+        assertEquals("#a18bff", vm.state.selectedBackgroundColor)
     }
 
     @Test
@@ -225,12 +261,12 @@ class OnboardingViewModelTest : CoroutineTest() {
         vm.takeAction(OnboardingAction.ContinueAsGuest)
         runCurrent()
         vm.takeAction(OnboardingAction.DisplayNameChanged("Picked"))
-        vm.takeAction(OnboardingAction.SelectAvatar("🦊", "#E48A58"))
+        vm.takeAction(OnboardingAction.SelectAvatar("🦊", "#ff6b35"))
         vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
         runCurrent()
 
         assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-        assertEquals("Picked" to ("🦊" to "#E48A58"), profile.lastUpdateArgs)
+        assertEquals("Picked" to ("🦊" to "#ff6b35"), profile.lastUpdateArgs)
     }
 
     @Test
@@ -333,7 +369,7 @@ class OnboardingViewModelTest : CoroutineTest() {
     private fun authenticatedProfile(
         displayName: String = "ServerName",
         avatarEmoji: String = "🦊",
-        avatarBackgroundColor: String? = "#E48A58",
+        avatarBackgroundColor: String? = "#ff6b35",
     ): Profile.Authenticated = Profile.Authenticated(
         id = "11111111-1111-1111-1111-111111111111",
         displayName = displayName,
@@ -378,9 +414,9 @@ internal class FakeProfileRepository(
         return updateOutcome
     }
 
-    // Onboarding doesn't fetch the avatar pack anymore — the picker
-    // uses the hardcoded starter list. Stub returns Success(empty) so
-    // any incidental call still satisfies the contract.
+    // Onboarding doesn't call fetchAvatarPack — ProfileRepositoryImpl
+    // warms the pack at app boot via the AutoInit pattern instead.
+    // Stub satisfies the contract; nobody on this path calls it.
     override suspend fun fetchAvatarPack(): AvatarPackOutcome =
         AvatarPackOutcome.Success(packs = emptyList(), palette = emptyList())
 }

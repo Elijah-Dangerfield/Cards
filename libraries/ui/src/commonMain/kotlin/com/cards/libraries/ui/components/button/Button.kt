@@ -329,7 +329,7 @@ fun ButtonSecondary(
     modifier: Modifier = Modifier,
     icon: IconResource? = null,
     size: ButtonSize = LocalButtonSize.current,
-    style: ButtonStyle = ButtonStyle.Outlined,
+    style: ButtonStyle = ButtonStyle.Filled,
     onDisabledTap: (() -> Unit)? = null,
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
@@ -467,7 +467,7 @@ private fun backgroundColor(
     else -> when (type) {
         ButtonType.Primary -> AppTheme.colors.accentPrimary
         ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Secondary -> AppTheme.colors.surfacePrimary
+        ButtonType.Secondary -> AppTheme.colors.surfaceSecondary
         ButtonType.Tertiary -> AppTheme.colors.onSurfaceTertiary
         ButtonType.Ghost -> null
         ButtonType.Danger -> AppTheme.colors.danger

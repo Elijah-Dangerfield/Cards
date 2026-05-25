@@ -2,11 +2,8 @@ package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
-import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
-import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.CacheControl
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
 import io.ktor.server.response.cacheControl
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -16,6 +13,13 @@ import kotlinx.serialization.Serializable
 /**
  * `GET /v1/avatars` — emoji packs the avatar picker can render.
  *
+ * **Unauthenticated** on purpose. The response is identical for every
+ * caller — it's the full registry of every pack (starter + premium)
+ * with their `unlockProductId`s, and the client filters against its
+ * own inventory. Anon lets the fetch fly before the Supabase JWT
+ * lands during onboarding, removing the cold-start race that
+ * otherwise forces the picker onto its hardcoded fallback list.
+ *
  * Returns the **full** registry — starter pack plus every premium pack
  * — each row carrying its `unlockProductId`. The client filters
  * against local inventory rather than waiting on the server's inventory
@@ -23,22 +27,21 @@ import kotlinx.serialization.Serializable
  * the optimistic local row is written (no need to wait for sync).
  *
  * `PATCH /v1/me`'s emoji validation uses the same registry and still
- * gates on inventory server-side — see `MeRoutes`.
+ * gates on inventory server-side — see `MeRoutes`. Anon access here
+ * doesn't widen the write surface: an anon caller can read the
+ * registry, but can't patch a profile without a JWT.
  */
 fun Route.avatarRoutes() {
-    authenticate(SUPABASE_JWT_AUTH) {
-        get("/v1/avatars") {
-            val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-            val packs = AvatarPacks.all.map { it.toDto() }
-            call.response.cacheControl(CacheControl.MaxAge(maxAgeSeconds = 60, visibility = CacheControl.Visibility.Private))
-            call.respond(
-                HttpStatusCode.OK,
-                AvatarPackResponse(
-                    packs = packs,
-                    backgroundPalette = AvatarPalette.values,
-                ),
-            )
-        }
+    get("/v1/avatars") {
+        val packs = AvatarPacks.all.map { it.toDto() }
+        call.response.cacheControl(CacheControl.MaxAge(maxAgeSeconds = 60, visibility = CacheControl.Visibility.Public))
+        call.respond(
+            HttpStatusCode.OK,
+            AvatarPackResponse(
+                packs = packs,
+                backgroundPalette = AvatarPalette.values,
+            ),
+        )
     }
 }
 

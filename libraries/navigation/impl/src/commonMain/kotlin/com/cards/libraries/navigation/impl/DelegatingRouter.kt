@@ -65,19 +65,40 @@ class DelegatingRouter(
             logger.d { "Clearing nav controller" }
             processingJob?.cancel()
             processingJob = null
+            processingLifecycle = null
             navController = null
             viewScope = CompletableDeferred()
         }
     }
+
+    private var processingLifecycle: Lifecycle? = null
 
     fun setNavController(
         controller: NavHostController,
         lifecycle: Lifecycle,
         scope: CoroutineScope = lifecycle.coroutineScope,
     ) {
+        // Skip redundant binds. On Android, when the Activity handles
+        // its own config changes (orientation, etc.), Compose may
+        // recompose enough callsites to drive `Bind`'s DisposableEffect
+        // through multiple dispose/run cycles with the same controller
+        // + same lifecycle. Each rebind cancels the processing job and
+        // pushes the start destination, which in turn re-keys every
+        // screen's NavBackStackEntry, re-runs each route's
+        // LaunchedEffect(Unit), and re-creates per-entry ViewModels —
+        // observed as Home re-entering ×N and active-rooms hitting the
+        // server ×N during a single rotation.
+        if (navController === controller &&
+            processingLifecycle === lifecycle &&
+            processingJob?.isActive == true
+        ) {
+            logger.d { "setNavController: redundant rebind ignored" }
+            return
+        }
         logger.d { "Setting nav controller" }
         viewScope.complete(scope)
         navController = controller
+        processingLifecycle = lifecycle
         processingJob?.cancel()
         processingJob = appScope.launch {
             controller.awaitGraphAttachment()
@@ -207,12 +228,26 @@ class DelegatingRouter(
     }
     @Composable
     fun Bind(navController: NavHostController) {
-        logger.i { "Binding nav controller" }
         val lifecycleOwner = LocalLifecycleOwner.current
         val coroutineScope = rememberCoroutineScope()
         val controllerKey = remember(navController) { navController }
 
-        DisposableEffect(controllerKey, lifecycleOwner) {
+        // Key only on the controller. Earlier this also keyed on
+        // `lifecycleOwner`, which made the effect re-run whenever
+        // `LocalLifecycleOwner` returned a different instance — happens
+        // during config-change-handled rotation on Android even though
+        // the Activity (and its real lifecycle) survives. The lifecycle
+        // is still captured for the rebind that *does* happen; we just
+        // don't treat a transient swap as a trigger. `setNavController`
+        // also early-returns on a same-controller + same-lifecycle
+        // rebind as a belt-and-suspenders guard.
+        //
+        // The "binding" log lives inside the effect so it only fires
+        // on real rebinds, not every Bind() recomposition — the
+        // earlier outside-the-effect log made rotation look like 5+
+        // rebinds when it was actually one.
+        DisposableEffect(controllerKey) {
+            logger.i { "Binding nav controller" }
             setNavController(controllerKey, lifecycleOwner.lifecycle, coroutineScope)
             onDispose { clearNavController(controllerKey) }
         }

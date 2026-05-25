@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.identity.impl.profile
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventBus
 import com.dangerfield.cards.libraries.cards.SessionTracker
+import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -71,6 +72,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = ProfileRepository::class)
+@ContributesBinding(AppScope::class, boundType = AutoInit::class, multibinding = true)
 @Inject
 class ProfileRepositoryImpl(
     private val authRepository: AuthRepository,
@@ -80,8 +82,8 @@ class ProfileRepositoryImpl(
     private val sessionTracker: SessionTracker,
     private val clock: Clock,
     private val appEventBus: AppEventBus,
-    appScope: AppCoroutineScope,
-) : ProfileRepository {
+    private val appScope: AppCoroutineScope,
+) : ProfileRepository, AutoInit {
 
     private val logger = KLog.withTag("ProfileRepository")
     private val mutex = Mutex()
@@ -124,6 +126,17 @@ class ProfileRepositoryImpl(
                 Catching { resolve(auth) }
                     .logOnFailure { "Profile resolve from auth change failed" }
             }
+        }
+        // Warm the avatar pack on the same trigger we'd otherwise warm
+        // it from (onboarding picker, EditProfile open). With this in
+        // place, returning users — who skip onboarding — also land on
+        // EditProfile with a hot cache instead of a fallback list.
+        // [fetchAvatarPack] dedupes against the session-aware cache so
+        // a screen that also calls it later still only hits the network
+        // once per session.
+        appScope.launch {
+            Catching { fetchAvatarPack() }
+                .logOnFailure { "Avatar pack boot warm failed" }
         }
     }
 
@@ -421,19 +434,26 @@ class ProfileRepositoryImpl(
          * the avatar picker functional on bad-network fresh installs.
          * Once any real fetch succeeds it overwrites this; we never
          * fall back to this list while a real snapshot is available.
+         *
+         * Must stay in sync with `OnboardingViewModel.STARTER_PACK`
+         * and remain a subset of the server's starter pack — server
+         * contract is append-only, so any emoji in this list at APK
+         * build time is guaranteed to still be accepted by patchMe
+         * forever. That's what keeps the fallback safe across drift
+         * between an old APK and a newer server.
          */
         val FALLBACK_AVATAR_PACK: AvatarPackOutcome.Success = AvatarPackOutcome.Success(
             packs = listOf(
                 AvatarPack(
                     id = "starter_fallback",
                     name = "Starter",
-                    emojis = listOf("🦊", "😀", "🐼", "🐯", "🦄", "🐸", "🦁", "🌶️"),
+                    emojis = listOf("🦊", "🐱", "🐼", "🐯", "🐸", "🦁", "🃏", "🎲"),
                     unlockProductId = null,
                 ),
             ),
             palette = listOf(
-                "#E48A58", "#E4C658", "#7D8794", "#C68A3D",
-                "#C658E4", "#5DA15D", "#E4A258", "#5DAE5D",
+                "#5bc79b", "#7555ff", "#ff6b35", "#ffc857",
+                "#52a2ff", "#ff5da2", "#a18bff", "#37d5c2",
             ),
         )
     }

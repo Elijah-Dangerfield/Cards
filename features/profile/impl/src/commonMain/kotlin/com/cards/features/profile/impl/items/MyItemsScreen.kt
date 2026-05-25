@@ -27,8 +27,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.icon.IconButton
-import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -59,6 +58,12 @@ fun MyItemsScreen(
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
+        topBar = {
+            TopBar(
+                title = "My items",
+                onNavigateBack = onBack,
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -66,19 +71,6 @@ fun MyItemsScreen(
                 .padding(padding)
                 .padding(horizontal = Dimension.D800),
         ) {
-            Spacer(modifier = Modifier.height(Dimension.D200))
-            IconButton(
-                icon = Icons.ArrowBack("Back"),
-                onClick = onBack,
-                iconColor = AppTheme.colors.onSurfacePrimary,
-            )
-            Spacer(modifier = Modifier.height(Dimension.D700))
-
-            Text(
-                text = "My items",
-                typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.onSurfacePrimary,
-            )
             Spacer(modifier = Modifier.height(Dimension.D300))
             Text(
                 text = if (state.ownedItems.isEmpty()) {

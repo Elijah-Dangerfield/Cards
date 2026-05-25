@@ -260,6 +260,24 @@ Pick the read-path policy **per repository**, not globally. Consistency vs. avai
 
 Bias toward cache-first when in doubt, but never force this pattern onto a resource whose contract demands freshness. When extending a repo, write down which row above it falls in — the read-path-policy bullet in `docs/developer-todo.md` tracks the remaining unconverted reads.
 
+### Boot-time construction: the `AutoInit` marker
+
+The session-aware cache only works if the repository is constructed before the user touches the screen that reads it. Kotlin-inject singletons are constructed lazily on first injection, so a repo that nobody touches until a deep nav target stays cold — the hydrate-from-disk and session-rollover observer don't run, defeating the point.
+
+For repositories where the warm path matters (catalog grids, avatar pickers, app-lifecycle dispatchers, anything whose `init {}` is load-bearing), implement [`AutoInit`](libraries/core/src/commonMain/kotlin/com/cards/libraries/core/AutoInit.kt) and contribute a second binding via multibinding:
+
+```kotlin
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = ProductsRepository::class)
+@ContributesBinding(AppScope::class, boundType = AutoInit::class, multibinding = true)
+@Inject
+class ProductsRepositoryImpl(...) : ProductsRepository, AutoInit
+```
+
+The `Set<AutoInit>` is resolved at app start (`CardsApplication.onCreate` on Android, `iOSApp.init` on iOS, `App.kt` remember-block on Compose first composition). Resolving the set forces every contributor to construct, which runs their `init {}` — that's where hydrate-from-disk + session-observer subscription + lifecycle-listener registration happen.
+
+**Opt in** when first-touch latency the user notices, an `init {}` that registers a listener, or a session-aware cache that needs its observer running before the user can navigate. **Skip** for debug-only / config-override / QA-menu repos and anything whose `init {}` is empty. The failure mode for forgetting the marker is a perf regression, not a correctness one — the class still works lazily — so the bigger risk is overuse making boot slow.
+
 ## Compose previews (required for screens)
 
 Every user-facing screen composable needs `@Preview` coverage. Without it, iterating means rebuild → reinstall → navigate → set up state by hand, every change. With previews, Studio renders the screen instantly across states.

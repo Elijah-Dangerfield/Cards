@@ -44,6 +44,7 @@ import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
 import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
@@ -76,6 +77,11 @@ fun EditProfileScreen(
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
+        topBar = {
+            TopBar(
+                onNavigateBack = onBack
+            )
+        }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -93,12 +99,6 @@ fun EditProfileScreen(
                     // clear instead of sitting under the button.
                     .padding(bottom = FloatingSaveBarReservedHeight),
             ) {
-                Spacer(modifier = Modifier.height(Dimension.D200))
-                IconButton(
-                    icon = Icons.ArrowBack("Back"),
-                    onClick = onBack,
-                    iconColor = AppTheme.colors.onSurfacePrimary,
-                )
 
                 Spacer(modifier = Modifier.height(Dimension.D500))
 
@@ -237,7 +237,6 @@ private fun FloatingSaveBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(AppTheme.colors.background.color)
             .padding(horizontal = Dimension.D800, vertical = Dimension.D500),
     ) {
         Button(

@@ -80,7 +80,7 @@ object IconButton {
     }
 }
 
-internal val Size.padding: Dp
+val Size.padding: Dp
     get() = when (this) {
         Size.Smallest -> Dimension.D100
         Size.Small -> Dimension.D200
@@ -89,7 +89,7 @@ internal val Size.padding: Dp
         Size.Largest -> Dimension.D400
     }
 
-internal val Size.iconSize: IconSize
+val Size.iconSize: IconSize
     get() = when (this) {
         Size.Smallest -> IconSize.Smallest
         Size.Small -> IconSize.Small

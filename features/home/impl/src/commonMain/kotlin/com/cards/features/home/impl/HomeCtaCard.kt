@@ -70,12 +70,12 @@ internal fun HomeCtaCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                typography = AppTheme.typography.Heading.H600,
+                typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.text,
             )
             Text(
                 text = subtitle,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
         }
@@ -102,7 +102,7 @@ private fun GlyphBadge(glyph: String, accent: Color) {
     ) {
         Text(
             text = glyph,
-            typography = AppTheme.typography.Heading.H800,
+            typography = AppTheme.typography.Heading.H900,
             color = AppTheme.colors.text,
         )
     }

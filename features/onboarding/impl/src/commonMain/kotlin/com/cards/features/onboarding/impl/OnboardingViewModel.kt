@@ -78,10 +78,11 @@ class OnboardingViewModel(
         }
         // Warm up the data PickIdentity needs while the Welcome screen is
         // still on the user's eyes. Anonymous sign-in starts at app launch
-        // (SupabaseAuthRepositoryImpl.init), and the network client queues
-        // /v1/me + /v1/avatars behind the JWT — so by the time the user
-        // taps Continue and we transition to PickIdentity, both results
-        // are usually already in state and the 3s timeouts never trigger.
+        // (SupabaseAuthRepositoryImpl.init); WarmUp queues /v1/me behind
+        // that JWT so the prefill is ready by the time the user taps
+        // Continue. The avatar pack is warmed by ProfileRepositoryImpl
+        // at app boot (AutoInit) — onboarding doesn't need to fire it
+        // here.
         takeAction(OnboardingAction.WarmUp)
     }
 
@@ -89,11 +90,6 @@ class OnboardingViewModel(
         when (action) {
             OnboardingAction.WarmUp -> {
                 action.kickOffProfileLoad()
-                // No avatar-pack fetch here: the picker uses the
-                // hardcoded starter pack instead so onboarding never
-                // blocks on the authed `/v1/avatars` call. EditProfile
-                // is the only screen that pulls the server-driven
-                // pack, gated by the session-aware cache there.
             }
             OnboardingAction.ContinueAsGuest -> action.handleContinueAsGuest()
             is OnboardingAction.SignInWithOAuth -> action.handleOAuth(action.provider)
@@ -274,21 +270,35 @@ class OnboardingViewModel(
         private val PROFILE_TIMEOUT = 3.seconds
 
         /**
-         * The starter pack onboarding shows. Hardcoded so the picker
-         * renders instantly with zero network — onboarding stays
-         * fast even on a cold install + bad network. EditProfile
-         * (post-onboarding) pulls the full server-driven pack via the
-         * session-aware cache on `ProfileRepository`.
+         * The starter pack onboarding shows. Deliberately basic —
+         * six common animals + two poker-themed entries — so the
+         * cooler themed unlock packs (Animals/Food/Sports/Fantasy/
+         * Mythical) feel like a real upgrade. Mirrors the server's
+         * `AvatarPacks.Starter` exactly so a patchMe with any of
+         * these emojis + colors is never rejected. Server contract
+         * is append-only: emojis here are guaranteed to keep
+         * validating even on old APKs after the server-side list
+         * grows.
+         *
+         * Colors come from the server `AvatarPalette` so each
+         * default selection is also accepted by patchMe's
+         * background-color validation.
+         *
+         * Hardcoded so the picker renders instantly with zero
+         * network — onboarding stays fast even on a cold install
+         * + bad network. EditProfile (post-onboarding) pulls the
+         * full server-driven pack via the session-aware cache on
+         * `ProfileRepository`.
          */
         internal val STARTER_PACK: List<AvatarOption> = listOf(
-            AvatarOption("🦊", "#E48A58"),
-            AvatarOption("😀", "#E4C658"),
-            AvatarOption("🐼", "#7D8794"),
-            AvatarOption("🐯", "#C68A3D"),
-            AvatarOption("🦄", "#C658E4"),
-            AvatarOption("🐸", "#5DA15D"),
-            AvatarOption("🦁", "#E4A258"),
-            AvatarOption("🌶️", "#5DAE5D"),
+            AvatarOption("🦊", "#ff6b35"),
+            AvatarOption("🐱", "#ffc857"),
+            AvatarOption("🐼", "#37d5c2"),
+            AvatarOption("🐯", "#a18bff"),
+            AvatarOption("🐸", "#5bc79b"),
+            AvatarOption("🦁", "#ff5da2"),
+            AvatarOption("🃏", "#7555ff"),
+            AvatarOption("🎲", "#52a2ff"),
         )
     }
 }

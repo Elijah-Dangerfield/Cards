@@ -48,7 +48,11 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -384,6 +388,20 @@ private fun PlayerInfoTile(
     // highlight, so this tile stays neutral — just the player's avatar and chip
     // info. Keeps the visual hierarchy clean (one gold accent, not two nested ones).
     //
+    // Layout:
+    //   • Top header row — hand label (most game-functional info gets prime
+    //     real estate); spans full tile width, clickable for the explainer.
+    //   • Bigger centered avatar (52dp in a 56dp ring) so the player's
+    //     identity reads clearly; previous 40dp avatar was tiny because the
+    //     column was carrying too many stacked lines.
+    //   • Name with the equipped title inlined as a gold suffix
+    //     ("You · The Shark") instead of consuming its own row.
+    //   • Stack + optional chip/action pill at the bottom.
+    //
+    // The seat-level badge ("Lvl 14") that opponents show in this stack is
+    // intentionally absent here — the human's level already lives in the
+    // TopBar, so duplicating it inside their own card just inflates density.
+    //
     // Dimensions are tuned tight so the content fits inside the locked
     // hole-card row height (PlayingCardSize.Hole.height = 142.dp) without
     // clipping the bottom chip pill. Adjust together if the row height changes.
@@ -405,15 +423,21 @@ private fun PlayerInfoTile(
                 text = handLabel,
                 typography = AppTheme.typography.Body.B500.Bold,
                 color = AppTheme.colors.text,
-                modifier = Modifier.clickable { onHandLabelClick(handLabel) },
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onHandLabelClick(handLabel) },
             )
             VerticalSpacerD100()
         }
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(48.dp)) {
-            if (isWinner) WinnerGlow(modifier = Modifier.size(44.dp))
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp)) {
+            if (isWinner) WinnerGlow(modifier = Modifier.size(56.dp))
             AvatarCircle(
                 name = seat.displayName,
-                size = 40.dp,
+                size = 52.dp,
                 emoji = seat.emoji ?: AnonymousAvatarEmoji,
                 backgroundColorHex = seat.avatarBackgroundColorHex,
             )
@@ -428,34 +452,30 @@ private fun PlayerInfoTile(
                     // edge (less invading the emoji); y nudged up gives extra
                     // breathing room between the marker and the stack number
                     // below so the two tap targets don't crowd each other.
-                    .offset(x = (-2).dp, y = (-8).dp),
+                    .offset(x = (-2).dp, y = (-6).dp),
             )
         }
         VerticalSpacerD100()
-        // Single line + ellipsis so a long handle can't blow the locked
-        // tile height. Spacers around the name + title block are tight
-        // (D100, 4dp) because the column has to fit inside the locked
-        // hole-card row height (142dp) without clipping the bottom pill.
+        // Name + equipped title on one line — title is the gold suffix after
+        // a middot ("You · The Shark"). Single AnnotatedString so the line
+        // truncates as one unit and the title can't push the name off.
+        val nameText = if (title != null) {
+            buildAnnotatedString {
+                append(seat.displayName)
+                append(" · ")
+                withStyle(SpanStyle(color = PokerPalette.ChipGold)) { append(title) }
+            }
+        } else {
+            buildAnnotatedString { append(seat.displayName) }
+        }
         Text(
-            text = seat.displayName,
+            text = nameText,
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.text,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
-        SeatBadgePill(text = seat.seatBadge, visible = !seat.isBusted)
-        // Equipped title — "Bluff Master", "The Shark", "High Roller".
-        if (title != null) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Body.B400,
-                color = com.dangerfield.cards.libraries.ui.system.color.ColorResource.FromColor(PokerPalette.ChipGold, "ChipGold"),
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
         VerticalSpacerD100()
         ChipCoinAmount(
             amount = seat.stack,
