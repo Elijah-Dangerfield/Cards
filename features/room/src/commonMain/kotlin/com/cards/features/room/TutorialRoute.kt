@@ -10,4 +10,4 @@ import kotlinx.serialization.Serializable
  * from Settings → "How to play".
  */
 @Serializable
-data object TutorialRoute : Route()
+class TutorialRoute : Route()

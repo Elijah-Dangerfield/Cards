@@ -92,7 +92,7 @@ class HomeFeatureEntryPoint(
                 // room code). Spec §5.2 calls this the "Friend Game"
                 // entry point; the lobby screen is the actual surface.
                 onFriendGame = { router.navigate(LobbyRoute()) },
-                onStartTutorial = { router.navigate(TutorialRoute) },
+                onStartTutorial = { router.navigate(TutorialRoute()) },
                 // Level pill → Stats — the screen-of-record for the
                 // full level / XP breakdown.
                 onTapLevel = { router.navigate(StatsRoute()) },

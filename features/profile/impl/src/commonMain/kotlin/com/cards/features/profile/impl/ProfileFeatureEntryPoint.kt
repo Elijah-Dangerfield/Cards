@@ -160,7 +160,7 @@ class ProfileFeatureEntryPoint(
                 onSignOut = { accountActionsVm.takeAction(AccountActionsAction.ConfirmSignOut) },
                 isSigningOut = accountActionsState.isSigningOut,
                 onOpenQaMenu = { router.navigate(QaMenuRoute()) },
-                onOpenTutorial = { router.navigate(TutorialRoute) },
+                onOpenTutorial = { router.navigate(TutorialRoute()) },
                 scrollState = scrollState,
             )
         }
