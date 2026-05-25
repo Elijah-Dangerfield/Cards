@@ -18,10 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,8 +44,8 @@ import com.dangerfield.cards.libraries.config.ConfiguredValue
 import com.dangerfield.cards.libraries.config.FeatureConfig
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Switch
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.screenContentPadding
-import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -80,84 +76,68 @@ fun QaMenuScreen(
         }
     }
 
-    Screen(modifier = modifier) { padding ->
+    val scrollState = rememberScrollState()
+    Screen(
+        modifier = modifier,
+        topBar = {
+            TopBar(
+                title = "QA menu",
+                onNavigateBack = onBack,
+                scrollState = scrollState,
+            )
+        },
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .screenContentPadding(paddingValues = padding, includeHorizontalInsets = false),
+                .verticalScroll(scrollState)
+                .screenContentPadding(paddingValues = padding),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Row(
+            Text(
+                text = "Override any server-driven config value for this session. Cleared on uninstall.",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+            )
+
+            UserIdBlock(userId = userId)
+
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .clip(Radii.R400.shape)
+                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .clickable {
+                        scope.launch { overrideRepository.clearAll() }
+                    }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = AppTheme.colors.text.color,
-                    )
-                }
                 Text(
-                    text = "QA menu",
-                    typography = AppTheme.typography.Heading.H600,
+                    text = "Clear all overrides",
+                    typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.text,
                 )
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(screenHorizontalInsets),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                Text(
-                    text = "Override any server-driven config value for this session. Cleared on uninstall.",
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
-                )
-
-                UserIdBlock(userId = userId)
-
-                Box(
-                    modifier = Modifier
-                        .clip(Radii.R400.shape)
-                        .background(AppTheme.colors.surfaceSecondary.color)
-                        .clickable {
-                            scope.launch { overrideRepository.clearAll() }
-                        }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                ) {
-                    Text(
-                        text = "Clear all overrides",
-                        typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.text,
-                    )
-                }
-
-                featureConfigs.forEach { feature ->
-                    val featureRows = rows.filter { it.featureName == feature.featureName }
-                    if (featureRows.isEmpty()) return@forEach
-                    QaSection(title = feature.featureName) {
-                        featureRows.forEach { row ->
-                            QaRow(
-                                row = row,
-                                draft = drafts[row.path] ?: row.currentValue.toString(),
-                                onDraftChange = { drafts[row.path] = it },
-                                onApply = { value ->
-                                    scope.launch {
-                                        overrideRepository.addOverride(ConfigOverride(row.path, value))
-                                    }
-                                },
-                            )
-                        }
+            featureConfigs.forEach { feature ->
+                val featureRows = rows.filter { it.featureName == feature.featureName }
+                if (featureRows.isEmpty()) return@forEach
+                QaSection(title = feature.featureName) {
+                    featureRows.forEach { row ->
+                        QaRow(
+                            row = row,
+                            draft = drafts[row.path] ?: row.currentValue.toString(),
+                            onDraftChange = { drafts[row.path] = it },
+                            onApply = { value ->
+                                scope.launch {
+                                    overrideRepository.addOverride(ConfigOverride(row.path, value))
+                                }
+                            },
+                        )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(40.dp))
             }
+
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
