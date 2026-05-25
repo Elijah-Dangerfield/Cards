@@ -30,13 +30,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+// TopBar icons route through libraries/ui's DS Icon + IconButton (Icons.kt
+// / IconButton.kt). Raw Material icons would tint, size, and bounce-click
+// differently from the rest of the app — DS routing keeps the chrome
+// consistent and the icon set centralized.
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -425,23 +422,19 @@ private fun TopBar(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = AppTheme.colors.text.color,
-            )
-        }
+        com.dangerfield.cards.libraries.ui.components.icon.IconButton(
+            icon = com.dangerfield.cards.libraries.ui.components.icon.Icons.ArrowBack("Back"),
+            onClick = onBack,
+        )
         Spacer(modifier = Modifier.weight(1f))
         LevelPill(xp = xp, onClick = onTapXp)
         Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = onCheatSheet) {
-            Icon(
-                imageVector = Icons.Default.HelpOutline,
-                contentDescription = "Hand info and rankings",
-                tint = AppTheme.colors.text.color,
-            )
-        }
+        com.dangerfield.cards.libraries.ui.components.icon.IconButton(
+            icon = com.dangerfield.cards.libraries.ui.components.icon.Icons.Question(
+                "Hand info and rankings",
+            ),
+            onClick = onCheatSheet,
+        )
     }
 }
 
