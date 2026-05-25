@@ -102,7 +102,7 @@ private fun GlyphBadge(glyph: String, accent: Color) {
     ) {
         Text(
             text = glyph,
-            typography = AppTheme.typography.Heading.H900,
+            typography = AppTheme.typography.Heading.H1000,
             color = AppTheme.colors.text,
         )
     }

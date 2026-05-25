@@ -48,7 +48,7 @@ internal fun ActiveRoomBanner(
             .fillMaxWidth()
             .clip(Radii.Card.shape)
             .background(AppTheme.colors.background.color)
-            .border(2.dp, AppTheme.colors.border.color, Radii.Card.shape)
+            .border(2.dp, AppTheme.colors.borderSecondary.color, Radii.Card.shape)
             .padding(Dimension.D600),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

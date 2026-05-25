@@ -138,6 +138,18 @@ private fun HomeScreenContent(
                 onClick = onPlayBots,
             )
             VerticalSpacerD600()
+
+            HomeCtaCard(
+                title = "Friend Game",
+                subtitle = "Room code · just you and yours",
+                glyph = "👯‍♂️",
+                accent = FeatureCardAccents.Gold,
+                onClick = onFriendGame,
+            )
+
+
+            VerticalSpacerD600()
+
             HomeCtaCard(
                 title = "Quick Match",
                 subtitle = "Public seat · one tap",
@@ -145,14 +157,6 @@ private fun HomeScreenContent(
                 accent = FeatureCardAccents.Blue,
                 onClick = onQuickMatch,
                 trailing = "Soon",
-            )
-            VerticalSpacerD600()
-            HomeCtaCard(
-                title = "Friend Game",
-                subtitle = "Room code · just you and yours",
-                glyph = "👯‍♂️",
-                accent = FeatureCardAccents.Gold,
-                onClick = onFriendGame,
             )
 
             VerticalSpacerD1100()

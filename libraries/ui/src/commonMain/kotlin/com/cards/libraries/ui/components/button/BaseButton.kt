@@ -48,6 +48,7 @@ internal fun BaseButton(
     icon: IconResource? = null,
     contentPadding: PaddingValues = size.padding(hasIcon = icon != null),
     enabled: Boolean = true,
+    flat: Boolean = false,
     onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
@@ -69,7 +70,13 @@ internal fun BaseButton(
                 modifier = modifier
                     .semantics { role = Role.Button },
                 radius = Radii.Button,
-                elevation = if (backgroundColor != null) Elevation.Button else Elevation.None,
+                // `flat` suppresses the drop shadow on filled buttons so
+                // they sit perfectly flush — useful inside surfaces that
+                // already carry elevation (cards, sheets) where stacking
+                // shadows reads as visual noise. Outlined / text buttons
+                // already render with no elevation, so the flag is a
+                // no-op for them.
+                elevation = if (!flat && backgroundColor != null) Elevation.Button else Elevation.None,
                 color = backgroundColor,
                 contentColor = contentColor,
                 border = borderColor?.let {

@@ -1,5 +1,13 @@
 package com.dangerfield.cards.features.room.impl
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -83,7 +92,16 @@ internal fun TopBarEmojiButton(
             )
         }
 
-        if (expanded && !cooling) {
+        // Drive enter/exit through a MutableTransitionState so the
+        // Popup itself stays mounted through the exit animation —
+        // wrapping `Popup` in a plain `if (expanded)` would yank the
+        // popup out the instant the user dismisses, skipping the
+        // shrink/fade. Mount-while-(currentState || targetState) is
+        // the canonical pattern for animated popups in Compose.
+        val visibleState = remember { MutableTransitionState(initialState = false) }
+        visibleState.targetState = expanded && !cooling
+
+        if (visibleState.currentState || visibleState.targetState) {
             // Anchored popup directly under the trigger. Offset pushes
             // the picker below using the trigger's own footprint so the
             // gap stays consistent if the Size scale changes. Aligned
@@ -103,13 +121,33 @@ internal fun TopBarEmojiButton(
                     dismissOnClickOutside = true,
                 ),
             ) {
-                EmojiPickerRow(
-                    emojis = emojis,
-                    onPick = { emoji ->
-                        onBlast(emoji)
-                        expanded = false
-                    },
-                )
+                // Scale + fade from the trigger's pivot (top-right of
+                // the tray, since trigger sits at TopEnd of the bar).
+                // The pivot makes the tray feel like it physically
+                // unfurls from the button rather than dropping in as a
+                // detached panel. Exit is a touch faster than enter so
+                // dismiss feels snappy without looking abrupt.
+                AnimatedVisibility(
+                    visibleState = visibleState,
+                    enter = scaleIn(
+                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                        initialScale = 0.82f,
+                        transformOrigin = TrayTransformOrigin,
+                    ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+                    exit = scaleOut(
+                        animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
+                        targetScale = 0.9f,
+                        transformOrigin = TrayTransformOrigin,
+                    ) + fadeOut(animationSpec = tween(durationMillis = 120)),
+                ) {
+                    EmojiPickerRow(
+                        emojis = emojis,
+                        onPick = { emoji ->
+                            onBlast(emoji)
+                            expanded = false
+                        },
+                    )
+                }
             }
         }
     }
@@ -193,6 +231,11 @@ private fun rememberSecondTicker(active: Boolean): Long {
 private val TriggerSize = IconButton.Size.Medium
 private val CellSize = IconButton.Size.Large
 private const val TriggerEmoji = "😀"
+
+// Pivot anchored to the tray's top-right corner so the scale animation
+// reads as "unfurling from the trigger button" — which sits at TopEnd
+// of the TopBar directly above the popup's top-right.
+private val TrayTransformOrigin = TransformOrigin(pivotFractionX = 1f, pivotFractionY = 0f)
 
 private val PreviewEmojis = listOf("🔥", "😂", "👀", "💀", "🎉", "🤝")
 
