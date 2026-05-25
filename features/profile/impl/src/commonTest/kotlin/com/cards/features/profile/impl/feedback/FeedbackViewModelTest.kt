@@ -132,6 +132,9 @@ internal object NoopRouter : Router {
     override fun popBackTo(route: Route, inclusive: Boolean) = Unit
     override fun switchTab(route: TabRoute) = Unit
     override fun enterTab(route: TabRoute) = Unit
+    override val tabReselects: kotlinx.coroutines.flow.SharedFlow<TabRoute> =
+        kotlinx.coroutines.flow.MutableSharedFlow()
+    override fun notifyTabReselected(route: TabRoute) = Unit
     override fun openWebLink(url: String) = Unit
     override fun batch(block: com.dangerfield.cards.libraries.navigation.RouterBatch.() -> Unit) = Unit
     override fun <T : Route> backStackEntryFor(

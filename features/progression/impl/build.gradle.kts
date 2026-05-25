@@ -29,6 +29,11 @@ kotlin {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
+            // FormatEarnedAgoTest exercises a public helper in :libraries:ui.
+            // The commonMain `implementation(projects.libraries.ui)` above
+            // doesn't propagate to commonTest under the Kotlin Compose MP
+            // setup, so it has to be re-stated here.
+            implementation(projects.libraries.ui)
             implementation(libs.turbine)
         }
     }

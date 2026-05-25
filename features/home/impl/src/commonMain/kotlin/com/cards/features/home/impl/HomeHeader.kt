@@ -43,7 +43,7 @@ internal fun HomeHeader(
             // the chip badge's text.
             Box(
                 modifier = Modifier,
-                contentAlignment = Alignment.CenterStart,
+                contentAlignment = Alignment.CenterEnd,
             ) {
                 LevelPill(progress = levelProgress, onClick = onTapLevel)
             }
