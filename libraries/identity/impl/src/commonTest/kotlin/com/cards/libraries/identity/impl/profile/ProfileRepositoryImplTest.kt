@@ -2,6 +2,9 @@ package com.dangerfield.cards.libraries.identity.impl.profile
 
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventBus
+import com.dangerfield.cards.libraries.cards.Session
+import com.dangerfield.cards.libraries.cards.SessionStartReason
+import com.dangerfield.cards.libraries.cards.SessionTracker
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -43,10 +46,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * Pins the resolve / update / fetchAvatarPack contracts for
- * [SupabaseProfileRepositoryImpl]. The interesting edges:
+ * [ProfileRepositoryImpl]. The interesting edges:
  *
  *  - Authenticated → /v1/me success emits Authenticated AND writes cache;
  *    failure falls back to cached profile, then to Profile.Fallback with
@@ -58,7 +62,7 @@ import kotlin.test.assertNotNull
  *  - fetchAvatarPack maps the response shape; classifies failures.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SupabaseProfileRepositoryImplTest : CoroutineTest() {
+class ProfileRepositoryImplTest : CoroutineTest() {
 
     // ---------- resolve from auth ----------
 
@@ -297,7 +301,12 @@ class SupabaseProfileRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun fetchAvatarPack_genericFailure_returnsNetworkError() = runUnitTest {
+    fun fetchAvatarPack_networkFailureWithNoCache_returnsHardcodedFallbackAsSuccess() = runUnitTest {
+        // Contract change (2026-05-25): fetchAvatarPack always returns
+        // Success now — the picker should never be empty just because
+        // the network failed once. Without a disk snapshot, the repo
+        // returns its hardcoded fallback pack. With a disk snapshot,
+        // it returns the snapshot (covered by the disk-cache tests).
         val auth = FakeAuthRepository().also {
             it.emit(AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null))
         }
@@ -308,8 +317,42 @@ class SupabaseProfileRepositoryImplTest : CoroutineTest() {
         val repo = build(auth, api)
         advanceUntilIdle()
 
-        val outcome = repo.fetchAvatarPack()
-        assertIs<AvatarPackOutcome.NetworkError>(outcome)
+        val success = assertIs<AvatarPackOutcome.Success>(repo.fetchAvatarPack())
+        assertTrue(success.packs.isNotEmpty(), "fallback pack should not be empty")
+        assertTrue(
+            success.packs.first().emojis.isNotEmpty(),
+            "fallback pack should carry emojis",
+        )
+    }
+
+    @Test
+    fun fetchAvatarPack_withinSameSession_doesNotRepeatNetworkCall() = runUnitTest {
+        // Two screens opening Edit Profile back-to-back inside one
+        // session must share the first call's result — the over-fetch
+        // we just fixed.
+        val auth = FakeAuthRepository().also {
+            it.emit(AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null))
+        }
+        val api = FakeProfileApi(
+            meResult = Result.success(SAMPLE_ME),
+            avatarPackResult = Result.success(
+                AvatarPackResponseDto(
+                    packs = listOf(AvatarPackDto(id = "starter", name = "Starter", emojis = listOf("🃏"))),
+                    backgroundPalette = listOf("#abc"),
+                ),
+            ),
+        )
+        val repo = build(auth, api)
+        advanceUntilIdle()
+
+        repo.fetchAvatarPack()
+        repo.fetchAvatarPack()
+        repo.fetchAvatarPack()
+
+        assertEquals(
+            1, api.avatarPackCallCount,
+            "same-session refetches must dedup",
+        )
     }
 
     // ---------- scaffolding ----------
@@ -318,15 +361,35 @@ class SupabaseProfileRepositoryImplTest : CoroutineTest() {
         auth: FakeAuthRepository,
         api: FakeProfileApi,
         cache: ProfileCache = newProfileCache(),
-    ): SupabaseProfileRepositoryImpl = SupabaseProfileRepositoryImpl(
+        avatarPackCache: AvatarPackCache = AvatarPackCache(InMemoryCacheFactory),
+        sessionTracker: SessionTracker = FixedSessionTracker(id = 1L),
+        clock: kotlin.time.Clock = kotlin.time.Clock.System,
+    ): ProfileRepositoryImpl = ProfileRepositoryImpl(
         authRepository = auth,
         profileApi = api,
         profileCache = cache,
+        avatarPackCache = avatarPackCache,
+        sessionTracker = sessionTracker,
+        clock = clock,
         appEventBus = NoOpEventBus,
         appScope = AppCoroutineScope(dispatchers),
     )
 
     private fun newProfileCache(): ProfileCache = ProfileCache(InMemoryCacheFactory)
+
+    /**
+     * Minimal [SessionTracker] for tests that don't exercise rollover.
+     * Anything that needs to *change* the session id swaps in its own.
+     */
+    private class FixedSessionTracker(private val id: Long) : SessionTracker {
+        override val current: Session = Session(
+            id = id,
+            startedAtMs = 0L,
+            reason = SessionStartReason.ColdBoot,
+        )
+        override fun observe(): kotlinx.coroutines.flow.Flow<Session> =
+            kotlinx.coroutines.flow.flowOf(current)
+    }
 
     private object NoOpEventBus : AppEventBus {
         override fun dispatch(event: AppEvent) = Unit
@@ -397,6 +460,8 @@ class SupabaseProfileRepositoryImplTest : CoroutineTest() {
     ) : ProfileApi {
         var lastPatchRequest: PatchMeRequest? = null
             private set
+        var avatarPackCallCount: Int = 0
+            private set
 
         override suspend fun me(): MeDto = meResult.getOrThrow()
 
@@ -405,7 +470,10 @@ class SupabaseProfileRepositoryImplTest : CoroutineTest() {
             return patchResult.getOrThrow()
         }
 
-        override suspend fun avatars(): AvatarPackResponseDto = avatarPackResult.getOrThrow()
+        override suspend fun avatars(): AvatarPackResponseDto {
+            avatarPackCallCount++
+            return avatarPackResult.getOrThrow()
+        }
 
         override suspend fun deleteMe(): HttpResponse = error("deleteMe not used by ProfileRepository")
     }

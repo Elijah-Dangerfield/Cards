@@ -78,7 +78,7 @@ class ProfileCache(
 
     /**
      * Cached fallback UUID — null if we've never needed one. The
-     * [SupabaseProfileRepositoryImpl] generates one on first need and
+     * [ProfileRepositoryImpl] generates one on first need and
      * persists it so subsequent Fallback emissions key off the same id.
      */
     suspend fun readLocalId(): String? = cache.get().localId
