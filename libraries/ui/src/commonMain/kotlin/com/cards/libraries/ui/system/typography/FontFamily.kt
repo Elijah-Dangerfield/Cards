@@ -24,7 +24,7 @@ import cards.libraries.ui.generated.resources.poppins_semibold
 val BrandFontFamily: FontFamily
     @Composable get() = FontFamily(
         Font(
-            resource = Res.font.lust_script_regular, weight = FontWeight.Normal
+            resource = Res.font.DMSerifText_Regular, weight = FontWeight.Bold
         ),
     )
 

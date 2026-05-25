@@ -50,7 +50,7 @@ object Radii {
     val None = Radius(SquareCornerSize)
 
     val Default get() = None
-    val Button get() = Radius(CornerSize(percent = 25))
+    val Button get() = Radius(CornerSize(percent = 50))
     val IconButton get() = Round
     val Banner get() = R400
     val Callout get() = R500

@@ -33,8 +33,10 @@ import com.dangerfield.cards.libraries.ui.components.icon.IconResource
 import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.components.text.TextConfig
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 
 @OptIn(ExperimentalMaterial3Api::class)
+@LowLevelDSComponent
 @Composable
 internal fun BaseButton(
     backgroundColor: ColorResource?,
@@ -202,7 +204,7 @@ private val MediumButtonWithIconPadding = PaddingValues(
 )
 
 private val LargeButtonPadding = PaddingValues(
-    horizontal = Dimension.D900,
+    horizontal = Dimension.D800,
     vertical = Dimension.D900
 )
 
@@ -216,6 +218,7 @@ private val LargeButtonWithIconPadding = PaddingValues(
 private val ButtonIconSpacing = Dimension.D200
 private val OutlinedButtonBorderWidth = StandardBorderWidth
 
+@OptIn(LowLevelDSComponent::class)
 @Preview
 @Composable
 private fun LargeButton() {
@@ -231,6 +234,7 @@ private fun LargeButton() {
     }
 }
 
+@OptIn(LowLevelDSComponent::class)
 @Preview
 @Composable
 private fun MediumButton() {
@@ -246,6 +250,7 @@ private fun MediumButton() {
     }
 }
 
+@OptIn(LowLevelDSComponent::class)
 @Preview
 @Composable
 private fun SmallButton() {

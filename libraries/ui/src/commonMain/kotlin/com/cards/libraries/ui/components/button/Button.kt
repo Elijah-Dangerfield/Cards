@@ -87,11 +87,13 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.animateColorResourceAsState
 import com.dangerfield.cards.libraries.ui.components.icon.IconResource
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
+@OptIn(LowLevelDSComponent::class)
 fun Button(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -122,7 +124,7 @@ fun Button(
 
     val borderColor = borderColor(type, style, enabled)
 
-    BasicButton(
+    BaseButton(
         backgroundColor = backgroundColor,
         borderColor = borderColor,
         contentColor = contentColor,
@@ -130,7 +132,6 @@ fun Button(
         modifier = modifier,
         icon = icon,
         size = size,
-        style = style,
         enabled = enabled,
         interactionSource = interactionSource,
         content = content

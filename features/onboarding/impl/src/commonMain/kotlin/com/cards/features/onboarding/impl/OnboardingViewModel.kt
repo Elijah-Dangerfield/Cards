@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
@@ -63,7 +64,7 @@ class OnboardingViewModel(
         OnboardingState(
             displayName = DisplayNameSuggester.next(),
             googleEnabled = cfg.googleSignInEnabled,
-            appleEnabled = cfg.appleSignInEnabled,
+            appleEnabled = cfg.appleSignInEnabled && BuildInfo.isiOS(),
         )
     },
 ) {

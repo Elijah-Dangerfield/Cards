@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
@@ -111,7 +112,7 @@ private fun WelcomeStep(
         Text(
             text = "Poker with your friends.\nPractice with bots when they're busy.",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
 
@@ -165,7 +166,7 @@ private fun WelcomeStep(
 
         Spacer(modifier = Modifier.height(Dimension.D500))
         Text(
-            text = "No account required to play.\nSign in later if you want cross-device sync.",
+            text = "No account required to play.\nSign in later if you want to save your progress.",
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
@@ -181,7 +182,7 @@ private fun WelcomeStep(
  */
 @Composable
 private fun CardsFan() {
-    val angles = listOf(-18f, -6f, 6f, 18f)
+    val angles = listOf(-22f, -10f, 10f, 22f)
     val labels = listOf(
         "A" to "♠",
         "K" to "♥",
@@ -381,8 +382,7 @@ private fun PickIdentityStep(
             )
         }
 
-        Spacer(modifier = Modifier.weight(1f, fill = false))
-        Spacer(modifier = Modifier.height(Dimension.D900))
+        Spacer(modifier = Modifier.weight(1f, fill = true))
 
         ButtonPrimary(
             onClick = { onAction(OnboardingAction.ContinueFromPickIdentity) },
@@ -496,16 +496,16 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
         Text(
             text = "LAST THING",
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.textSecondary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
             text = "How Cards works.",
-            typography = AppTheme.typography.Display.D1200,
+            typography = AppTheme.typography.Display.D1000,
             color = AppTheme.colors.onSurfacePrimary,
         )
 
-        Spacer(modifier = Modifier.height(Dimension.D900))
+        Spacer(modifier = Modifier.weight(1f))
 
         InfoCard(
             glyph = "🎴",
@@ -528,6 +528,7 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
             subtitle = "Top 7 of 30 promote each week.",
         )
 
+
         Spacer(modifier = Modifier.weight(1f))
 
         ButtonPrimary(
@@ -547,40 +548,35 @@ private fun InfoCard(
     title: String,
     subtitle: String,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .padding(horizontal = Dimension.D700, vertical = Dimension.D700),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(Radii.R500.shape)
-                .background(glyphTint),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = glyph,
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
-            )
-        }
-        Spacer(modifier = Modifier.width(Dimension.D700))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H500,
-                color = AppTheme.colors.onSurfacePrimary,
-            )
-            Spacer(modifier = Modifier.height(Dimension.D100))
-            Text(
-                text = subtitle,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
-            )
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(Radii.R500.shape)
+                    .background(glyphTint),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = glyph,
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.onSurfacePrimary,
+                )
+            }
+            Spacer(modifier = Modifier.width(Dimension.D700))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.onSurfacePrimary,
+                )
+                Spacer(modifier = Modifier.height(Dimension.D100))
+                Text(
+                    text = subtitle,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.onSurfaceSecondary,
+                )
+            }
         }
     }
 }
