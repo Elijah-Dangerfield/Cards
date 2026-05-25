@@ -321,6 +321,7 @@ private fun OpponentSeat(
             overflow = TextOverflow.Ellipsis,
             modifier = dimMod,
         )
+        SeatBadgePill(text = seat.seatBadge, visible = !busted, modifier = dimMod)
         AnimatedVisibility(
             visible = !busted,
             enter = fadeIn(animationSpec = tween(220)) +

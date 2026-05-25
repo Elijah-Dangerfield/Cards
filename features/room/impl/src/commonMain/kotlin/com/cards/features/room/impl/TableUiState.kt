@@ -42,6 +42,20 @@ sealed interface TableUiState {
             lastWinners: GameEvent.HandEnded?,
             lastActionBySeat: Map<Int, PlayerAction>,
             humanProfile: Profile.Authenticated? = null,
+            /**
+             * Local user's derived level (`levelProgressFor(xp).level`).
+             * Used to render the "Lvl N" pill below the human seat's avatar.
+             * Null means progression hasn't loaded yet — pill is omitted.
+             */
+            humanLevel: Int? = null,
+            /**
+             * Difficulty label for bot seats — "Casual" / "Standard" /
+             * "Challenging". Renders as "Bot · {label}" below each bot's
+             * avatar. Null means we don't know the table difficulty (e.g.
+             * MP table, where bots aren't seated); bot pills collapse to
+             * just "Bot".
+             */
+            botDifficultyLabel: String? = null,
         ): Active {
             val committedThisStreet = gameState.seats.sumOf { it.contributedThisStreet }
             val pot = committedThisStreet + gameState.pots.sumOf { it.amount }
@@ -49,10 +63,11 @@ sealed interface TableUiState {
             val isHumanTurn = acting == humanSeatIndex
             val (sbIndex, bbIndex) = blindSeats(gameState)
             val seats = gameState.seats.map { seat ->
+                val isHuman = seat.index == humanSeatIndex
                 SeatView.fromSeat(
                     seat = seat,
                     isActing = seat.index == acting,
-                    isHuman = seat.index == humanSeatIndex,
+                    isHuman = isHuman,
                     personality = personalitiesBySeat[seat.index],
                     hideHoleCards = seat.index != humanSeatIndex && lastWinners == null,
                     revealedHoleCards = lastWinners?.revealedHoleCards?.get(seat.index),
@@ -62,6 +77,12 @@ sealed interface TableUiState {
                     isBigBlind = seat.index == bbIndex,
                     street = gameState.street,
                     humanProfile = humanProfile,
+                    seatBadge = badgeFor(
+                        seat = seat,
+                        isHuman = isHuman,
+                        humanLevel = humanLevel,
+                        botDifficultyLabel = botDifficultyLabel,
+                    ),
                 )
             }
             val humanSeat = gameState.seats.firstOrNull { it.index == humanSeatIndex }
@@ -91,6 +112,24 @@ sealed interface TableUiState {
                 smallBlindSeatIndex = sbIndex,
                 bigBlindSeatIndex = bbIndex,
             )
+        }
+
+        /**
+         * Compose the small badge that renders below an avatar on the play
+         * screen — "Lvl 14" for the local human, "Bot · Standard" (or just
+         * "Bot" when difficulty is unknown) for bots, null for empty seats
+         * and remote humans whose level we don't yet have a source for.
+         */
+        private fun badgeFor(
+            seat: Seat,
+            isHuman: Boolean,
+            humanLevel: Int?,
+            botDifficultyLabel: String?,
+        ): String? = when {
+            seat.playerId == null -> null
+            isHuman -> humanLevel?.let { "Lvl $it" }
+            seat.isBot -> botDifficultyLabel?.let { "Bot · $it" } ?: "Bot"
+            else -> null // remote human in MP — level plumbing arrives later
         }
 
         private fun blindSeats(state: GameState): Pair<Int?, Int?> {
@@ -139,6 +178,13 @@ data class SeatView(
     val isDealer: Boolean,
     val isSmallBlind: Boolean,
     val isBigBlind: Boolean,
+    /**
+     * Tiny pill rendered below the avatar on the play screen — e.g.
+     * "Lvl 14" for the local human, "Bot · Standard" for bots. Null
+     * means the seat doesn't have a label to show (empty seat, remote
+     * human pre-level-plumbing). See [TableUiState.Companion.badgeFor].
+     */
+    val seatBadge: String? = null,
 ) {
     companion object {
         fun fromSeat(
@@ -154,6 +200,7 @@ data class SeatView(
             isBigBlind: Boolean,
             street: BettingRound,
             humanProfile: Profile.Authenticated? = null,
+            seatBadge: String? = null,
         ): SeatView {
             val visibleHole = when {
                 seat.handParticipation == HandParticipation.NotDealt -> emptyList()
@@ -204,6 +251,7 @@ data class SeatView(
                 isDealer = isDealer,
                 isSmallBlind = isSmallBlind,
                 isBigBlind = isBigBlind,
+                seatBadge = seatBadge,
             )
         }
     }

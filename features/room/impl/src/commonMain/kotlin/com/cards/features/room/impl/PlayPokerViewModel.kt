@@ -364,6 +364,7 @@ class PlayPokerViewModel @Inject constructor(
                             lastWinners = lastWinners,
                             lastActionBySeat = lastActionBySeat.toMap(),
                             humanProfile = latestHumanProfile,
+                            humanLevel = it.humanLevel,
                         ),
                     )
                 }
@@ -406,7 +407,29 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(recentlyEarned = emptyList())
             }
 
-            is PlayPokerAction.XpChanged -> action.updateState { it.copy(xp = action.totalXp) }
+            is PlayPokerAction.XpChanged -> action.updateState { state ->
+                val newLevel = levelProgressFor(action.totalXp).level
+                val nextState = state.copy(xp = action.totalXp, humanLevel = newLevel)
+                // Re-project the table so the human seat picks up the
+                // refreshed level pill — only when the level actually
+                // changed (XP ticks every hand; level changes maybe
+                // once a session).
+                if (newLevel != state.humanLevel) {
+                    lastGameState?.let { gs ->
+                        nextState.copy(
+                            table = sessionFactory.tableFor(
+                                state = gs,
+                                lastWinners = lastWinners,
+                                lastActionBySeat = lastActionBySeat.toMap(),
+                                humanProfile = latestHumanProfile,
+                                humanLevel = newLevel,
+                            ),
+                        )
+                    } ?: nextState
+                } else {
+                    nextState
+                }
+            }
             is PlayPokerAction.TurnFeedbackChanged -> action.updateState {
                 it.copy(turnFeedback = action.value)
             }
@@ -531,6 +554,12 @@ data class PlayPokerState(
     val occupants: List<SeatOccupant> = emptyList(),
     val cheatSheetOpen: Boolean = false,
     val xp: Long = 0,
+    /**
+     * Local user's derived level from [xp]. Mirrored into [TableUiState]
+     * via the session factory so the human seat shows a "Lvl N" pill
+     * below the avatar. Null until the first progression emission lands.
+     */
+    val humanLevel: Int? = null,
     val lastHandXpAwarded: Int? = null,
     val recentlyEarned: List<EarnedAchievement> = emptyList(),
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
@@ -764,6 +793,9 @@ interface PokerSessionFactory {
         lastWinners: GameEvent.HandEnded? = null,
         lastActionBySeat: Map<Int, PlayerAction> = emptyMap(),
         humanProfile: Profile.Authenticated? = null,
+        /** Local user's derived level (`levelProgressFor(xp).level`); null
+         *  while progression hasn't resolved yet. */
+        humanLevel: Int? = null,
     ): TableUiState
 }
 

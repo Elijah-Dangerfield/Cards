@@ -444,6 +444,7 @@ private fun PlayerInfoTile(
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
         )
+        SeatBadgePill(text = seat.seatBadge, visible = !seat.isBusted)
         // Equipped title — "Bluff Master", "The Shark", "High Roller".
         if (title != null) {
             Text(
