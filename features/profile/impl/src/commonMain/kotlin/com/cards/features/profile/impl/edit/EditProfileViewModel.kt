@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -116,7 +117,7 @@ class EditProfileViewModel(
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
-                it.copy(displayName = action.value, error = null)
+                it.copy(displayName = action.value, error = null, displayNameError = null)
             }
 
             is EditProfileAction.AvatarSelected -> action.updateState {
@@ -127,13 +128,17 @@ class EditProfileViewModel(
                 it.copy(selectedAvatarBackgroundColor = action.color, error = null)
             }
 
-            is EditProfileAction.DismissError -> action.updateState { it.copy(error = null) }
+            is EditProfileAction.DismissError -> action.updateState {
+                it.copy(error = null, displayNameError = null)
+            }
 
             is EditProfileAction.Submit -> action.run {
                 val current = state
                 if (!current.canSubmit) return@run
 
-                updateState { it.copy(isSubmitting = true, error = null) }
+                updateState {
+                    it.copy(isSubmitting = true, error = null, displayNameError = null)
+                }
 
                 val colorChanged = current.selectedAvatarBackgroundColor != current.initialAvatarBackgroundColor
                 val displayName = current.displayName
@@ -145,36 +150,89 @@ class EditProfileViewModel(
                     ?.takeIf { colorChanged }
                 val clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null
 
-                appScope.launch {
-                    val outcome = profileRepository.update(
+                // The request runs on appScope so it survives VM teardown
+                // (user backs out the moment they tap Save). When the
+                // displayName changed, we *await* the outcome on the VM
+                // scope so DisplayNameTaken / InvalidDisplayName can
+                // surface as an inline field error instead of a
+                // snackbar that fires after the user has already
+                // navigated away. Avatar-only edits stay optimistic —
+                // they can't fail validation in a way the user needs to
+                // fix before leaving the screen.
+                val deferred = appScope.async {
+                    profileRepository.update(
                         displayName = displayName,
                         avatarEmoji = avatarEmoji,
                         avatarBackgroundColor = avatarBackgroundColor,
                         clearAvatarBackgroundColor = clearAvatarBackgroundColor,
                     )
-                    val errorMessage = when (outcome) {
-                        is UpdateProfileOutcome.Success -> null
-                        is UpdateProfileOutcome.DisplayNameTaken ->
-                            "Couldn't save — that name is already taken."
-                        is UpdateProfileOutcome.InvalidDisplayName ->
-                            "Couldn't save — that name isn't allowed."
-                        is UpdateProfileOutcome.InvalidAvatarEmoji ->
-                            "Couldn't save — that avatar isn't available."
-                        is UpdateProfileOutcome.InvalidAvatarBackgroundColor ->
-                            "Couldn't save — that color isn't available."
-                        is UpdateProfileOutcome.NotSignedIn ->
-                            "Couldn't save — sign in first."
-                        is UpdateProfileOutcome.NetworkError ->
-                            "Couldn't save changes — check your connection."
-                        is UpdateProfileOutcome.Unknown ->
-                            "Couldn't save changes. Try again."
-                    }
-                    if (errorMessage != null) showSnackBar(message = errorMessage)
                 }
 
+                if (displayName != null) {
+                    // Await + branch. If the VM scope is torn down
+                    // mid-await (user backed out), the request still
+                    // completes on appScope — we just won't react to it
+                    // here, which is fine: no name was saved if it
+                    // would have been taken, and a network failure is
+                    // recoverable next session.
+                    handleDisplayNameSubmitOutcome(deferred.await())
+                } else {
+                    // Optimistic: navigate immediately, surface any
+                    // failure as a snackbar in the background.
+                    appScope.launch {
+                        deferred.await().toFailureMessage()?.let { showSnackBar(it) }
+                    }
+                    sendEvent(EditProfileEvent.Saved)
+                }
+            }
+        }
+    }
+
+    private suspend fun EditProfileAction.Submit.handleDisplayNameSubmitOutcome(
+        outcome: UpdateProfileOutcome,
+    ) {
+        when (outcome) {
+            is UpdateProfileOutcome.Success -> sendEvent(EditProfileEvent.Saved)
+            UpdateProfileOutcome.DisplayNameTaken -> updateState {
+                it.copy(
+                    isSubmitting = false,
+                    displayNameError = "That name is taken. Try another.",
+                )
+            }
+            UpdateProfileOutcome.InvalidDisplayName -> updateState {
+                it.copy(
+                    isSubmitting = false,
+                    displayNameError = "That name isn't allowed. Use letters and numbers.",
+                )
+            }
+            // Non-validation failures (NotSignedIn, NetworkError,
+            // Unknown, plus the avatar-related ones that can't happen
+            // when we only sent the name) get the optimistic treatment:
+            // navigate away + snackbar. The user can fix it next
+            // session; they don't need to be stuck on Edit Profile.
+            else -> {
+                outcome.toFailureMessage()?.let { showSnackBar(it) }
                 sendEvent(EditProfileEvent.Saved)
             }
         }
+    }
+
+    private fun UpdateProfileOutcome.toFailureMessage(): String? = when (this) {
+        is UpdateProfileOutcome.Success -> null
+        is UpdateProfileOutcome.DisplayNameTaken ->
+            "Couldn't save — that name is already taken."
+        is UpdateProfileOutcome.InvalidDisplayName ->
+            "Couldn't save — that name isn't allowed."
+        is UpdateProfileOutcome.InvalidAvatarEmoji ->
+            "Couldn't save — that avatar isn't available."
+        is UpdateProfileOutcome.InvalidAvatarBackgroundColor ->
+            "Couldn't save — that color isn't available."
+        is UpdateProfileOutcome.NotSignedIn ->
+            "Couldn't save — sign in first."
+        is UpdateProfileOutcome.NetworkError ->
+            "Couldn't save changes — check your connection."
+        is UpdateProfileOutcome.Unknown ->
+            "Couldn't save changes. Try again."
     }
 }
 
@@ -204,6 +262,13 @@ data class EditProfileState(
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
     val error: String? = null,
+    /**
+     * Inline error rendered under the display-name field. Set when the
+     * server rejects the new name (already taken, or otherwise invalid).
+     * Cleared on the next edit of the field. Distinct from [error] so
+     * the UI can place it at the field rather than as a generic banner.
+     */
+    val displayNameError: String? = null,
 ) {
     /**
      * Display projection: every server pack, paired with whether the

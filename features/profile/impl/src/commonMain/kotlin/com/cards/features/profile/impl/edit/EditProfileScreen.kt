@@ -87,7 +87,11 @@ fun EditProfileScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Dimension.D800),
+                    .padding(horizontal = Dimension.D800)
+                    // Bottom padding leaves enough room for the floating
+                    // Save bar (~80dp) so the last form row scrolls
+                    // clear instead of sitting under the button.
+                    .padding(bottom = FloatingSaveBarReservedHeight),
             ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
                 IconButton(
@@ -132,17 +136,48 @@ fun EditProfileScreen(
                     onValueChange = { onAction(EditProfileAction.DisplayNameChanged(it)) },
                     enabled = !state.isSubmitting,
                     singleLine = true,
+                    isError = state.displayNameError != null,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onAction(EditProfileAction.Submit) }),
                     label = { Text("Display name") },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (!state.isNameValid && state.displayName.isNotEmpty()) {
+                val displayNameHelper = when {
+                    state.displayNameError != null -> state.displayNameError
+                    !state.isNameValid && state.displayName.isNotEmpty() ->
+                        "${EditProfileState.MIN_NAME_LENGTH}–${EditProfileState.MAX_NAME_LENGTH} characters"
+                    else -> null
+                }
+                if (displayNameHelper != null) {
                     Spacer(modifier = Modifier.height(Dimension.D200))
                     Text(
-                        text = "${EditProfileState.MIN_NAME_LENGTH}–${EditProfileState.MAX_NAME_LENGTH} characters",
+                        text = displayNameHelper,
                         typography = AppTheme.typography.Body.B400,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = if (state.displayNameError != null) {
+                            AppTheme.colors.danger
+                        } else {
+                            AppTheme.colors.onSurfaceSecondary
+                        },
+                    )
+                }
+
+                // Color picker lives above the avatar grid so the user
+                // sees "pick how you look" colors → emoji in reading
+                // order, and the hero above re-tints as they change
+                // either field. Big swatches per the "bubbly UI" goal.
+                if (state.backgroundPalette.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(Dimension.D900))
+                    Text(
+                        text = "Avatar color",
+                        typography = AppTheme.typography.Heading.H500,
+                        color = AppTheme.colors.onSurfacePrimary,
+                    )
+                    Spacer(modifier = Modifier.height(Dimension.D400))
+                    BackgroundColorPicker(
+                        palette = state.backgroundPalette,
+                        selected = state.selectedAvatarBackgroundColor,
+                        enabled = !state.isSubmitting,
+                        onSelect = { onAction(EditProfileAction.AvatarBackgroundColorSelected(it)) },
                     )
                 }
 
@@ -165,22 +200,6 @@ fun EditProfileScreen(
                     onUnlockPack = { productId -> onNavigateToShop(productId) },
                 )
 
-                if (state.backgroundPalette.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(Dimension.D900))
-                    Text(
-                        text = "Avatar color",
-                        typography = AppTheme.typography.Heading.H500,
-                        color = AppTheme.colors.onSurfacePrimary,
-                    )
-                    Spacer(modifier = Modifier.height(Dimension.D400))
-                    BackgroundColorPicker(
-                        palette = state.backgroundPalette,
-                        selected = state.selectedAvatarBackgroundColor,
-                        enabled = !state.isSubmitting,
-                        onSelect = { onAction(EditProfileAction.AvatarBackgroundColorSelected(it)) },
-                    )
-                }
-
                 state.error?.let {
                     Spacer(modifier = Modifier.height(Dimension.D500))
                     Text(
@@ -189,19 +208,44 @@ fun EditProfileScreen(
                         color = AppTheme.colors.danger,
                     )
                 }
-
-                Spacer(modifier = Modifier.height(Dimension.D800))
-
-                Button(
-                    onClick = { onAction(EditProfileAction.Submit) },
-                    enabled = state.canSubmit,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(if (state.isSubmitting) "Saving…" else "Save")
-                }
-
-                Spacer(modifier = Modifier.height(Dimension.D800))
             }
+
+            // Floating Save bar — sits over the bottom of the scroll
+            // surface so it's always reachable on long emoji grids
+            // without scrolling all the way down. The scroll's bottom
+            // padding (above) reserves enough space for the last row
+            // to clear this bar.
+            FloatingSaveBar(
+                isSubmitting = state.isSubmitting,
+                enabled = state.canSubmit,
+                onClick = { onAction(EditProfileAction.Submit) },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
+
+private val FloatingSaveBarReservedHeight = 96.dp
+
+@Composable
+private fun FloatingSaveBar(
+    isSubmitting: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AppTheme.colors.background.color)
+            .padding(horizontal = Dimension.D800, vertical = Dimension.D500),
+    ) {
+        Button(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (isSubmitting) "Saving…" else "Save")
         }
     }
 }
@@ -458,12 +502,17 @@ private fun ColorSwatch(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    // Larger swatches (was 40dp) for the "big bubbly UI" goal —
+    // each circle is now a generous tap target and reads more like a
+    // chip than a UI button. The picker scrolls horizontally if the
+    // palette is wider than the screen, so the size doesn't constrain
+    // how many colors the server can ship.
     val swatchColor = resolveAvatarBackground(colorHex)
     val borderColor = if (isSelected) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
     val borderWidth = if (isSelected) 3.dp else 1.dp
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(64.dp)
             .clip(CircleShape)
             .background(swatchColor)
             .border(borderWidth, borderColor, CircleShape)
@@ -597,6 +646,30 @@ private fun EditProfileScreenPreview_LongPalette() {
                     "#E4585A", "#E4A0B4",
                 ),
                 selectedAvatarBackgroundColor = "#58E47C",
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_DisplayNameTaken() {
+    // Pins the inline "name is taken" error treatment on the name
+    // field — the rejection surfaces here, not as a snackbar after
+    // the user has already navigated away.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "TakenName",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🦊",
+                allAvatarPacks = listOf(
+                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
+                ),
+                displayNameError = "That name is taken. Try another.",
             ),
             onAction = {},
             onBack = {},

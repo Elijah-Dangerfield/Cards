@@ -36,12 +36,11 @@ import com.dangerfield.cards.libraries.ui.components.text.TextConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun BasicButton(
+internal fun BaseButton(
     backgroundColor: ColorResource?,
     borderColor: ColorResource?,
     contentColor: ColorResource,
     size: ButtonSize,
-    style: ButtonStyle,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: IconResource? = null,
@@ -221,12 +220,11 @@ private val OutlinedButtonBorderWidth = StandardBorderWidth
 @Composable
 private fun LargeButton() {
     PreviewContent {
-        BasicButton(
+        BaseButton(
             backgroundColor = AppTheme.colors.accentPrimary,
             borderColor = null,
             contentColor = AppTheme.colors.onAccentPrimary,
             size = ButtonSize.Large,
-            style = ButtonStyle.Filled,
             onClick = {},
             content = { Text(text = "Filled Button") }
         )
@@ -237,12 +235,11 @@ private fun LargeButton() {
 @Composable
 private fun MediumButton() {
     PreviewContent {
-        BasicButton(
+        BaseButton(
             backgroundColor = null,
             borderColor = AppTheme.colors.border,
             contentColor = AppTheme.colors.text,
             size = ButtonSize.Medium,
-            style = ButtonStyle.Outlined,
             onClick = {},
             content = { Text(text = "Outlined Button") }
         )
@@ -253,12 +250,11 @@ private fun MediumButton() {
 @Composable
 private fun SmallButton() {
     PreviewContent {
-        BasicButton(
+        BaseButton(
             backgroundColor = null,
             borderColor = null,
             contentColor = AppTheme.colors.accentPrimary,
             size = ButtonSize.Small,
-            style = ButtonStyle.Text,
             onClick = {},
             content = { Text(text = "Text Button") }
         )

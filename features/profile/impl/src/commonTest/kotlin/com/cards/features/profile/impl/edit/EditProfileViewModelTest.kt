@@ -23,6 +23,9 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class EditProfileViewModelTest : CoroutineTest() {
 
@@ -140,7 +143,79 @@ class EditProfileViewModelTest : CoroutineTest() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun submit_emitsSavedImmediately_withoutWaitingOnNetwork() = runUnitTest {
+    fun submit_avatarOnlyChange_emitsSavedImmediately_withoutWaitingOnNetwork() = runUnitTest {
+        // Avatar-only edits can't fail validation in a way the user
+        // needs to fix before leaving the screen, so we stay optimistic
+        // and let them navigate while the request lands.
+        val gate = CompletableDeferred<UpdateProfileOutcome>()
+        val profile = GatedUpdateProfile(gate)
+        val vm = EditProfileViewModel(
+            profileRepository = profile,
+            inventoryRepository = NoOpInventoryRepository,
+            appScope = AppCoroutineScope(dispatchers),
+        )
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(EditProfileAction.AvatarSelected("🦊"))
+            vm.takeAction(EditProfileAction.Submit)
+
+            assertEquals(EditProfileEvent.Saved, awaitItem())
+            assertEquals(
+                1, profile.updateStarted,
+                "update should be in-flight while Saved already emitted",
+            )
+            assertEquals(
+                0, profile.updateFinished,
+                "avatar-only Save must not block on the network roundtrip",
+            )
+
+            gate.complete(UpdateProfileOutcome.Success(sampleProfile))
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_nameChanged_waitsForServer_andSurfacesDisplayNameTakenInline() = runUnitTest {
+        // When the name changed we *await* the outcome so DisplayNameTaken
+        // can land as an inline field error instead of a snackbar that
+        // would only fire after the user already navigated away.
+        val gate = CompletableDeferred<UpdateProfileOutcome>()
+        val profile = GatedUpdateProfile(gate)
+        val vm = EditProfileViewModel(
+            profileRepository = profile,
+            inventoryRepository = NoOpInventoryRepository,
+            appScope = AppCoroutineScope(dispatchers),
+        )
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(EditProfileAction.DisplayNameChanged("TakenName"))
+            vm.takeAction(EditProfileAction.Submit)
+            runCurrent()
+
+            // No Saved yet — the VM is awaiting the server.
+            expectNoEvents()
+            assertTrue(vm.state.isSubmitting, "should still be in-flight")
+            assertNull(vm.state.displayNameError)
+
+            gate.complete(UpdateProfileOutcome.DisplayNameTaken)
+            runCurrent()
+
+            expectNoEvents() // still no Saved — the validation failed.
+            val error = vm.state.displayNameError
+                ?: error("expected inline displayNameError on the name field")
+            assertTrue(
+                error.contains("taken", ignoreCase = true),
+                "expected a 'name is taken' message; got: $error",
+            )
+            assertEquals(false, vm.state.isSubmitting)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_nameChanged_success_emitsSavedAfterServerAck() = runUnitTest {
         val gate = CompletableDeferred<UpdateProfileOutcome>()
         val profile = GatedUpdateProfile(gate)
         val vm = EditProfileViewModel(
@@ -152,21 +227,42 @@ class EditProfileViewModelTest : CoroutineTest() {
 
         vm.eventFlow.test {
             vm.takeAction(EditProfileAction.DisplayNameChanged("NewName"))
-            vm.takeAction(EditProfileAction.AvatarSelected("🦊"))
             vm.takeAction(EditProfileAction.Submit)
-
-            assertEquals(EditProfileEvent.Saved, awaitItem())
-            assertEquals(
-                1, profile.updateStarted,
-                "update should be in-flight while Saved already emitted",
-            )
-            assertEquals(
-                0, profile.updateFinished,
-                "Saved must not block on the network roundtrip",
-            )
+            runCurrent()
+            expectNoEvents()
 
             gate.complete(UpdateProfileOutcome.Success(sampleProfile))
+
+            assertEquals(EditProfileEvent.Saved, awaitItem())
         }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun displayNameChanged_clearsPreviousDisplayNameError() = runUnitTest {
+        // Editing the field after a "taken" rejection should clear the
+        // inline error so the user isn't staring at it while typing
+        // their next attempt.
+        val gate = CompletableDeferred<UpdateProfileOutcome>()
+        val profile = GatedUpdateProfile(gate)
+        val vm = EditProfileViewModel(
+            profileRepository = profile,
+            inventoryRepository = NoOpInventoryRepository,
+            appScope = AppCoroutineScope(dispatchers),
+        )
+        runCurrent()
+
+        vm.takeAction(EditProfileAction.DisplayNameChanged("Taken"))
+        vm.takeAction(EditProfileAction.Submit)
+        runCurrent()
+        gate.complete(UpdateProfileOutcome.DisplayNameTaken)
+        runCurrent()
+        assertNotNull(vm.state.displayNameError, "precondition: error is set")
+
+        vm.takeAction(EditProfileAction.DisplayNameChanged("Different"))
+        runCurrent()
+
+        assertNull(vm.state.displayNameError)
     }
 }
 
