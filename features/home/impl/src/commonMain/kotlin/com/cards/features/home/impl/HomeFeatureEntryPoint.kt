@@ -1,26 +1,30 @@
 package com.dangerfield.cards.features.home.impl
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
-import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
+import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
-import com.dangerfield.cards.features.shop.ShopRoute
+import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
+import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -36,6 +40,11 @@ class HomeFeatureEntryPoint(
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<HomeRoute> {
             val viewModel: HomeViewModel = viewModel { homeViewModelFactory() }
+            val scrollState = rememberScrollState()
+            val scope = rememberCoroutineScope()
+            router.OnTabReselected(HomeRoute()) {
+                scope.launch { scrollState.animateScrollTo(0) }
+            }
             LaunchedEffect(Unit) {
                 KLog.withTag("HomeFeatureEntryPoint").d { "Home route entered" }
             }
@@ -82,21 +91,11 @@ class HomeFeatureEntryPoint(
                 // room code). Spec §5.2 calls this the "Friend Game"
                 // entry point; the lobby screen is the actual surface.
                 onFriendGame = { router.navigate(LobbyRoute()) },
-                onTournament = {
-                    comingSoon = ComingSoonContent(
-                        title = "Tournament",
-                        emoji = "♛",
-                        body = "The Royal Flush Tournament arrives in V2. Quarterly " +
-                            "championship — top finishers across every league.",
-                    )
-                },
-                // Avatar tap → profile tab (where level / rank / claim
-                // status / settings live). Home stays focused on what's
-                // happening; profile owns identity management.
-                onTapAvatar = { router.switchTab(ProfileRoute()) },
-                onTapCash = { router.switchTab(ShopRoute()) },
+                // Level pill → Stats — the screen-of-record for the
+                // full level / XP breakdown.
+                onTapLevel = { router.navigate(StatsRoute()) },
+                onTapCash = { router.switchTab(ShopGraph) },
                 onRejoinRoom = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
-                onTapFeaturedDrop = { router.switchTab(ShopRoute()) },
                 onTapAchievements = { router.navigate(AchievementsRoute()) },
                 // No standalone Friends surface yet — friend graph,
                 // online presence, and the requests inbox all ship
@@ -136,6 +135,7 @@ class HomeFeatureEntryPoint(
                             "most recent at the table.",
                     )
                 },
+                scrollState = scrollState,
             )
 
             if (botSetupOpen) {

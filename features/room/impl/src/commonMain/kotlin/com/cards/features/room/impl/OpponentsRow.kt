@@ -239,9 +239,7 @@ private fun OpponentSeat(
     onAvatarTap: () -> Unit = {},
 ) {
     val folded = seat.participation == HandParticipation.Folded
-    val busted = !seat.seatEmpty &&
-        seat.stack <= 0L &&
-        seat.participation != HandParticipation.NotDealt
+    val busted = seat.isBusted
     val ringSize = avatarSize + 12.dp
     val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
     val dimAlpha = when {
@@ -323,6 +321,9 @@ private fun OpponentSeat(
             overflow = TextOverflow.Ellipsis,
             modifier = dimMod,
         )
+        // Level / bot-difficulty badge intentionally omitted here — it's
+        // surfaced on the [MutePlayerSheet] that opens when the seat is
+        // tapped. Keeping it inline made the opponents row too dense.
         AnimatedVisibility(
             visible = !busted,
             enter = fadeIn(animationSpec = tween(220)) +

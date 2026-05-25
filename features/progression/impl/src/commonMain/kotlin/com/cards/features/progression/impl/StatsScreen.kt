@@ -17,10 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -40,7 +36,10 @@ import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
@@ -64,15 +63,10 @@ fun StatsScreen(
                 onNavigateBack = onBack,
                 scrollState = scrollState,
                 actions = {
-
-
-                    IconButton(onClick = onShowExplainers) {
-                        Icon(
-                            imageVector = Icons.Outlined.Info,
-                            contentDescription = "Hand info and rankings",
-                            tint = AppTheme.colors.text.color,
-                        )
-                    }
+                    IconButton(
+                        icon = Icons.Question("Hand info and rankings"),
+                        onClick = onShowExplainers,
+                    )
                 },
             )
         },

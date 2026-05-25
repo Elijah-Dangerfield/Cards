@@ -17,6 +17,7 @@ import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 
@@ -69,6 +70,20 @@ internal fun MutePlayerSheet(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally),
             )
+            // Level / bot-difficulty subtitle — moved here from the
+            // opponents row to keep the table chrome compact. Hidden
+            // when the seat has no badge (e.g. remote humans without a
+            // known level), so the heading sits alone on those rows.
+            seat.seatBadge?.let { badge ->
+                VerticalSpacerD200()
+                Text(
+                    text = badge,
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.onSurfaceSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally),
+                )
+            }
             VerticalSpacerD500()
             Text(
                 text = "Hide their table emoji blasts on your screen. You can flip this back any time.",

@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.cards.AppEvent
@@ -18,11 +19,12 @@ import kotlin.concurrent.Volatile
 
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = AppEventBus::class)
+@ContributesBinding(AppScope::class, boundType = AutoInit::class, multibinding = true)
 @Inject
 class AppEventDispatcher(
     private val listeners: Set<AppEventListener>,
     appLifecycle: AppLifecycle,
-) : AppEventBus {
+) : AppEventBus, AutoInit {
     private val logger = KLog.withTag("AppEventDispatcher")
     private val lifecycleObserver = object : AppLifecycleObserver {
         override fun onEnterForeground() = handleForegroundEntry()

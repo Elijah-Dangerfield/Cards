@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.profile.impl
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,8 +40,8 @@ import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.StatsRoute
+import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
-import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.Progression
@@ -54,6 +55,7 @@ import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
+import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.screen
 import kotlinx.coroutines.launch
@@ -103,6 +105,10 @@ class ProfileFeatureEntryPoint(
             val isAnon = authenticated?.isAnonymous ?: true
             val appData by appCache.updates.collectAsState(initial = AppData())
             val scope = rememberCoroutineScope()
+            val scrollState = rememberScrollState()
+            router.OnTabReselected(ProfileRoute()) {
+                scope.launch { scrollState.animateScrollTo(0) }
+            }
 
             val accountActionsVm: AccountActionsViewModel =
                 androidx.lifecycle.viewmodel.compose.viewModel { accountActionsViewModelFactory() }
@@ -153,6 +159,7 @@ class ProfileFeatureEntryPoint(
                 onSignOut = { accountActionsVm.takeAction(AccountActionsAction.ConfirmSignOut) },
                 isSigningOut = accountActionsState.isSigningOut,
                 onOpenQaMenu = { router.navigate(QaMenuRoute()) },
+                scrollState = scrollState,
             )
         }
 
@@ -184,11 +191,11 @@ class ProfileFeatureEntryPoint(
                 onNavigateToShop = { productId ->
                     // Cross-tab deep-link to a specific product —
                     // batched so the two ops run as one queued unit.
-                    // (We can't pack the productId onto `ShopRoute`
+                    // (We can't pack the productId onto the tab root
                     // itself; tab-root args get clobbered by
                     // restoreState. See docs/decisions.md.)
                     router.batch {
-                        switchTab(ShopRoute())
+                        switchTab(ShopGraph)
                         if (productId != null) {
                             navigate(ShopProductSheetRoute(productId))
                         }
@@ -277,7 +284,10 @@ class ProfileFeatureEntryPoint(
     }
 
     private companion object {
-        const val PRIVACY_POLICY_URL = "https://cards.dangerfield.com/privacy"
-        const val TERMS_OF_SERVICE_URL = "https://cards.dangerfield.com/terms"
+        // GitHub Pages publishes `pages/` on push to main via `.github/workflows/pages.yml`.
+        // Swap to a custom domain (e.g. cards.dangerfield.com/...) by dropping a CNAME file
+        // into `pages/` and pointing DNS at GH Pages; these constants are the single update.
+        const val PRIVACY_POLICY_URL = "https://elijah-dangerfield.github.io/Cards/privacy.html"
+        const val TERMS_OF_SERVICE_URL = "https://elijah-dangerfield.github.io/Cards/terms.html"
     }
 }

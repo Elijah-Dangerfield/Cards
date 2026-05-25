@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.border
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
@@ -51,7 +53,15 @@ fun ChipCoin(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(PokerPalette.ChipGold),
+            .background(PokerPalette.ChipGold)
+            .border(
+                when (size) {
+                    18.dp -> 1.dp
+                    28.dp -> 2.dp
+                    48.dp -> 3.dp
+                    else -> 0.dp
+                }, PokerPalette.ChipGoldOutline, CircleShape)
+        ,
         contentAlignment = Alignment.Center,
     ) {
         Text(

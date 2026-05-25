@@ -25,6 +25,8 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.color.ProvideContentColor
+import com.dangerfield.cards.system.typography.Typography
+import com.dangerfield.cards.system.typography.TypographyResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -126,6 +128,7 @@ internal fun EmojiBubble(
     style: EmojiHandleStyle,
     surface: BubbleSurface,
     contentColor: ColorResource,
+    typography: TypographyResource = AppTheme.typography.Heading.H1100,
     modifier: Modifier = Modifier,
 ) {
     require(emoji.isNotEmpty()) { "EmojiBubble emoji must be non-empty" }
@@ -156,7 +159,7 @@ internal fun EmojiBubble(
             ProvideContentColor(contentColor) {
                 Text(
                     text = emoji,
-                    typography = AppTheme.typography.Heading.H1100,
+                    typography = typography,
                     color = contentColor,
                 )
             }

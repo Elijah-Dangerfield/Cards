@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.progression.impl
+package com.dangerfield.cards.libraries.ui.components.achievement
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -32,11 +32,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.Achievement
-import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -45,13 +43,20 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Apple-Fitness-style achievement card. Three states:
  *
  *  - **Earned**: full color, slow shimmer sweep over the rarity tint. Tap
- *    flips to the back to read description + earned date.
- *  - **Locked (non-mystery)**: same layout as earned but dimmed (0.4 alpha)
+ *    flips to the back to read description + earned date (unless [onClick]
+ *    is provided — then tap fires the external callback instead).
+ *  - **Locked (non-mystery)**: same layout as earned but dimmed (0.45 alpha)
  *    and no shimmer — the player can see *what* the achievement is, *how
  *    far along they are* (e.g. "47 / 500" for a quantitative criterion),
  *    and tap to read *how to earn it*. The chase-goal state.
  *  - **Mystery** (`isMystery = true` and not earned): "?" + "Locked", no flip.
  *    Pure surprise — discoverable only by playing.
+ *
+ * @param onClick when null, the medallion handles its own tap by flipping
+ *   between front and back (the Stats / Achievements page treatment). When
+ *   non-null, the flip is suppressed and the callback fires instead — used
+ *   on shelves (e.g. Home's recent-unlocks strip) where the tap should
+ *   navigate elsewhere rather than reveal the back face.
  */
 @Composable
 fun AchievementMedallion(
@@ -59,10 +64,11 @@ fun AchievementMedallion(
     earnedAtEpochMs: Long?,
     progress: Int,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val isEarned = earnedAtEpochMs != null
     val isMysteryLocked = achievement.isMystery && !isEarned
-    val canFlip = !isMysteryLocked
+    val canFlip = onClick == null && !isMysteryLocked
     var flipped by remember { mutableStateOf(false) }
     val rotation by animateFloatAsState(
         targetValue = if (flipped && canFlip) 180f else 0f,
@@ -79,7 +85,13 @@ fun AchievementMedallion(
                 cameraDistance = 14f * density
             }
             .clip(Radii.R900.shape)
-            .clickable(enabled = canFlip) { flipped = !flipped },
+            .let { mod ->
+                when {
+                    onClick != null && !isMysteryLocked -> mod.clickable(onClick = onClick)
+                    canFlip -> mod.clickable { flipped = !flipped }
+                    else -> mod
+                }
+            },
     ) {
         if (!showingBack) {
             MedallionFront(
@@ -110,7 +122,7 @@ private fun MedallionFront(
     isMysteryLocked: Boolean,
     progress: Int,
 ) {
-    val rarityColor = achievement.rarity.color()
+    val rarityColor = achievement.rarity.toAccentColor()
     val rarityColorResource = remember(rarityColor) {
         ColorResource.FromColor(rarityColor, "achievement-rarity")
     }
@@ -178,7 +190,7 @@ private fun MedallionFront(
 
 @Composable
 private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
-    val rarityColor = achievement.rarity.color()
+    val rarityColor = achievement.rarity.toAccentColor()
     val rarityColorResource = remember(rarityColor) {
         ColorResource.FromColor(rarityColor, "achievement-rarity-back")
     }
@@ -229,7 +241,14 @@ private fun rewardLabel(achievement: Achievement): String = buildString {
 
 private const val DayMs: Long = 24L * 60L * 60L * 1000L
 
-internal fun formatEarnedAgo(earnedAtEpochMs: Long, nowEpochMs: Long): String {
+/**
+ * Formats an absolute earned-at timestamp as a relative-to-now string
+ * ("today", "3d ago", "2w ago", "1y ago"). Public because the test
+ * suite (and any other caller that wants the same "ago" rendering)
+ * needs to drive it with a fixed `nowEpochMs` for deterministic
+ * assertions.
+ */
+fun formatEarnedAgo(earnedAtEpochMs: Long, nowEpochMs: Long): String {
     val days = ((nowEpochMs - earnedAtEpochMs).coerceAtLeast(0L)) / DayMs
     return when {
         days == 0L -> "today"
@@ -272,13 +291,6 @@ private fun ShimmerOverlay() {
                 ),
             ),
     )
-}
-
-private fun AchievementRarity.color(): Color = when (this) {
-    AchievementRarity.COMMON -> Color(0xFFB08D57)
-    AchievementRarity.RARE -> Color(0xFFB0B0B8)
-    AchievementRarity.EPIC -> PokerPalette.ChipGold
-    AchievementRarity.LEGENDARY -> Color(0xFFE07AB1)
 }
 
 @Preview

@@ -2,6 +2,8 @@ package com.dangerfield.cards.libraries.identity.impl.profile
 
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventBus
+import com.dangerfield.cards.libraries.cards.SessionTracker
+import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -24,6 +26,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 import me.tatarka.inject.annotations.Inject
@@ -32,9 +36,14 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Backs [ProfileRepository] on top of [AuthRepository] + `/v1/me`.
+ * Backs [ProfileRepository] on top of [AuthRepository] + `/v1/me`
+ * (the per-user profile) and `/v1/avatars` (the global emoji pack
+ * catalog). Despite the historical "Supabase" prefix on prior
+ * iterations, this class never talks to Supabase directly — all data
+ * comes from our own backend. [AuthRepository] / [SupabaseAuthGateway]
+ * own the supabase-kt session and only feed [AuthState] in here.
  *
- * Lifecycle:
+ * **Profile resolve** (the user-specific bit):
  *
  *  - On init, [appScope] launches a collector on [AuthRepository.observe].
  *    Every auth state change triggers a resolve. The first resolve
@@ -49,25 +58,61 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *        [Profile.Fallback] keyed on a stable client UUID from cache.
  *      - Network error during the `/v1/me` call → same cache fallback
  *        path. Cache as fallback, not first-frame.
+ *  - Profile flow has no in-flight sentinel. [current] suspends until
+ *    the first resolved emission; [observe] only emits resolved values.
  *
- * Profile flow has no in-flight sentinel. [current] suspends until the
- * first resolved emission; [observe] only emits resolved values.
+ * **Avatar pack fetch** ([fetchAvatarPack]) follows the
+ * **session-aware cache pattern** documented in `AGENTS.md`: persist
+ * the last successful `/v1/avatars` response to disk, hydrate on first
+ * call, dedupe in-memory across same-session refetches, only re-fetch
+ * when [SessionTracker] reports a new session. On a true cold-install
+ * + no network the repo returns a hardcoded 8-emoji fallback as
+ * Success so the picker is never empty. See the method docstring for
+ * the full state machine.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = ProfileRepository::class)
+@ContributesBinding(AppScope::class, boundType = AutoInit::class, multibinding = true)
 @Inject
-class SupabaseProfileRepositoryImpl(
+class ProfileRepositoryImpl(
     private val authRepository: AuthRepository,
     private val profileApi: ProfileApi,
     private val profileCache: ProfileCache,
+    private val avatarPackCache: AvatarPackCache,
+    private val sessionTracker: SessionTracker,
+    private val clock: Clock,
     private val appEventBus: AppEventBus,
-    appScope: AppCoroutineScope,
-) : ProfileRepository {
+    private val appScope: AppCoroutineScope,
+) : ProfileRepository, AutoInit {
 
     private val logger = KLog.withTag("ProfileRepository")
     private val mutex = Mutex()
     private val _state = MutableSharedFlow<Profile>(replay = 1)
     private val sharedState: Flow<Profile> = _state.asSharedFlow()
+
+    /**
+     * Serializes avatar-pack fetches so a race (two screens opening
+     * simultaneously) shares one network call. Kept separate from
+     * [mutex] (which guards profile resolution) so a slow `/v1/me`
+     * never blocks a `/v1/avatars` and vice versa.
+     */
+    private val avatarPackMutex = Mutex()
+
+    /**
+     * Memoized result of the last successful avatar fetch — either
+     * from disk hydration at first call or from the most recent
+     * network success. Returned for any same-session refetch without
+     * touching disk or network again. Null until the first call (or
+     * after [avatarPackCache] is cleared).
+     */
+    private var memoizedAvatarPack: AvatarPackOutcome.Success? = null
+
+    /**
+     * Session id under which [memoizedAvatarPack] was captured.
+     * Compared against the current [SessionTracker] id on each call —
+     * mismatch means "session rolled, refetch."
+     */
+    private var memoizedSessionId: Long? = null
 
     init {
         logger.d { "init: subscribing to AuthRepository.observe()" }
@@ -81,6 +126,17 @@ class SupabaseProfileRepositoryImpl(
                 Catching { resolve(auth) }
                     .logOnFailure { "Profile resolve from auth change failed" }
             }
+        }
+        // Warm the avatar pack on the same trigger we'd otherwise warm
+        // it from (onboarding picker, EditProfile open). With this in
+        // place, returning users — who skip onboarding — also land on
+        // EditProfile with a hot cache instead of a fallback list.
+        // [fetchAvatarPack] dedupes against the session-aware cache so
+        // a screen that also calls it later still only hits the network
+        // once per session.
+        appScope.launch {
+            Catching { fetchAvatarPack() }
+                .logOnFailure { "Avatar pack boot warm failed" }
         }
     }
 
@@ -269,9 +325,51 @@ class SupabaseProfileRepositoryImpl(
         )
     }
 
-    override suspend fun fetchAvatarPack(): AvatarPackOutcome {
-        logger.d { "fetchAvatarPack: GET /v1/avatars" }
-        return Catching { profileApi.avatars() }.fold(
+    override suspend fun fetchAvatarPack(): AvatarPackOutcome = avatarPackMutex.withLock {
+        val currentSessionId = sessionTracker.current.id
+
+        // Hot path: already fetched this session. Skip disk + network.
+        memoizedAvatarPack?.let { memoized ->
+            if (memoizedSessionId == currentSessionId) {
+                logger.d { "fetchAvatarPack: in-memory hit (session=$currentSessionId)" }
+                return@withLock memoized
+            }
+        }
+
+        // Cold path: hydrate from disk if we haven't yet. Returns
+        // the disk snapshot if it's from the same session, so two
+        // tabs opening Edit Profile back-to-back across a cold start
+        // still share one network call.
+        val cached = Catching { avatarPackCache.read() }
+            .logOnFailure { "Avatar pack cache read failed" }
+            .getOrNull()
+        if (cached != null) {
+            val ageMs = clock.now().toEpochMilliseconds() - cached.fetchedAtEpochMs
+            val tooStale = ageMs > MAX_AVATAR_SNAPSHOT_AGE_MS
+            when {
+                tooStale -> {
+                    logger.i { "Dropping persisted avatar pack: ${ageMs / 1000}s old > $MAX_AVATAR_SNAPSHOT_AGE_MS ms" }
+                    Catching { avatarPackCache.clear() }
+                        .logOnFailure { "Failed to clear stale avatar pack snapshot" }
+                }
+                cached.lastFetchSessionId == currentSessionId -> {
+                    val hydrated = cached.toSuccess()
+                    memoizedAvatarPack = hydrated
+                    memoizedSessionId = currentSessionId
+                    logger.d { "fetchAvatarPack: disk hit (session=$currentSessionId)" }
+                    return@withLock hydrated
+                }
+                else -> {
+                    // Old session's snapshot — usable as a fallback
+                    // if the network fails, but we still try to
+                    // refresh below.
+                    memoizedAvatarPack = cached.toSuccess()
+                }
+            }
+        }
+
+        logger.d { "fetchAvatarPack: GET /v1/avatars (session=$currentSessionId)" }
+        val networkOutcome = Catching { profileApi.avatars() }.fold(
             onSuccess = { response ->
                 logger.d {
                     "fetchAvatarPack: Success (${response.packs.size} packs, ${response.backgroundPalette.size} colors)"
@@ -289,14 +387,74 @@ class SupabaseProfileRepositoryImpl(
                 )
             },
             onFailure = { e ->
-                val outcome = when (e) {
-                    is ClientRequestException -> AvatarPackOutcome.Unknown(e)
-                    is ServerResponseException -> AvatarPackOutcome.Unknown(e)
-                    else -> AvatarPackOutcome.NetworkError(e)
+                val classifier = when (e) {
+                    is ClientRequestException, is ServerResponseException -> "Unknown"
+                    else -> "NetworkError"
                 }
-                logger.w(e) { "fetchAvatarPack: ${outcome::class.simpleName}" }
-                outcome
+                logger.w(e) { "fetchAvatarPack: $classifier — falling back" }
+                null
             },
+        )
+
+        if (networkOutcome != null) {
+            memoizedAvatarPack = networkOutcome
+            memoizedSessionId = currentSessionId
+            Catching {
+                avatarPackCache.write(
+                    outcome = networkOutcome,
+                    sessionId = currentSessionId,
+                    fetchedAtEpochMs = clock.now().toEpochMilliseconds(),
+                )
+            }.logOnFailure { "Failed to persist avatar pack" }
+            return@withLock networkOutcome
+        }
+
+        // Network failed. Prefer whatever we already had cached
+        // (in-memory or freshly-loaded-from-disk above) over the
+        // hardcoded fallback so the user keeps seeing a richer
+        // catalog if one was ever fetched.
+        memoizedAvatarPack?.let { return@withLock it }
+        logger.i { "fetchAvatarPack: no cache available, returning hardcoded fallback" }
+        FALLBACK_AVATAR_PACK
+    }
+
+    private companion object {
+        /**
+         * Maximum age of a persisted avatar-pack snapshot before we
+         * drop it on read. The catalog of emoji packs turns over very
+         * rarely (new pack ships = release-worthy event), so a week
+         * is the outer edge of "still mostly accurate" — same bound
+         * the shop catalog uses for consistency.
+         */
+        val MAX_AVATAR_SNAPSHOT_AGE_MS: Long = 7.days.inWholeMilliseconds
+
+        /**
+         * Last-resort pack used when the network fails and nothing's
+         * been cached yet — first install, never online before. Keeps
+         * the avatar picker functional on bad-network fresh installs.
+         * Once any real fetch succeeds it overwrites this; we never
+         * fall back to this list while a real snapshot is available.
+         *
+         * Must stay in sync with `OnboardingViewModel.STARTER_PACK`
+         * and remain a subset of the server's starter pack — server
+         * contract is append-only, so any emoji in this list at APK
+         * build time is guaranteed to still be accepted by patchMe
+         * forever. That's what keeps the fallback safe across drift
+         * between an old APK and a newer server.
+         */
+        val FALLBACK_AVATAR_PACK: AvatarPackOutcome.Success = AvatarPackOutcome.Success(
+            packs = listOf(
+                AvatarPack(
+                    id = "starter_fallback",
+                    name = "Starter",
+                    emojis = listOf("🦊", "🐱", "🐼", "🐯", "🐸", "🦁", "🃏", "🎲"),
+                    unlockProductId = null,
+                ),
+            ),
+            palette = listOf(
+                "#5bc79b", "#7555ff", "#ff6b35", "#ffc857",
+                "#52a2ff", "#ff5da2", "#a18bff", "#37d5c2",
+            ),
         )
     }
 

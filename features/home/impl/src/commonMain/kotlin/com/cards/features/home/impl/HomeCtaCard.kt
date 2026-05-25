@@ -1,11 +1,11 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,28 +15,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.FeatureCardAccents
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.VerticalSpacerD500
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Home's primary CTA tile per product-spec §2.4 — one tile per play
- * route (Practice, Quick Match, Friend Game, Tournament). Sized for
- * "big-surface" Duolingo energy: chunky glyph badge, type-driven
- * title + supporting line, optional trailing label for "Soon"-style
- * states, all on a softly graded muted-accent background.
+ * route (Practice, Quick Match, Friend Game). Dark, compact, list-row
+ * shaped: small accent-coloured glyph block on the left, title +
+ * supporting line stacked, trailing chevron (or a "Soon"-style chip
+ * for soft-gated states).
  *
- * Diverges from the existing `FeatureCard` primitive intentionally
- * — Home's CTAs are taller, get a trailing badge slot (V2 / soft-
- * gated states), and skip the chevron in favor of the trailing slot.
- * If a second screen ever wants the same shape, lift to
- * `:libraries:ui`. Until then this lives next to its only caller so
- * the brand-load-bearing surface can iterate without churning the
- * DS.
+ * Earlier iteration used a full-card gradient that ate visual weight
+ * Home now spends on Friends / Recent achievements. The list-row shape
+ * keeps the tile recognizable while letting the surrounding shelves
+ * breathe.
+ *
+ * Lives next to its only caller for now; lift to `:libraries:ui` if
+ * a second screen wants the same shape.
  */
 @Composable
 internal fun HomeCtaCard(
@@ -53,55 +59,50 @@ internal fun HomeCtaCard(
         modifier = modifier
             .fillMaxWidth()
             .alpha(if (enabled) 1f else 0.55f)
-            .clip(Radii.R900.shape)
-            .background(
-                Brush.horizontalGradient(
-                    colors = listOf(
-                        accent.copy(alpha = if (enabled) 0.92f else 0.4f),
-                        accent.copy(alpha = if (enabled) 0.66f else 0.28f),
-                    ),
-                ),
-            )
+            .clip(Radii.R700.shape)
+            .background(AppTheme.colors.surfacePrimary.color)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = Dimension.D700, vertical = Dimension.D800),
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D900),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D700),
+        horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
     ) {
-        GlyphBadge(glyph = glyph)
+        GlyphBadge(glyph = glyph, accent = accent)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                typography = AppTheme.typography.Heading.H600,
+                typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.text,
             )
             Text(
                 text = subtitle,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.text,
-                modifier = Modifier.alpha(0.78f),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.textSecondary,
             )
         }
-        if (trailing != null) TrailingChip(label = trailing)
+        if (trailing != null) {
+            TrailingChip(label = trailing)
+        } else {
+            Icon(
+                icon = Icons.ChevronRight("Open"),
+                color = AppTheme.colors.textSecondary,
+                size = IconSize.Small,
+            )
+        }
     }
 }
 
 @Composable
-private fun GlyphBadge(glyph: String) {
+private fun GlyphBadge(glyph: String, accent: Color) {
     Box(
         modifier = Modifier
-            .size(56.dp)
-            .clip(Radii.R700.shape)
-            .background(Color.White.copy(alpha = 0.12f))
-            .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.08f),
-                shape = Radii.R700.shape,
-            ),
+            .size(48.dp)
+            .clip(Radii.R500.shape)
+            .background(accent),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = glyph,
-            typography = AppTheme.typography.Heading.H800,
+            typography = AppTheme.typography.Heading.H1000,
             color = AppTheme.colors.text,
         )
     }
@@ -112,13 +113,63 @@ private fun TrailingChip(label: String) {
     Box(
         modifier = Modifier
             .clip(Radii.R500.shape)
-            .background(Color.Black.copy(alpha = 0.25f))
+            .background(AppTheme.colors.surfaceSecondary.color)
             .padding(horizontal = Dimension.D400, vertical = Dimension.D200),
     ) {
         Text(
             text = label,
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.textSecondary,
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Previews — one card per accent, all three states the production CTAs
+// render in: plain (chevron), soft-gated (trailing "Soon" chip), and
+// disabled (full-card alpha). Stacked vertically to exercise spacing.
+// ---------------------------------------------------------------------------
+
+@Preview
+@Composable
+private fun HomeCtaCardPreview_Stack() {
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        Column {
+            HomeCtaCard(
+                title = "Practice",
+                subtitle = "Solo vs. bots",
+                glyph = "🤖",
+                accent = FeatureCardAccents.Green,
+                onClick = {},
+            )
+            VerticalSpacerD500()
+            HomeCtaCard(
+                title = "Quick Match",
+                subtitle = "Public seat · one tap",
+                glyph = "⏳",
+                accent = FeatureCardAccents.Blue,
+                onClick = {},
+                trailing = "Soon",
+            )
+            VerticalSpacerD500()
+            HomeCtaCard(
+                title = "Friend Game",
+                subtitle = "Room code · just you and yours",
+                glyph = "👭",
+                accent = FeatureCardAccents.Gold,
+                onClick = {},
+            )
+            VerticalSpacerD500()
+            HomeCtaCard(
+                title = "Tournament",
+                subtitle = "Royal Flush Tournament. Quarterly.",
+                glyph = "♛",
+                accent = FeatureCardAccents.Magenta,
+                onClick = {},
+                enabled = false,
+                trailing = "V2",
+            )
+        }
+    }
+}
+

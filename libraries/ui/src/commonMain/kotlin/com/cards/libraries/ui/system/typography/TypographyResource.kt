@@ -229,6 +229,7 @@ interface HeadingTypography {
 
 interface LabelTypography {
 
+    val L800: TypographyResource
     val L700: TypographyResource
     val L600: TypographyResource
     val L500: TypographyResource
@@ -289,7 +290,7 @@ class DisplayTypographyImpl(
     // Display uses tight line-height (1.1x) for visual impact
     override val D1500 = TypographyResource(
         fontFamily = fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
         fontSize = Dimension.D1500.sp(),
         lineHeight = Dimension.D1500.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -298,7 +299,7 @@ class DisplayTypographyImpl(
 
     override val D1400 = TypographyResource(
         fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Medium,
         fontSize = Dimension.D1400.sp(),
         lineHeight = Dimension.D1400.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -307,7 +308,7 @@ class DisplayTypographyImpl(
 
     override val D1300 = TypographyResource(
         fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Normal,
         fontSize = Dimension.D1300.sp(),
         lineHeight = Dimension.D1300.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -316,7 +317,7 @@ class DisplayTypographyImpl(
 
     override val D1200 = TypographyResource(
         fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Normal,
         fontSize = Dimension.D1200.sp(),
         lineHeight = Dimension.D1200.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -325,7 +326,7 @@ class DisplayTypographyImpl(
 
     override val D1100 = TypographyResource(
         fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Normal,
         fontSize = Dimension.D1100.sp(),
         lineHeight = Dimension.D1100.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -334,7 +335,7 @@ class DisplayTypographyImpl(
 
     override val D1000 = TypographyResource(
         fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Normal,
         fontSize = Dimension.D1000.sp(),
         lineHeight = Dimension.D1000.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -343,7 +344,7 @@ class DisplayTypographyImpl(
 
     override val D900 = TypographyResource(
         fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Normal,
         fontSize = Dimension.D900.sp(),
         lineHeight = Dimension.D900.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -352,7 +353,7 @@ class DisplayTypographyImpl(
 
     override val D800 = TypographyResource(
         fontFamily,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Normal,
         fontSize = Dimension.D800.sp(),
         lineHeight = Dimension.D800.lineHeight(com.dangerfield.cards.system.LineHeightRatio.TIGHT),
         lineBreak = LineBreak.Heading,
@@ -520,6 +521,14 @@ class LabelTypographyImpl(
 
     // Labels use compact line-height (1.2x) for tight UI elements
 
+    override val L800 = TypographyResource(
+        fontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = Dimension.D800.sp(),
+        lineHeight = Dimension.D800.lineHeight(LineHeightRatio.COMPACT),
+        lineBreak = LineBreak.Simple,
+        identifier = "label-800"
+    )
     override val L700 = TypographyResource(
         fontFamily,
         fontWeight = FontWeight.SemiBold,
@@ -1081,6 +1090,14 @@ private fun PreviewLabelTypography() {
                     fontSize = 14.sp,
                     color = Color(0xFF666666),
                     modifier = Modifier.padding(bottom = Dimension.D1000)
+                )
+            }
+
+            item {
+                TypographySpecItem(
+                    name = "Label 800",
+                    typographyResource = AppTheme.typography.Label.L800,
+                    exampleText = "Button"
                 )
             }
 

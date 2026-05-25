@@ -28,6 +28,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.system.HorizontalSpacerD500
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -35,7 +36,8 @@ fun TopBar(
     title: String? = null,
     modifier: Modifier = Modifier,
     onNavigateBack: (() -> Unit)? = null,
-    typographyToken: TypographyResource = AppTheme.typography.Display.D900,
+    backEnabled: Boolean = true,
+    typographyToken: TypographyResource = AppTheme.typography.Heading.H800,
     backgroundColor: Color = AppTheme.colors.background.color,
     actions: @Composable () -> Unit = {},
     scrollState: ScrollableState? = null,
@@ -61,10 +63,12 @@ fun TopBar(
         ) {
             if (onNavigateBack != null) {
                 IconButton(
-                    size = IconButton.Size.Large,
+                    size = IconButton.Size.Medium,
                     icon = Icons.ChevronLeft("Navigate back"),
+                    enabled = backEnabled,
                     onClick = onNavigateBack
                 )
+                HorizontalSpacerD500()
             }
             title?.let {
                 Text(text = title, typography = typographyToken)
@@ -109,4 +113,16 @@ private fun PreviewHeader() {
         )
     }
 }
+
+@Preview
+@Composable
+private fun PreviewHeaderWithBack() {
+    PreviewContent {
+        com.dangerfield.cards.libraries.ui.components.header.TopBar(
+            title = "Heading Title",
+            onNavigateBack = {}
+        )
+    }
+}
+
 

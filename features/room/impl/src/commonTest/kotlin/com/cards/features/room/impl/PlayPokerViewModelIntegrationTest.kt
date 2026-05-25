@@ -292,6 +292,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             lastWinners: GameEvent.HandEnded?,
             lastActionBySeat: Map<Int, PlayerAction>,
             humanProfile: Profile.Authenticated?,
+            humanLevel: Int?,
         ): TableUiState = TableUiState.fromGameState(
             gameState = state,
             humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
@@ -299,6 +300,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             lastWinners = lastWinners,
             lastActionBySeat = lastActionBySeat,
             humanProfile = humanProfile,
+            humanLevel = humanLevel,
         )
     }
 }

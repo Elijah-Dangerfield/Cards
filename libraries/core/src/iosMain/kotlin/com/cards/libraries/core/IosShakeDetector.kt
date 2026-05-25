@@ -90,9 +90,17 @@ class IosShakeDetector : ShakeDetector {
     
     companion object {
         private const val UPDATE_INTERVAL: NSTimeInterval = 0.1
-        private const val SHAKE_THRESHOLD = 1.5
-        private const val NORMAL_THRESHOLD = 2.0
-        private const val VIGOROUS_THRESHOLD = 3.0
+        // Raised after both platforms were tripping on normal pocket /
+        // hand motion. Math here is raw displacement magnitude in g
+        // (userAcceleration is normalized to remove gravity), so the
+        // absolute number is directly comparable across platforms in
+        // spirit but not magnitude — Android normalizes by time, iOS
+        // doesn't. Tuned empirically: SHAKE = "definitely a shake
+        // gesture", NORMAL = "intentional shake", VIGOROUS = "they
+        // really meant it".
+        private const val SHAKE_THRESHOLD = 3.5
+        private const val NORMAL_THRESHOLD = 4.5
+        private const val VIGOROUS_THRESHOLD = 6.0
         private const val SHAKE_COOLDOWN_MS = 1500L
     }
 }

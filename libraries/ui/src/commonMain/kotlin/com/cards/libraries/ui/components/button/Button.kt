@@ -87,11 +87,13 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.animateColorResourceAsState
 import com.dangerfield.cards.libraries.ui.components.icon.IconResource
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
+@OptIn(LowLevelDSComponent::class)
 fun Button(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -100,6 +102,8 @@ fun Button(
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = LocalButtonStyle.current,
     enabled: Boolean = true,
+    flat: Boolean = false,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -122,7 +126,7 @@ fun Button(
 
     val borderColor = borderColor(type, style, enabled)
 
-    BasicButton(
+    BaseButton(
         backgroundColor = backgroundColor,
         borderColor = borderColor,
         contentColor = contentColor,
@@ -130,8 +134,9 @@ fun Button(
         modifier = modifier,
         icon = icon,
         size = size,
-        style = style,
         enabled = enabled,
+        flat = flat,
+        onDisabledTap = onDisabledTap,
         interactionSource = interactionSource,
         content = content
     )
@@ -260,7 +265,9 @@ fun ButtonPrimary(
     icon: IconResource? = null,
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Filled,
+    onDisabledTap: (() -> Unit)? = null,
     enabled: Boolean = true,
+    flat: Boolean = false,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -270,8 +277,10 @@ fun ButtonPrimary(
         icon = icon,
         type = ButtonType.Primary,
         size = size,
+        onDisabledTap = onDisabledTap,
         style = style,
         enabled = enabled,
+        flat = flat,
         interactionSource = interactionSource,
         content = content
     )
@@ -291,7 +300,9 @@ fun ButtonPrimaryAlt(
     icon: IconResource? = null,
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Filled,
+    onDisabledTap: (() -> Unit)? = null,
     enabled: Boolean = true,
+    flat: Boolean = false,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -301,8 +312,10 @@ fun ButtonPrimaryAlt(
         icon = icon,
         type = ButtonType.PrimaryAlt,
         size = size,
+        onDisabledTap = onDisabledTap,
         style = style,
         enabled = enabled,
+        flat = flat,
         interactionSource = interactionSource,
         content = content
     )
@@ -322,8 +335,10 @@ fun ButtonSecondary(
     modifier: Modifier = Modifier,
     icon: IconResource? = null,
     size: ButtonSize = LocalButtonSize.current,
-    style: ButtonStyle = ButtonStyle.Outlined,
+    style: ButtonStyle = ButtonStyle.Filled,
+    onDisabledTap: (() -> Unit)? = null,
     enabled: Boolean = true,
+    flat: Boolean = false,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -333,8 +348,10 @@ fun ButtonSecondary(
         icon = icon,
         type = ButtonType.Secondary,
         size = size,
+        onDisabledTap = onDisabledTap,
         style = style,
         enabled = enabled,
+        flat = flat,
         interactionSource = interactionSource,
         content = content
     )
@@ -355,6 +372,8 @@ fun ButtonTertiary(
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Filled,
     enabled: Boolean = true,
+    flat: Boolean = false,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -366,6 +385,8 @@ fun ButtonTertiary(
         size = size,
         style = style,
         enabled = enabled,
+        flat = flat,
+        onDisabledTap = onDisabledTap,
         interactionSource = interactionSource,
         content = content
     )
@@ -386,6 +407,8 @@ fun ButtonGhost(
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Text,
     enabled: Boolean = true,
+    flat: Boolean = false,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -395,8 +418,10 @@ fun ButtonGhost(
         icon = icon,
         type = ButtonType.Ghost,
         size = size,
+        onDisabledTap = onDisabledTap,
         style = style,
         enabled = enabled,
+        flat = flat,
         interactionSource = interactionSource,
         content = content
     )
@@ -413,7 +438,9 @@ fun ButtonDanger(
     icon: IconResource? = null,
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Filled,
+    onDisabledTap: (() -> Unit)? = null,
     enabled: Boolean = true,
+    flat: Boolean = false,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -422,9 +449,11 @@ fun ButtonDanger(
         modifier = modifier,
         icon = icon,
         type = ButtonType.Danger,
+        onDisabledTap = onDisabledTap,
         size = size,
         style = style,
         enabled = enabled,
+        flat = flat,
         interactionSource = interactionSource,
         content = content
     )
@@ -452,7 +481,7 @@ private fun backgroundColor(
     else -> when (type) {
         ButtonType.Primary -> AppTheme.colors.accentPrimary
         ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Secondary -> AppTheme.colors.surfacePrimary
+        ButtonType.Secondary -> AppTheme.colors.surfaceSecondary
         ButtonType.Tertiary -> AppTheme.colors.onSurfaceTertiary
         ButtonType.Ghost -> null
         ButtonType.Danger -> AppTheme.colors.danger

@@ -7,17 +7,18 @@ import com.dangerfield.cards.util.configureKotlinMultiplatform
 import com.dangerfield.cards.util.configureKotlinInject
 import com.dangerfield.cards.util.enforceModuleBoundaries
 import com.dangerfield.cards.util.libs
+import com.dangerfield.cards.util.loadServerMetadata
 import com.dangerfield.cards.util.loadSupabaseMetadata
 import com.dangerfield.cards.util.loadVersionMetadata
 import com.dangerfield.cards.util.optInKotlinMarkers
 import com.dangerfield.cards.util.VersionMetadata
 import com.dangerfield.cards.util.writeCommonMetadata
+import com.dangerfield.cards.util.writeServerMetadata
 import com.dangerfield.cards.util.writeSupabaseMetadata
 import com.github.gmazzo.buildconfig.BuildConfigExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
-import org.jetbrains.kotlin.gradle.internal.config.AnalysisFlags.optIn
 
 /**
  * Convention plugin for pure Kotlin multiplatform library modules without UI dependencies.
@@ -80,6 +81,7 @@ class KotlinMultiplatformConventionPlugin : Plugin<Project> {
 
     private fun Project.configureSharedBuildConfig(metadata: VersionMetadata) {
         val supabaseMetadata = loadSupabaseMetadata()
+        val serverMetadata = loadServerMetadata()
         extensions.configure(BuildConfigExtension::class.java) {
             packageName("com.dangerfield.cards.buildinfo")
             className("CardsBuildConfig")
@@ -88,6 +90,7 @@ class KotlinMultiplatformConventionPlugin : Plugin<Project> {
             }
             writeCommonMetadata(metadata)
             writeSupabaseMetadata(supabaseMetadata)
+            writeServerMetadata(serverMetadata)
         }
     }
 }

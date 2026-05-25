@@ -1,47 +1,24 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+// TopBar icons route through libraries/ui's DS Icon + IconButton (Icons.kt
+// / IconButton.kt). Raw Material icons would tint, size, and bounce-click
+// differently from the rest of the app — DS routing keeps the chrome
+// consistent and the icon set centralized.
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,18 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -73,34 +40,21 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.LevelPill
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.Slider
-import com.dangerfield.cards.libraries.ui.components.XpBadge
-import com.dangerfield.cards.libraries.ui.components.formatCompactChips
-import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
-import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
-import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
-import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
-import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.LocalCardBackStyle
-import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
-import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
-import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSlot
-import com.dangerfield.cards.libraries.ui.components.poker.PulsingActiveRing
-import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
-import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.HorizontalSpacerD100
+import com.dangerfield.cards.system.HorizontalSpacerD200
 import com.dangerfield.cards.system.Radii
-import com.dangerfield.cards.system.VerticalSpacerD1100
 import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD700
 import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import kotlinx.coroutines.delay
 
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -169,22 +123,33 @@ fun PlayPokerScreen(
     // toggle felts in My Items and see the table change underneath them
     // without leaving the table.
     val tableSurface = feltSurfaceColor(state.equippedFelt)
+    // Per-felt accent surface — icon-button backgrounds and any "raised
+    // felt" tone elsewhere on the play screen reads this so it stays
+    // legible across felt choices instead of clashing with whichever
+    // surface color the felt picked.
+    val feltAccent = feltAccentSurface(state.equippedFelt)
     // Ambient card-back style — every PlayingCardBack in the composition
     // reads from this without prop-drilling. Same live-toggle story as
     // the felt above; equip a card back from My Items and the opponents'
     // hole-card backs swap underneath them mid-hand.
-    CompositionLocalProvider(LocalCardBackStyle provides state.equippedCardBack) {
+    CompositionLocalProvider(
+        LocalCardBackStyle provides state.equippedCardBack,
+        LocalFeltAccentSurface provides feltAccent,
+    ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                 ConnectionBanner(connection = state.connection)
                 TopBar(
-                    handNumber = active?.handNumber,
-                    street = active?.street,
                     xp = state.xp,
                     onBack = requestLeave,
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
+                    availableEmojis = state.availableEmojis,
+                    emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
+                    onBlastEmoji = { emoji ->
+                        onAction(PlayPokerAction.BlastEmoji(emoji))
+                    },
                 )
 
                 if (active == null) {
@@ -195,8 +160,6 @@ fun PlayPokerScreen(
                         humanWinPercent = state.humanWinPercent,
                         humanTitle = state.equippedTitle,
                         silentSwipeFold = state.swipeFoldGestureAck,
-                        availableEmojis = state.availableEmojis,
-                        emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -216,9 +179,6 @@ fun PlayPokerScreen(
                         },
                         onOpponentTap = { seat ->
                             seatMuteKey(seat)?.let { muteSheetSeat = seat }
-                        },
-                        onBlastEmoji = { emoji ->
-                            onAction(PlayPokerAction.BlastEmoji(emoji))
                         },
                     )
                 }
@@ -410,48 +370,66 @@ private fun ConnectionBanner(connection: ConnectionState) {
 
 @Composable
 private fun TopBar(
-    handNumber: Int?,
-    street: BettingRound?,
     xp: Long,
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
+    availableEmojis: List<String> = emptyList(),
+    emojiCooldownEndsAtEpochMs: Long = 0L,
+    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
-    // Minimal top row — navigation, lifetime XP, info. XP appears here so the
-    // counter ticks up live during a session and the player feels progress
-    // even when they lose a hand.
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    // Minimal top bar — navigation, level + ring, info. The level pill
+    // ticks up live as the player earns XP, and the gradient ring fills
+    // toward the next level so the player feels progress even when they
+    // lose a hand. Emoji blast lives here alongside the cheat sheet
+    // (right-side action cluster) — for default users without an
+    // emote pack the button hides itself, so the bar collapses back
+    // to back/level/question.
+    //
+    // The pill is overlay-positioned at true screen-center via Box
+    // alignment rather than placed inline in a SpaceBetween Row.
+    // SpaceBetween distributes children based on side widths, so the
+    // pill drifts off-center whenever the right cluster grows (e.g. the
+    // emoji button appears). Box(CenterStart/Center/CenterEnd) keeps
+    // the pill pinned to the screen midpoint regardless.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = AppTheme.colors.text.color,
-            )
-        }
-        Spacer(modifier = Modifier.weight(1f))
-        XpBadge(xp = xp, onClick = onTapXp)
-        Spacer(modifier = Modifier.weight(1f))
-        IconButton(onClick = onCheatSheet) {
-            Icon(
-                imageVector = Icons.Default.HelpOutline,
-                contentDescription = "Hand info and rankings",
-                tint = AppTheme.colors.text.color,
+        IconButton(
+            icon = Icons.ArrowBack("Back"),
+            onClick = onBack,
+            modifier = Modifier.align(Alignment.CenterStart),
+        )
+        LevelPill(
+            xp = xp,
+            onClick = onTapXp,
+            modifier = Modifier.align(Alignment.Center),
+        )
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onBlastEmoji != null && availableEmojis.isNotEmpty()) {
+                TopBarEmojiButton(
+                    emojis = availableEmojis,
+                    cooldownEndsAtEpochMs = emojiCooldownEndsAtEpochMs,
+                    onBlast = onBlastEmoji,
+                )
+                HorizontalSpacerD200()
+            }
+            IconButton(
+                backgroundColor = AppTheme.colors.surfacePrimary,
+                icon = Icons.Question(
+                    "Hand info and rankings",
+                ),
+                onClick = onCheatSheet,
             )
         }
     }
 }
 
-private fun streetLabel(street: BettingRound): String = when (street) {
-    BettingRound.Preflop -> "Preflop"
-    BettingRound.Flop -> "Flop"
-    BettingRound.Turn -> "Turn"
-    BettingRound.River -> "River"
-    BettingRound.Showdown -> "Showdown"
-    BettingRound.Complete -> "Hand complete"
-}
 
 @Composable
 private fun LoadingTable() {
@@ -470,8 +448,6 @@ private fun ActiveTable(
     humanWinPercent: Int?,
     humanTitle: String?,
     silentSwipeFold: Boolean = false,
-    availableEmojis: List<String> = emptyList(),
-    emojiCooldownEndsAtEpochMs: Long = 0L,
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -482,7 +458,6 @@ private fun ActiveTable(
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
     onOpponentTap: (SeatView) -> Unit = {},
-    onBlastEmoji: ((String) -> Unit)? = null,
 ) {
     // Pinned-bottom layout: opponents + board scroll if needed, but the
     // player's hand and the action bar always sit at the bottom in reach.
@@ -495,11 +470,15 @@ private fun ActiveTable(
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // Tall clearance above the opponents row so the chevron + last-
-            // action pill (both rendered as TopCenter overlays on each avatar
-            // with negative Y offsets, ~24dp of upward overflow) have room to
-            // breathe instead of being clipped by the TopBar.
-            VerticalSpacerD1100()
+            // Clearance above the opponents row so the chevron + last-
+            // action pill (both rendered as TopCenter overlays on each
+            // avatar with negative Y offsets, ~24dp of upward overflow)
+            // have room to breathe instead of being clipped by the
+            // TopBar. The LazyRow's own top contentPadding
+            // (ScrollingRowOverhangPadding, 28dp) covers the overlay
+            // itself — this spacer is just visual breathing room from
+            // the TopBar, so it stays modest.
+            VerticalSpacerD700()
             OpponentsRow(
                 table = table,
                 onBlindClick = onBlindClick,
@@ -543,21 +522,10 @@ private fun ActiveTable(
                 onSwipeFold = onSwipeFold,
             )
             QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
-            // Emoji blast tray — centered, with generous breathing room
-            // above so it reads as a peripheral / social affordance
-            // rather than another action button. EmojiTray hides itself
-            // when [availableEmojis] is empty (caller owns no `emotes_*`
-            // pack), so default users never see it. The VM owns cooldown
-            // enforcement; the tray just renders the dimmed toggle +
-            // countdown while cooling.
-            if (onBlastEmoji != null && availableEmojis.isNotEmpty()) {
-                VerticalSpacerD800()
-                EmojiTray(
-                    emojis = availableEmojis,
-                    cooldownEndsAtEpochMs = emojiCooldownEndsAtEpochMs,
-                    onBlast = onBlastEmoji,
-                )
-            }
+            // Bottom emoji blast tray moved to the TopBar (the
+            // [TopBarEmojiButton] icon sits alongside the cheat-sheet
+            // question icon). Spacer keeps the action bar from sitting
+            // flush against the system gesture area.
             VerticalSpacerD500()
         }
     }
@@ -605,6 +573,7 @@ private fun previewHumanSeat(
     showHoleCardBacks = false,
     participation = HandParticipation.InHand,
     seatEmpty = false,
+    isBusted = false,
     lastAction = lastAction,
     isDealer = isDealer,
     isSmallBlind = isSmallBlind,
@@ -637,6 +606,7 @@ private fun previewBotSeat(
     showHoleCardBacks = participation == HandParticipation.InHand && holeCards.isEmpty(),
     participation = participation,
     seatEmpty = false,
+    isBusted = stack <= 0L,
     lastAction = lastAction,
     isDealer = isDealer,
     isSmallBlind = isSmallBlind,
@@ -716,6 +686,22 @@ private fun PlayPokerScreenPreview_YourTurnPreflop() {
         )
     }
 }
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Emoji() {
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(),
+                availableEmojis = listOf("😂", "👍", "😎")
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 
 @Preview
 @Composable
@@ -1082,3 +1068,59 @@ private fun PlayPokerScreenPreview_WonByFold() {
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Felt-color previews — one per [EquippedFelt] enum value. These pin the
+// visual regression surface so the cosmetic system can't drift without
+// somebody noticing in the IDE preview pane. Each preview reuses the same
+// preflop "your turn" table so the only variable across the set is the
+// felt color itself.
+//
+// New felt? Add the enum value to [EquippedFelt] AND a matching preview
+// below. The convention is intentional — the preview list is the visual
+// regression bar.
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun PlayPokerScreenFeltPreview(felt: EquippedFelt) {
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(
+                table = previewActive(),
+                equippedFelt = felt,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Default() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Default)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_RoyalRed() =
+    PlayPokerScreenFeltPreview(EquippedFelt.RoyalRed)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_MidnightBlue() =
+    PlayPokerScreenFeltPreview(EquippedFelt.MidnightBlue)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Charcoal() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Charcoal)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Sunset() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Sunset)
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_Felt_Neon() =
+    PlayPokerScreenFeltPreview(EquippedFelt.Neon)

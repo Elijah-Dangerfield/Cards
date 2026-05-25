@@ -91,9 +91,17 @@ class AndroidShakeDetector(
     }
     
     companion object {
-        private const val SHAKE_THRESHOLD = 800
-        private const val NORMAL_THRESHOLD = 1200
-        private const val VIGOROUS_THRESHOLD = 2000
+        // Raised after both platforms were tripping on normal pocket /
+        // hand motion. Math here is normalized acceleration in
+        // velocity-derivative units (Δposition / Δtime × 10000) — not
+        // m/s² directly — so the absolute number isn't directly
+        // comparable to physical units. These values are tuned empirically:
+        // SHAKE = "definitely a shake gesture", NORMAL = "intentional
+        // shake", VIGOROUS = "they really meant it". Each ~3× the prior
+        // value; SHAKE_THRESHOLD * 1.5 ≈ NORMAL, NORMAL * 1.5 ≈ VIGOROUS.
+        private const val SHAKE_THRESHOLD = 2500
+        private const val NORMAL_THRESHOLD = 3800
+        private const val VIGOROUS_THRESHOLD = 5500
         private const val SHAKE_COOLDOWN_MS = 1500L
         private const val SHAKE_SAMPLE_INTERVAL_MS = 100
     }

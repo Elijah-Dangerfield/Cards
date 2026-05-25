@@ -22,7 +22,9 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -46,7 +48,7 @@ internal fun ActiveRoomBanner(
             .fillMaxWidth()
             .clip(Radii.Card.shape)
             .background(AppTheme.colors.background.color)
-            .border(2.dp, AppTheme.colors.border.color, Radii.Card.shape)
+            .border(2.dp, AppTheme.colors.borderSecondary.color, Radii.Card.shape)
             .padding(Dimension.D600),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -85,7 +87,7 @@ internal fun ActiveRoomBanner(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(modifier = Modifier.weight(1f)) {
-                ButtonGhost(
+                ButtonSecondary(
                     onClick = { confirmingForfeit = true },
                     size = ButtonSize.Medium,
                     modifier = Modifier.fillMaxWidth(),

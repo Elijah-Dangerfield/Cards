@@ -31,6 +31,8 @@ import com.dangerfield.cards.features.upgrade.impl.AppGuardLayer
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -55,6 +57,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.ui.components.AppBottomBar
@@ -95,6 +98,15 @@ fun App(appComponent: AppComponent) {
     val ensureAppConfigLoaded = remember { appComponent.ensureAppConfigLoaded }
     val configOverrideRepository = remember { appComponent.configOverrideRepository }
     val appScope = rememberCoroutineScope()
+
+    // Boot-warm every @AutoInit singleton. Resolving the Set forces
+    // each contributor to construct, running their `init {}` blocks —
+    // products catalog hydrates from disk, AppEventDispatcher attaches
+    // its lifecycle observer, ProfileRepository fires its avatar-pack
+    // prefetch. Wrapped in `remember` so this resolves exactly once
+    // per Activity lifetime, even though App() recomposes. See
+    // [AutoInit] for the contract.
+    remember { appComponent.autoInits }
 
     DisposableEffect(shakeHandler) {
         shakeHandler.start()
@@ -177,6 +189,7 @@ fun App(appComponent: AppComponent) {
                                 }
                             },
                             userMessageRepository = appComponent.userMessageRepository,
+                            profileRepository = appComponent.profileRepository,
                         )
                     }
                 }
@@ -220,6 +233,7 @@ private fun AppNavigation(
     startDestination: Route,
     router: DelegatingRouter,
     userMessageRepository: com.dangerfield.cards.libraries.cards.UserMessageRepository,
+    profileRepository: ProfileRepository,
     topBar: @Composable () -> Unit = {},
 ) {
 
@@ -228,6 +242,8 @@ private fun AppNavigation(
     val shouldHideBottomBar = currentBackStackEntry?.tabString() == null
     val unreadNotifications by userMessageRepository.observeUnreadInboxCount()
         .collectAsState(initial = 0)
+    val profile by profileRepository.observe().collectAsState(initial = null)
+    val authedProfile = profile as? Profile.Authenticated
 
     Screen(
         topBar = topBar,
@@ -253,16 +269,28 @@ private fun AppNavigation(
                         BottomBarItem.Profile(
                             isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
                             badgeAmount = unreadNotifications,
+                            avatarDisplayName = authedProfile?.displayName,
+                            avatarEmoji = authedProfile?.avatarEmoji,
+                            avatarBackgroundColor = authedProfile?.avatarBackgroundColor,
                         ),
                     ),
                     onItemClick = { item ->
                         val (isAlreadySelected, route) = when (item) {
                             is BottomBarItem.Home -> (currentDestination?.hasRoute<HomeRoute>() == true) to HomeRoute()
-                            is BottomBarItem.Shop -> isShopSelected to ShopRoute()
+                            // Tab target is the graph entry, not the leaf — only navigating to
+                            // ShopGraph keeps saveState/restoreState working across tab switches.
+                            // (Targeting the inner ShopRoute silently no-ops restoreState and
+                            // recreates the ShopViewModel on every visit.)
+                            is BottomBarItem.Shop -> isShopSelected to ShopGraph
                             is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
                         }
 
-                        if (!isAlreadySelected) {
+                        if (isAlreadySelected) {
+                            // Re-tap on the active tab — let the tab react (scroll to
+                            // top, dismiss sheet, etc.) instead of swallowing the tap.
+                            // Subscribers wire up via `router.OnTabReselected(...)`.
+                            router.notifyTabReselected(route)
+                        } else {
                             KLog.d { "Navigating to bottom bar route: ${item.title}" }
                             router.switchTab(route)
                         }

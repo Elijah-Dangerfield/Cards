@@ -99,6 +99,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         lastWinners: GameEvent.HandEnded?,
         lastActionBySeat: Map<Int, PlayerAction>,
         humanProfile: Profile.Authenticated?,
+        humanLevel: Int?,
     ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = humanSeatIndex,
@@ -106,6 +107,8 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         lastWinners = lastWinners,
         lastActionBySeat = lastActionBySeat,
         humanProfile = humanProfile,
+        humanLevel = humanLevel,
+        botDifficultyLabel = difficultyName,
     )
 }
 

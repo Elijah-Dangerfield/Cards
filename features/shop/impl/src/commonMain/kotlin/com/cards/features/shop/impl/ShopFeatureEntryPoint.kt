@@ -1,13 +1,17 @@
 package com.dangerfield.cards.features.shop.impl
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
+import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.bottomSheet
 import com.dangerfield.cards.libraries.navigation.graphScopedViewModel
@@ -15,6 +19,7 @@ import com.dangerfield.cards.libraries.navigation.navigation
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -37,6 +42,12 @@ class ShopFeatureEntryPoint(
                     shopVmFactory()
                 }
                 val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+                val scrollState = rememberScrollState()
+                val scope = rememberCoroutineScope()
+                // Bottom-bar re-tap on the Shop tab → scroll the grid to top.
+                router.OnTabReselected(ShopGraph) {
+                    scope.launch { scrollState.animateScrollTo(0) }
+                }
 
                 viewModel.ObserveEvents { event ->
                     when (event) {
@@ -67,6 +78,8 @@ class ShopFeatureEntryPoint(
                     onProductTap = { productId ->
                         router.navigate(ShopProductSheetRoute(productId))
                     },
+                    onIdeaTap = { router.navigate(FeedbackRoute()) },
+                    scrollState = scrollState,
                 )
             }
 

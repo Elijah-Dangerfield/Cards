@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.ui.PreviewBottomBar
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
@@ -86,6 +89,7 @@ fun ProfileScreen(
     isSigningOut: Boolean = false,
     onOpenQaMenu: () -> Unit = {},
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     var showSignOutDialog by remember { mutableStateOf(false) }
     Screen(modifier = modifier) { padding ->
@@ -93,7 +97,7 @@ fun ProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 16.dp),
         ) {
             ProfileHeader(settings = settings, onEditProfile = onEditProfile)
@@ -563,7 +567,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_Anonymous() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Anon-1742",
@@ -598,7 +602,7 @@ private fun ProfileScreenPreview_Anonymous() {
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_Claimed() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Elijah",
@@ -633,7 +637,7 @@ private fun ProfileScreenPreview_Claimed() {
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_DebugBuild() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
             settings = ProfileSettings(
                 displayName = "Elijah",

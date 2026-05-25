@@ -1066,7 +1066,7 @@ The `Reverted` branch in `SyncOutcomeDto` is still reserved for the future serve
 - `InMemoryRoomServiceTest`: stamp on disconnect, clear on reconnect, TTL boundary (3 min / 5 min / 7 min), never-connected reaping, empty-room GC, idempotence, multi-room `roomsSeen` count, flow propagation.
 - `AdminRoutesTest` (new file): 401 without token, 401 with wrong token, 401 when server has no token configured (fail-closed), 200 happy path counts, TTL boundary end-to-end through the route.
 
-**Status:** Landed. Sweep cadence wiring (cron workflow at `.github/workflows/sweep-rooms.yml`) is a pre-launch checklist item, not a code change.
+**Status:** Superseded by [2026-05-24 — Disconnect cleanup: in-process reaper, not a cron sweep](#2026-05-24--disconnect-cleanup-in-process-reaper-not-a-cron-sweep). The cron sweep landed and ran briefly; the per-disconnect reaper replaces it. `RoomService.sweepDisconnected` survives as a test/recovery helper only.
 
 ---
 
@@ -1579,3 +1579,85 @@ args every push, and pops cleanly on dismiss.
 **Status:** Landed (Shop purchase sheet migrated to
 `ShopProductSheetRoute`). Apply to other overlays opportunistically as
 they need deep-link entry; no big-bang rewrite required.
+
+## 2026-05-24 — Disconnect cleanup: in-process reaper, not a cron sweep
+
+**Decision:** Per-room WebSocket disconnect schedules its own grace
+timer on the Application coroutine scope —
+`RoomSocketRoutes`'s `finally` block captures the `disconnectedAt`
+stamp set by `markConnected(false)` and launches
+`app.launch { delay(reaperGrace); rooms.reapIfStillDisconnected(...) }`.
+`reapIfStillDisconnected` is stamp-checked: it no-ops unless the
+member is still disconnected with the same stamp, so a reconnect
+(stamp cleared) or re-disconnect (stamp refreshed) makes the original
+reaper a silent no-op while the fresh disconnect schedules its own.
+`RoomService.sweepDisconnected` stays as a test/recovery utility but
+nothing in production calls it. Default grace is 5 min
+(`DEFAULT_REAPER_GRACE` in `RoomSocketRoutes.kt`).
+
+**Why:** The original
+[2026-05-19 cron-sweep design](#2026-05-19--multiplayer-reconnect-grace-timer--seat-sweep)
+assumed an out-of-band scheduler. In practice rooms live in RAM on
+the same Fly machine as the socket, so an external cron added latency
+(worst-case seat-block was TTL + cron interval, ~10 min on the GHA
+5-min floor) and a dependency for nothing — there's no shared
+backplane for a separate process to coordinate. Per-disconnect timer
+collapses that to a flat 5 min and removes the admin endpoint, the
+admin token usage, the GHA workflow, and the env knob.
+
+**Alternatives considered:**
+- *Keep the cron sweep, just shorten cadence:* GitHub Actions can't
+  go below 5 min, and uptime-monitor services add another external
+  dependency for the same job. Strictly worse than the in-process
+  alternative for state that's already in RAM.
+- *Application-scoped scheduler (Quartz / Ktor's deprecated
+  `KtorPlugin` lifecycle):* overkill for one timer per disconnect.
+  Plain `launch { delay(); ... }` on the Application scope dies with
+  the server, which is the desired shape.
+- *Heartbeat-driven eviction* (Ktor's WS ping/pong with a "miss N
+  pongs → evict" rule): more accurate than a fixed grace, but the
+  disconnect already gives us a precise stamp and the user-visible
+  outcome is identical. Reserve for the multi-instance future where
+  the room state moves off the WS-owning process.
+
+**Status:** Landed. Supersedes the cron-sweep design
+[2026-05-19 — Multiplayer: reconnect grace timer + seat sweep](#2026-05-19--multiplayer-reconnect-grace-timer--seat-sweep).
+
+## 2026-05-25 — Session-aware repository refresh (Shop catalog is the first adopter)
+
+**Decision:** Repositories that own server-driven reference data refresh on
+*session boundaries*, not on screen entry or fixed-time TTLs. A new
+`SessionTracker` (`:libraries:cards`) publishes `Session(id, startedAtMs,
+reason)` when the process cold-boots or the app foregrounds after ≥ 15 min
+in background. Repos persist the catalog snapshot via
+`:libraries:storage`'s `Cache<T>` along with `lastFetchSessionId` +
+`fetchedAtEpochMs`, hydrate from disk on init (so the first frame has
+content), and self-trigger a refresh when the session id rolls past
+`lastFetchSessionId`. Pull-to-refresh still forces. Snapshots older than 7
+days are dropped on init. Repos also expose `observeIsRefreshing()` so
+the screen can show its spinner without the VM having to know which call
+triggered the refresh.
+
+**Why:** Two symptoms reported 2026-05-24 — (1) offline cold-starts show
+empty content even though we've cached it before, and (2) hot routes
+over-fetch (15-min in-memory window was doing almost nothing under the
+current `graphScopedViewModel` lifecycle: the VM is alive across tab
+switches, so init refresh only fires once per cold launch anyway). The
+session model maps cleanly onto user intuition ("come back tomorrow → see
+fresh content; come back from the share sheet → don't re-fetch") and
+does the right thing without leaking trigger logic into every consumer.
+
+**Alternatives considered:**
+- **Bump the freshness window to 24h / forever.** Doesn't solve the
+  cold-start-empty problem; relies on the VM-lifetime trick to be
+  load-bearing forever.
+- **Refresh on every tab entry.** Wastes bandwidth; same data, repeated.
+- **`SessionAwareCache<T>` superclass.** Tempting but premature — each
+  repo's "what's too stale to show" + "what triggers a refresh"
+  questions differ enough that a forced abstraction would mostly export
+  hooks. Revisit once a third repo adopts the pattern.
+
+**Status:** Landed (Shop catalog). Remaining surfaces (inventory, avatar
+catalog, achievements, profile) are tracked in
+[`developer-todo.md`](./developer-todo.md) — each needs a per-endpoint
+call before adoption.

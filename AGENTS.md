@@ -4,26 +4,22 @@ Guidelines for AI agents working in the Cards repository.
 
 ## Overview
 
-KMP (Kotlin Multiplatform) app with Compose Multiplatform. Modular architecture with Room database, navigation, and SEAViewModel pattern.
-
-This is **Kotlin Multiplatform**—most code is shared, but some platform features (permissions, sensors, native APIs) require platform-specific implementations. When implementing something not inherently cross-platform, follow the patterns in `docs/swift-kotlin-communication-patterns.md`.
+KMP (Kotlin Multiplatform) app with Compose Multiplatform. Modular architecture with Room database, navigation, and SEAViewModel pattern. Most code is shared; platform features (permissions, sensors, native APIs) need platform-specific impls — follow `docs/swift-kotlin-communication-patterns.md`.
 
 ## Where work comes from
 
-The repo has three standing task surfaces plus one ephemeral one. Each has a distinct role; agents must respect the boundary.
-
 | Surface | Shelf life | Who picks from it | Contents |
 | --- | --- | --- | --- |
-| [`docs/todo.md`](docs/todo.md) | Standing | AI workers + human | Active engineering work — current ship target. **Everything in this file is worker-pickable.** No "needs the human" carve-out here. |
-| [`docs/backlog.md`](docs/backlog.md) | Standing | Human curates; AI may append | Someday/maybe ideas and follow-ups. Workers don't pick from here, but **append** new items here when they notice good follow-ups outside their current scope. |
-| [`docs/developer-todo.md`](docs/developer-todo.md) | Standing | Human curates; reviewer may append | Anything only the human can do — credentials, GitHub settings, dashboard / external-service config, device QA, content writing, deferred product decisions. **Automated workers must never edit this file.** The reviewer may *append* a one-line entry when a PR creates a new human-only follow-up, but may not edit or delete existing entries. |
-| PR "Heads up" section | Ephemeral (per PR) | Reviewer writes; human reads | Per-cycle follow-ups tied to *this* PR's diff — visual deltas to eyeball, scope calls made, untested paths to QA, reminders that the PR depends on a still-open `developer-todo.md` entry. Lives in the PR body, not in any tracked file. |
+| [`docs/todo.md`](docs/todo.md) | Standing | AI workers + human | Active engineering work — current ship target. Everything here is worker-pickable. |
+| [`docs/backlog.md`](docs/backlog.md) | Standing | Human curates; AI may append | Someday/maybe + follow-ups. Workers don't pick from here; they **append** when noticing good follow-ups outside current scope. |
+| [`docs/developer-todo.md`](docs/developer-todo.md) | Standing | Human curates; reviewer may append | Human-only — credentials, GitHub settings, dashboard config, device QA, content writing, deferred product decisions. **Workers must never edit.** Reviewer may *append* a one-line entry per cycle; may not edit/delete existing entries. |
+| PR "Heads up" section | Ephemeral (per PR) | Reviewer writes; human reads | Per-cycle follow-ups tied to *this* PR's diff. Lives in the PR body. |
 
-**Routing rule for human-only follow-ups:** if it dies the moment the human acts on it this cycle, it goes in the PR Heads up. If it's a standing item the human still owes across many cycles, it goes in `developer-todo.md` (and may be mentioned once in Heads up so it's not invisible).
+Routing for human-only items: dies the moment the human acts on it this cycle → PR Heads up; standing across cycles → `developer-todo.md` (mention once in Heads up so it's not invisible).
 
-If you complete or close out a `docs/todo.md` item, also drop a short entry in [`docs/decisions.md`](docs/decisions.md) when the change involved a non-trivial architectural call (see "Decisions log" below).
+Closing a `docs/todo.md` item that involved a non-trivial architectural call → add an entry to [`docs/decisions.md`](docs/decisions.md).
 
-Automated nightly runs use [`docs/agent/`](docs/agent/) for their own state — the worker and reviewer prompts live there, and the ephemeral `docs/agent/in-flight.md` is the handoff log between workers and the 5am reviewer (created by workers, deleted by the reviewer in the PR).
+Nightly automation uses [`docs/agent/`](docs/agent/) for prompts and the ephemeral `in-flight.md` handoff log (workers create, reviewer deletes in the PR).
 
 ## Build Commands
 
@@ -44,18 +40,18 @@ libraries/<name>/      # Interfaces
 libraries/<name>/impl/ # Implementations
 ```
 
-**Rules** — enforced at Gradle configuration by the convention plugins:
+**Rules** — enforced by the convention plugins at Gradle configuration:
 
-- Only `:apps:*` may depend on `*:impl`. Impls are DI wiring composed by the app, not consumed by other modules.
-- Feature `impl` modules may depend on another feature's `api`. Feature `api` modules may **not** depend on other feature `api`s (api-to-api is a cycle risk — shared types go in a library).
+- Only `:apps:*` may depend on `*:impl`. Impls are DI wiring composed by the app.
+- Feature `impl` may depend on another feature's `api`. Feature `api` may **not** depend on other feature `api`s (cycle risk — shared types go in a library).
 - Sub-modules of the same feature (`:features:foo:storage` → `:features:foo`) are allowed.
-- `:libraries:storage:impl` is the one shared impl — it owns the `AppDatabase`.
+- `:libraries:storage:impl` is the one shared impl — it owns `AppDatabase`.
 
 Shared code → libraries. Main modules expose interfaces only; impl modules contain implementations.
 
 ## Conventional Commits (required)
 
-Every commit (and every PR title — PRs are squash-merged) must follow [Conventional Commits](https://www.conventionalcommits.org/). Release-please derives the next version bump from commit history.
+Every commit and PR title (PRs squash-merge) must follow [Conventional Commits](https://www.conventionalcommits.org/). Release-please derives the next version bump from commit history.
 
 | Type | When | Version bump |
 | --- | --- | --- |
@@ -65,7 +61,7 @@ Every commit (and every PR title — PRs are squash-merged) must follow [Convent
 | `feat!:` / `BREAKING CHANGE:` | Breaking change | major |
 | `refactor:`, `style:`, `test:`, `docs:`, `ci:`, `build:`, `chore:`, `revert:` | No user impact | none |
 
-A local `.githooks/commit-msg` hook enforces this on every commit. The Gradle build fails with an install-hooks message if the hook isn't wired — run `./scripts/install_hooks.sh`.
+`.githooks/commit-msg` enforces this locally. Gradle fails with an install-hooks message if the hook isn't wired — run `./scripts/install_hooks.sh`.
 
 ## Convention Plugins
 
@@ -90,7 +86,7 @@ class MyImpl : MyInterface
 @ContributesBinding(AppScope::class, multibinding = true)
 ```
 
-No expect/actual for platform impls—bind different implementations per platform. iOS impls written in Swift get passed into the DI graph via `IosAppComponentFactory.create(...)`.
+No expect/actual for platform impls — bind different implementations per platform. iOS impls written in Swift get passed into the DI graph via `IosAppComponentFactory.create(...)`.
 
 ## SEAViewModel Pattern
 
@@ -110,7 +106,7 @@ class MyViewModel : SEAViewModel<State, Event, Action>(initialStateArg = State()
 
 ### Fire-and-forget actions outlive the screen
 
-`handleAction` runs on `viewModelScope`. If the user navigates away mid-action, the VM dies and the in-flight work is cancelled. For actions whose *completion must reach the server* even if the user pops the screen (leaving a room, forfeiting a seat, telemetry writes), inject `AppCoroutineScope` from `:libraries:flowroutines` and wrap the network call:
+`handleAction` runs on `viewModelScope`. If the user navigates away mid-action, the VM dies and in-flight work cancels. For actions whose *completion must reach the server* even if the user pops the screen (leaving a room, forfeiting a seat, telemetry writes), inject `AppCoroutineScope` from `:libraries:flowroutines` and wrap the network call:
 
 ```kotlin
 @Inject
@@ -129,11 +125,11 @@ class MyViewModel(
 }
 ```
 
-The `appScope.async { … }.await()` pattern keeps the call's job parented to the app-lifetime scope; `viewModelScope`'s cancellation only cancels the awaiting continuation, not the underlying call. Anything that only exists to update the screen's own state stays in `viewModelScope` — don't reach for `AppCoroutineScope` for ordinary loads.
+`appScope.async { … }.await()` keeps the call's job parented to the app-lifetime scope; `viewModelScope`'s cancellation only cancels the awaiting continuation, not the underlying call. Anything that only exists to update the screen's own state stays in `viewModelScope`.
 
 ## Coroutines & dispatchers
 
-**Never reach for `Dispatchers.{Main,IO,Default,Unconfined}` directly in production code.** Inject [`DispatcherProvider`](libraries/flowroutines/src/commonMain/kotlin/com/cards/libraries/flowroutines/DispatcherProvider.kt) and use `dispatchers.io`, `dispatchers.default`, etc. The DI graph already binds `DefaultDispatcherProvider`, so consumer classes just take it as a constructor parameter.
+**Never reach for `Dispatchers.{Main,IO,Default,Unconfined}` directly in production code.** Inject [`DispatcherProvider`](libraries/flowroutines/src/commonMain/kotlin/com/cards/libraries/flowroutines/DispatcherProvider.kt) and use `dispatchers.io`, `dispatchers.default`, etc. The DI graph already binds `DefaultDispatcherProvider`.
 
 ```kotlin
 @Inject
@@ -144,13 +140,13 @@ class MyRepository(
 }
 ```
 
-Why: tests can swap in a `TestDispatcherProvider` (from `:libraries:flowroutines:testing`) whose four dispatchers all route to a single `TestDispatcher`, so the test scheduler controls every coroutine the code launches — including CPU-bound work. Direct `Dispatchers.Default` references can't be virtualized and produce flaky tests that race a real thread pool.
+Why: tests swap in `TestDispatcherProvider` (from `:libraries:flowroutines:testing`) whose four dispatchers all route to one `TestDispatcher`, so the test scheduler controls every coroutine — including CPU-bound work. Direct `Dispatchers.Default` can't be virtualized and produces flaky tests racing a real thread pool.
 
-The same rule applies to `withContext`, `launch(context = …)`, and any constructor parameter that takes a `CoroutineDispatcher`: take the provider, not the dispatcher.
+Same rule for `withContext`, `launch(context = …)`, and any constructor parameter taking a `CoroutineDispatcher`: take the provider, not the dispatcher.
 
 ## Testing infrastructure
 
-**Extend `CoroutineTest`** ([libraries/flowroutines/testing](libraries/flowroutines/testing/src/commonMain/kotlin/com/cards/libraries/flowroutines/testing/CoroutineTest.kt)) for any test that touches a ViewModel, a `Flow`, or any suspend code. Add the module to your `commonTest` deps:
+**Extend `CoroutineTest`** ([libraries/flowroutines/testing](libraries/flowroutines/testing/src/commonMain/kotlin/com/cards/libraries/flowroutines/testing/CoroutineTest.kt)) for any test touching a ViewModel, `Flow`, or suspend code. Add to `commonTest` deps:
 
 ```kotlin
 commonTest.dependencies {
@@ -161,8 +157,8 @@ commonTest.dependencies {
 What you get:
 
 - `Dispatchers.setMain` / `resetMain` installed around each test — `viewModelScope` routes through the test scheduler.
-- `dispatchers: DispatcherProvider` — pass it to any production class that takes one. All four dispatchers are the same `TestDispatcher`.
-- `runUnitTest { … }` — wraps `runTest` and cancels leaked child coroutines on exit, so long-lived workers (a bot loop suspended on a channel, an infinite-flow collector) don't trip `UncompletedCoroutinesError`.
+- `dispatchers: DispatcherProvider` — pass to any production class that takes one. All four dispatchers are the same `TestDispatcher`.
+- `runUnitTest { … }` — wraps `runTest` and cancels leaked child coroutines on exit, so long-lived workers (bot loops, infinite-flow collectors) don't trip `UncompletedCoroutinesError`.
 
 ```kotlin
 class MyVmTest : CoroutineTest() {
@@ -177,7 +173,7 @@ class MyVmTest : CoroutineTest() {
 
 Default dispatcher is `UnconfinedTestDispatcher` — continuations run eagerly so `vm.takeAction(...)` propagates to `vm.state` in the same virtual tick. Override `testDispatcher` in a subclass when you need explicit `runCurrent` / `advanceUntilIdle` control.
 
-**Use [Turbine](https://github.com/cashapp/turbine) for Flow assertions.** `:libraries:flowroutines:testing` re-exports it. Prefer it to hand-rolled `launch { collect { … } }` patterns:
+**Use [Turbine](https://github.com/cashapp/turbine) for Flow assertions.** `:libraries:flowroutines:testing` re-exports it.
 
 ```kotlin
 @Test
@@ -190,7 +186,7 @@ fun emitsExpected() = runUnitTest {
 }
 ```
 
-**Don't write `Dispatchers.setMain` boilerplate in individual test files** — that's what the base is for. If a test needs to do something CoroutineTest doesn't expose, lift the helper into CoroutineTest rather than re-inventing it per file.
+Don't write `Dispatchers.setMain` boilerplate per test file — that's what the base is for. If a test needs something `CoroutineTest` doesn't expose, lift it into `CoroutineTest` rather than re-inventing per file.
 
 ## Navigation
 
@@ -203,19 +199,19 @@ dialog<DialogRoute> { backStackEntry, dialogState -> ... }
 navigation<MyGraph>(startDestination = MyRoute()) { screen<...>; bottomSheet<...> }
 ```
 
-**Use `bottomSheet<>` for transient picker / overlay UIs** (a settings list, a "select an item" sheet) rather than pushing a full screen. The backstack stays one entry deep, the underlying screen is visible under a scrim, and `sheetState.dismiss()` is a clean exit. Reach for full `screen<>` only when the destination is its own context (settings page, detail view).
+**Use `bottomSheet<>` for transient picker / overlay UIs** (settings list, "select an item" sheet) rather than pushing a full screen. Backstack stays one deep, the underlying screen shows under a scrim, `sheetState.dismiss()` is a clean exit. Reach for `screen<>` only when the destination is its own context.
 
-**Open external URLs via `Router.openWebLink(url)`** — don't roll your own platform `Intent.ACTION_VIEW` / `UIApplication.shared.open` plumbing. The implementation is in `libraries/navigation/impl/.../{Android,Ios,Jvm}WebLinkLauncher.kt` and is already wired into the DI graph and the `Router` interface.
+**Open external URLs via `Router.openWebLink(url)`** — don't roll your own `Intent.ACTION_VIEW` / `UIApplication.shared.open`. Impl lives in `libraries/navigation/impl/.../{Android,Ios,Jvm}WebLinkLauncher.kt`, already DI-wired.
 
 ### Routing rules
 
-**Composables don't route.** Navigation is initiated from a ViewModel or a feature entry point (the `buildNavGraph` lambdas), not from a leaf view. If a button needs to navigate, the view fires a callback / action and the entry point or VM translates it to a `Router` call. This keeps the navigation graph greppable from one place and makes screens trivially previewable.
+**Composables don't route.** Navigation is initiated from a ViewModel or a feature entry point (the `buildNavGraph` lambdas), not from a leaf view. A button needing to navigate fires a callback/action; the entry point or VM translates it to a `Router` call. Keeps the graph greppable from one place and screens trivially previewable.
 
-**`Router` is the only navigation API.** There's no `LocalNavController` and no other handle to `NavHostController`. If you find yourself wanting one, the operation you need probably belongs on `Router` — promote it there. The single supported escape hatch for **VM scoping** is `Router.backStackEntryFor<T>()`, wrapped by `Router.graphScopedViewModel<TGraph, TVm>(factory)`. Don't use it for anything else.
+**`Router` is the only navigation API.** No `LocalNavController`, no other `NavHostController` handle. If you want one, the operation you need probably belongs on `Router` — promote it. Sole escape hatch for **VM scoping** is `Router.backStackEntryFor<T>()`, wrapped by `Router.graphScopedViewModel<TGraph, TVm>(factory)`. Don't use it for anything else.
 
-**Tab roots are arg-less.** `HomeRoute`, `ShopRoute`, `ProfileRoute` and any future tab destinations take no constructor args. Tab switching uses `saveState` + `restoreState`, which restores the saved entry's original args verbatim — new args on a fresh `switchTab(SameRoute(newArgs))` are silently dropped. Put one-shot intent on a **sub-route** of the tab, not on the tab root. See `docs/decisions.md` (2026-05-24).
+**Tab roots are arg-less.** `HomeRoute`, `ShopRoute`, `ProfileRoute` and future tab destinations take no constructor args. Tab switching uses `saveState` + `restoreState`, which restores the saved entry's original args verbatim — new args on a fresh `switchTab(SameRoute(newArgs))` are silently dropped. Put one-shot intent on a **sub-route** of the tab. See `docs/decisions.md` (2026-05-24).
 
-**Cross-tab deep-links chain through `Router.batch`.** If you need to switch tabs and push a sub-route on top, do it in one atomic block:
+**Cross-tab deep-links chain through `Router.batch`.** Switch tabs and push a sub-route atomically:
 
 ```kotlin
 router.batch {
@@ -224,31 +220,75 @@ router.batch {
 }
 ```
 
-Don't write the two calls sequentially — if the caller's scope (a VM, a composable) is torn down between calls, the second one will never run. `batch` queues the whole block as one op so the caller can't strand itself mid-sequence.
+Don't write the two calls sequentially — if the caller's scope tears down between them, the second never runs. `batch` queues the whole block as one op.
 
-**Share a ViewModel across screens in the same tab by nesting in a graph.** Wrap the tab's routes in `navigation<TabGraph>(startDestination = TabRoot()) { ... }` and resolve the VM via `router.graphScopedViewModel<TabGraph, TabViewModel> { factory() }` from each screen. The VM lives as long as anything in the graph is on the back stack, which is the natural scope for tab-wide state.
+**Share a ViewModel across screens in the same tab by nesting in a graph.** Wrap the tab's routes in `navigation<TabGraph>(startDestination = TabRoot()) { ... }` and resolve via `router.graphScopedViewModel<TabGraph, TabViewModel> { factory() }` from each screen. The VM lives as long as anything in the graph is on the back stack — natural scope for tab-wide state.
 
 ## App-wide state
 
-`AppData` (in `libraries/<projectid>/.../AppCache.kt`) is a `@Serializable` data class persisted via `CacheFactory.persistent`. Add fields here for things like:
+`AppData` (in `libraries/<projectid>/.../AppCache.kt`) is a `@Serializable` data class persisted via `CacheFactory.persistent`. Add fields here for:
 
 - Onboarding flags (`hasUserOnboarded`)
 - User-facing setting toggles
 - Counters / lightweight telemetry (`feedbacksGiven`, `bugsReported`)
 
-Don't roll a new persistent cache for a single boolean — extend `AppData`. Round-trip is automatic via `versionedJsonSerializer` (missing fields fall back to defaults, so adding a field is non-breaking). For an example wrapper that exposes `StateFlow<Boolean>` for Compose, see how a feature-level store reads `AppCache.updates` and writes via `appCache.update { it.copy(...) }`.
+Don't roll a new persistent cache for a single boolean — extend `AppData`. Round-trip is automatic via `versionedJsonSerializer` (missing fields fall back to defaults). For a `StateFlow<Boolean>` wrapper example, see how a feature-level store reads `AppCache.updates` and writes via `appCache.update { it.copy(...) }`.
+
+## Repository read-path caching
+
+For server-driven reference data — catalogs, packs, anything where a slightly stale view is fine — repositories follow the **session-aware cache pattern**: persist the last successful response to disk, hydrate on init so the first frame has content, and only re-fetch when [`SessionTracker`](libraries/cards/src/commonMain/kotlin/com/cards/libraries/Session.kt) signals a new session (cold boot or foreground after ≥15 min in background). Pull-to-refresh / forced refresh always bypasses. A persisted snapshot older than the per-repo max age (7 days for both adopters today) gets dropped on read so the user never sees something hopelessly stale.
+
+The two reference implementations:
+
+- [`ProductsRepositoryImpl`](libraries/products/impl/src/commonMain/kotlin/com/cards/libraries/products/impl/ProductsRepositoryImpl.kt) — shop catalog. Observable shape (`observeCatalog`, `observeIsRefreshing`); the repo auto-refreshes on session rollover, the VM just subscribes.
+- [`ProfileRepositoryImpl.fetchAvatarPack`](libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/profile/ProfileRepositoryImpl.kt) — avatar pack catalog. Suspend shape with internal dedup; same disk + session machinery underneath, plus a hardcoded fallback pack so a network failure on a fresh install still renders a usable picker.
+
+Lean on the cache by default. Showing yesterday's data while a refresh lands is almost always better than showing a loading spinner over an empty surface. New surfaces that read reference data: pick one of these two impls as a template. See [`docs/decisions.md` — "2026-05-25 — Session-aware repository refresh"](docs/decisions.md).
+
+### When this pattern fits — and when it doesn't
+
+Pick the read-path policy **per repository**, not globally. Consistency vs. availability is a real trade-off and different resources sit in different places on it.
+
+| Resource shape | Pattern |
+|---|---|
+| **Server-driven reference data** that changes on the order of days (catalogs, packs, app config, leaderboard tier definitions) | **Session-aware cache** — disk-persisted, refresh on session rollover, pull-to-refresh forces. Shop catalog + avatar pack are the references. |
+| **Per-user mutable state** with optimistic local writes (inventory after a purchase, equipped cosmetics, chip wallet, XP ledger) | **Write-through + sync** — local DB (Room) is the source of truth between syncs; server reconciles. *Not* session-aware: forcing this pattern would make a just-redeemed item "vanish" until the next session boundary. See `InventoryRepositoryImpl` / `EquipmentRepositoryImpl` / `ChipsRepositoryImpl`. |
+| **User-mutable identity / profile** (display name, avatar emoji on `/v1/me`) | **Auth-driven cache** — refresh when auth state changes; writes apply optimistically. *Not* session-aware: a user who just renamed themselves shouldn't see the old name for the rest of the session. See `ProfileRepositoryImpl`'s profile resolve path. |
+| **Time-sensitive per-user inbox** (announcements, urgent banners) | **Refresh-on-entry** with a short freshness window. A missed inbox item is worse than a wasted fetch. |
+| **Live state** (open WebSocket rooms, online presence, current hand) | **Never cache** — subscribe to the live source. |
+| **Money / accuracy-critical reads** (final wallet balance for a purchase confirmation, hand-history audit) | **Always-network**. A stale chip balance shown next to a "Buy" button is a real bug. |
+
+Bias toward cache-first when in doubt, but never force this pattern onto a resource whose contract demands freshness. When extending a repo, write down which row above it falls in — the read-path-policy bullet in `docs/developer-todo.md` tracks the remaining unconverted reads.
+
+### Boot-time construction: the `AutoInit` marker
+
+The session-aware cache only works if the repository is constructed before the user touches the screen that reads it. Kotlin-inject singletons are constructed lazily on first injection, so a repo that nobody touches until a deep nav target stays cold — the hydrate-from-disk and session-rollover observer don't run, defeating the point.
+
+For repositories where the warm path matters (catalog grids, avatar pickers, app-lifecycle dispatchers, anything whose `init {}` is load-bearing), implement [`AutoInit`](libraries/core/src/commonMain/kotlin/com/cards/libraries/core/AutoInit.kt) and contribute a second binding via multibinding:
+
+```kotlin
+@SingleIn(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = ProductsRepository::class)
+@ContributesBinding(AppScope::class, boundType = AutoInit::class, multibinding = true)
+@Inject
+class ProductsRepositoryImpl(...) : ProductsRepository, AutoInit
+```
+
+The `Set<AutoInit>` is resolved at app start (`CardsApplication.onCreate` on Android, `iOSApp.init` on iOS, `App.kt` remember-block on Compose first composition). Resolving the set forces every contributor to construct, which runs their `init {}` — that's where hydrate-from-disk + session-observer subscription + lifecycle-listener registration happen.
+
+**Opt in** when first-touch latency the user notices, an `init {}` that registers a listener, or a session-aware cache that needs its observer running before the user can navigate. **Skip** for debug-only / config-override / QA-menu repos and anything whose `init {}` is empty. The failure mode for forgetting the marker is a perf regression, not a correctness one — the class still works lazily — so the bigger risk is overuse making boot slow.
 
 ## Compose previews (required for screens)
 
-Every user-facing screen composable needs `@Preview` coverage. Without it, iterating on UI means rebuild → reinstall → navigate to the screen → set up the state by hand — every change. With previews, Android Studio renders the screen instantly and you can flip through every meaningful state.
+Every user-facing screen composable needs `@Preview` coverage. Without it, iterating means rebuild → reinstall → navigate → set up state by hand, every change. With previews, Studio renders the screen instantly across states.
 
 **The rules:**
 
 1. **Every public screen-level composable** in a `:features:*:impl` module must have at least one `@Preview`. New screens land with previews in the same PR.
-2. **Cover the meaningful states**, not just the happy path. For a typed `State` UI, that's one preview per logically distinct rendering — e.g. for `PlayBotsScreen`: your turn / bot thinking / raise unavailable / showdown / fold-around / loading. The bugs that escape tests are usually state-specific; previews catch them.
-3. **Screens that take a `ViewModel` directly aren't previewable** as-is. Extract a stateless `XxxScreenContent` that takes raw inputs (state values + callbacks); the public `XxxScreen(viewModel)` becomes a thin wrapper that collects state and delegates. Previews target the content composable.
-4. **Use `PreviewContent { ... }`** from `:libraries:ui` as the wrapper — it provides the theme, clock, build info, and dialog host so previews match runtime appearance.
-5. **Import `@Preview` from** `org.jetbrains.compose.ui.tooling.preview.Preview` (multiplatform-compatible), not the Android-only one.
+2. **Cover the meaningful states**, not just happy path. For `PlayBotsScreen`: your turn / bot thinking / raise unavailable / showdown / fold-around / loading. State-specific bugs are exactly what previews catch.
+3. **Screens that take a `ViewModel` directly aren't previewable.** Extract a stateless `XxxScreenContent` taking raw inputs (state values + callbacks); the public `XxxScreen(viewModel)` becomes a thin wrapper that collects state and delegates. Previews target the content composable.
+4. **Use `PreviewContent { ... }`** from `:libraries:ui` as the wrapper — it provides theme, clock, build info, and dialog host so previews match runtime.
+5. **Import `@Preview` from** `org.jetbrains.compose.ui.tooling.preview.Preview` (multiplatform), not the Android-only one.
 6. **Name previews `<ScreenName>Preview_<StateDescription>`** so the Studio preview pane lists them readably.
 
 ```kotlin
@@ -265,13 +305,13 @@ private fun PlayBotsScreenPreview_YourTurnPreflop() {
 }
 ```
 
-**Sample-data factories** for complex state types (table state, profile settings, etc.) belong as `private fun preview<Thing>()` helpers in the same file as the screen. They're for `@Preview` only — don't reuse them as test fixtures (real tests build state through the engine).
+**Sample-data factories** for complex state types belong as `private fun preview<Thing>()` helpers in the same file as the screen — `@Preview`-only. Don't reuse as test fixtures (real tests build state through the engine).
 
-**Repository / Flow dependencies in previews:** for screens that take a repository or `Flow<…>`, define a small `private class Preview<Type>` in-file that returns canned values. See `PreviewConfigOverrideRepository` in `QaMenuScreen.kt`.
+**Repository / Flow dependencies in previews:** define a small `private class Preview<Type>` in-file that returns canned values. See `PreviewConfigOverrideRepository` in `QaMenuScreen.kt`.
 
 ## Cross-cutting state in Compose
 
-When something (a service, a setting, a theme value) is needed by every composable in a subtree but doesn't belong on the screen-level ViewModel, prefer a `staticCompositionLocalOf` over threading parameters. Provide it once at the subtree root:
+When something (a service, a setting, a theme value) is needed by every composable in a subtree but doesn't belong on the screen-level ViewModel, prefer a `staticCompositionLocalOf` over threading parameters. Provide once at the subtree root:
 
 ```kotlin
 val LocalMyService = staticCompositionLocalOf<MyService> { NoopMyService }
@@ -282,11 +322,11 @@ CompositionLocalProvider(LocalMyService provides realService) {
 }
 ```
 
-Default it to a noop, never `error("not provided")`. This keeps `@Preview` and unit tests trivial — they get the noop automatically.
+Default to a noop, never `error("not provided")`. Keeps `@Preview` and unit tests trivial.
 
 ## Remote-tunable values (`:libraries:config`)
 
-Anything that should be changeable without shipping a build — min supported version, maintenance banner, XP multipliers, timer defaults, feature kill switches — goes through `:libraries:config`. Don't roll a parallel system.
+Anything that should change without shipping a build — min supported version, maintenance banner, XP multipliers, timer defaults, feature kill switches — goes through `:libraries:config`. Don't roll a parallel system.
 
 Declare values on a `FeatureConfig` subclass; they automatically appear in the debug QA menu (`features/profile/impl/.../QaMenuScreen.kt`) for per-session override.
 
@@ -300,70 +340,68 @@ class UpgradeConfig(configMap: AppConfigMap) : FeatureConfig(
 }
 ```
 
-Resolution cascade: debug override → server override → QA override → default. Hard-coded defaults always exist so the app works offline / cold cold-start. Server-side, `:apps:server` serves `GET /v1/app-config` from `AppConfigSource`.
+Resolution cascade: debug override → server override → QA override → default. Hard-coded defaults always exist so the app works offline / cold-start. Server-side, `:apps:server` serves `GET /v1/app-config` from `AppConfigSource`.
 
 ## Decisions log
 
-`docs/decisions.md` is an append-only architectural decisions log. **Add an entry whenever you make a non-trivial architectural call** (new module boundary, choice of library, scope cut, schema shape). Each entry: date, the decision, the alternatives considered, and *why*. Future agents (and the user) read this to understand the shape of the codebase without re-deriving every call.
+`docs/decisions.md` is an append-only architectural decisions log. **Add an entry whenever you make a non-trivial architectural call** (new module boundary, choice of library, scope cut, schema shape). Each entry: date, the decision, alternatives considered, and *why*. Future agents (and the user) read this to understand the shape of the codebase without re-deriving every call.
 
 ## Design system (DS-first rule)
 
 **Every screen must lean on the design system. Don't hand-tune one-off styling.**
 
-The DS lives in `:libraries:ui` — colors, surface tokens, typography, spacing, and primitive components (`ChipBadge`, `XpBadge`, `LastActionPill`, `ListSection`, `BottomSheet`, etc.). Surface colors come from `AppTheme.colors.{surfacePrimary, surfaceSecondary, surfaceTertiary, surfaceDisabled, accentPrimary, danger, ...}`. Typography from `AppTheme.typography.{Heading, Body, Display}`.
+The DS lives in `:libraries:ui` — colors, surface tokens, typography, spacing, and primitives (`ChipBadge`, `XpBadge`, `LastActionPill`, `ListSection`, `BottomSheet`, etc.). Surfaces from `AppTheme.colors.{surfacePrimary, surfaceSecondary, surfaceTertiary, surfaceDisabled, accentPrimary, danger, ...}`. Typography from `AppTheme.typography.{Heading, Body, Display}`.
 
 **Concrete rules:**
 
-1. **No raw `Color.White.copy(alpha = X)` for surface backgrounds.** Use a `surface*` token. The alpha-on-white pattern produces a one-off shade per call site; the screens drift apart and the DS becomes nominal rather than load-bearing. Surfaces, pills, cards, callout boxes — all `AppTheme.colors.surface*`. The hand-tuned alphas we used in early V1 (chip pills, action pills, info cards) caused real bugs: the chip-pill cutoff and the action-pill-overlap were symptoms of the same "hand-tuned tile" mindset.
-2. **Reuse the existing primitives before writing a new one.** `ChipBadge` / `XpBadge` / `RankBadge` for chip-style affordances. `ListSection` / `ListSectionItem` for settings rows. `BottomSheet` for slide-up sheets. `Dialog` for modals (with `maxHeightFraction` for tall scrollable content). `Screen` for the outer scaffold. If you're about to write a `Box { background, clip, padding, Text }` for the third time, lift it to `:libraries/ui` first.
-3. **Borders, dividers, and emphasis lines** use `AppTheme.colors.border` / `borderSecondary` — not hand-tuned white alpha.
-4. **Pokemon-game-specific visual artifacts** (chip-gold, card-back-blue, suits) live in `PokerPalette` in `:libraries:ui/system/color/`. Anything semantic (background, surface, accent, text) uses the theme tokens.
-5. **Spacing comes from `Dimension`** tokens (`Dimension.D200`, `D400`, `D800`, etc.) when you have several values at once; one-off `dp` literals are fine for small offsets. Corner radii come from `Radii` tokens — numeric scale `R300/R400/R500/R600`, semantic aliases `Banner/Callout/Card/Button`. Pass `Radii.X.shape` to `Modifier.clip` / `border` / `Shape` parameters (the `.shape` accessor is the de-facto convention; there's also a `Modifier.clip(radius)` overload).
-6. **The DS isn't frozen — extend it when the existing tokens don't fit.** If you reach for `RoundedCornerShape(12.dp)` or `Color(0xFF...)` or `Box { background, clip, padding }` because nothing in `:libraries:ui` matches, the right move is to *add the missing token/primitive* in `:libraries:ui` and use it from the callsite — not hand-tune a one-off. Same for `Dimension`, `Radii`, `AppTheme.colors`, `AppTheme.typography`. New tokens are cheap; drift is not.
+1. **No raw `Color.White.copy(alpha = X)` for surface backgrounds.** Use a `surface*` token. Alpha-on-white produces a one-off shade per callsite; screens drift apart and the DS becomes nominal. Surfaces, pills, cards, callout boxes — all `AppTheme.colors.surface*`. Early V1 hand-tuned alphas caused real bugs (chip-pill cutoff, action-pill-overlap).
+2. **Reuse existing primitives before writing a new one.** `ChipBadge` / `XpBadge` / `RankBadge` for chip-style affordances. `ListSection` / `ListSectionItem` for settings rows. `BottomSheet` for slide-up sheets. `Dialog` for modals (with `maxHeightFraction` for tall scrollable content). `Screen` for the outer scaffold. If you're about to write a `Box { background, clip, padding, Text }` for the third time, lift it to `:libraries/ui` first.
+3. **Borders, dividers, emphasis lines** use `AppTheme.colors.border` / `borderSecondary` — not hand-tuned white alpha.
+4. **Poker-game-specific visual artifacts** (chip-gold, card-back-blue, suits) live in `PokerPalette` in `:libraries:ui/system/color/`. Anything semantic (background, surface, accent, text) uses theme tokens.
+5. **Spacing comes from `Dimension`** tokens (`Dimension.D200`, `D400`, `D800`, …) when you have several at once; one-off `dp` literals are fine for small offsets. Corner radii from `Radii` tokens — numeric `R300/R400/R500/R600`, semantic aliases `Banner/Callout/Card/Button`. Pass `Radii.X.shape` to `Modifier.clip` / `border` / `Shape` parameters; there's also a `Modifier.clip(radius)` overload.
+6. **The DS isn't frozen — extend it when tokens don't fit.** If you reach for `RoundedCornerShape(12.dp)` or `Color(0xFF...)` or `Box { background, clip, padding }` because nothing in `:libraries:ui` matches, *add the missing token/primitive* in `:libraries:ui` and use it from the callsite — don't hand-tune a one-off. Same for `Dimension`, `Radii`, `AppTheme.colors`, `AppTheme.typography`. New tokens are cheap; drift is not.
 
-**The DS-first instinct is what keeps screens from feeling like a-grab-bag-of-Compose.** When in doubt, ask "could I drop this into another screen and have it look at home?" If the answer is "only if I retune the alpha values" — extract it to the DS first.
+When in doubt: "could I drop this into another screen and have it look at home?" If the answer is "only if I retune the alpha values" — extract it to the DS first.
 
 ### `Base*` + opinionated DS components
 
-For any DS component big enough that a one-off caller might want to escape the defaults, expose **two layers**: an opinionated `<Name>(...)` for the 99% path, and a raw `Base<Name>(...)` for genuine one-offs. This is the general convention — Dialog/BottomSheet are the worked examples, future big primitives (overlays, banners, full-screen sheets, complex composite widgets) should follow the same shape.
+For any DS component big enough that a one-off caller might want to escape the defaults, expose **two layers**: opinionated `<Name>(...)` for the 99% path, raw `Base<Name>(...)` for genuine one-offs. Dialog/BottomSheet are the worked examples; future big primitives (overlays, banners, full-screen sheets, composite widgets) follow the same shape.
 
-- The **opinionated layer** owns DS decisions: surface tokens, padding, typography, default radius / shape, animation feel. It's what keeps screens visually coherent across features. Most callers should never need anything else.
-- The **`Base*` layer** owns the mechanics — state, layout skeleton, scrim / sheet behaviour, dismissal wiring — and nothing about how it *looks*. It's gated by `@LowLevelDSComponent` (a `RequiresOptIn` warning shared across the whole DS, so callers learn one opt-in signal regardless of which family they're escaping).
+- **Opinionated layer** owns DS decisions: surface tokens, padding, typography, default radius/shape, animation feel. Keeps screens visually coherent. Most callers never need anything else.
+- **`Base*` layer** owns mechanics — state, layout skeleton, scrim/sheet behaviour, dismissal wiring — and nothing about how it *looks*. Gated by `@LowLevelDSComponent` (a `RequiresOptIn` warning shared across the DS, so callers learn one opt-in signal regardless of which family they're escaping). Warning, not error — error friction pushes callers back to hand-rolled `Box { background, clip, padding }`, which is worse than a deliberate `Base*` use.
 
-**DS-first instinct.** When the opinionated default doesn't fit your case, *extend the opinionated default* — add a content slot, expose an override, ship a sibling overload — before reaching for `Base*`. The escape hatch is for genuinely weird one-offs; if a second screen ever needs the same escape, the right move is to lift their shared shape into the opinionated layer.
-
-Warning-level opt-in (not error) is intentional. Error friction pushes callers back to hand-rolled `Box { background, clip, padding }`, which is worse than a deliberate `Base*` use.
+When the opinionated default doesn't fit, *extend it* — add a content slot, expose an override, ship a sibling overload — before reaching for `Base*`. If a second screen ever needs the same escape, lift their shared shape into the opinionated layer.
 
 **Current pairs:**
 - `Dialog` / `BaseDialog` — center modal. Most callers want `Dialog`.
-- `BottomSheet` / `BaseBottomSheet` — slide-up sheet. Most callers want `BottomSheet`. (Today `HandRankingsCheatSheet` is on `BaseBottomSheet` because the opinionated wrapper doesn't yet expose the content shape it needs — that's the kind of gap that should resolve by extending `BottomSheet`, not by entrenching the escape hatch. See `docs/todo.md`.)
+- `BottomSheet` / `BaseBottomSheet` — slide-up sheet. Most callers want `BottomSheet`. (`HandRankingsCheatSheet` is on `BaseBottomSheet` because the opinionated wrapper doesn't yet expose the content shape it needs — should resolve by extending `BottomSheet`, not entrenching the escape. See `docs/todo.md`.)
 
-Top-edge emoji bubbles attach to both dialog and sheet layers — dialogs via `emoji = dialogEmoji("🎉")`, sheets via `dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉")`. Theme-aware construction goes through the `dialogEmoji(...)` factory so defaults always apply.
+Top-edge emoji bubbles attach to both — dialogs via `emoji = dialogEmoji("🎉")`, sheets via `dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉")`. Theme-aware construction goes through `dialogEmoji(...)` so defaults always apply.
 
 ## Coding Guidelines
 
-- Code like a staff engineer
-- Use `Catching { }` from libraries/core instead of `runCatching`. `runCatching` swallows `CancellationException`, which breaks structured concurrency in suspend functions and coroutine scopes. `Catching` rethrows it (while preserving `TimeoutCancellationException`). Use it everywhere for consistency, not just inside coroutines.
-- Every HTTP call flows through one of three `NetworkClient` helpers: `authedCall("description") { client -> … }`, `unauthedCall(...)`, or `authedWebSocketSession(...)`. They share one code path: pre-flight `awaitAuthReady()` (for the authed variants so the request timeout doesn't tick during auth bootstrap), structured failure logging, and an opt-in `RetryPolicy`. Default is `RetryPolicy.None` — pass `RetryPolicy.idempotent()` only when the endpoint is genuinely idempotent (upsert / idempotency-key / read). The name is documentation: by choosing it you're affirming the server can safely process the same request twice. Non-idempotent POSTs (purchases, room creation, etc.) leave retry at `None`. Direct access to `NetworkClient.client` / `authenticatedClient` is gated by `@InternalNetworkingApi` — new callers can't touch a raw HttpClient without explicit opt-in.
-- No comments in code
-- Custom UI components in libraries/ui—avoid Material directly
-- Check `ComposeApp.h` for Swift names of Kotlin types before using in Swift
+- Code like a staff engineer.
+- Use `Catching { }` from `libraries/core` instead of `runCatching`. `runCatching` swallows `CancellationException`, which breaks structured concurrency in suspend functions and coroutine scopes. `Catching` rethrows it (preserving `TimeoutCancellationException`). Use it everywhere for consistency, not just inside coroutines.
+- Every HTTP call flows through one of three `NetworkClient` helpers: `authedCall("description") { client -> … }`, `unauthedCall(...)`, or `authedWebSocketSession(...)`. Shared code path: pre-flight `awaitAuthReady()` (for authed variants so the request timeout doesn't tick during auth bootstrap), structured failure logging, opt-in `RetryPolicy`. Default is `RetryPolicy.None` — pass `RetryPolicy.idempotent()` only when the endpoint is genuinely idempotent (upsert / idempotency-key / read). The name is documentation: choosing it affirms the server can safely process the same request twice. Non-idempotent POSTs (purchases, room creation) leave retry at `None`. Direct access to `NetworkClient.client` / `authenticatedClient` is gated by `@InternalNetworkingApi`.
+- No comments in code.
+- Custom UI components in `libraries/ui` — avoid Material directly.
+- Check `ComposeApp.h` for Swift names of Kotlin types before using in Swift.
 
 ## iOS Notes
 
-- iOS framework compiled from `apps/compose`, embedded as `ComposeApp.xcframework`
-- Swift types passed to Kotlin via `IosAppComponentFactory.create(...)`
-- Reference `apps/compose/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework/Headers/ComposeApp.h` for generated Swift interfaces
-- **Use `@ObjCName("TypeName", exact = true)` on Kotlin types used from Swift** to give stable names that won't change when project is renamed:
+- iOS framework compiled from `apps/compose`, embedded as `ComposeApp.xcframework`.
+- Swift types passed to Kotlin via `IosAppComponentFactory.create(...)`.
+- Reference `apps/compose/build/bin/iosSimulatorArm64/debugFramework/ComposeApp.framework/Headers/ComposeApp.h` for generated Swift interfaces.
+- **Use `@ObjCName("TypeName", exact = true)` on Kotlin types used from Swift** to give stable names that survive project rename:
   ```kotlin
   @file:OptIn(ExperimentalObjCName::class)
   import kotlin.experimental.ExperimentalObjCName
   import kotlin.native.ObjCName
-  
+
   @ObjCName("MyType", exact = true)
   interface MyType { ... }
   ```
-  Note: The `exact = true` parameter prevents module prefixes from being added. Without it, the Swift name would be `<ModuleName><ObjCName>` (e.g., `KmptemplateMyType`).
+  `exact = true` prevents the module prefix (without it the Swift name becomes `<ModuleName><ObjCName>`, e.g. `KmptemplateMyType`).
 
 ## Key Files
 
@@ -376,4 +414,3 @@ Top-edge emoji bubbles attach to both dialog and sheet layers — dialogs via `e
 | Swift↔Kotlin patterns | `docs/swift-kotlin-communication-patterns.md` |
 | Architecture decisions log (append-only) | `docs/decisions.md` |
 | Remote config + QA menu | `libraries/config/...`, `features/profile/impl/.../QaMenuScreen.kt` |
-

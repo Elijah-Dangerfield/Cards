@@ -102,56 +102,24 @@ jobs:
 / failedToDelete`; a non-zero `failedToDelete` is worth investigating
 in Sentry.
 
-## Disconnected-room-member sweep (required for MP launch)
+## Disconnected-room-member reaper (in-process)
 
 Per-room WebSocket disconnect holds the member's seat in case the client
-reconnects (mobile networks bounce all the time). Without a sweep, those
-seats sit forever and a single bad day at the cellular tower can lock
-out a friend group's room. The server exposes a maintenance endpoint
-that reaps members whose socket has been down for at least
-`ROOM_DISCONNECTED_MEMBER_TTL_MINUTES` (default 5). Empty rooms are
-GC'd as a side effect.
+reconnects (mobile networks bounce all the time). The server schedules
+a per-member reaper on every disconnect — `delay(5min)` then drop the
+seat iff the member is still disconnected with the same stamp. A
+reconnect (or a fresh disconnect) cancels the original reaper out
+naturally because the stamp on the member no longer matches.
 
-```
-fly secrets set \
-  ROOM_DISCONNECTED_MEMBER_TTL_MINUTES=5 \
-  -a cards-server-dev
-```
+No cron, no admin token, no external scheduler. Rooms live in memory
+on the same Fly instance as the socket, so an in-process timer is the
+right tool — there's nothing for a separate process to coordinate.
 
-`ADMIN_API_TOKEN` is shared with the anon sweep (one token, multiple
-endpoints).
-
-Trigger frequently — every minute is reasonable, every 5 minutes is the
-floor. GitHub Actions' minimum cron cadence is 5 minutes; for tighter
-intervals use an external uptime monitor (UptimeRobot, Cronitor, the
-Fly's own scheduled-machines feature) that lets you call a URL with a
-custom header.
-
-GitHub Actions example (`.github/workflows/sweep-rooms.yml`):
-
-```yaml
-on:
-  schedule:
-    - cron: '*/5 * * * *'   # every 5 minutes
-  workflow_dispatch:
-jobs:
-  sweep:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          curl --fail-with-body -X POST \
-            -H "X-Admin-Token: ${{ secrets.CARDS_ADMIN_API_TOKEN_DEV }}" \
-            https://cards-server-dev.fly.dev/v1/admin/sweep-disconnected-room-members
-```
-
-Response body shows `membersReaped / roomsReaped / roomsSeen`. A spike
-in `membersReaped` correlates with network blips; a spike in
-`roomsReaped` correlates with abandoned room codes (host bailed without
-explicit leave).
-
-If the cron is offline for long enough that disconnects pile up, the
-next run still drains the backlog in one pass — the sweep is O(rooms ×
-members), bounded by the in-memory state.
+If we ever move rooms to durable storage with a shared backplane, this
+becomes "schedule a delayed task on the backplane" instead of an
+in-process `launch { delay(...) }`. The grace constant lives in
+[`RoomSocketRoutes.kt`](src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt)
+as `DEFAULT_REAPER_GRACE`.
 
 ## Inspecting live rooms (ops dashboard)
 

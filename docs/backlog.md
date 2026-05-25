@@ -345,3 +345,33 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 **Tradeoff:** Bespoke preview surface per-cosmetic-type drifts toward a maintenance pit — but the felt is the highest-stakes purchase visually (it dominates the play screen), so it's worth a one-off for now. Generalize only if other cosmetic categories (card backs, avatars) feel similarly purchase-blind.
 
 **Status:** Backlog. Surfaced during the 2026-05-24 todo cleanup — user suggested it during the charcoal-default correction.
+
+---
+
+## Friends activity feed
+
+**Idea (raised 2026-05-24):** A feed of things your friends have just done — "Jake won a 12K pot", "Jake leveled up to 14", "Vivienne unlocked Comeback Kid", "Steve sat down at a Standard table." Lives somewhere on Home (likely above or below the existing FriendsStrip / RecentlyPlayedWithStrip) or on a dedicated Activity tab. Same "warm signal that the world is alive" instinct as the existing ActivityTicker, but scoped to people the user actually knows.
+
+**Sketch:**
+- Server emits activity events into a per-user log when a friend hits a notable threshold — big pot won, level up, achievement earn, league promotion, rare cosmetic equipped, sat at a notable stake. Each event carries `(friendUserId, kind, payload, occurredAtEpochMs)`. Fan-out is the friend graph; only the user's friends' events land in their log.
+- Client `FriendActivityRepository.observeFeed(limit = 20)` returns newest-first; the Home shelf renders the top N with a "see all" tap-through to a paginated screen.
+- Event copy templated client-side from a small renderer (`kind` → composable row), so localization + per-event treatment stays in one place. Avatar + display name come from the friend profile cache.
+- De-noise: collapse rapid-fire events from the same friend ("Jake won 3 hands" instead of 3 rows), cap obvious-flex events (don't render every +5 chip win), skip duplicates if the user was at the table.
+
+**Notable thresholds — first pass:**
+- Pot won ≥ N chips (tier-aware: 5K Casual / 10K Standard / 50K High).
+- Level up (every level, or just every 5th — design call).
+- Achievement unlocked (rarity ≥ RARE; COMMONs are too noisy).
+- League promotion (when leagues ship).
+- Limited-drop cosmetic equipped within the drop window.
+
+**Hard deps:**
+- The friends / social-graph system already on `docs/todo.md` §A — without a real friend graph, there's no feed to populate.
+- Server-side event-emission hooks at hand-resolution / progression / inventory paths. Cheapest if these reuse the existing achievement / XP grant code paths and just write an additional row.
+
+**Tradeoffs:**
+- Privacy: friends seeing each other's stack swings is the appeal *and* the risk. Default-on is the right call for "warm", but a per-event-kind opt-out in Settings ("hide my level-ups from the feed", "hide my big pots") keeps the user in control. Don't ship without that lever.
+- Voice rules per [product-spec.md](./product/product-spec.md): no urgency, no "X people are waiting!" pressure. The feed is observational, not push-marketed.
+- Noise: this surface dies the moment it feels like a Twitter timeline. Aggressive de-duping + thresholds + a hard cap on shelf size matter more than picking the right event kinds.
+
+**Status:** Backlog. Strictly downstream of the friends/social-graph system; pull once the friend graph is real.

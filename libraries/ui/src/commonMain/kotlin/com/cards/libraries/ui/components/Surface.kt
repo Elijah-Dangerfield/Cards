@@ -54,6 +54,10 @@ fun Surface(
     indication: Indication? = null,
     role: Role? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
+    // Raw-Color escape hatch for backgrounds that don't map to a DS token
+    // (e.g. per-equipped-felt accent surfaces driven from a CompositionLocal).
+    // Wins over `color` when non-null; default path stays type-safe.
+    colorOverride: androidx.compose.ui.graphics.Color? = null,
     content: @Composable () -> Unit,
 ) {
     Box(
@@ -69,7 +73,8 @@ fun Surface(
                 elevation = elevation,
                 clip = true,
                 alpha = alpha,
-                border = border
+                border = border,
+                colorOverride = colorOverride,
             )
             .bounceClick(
                 enabled = enabled,
@@ -127,10 +132,12 @@ private fun Modifier.background(
     clip: Boolean,
     alpha: Float,
     border: Border?,
+    colorOverride: androidx.compose.ui.graphics.Color? = null,
 ): Modifier = inspectable(
     androidx.compose.ui.platform.debugInspectorInfo {
         name = "background"
         properties["color"] = color
+        properties["colorOverride"] = colorOverride
         properties["shape"] = shape
         properties["elevation"] = elevation.dp
         properties["clip"] = clip
@@ -139,6 +146,7 @@ private fun Modifier.background(
     }
 ) {
     val backgroundShape = if (border == null || border.color.color.alpha < 0.99f) shape else shape.inset(border.width / 2f)
+    val effectiveColor: androidx.compose.ui.graphics.Color? = colorOverride ?: color?.color
     this
         .thenIf(elevation > Elevation.None || alpha < 1f) {
             graphicsLayer {
@@ -154,8 +162,8 @@ private fun Modifier.background(
         .thenIfNotNull(border) {
             this.border(width = it.width, color = it.color.color, shape = shape)
         }
-        .thenIfNotNull(color) {
-            this.background(color = it.color, shape = shape)
+        .thenIfNotNull(effectiveColor) {
+            this.background(color = it, shape = shape)
         }
         .thenIf(clip) { clip(backgroundShape) }
 }

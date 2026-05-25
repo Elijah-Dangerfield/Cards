@@ -33,32 +33,36 @@ import com.dangerfield.cards.libraries.ui.components.icon.IconResource
 import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.components.text.TextConfig
+import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 
 @OptIn(ExperimentalMaterial3Api::class)
+@LowLevelDSComponent
 @Composable
-internal fun BasicButton(
+internal fun BaseButton(
     backgroundColor: ColorResource?,
     borderColor: ColorResource?,
     contentColor: ColorResource,
     size: ButtonSize,
-    style: ButtonStyle,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: IconResource? = null,
     contentPadding: PaddingValues = size.padding(hasIcon = icon != null),
     enabled: Boolean = true,
+    flat: Boolean = false,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
 
     CompositionLocalProvider(LocalMinimumInteractiveComponentEnforcement provides false) {
 
+        val effectiveOnClick = if (enabled) onClick else onDisabledTap
         Box(
             contentAlignment = Alignment.Center,
-            modifier = modifier.thenIf(enabled) {
+            modifier = modifier.thenIf(effectiveOnClick != null) {
                 bounceClick(
                     mutableInteractionSource = interactionSource,
-                    onClick = onClick
+                    onClick = effectiveOnClick!!
                 )
             }
         ) {
@@ -66,7 +70,13 @@ internal fun BasicButton(
                 modifier = modifier
                     .semantics { role = Role.Button },
                 radius = Radii.Button,
-                elevation = if (backgroundColor != null) Elevation.Button else Elevation.None,
+                // `flat` suppresses the drop shadow on filled buttons so
+                // they sit perfectly flush — useful inside surfaces that
+                // already carry elevation (cards, sheets) where stacking
+                // shadows reads as visual noise. Outlined / text buttons
+                // already render with no elevation, so the flag is a
+                // no-op for them.
+                elevation = if (!flat && backgroundColor != null) Elevation.Button else Elevation.None,
                 color = backgroundColor,
                 contentColor = contentColor,
                 border = borderColor?.let {
@@ -133,7 +143,6 @@ private val ExtraSmallButtonTextConfig: TextConfig
         typography = AppTheme.typography.Label.L400,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 private val SmallButtonTextConfig: TextConfig
@@ -141,7 +150,6 @@ private val SmallButtonTextConfig: TextConfig
         typography = AppTheme.typography.Label.L500,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 private val MediumButtonTextConfig: TextConfig
@@ -149,15 +157,13 @@ private val MediumButtonTextConfig: TextConfig
         typography = AppTheme.typography.Label.L600,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 private val LargeButtonTextConfig: TextConfig
     @Composable get() = TextConfig(
-        typography = AppTheme.typography.Label.L600.SemiBold,
+        typography = AppTheme.typography.Label.L700,
         overflow = TextOverflow.Ellipsis,
         maxLines = 1,
-        allCaps = true
     )
 
 
@@ -191,7 +197,7 @@ private val SmallButtonWithIconPadding = PaddingValues(
 )
 
 private val MediumButtonPadding = PaddingValues(
-    horizontal = Dimension.D900,  // 24dp horizontal
+    horizontal = Dimension.D800,  // 24dp horizontal
     vertical = Dimension.D600      // 14dp vertical
 )
 
@@ -203,62 +209,62 @@ private val MediumButtonWithIconPadding = PaddingValues(
 )
 
 private val LargeButtonPadding = PaddingValues(
-    horizontal = Dimension.D900,
-    vertical = Dimension.D900
+    horizontal = Dimension.D800,
+    vertical = Dimension.D700
 )
 
 private val LargeButtonWithIconPadding = PaddingValues(
-    start = Dimension.D800,       // 20dp start (reduced, icon adds weight)
-    end = Dimension.D900,          // 24dp end (extra space for icon)
-    top = Dimension.D900,          // 16dp vertical (same as text-only)
-    bottom = Dimension.D900
+    start = Dimension.D700,       // 20dp start (reduced, icon adds weight)
+    end = Dimension.D800,          // 24dp end (extra space for icon)
+    top = Dimension.D700,          // 16dp vertical (same as text-only)
+    bottom = Dimension.D700
 )
 
 private val ButtonIconSpacing = Dimension.D200
 private val OutlinedButtonBorderWidth = StandardBorderWidth
 
+@OptIn(LowLevelDSComponent::class)
 @Preview
 @Composable
 private fun LargeButton() {
     PreviewContent {
-        BasicButton(
+        BaseButton(
             backgroundColor = AppTheme.colors.accentPrimary,
             borderColor = null,
             contentColor = AppTheme.colors.onAccentPrimary,
             size = ButtonSize.Large,
-            style = ButtonStyle.Filled,
             onClick = {},
             content = { Text(text = "Filled Button") }
         )
     }
 }
 
+@OptIn(LowLevelDSComponent::class)
 @Preview
 @Composable
 private fun MediumButton() {
     PreviewContent {
-        BasicButton(
+        BaseButton(
             backgroundColor = null,
             borderColor = AppTheme.colors.border,
             contentColor = AppTheme.colors.text,
             size = ButtonSize.Medium,
-            style = ButtonStyle.Outlined,
             onClick = {},
             content = { Text(text = "Outlined Button") }
         )
     }
 }
 
+@OptIn(LowLevelDSComponent::class)
 @Preview
 @Composable
 private fun SmallButton() {
     PreviewContent {
-        BasicButton(
+        BaseButton(
             backgroundColor = null,
             borderColor = null,
             contentColor = AppTheme.colors.accentPrimary,
             size = ButtonSize.Small,
-            style = ButtonStyle.Text,
             onClick = {},
             content = { Text(text = "Text Button") }
         )

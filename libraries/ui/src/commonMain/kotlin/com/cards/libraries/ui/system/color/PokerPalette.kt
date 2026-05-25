@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 object PokerPalette {
     /** Casino-chip gold — bet pills, pot icon, winner glow, dealer button gold variants. */
     val ChipGold: Color = Color(0xFFE0B863)
+    val ChipGoldOutline: Color = Color(0xFF765F2D)
+
 
     /** Card-face background. Slightly off-white so it doesn't blow out against dark surfaces. */
     val CardWhite: Color = Color(0xFFF4F1E8)

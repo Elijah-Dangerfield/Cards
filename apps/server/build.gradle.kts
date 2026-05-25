@@ -22,16 +22,21 @@ dependencies {
 
     implementation(libs.ktor.serverCore)
     implementation(libs.ktor.serverNetty)
-    implementation("io.ktor:ktor-server-content-negotiation:3.3.3")
-    implementation("io.ktor:ktor-server-cors:3.3.3")
-    implementation("io.ktor:ktor-server-status-pages:3.3.3")
-    implementation("io.ktor:ktor-server-call-logging:3.3.3")
-    implementation("io.ktor:ktor-server-call-id:3.3.3")
-    implementation("io.ktor:ktor-server-rate-limit:3.3.3")
+    // All Ktor server modules track the catalog `ktor` version. Earlier
+    // these were hardcoded to 3.3.3, which silently kept loading
+    // 3.3.x-compiled bytecode (e.g. ratelimit's `Route.getParent()` call)
+    // after the catalog bumped to 3.5.0 — symptom was NoSuchMethodError
+    // at runtime in WalletRoutesTest.
+    implementation(libs.ktor.serverContentNegotiation)
+    implementation(libs.ktor.serverCors)
+    implementation(libs.ktor.serverStatusPages)
+    implementation(libs.ktor.serverCallLogging)
+    implementation(libs.ktor.serverCallId)
+    implementation(libs.ktor.serverRateLimit)
     // WebSockets for the per-room presence channel + future server-
     // authoritative gameplay sync. Ktor's built-in ping/timeout handles
     // dead-peer detection without us hand-rolling a heartbeat.
-    implementation("io.ktor:ktor-server-websockets:3.3.3")
+    implementation(libs.ktor.serverWebsockets)
 
     // Error reporting. SDK initialises only when SENTRY_DSN is set,
     // so the dependency is paid (in jar size) but stays a no-op for
@@ -79,7 +84,7 @@ dependencies {
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.junit)
     testImplementation(libs.ktor.serverTestHost)
-    testImplementation("io.ktor:ktor-client-content-negotiation:3.3.3")
+    testImplementation(libs.ktor.client.contentNegotiation)
     testImplementation(libs.testcontainers.postgres)
 }
 

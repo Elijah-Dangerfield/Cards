@@ -30,8 +30,8 @@ import kotlinx.coroutines.launch
  * with the original blast's `emittedAtEpochMs`. Caller clears VM state
  * on that callback; the overlay then leaves the tree.
  *
- * Total duration is ~2.2s — long enough for the table to register the
- * reaction without obstructing play for more than a beat. A short
+ * Total duration is ~2.8s — long enough for the table to register the
+ * reaction without obstructing play for more than a beat. A
  * hold-at-peak between the pop and the drift gives the eye time to
  * read the emoji before it starts moving.
  *
@@ -116,8 +116,8 @@ internal fun EmojiBlastOverlay(
 
 private const val POP_IN_MS = 220
 /** Hold the peak-size emoji for this long before starting the drift+fade. */
-private const val HOLD_MS = 700
-private const val DRIFT_MS = 1300
+private const val HOLD_MS = 1100
+private const val DRIFT_MS = 1500
 private const val SCALE_START = 0.4f
 private const val SCALE_PEAK = 1.0f
 /** Drift up by ~50% of the column's height by the end of the animation. */

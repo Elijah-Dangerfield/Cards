@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ProvidableCompositionLocal
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.system.AppTheme
@@ -17,7 +19,7 @@ import com.dangerfield.cards.system.AppTheme
  * [Default], so a new server-side felt before the client knows it
  * renders sanely instead of crashing or going black.
  */
-enum class EquippedFelt { Default, RoyalRed, MidnightBlue, Charcoal, Sunset, Neon }
+enum class EquippedFelt { Default, RoyalRed, MidnightBlue, Charcoal, Sunset, Neon, PineGreen }
 
 /**
  * Resolves a catalog product id to the felt style it equips, or
@@ -29,6 +31,7 @@ fun feltForProductId(productId: String?): EquippedFelt = when (productId) {
     "felt_royal_red" -> EquippedFelt.RoyalRed
     "felt_midnight_blue" -> EquippedFelt.MidnightBlue
     "felt_charcoal" -> EquippedFelt.Charcoal
+    "felt_pine_green" -> EquippedFelt.PineGreen
     // Both the weekend-sale felt and the premium table theme share the
     // sunset palette — they're priced differently but they paint the
     // same warm-orange surface.
@@ -45,6 +48,12 @@ fun feltForProductId(productId: String?): EquippedFelt = when (productId) {
  * Note these are *intentionally* not in `PokerPalette` — they're a per-
  * user choice, not a brand constant. Keeping them local means a future
  * "server ships its own hex per product" pass touches one file.
+ *
+ * **Pine green** is deliberately a dark slate-green, not casino-green —
+ * product-spec §3.1 explicitly calls out "slate green used sparingly,
+ * never the saturated casino-green felt." The hex sits in the same
+ * luminance band as the other felts (≈8–11% lightness) so cards + chips
+ * stay readable.
  */
 @Composable
 fun feltSurfaceColor(felt: EquippedFelt): Color = when (felt) {
@@ -54,7 +63,42 @@ fun feltSurfaceColor(felt: EquippedFelt): Color = when (felt) {
     EquippedFelt.Charcoal -> Color(0xFF15171A)
     EquippedFelt.Sunset -> Color(0xFF3B1F12)
     EquippedFelt.Neon -> Color(0xFF1A0D2E)
+    EquippedFelt.PineGreen -> Color(0xFF14322B)
 }
+
+/**
+ * Surface accent that sits *on top of* the felt — icon-button backgrounds,
+ * subtle dividers, anything that would normally come from
+ * `AppTheme.colors.surfaceSecondary` but needs to stay legible against
+ * the equipped felt instead of the default app background.
+ *
+ * Rule of thumb: same hue as the felt, ~12–15% lighter. Reads as "raised
+ * felt" rather than "alien element pasted on a colored background."
+ * Default felt falls through to the standard secondary surface so the
+ * non-equipped case looks identical to before.
+ */
+@Composable
+fun feltAccentSurface(felt: EquippedFelt): Color = when (felt) {
+    EquippedFelt.Default -> AppTheme.colors.surfaceSecondary.color
+    EquippedFelt.RoyalRed -> Color(0xFF6A2429)
+    EquippedFelt.MidnightBlue -> Color(0xFF1E3061)
+    EquippedFelt.Charcoal -> Color(0xFF24272C)
+    EquippedFelt.Sunset -> Color(0xFF5A331F)
+    EquippedFelt.Neon -> Color(0xFF2D1A4A)
+    EquippedFelt.PineGreen -> Color(0xFF1F4A40)
+}
+
+/**
+ * The active felt's accent-surface color, scoped to the play surface. PlayPokerScreen
+ * provides this at the top of its content tree based on the equipped felt; any
+ * descendant element that needs a "raised felt" tone — icon-button backgrounds, subtle
+ * dividers, anything currently using `AppTheme.colors.surfaceSecondary` while sitting
+ * on the felt — should read this instead so it stays legible across all felt choices.
+ *
+ * Default fallback is the standard secondary surface, so reading this outside the play
+ * screen is harmless.
+ */
+val LocalFeltAccentSurface: ProvidableCompositionLocal<Color?> = compositionLocalOf { null }
 
 /**
  * Catalog productId → [CardBackStyle]. Same shape as

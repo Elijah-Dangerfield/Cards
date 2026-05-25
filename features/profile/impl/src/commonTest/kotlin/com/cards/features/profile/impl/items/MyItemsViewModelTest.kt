@@ -148,9 +148,11 @@ class MyItemsViewModelTest : CoroutineTest() {
     private class FakeProductsRepository : ProductsRepository {
         private val catalog = MutableStateFlow(ProductCatalog.Empty)
         private val anchor = MutableStateFlow<CatalogTimeAnchor?>(null)
+        private val refreshing = MutableStateFlow(false)
         override fun observeCatalog(): Flow<ProductCatalog> = catalog.asStateFlow()
         override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = anchor.asStateFlow()
-        override suspend fun refresh(): Result<ProductCatalog> = Result.success(catalog.value)
+        override fun observeIsRefreshing(): Flow<Boolean> = refreshing.asStateFlow()
+        override suspend fun refresh(force: Boolean): Result<ProductCatalog> = Result.success(catalog.value)
     }
 
     private class FakeEquipmentRepository(

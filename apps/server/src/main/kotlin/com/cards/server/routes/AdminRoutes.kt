@@ -23,7 +23,6 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.ExperimentalTime
 
 /**
@@ -63,37 +62,6 @@ fun Route.adminRoutes(
                     deleted = result.deleted,
                     failedToDelete = result.failedToDelete,
                     notConfigured = result.notConfigured,
-                ),
-            )
-        }
-
-        /**
-         * Frees seats whose socket has been dropped for at least
-         * [AdminConfig.disconnectedRoomMemberTtlMinutes]. Intended to be
-         * called frequently — every 1-5 minutes from an external cron —
-         * because room seats unlike anon users are short-lived and a
-         * blocked seat hurts UX immediately. Safe to call concurrently;
-         * the room mutex serializes.
-         *
-         * Returns 200 with the sweep summary regardless of whether any
-         * members got reaped — the caller logs the counts.
-         */
-        post("/sweep-disconnected-room-members") {
-            if (!call.authenticatedAsAdmin(config)) {
-                return@post call.respond(
-                    HttpStatusCode.Unauthorized,
-                    problemEnvelope("unauthorized", "Missing or invalid admin token."),
-                )
-            }
-            val result = rooms.sweepDisconnected(
-                maxIdle = config.disconnectedRoomMemberTtlMinutes.minutes,
-            )
-            call.respond(
-                HttpStatusCode.OK,
-                RoomSweepResponse(
-                    membersReaped = result.membersReaped,
-                    roomsReaped = result.roomsReaped,
-                    roomsSeen = result.roomsSeen,
                 ),
             )
         }
@@ -434,13 +402,6 @@ private data class SweepResponse(
     val deleted: Int,
     val failedToDelete: Int,
     val notConfigured: Boolean,
-)
-
-@Serializable
-private data class RoomSweepResponse(
-    val membersReaped: Int,
-    val roomsReaped: Int,
-    val roomsSeen: Int,
 )
 
 @Serializable

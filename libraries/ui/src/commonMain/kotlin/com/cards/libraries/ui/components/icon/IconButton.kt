@@ -37,11 +37,12 @@ fun IconButton(
     icon: IconResource,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    backgroundColor: ColorResource? = null,
+    backgroundColor: ColorResource? = AppTheme.colors.surfacePrimary,
     iconColor: ColorResource = LocalContentColor.current,
     size: Size = Size.Medium,
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    backgroundOverride: androidx.compose.ui.graphics.Color? = null,
 ) {
     val padding = size.padding
     val iconSize = size.iconSize
@@ -51,7 +52,12 @@ fun IconButton(
         Surface(
             modifier = modifier,
             contentPadding = PaddingValues(padding),
+            // Caller-supplied raw color (e.g. the per-felt accent on the
+            // play screen) wins over the DS-token `backgroundColor`. The
+            // primary path stays type-safe; the override is for surfaces
+            // whose background isn't expressible as a DS token.
             color = backgroundColor,
+            colorOverride = backgroundOverride,
             contentColor = iconColor,
             radius = Radii.IconButton,
             onClick = onClick,
@@ -80,16 +86,16 @@ object IconButton {
     }
 }
 
-internal val Size.padding: Dp
+val Size.padding: Dp
     get() = when (this) {
         Size.Smallest -> Dimension.D100
-        Size.Small -> Dimension.D100
-        Size.Medium -> Dimension.D100
-        Size.Large -> Dimension.D200
-        Size.Largest -> Dimension.D300
+        Size.Small -> Dimension.D200
+        Size.Medium -> Dimension.D300
+        Size.Large -> Dimension.D400
+        Size.Largest -> Dimension.D400
     }
 
-internal val Size.iconSize: IconSize
+val Size.iconSize: IconSize
     get() = when (this) {
         Size.Smallest -> IconSize.Smallest
         Size.Small -> IconSize.Small

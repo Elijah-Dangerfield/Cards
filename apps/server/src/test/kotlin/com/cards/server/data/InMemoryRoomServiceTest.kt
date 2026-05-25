@@ -466,6 +466,93 @@ class InMemoryRoomServiceTest {
         assertEquals(emptyList(), service.snapshot())
     }
 
+    // ---------- reapIfStillDisconnected ----------
+
+    @Test
+    fun reapIfStillDisconnected_reapsMatchingStamp() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+        service.markConnected(room.code, host, connected = true)
+        service.join(room.code, alice, "Alice")
+        service.markConnected(room.code, alice, connected = true)
+        service.markConnected(room.code, alice, connected = false)
+        val stamp = service.find(room.code)!!.memberFor(alice)!!.disconnectedAt!!
+
+        val reaped = service.reapIfStillDisconnected(room.code, alice, stamp)
+        assertTrue(reaped, "matching stamp on a still-disconnected member reaps")
+        assertNull(service.find(room.code)!!.memberFor(alice), "alice's seat freed")
+    }
+
+    @Test
+    fun reapIfStillDisconnected_skipsAfterReconnect() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+        service.markConnected(room.code, host, connected = true)
+        service.join(room.code, alice, "Alice")
+        service.markConnected(room.code, alice, connected = true)
+        service.markConnected(room.code, alice, connected = false)
+        val firstStamp = service.find(room.code)!!.memberFor(alice)!!.disconnectedAt!!
+
+        // She reconnects before the reaper fires — stale stamp must no-op.
+        service.markConnected(room.code, alice, connected = true)
+        val reaped = service.reapIfStillDisconnected(room.code, alice, firstStamp)
+        assertEquals(false, reaped, "stale stamp must not reap a reconnected member")
+        assertEquals(2, service.find(room.code)!!.members.size, "alice is still seated")
+    }
+
+    @Test
+    fun reapIfStillDisconnected_skipsAfterRedisconnect() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+        service.markConnected(room.code, host, connected = true)
+        service.join(room.code, alice, "Alice")
+        service.markConnected(room.code, alice, connected = true)
+        service.markConnected(room.code, alice, connected = false)
+        val firstStamp = service.find(room.code)!!.memberFor(alice)!!.disconnectedAt!!
+
+        // She bounces — reconnect, then re-drop with a fresh stamp.
+        service.markConnected(room.code, alice, connected = true)
+        clock.advance(1.minutes)
+        service.markConnected(room.code, alice, connected = false)
+        val secondStamp = service.find(room.code)!!.memberFor(alice)!!.disconnectedAt!!
+        assertNotEquals(firstStamp, secondStamp, "fresh disconnect stamps a new time")
+
+        // The original reaper (carrying firstStamp) is now stale.
+        assertEquals(false, service.reapIfStillDisconnected(room.code, alice, firstStamp))
+        assertEquals(2, service.find(room.code)!!.members.size)
+        // A reaper scheduled for the second stamp does its job.
+        assertTrue(service.reapIfStillDisconnected(room.code, alice, secondStamp))
+        assertNull(service.find(room.code)!!.memberFor(alice))
+    }
+
+    @Test
+    fun reapIfStillDisconnected_emptiedRoom_isGCd() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.createOrFail(host, "Host")
+        // create() stamps disconnectedAt = now on the host.
+        val stamp = service.find(room.code)!!.memberFor(host)!!.disconnectedAt!!
+
+        val reaped = service.reapIfStillDisconnected(room.code, host, stamp)
+        assertTrue(reaped)
+        assertNull(service.find(room.code), "last-out reap GCs the room same as leave()")
+    }
+
+    @Test
+    fun reapIfStillDisconnected_unknownRoomOrMember_isNoop() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = service.createOrFail(host, "Host")
+        val stamp = service.find(room.code)!!.memberFor(host)!!.disconnectedAt!!
+
+        assertEquals(false, service.reapIfStillDisconnected("ZZZZZZ", host, stamp))
+        assertEquals(false, service.reapIfStillDisconnected(room.code, alice, stamp))
+        assertNotNull(service.find(room.code), "no-op leaves the room alone")
+    }
+
     @Test
     fun sweepDisconnected_emitsRoomUpdate_throughObserveFlow() = runTest {
         val clock = AdvanceableClock()

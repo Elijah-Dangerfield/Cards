@@ -478,6 +478,11 @@ class MeRoutesTest {
         override suspend fun observe(code: String): kotlinx.coroutines.flow.Flow<Room>? = null
         override suspend fun sweepDisconnected(maxIdle: kotlin.time.Duration): RoomSweepResult =
             RoomSweepResult(0, 0, 0)
+        override suspend fun reapIfStillDisconnected(
+            code: String,
+            userId: UserId,
+            expectedDisconnectedAt: kotlin.time.Instant,
+        ): Boolean = false
         override suspend fun snapshot(): List<Room> = emptyList()
     }
 

@@ -18,7 +18,22 @@ package com.dangerfield.cards.server.domain
  *    emoji is a problem we don't need to take on.
  *  - No ZWJ sequences (broader font support, especially on older
  *    Android builds).
- *  - 16 entries — a clean 4×4 grid that fits without scroll.
+ *  - Kept deliberately basic — a small set of common animals plus two
+ *    poker-themed entries. Cooler / themed emojis live in paid unlock
+ *    packs so the purchase feels like a real upgrade.
+ *  - 8 entries — matches the 2×4 grid the onboarding picker renders
+ *    without scroll, and is the same 8 the client ships as its no-
+ *    network fallback list.
+ *
+ * **Append-only invariant.** Once an emoji is in [Starter] **it can
+ * never be removed**, only added to. Old APKs ship a hardcoded
+ * snapshot of this list as a no-network fallback; if the server were
+ * to drop an emoji that the user later patches with, their save would
+ * fail with `invalid_avatar_emoji`. This contract is what lets the
+ * client and server drift across releases without lockstep deploys.
+ * If a starter emoji ever needs to be retired, retire it from *new*
+ * picker rendering on the client only — leave it server-valid for
+ * existing profiles forever.
  *
  * Future packs live as siblings to [Starter]. To add one: define a
  * Pack with the matching `unlockProductId`, add it to [all]. Server
@@ -42,9 +57,7 @@ object AvatarPacks {
         name = "Starter pack",
         emojis = listOf(
             "🦊", "🐱", "🐼", "🐯",
-            "🦄", "🐲", "🦁", "🐸",
-            "🌵", "🌻", "🔥", "⚡",
-            "🃏", "🎲", "🎯", "🚀",
+            "🐸", "🦁", "🃏", "🎲",
         ),
     )
 

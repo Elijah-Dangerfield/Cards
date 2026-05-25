@@ -22,6 +22,7 @@ import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * Concurrent-safe in-memory [RoomService]. V1 ships only this — when MP
@@ -42,11 +43,10 @@ import kotlin.time.ExperimentalTime
  * pathological RNG misalignment).
  *
  * Reconnect grace: a member's `disconnectedAt` field stamps the moment
- * their socket dropped (or, for fresh joins, the join time itself). The
- * sweep [sweepDisconnected] reaps anyone past the configured TTL,
- * freeing their seat and (if it empties the room) GC'ing the room. The
- * sweep is exposed via `POST /v1/admin/sweep-disconnected-room-members`
- * and triggered on a cron, matching the orphan-anon-sweep pattern.
+ * their socket dropped (or, for fresh joins, the join time itself).
+ * The socket route schedules an in-process reaper per disconnect via
+ * [reapIfStillDisconnected]; that's the live path. [sweepDisconnected]
+ * remains as a bulk utility for tests + recovery scripts.
  */
 @SingleIn(ServerScope::class)
 @ContributesBinding(ServerScope::class)
@@ -240,6 +240,30 @@ class InMemoryRoomService(
             roomsReaped = roomsReaped,
             roomsSeen = roomsSeen,
         )
+    }
+
+    override suspend fun reapIfStillDisconnected(
+        code: String,
+        userId: UserId,
+        expectedDisconnectedAt: Instant,
+    ): Boolean = mutex.withLock {
+        val state = rooms[code] ?: return@withLock false
+        val current = state.room
+        val member = current.memberFor(userId) ?: return@withLock false
+        // Only reap when the disconnect we're scheduled for is the one
+        // still in place. A reconnect (disconnectedAt == null) or a
+        // re-disconnect (different stamp) means a fresh timer was
+        // scheduled and this call must no-op.
+        if (member.isConnected || member.disconnectedAt != expectedDisconnectedAt) {
+            return@withLock false
+        }
+        val survivors = current.members - member
+        if (survivors.isEmpty()) {
+            rooms.remove(code)
+        } else {
+            state.update(current.copy(members = survivors))
+        }
+        true
     }
 
     private fun generateUniqueCode(): String {

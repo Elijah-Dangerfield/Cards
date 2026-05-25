@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,8 +27,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.icon.IconButton
-import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -58,6 +58,12 @@ fun MyItemsScreen(
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
+        topBar = {
+            TopBar(
+                title = "My items",
+                onNavigateBack = onBack,
+            )
+        },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -65,19 +71,6 @@ fun MyItemsScreen(
                 .padding(padding)
                 .padding(horizontal = Dimension.D800),
         ) {
-            Spacer(modifier = Modifier.height(Dimension.D200))
-            IconButton(
-                icon = Icons.ArrowBack("Back"),
-                onClick = onBack,
-                iconColor = AppTheme.colors.onSurfacePrimary,
-            )
-            Spacer(modifier = Modifier.height(Dimension.D700))
-
-            Text(
-                text = "My items",
-                typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.onSurfacePrimary,
-            )
             Spacer(modifier = Modifier.height(Dimension.D300))
             Text(
                 text = if (state.ownedItems.isEmpty()) {
@@ -149,6 +142,10 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
                     Spacer(modifier = Modifier.size(Dimension.D200))
                     EarnedTag()
                 }
+                if (isPersonalCosmetic(item.productId)) {
+                    Spacer(modifier = Modifier.size(Dimension.D200))
+                    PersonalCosmeticTag()
+                }
             }
             item.description?.let { desc ->
                 Spacer(modifier = Modifier.height(4.dp))
@@ -204,6 +201,27 @@ private fun EarnedTag() {
             text = "Earned",
             typography = AppTheme.typography.Label.L300,
             color = AppTheme.colors.accentSecondary,
+        )
+    }
+}
+
+/**
+ * Mirrors the shop's per-tile "Only you" badge so the user sees the same
+ * affordance pre- and post-purchase. Categorisation lives in
+ * [isPersonalCosmetic].
+ */
+@Composable
+private fun PersonalCosmeticTag() {
+    Box(
+        modifier = Modifier
+            .clip(Radii.R400.shape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
+    ) {
+        Text(
+            text = "Only you see this",
+            typography = AppTheme.typography.Label.L300,
+            color = AppTheme.colors.onSurfaceSecondary,
         )
     }
 }

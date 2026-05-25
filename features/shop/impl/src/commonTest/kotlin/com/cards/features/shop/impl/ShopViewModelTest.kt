@@ -87,7 +87,7 @@ class ShopViewModelTest : CoroutineTest() {
         assertEquals(2, vm.state.catalog.chipPacks.size)
 
         repo.nextRefreshResult = Result.failure(RuntimeException("offline"))
-        vm.takeAction(ShopAction.Refresh)
+        vm.takeAction(ShopAction.Refresh(force = true))
 
         assertEquals(2, vm.state.catalog.chipPacks.size, "prior catalog preserved")
         assertEquals("offline", vm.state.errorMessage)
@@ -95,10 +95,15 @@ class ShopViewModelTest : CoroutineTest() {
 
     @Test
     fun dismissError_clearsErrorMessage() = runUnitTest {
+        // The VM no longer triggers a refresh from init (the repo
+        // self-triggers on session boundary). To surface an error
+        // for the dismiss-clears test, we have to explicitly pull
+        // to refresh and let it fail.
         val repo = FakeProductsRepository(SAMPLE_CATALOG).apply {
             nextRefreshResult = Result.failure(RuntimeException("boom"))
         }
         val vm = buildVm(productsRepository = repo)
+        vm.takeAction(ShopAction.Refresh(force = true))
         assertNotNull(vm.state.errorMessage)
 
         vm.takeAction(ShopAction.DismissError)
@@ -409,6 +414,7 @@ class ShopViewModelTest : CoroutineTest() {
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
         private val state = MutableStateFlow(initial)
         private val timeAnchor = MutableStateFlow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?>(null)
+        private val isRefreshing = MutableStateFlow(false)
         var nextRefreshResult: Result<ProductCatalog>? = null
 
         override fun observeCatalog(): Flow<ProductCatalog> = state.asStateFlow()
@@ -416,17 +422,24 @@ class ShopViewModelTest : CoroutineTest() {
         override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> =
             timeAnchor.asStateFlow()
 
-        override suspend fun refresh(): Result<ProductCatalog> {
-            val result = nextRefreshResult
-            if (result != null) {
-                nextRefreshResult = null
-                return result
+        override fun observeIsRefreshing(): Flow<Boolean> = isRefreshing.asStateFlow()
+
+        override suspend fun refresh(force: Boolean): Result<ProductCatalog> {
+            isRefreshing.value = true
+            try {
+                val result = nextRefreshResult
+                if (result != null) {
+                    nextRefreshResult = null
+                    return result
+                }
+                // Mirror the impl: every successful refresh updates the time
+                // anchor so tests can exercise time-anchor-aware code paths.
+                timeAnchor.value = com.dangerfield.cards.libraries.products.CatalogTimeAnchor
+                    .capture(serverNowEpochMs = 0L)
+                return Result.success(state.value)
+            } finally {
+                isRefreshing.value = false
             }
-            // Mirror the impl: every successful refresh updates the time
-            // anchor so tests can exercise time-anchor-aware code paths.
-            timeAnchor.value = com.dangerfield.cards.libraries.products.CatalogTimeAnchor
-                .capture(serverNowEpochMs = 0L)
-            return Result.success(state.value)
         }
     }
 

@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.home.impl
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,15 +11,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
@@ -31,22 +32,19 @@ fun HomeScreen(
     onPlayBots: () -> Unit,
     onQuickMatch: () -> Unit,
     onFriendGame: () -> Unit,
-    onTournament: () -> Unit,
-    onTapAvatar: () -> Unit,
+    onTapLevel: () -> Unit,
     onTapCash: () -> Unit,
     onRejoinRoom: (code: String) -> Unit,
-    onTapFeaturedDrop: () -> Unit,
     onTapFriends: () -> Unit,
     onTapAchievements: () -> Unit,
     onAddRecentOpponent: (opponentId: String) -> Unit,
     onSeeAllRecentOpponents: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
     HomeScreenContent(
-        displayName = state.userName,
-        avatarEmoji = state.avatarEmoji,
-        avatarBackgroundColorHex = state.avatarBackgroundColorHex,
+        levelProgress = state.levelProgress,
         // Nullable on purpose: null = "local DB hasn't emitted yet"
         // (first launch or post-wipe). The chip pill renders a
         // placeholder ("—") in that state rather than flashing "0"
@@ -56,78 +54,69 @@ fun HomeScreen(
         onPlayBots = onPlayBots,
         onQuickMatch = onQuickMatch,
         onFriendGame = onFriendGame,
-        onTournament = onTournament,
-        onTapAvatar = onTapAvatar,
+        onTapLevel = onTapLevel,
         onTapCash = onTapCash,
         onRejoinRoom = onRejoinRoom,
         onForfeitRoom = { code -> viewModel.takeAction(HomeAction.Forfeit(code)) },
-        onTapFeaturedDrop = onTapFeaturedDrop,
         onTapFriends = onTapFriends,
         onTapAchievements = onTapAchievements,
         onAddRecentOpponent = onAddRecentOpponent,
         onSeeAllRecentOpponents = onSeeAllRecentOpponents,
+        recentAchievements = state.recentAchievements,
         modifier = modifier,
+        scrollState = scrollState,
     )
 }
 
 @Composable
 private fun HomeScreenContent(
-    displayName: String?,
-    avatarEmoji: String?,
-    avatarBackgroundColorHex: String?,
+    levelProgress: LevelProgress,
     chips: Long?,
     activeRooms: List<ActiveRoomSummary>,
     onPlayBots: () -> Unit,
     onQuickMatch: () -> Unit,
     onFriendGame: () -> Unit,
-    onTournament: () -> Unit,
-    onTapAvatar: () -> Unit,
+    onTapLevel: () -> Unit,
     onTapCash: () -> Unit,
     onRejoinRoom: (code: String) -> Unit,
     onForfeitRoom: (code: String) -> Unit,
-    onTapFeaturedDrop: () -> Unit,
     onTapFriends: () -> Unit,
     onTapAchievements: () -> Unit,
     onAddRecentOpponent: (opponentId: String) -> Unit,
     onSeeAllRecentOpponents: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollState: ScrollState = rememberScrollState(),
     // ----- Fake-data injection points (V1) --------------------------------
-    // The fake-data surfaces (ticker / friends / recents / achievements
-    // / featured drop) take their content as parameters so previews can
-    // exercise every state. Production callers use the defaults below
-    // until real reactive sources land — see docs/todo.md.
-    tickerSignals: List<String> = remember { defaultTickerSignals() },
+    // The friends / recently-played-with shelves take their content as
+    // parameters so previews can exercise every state. Production
+    // callers use the defaults below until real reactive sources land
+    // — see docs/todo.md. `recentAchievements` is already real-data
+    // driven from `HomeViewModel`; previews pass a list directly to
+    // exercise the shelf.
     onlineFriends: List<FriendOnline> = remember { defaultOnlineFriends() },
-    pendingFriendRequests: Int = 2,
-    recentAchievements: List<RecentAchievement> = remember { defaultRecentAchievements() },
+    pendingFriendRequests: Int = 0,
+    recentAchievements: List<RecentAchievement> = emptyList(),
     recentOpponents: List<RecentOpponent> = remember { defaultRecentOpponents() },
-    featuredDrop: FeaturedCosmetic = remember { defaultFeaturedDrop() },
 ) {
     Screen(modifier = modifier) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp),
         ) {
             VerticalSpacerD500()
-            // Slim "you are here" header. The profile screen owns the
-            // big avatar / level / rank treatment — Home just exposes
-            // tap-back-to-profile + tap-into-shop affordances.
+            // Slim header — Level pill (left) + chip balance (right). No
+            // avatar; profile is the avatar's home via the bottom-nav
+            // tab. Same balance pill the shop uses so the wallet
+            // affordance reads identically across surfaces.
             HomeHeader(
-                avatarName = displayName,
-                avatarEmoji = avatarEmoji,
-                avatarBackgroundColorHex = avatarBackgroundColorHex,
+                levelProgress = levelProgress,
                 chips = chips,
-                onTapAvatar = onTapAvatar,
+                onTapLevel = onTapLevel,
                 onTapChips = onTapCash,
             )
-
-            VerticalSpacerD800()
-            // Living-ecosystem ticker. Real signals once they exist;
-            // structural truths for V1.
-            ActivityTicker(signals = tickerSignals)
 
             activeRooms.forEach { room ->
                 VerticalSpacerD600()
@@ -139,47 +128,35 @@ private fun HomeScreenContent(
             }
 
             VerticalSpacerD1100()
-            SectionLabel("Take a seat")
+            SectionHeader(title = "Take a seat")
             VerticalSpacerD600()
             HomeCtaCard(
                 title = "Practice",
-                subtitle = "Bots, your pace. No chips on the line.",
-                glyph = "♠",
+                subtitle = "Solo vs. bots",
+                glyph = "🤖",
                 accent = FeatureCardAccents.Green,
                 onClick = onPlayBots,
             )
             VerticalSpacerD600()
-            HomeCtaCard(
-                title = "Quick Match",
-                subtitle = "Drop into a public seat.",
-                glyph = "⚯",
-                accent = FeatureCardAccents.Blue,
-                onClick = onQuickMatch,
-                trailing = "Soon",
-            )
-            VerticalSpacerD600()
+
             HomeCtaCard(
                 title = "Friend Game",
-                subtitle = "Room code · just you and yours.",
-                glyph = "✦",
+                subtitle = "Room code · just you and yours",
+                glyph = "👯‍♂️",
                 accent = FeatureCardAccents.Gold,
                 onClick = onFriendGame,
             )
-            VerticalSpacerD600()
-            HomeCtaCard(
-                title = "Tournament",
-                subtitle = "Royal Flush Tournament. Quarterly.",
-                glyph = "♛",
-                accent = FeatureCardAccents.Magenta,
-                onClick = onTournament,
-                enabled = false,
-                trailing = "V2",
-            )
 
-            VerticalSpacerD1100()
-            RecentAchievementsStrip(
-                items = recentAchievements,
-                onSeeAll = onTapAchievements,
+
+            VerticalSpacerD600()
+
+            HomeCtaCard(
+                title = "Quick Match",
+                subtitle = "Public seat · one tap",
+                glyph = "⏳",
+                accent = FeatureCardAccents.Blue,
+                onClick = onQuickMatch,
+                trailing = "Soon",
             )
 
             VerticalSpacerD1100()
@@ -190,6 +167,12 @@ private fun HomeScreenContent(
             )
 
             VerticalSpacerD1100()
+            RecentAchievementsStrip(
+                items = recentAchievements,
+                onSeeAll = onTapAchievements,
+            )
+
+            VerticalSpacerD1100()
             RecentlyPlayedWithStrip(
                 opponents = recentOpponents,
                 onAddFriend = { opponent -> onAddRecentOpponent(opponent.id) },
@@ -197,75 +180,43 @@ private fun HomeScreenContent(
             )
 
             VerticalSpacerD1100()
-            FeaturedCosmeticCard(item = featuredDrop, onClick = onTapFeaturedDrop)
-
-            VerticalSpacerD1100()
             BottomBarSpacer()
         }
     }
 }
 
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        typography = AppTheme.typography.Heading.H500,
-        color = AppTheme.colors.text,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
 // --------------------------------------------------------------------------
 // Fake data — V1 placeholders for signals that don't have real sources yet.
 //
-// Activity ticker: spec-honest "structural truths" (season countdowns,
-// table readiness) rather than invented player names. Friends + recents +
-// achievements + featured drop: shaped to drop in once the real sources
-// land. See docs/todo.md (§Home redesign — wire-up to real data).
+// Friends + recents: shaped to drop in once the real sources land. See
+// docs/todo.md (§Home redesign — wire-up to real data).
 // --------------------------------------------------------------------------
-
-private fun defaultTickerSignals(): List<String> = listOf(
-    "Bots warm and waiting.",
-    "Season 1 of the Hall — 5 weeks left.",
-    "Slate Felt drops this week.",
-    "Royal Flush Tournament arrives in V2.",
-)
 
 private fun defaultOnlineFriends(): List<FriendOnline> = listOf(
     FriendOnline(
-        displayName = "Vivienne",
+        id = "f_jordan",
+        displayName = "Jordan",
         emoji = "🦊",
         avatarBackgroundColorHex = "#E48A58",
-        tableLabel = "50/100 standard table",
+        tableLabel = "Friend room",
     ),
     FriendOnline(
-        displayName = "Steve",
-        emoji = "🐢",
-        avatarBackgroundColorHex = "#5894E4",
-        tableLabel = "Heads-up vs Mike",
+        id = "f_priya",
+        displayName = "Priya",
+        emoji = "💀",
+        avatarBackgroundColorHex = "#9E9E9E",
+        tableLabel = "Practice",
+    ),
+    FriendOnline(
+        id = "f_marcus",
+        displayName = "Marcus",
+        emoji = "🐉",
+        avatarBackgroundColorHex = "#5DA75A",
+        tableLabel = "Quick match",
     ),
 )
 
-private fun defaultRecentAchievements(): List<RecentAchievement> = listOf(
-    RecentAchievement(
-        id = "first_hand",
-        name = "First Blood",
-        icon = "🩸",
-        rarityColor = Color(0xFF8E7CC3),
-    ),
-    RecentAchievement(
-        id = "hands_100",
-        name = "Centurion",
-        icon = "💯",
-        rarityColor = Color(0xFF4FC3F7),
-    ),
-    RecentAchievement(
-        id = "pot_2k",
-        name = "Big Pot",
-        icon = "💰",
-        rarityColor = Color(0xFFE07AB1),
-    ),
-)
+private fun defaultRecentAchievements(): List<RecentAchievement> = emptyList()
 
 private fun defaultRecentOpponents(): List<RecentOpponent> = listOf(
     RecentOpponent(
@@ -289,12 +240,6 @@ private fun defaultRecentOpponents(): List<RecentOpponent> = listOf(
     ),
 )
 
-private fun defaultFeaturedDrop(): FeaturedCosmetic = FeaturedCosmetic(
-    name = "Slate Felt",
-    tagline = "Limited drop · 5 days left",
-    swatchColor = Color(0xFF3A4750),
-)
-
 // --------------------------------------------------------------------------
 // Previews — pin the layout across the states Home actually renders:
 // fresh user / cold-boot hydrating / active room reattach / empty social
@@ -302,29 +247,26 @@ private fun defaultFeaturedDrop(): FeaturedCosmetic = FeaturedCosmetic(
 // exercise every conditional in [HomeScreenContent].
 // --------------------------------------------------------------------------
 
-@Preview
+@Preview(heightDp = 1200)
 @Composable
 private fun HomeScreenPreview_FullyHydrated() {
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Home) {
         HomeScreenContent(
-            displayName = "Elijah",
-            avatarEmoji = "🦊",
-            avatarBackgroundColorHex = "#E48A58",
+            levelProgress = levelProgressFor(totalXp = 1_140),
             chips = 12_300,
             activeRooms = emptyList(),
             onPlayBots = {},
             onQuickMatch = {},
             onFriendGame = {},
-            onTournament = {},
-            onTapAvatar = {},
+            onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
             onForfeitRoom = {},
-            onTapFeaturedDrop = {},
             onTapFriends = {},
             onTapAchievements = {},
             onAddRecentOpponent = {},
             onSeeAllRecentOpponents = {},
+            recentAchievements = previewRecentAchievements(),
         )
     }
 }
@@ -332,26 +274,23 @@ private fun HomeScreenPreview_FullyHydrated() {
 @Preview
 @Composable
 private fun HomeScreenPreview_WithActiveRoom() {
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Home) {
         HomeScreenContent(
-            displayName = "Elijah",
-            avatarEmoji = "♠",
-            avatarBackgroundColorHex = "#5894E4",
+            levelProgress = levelProgressFor(totalXp = 10_000),
             chips = 10_000,
             activeRooms = listOf(ActiveRoomSummary(code = "ABC123")),
             onPlayBots = {},
             onQuickMatch = {},
             onFriendGame = {},
-            onTournament = {},
-            onTapAvatar = {},
+            onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
             onForfeitRoom = {},
-            onTapFeaturedDrop = {},
             onTapFriends = {},
             onTapAchievements = {},
             onAddRecentOpponent = {},
             onSeeAllRecentOpponents = {},
+            recentAchievements = previewRecentAchievements(),
         )
     }
 }
@@ -359,22 +298,18 @@ private fun HomeScreenPreview_WithActiveRoom() {
 @Preview
 @Composable
 private fun HomeScreenPreview_HydratingFromCold() {
-    PreviewContent {
+    PreviewContent(bottomBar = PreviewBottomBar.Home) {
         HomeScreenContent(
-            displayName = null,
-            avatarEmoji = null,
-            avatarBackgroundColorHex = null,
+            levelProgress = LevelProgress(level = 1, totalXp = 0, xpAtLevelStart = 0, xpForNextLevel = 100),
             chips = null,
             activeRooms = emptyList(),
             onPlayBots = {},
             onQuickMatch = {},
             onFriendGame = {},
-            onTournament = {},
-            onTapAvatar = {},
+            onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
             onForfeitRoom = {},
-            onTapFeaturedDrop = {},
             onTapFriends = {},
             onTapAchievements = {},
             onAddRecentOpponent = {},
@@ -389,23 +324,19 @@ private fun HomeScreenPreview_NoSocialState() {
     // Fresh user — no friends online, no pending requests, no
     // recent opponents, no achievements unlocked. Every shelf that
     // doesn't survive an empty list disappears; the layout collapses
-    // around the CTAs + featured drop.
-    PreviewContent {
+    // around the CTAs.
+    PreviewContent(bottomBar = PreviewBottomBar.Home) {
         HomeScreenContent(
-            displayName = "Newbie",
-            avatarEmoji = "👋",
-            avatarBackgroundColorHex = "#A8E458",
+            levelProgress = LevelProgress(level = 1, totalXp = 10, xpAtLevelStart = 0, xpForNextLevel = 100),
             chips = 1_000,
             activeRooms = emptyList(),
             onPlayBots = {},
             onQuickMatch = {},
             onFriendGame = {},
-            onTournament = {},
-            onTapAvatar = {},
+            onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
             onForfeitRoom = {},
-            onTapFeaturedDrop = {},
             onTapFriends = {},
             onTapAchievements = {},
             onAddRecentOpponent = {},
@@ -416,4 +347,24 @@ private fun HomeScreenPreview_NoSocialState() {
             recentOpponents = emptyList(),
         )
     }
+}
+
+/**
+ * Build a preview set by picking a few real achievements from the
+ * registry — keeps the medallion's rarity / icon / criterion math
+ * honest in previews instead of inventing UI data the renderer would
+ * never see at runtime.
+ */
+private fun previewRecentAchievements(): List<RecentAchievement> {
+    val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+    val day = 24L * 60L * 60L * 1000L
+    return com.dangerfield.cards.libraries.cards.AllAchievements
+        .filter { !it.isMystery }
+        .take(4)
+        .mapIndexed { index, achievement ->
+            RecentAchievement(
+                achievement = achievement,
+                earnedAtEpochMs = now - (index + 1) * day,
+            )
+        }
 }
