@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-05-24 · **Companion to:** [product/v1-mvp.md](./product/v1-mvp.md), [backlog.md](./backlog.md)
+**Last reviewed:** 2026-05-25 · **Companion to:** [product/v1-mvp.md](./product/v1-mvp.md), [backlog.md](./backlog.md)
 
 The live punch list of actionable engineering work. Append, check off, and **delete** done items — they don't need to live here as history. Add a [decisions.md](./decisions.md) entry **only** when an item resolved a non-trivial architectural call worth not re-litigating (see decisions.md header for what qualifies). Most items just get crossed off and removed.
 
@@ -50,7 +50,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Animations / table polish
 
-- **XP / coin earned distribution animation.** Today the showdown dialog overlays the XP/coin badges, so the user never sees the odometer count up. Idea: defer the XP/coin badge animation until *after* the showdown/bust dialog dismisses, then play it as a small "zip" — XP particle flying up to the XP badge, coin particle flying down to the chip badge, each landing into an odometer count-up. Open to pushback: alternative is to render the earned values inside the dialog and skip the badge animation entirely.
+- **XP / coin earned distribution animation.** Today the showdown dialog overlays the XP/coin badges, so the user never sees the odometer count up. Defer the XP/coin badge animation until *after* the showdown/bust dialog dismisses, then play it as a small "zip" — XP particle flying up to the XP badge, coin particle flying down to the chip badge, each landing into an odometer count-up.
 
 ### Gameplay & table UX
 
@@ -59,35 +59,14 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 ### Shop polish
 
 - **Auto-grant the default 'black/Default' felt to new users in `inventory` on signup**, so My Items shows something from day one. Charcoal stays purchasable in the shop unchanged. Use the same `recordEarnedGrant` path the unlock-only catalog uses (or a starter-inventory seed at user creation). Pairs with the unlock-only earned-grant wiring above.
-- **Add a green felt to the purchasable catalog.** Seed a new `felt_green` (or similar) product via the Supabase admin API — the catalog is server-authoritative, so this is a SQL migration + admin-side data entry, not a client change. Pick a muted, table-believable green that still fits §3.1 (never "saturated casino-green"). Pairs with the previews bullet below.
 - **"New items in shop" notification bubble on the Shop tab.** Tiny dot (no count) on the bottom-nav Shop tab when the catalog has items the user hasn't seen yet; clears the moment the tab is opened. Two paths for "what counts as new": (a) server-driven — catalog rows carry a `published_at` and the client compares against a stored `lastShopSeenAt`, or (b) detect on fresh catalog fetch by diffing ids against the last-seen set. Either way the client needs to refresh the catalog *before* the user taps Shop — otherwise the bubble never appears for the first-tap case. That background refresh is probably the right move regardless (faster Shop open), so this likely pairs with the read-path caching policy work in §C. **Files / hints:** wherever the bottom-nav badge state lives; `ProductCatalogRepository` for the fetch trigger; a small `ShopSeenStateStore` (Settings-style) for `lastShopSeenAt`.
-- **Previews on cosmetics in the shop + My Items.** Big visual gap right now — the marble card back, every felt, future card backs all render only as a name + icon emoji. People should know what they're buying. Minimum bar: tap-to-preview that swaps the table backdrop or shows a rendered swatch of the cosmetic. Felts → a `FeltSwatch` tile that paints the real `feltSurfaceColor`. Card backs → a single `PlayingCardBack` at its design size. Pairs with the green-felt item above (no point shipping it without a preview). **Files / hints:** `:libraries:ui:components:poker` already has `PlayingCardBack` + felt resolution; the shop product detail / sheet is the consumer.
+- **Previews on cosmetics in the shop + My Items.** Big visual gap right now — the marble card back, every felt, future card backs all render only as a name + icon emoji. People should know what they're buying. Minimum bar: tap-to-preview that swaps the table backdrop or shows a rendered swatch of the cosmetic. Felts → a `FeltSwatch` tile that paints the real `feltSurfaceColor`. Card backs → a single `PlayingCardBack` at its design size. **Files / hints:** `:libraries:ui:components:poker` already has `PlayingCardBack` + felt resolution; the shop product detail / sheet is the consumer.
+
 ### Edit profile
 
 - **Save as floating bottom button + colors moved to top + bigger color circles.** Three layout changes: (a) the save button should float at the bottom of the screen (with enough bottom padding on the scrollable content above so the last row scrolls clear of the button); (b) move the color picker to the top of the form; (c) make the color circles substantially bigger — if that means two rows or a horizontal scroll, that's fine, the goal is "big bubbly UI." **Files / hints:** `EditProfileScreen` / its sub-components.
 - **Display-name uniqueness — verify the server-side check + client error surface.** When a user changes their display name, do we check it's not already taken and surface an error if so? Confirm: (a) server validation in the profile-update path; (b) the client maps the rejection into a user-facing error on the field, not a generic snackbar. If either is missing, add it. **Files / hints:** profile update endpoint on the server; `EditProfileViewModel` for the client mapping.
 
-
-### Email & deep linking
-
-- **Friend-game link previews.** [product-spec.md §5.2](./product/product-spec.md#52-friend-games) promises iMessage/WhatsApp previews showing a Cards-branded card with stakes + seat count. Needs (a) iOS Universal Links + Android App Links configured for the friend-code URL, (b) a small web endpoint serving Open Graph meta (`og:title`, `og:image`, `og:description`) keyed by the code, (c) image rendering for the preview card (static-with-placeholders is fine for V1). **V1-polish** — friend games work today via copy-code; the rich preview is a social-virality nicety, not a blocker.
-- **In-app "I confirmed" email button is a no-op.** Repro'd 2026-05-24: tapped the button on an unconfirmed account, was admitted, used the app normally. The button needs to re-check the auth state (e.g. `auth.refreshSession()` + inspect `user.emailConfirmedAt`) and bounce back with an error if still unconfirmed. **Files / hints:** `VerifyEmailScreen` / `VerifyEmailViewModel`, and whatever wires the verified-gate into the post-auth route. (The Supabase-dashboard half of this bug — wrong email link target — lives in [`developer-todo.md`](./developer-todo.md).)
-
-### Claim Account screen
-
-
-### Achievements
-
-- **Bot-vs-human achievement split — per-achievement design call (not a straight duplicate).** `FIRST_BUST_DEALT` / `BUST_DEALT_5` are bot-only via `mode = BOTS`; the "Beat Jane 10 times" entries are bot-keyed by personality name; the volume / endurance / stack-swing / pot-size achievements default to `mode = EITHER`. The work isn't "duplicate every achievement for humans" — it's a per-achievement audit asking *which mode does this actually belong in, and if both, do they need separate ids with different thresholds?* Concrete example: "be at a table with a pot over 5K" is trivial at the Challenging bots tier (stakes are 100/200/20k, so a 5K pot is normal) but a real accomplishment in MP at lower stakes — so a single shared id with one threshold misrepresents both modes. Two ways out: (a) split into `POT_5K_BOTS` (tier-aware threshold) and `POT_5K_MP`, or (b) rebalance the bot table stakes so the bot variant means something. Probably some of both. Decide at MP-launch time for prestige-bearing ones (Comeback, Don't Call It a Comeback, Pot 5K) whether human-only variants with separate ids are warranted. **Pairs with:** the buy-in / stack mechanic bullet in §B — stake tiers are the lever for both bot difficulty and achievement thresholds.
-- **Locked-tile treatment on the Achievements page.** Today's locked tiles render the rarity-color gradient at 0.45 alpha plus a "$progress / $target" chase chip — they read as "faded," not "locked." Spec asks for a fully separate "greyscale silhouette + lock glyph + '???'" treatment. Also still open: a My Items "Earned" filter pair so users can scope the view. Designer call on whether to push further; the at-a-glance bar is mostly met by today's treatment.
-
-### Rank screen
-
-- **Rank/league surface isn't built out.** XP screen exists; the rank page is a stub. Either build the V1 form (current tier, what unlocks at each tier, no league mechanic yet) or be explicit it's gated until V1.1 leagues. Decide before V1 ship.
-
-### Home screen redesign
-
-- ~~**Whole-screen redesign of Home.**~~ Shipped — Home now follows [product-spec.md §2.4](./product/product-spec.md): slim header (avatar + chips) → activity ticker → four primary CTAs → recent unlocks → friends → recently-played-with → featured drop. Several shelves are fake-data-driven for V1; follow-up engineering below.
 
 ### Home wire-up — replace fake data with real reactive sources
 
@@ -102,29 +81,8 @@ Home now exposes three surfaces that need the friends/recents system to actually
 - **Online-presence signal.** Cheapest path: server emits a presence event when a user's WS connects/disconnects and stores last-seen + current-room (if any). Client subscribes once per session to a presence stream filtered to friend ids. The friends strip [FriendsStrip.kt](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/FriendsStrip.kt) already takes `List<FriendOnline>` shaped for this (display name, avatar, table label) — drop the real list in and the surface lights up.
 - **Recently-played-with tracking.** Server records the human seats present at every multiplayer hand a user finishes; on the client, `RecentOpponentsRepository.observeRecent(limit = 10)` returns deduped most-recent first. Bots are excluded server-side (you can't friend the house). [RecentlyPlayedWithStrip.kt](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/RecentlyPlayedWithStrip.kt) renders the list; tile flips to "Sent" when [RecentOpponent.requestSent] flips true, which the friends-graph repository can compute by joining recents against outbound requests. Until then both the tile tap *and* the "See all" tap surface a `ComingSoonSheet`.
 - **Friend requests inbox — lives on Profile, surfaced on Home.** The inbox itself is a section on [ProfileScreen.kt](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt) (manage your relationships) — list of pending inbound requests with accept/decline buttons. Home doesn't get its own inbox surface; instead [FriendsStrip.kt](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/FriendsStrip.kt) already renders a "N friend requests" badge when `pendingRequests > 0`, with the tap routing into Profile's inbox section. The strip survives even with zero friends online so long as there are pending requests — fresh users with no friends but a request from someone who knows their handle still see the strip.
-- **Voice + safety pass before V1.x ship.** Spec voice rules: no urgency, no "X people are waiting!", no begging. Block-relation behavior needs a quick call too — does blocking a user remove existing accepted-friend rows? (Probably yes.) Does it prevent matchmaking into the same public room? (Probably yes.) Decide before the schema locks.
+- **Voice + safety pass before V1.x ship.** Audit every friend-system copy string (request prompts, request-sent confirmations, accept/decline banners, empty states) against the spec voice rules: no urgency, no "X people are waiting!", no begging. Block-relation behavior defaults: blocking a user removes any existing accepted-friend row and prevents matchmaking into the same public room. Implement the defaults; adjust later if product flags otherwise.
 - **Out of scope for V1.x:** friend suggestions ("people you might know"), in-app invite-via-share-link, push notifications for requests, group chat. All Phase 2+ design questions.
-
-### `Profile.Fallback` per-feature audit
-
-This is the only remaining cold-boot work — the auth-failure → `Profile.Fallback` path is already wired ([SupabaseProfileRepositoryImpl](../libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/profile/SupabaseProfileRepositoryImpl.kt)). On bad-network first launch, the user reaches `Profile.Fallback(id = clientLocalUuid)` and can play bots immediately; the audit is per-surface UX polish for that (rare but real) state.
-
-**The audit:** per surface, decide one of:
-- **Cached browse works** — inventory list, equipment list, achievements page, XP screen. These can render off the local DB; no server identity required.
-- **Hard-gate** — anything that mutates server state (Edit Profile, Shop purchase, Claim Account, Sign In, Multiplayer). Should refuse with a "you need to be online" / "we couldn't reach the server" message.
-- **Soft-gate / read-only** — surfaces that *can* render but where mutations would silently fail. Better to disable the mutation affordances explicitly.
-
-**Surfaces to walk through:**
-- Home (chip badge, XP, active-rooms list — already gracefully handle null/empty)
-- Shop (catalog browse vs purchase)
-- Profile (display name + avatar — Fallback has none; show "Guest" or similar?)
-- Edit Profile (already hard-gates on `Profile.Authenticated.filterIsInstance`)
-- Claim Account
-- Inventory / My Items
-- Multiplayer (Lobby create/join, in-room)
-- Settings / Feedback / Bug Report (currently seed email from profile — Fallback should render empty form)
-
-The global offline banner sets baseline expectations; this audit is per-surface polish. **Plays best as a designer-in-the-loop pass** — engineering picks up the screens after the per-surface behavior is decided.
 
 ---
 
@@ -151,7 +109,6 @@ Once the create-flow above is fixed, the rest of §B becomes exercisable:
   - On app launch, before allowing a Join → check `GET /v1/me/active-rooms`. Client-side Home-screen `ActiveRoomBanner` already wires Rejoin/Forfeit; verify end-to-end on device once the create-flow blocker above is unstuck.
   - **Treat >1 active rooms as recovery, not a normal state.** Client-side reconciliation is in place (Home auto-leaves stale rooms). **Still open — server side:** tighten the contract so the multi-room state can't happen in the first place. WS heartbeat (Ktor has ping-pong built in) plus a sweep that hard-evicts after N missed pings instead of just marking `disconnectedAt`. Client reconciliation stays as belt-and-suspenders. The post-eviction "sit out vs remove" product call is in [`developer-todo.md`](./developer-todo.md).
   - The reconnecting-while-mid-hand path inside `ReconnectingRoomSocket` already exists; that's not the gap. The gap is the *user surface* for "you have an ongoing game."
-- **Forfeit-then-spectator behavior after timeout.** Today the sweep evicts and the seat opens. Alternative: after timeout, auto-fold the user's hand for the rest of the session, leave them subscribed read-only, let them reconnect into spectate. Phase 4.2 question — noted here so we don't re-derive it.
 
 ---
 
@@ -159,40 +116,10 @@ Once the create-flow above is fixed, the rest of §B becomes exercisable:
 
 Quality issues the user has flagged across the codebase. None are blockers, but they compound. Track them here; pull each in when the surrounding area is open.
 
-### Config plumbing — `featureValue` vs DI-bound `ConfiguredValue`
-
-**Question on the table:** `FeatureConfig` declares values with `by featureValue(...)` (the current pattern). The user previously preferred DI-bound `ConfiguredValue` objects, each able to advertise itself to the QA menu autonomously.
-
-Decision options:
-- **Keep `featureValue`.** Cheap. Works. The QA-menu autonomy concern is real but small; QA menu already auto-discovers.
-- **Switch to DI-bound singletons per value.** Each value is its own `@Inject` singleton; QA menu takes a `Set<ConfiguredValue<*>>` multibinding. Adding a value is one class with one annotation; QA discovery is automatic and decentralized.
-
-Lean: revisit when we add the next feature config. Not blocking V1.
-
 ### Post-rework identity follow-ups
 
 - `SupabaseProfileRepositoryImpl`'s `ProfileCache` overlaps supabase-kt's own session cache. The new `Catching { server }.fold(success → it.also(write), failure → cache.read())` pattern means we only *consult* the cache on failure, which is correct — but we still *write* on every success, so the storage cost remains. Worth measuring before optimizing.
 - Profile-as-DI: rather than each consumer awaiting `ProfileRepository.observe().first()`, inject a `Lazy<Profile.Authenticated>` (the way `AppConfig` is treated) that should be initialized at boot, with `runBlocking` as worst-case fallback. Makes consumer code straight-line and removes a class of "what if the profile isn't ready" bugs.
-
-### Read-path caching policy — accuracy vs. consistency per surface
-
-**Problem:** Two related symptoms reported 2026-05-24:
-1. **Offline reads show empty / name-only state instead of cached content.** My Items offline only renders names, when we already have the full inventory cached locally. Reader's expectation: show whatever the local DB has *immediately*, then refresh from server in the background and reconcile. We don't do that consistently — some surfaces wait for the network and render a degraded state until it lands.
-2. **We probably over-fetch on hot routes.** Example: `GET /v1/avatars` (or whatever the catalog read is) fires on **every** Edit Profile visit, even though the avatar catalog changes rarely. Same suspicion for several other catalog-shaped endpoints.
-
-**The policy call needed.** Per surface, pick one of:
-- **Accuracy > consistency** (no cache): chip balance, anything mutating money/state. Always show the freshest server value or a loading state — never a stale number.
-- **Consistency > accuracy** (cache-first, refresh in background): My Items, inventory, achievements page, avatar catalog, product catalog, anything reference-shaped. Render the cache immediately, kick a refresh, reconcile on success. Acceptable to be a few seconds stale.
-- **Cache with TTL gate** (don't even fetch if recent): catalog-shaped reads where the data genuinely doesn't change often. Skip the network if the last response is < N minutes / hours old. HTTP caching headers on the server side are the cleaner path here than client-side bookkeeping — server sets `Cache-Control: max-age=...` and the Ktor client honors it. Decide per endpoint; some will keep TTL = 0 (chips), others can take a generous TTL (avatars).
-
-**Sketch of the work:**
-- List every Repository read method + its current behavior (`always-network`, `cache-then-network`, `network-only`).
-- For each, pick a policy from the three above (this is the executive decision — needs a human pass with the user).
-- Implement the cache-first pattern uniformly via a small helper (most are similar enough to share one).
-- For the TTL bucket, set `Cache-Control` on the server endpoints and verify the Ktor client config respects it; otherwise client-side `lastFetchedAt` per endpoint.
-
-**Files / hints:** the inventory / catalog / avatar repositories on the client; the matching Ktor routes on the server.
-**V1-polish** rather than blocker — the app works, it just feels worse offline and probably burns more bandwidth than it needs to.
 
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 
