@@ -1,7 +1,13 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomService
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.game.GameSessionRegistry
+import com.dangerfield.cards.server.game.IntentResult
+import com.dangerfield.cards.server.game.SeatOccupant
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.server.auth.authenticate
@@ -12,20 +18,27 @@ import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
+import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import com.dangerfield.cards.libraries.gameplay.scrubbedFor
 
 /**
  * `GET /v1/rooms/{code}/socket` (WebSocket upgrade) — the per-room
- * presence + future-gameplay channel.
+ * presence + multiplayer-gameplay channel.
  *
  * Auth: same Supabase JWT as HTTP routes (Ktor's `authenticate` block
  * works across the upgrade). Membership: the caller MUST already be a
@@ -57,9 +70,24 @@ import kotlin.time.Duration.Companion.minutes
  * and diff against the new one to emit the right delta events. The
  * Snapshot itself is always sent first so clients have a fallback
  * even if they miss a delta during flaky network.
+ *
+ * Game frames (added with server-authoritative multiplayer):
+ *  - A second publisher subscribes to the [GameSessionRegistry] for
+ *    this room. The moment the host's `StartHand` creates a session,
+ *    every connected client begins receiving personalized
+ *    [RoomSocketEventDto.GameStateSnapshot] frames (scrubbed via
+ *    [scrubbedFor] using the viewer's own seat index) and a raw
+ *    [RoomSocketEventDto.GameEventOccurred] stream for animations.
+ *  - The drain loop now decodes client→server [RoomClientFrame]s
+ *    (StartHand / SubmitIntent / RequestNextHand) and dispatches them
+ *    into the registry. Each frame ships back an
+ *    [RoomSocketEventDto.IntentAck] keyed by clientNonce so callers can
+ *    correlate retries / surface rejection reasons.
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 fun Route.roomSocketRoutes(
     rooms: RoomService,
+    gameSessions: GameSessionRegistry,
     reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) {
     val app = application
@@ -123,14 +151,70 @@ fun Route.roomSocketRoutes(
                 }
             }
 
+            // Game-state publisher. Subscribes to the per-room
+            // GameSessionRegistry stream; flatMapLatest swaps in the
+            // session's flows the moment a session appears (typically
+            // right after the host's StartHand) and resets if a session
+            // is dropped + re-created. Each emit looks up the viewer's
+            // seat from the live state by playerId match — robust if
+            // the seat index ever shifts (V1 it doesn't, but cheap to
+            // be correct).
+            val userIdString = userId.value.toString()
+            val gamePublisher = launch {
+                try {
+                    gameSessions.observeSession(code)
+                        .flatMapLatest { session ->
+                            if (session == null) emptyFlow<RoomSocketEventDto>()
+                            else merge(
+                                session.state
+                                    .filterNotNull()
+                                    .map { state ->
+                                        val viewerSeat = state.seats
+                                            .firstOrNull { it.playerId == userIdString }
+                                            ?.index ?: -1
+                                        RoomSocketEventDto.GameStateSnapshot(
+                                            state.scrubbedFor(viewerSeat),
+                                        )
+                                    },
+                                session.events.map {
+                                    RoomSocketEventDto.GameEventOccurred(it)
+                                },
+                            )
+                        }
+                        .collect { sendJson(it) }
+                } catch (_: CancellationException) {
+                    // Expected on close.
+                } catch (e: Throwable) {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Game publisher for room=$code user=$userId died", e)
+                }
+            }
+
             try {
-                // Drain incoming until the client closes. V1 has no
-                // client→server message types; we just need to know
-                // when the channel terminates. The for-loop exits
-                // when the channel closes for any reason (ping timeout,
-                // client close, error).
+                // Drain incoming. We now decode client-bound game
+                // frames (StartHand / SubmitIntent / RequestNextHand)
+                // and dispatch into the registry. Unknown / malformed
+                // frames are logged and dropped — same forward-compat
+                // policy as the client's decode-and-drop on the
+                // server-bound side.
                 for (frame in incoming) {
-                    // No client messages today — discard.
+                    if (frame !is Frame.Text) continue
+                    val raw = frame.readText()
+                    val clientFrame = try {
+                        JSON.decodeFromString(RoomClientFrame.serializer(), raw)
+                    } catch (e: Throwable) {
+                        LoggerFactory.getLogger("RoomSocket")
+                            .warn("Bad client frame from room=$code user=$userId: ${e.message}")
+                        continue
+                    }
+                    val ack = handleClientFrame(
+                        code = code,
+                        userId = userId,
+                        frame = clientFrame,
+                        rooms = rooms,
+                        gameSessions = gameSessions,
+                    )
+                    sendJson(ack)
                 }
             } catch (_: ClosedReceiveChannelException) {
                 // Normal close path.
@@ -141,6 +225,7 @@ fun Route.roomSocketRoutes(
                     .warn("Socket for room=$code user=$userId died reading", e)
             } finally {
                 publisher.cancel()
+                gamePublisher.cancel()
                 // Mark disconnected regardless of close cause. Capture
                 // the stamp the service just set so the reaper can
                 // cross-check that the user didn't reconnect (or
@@ -165,6 +250,74 @@ fun Route.roomSocketRoutes(
             }
         }
     }
+}
+
+/**
+ * Routes a single decoded [RoomClientFrame] into the right registry
+ * call and packages the result into an [RoomSocketEventDto.IntentAck].
+ * Pulled out of the route lambda so the dispatch table reads top-down.
+ */
+private suspend fun handleClientFrame(
+    code: String,
+    userId: UserId,
+    frame: RoomClientFrame,
+    rooms: RoomService,
+    gameSessions: GameSessionRegistry,
+): RoomSocketEventDto.IntentAck {
+    val result: IntentResult = when (frame) {
+        is RoomClientFrame.StartHand -> handleStartHand(code, userId, rooms, gameSessions)
+        is RoomClientFrame.SubmitIntent -> gameSessions.applyIntent(
+            code = code,
+            actorUserId = userId.value.toString(),
+            intent = frame.intent,
+            clientNonce = frame.clientNonce,
+        )
+        is RoomClientFrame.RequestNextHand -> gameSessions.requestNextHand(
+            code = code,
+            actorUserId = userId.value.toString(),
+            clientNonce = frame.clientNonce,
+        )
+    }
+    return RoomSocketEventDto.IntentAck(
+        clientNonce = frame.clientNonce,
+        accepted = result is IntentResult.Accepted,
+        error = (result as? IntentResult.Rejected)?.reason,
+    )
+}
+
+/**
+ * Host-gated start-hand handler. Pulls the room, validates host,
+ * builds occupants from the current member list, calls the registry,
+ * and (on success) flips the room status to Playing so the lobby
+ * snapshot's `status` change cascades to all subscribers.
+ */
+private suspend fun handleStartHand(
+    code: String,
+    userId: UserId,
+    rooms: RoomService,
+    gameSessions: GameSessionRegistry,
+): IntentResult {
+    val room = rooms.find(code)
+        ?: return IntentResult.Rejected("room not found")
+    if (room.hostUserId != userId) {
+        return IntentResult.Rejected("only the host can start the hand")
+    }
+    val occupants = room.members.map {
+        SeatOccupant(
+            seatIndex = it.seatIndex,
+            userId = it.userId.value.toString(),
+            displayName = it.displayName,
+            isBot = false,
+        )
+    }
+    if (occupants.size < 2) {
+        return IntentResult.Rejected("need at least 2 players to start")
+    }
+    val result = gameSessions.startHand(code, occupants, RoomSettings.Default)
+    if (result is IntentResult.Accepted) {
+        rooms.markPlaying(code)
+    }
+    return result
 }
 
 /**
@@ -222,4 +375,3 @@ private fun diffDeltas(previous: Room, next: Room): List<RoomSocketEventDto> {
     }
     return out
 }
-

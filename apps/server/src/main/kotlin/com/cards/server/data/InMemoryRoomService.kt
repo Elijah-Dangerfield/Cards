@@ -185,6 +185,24 @@ class InMemoryRoomService(
         next
     }
 
+    override suspend fun markPlaying(code: String): Room? = mutex.withLock {
+        val state = rooms[code] ?: return@withLock null
+        val current = state.room
+        if (current.status == RoomStatus.Playing) return@withLock current
+        val next = current.copy(status = RoomStatus.Playing)
+        state.update(next)
+        next
+    }
+
+    override suspend fun markFinished(code: String): Room? = mutex.withLock {
+        val state = rooms[code] ?: return@withLock null
+        val current = state.room
+        if (current.status == RoomStatus.Lobby) return@withLock current
+        val next = current.copy(status = RoomStatus.Lobby)
+        state.update(next)
+        next
+    }
+
     override suspend fun find(code: String): Room? = mutex.withLock { rooms[code]?.room }
 
     override suspend fun observe(code: String): Flow<Room>? = mutex.withLock {
