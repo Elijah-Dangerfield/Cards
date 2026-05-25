@@ -1066,7 +1066,7 @@ The `Reverted` branch in `SyncOutcomeDto` is still reserved for the future serve
 - `InMemoryRoomServiceTest`: stamp on disconnect, clear on reconnect, TTL boundary (3 min / 5 min / 7 min), never-connected reaping, empty-room GC, idempotence, multi-room `roomsSeen` count, flow propagation.
 - `AdminRoutesTest` (new file): 401 without token, 401 with wrong token, 401 when server has no token configured (fail-closed), 200 happy path counts, TTL boundary end-to-end through the route.
 
-**Status:** Landed. Sweep cadence wiring (cron workflow at `.github/workflows/sweep-rooms.yml`) is a pre-launch checklist item, not a code change.
+**Status:** Superseded by [2026-05-24 — Disconnect cleanup: in-process reaper, not a cron sweep](#2026-05-24--disconnect-cleanup-in-process-reaper-not-a-cron-sweep). The cron sweep landed and ran briefly; the per-disconnect reaper replaces it. `RoomService.sweepDisconnected` survives as a test/recovery helper only.
 
 ---
 
@@ -1579,3 +1579,46 @@ args every push, and pops cleanly on dismiss.
 **Status:** Landed (Shop purchase sheet migrated to
 `ShopProductSheetRoute`). Apply to other overlays opportunistically as
 they need deep-link entry; no big-bang rewrite required.
+
+## 2026-05-24 — Disconnect cleanup: in-process reaper, not a cron sweep
+
+**Decision:** Per-room WebSocket disconnect schedules its own grace
+timer on the Application coroutine scope —
+`RoomSocketRoutes`'s `finally` block captures the `disconnectedAt`
+stamp set by `markConnected(false)` and launches
+`app.launch { delay(reaperGrace); rooms.reapIfStillDisconnected(...) }`.
+`reapIfStillDisconnected` is stamp-checked: it no-ops unless the
+member is still disconnected with the same stamp, so a reconnect
+(stamp cleared) or re-disconnect (stamp refreshed) makes the original
+reaper a silent no-op while the fresh disconnect schedules its own.
+`RoomService.sweepDisconnected` stays as a test/recovery utility but
+nothing in production calls it. Default grace is 5 min
+(`DEFAULT_REAPER_GRACE` in `RoomSocketRoutes.kt`).
+
+**Why:** The original
+[2026-05-19 cron-sweep design](#2026-05-19--multiplayer-reconnect-grace-timer--seat-sweep)
+assumed an out-of-band scheduler. In practice rooms live in RAM on
+the same Fly machine as the socket, so an external cron added latency
+(worst-case seat-block was TTL + cron interval, ~10 min on the GHA
+5-min floor) and a dependency for nothing — there's no shared
+backplane for a separate process to coordinate. Per-disconnect timer
+collapses that to a flat 5 min and removes the admin endpoint, the
+admin token usage, the GHA workflow, and the env knob.
+
+**Alternatives considered:**
+- *Keep the cron sweep, just shorten cadence:* GitHub Actions can't
+  go below 5 min, and uptime-monitor services add another external
+  dependency for the same job. Strictly worse than the in-process
+  alternative for state that's already in RAM.
+- *Application-scoped scheduler (Quartz / Ktor's deprecated
+  `KtorPlugin` lifecycle):* overkill for one timer per disconnect.
+  Plain `launch { delay(); ... }` on the Application scope dies with
+  the server, which is the desired shape.
+- *Heartbeat-driven eviction* (Ktor's WS ping/pong with a "miss N
+  pongs → evict" rule): more accurate than a fixed grace, but the
+  disconnect already gives us a precise stamp and the user-visible
+  outcome is identical. Reserve for the multi-instance future where
+  the room state moves off the WS-owning process.
+
+**Status:** Landed. Supersedes the cron-sweep design
+[2026-05-19 — Multiplayer: reconnect grace timer + seat sweep](#2026-05-19--multiplayer-reconnect-grace-timer--seat-sweep).
