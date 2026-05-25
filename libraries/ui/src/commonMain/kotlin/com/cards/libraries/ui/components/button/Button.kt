@@ -391,6 +391,7 @@ fun ButtonGhost(
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Text,
     enabled: Boolean = true,
+    onDisabledTap: (() -> Unit)? = null,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
@@ -400,6 +401,7 @@ fun ButtonGhost(
         icon = icon,
         type = ButtonType.Ghost,
         size = size,
+        onDisabledTap = onDisabledTap,
         style = style,
         enabled = enabled,
         interactionSource = interactionSource,
@@ -418,6 +420,8 @@ fun ButtonDanger(
     icon: IconResource? = null,
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Filled,
+    onDisabledTap: (() -> Unit)? = null,
+
     enabled: Boolean = true,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,

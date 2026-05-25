@@ -35,9 +35,14 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Backs [ProfileRepository] on top of [AuthRepository] + `/v1/me`.
+ * Backs [ProfileRepository] on top of [AuthRepository] + `/v1/me`
+ * (the per-user profile) and `/v1/avatars` (the global emoji pack
+ * catalog). Despite the historical "Supabase" prefix on prior
+ * iterations, this class never talks to Supabase directly — all data
+ * comes from our own backend. [AuthRepository] / [SupabaseAuthGateway]
+ * own the supabase-kt session and only feed [AuthState] in here.
  *
- * Lifecycle:
+ * **Profile resolve** (the user-specific bit):
  *
  *  - On init, [appScope] launches a collector on [AuthRepository.observe].
  *    Every auth state change triggers a resolve. The first resolve
@@ -52,9 +57,17 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *        [Profile.Fallback] keyed on a stable client UUID from cache.
  *      - Network error during the `/v1/me` call → same cache fallback
  *        path. Cache as fallback, not first-frame.
+ *  - Profile flow has no in-flight sentinel. [current] suspends until
+ *    the first resolved emission; [observe] only emits resolved values.
  *
- * Profile flow has no in-flight sentinel. [current] suspends until the
- * first resolved emission; [observe] only emits resolved values.
+ * **Avatar pack fetch** ([fetchAvatarPack]) follows the
+ * **session-aware cache pattern** documented in `AGENTS.md`: persist
+ * the last successful `/v1/avatars` response to disk, hydrate on first
+ * call, dedupe in-memory across same-session refetches, only re-fetch
+ * when [SessionTracker] reports a new session. On a true cold-install
+ * + no network the repo returns a hardcoded 8-emoji fallback as
+ * Success so the picker is never empty. See the method docstring for
+ * the full state machine.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = ProfileRepository::class)

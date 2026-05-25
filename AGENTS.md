@@ -234,6 +234,17 @@ Don't write the two calls sequentially — if the caller's scope tears down betw
 
 Don't roll a new persistent cache for a single boolean — extend `AppData`. Round-trip is automatic via `versionedJsonSerializer` (missing fields fall back to defaults). For a `StateFlow<Boolean>` wrapper example, see how a feature-level store reads `AppCache.updates` and writes via `appCache.update { it.copy(...) }`.
 
+## Repository read-path caching
+
+For server-driven reference data — catalogs, packs, anything where a slightly stale view is fine — repositories follow the **session-aware cache pattern**: persist the last successful response to disk, hydrate on init so the first frame has content, and only re-fetch when [`SessionTracker`](libraries/cards/src/commonMain/kotlin/com/cards/libraries/Session.kt) signals a new session (cold boot or foreground after ≥15 min in background). Pull-to-refresh / forced refresh always bypasses. A persisted snapshot older than the per-repo max age (7 days for both adopters today) gets dropped on read so the user never sees something hopelessly stale.
+
+The two reference implementations:
+
+- [`ProductsRepositoryImpl`](libraries/products/impl/src/commonMain/kotlin/com/cards/libraries/products/impl/ProductsRepositoryImpl.kt) — shop catalog. Observable shape (`observeCatalog`, `observeIsRefreshing`); the repo auto-refreshes on session rollover, the VM just subscribes.
+- [`ProfileRepositoryImpl.fetchAvatarPack`](libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/profile/ProfileRepositoryImpl.kt) — avatar pack catalog. Suspend shape with internal dedup; same disk + session machinery underneath, plus a hardcoded fallback pack so a network failure on a fresh install still renders a usable picker.
+
+Lean on the cache by default. Showing yesterday's data while a refresh lands is almost always better than showing a loading spinner over an empty surface. New surfaces that read reference data: pick one of these two impls as a template. See [`docs/decisions.md` — "2026-05-25 — Session-aware repository refresh"](docs/decisions.md).
+
 ## Compose previews (required for screens)
 
 Every user-facing screen composable needs `@Preview` coverage. Without it, iterating means rebuild → reinstall → navigate → set up state by hand, every change. With previews, Studio renders the screen instantly across states.

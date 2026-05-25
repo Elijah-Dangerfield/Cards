@@ -35,7 +35,12 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 
 /**
- * Disk-backed, session-aware product catalog.
+ * Disk-backed, session-aware product catalog. Reference implementation
+ * of the **session-aware cache pattern** described in `AGENTS.md`:
+ * persist on success, hydrate on init, refresh only on session
+ * rollover, never block the first frame on a network call. New
+ * server-driven-reference-data repos that want the same shape should
+ * use this file as a template.
  *
  * **Lifecycle of a screen-load:**
  *  1. UI subscribes to [observeCatalog]. The flow replays the
