@@ -17,6 +17,12 @@
 **Reviewer notes:** Built on top of the EquippedFelt move; pairs cleanly with that commit. Same primitive is the natural fit for the shop's `ProductIcon` tile and the `PurchaseConfirmSheet` body — left as a todo entry because the size + placement on those bigger surfaces want a design judgment, not a worker call.
 **Deferred:** Shop integration (grid tile + purchase sheet) — left as a `docs/todo.md` entry pointing at the new `CosmeticPreview` primitive.
 
+## test(room): add previews for TutorialPokerScreen
+
+**Problem:** `TutorialPokerScreen.kt` had zero `@Preview` coverage — the only screen-level composable in the codebase without any. Iterating on tutorial chrome required full rebuild → reinstall → click-through to Practice.
+**Approach:** Added three screen-level previews (orient, action-prompt, completed-summary) that pull live `TutorialStep`s out of `TutorialScript.steps`, plus two `CoachMarkBanner` previews (narration step with CTA, action-prompt step without). The script is internal to the module so the previews can reach in directly — no fixture duplication.
+**Reviewer notes:** None. Pure preview-only addition, no production-path changes. Falls under the standing "previews on every user-facing composable" todo (§A) which stays — this knocks down the last 0-count offender.
+
 ## feat(server): auto-grant felt_default on every /v1/me hit
 
 **Problem:** New users landed on My Items with an empty inventory — no felt, no card back, no anything. The structurally-ready `recordEarnedGrant` path had no callers, so day-one users saw the "No items yet" empty state until they bought something.

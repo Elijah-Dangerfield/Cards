@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.room.impl.PlayPokerAction
 import com.dangerfield.cards.features.room.impl.PlayPokerScreen
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -33,6 +34,7 @@ import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Drives the **real** `PlayPokerScreen` with a fabricated [TutorialState]
@@ -181,6 +183,103 @@ private fun TutorialCompletedScreen(
             ) {
                 Text("Done")
             }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun TutorialPokerScreenPreview_Orient() {
+    PreviewContent {
+        val script = TutorialScript.steps
+        TutorialPokerScreen(
+            state = TutorialState(
+                step = script.first(),
+                stepIndex = 0,
+                totalSteps = script.size,
+                completed = false,
+            ),
+            onIntent = {},
+            onAdvance = {},
+            onExit = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun TutorialPokerScreenPreview_ActionPrompt() {
+    PreviewContent {
+        val script = TutorialScript.steps
+        val actionStepIndex = script.indexOfFirst { it.advanceOn != null }
+            .coerceAtLeast(0)
+        TutorialPokerScreen(
+            state = TutorialState(
+                step = script[actionStepIndex],
+                stepIndex = actionStepIndex,
+                totalSteps = script.size,
+                completed = false,
+            ),
+            onIntent = {},
+            onAdvance = {},
+            onExit = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun TutorialPokerScreenPreview_Completed() {
+    PreviewContent {
+        val script = TutorialScript.steps
+        TutorialPokerScreen(
+            state = TutorialState(
+                step = script.last(),
+                stepIndex = script.lastIndex,
+                totalSteps = script.size,
+                completed = true,
+            ),
+            onIntent = {},
+            onAdvance = {},
+            onExit = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CoachMarkBannerPreview_Narration() {
+    PreviewContent {
+        Box(modifier = Modifier.padding(Dimension.D500)) {
+            CoachMarkBanner(
+                coach = CoachMark(
+                    title = "Your cards",
+                    body = "Two aces — the strongest starting hand in poker. You're a clear favorite to win this pot.",
+                    ctaLabel = "Nice",
+                ),
+                stepIndex = 2,
+                totalSteps = 12,
+                onAdvance = {},
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun CoachMarkBannerPreview_ActionPrompt() {
+    PreviewContent {
+        Box(modifier = Modifier.padding(Dimension.D500)) {
+            CoachMarkBanner(
+                coach = CoachMark(
+                    title = "Raise",
+                    body = "When you have the best of it, raise to build the pot. Tap Raise to put more chips in.",
+                    ctaLabel = null,
+                ),
+                stepIndex = 3,
+                totalSteps = 12,
+                onAdvance = {},
+            )
         }
     }
 }
