@@ -637,6 +637,78 @@ private fun ProfileScreenPreview_Claimed() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
+private fun ProfileScreenPreview_SigningOut() {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
+        ProfileScreen(
+            settings = ProfileSettings(
+                displayName = "Elijah",
+                avatarEmoji = "🦄",
+                avatarBackgroundColor = "#7555ff",
+                rank = 1820,
+                xp = 12_400,
+                isAnonymous = false,
+                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
+                appVersion = "0.1.0",
+                showQaMenu = false,
+            ),
+            onClaimAccount = {},
+            onEditProfile = {},
+            onOpenMyItems = {},
+            onOpenNotifications = {},
+            onBotSpeedChange = {},
+            onTurnFeedbackChange = {},
+            onTapRank = {},
+            onTapXp = {},
+            onSendFeedback = {},
+            onReportBug = {},
+            onPrivacyPolicy = {},
+            onTermsOfService = {},
+            onDeleteAccount = {},
+            onSignOut = {},
+            isSigningOut = true,
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.runtime.Composable
+private fun ProfileScreenPreview_WithUnreadNotifications() {
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
+        ProfileScreen(
+            settings = ProfileSettings(
+                displayName = "Elijah",
+                avatarEmoji = "🦄",
+                avatarBackgroundColor = "#7555ff",
+                rank = 1820,
+                xp = 12_400,
+                isAnonymous = false,
+                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
+                appVersion = "0.1.0",
+                unreadNotificationCount = 5,
+                showQaMenu = false,
+            ),
+            onClaimAccount = {},
+            onEditProfile = {},
+            onOpenMyItems = {},
+            onOpenNotifications = {},
+            onBotSpeedChange = {},
+            onTurnFeedbackChange = {},
+            onTapRank = {},
+            onTapXp = {},
+            onSendFeedback = {},
+            onReportBug = {},
+            onPrivacyPolicy = {},
+            onTermsOfService = {},
+            onDeleteAccount = {},
+            onSignOut = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_DebugBuild() {
     PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
