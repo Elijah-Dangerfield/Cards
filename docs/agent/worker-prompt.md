@@ -21,9 +21,11 @@ You are one of 4 scheduled workers shipping incremental engineering work for Car
 
 ## Picking work
 
-- Pick 1–3 items you're **confident about**. Confidence > ambition. Skipping is fine.
-- Skip items that are vague, contradict the spec, span unclear boundaries, or where a wrong choice is hard to undo.
-- Don't double-pick: check `git log origin/main..HEAD` and existing `docs/agent/in-flight.md` blocks.
+- **Target 3–6 items per cycle, biased toward substance.** A cycle that lands one cosmetic tweak and stops is a waste — you have time to do real work. Keep going until you've shipped a meaningful chunk or genuinely run out of confident picks.
+- **Don't only nibble the easy items.** Reach for at least one meatier item per cycle — a feature, a refactor that spans a few files, a non-trivial server change. The trivial stuff (a copy fix, a single-line DS swap) is fine as a warm-up but isn't enough on its own.
+- **Confidence still gates ambition.** Skip items that are vague, contradict the spec, span unclear boundaries, or where a wrong choice is hard to undo. Better to ship 3 solid items than 6 with one half-baked.
+- **After each commit, keep going.** Don't stop after one item if there's more in `docs/todo.md` you're confident about. Stop only when (a) you've shipped a substantial cycle's worth, (b) every remaining item needs a judgement call you can't confidently make, or (c) the tree is in a state where another item would touch the same code paths and risk stomping the prior commit.
+- **Don't double-pick:** check `git log origin/main..HEAD` and existing `docs/agent/in-flight.md` blocks before claiming an item.
 
 ## Scope of each item
 
