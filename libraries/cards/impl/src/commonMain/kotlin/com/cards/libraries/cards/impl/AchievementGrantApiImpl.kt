@@ -41,7 +41,7 @@ class AchievementGrantApiImpl(
 
     override suspend fun grantAchievement(achievementId: AchievementId): Boolean {
         val result: Catching<Boolean> = networkClient.authedCall(
-            description = "grants.achievement.${achievementId.name}",
+            description = "grants.achievement",
             retry = RetryPolicy.idempotent(),
         ) { client ->
             val response: HttpResponse = client.post(
