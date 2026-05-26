@@ -123,5 +123,7 @@ fun titleForProductId(productId: String?): String? = when (productId) {
     "title_bluff_master" -> "Bluff Master"
     "title_shark" -> "The Shark"
     "title_high_roller" -> "High Roller"
+    "title_pot_magnet" -> "Pot Magnet"
+    "title_short_stack_hero" -> "Short Stack Hero"
     else -> null
 }

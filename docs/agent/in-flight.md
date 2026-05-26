@@ -17,6 +17,13 @@
 **Reviewer notes:** Built on top of the EquippedFelt move; pairs cleanly with that commit. Same primitive is the natural fit for the shop's `ProductIcon` tile and the `PurchaseConfirmSheet` body — left as a todo entry because the size + placement on those bigger surfaces want a design judgment, not a worker call.
 **Deferred:** Shop integration (grid tile + purchase sheet) — left as a `docs/todo.md` entry pointing at the new `CosmeticPreview` primitive.
 
+## feat(catalog): seed two unlock-only achievement titles
+
+**Problem:** [product-spec.md §4.2] promises legendary-achievement cosmetics but the unlock-only catalog only had `felt_default` (auto-granted, zero prestige). The "Seed an opening pool" bullet in §A asked for a handful of well-placed unlocks so the unlock-only path reads true on day one.
+**Approach:** V17 migration seeds `title_pot_magnet` (paired with `POT_5000`) and `title_short_stack_hero` (paired with `COMEBACK_FROM_5BB`) as `unlock_only = TRUE` rows. Titles are the cheapest unlock shape — no new visual asset, just text under the player's name — so they're the right shape to seed before any felt / card-back artwork lands. Mirrored the productIds in `titleForProductId` ([EquippedFelt.kt]) so once granted they render at the table immediately.
+**Reviewer notes:** **The achievement-reward → `recordEarnedGrant` wire-up is still missing** (separate bullet in §A "Wire the earned-grant path"). Until that lands these rows are dormant — no user can earn them. The catalog content + client title mapping are intentionally landed *first* so that work can plug in without also having to invent example payloads. Deliberately deferred the third legendary candidate (`title_comeback_kid` ↔ `DONT_CALL_IT_COMEBACK`) so the catalog doesn't ship with three near-identical comeback-flavored titles in one pass — a designer / product call on whether DONT_CALL_IT vs COMEBACK_FROM_5BB warrants its own title.
+**Deferred:** League-tier cosmetics, achievement-chain capstones, RFT drops — all are siblings under the same "seed an opening pool" bullet in `docs/todo.md` (unchanged; reviewer please decide whether to trim "Legendary-achievement unlocks" given two of three candidates are now seeded).
+
 ## test(room): add previews for TutorialPokerScreen
 
 **Problem:** `TutorialPokerScreen.kt` had zero `@Preview` coverage — the only screen-level composable in the codebase without any. Iterating on tutorial chrome required full rebuild → reinstall → click-through to Practice.
