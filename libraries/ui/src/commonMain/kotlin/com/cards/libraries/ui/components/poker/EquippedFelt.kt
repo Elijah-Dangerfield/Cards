@@ -108,6 +108,11 @@ fun cardBackForProductId(productId: String?): CardBackStyle = when (productId) {
     "cardback_neon" -> CardBackStyle.Neon
     "cardback_diamond" -> CardBackStyle.Diamond
     "cardback_comeback_kid" -> CardBackStyle.ComebackKid
+    "cardback_skulls" -> CardBackStyle.Skulls
+    "cardback_galaxy" -> CardBackStyle.Galaxy
+    "cardback_holographic" -> CardBackStyle.Holographic
+    "cardback_fire" -> CardBackStyle.Fire
+    "cardback_avatar" -> CardBackStyle.Avatar
     else -> CardBackStyle.Default
 }
 

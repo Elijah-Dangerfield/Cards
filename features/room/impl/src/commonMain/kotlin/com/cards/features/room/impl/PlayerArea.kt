@@ -71,6 +71,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.Filled
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.poker.AvatarBackOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
@@ -278,8 +279,22 @@ internal fun PlayerArea(
                     alpha = 1f - 0.25f * dragProgress
                 },
             ) {
-                HoleCardSlot(card = human.holeCards.getOrNull(0), dealDelayMs = 0, size = PlayingCardSize.Hole)
-                HoleCardSlot(card = human.holeCards.getOrNull(1), dealDelayMs = 150, size = PlayingCardSize.Hole)
+                val humanAvatarOverlay = AvatarBackOverlay(
+                    emoji = human.emoji ?: AnonymousAvatarEmoji,
+                    backgroundColorHex = human.avatarBackgroundColorHex,
+                )
+                HoleCardSlot(
+                    card = human.holeCards.getOrNull(0),
+                    dealDelayMs = 0,
+                    size = PlayingCardSize.Hole,
+                    avatarOverlay = humanAvatarOverlay,
+                )
+                HoleCardSlot(
+                    card = human.holeCards.getOrNull(1),
+                    dealDelayMs = 150,
+                    size = PlayingCardSize.Hole,
+                    avatarOverlay = humanAvatarOverlay,
+                )
             }
         }
         FlippablePlayerInfoTile(
@@ -321,7 +336,12 @@ private fun pulseAlpha(low: Float = 0.32f, high: Float = 0.78f): Float {
 }
 
 @Composable
-private fun HoleCardSlot(card: Card?, dealDelayMs: Int, size: PlayingCardSize) {
+private fun HoleCardSlot(
+    card: Card?,
+    dealDelayMs: Int,
+    size: PlayingCardSize,
+    avatarOverlay: AvatarBackOverlay? = null,
+) {
     if (card == null) {
         PlayingCardSlot(size = size)
         return
@@ -366,7 +386,7 @@ private fun HoleCardSlot(card: Card?, dealDelayMs: Int, size: PlayingCardSize) {
                     },
             ) {
                 if (rotation <= 90f) {
-                    PlayingCardBack(size = size)
+                    PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
                 } else {
                     Box(
                         modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f },
