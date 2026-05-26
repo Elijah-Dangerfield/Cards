@@ -30,6 +30,7 @@ For each in-flight block (and each commit since `origin/main`):
    - Direct `Dispatchers.{Main,IO,Default,Unconfined}` instead of `DispatcherProvider`.
    - Public screen-level composables in `:features:*:impl` missing `@Preview`.
    - Comments that shouldn't exist (project convention: none).
+   - **Pre-launch noise** — defensive backfill logic or "existing users won't get X" caveats in migrations / commit bodies / in-flight notes. The app hasn't launched; there's no production population to migrate carefully. Tighten or strip those callouts and rewrite the migration to do the right thing for a fresh world. Drop this check the moment we ship.
    - Scope creep, dead code, unused imports, leftover `println`/debug logs.
    - Secrets in code, unsafe deserialization, injection smells.
    - Conventional-commit type matches the change (`feat:` only for user-visible new capability).
