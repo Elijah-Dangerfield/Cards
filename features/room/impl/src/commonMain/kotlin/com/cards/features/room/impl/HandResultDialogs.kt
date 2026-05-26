@@ -18,8 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementRarity
@@ -40,6 +38,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
@@ -308,11 +307,7 @@ private fun XpEarnedBubble(amount: Int) {
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
-                    ),
-                ),
+                .background(LevelProgressGradient),
             contentAlignment = Alignment.Center,
         ) {
             Text(

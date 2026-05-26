@@ -22,13 +22,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -112,11 +111,7 @@ private fun XpHero(progress: LevelProgress) {
             modifier = Modifier
                 .size(72.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
-                    ),
-                ),
+                .background(LevelProgressGradient),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -162,11 +157,7 @@ private fun LevelProgressBar(progress: LevelProgress) {
                 .fillMaxWidth(progress.fraction)
                 .height(10.dp)
                 .clip(RoundedCornerShape(50))
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
-                    ),
-                ),
+                .background(LevelProgressGradient),
         )
     }
 }
