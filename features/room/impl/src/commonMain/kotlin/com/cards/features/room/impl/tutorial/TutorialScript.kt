@@ -222,7 +222,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Pocket aces",
-                    body = "Nice start. The label on your cards shows what you have right now; it updates as community cards reveal. Tap your cards to flip and see the back.",
+                    body = "Best starting hand in poker. A raise builds the pot when you're strong, but raise too big and opponents fold rather than pay you off. Tap your cards anytime to flip them.",
                     ctaLabel = "Got it",
                     // Cards are at the bottom; pin the mark up top so
                     // it doesn't cover what we're talking about.
