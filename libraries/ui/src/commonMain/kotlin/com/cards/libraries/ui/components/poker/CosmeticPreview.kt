@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.CosmeticSlot
+import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -51,9 +53,9 @@ fun CosmeticPreview(
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
 ) {
-    when {
-        isFeltProductId(productId) -> FeltSwatch(productId = productId, size = size, modifier = modifier)
-        isCardBackProductId(productId) -> CardBackPreview(productId = productId, size = size, modifier = modifier)
+    when (cosmeticSlotFor(productId)) {
+        CosmeticSlot.Felt -> FeltSwatch(productId = productId, size = size, modifier = modifier)
+        CosmeticSlot.CardBack -> CardBackPreview(productId = productId, size = size, modifier = modifier)
         else -> EmojiTile(emoji = emoji, size = size, modifier = modifier)
     }
 }
@@ -75,9 +77,6 @@ private fun FeltSwatch(productId: String, size: Dp, modifier: Modifier = Modifie
 @Composable
 private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Modifier) {
     val style = cardBackForProductId(productId)
-    // 0.7 width-to-height ratio (standard card back) sized so the
-    // taller dimension matches the swatch tile size, keeping the
-    // row visually aligned with felts and emoji tiles.
     val cardSize = PlayingCardSize(width = size * 0.7f, height = size)
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
         PlayingCardBack(size = cardSize, style = style)
@@ -99,22 +98,6 @@ private fun EmojiTile(emoji: String, size: Dp, modifier: Modifier = Modifier) {
         )
     }
 }
-
-/**
- * Cheap classifier — true if the id is a known felt or follows the
- * `felt_*` / `table_*` naming convention. Keeps unknown server ids
- * routed through the felt branch when their name implies "this is a
- * felt", so a brand-new server catalog row still renders sensibly.
- */
-private fun isFeltProductId(productId: String): Boolean =
-    productId.startsWith("felt_") || productId.startsWith("table_")
-
-/**
- * Same shape as [isFeltProductId] for card backs. The `cardback_` prefix
- * is the catalog convention.
- */
-private fun isCardBackProductId(productId: String): Boolean =
-    productId.startsWith("cardback_")
 
 @Preview
 @Composable
