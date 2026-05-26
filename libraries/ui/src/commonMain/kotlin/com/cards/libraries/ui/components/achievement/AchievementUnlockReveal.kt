@@ -92,6 +92,15 @@ fun AchievementUnlockReveal(
     // every recomposition during the animation (which would re-arm
     // Clickable internals on every frame).
     val suppressFlipClick: () -> Unit = remember { {} }
+    // Snapshot "now" once per reveal so the medallion's back face reads
+    // a sensible "Earned just now" instead of the epoch (we used to pass
+    // `1L` here, which rendered as "Earned 55 years ago" if the user
+    // flipped the card after the sequence settled). Caller doesn't know
+    // the actual server-grant timestamp at this point; "now" is correct
+    // semantically — this composable IS the unlock moment.
+    val earnedAtEpochMs = remember(revealKey) {
+        kotlin.time.Clock.System.now().toEpochMilliseconds()
+    }
 
     LaunchedEffect(revealKey) {
         // ---- 1. Anticipation -----------------------------------------
@@ -202,9 +211,9 @@ fun AchievementUnlockReveal(
                 // the flip-to-back affordance so a tap mid-slam doesn't
                 // steal focus from the celebration. Once sequenceComplete
                 // flips, we pass null to re-enable the medallion's
-                // native tap-to-flip behavior — same as on the Stats /
+                // native tap-to-flip behavior, same as on the Stats /
                 // Achievements page.
-                earnedAtEpochMs = 1L,
+                earnedAtEpochMs = earnedAtEpochMs,
                 progress = achievement.criterion.target,
                 onClick = if (sequenceComplete) null else suppressFlipClick,
                 modifier = Modifier
