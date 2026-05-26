@@ -44,3 +44,9 @@
 **Problem:** todo §A "Previews on every user-facing composable" — both screens had only two `@Preview` states. FeedbackScreen lacked the `isSubmitting`, `errorMessage`, and char-limit-reached states (each renders different chrome — disabled button, red helper text, red counter). StatsScreen lacked the initial loading state (`isLoading = true` shows a spinner instead of the hero) and the achievements-row populated state.
 **Approach:** Renamed `FeedbackScreenPreview` / `FeedbackScreenPreviewDisabled` to the `<ScreenName>Preview_<StateDescription>` convention from AGENTS.md (`_Empty`, `_Filled`) and added `_Submitting`, `_Error`, `_CharLimitReached`. Added `StatsScreenPreview_Loading` and `StatsScreenPreview_WithAchievements` alongside the existing `_Empty` + `_Populated`; the new "with achievements" preview pulls the first three registry entries via `AllAchievements.take(3)` so the row renders against real registry data rather than a hand-rolled stub.
 **Reviewer notes:** None.
+
+## test: expand preview coverage on OnboardingScreen
+
+**Problem:** todo §A "Previews on every user-facing composable" — OnboardingScreen had one preview per step (4 total) but no coverage of the off-happy-path states: OAuth in flight, OAuth error on Welcome, saving / save-error on PickIdentity. Those are exactly the states a state-specific layout bug shows up in (disabled providers, red error text under the name field) and the previews catch.
+**Approach:** added `OnboardingScreenPreview_Welcome_OAuthInFlight`, `OnboardingScreenPreview_Welcome_AuthError`, `OnboardingScreenPreview_PickIdentity_Saving`, and `OnboardingScreenPreview_PickIdentity_SaveError` alongside the existing happy-path step previews. Followed the `<ScreenName>Preview_<StateDescription>` convention from AGENTS.md.
+**Reviewer notes:** None.
