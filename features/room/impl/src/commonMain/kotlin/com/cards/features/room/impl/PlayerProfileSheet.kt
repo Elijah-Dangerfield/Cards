@@ -1,9 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -20,7 +18,6 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD200
-import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -48,14 +45,13 @@ internal fun PlayerProfileSheet(
         onDismissRequest = onDismiss,
         backgroundColor = AppTheme.colors.surfacePrimary,
         dragHandle = handle,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        title = {
             Text(
                 text = seat.displayName,
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally),
+                modifier = Modifier.fillMaxWidth(),
             )
             seat.seatBadge?.let { badge ->
                 VerticalSpacerD200()
@@ -64,28 +60,28 @@ internal fun PlayerProfileSheet(
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            VerticalSpacerD800()
-            ListSection(
-                title = "Settings",
-                items = listOf(
-                    ListSectionItem(
-                        headlineText = "Mute emoji",
-                        supportingText = if (isMuted) {
-                            "You won't see their table blasts."
-                        } else {
-                            "Their blasts will show on your screen."
-                        },
-                        accessory = ListItemAccessory.Switch(
-                            checked = isMuted,
-                            onCheckedChange = { onToggleMute() },
-                        ),
+        },
+    ) {
+        ListSection(
+            title = "Settings",
+            items = listOf(
+                ListSectionItem(
+                    headlineText = "Mute emoji",
+                    supportingText = if (isMuted) {
+                        "You won't see their table blasts."
+                    } else {
+                        "Their blasts will show on your screen."
+                    },
+                    accessory = ListItemAccessory.Switch(
+                        checked = isMuted,
+                        onCheckedChange = { onToggleMute() },
                     ),
                 ),
-            )
-        }
+            ),
+        )
     }
 }
 

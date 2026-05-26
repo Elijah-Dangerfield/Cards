@@ -262,6 +262,49 @@ fun Dialog(
         animationSpec = animationSpec,
         scrimColor = scrimColor,
         contentAlignment = contentAlignment,
+        title = {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.onSurfacePrimary,
+                textAlign = TextAlign.Center,
+            )
+        },
+        body = body,
+    )
+}
+
+/**
+ * Composite-title variant of the title preset. Same outer padding +
+ * inter-row spacing as the string-title overload, but takes a
+ * `title: @Composable` slot for cases where the title isn't a single
+ * line of text (e.g. headline + sub-badge stack, icon + title row).
+ * Callers using this slot own the title's typography + alignment —
+ * the preset only owns layout. Prefer the string overload when the
+ * title is plain text so we keep typography consistent by default.
+ */
+@Composable
+fun Dialog(
+    title: @Composable ColumnScope.() -> Unit,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    state: DialogState = rememberDialogState(),
+    topAccessory: TopAccessory? = null,
+    properties: ModalDialogProperties = ModalDialogProperties(),
+    animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
+    scrimColor: Color = ModalDialogDefaults.scrimColor(),
+    contentAlignment: Alignment = Alignment.Center,
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        state = state,
+        topAccessory = topAccessory,
+        properties = properties,
+        animationSpec = animationSpec,
+        scrimColor = scrimColor,
+        contentAlignment = contentAlignment,
     ) {
         Column(
             modifier = Modifier
@@ -270,12 +313,7 @@ fun Dialog(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
-                textAlign = TextAlign.Center,
-            )
+            title()
             body()
         }
     }
