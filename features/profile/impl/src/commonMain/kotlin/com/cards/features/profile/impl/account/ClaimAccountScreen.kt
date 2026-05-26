@@ -175,6 +175,23 @@ private fun ClaimAccountScreenPreview_BothEnabled() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
+private fun ClaimAccountScreenPreview_Submitting() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ClaimAccountScreen(
+            state = ClaimAccountState(
+                googleEnabled = true,
+                appleEnabled = true,
+                isSubmitting = true,
+            ),
+            onAction = {},
+            onBack = {},
+            onContinueWithEmail = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
 private fun ClaimAccountScreenPreview_Conflict() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         ClaimAccountScreen(

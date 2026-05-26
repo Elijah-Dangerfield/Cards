@@ -659,6 +659,69 @@ private fun EditProfileScreenPreview_LongPalette() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
+private fun EditProfileScreenPreview_Submitting() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "ElijahNew",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🚀",
+                allAvatarPacks = listOf(
+                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯", "🦄", "🐲", "🦁", "🐸")),
+                ),
+                isSubmitting = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_GenericError() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "ElijahNew",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🦊",
+                allAvatarPacks = listOf(
+                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
+                ),
+                error = "Couldn't save changes — check your connection.",
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun EditProfileScreenPreview_AvatarLoadError() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        EditProfileScreen(
+            state = EditProfileState(
+                initialDisplayName = "Elijah",
+                displayName = "Elijah",
+                initialAvatarEmoji = "🦊",
+                selectedAvatarEmoji = "🦊",
+                allAvatarPacks = listOf(
+                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
+                ),
+                avatarLoadError = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
 private fun EditProfileScreenPreview_DisplayNameTaken() {
     // Pins the inline "name is taken" error treatment on the name
     // field — the rejection surfaces here, not as a snackbar after
