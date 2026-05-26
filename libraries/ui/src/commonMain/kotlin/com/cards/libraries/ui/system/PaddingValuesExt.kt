@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.ui
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -46,7 +47,15 @@ fun Modifier.screenContentPadding(
         end = paddingValues.calculateEndPadding(layoutDirection)
     )
 
-    var modifier = this.padding(scaffoldPadding)
+    // Consume the Scaffold's paddingValues as window-inset budget so
+    // descendants (including our own navigationBarsPadding below) see
+    // the system insets as already handled. Without this, a screen
+    // ends up double-padded on the bottom: once via .padding(paddingValues)
+    // and again via .navigationBarsPadding(), because Material3 Scaffold
+    // surfaces insets through paddingValues but doesn't consume them.
+    var modifier = this
+        .consumeWindowInsets(scaffoldPadding)
+        .padding(scaffoldPadding)
 
     if (includeHorizontalInsets) {
         modifier = modifier.padding(screenHorizontalInsets)
