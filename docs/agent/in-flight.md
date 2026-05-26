@@ -11,6 +11,12 @@
 **Reviewer notes:** picked the starter emoji set (👋 👍 🎉 😀) as a friendly neutral default — none of the existing packs use them, so no overlap. Card-back surface needed no client change (the renderer already falls back to `CardBackStyle.Default` blue for unknown ids, and `cardback_default` matches that fallback). `PostgresProfileRepository` now reaches across to `InventoryTable` directly inside its transaction — this is the path the todo explicitly carved out (decoupling via injection is on the backlog under "ProfileRepository → InventoryRepository import"); for now atomicity wins over cohesion. Test coverage: two new integration tests in `PostgresProfileRepositoryTest` lock in seeding and idempotency.
 **Deferred:** seat-bottom emoji-pack-owned indicator at the table tray (only matters once the pack ID list changes again); nothing yet — reviewer please triage.
 
+## fix(catalog): realign title_pot_magnet copy with BB-relative POT_5000
+
+**Problem:** V17 seeded `title_pot_magnet` with the description "Unlocked by sitting at a 5,000-chip pot. …" against the V1 absolute-chip POT_5000 criterion. The previous commit in this cycle re-anchored POT_5000 to ≥ 25× BB, so that copy is now user-facing wrong — MyItemsScreen renders this description under the title row when the title lands in inventory.
+**Approach:** V19 migration `UPDATE products SET description_by_locale = '{"en":"Unlocked by sitting at a pot 25× the big blind. …"}' WHERE id = 'title_pot_magnet'`. Only the EN side changes; V17 didn't seed Spanish, and the catalog matcher falls back to EN.
+**Reviewer notes:** None. Sibling `title_short_stack_hero` description is unchanged (COMEBACK_FROM_5BB has always been BB-relative).
+
 ## test: expand preview coverage on AchievementsScreen + BugReportScreen
 
 **Problem:** todo §A "Previews on every user-facing composable" — both screens only had a single mid-state preview. Achievements lacked the empty / full-collection states that new and end-game users see; BugReport lacked the no-context (settings-entry), submitting, and error states.
