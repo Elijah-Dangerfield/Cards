@@ -217,6 +217,17 @@ val AllAchievements: List<Achievement> = listOf(
         xpReward = AchievementRarity.RARE.defaultXpReward,
         mode = AchievementMode.BOTS,
     ),
+    Achievement(
+        id = AchievementId.BOT_WHISPERER,
+        name = "Bot whisperer",
+        description = "Beat all five bot personalities 10 times each. Unlocks a player title.",
+        icon = "🎓",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = BOT_WHISPERER_BOTS_BEATEN, target = 5),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 1_000L,
+        mode = AchievementMode.BOTS,
+    ),
 
     // Difficulty
     Achievement(
@@ -472,3 +483,11 @@ const val CURRENT_LEVEL: String = "current_level"
 
 /** Key for "hands won against bot with [name]". */
 fun winsVsBotKey(name: String): String = "wins_vs_bot_$name"
+
+/**
+ * Counter for the [AchievementId.BOT_WHISPERER] capstone. Ticks by one
+ * the first time each bot's [winsVsBotKey] reaches 10 (the threshold
+ * for `BEAT_X_10`). Capped logically at the five-bot roster; the
+ * achievement fires when this counter reaches 5.
+ */
+const val BOT_WHISPERER_BOTS_BEATEN: String = "bot_whisperer_bots_beaten"

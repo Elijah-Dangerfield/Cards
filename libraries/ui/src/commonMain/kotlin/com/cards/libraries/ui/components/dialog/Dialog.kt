@@ -56,6 +56,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
@@ -360,6 +361,269 @@ private fun PreviewDialog_ChipBubble() {
                 modifier = Modifier.padding(horizontal = Dimension.D800),
                 text = "Chip-themed dialog (rebuy / bust / chip rewards)",
             )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_PrimaryButtonOnly() {
+    PreviewContent {
+        Dialog(
+            title = "You're all set",
+            description = "Your changes have been saved. You can keep playing whenever you're ready.",
+            primaryButtonText = "Got it",
+            onDismissRequest = {},
+            onPrimaryButtonClicked = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_PrimaryAndSecondary() {
+    PreviewContent {
+        Dialog(
+            title = "Leave table?",
+            description = "Your seat will be released and your stack returned to your bankroll.",
+            primaryButtonText = "Leave",
+            secondaryButtonText = "Stay",
+            onDismissRequest = {},
+            onPrimaryButtonClicked = {},
+            onSecondaryButtonClicked = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_LongDescription() {
+    PreviewContent {
+        Dialog(
+            title = "How blinds work",
+            description = "Blinds are forced bets that rotate around the table each hand. " +
+                "They guarantee there's always something in the pot to fight over, " +
+                "and they increase over time so stacks don't sit untouched forever.",
+            primaryButtonText = "Continue",
+            secondaryButtonText = "Tell me more",
+            onDismissRequest = {},
+            onPrimaryButtonClicked = {},
+            onSecondaryButtonClicked = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_TitlePresetWithCustomButtons() {
+    PreviewContent {
+        Dialog(
+            title = "Cash out?",
+            onDismissRequest = {},
+        ) {
+            Text(
+                text = "You'll be cashed out at your current stack size.",
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D400))
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Danger,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Cash out")
+            }
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Ghost,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Never mind")
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_PrimaryAltAndSecondary() {
+    PreviewContent {
+        Dialog(
+            title = "Daily reward",
+            onDismissRequest = {},
+            topAccessory = topAccessoryChipBubble(),
+        ) {
+            Text(
+                text = "Claim your 5,000 chip bonus.",
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D400))
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.PrimaryAlt,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Claim")
+            }
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Secondary,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Later")
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_DangerWithGhost() {
+    PreviewContent {
+        Dialog(
+            title = "Delete account?",
+            onDismissRequest = {},
+            topAccessory = topAccessoryEmoji(emoji = "⚠️"),
+        ) {
+            Text(
+                text = "This cannot be undone. Your stats, achievements, and chips will be lost.",
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D400))
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Danger,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Delete forever")
+            }
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Ghost,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Cancel")
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_GhostOnly() {
+    PreviewContent {
+        Dialog(
+            title = "Heads up",
+            onDismissRequest = {},
+        ) {
+            Text(
+                text = "Tournaments pause automatically if the host disconnects.",
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D400))
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Ghost,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Got it")
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_TitlePresetBodyRows() {
+    PreviewContent {
+        Dialog(
+            title = "What's new",
+            onDismissRequest = {},
+            topAccessory = topAccessoryEmoji(emoji = "✨"),
+        ) {
+            Text(
+                text = "Faster table loads, smoother animations, and a redesigned action bar.",
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = "Tap any chip to see the new bet pill explainer.",
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_IconAccessoryPrimary() {
+    PreviewContent {
+        Dialog(
+            title = "Verified",
+            onDismissRequest = {},
+            topAccessory = topAccessoryIcon(
+                icon = Icons.Check("check"),
+            ),
+        ) {
+            Text(
+                text = "Your email has been confirmed.",
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D400))
+            Button(
+                size = ButtonSize.Medium,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Continue")
+            }
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewDialog_ThreeStackedButtons() {
+    PreviewContent {
+        Dialog(
+            title = "Choose a buy-in",
+            onDismissRequest = {},
+        ) {
+            Text(
+                text = "Pick the stack you want to bring to the table.",
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(Dimension.D400))
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Primary,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "10,000 chips")
+            }
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Secondary,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "25,000 chips")
+            }
+            Button(
+                size = ButtonSize.Medium,
+                type = ButtonType.Tertiary,
+                onClick = {},
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "50,000 chips")
+            }
         }
     }
 }

@@ -534,11 +534,6 @@ private fun ActiveTable(
                 onSwipeFold = onSwipeFold,
             )
             QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
-            // Bottom emoji blast tray moved to the TopBar (the
-            // [TopBarEmojiButton] icon sits alongside the cheat-sheet
-            // question icon). Spacer keeps the action bar from sitting
-            // flush against the system gesture area.
-            VerticalSpacerD500()
         }
     }
 }

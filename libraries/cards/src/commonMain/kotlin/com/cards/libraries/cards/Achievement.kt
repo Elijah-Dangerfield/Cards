@@ -75,6 +75,7 @@ enum class AchievementId {
     BEAT_GINA_10,
     BEAT_STEVE_10,
     BEAT_MIKE_10,
+    BOT_WHISPERER,
 
     // Difficulty
     CHALLENGING_FIRST_WIN,

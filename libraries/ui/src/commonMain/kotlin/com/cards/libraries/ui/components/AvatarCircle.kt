@@ -1,5 +1,10 @@
 package com.dangerfield.cards.libraries.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +51,11 @@ fun AvatarCircle(
 ) {
     val bg = resolveAvatarBackground(backgroundColorHex)
     val initial = name.firstOrNull()?.uppercase() ?: "?"
+    val content = if (emoji != null) {
+        AvatarContent(text = emoji, isEmoji = true)
+    } else {
+        AvatarContent(text = initial, isEmoji = false)
+    }
     Box(
         modifier = modifier
             .size(size)
@@ -54,13 +64,27 @@ fun AvatarCircle(
             .background(bg),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = emoji ?: initial,
-            typography = if (emoji != null) emojiTypography else typography,
-            color = AppTheme.colors.text,
-        )
+        // Animate emoji/initial changes so picker selections feel responsive
+        // (fade + slight scale-in on new, fade out on old). Matches the
+        // hero preview in edit-profile — every avatar surface routes through
+        // here so the transition is consistent app-wide.
+        AnimatedContent(
+            targetState = content,
+            transitionSpec = {
+                (fadeIn() + scaleIn(initialScale = 0.75f)) togetherWith fadeOut()
+            },
+            label = "avatar-content",
+        ) { current ->
+            Text(
+                text = current.text,
+                typography = if (current.isEmoji) emojiTypography else typography,
+                color = AppTheme.colors.text,
+            )
+        }
     }
 }
+
+private data class AvatarContent(val text: String, val isEmoji: Boolean)
 
 /**
  * Resolve a server-supplied `#rrggbb` hex into the avatar's background

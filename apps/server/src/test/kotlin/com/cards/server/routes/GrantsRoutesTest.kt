@@ -96,6 +96,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsBotWhispererTitle_forBotWhispererCapstone() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_bot_whisperer"))
+        post(inventory, catalog, defaultPolicy, "BOT_WHISPERER") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_bot_whisperer", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("title_bot_whisperer", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun serverWitnessedAchievement_returnsForbidden_andDoesNotRecord() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.empty()

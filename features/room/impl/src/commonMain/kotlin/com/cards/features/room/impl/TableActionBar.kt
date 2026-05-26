@@ -111,6 +111,7 @@ internal fun QuickActionBar(
                                     else PlayerIntent.Call(seatIndex),
                                 )
                             },
+
                             flat = true,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         ) {

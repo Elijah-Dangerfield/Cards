@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.ALL_IN_HANDS
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
+import com.dangerfield.cards.libraries.cards.BOT_WHISPERER_BOTS_BEATEN
 import com.dangerfield.cards.libraries.cards.BUSTS_DEALT
 import com.dangerfield.cards.libraries.cards.CHALLENGING_WINS
 import com.dangerfield.cards.libraries.cards.ChipsRepository
@@ -242,8 +243,18 @@ class AchievementRepositoryImpl(
         context: AchievementHandContext,
     ) {
         if (!summary.wonPot) return
-        for (bot in context.opponentBotNames) {
-            achievementDao.incrementCounter(winsVsBotKey(bot), 1)
+        // Same bot can appear in the lineup twice on busy MP-style tables;
+        // dedup so the capstone counter ticks at most once per bot per hand.
+        for (bot in context.opponentBotNames.distinct()) {
+            val key = winsVsBotKey(bot)
+            val previous = achievementDao.getCounter(key) ?: 0
+            achievementDao.incrementCounter(key, 1)
+            // First time this bot's per-bot counter crosses the BEAT_X_10
+            // threshold, tick the Bot Whisperer capstone — fires once each
+            // per-bot count goes from 9 to 10.
+            if (previous == BEAT_BOT_10_THRESHOLD - 1) {
+                achievementDao.incrementCounter(BOT_WHISPERER_BOTS_BEATEN, 1)
+            }
         }
     }
 
@@ -387,6 +398,11 @@ class AchievementRepositoryImpl(
          *  their first session — anything over the cap stays eligible and
          *  unlocks on a subsequent hand. */
         const val MAX_ACHIEVEMENTS_PER_HAND: Int = 2
+
+        /** Per-bot wins required for each BEAT_X_10 achievement; mirrored
+         *  here so the capstone counter can detect when a per-bot count
+         *  crosses the threshold for the first time. */
+        const val BEAT_BOT_10_THRESHOLD: Int = 10
     }
 
     private fun buildProgress(
