@@ -30,10 +30,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,8 +59,13 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -90,7 +91,11 @@ fun OnboardingScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .screenContentPadding(
+                    paddingValues = padding,
+                    includeHorizontalInsets = false,
+                    includeImePadding = true,
+                ),
         ) {
             AnimatedContent(
                 targetState = state.step,
@@ -157,7 +162,7 @@ private fun WelcomeStep(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = Dimension.D800),
+            .padding(screenHorizontalInsets),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(modifier = Modifier.weight(0.8f))
@@ -275,7 +280,7 @@ private fun PickIdentityStep(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = Dimension.D800),
+            .padding(screenHorizontalInsets),
     ) {
         Row(
             modifier = Modifier
@@ -310,10 +315,9 @@ private fun PickIdentityStep(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = null,
-                        tint = AppTheme.colors.onSurfaceSecondary.color,
-                        modifier = Modifier.size(14.dp),
+                        icon = Icons.Pencil(null),
+                        size = IconSize.Smallest,
+                        color = AppTheme.colors.onSurfaceSecondary,
                     )
                 }
             }
@@ -351,10 +355,9 @@ private fun PickIdentityStep(
             ),
             trailingIcon = {
                 Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit name",
-                    tint = AppTheme.colors.onSurfaceSecondary.color,
-                    modifier = Modifier.size(18.dp),
+                    icon = Icons.Pencil("Edit name"),
+                    size = IconSize.Small,
+                    color = AppTheme.colors.onSurfaceSecondary,
                 )
             },
             isError = state.saveError != null,
@@ -394,10 +397,9 @@ private fun PickIdentityStep(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Default.Lock,
-                contentDescription = null,
-                tint = AppTheme.colors.onSurfaceSecondary.color,
-                modifier = Modifier.size(14.dp),
+                icon = Icons.Lock(null),
+                size = IconSize.Smallest,
+                color = AppTheme.colors.onSurfaceSecondary,
             )
             Spacer(modifier = Modifier.width(Dimension.D300))
             Text(
@@ -497,7 +499,7 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = Dimension.D800),
+            .padding(screenHorizontalInsets),
     ) {
         Spacer(modifier = Modifier.height(Dimension.D900))
         Text(

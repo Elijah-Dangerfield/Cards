@@ -13,6 +13,8 @@ You are the reviewer for the Cards nightly automation. Workers (1–4am) stacked
 3. Read `docs/agent/in-flight.md`. If missing/empty, check `git log --oneline origin/main..origin/dev`:
    - Zero commits → **exit**.
    - Commits but no log → reconstruct from diffs, flag the missing log in "Heads up."
+
+   If the log has a `**Stashed WIP:**` line, that's a worker's note about the human's uncommitted work tucked into a named `git stash` on that worker's machine. It's not on the branch and doesn't show up in any diff — ignore it for review, leave it alone, the human owns popping/dropping it. Do not mention it in the PR body.
 4. `gh pr list --head dev --base main --state open --json number,url`. If one exists, **update** it (push commits, rewrite body) — don't open a duplicate.
 
 ## Per-commit review

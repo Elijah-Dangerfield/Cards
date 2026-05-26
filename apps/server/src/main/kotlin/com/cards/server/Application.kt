@@ -79,7 +79,7 @@ fun Application.module(config: ServerConfig) {
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
         roomRoutes(component.roomService, component.profileRepository)
-        roomSocketRoutes(component.roomService)
+        roomSocketRoutes(component.roomService, component.gameSessionRegistry)
         adminRoutes(
             config = config.admin,
             sweep = component.orphanAnonymousSweep,

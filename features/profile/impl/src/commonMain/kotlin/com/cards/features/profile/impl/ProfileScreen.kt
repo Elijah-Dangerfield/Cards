@@ -46,6 +46,7 @@ import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -88,6 +89,7 @@ fun ProfileScreen(
     onSignOut: () -> Unit,
     isSigningOut: Boolean = false,
     onOpenQaMenu: () -> Unit = {},
+    onOpenTutorial: () -> Unit = {},
     modifier: Modifier = Modifier,
     scrollState: ScrollState = rememberScrollState(),
 ) {
@@ -96,9 +98,9 @@ fun ProfileScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .screenContentPadding(paddingValues = padding)
+                .padding(vertical = 16.dp),
         ) {
             ProfileHeader(settings = settings, onEditProfile = onEditProfile)
             VerticalSpacerD900()
@@ -151,6 +153,7 @@ fun ProfileScreen(
                 turnFeedback = settings.turnFeedback,
                 onBotSpeedChange = onBotSpeedChange,
                 onTurnFeedbackChange = onTurnFeedbackChange,
+                onOpenTutorial = onOpenTutorial,
             )
 
             VerticalSpacerD800()
@@ -317,6 +320,7 @@ private fun GameplaySection(
     turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
     onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
     onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
+    onOpenTutorial: () -> Unit = {},
 ) {
     var botSpeedExpanded by remember { mutableStateOf(false) }
     var turnFeedbackExpanded by remember { mutableStateOf(false) }
@@ -324,6 +328,11 @@ private fun GameplaySection(
     ListSection(
         title = "Gameplay",
         items = listOf(
+            ListSectionItem(
+                headlineText = "How to play",
+                supportingText = "Replay the 2-minute poker tutorial",
+                onClick = onOpenTutorial,
+            ),
             ListSectionItem(
                 headlineText = "Bot speed",
                 supportingText = "How fast the bots think and act",

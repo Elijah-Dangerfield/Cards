@@ -1,5 +1,7 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.GameState
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -11,18 +13,31 @@ import kotlinx.serialization.Serializable
  * `classDiscriminatorMode` overrides, see the client's RoomEventDto).
  *
  * Event shape:
- *  - [Snapshot] fires on connect (and after the server applies a
- *    mutation initiated by another client). Carries the full room.
- *    The client treats it as state-of-the-world, last-write-wins.
- *  - [MemberJoined] / [MemberLeft] / [MemberPresenceChanged] are
- *    convenience deltas the UI can use for toasts ("Alice joined")
- *    without diffing snapshots. The Snapshot is still authoritative.
- *  - [RoomClosed] fires when the last member leaves; clients should
- *    drop their connection + return to lobby selection.
+ *  - **Lobby + presence**:
+ *    - [Snapshot] fires on connect (and after the server applies a
+ *      mutation initiated by another client). Carries the full room.
+ *      The client treats it as state-of-the-world, last-write-wins.
+ *    - [MemberJoined] / [MemberLeft] / [MemberPresenceChanged] are
+ *      convenience deltas the UI can use for toasts ("Alice joined")
+ *      without diffing snapshots. The Snapshot is still authoritative.
+ *    - [RoomClosed] fires when the last member leaves; clients should
+ *      drop their connection + return to lobby selection.
  *
- * V1 doesn't define a client→server message type — clients just listen.
- * Mutations go via HTTP (POST /v1/rooms/{code}/join etc.) so the wire
- * format stays one-way and easy to reason about.
+ *  - **Game state** (added with server-authoritative multiplayer):
+ *    - [GameStateSnapshot] fires after every game mutation. Each
+ *      subscriber gets a personalized projection — other seats' hole
+ *      cards are scrubbed by `GameState.scrubbedFor(viewerSeatIndex)`
+ *      before send. At showdown the server stops scrubbing seats that
+ *      went to showdown so the reveal renders correctly.
+ *    - [GameEventOccurred] streams `GameEvent`s for animations
+ *      (action taken, street advanced, pot awarded, hand ended). The
+ *      `HoleCardsDealt` variant is dropped from the wire — the
+ *      personalized snapshot already carries the viewer's own cards.
+ *    - [IntentAck] closes the loop on a [RoomClientFrame.SubmitIntent]
+ *      / [RoomClientFrame.StartHand] / [RoomClientFrame.RequestNextHand].
+ *      Sent to the originating socket only; identified by `clientNonce`.
+ *      `accepted = false` carries an `error` reason (out-of-turn,
+ *      illegal-intent, not-host, etc.).
  */
 @Serializable
 sealed interface RoomSocketEventDto {
@@ -49,4 +64,20 @@ sealed interface RoomSocketEventDto {
     @Serializable
     @SerialName("room_closed")
     data object RoomClosed : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("game_state")
+    data class GameStateSnapshot(val state: GameState) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("game_event")
+    data class GameEventOccurred(val event: GameEvent) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("intent_ack")
+    data class IntentAck(
+        val clientNonce: String,
+        val accepted: Boolean,
+        val error: String? = null,
+    ) : RoomSocketEventDto
 }

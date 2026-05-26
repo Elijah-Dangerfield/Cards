@@ -40,12 +40,13 @@ fun WinOddsBadge(
         winPercent >= 40 -> AppTheme.colors.status.warning
         else -> AppTheme.colors.status.bad
     }
+    val pillBackground = LocalFeltAccentSurface.current ?: AppTheme.colors.surfaceSecondary.color
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(pillBackground)
             .border(
                 width = 1.dp,
                 color = pillTone.color,

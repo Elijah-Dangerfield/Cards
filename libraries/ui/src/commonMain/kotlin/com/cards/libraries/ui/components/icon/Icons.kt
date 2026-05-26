@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Bathtub
 import androidx.compose.material.icons.filled.Blind
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.Exposure
@@ -145,6 +146,10 @@ enum class Icons(
 
     Warning(
         default = androidx.compose.material.icons.Icons.Default.Warning,
+    ),
+
+    CloudOff(
+        default = androidx.compose.material.icons.Icons.Default.CloudOff,
     ),
 
     TipJar(

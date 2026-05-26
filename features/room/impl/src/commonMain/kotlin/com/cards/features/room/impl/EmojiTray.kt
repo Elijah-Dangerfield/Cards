@@ -184,9 +184,14 @@ private fun EmojiPickerRow(
     onPick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Popup sits over the table, so the picker reads as alien chrome on
+    // non-default felts. Read the felt-accent local for a "raised felt"
+    // tone; falls through to surfaceSecondary outside the play screen.
+    val feltAccent = LocalFeltAccentSurface.current
     Surface(
         modifier = modifier,
-        color = AppTheme.colors.surfaceSecondary,
+        color = if (feltAccent != null) null else AppTheme.colors.surfaceSecondary,
+        colorOverride = feltAccent,
         contentColor = AppTheme.colors.text,
         radius = Radii.Round,
         contentPadding = PaddingValues(

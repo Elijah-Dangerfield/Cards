@@ -161,12 +161,13 @@ private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
 
 @Composable
 private fun PotPill(amount: Long, onClick: () -> Unit) {
+    val pillBackground = LocalFeltAccentSurface.current ?: AppTheme.colors.surfaceSecondary.color
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(pillBackground)
             .clickable(onClick = onClick)
             .padding(start = 14.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
     ) {

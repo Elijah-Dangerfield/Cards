@@ -1,14 +1,12 @@
 package com.dangerfield.cards.features.profile.impl.account
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
@@ -20,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.Button
@@ -50,19 +49,13 @@ fun DeleteAccountScreen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .imePadding(),
+                .verticalScroll(rememberScrollState())
+                .screenContentPadding(paddingValues = padding, includeImePadding = true),
+            verticalArrangement = Arrangement.Top,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Dimension.D800),
-                verticalArrangement = Arrangement.Top,
-            ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
                 IconButton(
                     icon = Icons.ArrowBack("Back"),
@@ -150,8 +143,7 @@ fun DeleteAccountScreen(
                     Text("Cancel")
                 }
 
-                Spacer(modifier = Modifier.height(Dimension.D800))
-            }
+            Spacer(modifier = Modifier.height(Dimension.D800))
         }
     }
 }

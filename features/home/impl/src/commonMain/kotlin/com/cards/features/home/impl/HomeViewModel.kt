@@ -72,6 +72,11 @@ class HomeViewModel(
                 takeAction(HomeAction.ProfileChanged(profile))
             }
         }
+        viewModelScope.launch {
+            appCache.updates.collect { data ->
+                takeAction(HomeAction.TutorialBannerDismissedChanged(data.tutorialBannerDismissed))
+            }
+        }
         observeWelcomeGate()
     }
 
@@ -149,6 +154,12 @@ class HomeViewModel(
             is HomeAction.ProfileChanged -> action.applyProfile(action.profile)
             is HomeAction.RecentUnlocksChanged -> action.updateState {
                 it.copy(recentAchievements = action.items)
+            }
+            is HomeAction.TutorialBannerDismissedChanged -> action.updateState {
+                it.copy(tutorialBannerDismissed = action.dismissed)
+            }
+            is HomeAction.DismissTutorialBanner -> {
+                appCache.update { it.copy(tutorialBannerDismissed = true) }
             }
         }
     }
@@ -260,6 +271,10 @@ data class HomeState(
     /** Most-recent achievement unlocks (newest first), capped at 5. Empty
      *  for fresh users — the Home shelf auto-hides in that case. */
     val recentAchievements: List<RecentAchievement> = emptyList(),
+    /** Whether the user has dismissed the tutorial banner. Mirrors
+     *  `AppData.tutorialBannerDismissed`; false means the banner shows
+     *  above the home header. */
+    val tutorialBannerDismissed: Boolean = false,
 )
 
 /**
@@ -306,4 +321,6 @@ sealed interface HomeAction {
     data class ChipsChanged(val balance: Long?) : HomeAction
     data class ProfileChanged(val profile: Profile) : HomeAction
     data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
+    data class TutorialBannerDismissedChanged(val dismissed: Boolean) : HomeAction
+    data object DismissTutorialBanner : HomeAction
 }

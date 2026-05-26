@@ -112,6 +112,26 @@ interface RoomService {
      *  member missing — callers use this from WS open / close handlers. */
     suspend fun markConnected(code: String, userId: UserId, connected: Boolean): Room?
 
+    /**
+     * Transition the room from [RoomStatus.Lobby] to [RoomStatus.Playing].
+     * No-op (returns current room) if already Playing; rejected (returns
+     * null) if the room is missing. Triggered by the socket route after a
+     * successful [RoomClientFrame.StartHand] dispatch into the game-session
+     * registry. The status flip cascades through the existing room flow
+     * so guests' lobby screens see "we're playing now" via the next
+     * Snapshot.
+     */
+    suspend fun markPlaying(code: String): Room?
+
+    /**
+     * Transition the room from [RoomStatus.Playing] back to [RoomStatus.Lobby].
+     * Phase 2a doesn't call this — the hand ends but the room stays
+     * Playing so the post-hand summary sticks. Reserved for the polish
+     * phase where "back to lobby" is a user choice; the implementation is
+     * here so the symmetry with [markPlaying] is obvious in the interface.
+     */
+    suspend fun markFinished(code: String): Room?
+
     /** One-shot read. Null when the room has been GC'd. */
     suspend fun find(code: String): Room?
 

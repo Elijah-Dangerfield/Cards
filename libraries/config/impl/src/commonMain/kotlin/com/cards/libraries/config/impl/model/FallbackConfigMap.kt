@@ -10,7 +10,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import cards.libraries.config.impl.generated.resources.Res
 
 @SingleIn(AppScope::class)
-class FallbackConfigMap @Inject constructor(
+open class FallbackConfigMap @Inject constructor(
     private val converter: ConfigJsonConverter,
 ) : AppConfigMap() {
     private val logger = KLog.withTag("FallbackConfigMap")

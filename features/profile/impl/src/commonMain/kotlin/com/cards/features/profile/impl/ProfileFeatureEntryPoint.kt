@@ -40,6 +40,7 @@ import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.progression.RankDetailSheetRoute
 import com.dangerfield.cards.features.progression.StatsRoute
+import com.dangerfield.cards.features.room.TutorialRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.libraries.cards.AppCache
@@ -159,6 +160,7 @@ class ProfileFeatureEntryPoint(
                 onSignOut = { accountActionsVm.takeAction(AccountActionsAction.ConfirmSignOut) },
                 isSigningOut = accountActionsState.isSigningOut,
                 onOpenQaMenu = { router.navigate(QaMenuRoute()) },
+                onOpenTutorial = { router.navigate(TutorialRoute()) },
                 scrollState = scrollState,
             )
         }

@@ -271,7 +271,13 @@ class RoomSocketRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 installWebSockets()
-                routing { roomSocketRoutes(rooms, reaperGrace = reaperGrace) }
+                routing {
+                    roomSocketRoutes(
+                        rooms = rooms,
+                        gameSessions = com.dangerfield.cards.server.game.InMemoryGameSessionRegistry(),
+                        reaperGrace = reaperGrace,
+                    )
+                }
             }
             val raw = createClient {
                 install(ClientWebSockets)

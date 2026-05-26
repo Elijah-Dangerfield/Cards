@@ -15,6 +15,7 @@ kotlin {
             implementation(projects.features.shop)
             implementation(projects.features.upgrade)
             implementation(projects.features.onboarding)
+            implementation(projects.features.room)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.config)

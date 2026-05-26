@@ -42,6 +42,7 @@ import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.LevelPill
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -137,7 +138,14 @@ fun PlayPokerScreen(
         LocalFeltAccentSurface provides feltAccent,
     ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .screenContentPadding(
+                    paddingValues = padding,
+                    includeHorizontalInsets = false,
+                ),
+        ) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                 ConnectionBanner(connection = state.connection)
                 TopBar(
