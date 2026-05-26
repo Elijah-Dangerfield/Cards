@@ -52,6 +52,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -381,69 +382,6 @@ private fun BulletList(
                     color = AppTheme.colors.textSecondary,
                 )
             }
-        }
-    }
-}
-
-/**
- * Three-option leave dialog opened when the user taps back on any
- * tutorial step. Replaces PlayPokerScreen's bots-table confirm dialog,
- * which talks about losing XP and chips (irrelevant here).
- *
- * "Back to basics" is the differentiator: a player who skipped the
- * basics and got disoriented in the tableau can land back at the
- * primer in one tap instead of restarting the whole tutorial.
- */
-@Composable
-private fun TutorialLeaveDialog(
-    showBackToBasics: Boolean,
-    onBackToBasics: () -> Unit,
-    onExit: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
-        onDismissRequest = onDismiss,
-        topAccessory = com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji(
-            emoji = "🎓",
-        ),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "Leave the tutorial?",
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = if (showBackToBasics) {
-                    "Bail out, or jump back to the basics primer if you need a refresher first."
-                } else {
-                    "Exit the tutorial? You can restart it anytime from Settings."
-                },
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
-                textAlign = TextAlign.Center,
-            )
-            if (showBackToBasics) {
-                ButtonPrimary(
-                    onClick = onBackToBasics,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Back to basics") }
-            }
-            ButtonTertiary(
-                onClick = onExit,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Exit tutorial") }
-            ButtonTertiary(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Cancel") }
         }
     }
 }
