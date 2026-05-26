@@ -11,6 +11,12 @@
 **Reviewer notes:** picked the starter emoji set (👋 👍 🎉 😀) as a friendly neutral default — none of the existing packs use them, so no overlap. Card-back surface needed no client change (the renderer already falls back to `CardBackStyle.Default` blue for unknown ids, and `cardback_default` matches that fallback). `PostgresProfileRepository` now reaches across to `InventoryTable` directly inside its transaction — this is the path the todo explicitly carved out (decoupling via injection is on the backlog under "ProfileRepository → InventoryRepository import"); for now atomicity wins over cohesion. Test coverage: two new integration tests in `PostgresProfileRepositoryTest` lock in seeding and idempotency.
 **Deferred:** seat-bottom emoji-pack-owned indicator at the table tray (only matters once the pack ID list changes again); nothing yet — reviewer please triage.
 
+## test: expand preview coverage on AchievementsScreen + BugReportScreen
+
+**Problem:** todo §A "Previews on every user-facing composable" — both screens only had a single mid-state preview. Achievements lacked the empty / full-collection states that new and end-game users see; BugReport lacked the no-context (settings-entry), submitting, and error states.
+**Approach:** added `AchievementsScreenPreview_Empty` + `AchievementsScreenPreview_AllEarned` alongside the renamed `AchievementsScreenPreview_SomeEarned`; added `BugReportScreenPreview_Empty`, `..._Submitting`, `..._Error` alongside the renamed `BugReportScreenPreview_WithCapturedContext`. Followed the `<ScreenName>Preview_<StateDescription>` naming convention from AGENTS.md.
+**Reviewer notes:** None.
+
 ## feat(achievements): re-anchor DONT_CALL_IT_COMEBACK + POT_5000 to BB multiples
 
 **Problem:** the V1.x bullet in todo.md flagged two tier-blind achievements broken by `StakeTier` shipping. `DONT_CALL_IT_COMEBACK` armed at ≤100 chips / fired at ≥1000 chips — meaningful on Casual but a near-bust read on High (0.5 BB) and easier-than-intended on Practice. `POT_5000` triggered on absolute 5K pots — trivial on Challenging (blinds 100/200 cross 5K by the turn) and a real EPIC-tier accomplishment on Casual. The audit doc shipped last cycle; this is the follow-up that lands the code.
