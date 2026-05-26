@@ -50,3 +50,27 @@
 **Problem:** todo §A "Previews on every user-facing composable" — OnboardingScreen had one preview per step (4 total) but no coverage of the off-happy-path states: OAuth in flight, OAuth error on Welcome, saving / save-error on PickIdentity. Those are exactly the states a state-specific layout bug shows up in (disabled providers, red error text under the name field) and the previews catch.
 **Approach:** added `OnboardingScreenPreview_Welcome_OAuthInFlight`, `OnboardingScreenPreview_Welcome_AuthError`, `OnboardingScreenPreview_PickIdentity_Saving`, and `OnboardingScreenPreview_PickIdentity_SaveError` alongside the existing happy-path step previews. Followed the `<ScreenName>Preview_<StateDescription>` convention from AGENTS.md.
 **Reviewer notes:** None.
+
+## test: expand preview coverage on LobbyScreen
+
+**Problem:** todo §A "Previews on every user-facing composable" — LobbyScreen had 6 previews (idle / idle-with-code / 4× in-room variants) but no coverage of the busy states (`creating`, `joining`, `leaving`) or the idle `error` banner. Those flip button labels, disable inputs, and surface the danger-tone error text; previews catch state-specific layout regressions there.
+**Approach:** added `LobbyScreenPreview_Idle_Creating`, `_Idle_Joining`, `_Idle_Error`, and `_InRoom_Leaving` alongside the existing happy-path previews. Followed the `<ScreenName>Preview_<StateDescription>` convention from AGENTS.md.
+**Reviewer notes:** None.
+
+## test: expand preview coverage on DeleteAccountScreen
+
+**Problem:** todo §A "Previews on every user-facing composable" — DeleteAccountScreen had 3 previews (empty / confirmed / error) but no coverage of the in-flight submit state. `isSubmitting = true` disables the back arrow, the confirmation field, the cancel text button, and flips the danger CTA label to "Deleting…" — a distinct chrome state worth pinning.
+**Approach:** added `DeleteAccountScreenPreview_Submitting` alongside the existing previews. Followed the `<ScreenName>Preview_<StateDescription>` convention from AGENTS.md.
+**Reviewer notes:** None.
+
+## test: add populated MyItemsScreen preview with mixed inventory
+
+**Problem:** todo §A "Previews on every user-facing composable" — MyItemsScreen had `MyItemsScreenPreview_Empty` for the empty path but the populated state was only ever exercised via two row-only previews. The in-file comment justified that as "ownedItems is a derived join — we'd need to fake both inventory + catalog." Now that `ProductCatalog`, `InventoryItem`, and `MyItemsState.equippedIds` are all stable enough to assemble cheaply, the populated screen visual can be pinned end-to-end.
+**Approach:** added `MyItemsScreenPreview_Populated` plus a private `previewPopulatedState()` factory that builds a four-row `MyItemsState` — an equipped purchased felt, an equipped earned card back (Earned tag + chrome), a purchased non-equippable emote pack (Unlocked badge), and an earned title (Earned tag, equip toggle). Kept the existing row-only previews so reviewers still have isolated row visuals when they want them.
+**Reviewer notes:** the populated factory uses real product ids from the seeded catalog (`felt_midnight_blue`, `cardback_comeback_kid`, `emotes_drama`, `title_pot_magnet`) so `CosmeticPreview` renders the same visuals it would in production — no synthetic ids that would silently fall back to the default tile.
+
+## refactor(qa-menu): route enum-chip shape through Radii.Round + add preview
+
+**Problem:** the QA menu's allowed-value chip was the last DS-first hold-out in `QaMenuScreen` — it hand-rolled `RoundedCornerShape(50)` for the pill shape instead of the existing `Radii.Round` token. Also, the screen had only two previews (default config, with + without user id), neither of which exercised the chip-selected accent state or the "current ≠ default" branch of the row footer.
+**Approach:** replaced `RoundedCornerShape(50)` with `Radii.Round.shape` and dropped the now-unused import. Added `QaMenuScreenPreview_OverridesActive` that pre-selects `maintenanceMode = "banner"` (pins the chip-selected accent) and `minSupportedVersionCode = 99` (pins the "current: 99    default: 1" row).
+**Reviewer notes:** None.
