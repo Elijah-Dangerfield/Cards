@@ -251,7 +251,7 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(Radii.Card)
+            .clip(Radii.R700)
             .background(PokerPalette.ChipGold.copy(alpha = 0.18f))
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
