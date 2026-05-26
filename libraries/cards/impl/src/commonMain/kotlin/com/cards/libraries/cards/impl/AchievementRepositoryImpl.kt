@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.Achievement
+import com.dangerfield.cards.libraries.cards.AchievementGrantApi
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -13,6 +14,7 @@ import com.dangerfield.cards.libraries.cards.CHALLENGING_WINS
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.COMEBACK_5BB
 import com.dangerfield.cards.libraries.cards.DONT_CALL_IT_COMEBACK_COUNTER
+import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.SHORT_STACK_ARMED
 import com.dangerfield.cards.libraries.cards.CURRENT_LEVEL
 import com.dangerfield.cards.libraries.cards.Criterion
@@ -34,8 +36,10 @@ import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
 import com.dangerfield.cards.libraries.cards.winsVsBotKey
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -49,6 +53,9 @@ class AchievementRepositoryImpl(
     private val achievementDao: AchievementDao,
     private val progressionRepository: ProgressionRepository,
     private val chipsRepository: ChipsRepository,
+    private val grantApi: AchievementGrantApi,
+    private val inventoryRepository: InventoryRepository,
+    private val appScope: AppCoroutineScope,
     private val clock: Clock,
 ) : AchievementRepository {
 
@@ -168,6 +175,31 @@ class AchievementRepositoryImpl(
                         reason = "achievement.${earned.achievement.id.name}",
                         idempotencyKey = "achievement.${earned.achievement.id.name}",
                     )
+                }
+            }
+            // 5) Tell the server about each freshly-earned achievement so the
+            //    server-side AchievementRewards mapping can grant any cosmetic
+            //    into inventory (unlock-only titles, future legendary felts).
+            //    Most achievements have no reward → 204 + return false; only
+            //    when something actually got granted do we trigger an inventory
+            //    sync to pull the new row into the local DB.
+            //
+            //    Fired in appScope so it outlives this hand's call site (VM
+            //    teardown mid-hand-result must not drop the grant). Wrapped in
+            //    Catching for belt-and-suspenders — the API impl is supposed
+            //    to swallow failures itself, but we don't want a surprise to
+            //    interrupt the XP/chip awards above.
+            appScope.launch {
+                Catching {
+                    var anyGranted = false
+                    for (earned in newlyEarned) {
+                        if (grantApi.grantAchievement(earned.achievement.id)) {
+                            anyGranted = true
+                        }
+                    }
+                    if (anyGranted) inventoryRepository.sync()
+                }.onFailure {
+                    logger.w(it) { "Achievement-grant dispatch failed; will retry next sync." }
                 }
             }
         }
