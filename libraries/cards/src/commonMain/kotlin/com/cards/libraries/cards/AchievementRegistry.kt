@@ -256,7 +256,7 @@ val AllAchievements: List<Achievement> = listOf(
     Achievement(
         id = AchievementId.DONT_CALL_IT_COMEBACK,
         name = "Don't call it a comeback",
-        description = "Drop below 100 chips at some point, then climb back to a full 1,000-chip stack.",
+        description = "Drop to 10 big blinds or fewer at some point, then build back to 100 big blinds.",
         icon = "🔥",
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.Custom(key = DONT_CALL_IT_COMEBACK_COUNTER, target = 1),
@@ -288,10 +288,10 @@ val AllAchievements: List<Achievement> = listOf(
     Achievement(
         id = AchievementId.POT_5000,
         name = "Whale pot",
-        description = "Be at the table for a pot of 5,000 chips or more.",
+        description = "Be at the table for a pot of 25 big blinds or more.",
         icon = "🐋",
         rarity = AchievementRarity.EPIC,
-        criterion = Criterion.Custom(key = MAX_POT_SEEN, target = 5_000),
+        criterion = Criterion.Custom(key = MAX_POT_BB_RATIO, target = 25),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
         chipReward = 500L,
         isMystery = true,
@@ -458,8 +458,14 @@ const val TRIPLED_UP: String = "tripled_up"
  */
 const val BUSTS_DEALT: String = "busts_dealt"
 
-/** Max pot the human has been a part of (sticky high-water mark). */
+/** Max pot (absolute chip total) the human has been a part of. Sticky high-water
+ *  mark. Used by tier-tolerant POT_500 / POT_1000. */
 const val MAX_POT_SEEN: String = "max_pot_seen"
+
+/** Max pot the human has been a part of, expressed as a multiple of the hand's
+ *  big blind. Sticky high-water mark. Used by POT_5000 so the threshold reads
+ *  the same on every stake tier. */
+const val MAX_POT_BB_RATIO: String = "max_pot_bb_ratio"
 
 /** Current player level (mirrored from progression for level-threshold achievements). */
 const val CURRENT_LEVEL: String = "current_level"

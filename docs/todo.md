@@ -31,7 +31,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Achievements — bot-vs-human split
 
-- **Land the V1.x registry changes per [`docs/achievements-spec.md`](./achievements-spec.md).** Audit is done — three concrete changes captured in the spec's "Summary of recommended V1.x changes": (1) re-anchor `DONT_CALL_IT_COMEBACK` to BB multiples; (2) re-anchor `POT_5000` to a BB multiple (≥25× BB); (3) add `FIRST_BUST_DEALT_MP` / `BUST_DEALT_5_MP` sibling ids gated on `mode = MULTIPLAYER`. **Files / hints:** registry + `AchievementMode` live in `:libraries:cards`; counter logic in `AchievementRepositoryImpl.kt` (`updateDontCallItComebackCounter`, `updateMaxPotSeen`). **Pairs with:** the buy-in / stack mechanic bullet in §B — BB-relative thresholds depend on the per-tier BB landing. **Out of scope:** brand-new achievements, V2 deferrals, calibration of XP/chip rewards (Phase-8 economy modeling).
+- **Add `FIRST_BUST_DEALT_MP` / `BUST_DEALT_5_MP` sibling ids per [`docs/achievements-spec.md`](./achievements-spec.md) — gated on Phase 4.2.** The two tier-blind re-anchors (DONT_CALL_IT_COMEBACK → ≤10 BB / ≥100 BB; POT_5000 → ≥25× BB) have landed. The MP-keyed sibling ids depend on Phase 4.2 (server-authoritative gameplay) so the grant can fire from a trustworthy seam — re-pick this once Phase 4.2 work starts. **Files / hints:** registry + `AchievementMode` live in `:libraries:cards`; counter logic in `AchievementRepositoryImpl.kt`. **Out of scope:** brand-new achievements, V2 deferrals, calibration of XP/chip rewards (Phase-8 economy modeling).
 
 ### Catalog gating — unlock-only vs purchasable
 
