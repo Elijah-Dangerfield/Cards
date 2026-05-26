@@ -75,12 +75,6 @@ fun Route.meRoutes(
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val profile = repository.findOrCreate(userId)
-            // First-touch grant: every user owns the default felt so My
-            // Items has at least one row on day one. `recordEarnedGrant`
-            // is idempotent (first-grant-wins on the PK), so calling it
-            // on every /v1/me hit is safe — repeat calls are a single
-            // PK read with no insert, and the per-user grant exists
-            // forever after the first successful hit.
             inventory.recordEarnedGrant(
                 userId = userId,
                 productId = DEFAULT_FELT_PRODUCT_ID,
