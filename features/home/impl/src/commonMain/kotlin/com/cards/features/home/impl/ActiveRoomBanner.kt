@@ -47,8 +47,8 @@ internal fun ActiveRoomBanner(
         modifier = modifier
             .fillMaxWidth()
             .clip(Radii.Card.shape)
-            .background(AppTheme.colors.background.color)
-            .border(2.dp, AppTheme.colors.borderSecondary.color, Radii.Card.shape)
+            .background(AppTheme.colors.surfacePrimary.color)
+            .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape)
             .padding(Dimension.D600),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -56,12 +56,12 @@ internal fun ActiveRoomBanner(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(Radii.R600.shape)
-                    .background(AppTheme.colors.surfacePrimary.color),
+                    .background(AppTheme.colors.danger.color),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "♠",
-                    typography = AppTheme.typography.Heading.H600,
+                    text = "⏳",
+                    typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.text,
                 )
             }
@@ -69,13 +69,13 @@ internal fun ActiveRoomBanner(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "You have an ongoing game",
-                    typography = AppTheme.typography.Heading.H500,
+                    typography = AppTheme.typography.Heading.H700,
                     color = AppTheme.colors.text,
                 )
                 VerticalSpacerD200()
                 Text(
                     text = "Room $code is still holding your seat.",
-                    typography = AppTheme.typography.Body.B400,
+                    typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.textSecondary,
                 )
             }
@@ -89,7 +89,7 @@ internal fun ActiveRoomBanner(
             Box(modifier = Modifier.weight(1f)) {
                 ButtonSecondary(
                     onClick = { confirmingForfeit = true },
-                    size = ButtonSize.Medium,
+                    size = ButtonSize.Small,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(text = "Forfeit")
@@ -98,7 +98,7 @@ internal fun ActiveRoomBanner(
             Box(modifier = Modifier.weight(1f)) {
                 ButtonPrimary(
                     onClick = onRejoin,
-                    size = ButtonSize.Medium,
+                    size = ButtonSize.Small,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(text = "Rejoin")

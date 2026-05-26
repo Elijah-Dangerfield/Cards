@@ -68,6 +68,10 @@ If a pushed commit was broken, push a `fix:` on top or `git revert` — never re
 - No `--no-verify` / `--no-gpg-sign`.
 - If you can't make confident progress, **exit with no commits.** Empty cycles are fine.
 
+## Pre-launch posture
+
+The app hasn't launched. There are no production users. When a change touches data (migrations, schema, catalog content, persisted state), don't pad it with defensive backfill logic or "existing users won't get X" caveats. Just make the migration do the right thing for a fresh world. Same in commit bodies and in-flight notes — skip the "no backfill for users who earned X before the migration landed" footnotes; they're documenting a hypothetical population that doesn't exist. Drop this guidance the moment we ship.
+
 ## End of run
 
 - All commits pushed to `origin/dev`.

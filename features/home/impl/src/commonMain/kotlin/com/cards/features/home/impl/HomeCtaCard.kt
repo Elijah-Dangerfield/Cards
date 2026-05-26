@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.FeatureCardAccents
+import com.dangerfield.cards.libraries.ui.components.HorizontalDivider
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -55,39 +56,40 @@ internal fun HomeCtaCard(
     enabled: Boolean = true,
     trailing: String? = null,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.55f)
-            .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = Dimension.D500, vertical = Dimension.D900),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-    ) {
-        GlyphBadge(glyph = glyph, accent = accent)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
-            )
-            Text(
-                text = subtitle,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
-            )
+    Column {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .alpha(if (enabled) 1f else 0.55f)
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+        ) {
+            GlyphBadge(glyph = glyph, accent = accent)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.text,
+                )
+                Text(
+                    text = subtitle,
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.textSecondary,
+                )
+            }
+            if (trailing != null) {
+                TrailingChip(label = trailing)
+            } else {
+                Icon(
+                    icon = Icons.ChevronRight("Open"),
+                    color = AppTheme.colors.textSecondary,
+                    size = IconSize.Small,
+                )
+            }
         }
-        if (trailing != null) {
-            TrailingChip(label = trailing)
-        } else {
-            Icon(
-                icon = Icons.ChevronRight("Open"),
-                color = AppTheme.colors.textSecondary,
-                size = IconSize.Small,
-            )
-        }
+        HorizontalDivider()
     }
 }
 
