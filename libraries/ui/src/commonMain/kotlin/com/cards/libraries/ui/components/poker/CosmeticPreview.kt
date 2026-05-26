@@ -164,6 +164,24 @@ private fun PreviewCosmeticPreview_CardBacks_New() {
 
 @Preview
 @Composable
+private fun PreviewCosmeticPreview_CardBacks_Patterns() {
+    PreviewContent {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp),
+        ) {
+            CosmeticPreview(productId = "cardback_lattice", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_hatching", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_crosshatch", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_dots", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_pinstripes", emoji = "🃏")
+        }
+    }
+}
+
+@Preview
+@Composable
 private fun PreviewCosmeticPreview_EmojiFallback() {
     PreviewContent {
         Row(

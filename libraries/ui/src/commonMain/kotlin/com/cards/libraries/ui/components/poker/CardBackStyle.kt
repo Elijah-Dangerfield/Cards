@@ -25,6 +25,7 @@ import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 enum class CardBackStyle {
     Default, Marble, Gold, Neon, Diamond, ComebackKid,
     Skulls, Galaxy, Holographic, Fire, Avatar,
+    Lattice, Hatching, Crosshatch, Dots, Pinstripes,
 }
 
 /**
@@ -128,5 +129,38 @@ internal fun paletteFor(style: CardBackStyle): CardBackPalette = when (style) {
             listOf(Color(0xFF1F1F23), Color(0xFF2C2C33)),
         ),
         borderColor = Color(0xFF55555E),
+    )
+    // ── Canvas-drawn pattern backs. Each picks a flat field color so the
+    // pattern reads cleanly on top; the pattern itself is drawn in the
+    // [PlayingCardBack] overlay layer. Listed twice (start + end) keeps
+    // [Brush.linearGradient] returning a solid fill.
+    CardBackStyle.Lattice -> CardBackPalette(
+        // Classic Bicycle-red field; the diamond lattice on top is
+        // white at ~65% so the red still saturates between the lines.
+        baseBrush = Brush.linearGradient(listOf(Color(0xFFB91C1C), Color(0xFFB91C1C))),
+        borderColor = Color(0xFFF5C8C0),
+    )
+    CardBackStyle.Hatching -> CardBackPalette(
+        // Charcoal-black field with warm-gold parallel diagonals —
+        // reads like an art-deco menu cover.
+        baseBrush = Brush.linearGradient(listOf(Color(0xFF111114), Color(0xFF111114))),
+        borderColor = Color(0xFFC9A24A),
+    )
+    CardBackStyle.Crosshatch -> CardBackPalette(
+        // Deep emerald with a tan orthogonal grid — felt-and-rope
+        // billiards-room feel.
+        baseBrush = Brush.linearGradient(listOf(Color(0xFF134E3A), Color(0xFF134E3A))),
+        borderColor = Color(0xFFD9C2A0),
+    )
+    CardBackStyle.Dots -> CardBackPalette(
+        // Deep navy with cream offset-dot grid. Reads modern, clean.
+        baseBrush = Brush.linearGradient(listOf(Color(0xFF0E1B3D), Color(0xFF0E1B3D))),
+        borderColor = Color(0xFFE9DFC4),
+    )
+    CardBackStyle.Pinstripes -> CardBackPalette(
+        // Charcoal with fine off-white vertical pinstripes — the
+        // tailored-suit card.
+        baseBrush = Brush.linearGradient(listOf(Color(0xFF1F2329), Color(0xFF1F2329))),
+        borderColor = Color(0xFFE5E5EA),
     )
 }

@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -23,9 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -235,7 +238,189 @@ private fun CardBackOrnament(
                 }
             }
         }
+        CardBackStyle.Lattice -> LatticePattern(
+            lineColor = Color.White.copy(alpha = 0.65f),
+            spacingDp = 11.dp,
+            strokeWidthDp = 1.dp,
+        )
+        CardBackStyle.Hatching -> HatchingPattern(
+            lineColor = Color(0xFFC9A24A),
+            spacingDp = 5.dp,
+            strokeWidthDp = 1.2.dp,
+        )
+        CardBackStyle.Crosshatch -> CrosshatchPattern(
+            lineColor = Color(0xFFD9C2A0).copy(alpha = 0.55f),
+            spacingDp = 9.dp,
+            strokeWidthDp = 1.dp,
+        )
+        CardBackStyle.Dots -> DotsPattern(
+            dotColor = Color(0xFFE9DFC4).copy(alpha = 0.85f),
+            spacingDp = 12.dp,
+            radiusDp = 1.6.dp,
+        )
+        CardBackStyle.Pinstripes -> PinstripesPattern(
+            lineColor = Color(0xFFE5E5EA).copy(alpha = 0.55f),
+            spacingDp = 8.dp,
+            strokeWidthDp = 0.8.dp,
+        )
         else -> Unit
+    }
+}
+
+// ── Canvas pattern primitives. All clip to the parent rounded card via
+// the [PlayingCardBack] Box's `.clip(...)`, and inset a couple of dp so
+// the pattern doesn't crowd the 1dp border.
+
+@Composable
+private fun LatticePattern(
+    lineColor: Color,
+    spacingDp: Dp,
+    strokeWidthDp: Dp,
+) {
+    val density = LocalDensity.current
+    Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+        val spacing = with(density) { spacingDp.toPx() }
+        val stroke = with(density) { strokeWidthDp.toPx() }
+        val w = size.width
+        val h = size.height
+        var x = -h
+        while (x < w + h) {
+            // "/" diagonal (bottom-left → top-right)
+            drawLine(
+                color = lineColor,
+                start = Offset(x, h),
+                end = Offset(x + h, 0f),
+                strokeWidth = stroke,
+            )
+            // "\" diagonal (top-left → bottom-right) — together they
+            // intersect to form the diamond lattice.
+            drawLine(
+                color = lineColor,
+                start = Offset(x, 0f),
+                end = Offset(x + h, h),
+                strokeWidth = stroke,
+            )
+            x += spacing
+        }
+    }
+}
+
+@Composable
+private fun HatchingPattern(
+    lineColor: Color,
+    spacingDp: Dp,
+    strokeWidthDp: Dp,
+) {
+    val density = LocalDensity.current
+    Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+        val spacing = with(density) { spacingDp.toPx() }
+        val stroke = with(density) { strokeWidthDp.toPx() }
+        val w = size.width
+        val h = size.height
+        var x = -h
+        while (x < w + h) {
+            drawLine(
+                color = lineColor,
+                start = Offset(x, h),
+                end = Offset(x + h, 0f),
+                strokeWidth = stroke,
+            )
+            x += spacing
+        }
+    }
+}
+
+@Composable
+private fun CrosshatchPattern(
+    lineColor: Color,
+    spacingDp: Dp,
+    strokeWidthDp: Dp,
+) {
+    val density = LocalDensity.current
+    Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+        val spacing = with(density) { spacingDp.toPx() }
+        val stroke = with(density) { strokeWidthDp.toPx() }
+        val w = size.width
+        val h = size.height
+        var y = spacing
+        while (y < h) {
+            drawLine(
+                color = lineColor,
+                start = Offset(0f, y),
+                end = Offset(w, y),
+                strokeWidth = stroke,
+            )
+            y += spacing
+        }
+        var x = spacing
+        while (x < w) {
+            drawLine(
+                color = lineColor,
+                start = Offset(x, 0f),
+                end = Offset(x, h),
+                strokeWidth = stroke,
+            )
+            x += spacing
+        }
+    }
+}
+
+@Composable
+private fun DotsPattern(
+    dotColor: Color,
+    spacingDp: Dp,
+    radiusDp: Dp,
+) {
+    val density = LocalDensity.current
+    Canvas(modifier = Modifier.fillMaxSize().padding(5.dp)) {
+        val spacing = with(density) { spacingDp.toPx() }
+        val radius = with(density) { radiusDp.toPx() }
+        val w = size.width
+        val h = size.height
+        var y = spacing / 2f
+        var row = 0
+        while (y < h) {
+            // Offset every other row by half a step so the dots don't
+            // line up in vertical columns — reads more like a textile
+            // pattern than a spreadsheet grid.
+            val xStart = if (row % 2 == 0) spacing / 2f else spacing
+            var x = xStart
+            while (x < w) {
+                drawCircle(
+                    color = dotColor,
+                    radius = radius,
+                    center = Offset(x, y),
+                )
+                x += spacing
+            }
+            y += spacing * 0.85f
+            row++
+        }
+    }
+}
+
+@Composable
+private fun PinstripesPattern(
+    lineColor: Color,
+    spacingDp: Dp,
+    strokeWidthDp: Dp,
+) {
+    val density = LocalDensity.current
+    Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+        val spacing = with(density) { spacingDp.toPx() }
+        val stroke = with(density) { strokeWidthDp.toPx() }
+        val w = size.width
+        val h = size.height
+        var x = spacing / 2f
+        while (x < w) {
+            drawLine(
+                color = lineColor,
+                start = Offset(x, 0f),
+                end = Offset(x, h),
+                strokeWidth = stroke,
+            )
+            x += spacing
+        }
     }
 }
 

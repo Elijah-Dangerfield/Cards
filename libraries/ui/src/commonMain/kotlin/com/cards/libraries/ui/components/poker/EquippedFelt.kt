@@ -113,6 +113,11 @@ fun cardBackForProductId(productId: String?): CardBackStyle = when (productId) {
     "cardback_holographic" -> CardBackStyle.Holographic
     "cardback_fire" -> CardBackStyle.Fire
     "cardback_avatar" -> CardBackStyle.Avatar
+    "cardback_lattice" -> CardBackStyle.Lattice
+    "cardback_hatching" -> CardBackStyle.Hatching
+    "cardback_crosshatch" -> CardBackStyle.Crosshatch
+    "cardback_dots" -> CardBackStyle.Dots
+    "cardback_pinstripes" -> CardBackStyle.Pinstripes
     else -> CardBackStyle.Default
 }
 
