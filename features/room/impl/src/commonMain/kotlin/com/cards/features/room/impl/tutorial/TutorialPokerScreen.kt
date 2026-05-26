@@ -28,9 +28,11 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,10 +48,7 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.dangerfield.cards.features.room.impl.PlayPokerAction
 import com.dangerfield.cards.features.room.impl.PlayPokerScreen
-import com.dangerfield.cards.libraries.cards.AchievementId
-import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -87,15 +86,24 @@ internal fun TutorialPokerScreen(
     onAdvance: () -> Unit,
     onSkipBasics: () -> Unit,
     onRestartBasics: () -> Unit,
+    onAchievementUnlocked: () -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (state.completed) {
-        TutorialCompletedScreen(
-            wasFirstCompletion = state.wasFirstCompletion,
-            onExit = onExit,
-            modifier = modifier,
-        )
+        // Fire the unlock navigation exactly once when wasFirstCompletion
+        // first resolves to true. rememberSaveable guards against a
+        // re-fire on recomposition (the flag stays true forever once
+        // set, so a plain LaunchedEffect(wasFirstCompletion) would
+        // re-trigger on every config change or screen re-entry).
+        var unlockNavigated by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(state.wasFirstCompletion) {
+            if (state.wasFirstCompletion == true && !unlockNavigated) {
+                unlockNavigated = true
+                onAchievementUnlocked()
+            }
+        }
+        TutorialReadyScreen(onDone = onExit, modifier = modifier)
         return
     }
 
@@ -440,60 +448,6 @@ private fun TutorialLeaveDialog(
     }
 }
 
-@Composable
-private fun TutorialCompletedScreen(
-    wasFirstCompletion: Boolean?,
-    onExit: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val tutorialAchievement = AllAchievementsById[AchievementId.TUTORIAL_COMPLETE]
-    // Show the celebration reveal only on a first-time unlock. On
-    // replay (already earned) the medallion would be a confusing
-    // "you got it again!" beat. Null state means the grant is still
-    // resolving (sub-100ms window) — render the reveal slot empty for
-    // that frame; the body text + CTA still appear, so the screen
-    // isn't blank.
-    val showReveal = wasFirstCompletion == true && tutorialAchievement != null
-    Screen(modifier = modifier) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            if (showReveal) {
-                Box(modifier = Modifier.size(200.dp)) {
-                    AchievementUnlockReveal(achievement = tutorialAchievement!!)
-                }
-                VerticalSpacerD800()
-            }
-            Text(
-                text = "You're ready",
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
-                textAlign = TextAlign.Center,
-            )
-            VerticalSpacerD500()
-            Text(
-                text = "Raise the strong hands, call when the price is right, fold the rest. The bots are waiting in Practice.",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
-                textAlign = TextAlign.Center,
-            )
-            VerticalSpacerD800()
-            ButtonPrimary(
-                onClick = onExit,
-                size = ButtonSize.Medium,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Done")
-            }
-        }
-    }
-}
-
 /** Builds a [TutorialState] from a script index, mirroring the VM's
  *  `stateForIndex` logic so previews show the same section-counter
  *  numbers the app would render. Test/preview only. */
@@ -526,6 +480,7 @@ private fun TutorialPokerScreenPreview_Orient() {
             onAdvance = {},
             onSkipBasics = {},
             onRestartBasics = {},
+            onAchievementUnlocked = {},
             onExit = {},
         )
     }
@@ -544,6 +499,7 @@ private fun TutorialPokerScreenPreview_ActionPrompt() {
             onAdvance = {},
             onSkipBasics = {},
             onRestartBasics = {},
+            onAchievementUnlocked = {},
             onExit = {},
         )
     }
@@ -559,6 +515,7 @@ private fun TutorialPokerScreenPreview_Completed() {
             onAdvance = {},
             onSkipBasics = {},
             onRestartBasics = {},
+            onAchievementUnlocked = {},
             onExit = {},
         )
     }
@@ -575,6 +532,7 @@ private fun TutorialPokerScreenPreview_Intro() {
             onAdvance = {},
             onSkipBasics = {},
             onRestartBasics = {},
+            onAchievementUnlocked = {},
             onExit = {},
         )
     }
