@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -15,6 +14,7 @@ import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -28,7 +28,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun ChipPill(amount: Long, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(PokerPalette.ChipGold)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 10.dp, vertical = 4.dp),

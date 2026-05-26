@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 
 /**
  * Shared building blocks used by [ShopScreen] grid cells and
@@ -86,7 +87,7 @@ internal fun ProductIcon(
 internal fun BadgePill(text: String, accent: ColorResource) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(Radii.Round.shape)
             .background(accent.color.copy(alpha = 0.18f))
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
@@ -107,7 +108,7 @@ internal fun BadgePill(text: String, accent: ColorResource) {
 internal fun OverhangBadge(text: String, accent: ColorResource) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(Radii.Round.shape)
             .background(accent.color)
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {

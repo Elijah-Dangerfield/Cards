@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 
 @Composable
 fun RankBadge(
@@ -29,7 +29,7 @@ fun RankBadge(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceSecondary.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 10.dp, vertical = 6.dp),

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +15,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -46,7 +46,7 @@ fun LeadingPill(
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceSecondary.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = Dimension.D400, vertical = Dimension.D400),
