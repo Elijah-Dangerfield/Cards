@@ -234,12 +234,11 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Welcome to the table",
-                    body = "These are your opponents, Ada, Ben, and Cleo. They're bots, and no real chips are at stake. Let's play a hand.",
+                    title = "Here's where things live",
+                    body = "Your hole cards at the bottom (yours). Community cards land in the middle as the hand plays out. Opponents up top, with their chip stacks and last action shown next to each seat. The pot total floats between them.",
                     ctaLabel = "Got it",
-                    // Opponents sit at the top of the felt; pin the mark
-                    // to the bottom so the user can see who they're being
-                    // introduced to.
+                    // Whole-table orientation; bottom-pin so the user
+                    // can scan all three regions while reading.
                     placement = CoachMarkPlacement.Bottom,
                 ),
             ),
@@ -253,11 +252,11 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Small Blind, Big Blind",
-                    body = "Every hand starts with two forced bets, SB and BB. They build the pot before anyone acts. At this table SB is 10 and BB is 20; real tables use different amounts depending on the stake tier. Each hand the blinds rotate one seat to the left, so everyone takes turns posting. Look at Ada and Ben.",
+                    title = "The blinds are already in",
+                    body = "Ada posted the small blind (10) and Ben posted the big blind (20). Their chip contributions are visible next to their seats. The pot has been seeded before anyone has had a real choice.",
                     ctaLabel = "Next",
-                    // Step explicitly says "Look at Ada and Ben", so
-                    // keep their chip contributions visible at the top.
+                    // Pointing at Ada and Ben's chip contributions
+                    // at the top of the felt.
                     placement = CoachMarkPlacement.Bottom,
                 ),
             ),
@@ -271,9 +270,9 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Your cards",
-                    body = "Two aces, the strongest starting hand in poker. You're a clear favorite to win this pot.",
-                    ctaLabel = "Nice",
+                    title = "Your hand label",
+                    body = "Your two hole cards sit at the bottom. The label above them tells you what hand you currently have. Right now: a pair of aces. As community cards land, the label updates to reflect your best 5-card combo. Tap the ? in the top bar anytime for the full rank chart.",
+                    ctaLabel = "Got it",
                 ),
             ),
             // 4, Prompt to raise
@@ -299,8 +298,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Raise",
-                    body = "When you have the best of it, raise to build the pot. Tap Raise to put more chips in.",
+                    title = "The action bar",
+                    body = "When it's your turn, the action bar appears at the bottom with the moves you're allowed to make. Tap Raise. The ↑ on the Raise button opens a sheet with bet-size controls; tap the button itself for the minimum raise.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Raise || it is PlayerIntent.Bet },
@@ -324,11 +323,11 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Now there's something to play for",
-                    body = "Both bots called (matched your raise of 60). The pot's a real pot now. Raising with strong hands is how you make chips over the long run.",
+                    title = "Watch the seats update",
+                    body = "Both bots called. Each seat shows the player's last action next to their name (Call, Raise, Fold, etc.), so you can always glance up and see what just happened. The pot total in the middle ticked up with the new chips.",
                     ctaLabel = "Next hand",
-                    // Talks about the bots' reactions + the pot —
-                    // bottom-pin so the opponents and pot stay visible.
+                    // Pointing at the seat labels + pot in the middle,
+                    // both at the top half of the screen.
                     placement = CoachMarkPlacement.Bottom,
                 ),
             ),
@@ -458,8 +457,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Call when it's cheap",
-                    body = "King-Queen suited. Not a monster, but worth seeing the flop (the first three shared cards everyone gets to use). It only costs 10 to match Ada's bet. Tap Call.",
+                    title = "Calling matches the bet",
+                    body = "New hand: the dealer button has shifted left and you're the small blind now. To stay in for the flop you need to match Ada's bet for 10 more chips. Tap Call.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Call },
@@ -496,8 +495,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Check for free",
-                    body = "Two hearts on the flop. If a third heart comes, you'll have a flush (5 cards of the same suit, a strong hand). Ada checked. You don't have to bet either. Tap Check to see the next card for free.",
+                    title = "The flop, and checking",
+                    body = "The flop has landed in the middle: three community cards everyone can use. Your hand label above your cards updated to reflect them. Ada checked (passed without betting). When no one has bet, Check is legal for you too. Tap Check to advance to the next street.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Check },
@@ -523,8 +522,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Hearts everywhere",
-                    body = "The turn (4th shared card) brought another heart. That's three hearts plus your two: you've made your flush. Ada folded (gave up the hand). Calling cheap and checking free is how you win without bloating the pot.",
+                    title = "How a hand ends",
+                    body = "The turn and river dealt out. Ada folded along the way, so you win the pot uncontested. Your hand label settled on its final value. Most hands won't reach showdown; folds are how a hand usually ends.",
                     ctaLabel = "Next hand",
                     // Mentions Ada folding + the community cards which
                     // sit mid-table. Bottom-pin keeps both visible.
@@ -618,8 +617,8 @@ internal object TutorialScript {
                 //, no confirmation dialog interrupts the lesson.
                 state = baseState(tableAction).copy(swipeFoldGestureAck = true),
                 coach = CoachMark(
-                    title = "Fold when you're beat",
-                    body = "Seven-two offsuit, the worst hand in poker. Ben raised to 60. Don't put more chips in with junk. Tap ↑ then Fold, or swipe up on your cards.",
+                    title = "Two ways to fold",
+                    body = "Two ways to fold here. Tap ↑ on the action bar to open the full action sheet, then tap Fold. Or, faster: swipe up on your hole cards to fold with a gesture. Either works. Pick one.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Fold },
@@ -651,8 +650,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Folding saves money",
-                    body = "Most hands aren't worth playing. Folding the bad ones quickly is the most profitable habit in poker. You're ready for the real tables.",
+                    title = "You know the chrome",
+                    body = "That's the table chrome covered. Action bar at the bottom, opponents and seat labels up top, hand label above your cards, ? button for hand ranks. The bots are waiting in Practice when you're ready.",
                     ctaLabel = "Done",
                 ),
             ),
