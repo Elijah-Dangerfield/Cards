@@ -273,8 +273,15 @@ data class HomeState(
     val recentAchievements: List<RecentAchievement> = emptyList(),
     /** Whether the user has dismissed the tutorial banner. Mirrors
      *  `AppData.tutorialBannerDismissed`; false means the banner shows
-     *  above the home header. */
-    val tutorialBannerDismissed: Boolean = false,
+     *  above the home header.
+     *
+     *  Defaults to `true` (banner hidden) so we don't flash the banner
+     *  on every Home visit before the AppCache emission lands and
+     *  reveals the user already dismissed it. First-time users get
+     *  `false` from the cache after hydration, which triggers the
+     *  AnimatedVisibility enter — same animation, but inviting instead
+     *  of jarring. */
+    val tutorialBannerDismissed: Boolean = true,
 )
 
 /**
