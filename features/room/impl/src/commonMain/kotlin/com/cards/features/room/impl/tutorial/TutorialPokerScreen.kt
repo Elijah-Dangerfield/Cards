@@ -28,12 +28,10 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,19 +93,21 @@ internal fun TutorialPokerScreen(
     modifier: Modifier = Modifier,
 ) {
     if (state.completed) {
-        // Fire the unlock navigation exactly once when wasFirstCompletion
-        // first resolves to true. rememberSaveable guards against a
-        // re-fire on recomposition (the flag stays true forever once
-        // set, so a plain LaunchedEffect(wasFirstCompletion) would
-        // re-trigger on every config change or screen re-entry).
-        var unlockNavigated by rememberSaveable { mutableStateOf(false) }
-        LaunchedEffect(state.wasFirstCompletion) {
-            if (state.wasFirstCompletion == true && !unlockNavigated) {
-                unlockNavigated = true
-                onAchievementUnlocked()
-            }
-        }
-        TutorialReadyScreen(onDone = onExit, modifier = modifier)
+        // The achievement celebration fires on Done, not on entering
+        // the Ready screen. The Ready screen IS the conclusion; the
+        // unlock dialog stacks afterward so it's the user's final beat,
+        // not a popup mid-screen. On replay (wasFirstCompletion=false)
+        // Done just exits.
+        TutorialReadyScreen(
+            onDone = {
+                if (state.wasFirstCompletion == true) {
+                    onAchievementUnlocked()
+                } else {
+                    onExit()
+                }
+            },
+            modifier = modifier,
+        )
         return
     }
 

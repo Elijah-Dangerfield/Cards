@@ -52,17 +52,22 @@ class TutorialFeatureEntryPoint(
                 onGoBack = viewModel::goBack,
                 onSkipBasics = viewModel::skipBasics,
                 onRestartBasics = viewModel::restartBasics,
-                // First-time tutorial completion stacks the unlock
-                // celebration as a floating-window dialog above the
-                // "You're ready" screen. The dialog manages its own
-                // dismissal; the user lands back on TutorialReadyScreen
-                // and can tap Done from there to exit the tutorial.
+                // The Done button on the Ready screen routes here on
+                // first-time completion. Batch the two ops so the
+                // tutorial is popped underneath the dialog atomically;
+                // doing them sequentially would briefly show the home
+                // screen between pop and navigate. After this,
+                // dismissing the dialog lands the user back on home —
+                // the celebration is the final beat.
                 onAchievementUnlocked = {
-                    router.navigate(
-                        AchievementUnlockedRoute(
-                            achievementId = AchievementId.TUTORIAL_COMPLETE.name,
-                        ),
-                    )
+                    router.batch {
+                        popBackTo(TutorialRoute(), inclusive = true)
+                        navigate(
+                            AchievementUnlockedRoute(
+                                achievementId = AchievementId.TUTORIAL_COMPLETE.name,
+                            ),
+                        )
+                    }
                 },
                 onExit = { router.goBack() },
             )
