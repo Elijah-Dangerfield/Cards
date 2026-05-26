@@ -1,6 +1,10 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseInQuad
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,12 +30,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -43,9 +52,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 import com.dangerfield.cards.features.room.impl.PlayPokerAction
 import com.dangerfield.cards.features.room.impl.PlayPokerScreen
+import com.dangerfield.cards.libraries.cards.AchievementId
+import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -437,11 +450,7 @@ private fun TutorialCompletedScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = "🎓",
-                typography = AppTheme.typography.Display.D1400,
-                color = AppTheme.colors.text,
-            )
+            SlamInMedallion()
             VerticalSpacerD800()
             Text(
                 text = "You're ready",
@@ -466,6 +475,68 @@ private fun TutorialCompletedScreen(
             }
         }
     }
+}
+
+/**
+ * Tutorial-complete medallion that slams in on first composition.
+ * Sequence:
+ *  1. Brief pause (180ms) so the surrounding text has a beat to render
+ *     and the slam doesn't feel like it's racing the transition.
+ *  2. Scale tweens from 2.2 → 0.88 over 220ms with EaseInQuad — the
+ *     downward "stamp" motion. Alpha fades in alongside.
+ *  3. LongPress haptic fires at the moment of impact (bottom of the
+ *     stamp, just before the rebound).
+ *  4. Scale springs back to 1.0 with a medium-bouncy spring — the
+ *     squash-and-stretch rebound that sells the impact.
+ *
+ * onClick = {} on the medallion suppresses the flip-to-back affordance
+ * (the celebration moment isn't where you want a 3D flip to compete for
+ * attention).
+ */
+@Composable
+private fun SlamInMedallion() {
+    val achievement = AllAchievementsById[AchievementId.TUTORIAL_COMPLETE]
+        ?: return // registry drift — bail rather than crash the completion
+    val haptics = LocalHapticFeedback.current
+    val scale = remember { Animatable(2.2f) }
+    val alpha = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(180)
+        kotlinx.coroutines.coroutineScope {
+            launch { alpha.animateTo(1f, tween(durationMillis = 240)) }
+            scale.animateTo(
+                targetValue = 0.88f,
+                animationSpec = tween(durationMillis = 220, easing = EaseInQuad),
+            )
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+            )
+        }
+    }
+
+    AchievementMedallion(
+        achievement = achievement,
+        // Mark earned for the medallion's "earned" visuals. The
+        // displayed-on-back timestamp would be off if we passed an
+        // arbitrary epoch, but onClick={} suppresses the flip — back
+        // face is never seen here.
+        earnedAtEpochMs = 1L,
+        progress = 1,
+        onClick = {},
+        modifier = Modifier
+            .size(180.dp)
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+                this.alpha = alpha.value
+            },
+    )
 }
 
 /** Builds a [TutorialState] from a script index, mirroring the VM's
