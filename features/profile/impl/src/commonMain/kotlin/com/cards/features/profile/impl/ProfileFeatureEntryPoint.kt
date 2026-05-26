@@ -169,12 +169,19 @@ class ProfileFeatureEntryPoint(
             val profile by profileRepository.observe()
                 .collectAsStateWithLifecycle(initialValue = null)
             val userId = (profile as? Profile.Authenticated)?.id
+            val progression by progressionRepository.observeProgression()
+                .collectAsStateWithLifecycle(initialValue = Progression.Empty)
+            val scope = rememberCoroutineScope()
             QaMenuScreen(
                 configStream = appConfigRepository.configStream(),
                 initialConfig = appConfigRepository.config(),
                 overrideRepository = configOverrideRepository,
                 onBack = { router.goBack() },
                 userId = userId,
+                totalXp = progression.totalXp,
+                onSetTotalXp = { xp ->
+                    scope.launch { progressionRepository.debugSetTotalXp(xp) }
+                },
             )
         }
 

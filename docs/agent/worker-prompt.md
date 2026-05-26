@@ -9,7 +9,7 @@ You are one of 4 scheduled workers shipping incremental engineering work for Car
 ## Start of run
 
 1. `git fetch origin`.
-2. `gh pr list --head dev --state open --json number,url`. **If a PR exists, exit with no commits** — yesterday's is still under human review.
+2. `gh pr list --head dev --state open --json number,url`. If a PR exists, that's fine — keep working. Your commits stack on top of whatever's already in the PR, and the reviewer will append a fresh cycle block to the existing PR body so your work shows up under its own dated heading. Don't open a new PR.
 3. Align `dev` with current state:
    - `origin/dev` missing or matches `origin/main`: `git checkout -B dev origin/main && git push -u origin dev`.
    - `origin/dev` ahead: `git checkout dev && git pull --rebase origin dev`. You stack on whatever's there — prior workers, ad-hoc human commits, in-flight features. **Never reset dev to main.** If dev has gone off the rails, it's the human's call to trim it, not yours.

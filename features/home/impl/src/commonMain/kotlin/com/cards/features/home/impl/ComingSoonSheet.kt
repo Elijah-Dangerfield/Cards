@@ -1,6 +1,5 @@
 package com.dangerfield.cards.features.home.impl
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -12,8 +11,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHa
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.system.VerticalSpacerD500
-import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -33,6 +30,7 @@ internal fun ComingSoonSheet(
     onDismiss: () -> Unit,
 ) {
     BottomSheet(
+        title = title,
         onDismissRequest = onDismiss,
         backgroundColor = AppTheme.colors.surfacePrimary,
         dragHandle = topAccessoryEmoji(
@@ -40,24 +38,13 @@ internal fun ComingSoonSheet(
             surface = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
         ).asDragHandle(),
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.onSurfacePrimary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            VerticalSpacerD500()
-            Text(
-                text = body,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            VerticalSpacerD800()
-        }
+        Text(
+            text = body,
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.onSurfaceSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

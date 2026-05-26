@@ -448,6 +448,9 @@ class HomeViewModelTest : CoroutineTest() {
         override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
             error("applyAchievementXp not used by HomeViewModel")
         override suspend fun deleteAll() { /* not used */ }
+        override suspend fun debugSetTotalXp(totalXp: Long) {
+            progression.value = progression.value.copy(totalXp = totalXp)
+        }
     }
 
     private class FakeProfileRepository(
@@ -477,6 +480,8 @@ class HomeViewModelTest : CoroutineTest() {
             summary: HandResultSummary,
             context: AchievementHandContext,
         ): List<EarnedAchievement> = error("recordHand not used by HomeViewModel")
+        override suspend fun recordTutorialComplete(): EarnedAchievement? =
+            error("recordTutorialComplete not used by HomeViewModel")
         override suspend fun deleteAll() { /* not used */ }
     }
 

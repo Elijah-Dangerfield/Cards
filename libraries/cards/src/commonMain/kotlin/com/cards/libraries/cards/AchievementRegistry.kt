@@ -217,6 +217,17 @@ val AllAchievements: List<Achievement> = listOf(
         xpReward = AchievementRarity.RARE.defaultXpReward,
         mode = AchievementMode.BOTS,
     ),
+    Achievement(
+        id = AchievementId.BOT_WHISPERER,
+        name = "Bot whisperer",
+        description = "Beat all five bot personalities 10 times each. Unlocks a player title.",
+        icon = "🎓",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = BOT_WHISPERER_BOTS_BEATEN, target = 5),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 1_000L,
+        mode = AchievementMode.BOTS,
+    ),
 
     // Difficulty
     Achievement(
@@ -420,6 +431,17 @@ val AllAchievements: List<Achievement> = listOf(
         xpReward = AchievementRarity.EPIC.defaultXpReward,
         chipReward = 1_000L,
     ),
+
+    // Onboarding
+    Achievement(
+        id = AchievementId.TUTORIAL_COMPLETE,
+        name = "Tutorial done",
+        description = "Finish the tutorial.",
+        icon = "🎓",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = TUTORIAL_COMPLETE, target = 1),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
 )
 
 val AllAchievementsById: Map<AchievementId, Achievement> = AllAchievements.associateBy { it.id }
@@ -470,5 +492,17 @@ const val MAX_POT_BB_RATIO: String = "max_pot_bb_ratio"
 /** Current player level (mirrored from progression for level-threshold achievements). */
 const val CURRENT_LEVEL: String = "current_level"
 
+/** Set to 1 the first time the user finishes the scripted poker tutorial.
+ *  Stays at 1 forever afterwards — sticky completion flag. */
+const val TUTORIAL_COMPLETE: String = "tutorial_complete"
+
 /** Key for "hands won against bot with [name]". */
 fun winsVsBotKey(name: String): String = "wins_vs_bot_$name"
+
+/**
+ * Counter for the [AchievementId.BOT_WHISPERER] capstone. Ticks by one
+ * the first time each bot's [winsVsBotKey] reaches 10 (the threshold
+ * for `BEAT_X_10`). Capped logically at the five-bot roster; the
+ * achievement fires when this counter reaches 5.
+ */
+const val BOT_WHISPERER_BOTS_BEATEN: String = "bot_whisperer_bots_beaten"

@@ -14,6 +14,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +36,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -64,6 +68,10 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.poker.AvatarBackOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
@@ -79,15 +87,20 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD300
 import kotlin.math.abs
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 internal fun PlayerArea(
     table: TableUiState.Active,
     humanTitle: String? = null,
+    humanWinOdds: EquityBreakdown? = null,
     silentSwipeFold: Boolean = false,
+    winOddsFlipHintSeen: Boolean = false,
+    onWinOddsFlipped: () -> Unit = {},
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit = { _, _ -> },
@@ -131,6 +144,14 @@ internal fun PlayerArea(
     val haptics = LocalHapticFeedback.current
     val gestureScope = rememberCoroutineScope()
     val dragOffsetY = remember { Animatable(0f) }
+    // Manual "hide my cards" flip — toggled by tapping the hole-card
+    // area. Resets to face-up whenever the dealt cards change so each
+    // new hand starts visible (you wouldn't carry "hidden" state from
+    // a hand you already saw into a fresh deal). Reads must coexist
+    // with the swipe-up-to-fold drag, so we use a tap detector below
+    // that fires only on release without movement — a real drag past
+    // touch slop cancels the tap automatically.
+    var manuallyFacedown by remember(human.holeCards) { mutableStateOf(false) }
     // 0..1 progress used to drive the in-flight visual response.
     // Visual progress saturates at the commit threshold so the
     // tilt/fade lands at a clear "ready to fold" peak when the user
@@ -256,6 +277,18 @@ internal fun PlayerArea(
                             velocityTracker.addPosition(change.uptimeMillis, change.position)
                         },
                     )
+                }
+                // Tap-to-flip the hole cards face-down (and back). On
+                // release only — `detectTapGestures` cancels its tap if
+                // motion exceeds touch slop, so the swipe-up-to-fold
+                // drag above wins whenever the user actually drags.
+                // Always enabled (even when the fold drag is gated off
+                // mid-bot-turn) because hiding your own cards is a
+                // casual action with no game-state preconditions.
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { manuallyFacedown = !manuallyFacedown },
+                    )
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -270,15 +303,34 @@ internal fun PlayerArea(
                     alpha = 1f - 0.25f * dragProgress
                 },
             ) {
-                HoleCardSlot(card = human.holeCards.getOrNull(0), dealDelayMs = 0, size = PlayingCardSize.Hole)
-                HoleCardSlot(card = human.holeCards.getOrNull(1), dealDelayMs = 150, size = PlayingCardSize.Hole)
+                val humanAvatarOverlay = AvatarBackOverlay(
+                    emoji = human.emoji ?: AnonymousAvatarEmoji,
+                    backgroundColorHex = human.avatarBackgroundColorHex,
+                )
+                HoleCardSlot(
+                    card = human.holeCards.getOrNull(0),
+                    dealDelayMs = 0,
+                    size = PlayingCardSize.Hole,
+                    avatarOverlay = humanAvatarOverlay,
+                    manuallyFacedown = manuallyFacedown,
+                )
+                HoleCardSlot(
+                    card = human.holeCards.getOrNull(1),
+                    dealDelayMs = 150,
+                    size = PlayingCardSize.Hole,
+                    avatarOverlay = humanAvatarOverlay,
+                    manuallyFacedown = manuallyFacedown,
+                )
             }
         }
-        PlayerInfoTile(
+        FlippablePlayerInfoTile(
             seat = human,
             handLabel = table.humanHandLabel,
             isWinner = isWinner,
             title = humanTitle,
+            winOdds = humanWinOdds,
+            winOddsFlipHintSeen = winOddsFlipHintSeen,
+            onFirstFlip = onWinOddsFlipped,
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
@@ -312,7 +364,13 @@ private fun pulseAlpha(low: Float = 0.32f, high: Float = 0.78f): Float {
 }
 
 @Composable
-private fun HoleCardSlot(card: Card?, dealDelayMs: Int, size: PlayingCardSize) {
+private fun HoleCardSlot(
+    card: Card?,
+    dealDelayMs: Int,
+    size: PlayingCardSize,
+    avatarOverlay: AvatarBackOverlay? = null,
+    manuallyFacedown: Boolean = false,
+) {
     if (card == null) {
         PlayingCardSlot(size = size)
         return
@@ -333,7 +391,36 @@ private fun HoleCardSlot(card: Card?, dealDelayMs: Int, size: PlayingCardSize) {
             }
         }
         if (settled) {
-            PlayingCard(card = card, size = size)
+            // Manual flip wrapper — once the deal-in animation has
+            // landed, the user can tap to flip the card face-down (and
+            // back). Same rotateY pattern as the deal-in flip but with
+            // a much larger [cameraDistance] so the perspective stays
+            // shallow — the card keeps its width through the rotation
+            // instead of pinching at 90°. Both branches render inside
+            // an identical centered Box so the rectangle the flip
+            // occupies never shifts shape between front and back.
+            val flipRotation by animateFloatAsState(
+                targetValue = if (manuallyFacedown) 180f else 0f,
+                animationSpec = tween(380),
+                label = "hole-manual-flip",
+            )
+            Box(
+                modifier = Modifier
+                    .size(width = size.width, height = size.height)
+                    .graphicsLayer {
+                        rotationY = flipRotation
+                        cameraDistance = 48f * density
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (flipRotation <= 90f) {
+                    PlayingCard(card = card, size = size)
+                } else {
+                    Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
+                        PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
+                    }
+                }
+            }
         } else {
             val flightDp = -260f
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
@@ -357,7 +444,7 @@ private fun HoleCardSlot(card: Card?, dealDelayMs: Int, size: PlayingCardSize) {
                     },
             ) {
                 if (rotation <= 90f) {
-                    PlayingCardBack(size = size)
+                    PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
                 } else {
                     Box(
                         modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f },
@@ -507,6 +594,257 @@ private fun PlayerInfoTile(
                 )
             }
         }
+    }
+}
+
+/**
+ * Wraps [PlayerInfoTile] in a horizontal 3D flip. The back face shows the
+ * human's live Win % / Lose % when the win-odds tool is owned + a value
+ * has resolved; otherwise the tile stays a static front face with no
+ * flip affordance, no gesture, no animation overhead.
+ *
+ * Gestures (only when [winOdds] != null):
+ *  - Tap on the small Refresh glyph (top-right corner).
+ *  - Horizontal drag past ~40dp.
+ * Nested clickables inside the front face (hand label, stack, blind
+ * marker, pill) still receive their own clicks — only "dead space" taps
+ * fall through to the wrapper's tap-to-flip below.
+ */
+@Composable
+private fun FlippablePlayerInfoTile(
+    seat: SeatView,
+    handLabel: String?,
+    isWinner: Boolean,
+    title: String?,
+    winOdds: EquityBreakdown?,
+    winOddsFlipHintSeen: Boolean,
+    onFirstFlip: () -> Unit,
+    onBlindClick: () -> Unit,
+    onBetPillClick: (seatName: String, amount: Long) -> Unit,
+    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+    onStackClick: () -> Unit,
+    onHandLabelClick: (label: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val canFlip = winOdds != null
+    var flipped by rememberSaveable { mutableStateOf(false) }
+    // Force back to front when the tool flips off mid-session — otherwise
+    // re-enabling later would land on a blank back face.
+    LaunchedEffect(canFlip) {
+        if (!canFlip) flipped = false
+    }
+    val rotation by animateFloatAsState(
+        targetValue = if (flipped) 180f else 0f,
+        animationSpec = tween(durationMillis = 520),
+        label = "info-tile-flip",
+    )
+
+    // Discoverability wiggle — fires once per session when the user owns
+    // the tool AND has never flipped the tile before (persisted via
+    // AppCache.winOddsFlipHintSeen). Keyed on canFlip + the persisted
+    // seen-flag only — NOT on `flipped` — so a user tap mid-wiggle
+    // doesn't cancel the animation halfway through and leave the tile
+    // sitting at a stuck intermediate angle. The NonCancellable finally
+    // snaps hintRotation back to 0 in case canFlip flips off (tool
+    // un-equipped) or the persisted flag arrives mid-wiggle.
+    val hintRotation = remember { Animatable(0f) }
+    LaunchedEffect(canFlip, winOddsFlipHintSeen) {
+        if (canFlip && !winOddsFlipHintSeen) {
+            try {
+                hintRotation.animateTo(-22f, tween(220, easing = FastOutSlowInEasing))
+                hintRotation.animateTo(22f, tween(360, easing = LinearEasing))
+                hintRotation.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
+            } finally {
+                withContext(NonCancellable) { hintRotation.snapTo(0f) }
+            }
+        }
+    }
+
+    // Single helper so every flip path (icon tap, swipe, back-tap)
+    // routes through the same first-flip persistence call. Cheap when
+    // already-seen because the cache write is idempotent.
+    val toggleFlipped: (Boolean) -> Unit = { target ->
+        flipped = target
+        if (!winOddsFlipHintSeen) onFirstFlip()
+    }
+
+    val swipeCommitPx = with(LocalDensity.current) { 40.dp.toPx() }
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                rotationY = rotation + hintRotation.value
+                cameraDistance = 14f * density
+            }
+            .pointerInput(canFlip, swipeCommitPx) {
+                if (!canFlip) return@pointerInput
+                var dragTotal = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { dragTotal = 0f },
+                    onDragEnd = {
+                        if (abs(dragTotal) >= swipeCommitPx) toggleFlipped(!flipped)
+                    },
+                    onHorizontalDrag = { _, dx -> dragTotal += dx },
+                )
+            },
+    ) {
+        if (rotation <= 90f) {
+            PlayerInfoTile(
+                seat = seat,
+                handLabel = handLabel,
+                isWinner = isWinner,
+                title = title,
+                onBlindClick = onBlindClick,
+                onBetPillClick = onBetPillClick,
+                onLastActionClick = onLastActionClick,
+                onStackClick = onStackClick,
+                onHandLabelClick = onHandLabelClick,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (canFlip) {
+                FlipAffordance(
+                    onClick = { toggleFlipped(true) },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-2).dp, y = 2.dp),
+                )
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
+                PlayerInfoTileBack(
+                    winOdds = winOdds,
+                    onTapClose = { toggleFlipped(false) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Back face of the flippable [PlayerInfoTile] — shows Win % and Lose %
+ * side-by-side. Tie % is collapsed into the Win/Lose split unless it's
+ * non-trivial (≥2%), in which case it surfaces as a small footer.
+ */
+@Composable
+private fun PlayerInfoTileBack(
+    winOdds: EquityBreakdown?,
+    onTapClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(Radii.R700.shape)
+            .background(AppTheme.colors.surfacePrimary.color)
+            .border(
+                width = 1.dp,
+                color = AppTheme.colors.border.color,
+                shape = Radii.R700.shape,
+            )
+            .clickable(onClick = onTapClose)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "Odds",
+            typography = AppTheme.typography.Body.B400.Bold,
+            color = AppTheme.colors.textSecondary,
+            maxLines = 1,
+        )
+        VerticalSpacerD100()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OddsDial(
+                label = "Win",
+                percent = winOdds?.winPct,
+                tone = OddsDialTone.Win,
+            )
+            OddsDial(
+                label = "Lose",
+                percent = winOdds?.losePct,
+                tone = OddsDialTone.Lose,
+            )
+        }
+        if (winOdds != null && winOdds.tiePct >= 2) {
+            VerticalSpacerD100()
+            Text(
+                text = "Tie ${winOdds.tiePct}%",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+private enum class OddsDialTone { Win, Lose }
+
+@Composable
+private fun OddsDial(
+    label: String,
+    percent: Int?,
+    tone: OddsDialTone,
+) {
+    val accent = when (tone) {
+        OddsDialTone.Win -> AppTheme.colors.status.okay
+        OddsDialTone.Lose -> AppTheme.colors.danger
+    }
+    val displayPct = percent ?: 0
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(AppTheme.colors.surfaceSecondary.color)
+                .border(
+                    width = 2.dp,
+                    color = accent.color,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (percent == null) "—" else "$displayPct%",
+                typography = AppTheme.typography.Body.B500.Bold,
+                color = accent,
+                maxLines = 1,
+            )
+        }
+        VerticalSpacerD100()
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * Small Refresh glyph anchored to the top-right of the tile to advertise
+ * the flip. Only rendered when the win-odds tool is owned — otherwise
+ * there's nothing to flip TO and the affordance would mislead.
+ */
+@Composable
+private fun FlipAffordance(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(20.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon = Icons.Refresh("Flip to see win odds"),
+            size = IconSize.Smallest,
+            color = AppTheme.colors.textSecondary,
+        )
     }
 }
 

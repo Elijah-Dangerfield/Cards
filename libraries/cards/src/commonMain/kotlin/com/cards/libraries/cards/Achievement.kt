@@ -75,6 +75,7 @@ enum class AchievementId {
     BEAT_GINA_10,
     BEAT_STEVE_10,
     BEAT_MIKE_10,
+    BOT_WHISPERER,
 
     // Difficulty
     CHALLENGING_FIRST_WIN,
@@ -94,6 +95,9 @@ enum class AchievementId {
     REACH_LEVEL_5,
     REACH_LEVEL_10,
     REACH_LEVEL_25,
+
+    // Onboarding
+    TUTORIAL_COMPLETE,
 }
 
 enum class AchievementRarity {

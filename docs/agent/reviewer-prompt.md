@@ -15,7 +15,7 @@ You are the reviewer for the Cards nightly automation. Workers (1–4am) stacked
    - Commits but no log → reconstruct from diffs, flag the missing log in "Heads up."
 
    If the log has a `**Stashed WIP:**` line, that's a worker's note about the human's uncommitted work tucked into a named `git stash` on that worker's machine. It's not on the branch and doesn't show up in any diff — ignore it for review, leave it alone, the human owns popping/dropping it. Do not mention it in the PR body.
-4. `gh pr list --head dev --base main --state open --json number,url`. If one exists, **update** it (push commits, rewrite body) — don't open a duplicate.
+4. `gh pr list --head dev --base main --state open --json number,url`. If one exists, **append** a new cycle block to its body and push your commits — don't open a duplicate, don't rewrite prior cycles' notes. See "Closing out" for the append mechanics.
 
 ## Per-commit review
 
@@ -82,46 +82,80 @@ Broken: fix as a small commit, or revert the breaking commit. Don't knowingly pu
 
 1. `git rm docs/agent/in-flight.md && git commit -m "chore: clear nightly in-flight log"` — its content moves into the PR body.
 2. `git push origin dev`.
-3. Open or update the PR:
+3. Open or update the PR.
+
+   Every cycle writes its own `## Cycle <YYYY-MM-DD>` block. **Talk only about commits your run reviewed/added** — never restate prior cycles, never rewrite their notes. If a previous cycle's Heads up turns out to be wrong or outdated, leave it alone; the human resolves it on merge. Your scope is the diff since the last cycle.
+
+   **First cycle of an open PR (no PR against `dev` yet) — create:**
 
    ```
    gh pr create --base main --head dev --title "<type>: <short summary>" --body "$(cat <<'EOF'
-   ## Shipped
+   ## Cycle <YYYY-MM-DD>
+
+   ### Shipped
    - <plain-English line per item — what changed and why. No shas, no `feat:` prefixes. Group related items into one bullet if they tell one story.>
 
-   ## Heads up
+   ### Heads up
    - <only what needs the human's eyes: visual deltas, scope calls, backlog additions, skipped todos, untested paths to QA by hand, developer-todo.md ties>
    EOF
    )"
    ```
 
-   If a PR is already open: `gh pr edit <number> --body "..."` + `git push origin dev`.
+   **Subsequent cycle (PR already open) — append:**
 
-   **PR body rules** — the human reads this on their phone:
-   - One screen scroll total. If it doesn't fit, cut.
+   Read the current body, append a new cycle block, write it back. Never `--body` with just your new section — that overwrites prior cycles.
+
+   ```
+   existing=$(gh pr view <number> --json body --jq .body)
+   addition=$(cat <<'EOF'
+
+   ## Cycle <YYYY-MM-DD>
+
+   ### Shipped
+   - ...
+
+   ### Heads up
+   - ...
+   EOF
+   )
+   gh pr edit <number> --body "${existing}${addition}"
+   git push origin dev
+   ```
+
+   Omit `### Heads up` (and the cycle block entirely if nothing shipped) when there's nothing for the human to act on — empty sections are noise.
+
+   **Cycle block rules** — the human reads this on their phone:
+   - One screen scroll per cycle. If it doesn't fit, cut.
    - **Write for a dev who hasn't read the todo doc.** No internal IDs (achievement enums, productIds, spec section refs, todo bullet names). Describe behaviour in plain user-facing terms — *what does the player see and when*. If you can't avoid a name, say what it does: "the 'Pot Magnet' title (awarded for winning a 5K-chip pot)" not "POT_5000".
    - Plain English, not commit log. No short-shas, no conventional-commit prefixes, no "Worker did X."
    - One line per item. If it needs a paragraph, it's probably "Heads up."
    - Group commits that tell one story into one bullet.
    - "Heads up" is for things needing eyes, not a changelog. Skip CI status, skip "we considered X."
-   - Omit sections that don't apply. No empty `## Heads up`.
 
-   Example:
+   Example body after two cycles:
    ```
-   ## Shipped
+   ## Cycle 2026-05-26
+
+   ### Shipped
    - Rank detail's "Play with real opponents" card is now actually tappable for anonymous users.
    - XP details page is now the Stats page — XP is one section above Lifetime, ready for more stats to land on top.
+
+   ### Heads up
+   - RankDetail claim card outer radius shifted 20→10dp to match Profile's card. Worth eyeballing.
+
+   ## Cycle 2026-05-27
+
+   ### Shipped
    - Home and Shop chip pills sit at the same screen coordinates via a shared BalancePillSlot.
 
-   ## Heads up
-   - RankDetail claim card outer radius shifted 20→10dp to match Profile's card. Worth eyeballing.
+   ### Heads up
    - Filed a backlog entry: 11 more `RoundedCornerShape(16.dp)` literals could swap to `Radii.R700.shape`.
-   - You still owe the Supabase email-template branding from developer-todo.md → Dashboard config.
    ```
 
    **PR title rules:**
    - Title drives release-please's next version (PRs squash-merge into `main`): `feat:` → minor, `fix:`/`perf:` → patch, `feat!:`/`BREAKING CHANGE:` → major, others → no bump.
-   - Pick the type that reflects the user-visible truth of the diff, not what the worker commits say.
+   - **First cycle sets the title.** Subsequent cycles only upgrade it — `fix:` → `feat:` if this cycle ships a user-visible new capability, anything → `feat!:`/`BREAKING CHANGE:` if you introduce a breaking change. Never downgrade. If this cycle is the same tier or weaker, leave the title alone.
+   - Pick the type that reflects the user-visible truth of *the combined PR diff*, not what an individual worker commit says.
    - Summary under ~60 chars, lowercase (commitlint rejects capitalized subjects).
 
 ## Wait for CI

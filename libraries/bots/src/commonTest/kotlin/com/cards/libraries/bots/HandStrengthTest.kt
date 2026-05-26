@@ -63,6 +63,42 @@ class HandStrengthTest {
     }
 
     @Test
+    fun equityBreakdownBucketsSumToHundred() {
+        val rng = Random(1L)
+        val breakdown = HandStrength.equityBreakdownVsRandom(
+            holeCards = hole("As", "Ah"),
+            community = emptyList(),
+            numOpponents = 1,
+            iterations = 600,
+            random = rng,
+        )
+        assertEquals(100, breakdown.winPct + breakdown.tiePct + breakdown.losePct)
+        assertTrue(breakdown.winPct > 70, "AA win% unexpectedly low: ${breakdown.winPct}")
+        assertTrue(breakdown.losePct < 30, "AA lose% unexpectedly high: ${breakdown.losePct}")
+    }
+
+    @Test
+    fun equityBreakdownFavorsStrongerHand() {
+        val rng = Random(2L)
+        val aa = HandStrength.equityBreakdownVsRandom(
+            holeCards = hole("As", "Ah"),
+            community = emptyList(),
+            numOpponents = 1,
+            iterations = 400,
+            random = rng,
+        )
+        val seventwo = HandStrength.equityBreakdownVsRandom(
+            holeCards = hole("7s", "2c"),
+            community = emptyList(),
+            numOpponents = 1,
+            iterations = 400,
+            random = rng,
+        )
+        assertTrue(aa.winPct > seventwo.winPct)
+        assertTrue(aa.losePct < seventwo.losePct)
+    }
+
+    @Test
     fun flushDrawDetected() {
         val hole = hole("As", "Ks")
         val board = listOf(Card.parse("9s"), Card.parse("4s"), Card.parse("2c"))

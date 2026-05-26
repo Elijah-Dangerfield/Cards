@@ -178,6 +178,9 @@ class AchievementsViewModelTest : CoroutineTest() {
         ): List<com.dangerfield.cards.libraries.cards.EarnedAchievement> =
             error("recordHand not used by AchievementsViewModel")
 
+        override suspend fun recordTutorialComplete(): com.dangerfield.cards.libraries.cards.EarnedAchievement? =
+            error("recordTutorialComplete not used by AchievementsViewModel")
+
         override suspend fun deleteAll() { /* not used */ }
     }
 }

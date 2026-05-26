@@ -16,17 +16,36 @@ WORKDIR /workspace
 # Copy build-essentials first so Gradle init can cache.
 COPY gradle/ gradle/
 COPY build-logic/ build-logic/
-COPY gradlew gradlew.bat settings.gradle.kts build.gradle.kts gradle.properties ./
+COPY versions.properties gradlew gradlew.bat settings.gradle.kts build.gradle.kts gradle.properties ./
 
-# Copy only what :apps:server actually depends on. server is self-contained
-# (no :libraries / :features deps), so we don't need the rest of the repo.
+# Copy only what :apps:server actually consumes:
+#  - apps/server/ — the server module itself.
+#  - libraries/{core,gameplay,bots}/ — shared game-engine + bot code (KMP
+#    modules with a JVM target). The server runs the same GameEngine /
+#    BotDecision code as the client so wire-format incompatibilities are
+#    impossible; that's why these are shipped instead of duplicated.
+#
+# `-Dcards.serverOnly=true` (plumbed through settings.gradle.kts and the
+# KMP convention plugin) trims the build graph to just these modules and
+# skips the Android + iOS KMP targets so the image doesn't need the
+# Android SDK / Kotlin Native toolchain.
+#
+# Adding a new :libraries:* dep to apps/server/build.gradle.kts will fail
+# the Docker build at link time with "project not found". When that
+# happens: (a) add the new lib's COPY line here, and (b) add its
+# `include(":libraries:foo")` to settings.gradle.kts's always-included
+# section. See apps/server/DEPLOY.md → "Server build slimming".
 COPY apps/server/ apps/server/
+COPY libraries/core/ libraries/core/
+COPY libraries/gameplay/ libraries/gameplay/
+COPY libraries/bots/ libraries/bots/
 
 RUN chmod +x gradlew && \
     ./gradlew :apps:server:installDist \
         --no-daemon \
         --console=plain \
         --build-cache \
+        -Dcards.serverOnly=true \
         -Dcards.skipGitHooksCheck=true
 
 # --------------------------------------------------------------------------

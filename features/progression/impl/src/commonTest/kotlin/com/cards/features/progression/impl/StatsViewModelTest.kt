@@ -147,6 +147,7 @@ class StatsViewModelTest : CoroutineTest() {
         override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
             error("not used")
         override suspend fun deleteAll() { /* not used */ }
+        override suspend fun debugSetTotalXp(totalXp: Long) { /* not used */ }
     }
 
     private object NeverEmittingXpEventRepository :
@@ -166,6 +167,8 @@ class StatsViewModelTest : CoroutineTest() {
             summary: com.dangerfield.cards.libraries.cards.HandResultSummary,
             context: com.dangerfield.cards.libraries.cards.AchievementHandContext,
         ): List<com.dangerfield.cards.libraries.cards.EarnedAchievement> = error("not used")
+        override suspend fun recordTutorialComplete(): com.dangerfield.cards.libraries.cards.EarnedAchievement? =
+            error("not used")
         override suspend fun deleteAll() { /* not used */ }
     }
 }

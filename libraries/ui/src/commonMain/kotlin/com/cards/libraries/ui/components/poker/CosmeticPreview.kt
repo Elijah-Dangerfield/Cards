@@ -78,8 +78,17 @@ private fun FeltSwatch(productId: String, size: Dp, modifier: Modifier = Modifie
 private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Modifier) {
     val style = cardBackForProductId(productId)
     val cardSize = PlayingCardSize(width = size * 0.7f, height = size)
+    // Avatar back is personal — without an overlay it would render as
+    // the Default gray gradient in shop tiles, which understates what
+    // the user is buying. Pass a generic placeholder emoji + color so
+    // the catalog preview reads as "your avatar will go here."
+    val avatarOverlay = if (style == CardBackStyle.Avatar) {
+        AvatarBackOverlay(emoji = "🃏", backgroundColorHex = "#3B5BDB")
+    } else {
+        null
+    }
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
-        PlayingCardBack(size = cardSize, style = style)
+        PlayingCardBack(size = cardSize, style = style, avatarOverlay = avatarOverlay)
     }
 }
 
@@ -131,6 +140,42 @@ private fun PreviewCosmeticPreview_CardBacks() {
             CosmeticPreview(productId = "cardback_neon", emoji = "🃏")
             CosmeticPreview(productId = "cardback_diamond", emoji = "🃏")
             CosmeticPreview(productId = "cardback_comeback_kid", emoji = "🔥")
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewCosmeticPreview_CardBacks_New() {
+    PreviewContent {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp),
+        ) {
+            CosmeticPreview(productId = "cardback_skulls", emoji = "💀")
+            CosmeticPreview(productId = "cardback_galaxy", emoji = "✨")
+            CosmeticPreview(productId = "cardback_holographic", emoji = "🌈")
+            CosmeticPreview(productId = "cardback_fire", emoji = "🔥")
+            CosmeticPreview(productId = "cardback_avatar", emoji = "🪞")
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewCosmeticPreview_CardBacks_Patterns() {
+    PreviewContent {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp),
+        ) {
+            CosmeticPreview(productId = "cardback_lattice", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_hatching", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_crosshatch", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_dots", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_pinstripes", emoji = "🃏")
         }
     }
 }

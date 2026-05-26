@@ -63,7 +63,8 @@ internal fun LeaveBotsConfirmDialog(
                 ) { Text(text = "Stay") }
                 ButtonPrimary(
                     onClick = onLeave,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f),
                 ) { Text(text = "Leave") }
             }
         }

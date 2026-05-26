@@ -702,5 +702,8 @@ class ShopViewModelTest : CoroutineTest() {
         override suspend fun applyAchievementXp(delta: Int, description: String?) =
             error("not used in shop tests")
         override suspend fun deleteAll() {}
+        override suspend fun debugSetTotalXp(totalXp: Long) {
+            state.value = state.value.copy(totalXp = totalXp)
+        }
     }
 }

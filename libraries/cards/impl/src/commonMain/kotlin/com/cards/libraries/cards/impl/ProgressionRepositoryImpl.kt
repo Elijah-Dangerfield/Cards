@@ -121,6 +121,14 @@ class ProgressionRepositoryImpl(
         xpEventDao.deleteAll()
     }
 
+    override suspend fun debugSetTotalXp(totalXp: Long) {
+        val now = clock.now().toEpochMilliseconds()
+        progressionDao.ensureExistsAndSetTotalXp(
+            totalXp = totalXp.coerceAtLeast(0L),
+            updatedAtEpochMs = now,
+        )
+    }
+
     private fun ProgressionEntity.toDomain(): Progression = Progression(
         totalXp = totalXp,
         handsPlayed = handsPlayed,

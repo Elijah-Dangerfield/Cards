@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.bots.HandStrength
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementRarity
@@ -154,6 +155,7 @@ class PlayPokerViewModel @Inject constructor(
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
+                takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
             }
         }
@@ -238,25 +240,24 @@ class PlayPokerViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .onEach { input ->
                     if (input is EquityInput.NotApplicable) {
-                        takeAction(PlayPokerAction.WinPercentChanged(null))
+                        takeAction(PlayPokerAction.WinOddsChanged(null))
                     }
                 }
                 .mapLatest { input ->
                     if (input is EquityInput.Compute) {
-                        val equity = withContext(dispatcherProvider.default) {
-                            HandStrength.equityVsRandom(
+                        withContext(dispatcherProvider.default) {
+                            HandStrength.equityBreakdownVsRandom(
                                 holeCards = input.hole,
                                 community = input.community,
                                 numOpponents = input.opponents,
                                 iterations = WIN_ODDS_ITERATIONS,
                             )
                         }
-                        (equity * 100).toInt().coerceIn(0, 100)
                     } else null
                 }
-                .collect { winPercent ->
-                    if (winPercent != null) {
-                        takeAction(PlayPokerAction.WinPercentChanged(winPercent))
+                .collect { breakdown ->
+                    if (breakdown != null) {
+                        takeAction(PlayPokerAction.WinOddsChanged(breakdown))
                     }
                 }
         }
@@ -451,15 +452,15 @@ class PlayPokerViewModel @Inject constructor(
                 it.copy(equippedCardBack = action.style)
             }
             is PlayPokerAction.WinOddsToolEquippedChanged -> action.updateState {
-                // Clear any stale percent when the tool flips off — UI
-                // hides the badge on the next compose pass.
+                // Clear any stale breakdown when the tool flips off — UI
+                // hides the flip affordance on the next compose pass.
                 it.copy(
                     winOddsToolEquipped = action.equipped,
-                    humanWinPercent = if (action.equipped) it.humanWinPercent else null,
+                    humanWinOdds = if (action.equipped) it.humanWinOdds else null,
                 )
             }
-            is PlayPokerAction.WinPercentChanged -> action.updateState {
-                it.copy(humanWinPercent = action.percent)
+            is PlayPokerAction.WinOddsChanged -> action.updateState {
+                it.copy(humanWinOdds = action.breakdown)
             }
             is PlayPokerAction.EquippedTitleChanged -> action.updateState {
                 it.copy(equippedTitle = action.title)
@@ -480,6 +481,18 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.AcknowledgeSwipeFoldGesture -> {
                 viewModelScope.launch {
                     appCache.update { it.copy(swipeFoldGestureAck = true) }
+                }
+            }
+            is PlayPokerAction.WinOddsFlipHintSeenChanged -> action.updateState {
+                it.copy(winOddsFlipHintSeen = action.seen)
+            }
+            is PlayPokerAction.MarkWinOddsFlipHintSeen -> {
+                // Fire-and-forget — the state mirror above flips on the
+                // next cache emit. Writes are idempotent so repeated
+                // flips (the user keeps toggling the tile) are no-ops
+                // after the first.
+                viewModelScope.launch {
+                    appCache.update { it.copy(winOddsFlipHintSeen = true) }
                 }
             }
             is PlayPokerAction.AvailableEmojisChanged -> action.updateState {
@@ -584,22 +597,22 @@ data class PlayPokerState(
         com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default,
     /**
      * True when the player owns + has equipped the "Win Odds Display"
-     * utility tool. Gates [humanWinPercent] computation — when false
+     * utility tool. Gates [humanWinOdds] computation — when false
      * the VM never runs the Monte Carlo so the cost is zero for
      * non-owners.
      */
     val winOddsToolEquipped: Boolean = false,
     /**
-     * Live win-percentage for the human in the current hand, computed
-     * by 400-iteration Monte Carlo over random opponent hands +
-     * remaining board. Null when the tool isn't equipped, when there's
-     * no active hand, or before the first computation lands. UI hides
-     * the badge whenever this is null.
+     * Live win/tie/lose breakdown for the human in the current hand,
+     * computed by 400-iteration Monte Carlo over random opponent hands
+     * + remaining board. Null when the tool isn't equipped, when
+     * there's no active hand, or before the first computation lands.
+     * UI hides the flip affordance whenever this is null.
      *
      * Recomputed only on input changes (hole cards / community /
      * opponents-still-in-hand count), not every state tick.
      */
-    val humanWinPercent: Int? = null,
+    val humanWinOdds: EquityBreakdown? = null,
     /**
      * Equipped vanity title (e.g. "The Shark") rendered under the
      * player's name. Null when nothing's equipped — UI hides the row.
@@ -612,6 +625,15 @@ data class PlayPokerState(
      * inside that dialog.
      */
     val swipeFoldGestureAck: Boolean = false,
+
+    /**
+     * Mirrors `AppData.winOddsFlipHintSeen`. False = the player info
+     * tile plays a one-shot discoverability wiggle once per session
+     * when the win-odds tool is owned. Flips to true the first time
+     * the user actually taps to flip the tile — after which the wiggle
+     * never plays again.
+     */
+    val winOddsFlipHintSeen: Boolean = false,
 
     /**
      * Emojis the user can blast from the in-game tray. Sourced entirely
@@ -682,7 +704,7 @@ sealed interface PlayPokerAction {
     data class WinOddsToolEquippedChanged(val equipped: Boolean) : PlayPokerAction
 
     /** Fired by the equity flow after a fresh Monte Carlo run resolves. */
-    data class WinPercentChanged(val percent: Int?) : PlayPokerAction
+    data class WinOddsChanged(val breakdown: EquityBreakdown?) : PlayPokerAction
 
     /** Fired by the equipment subscription; flips the equipped title shown under the name. */
     data class EquippedTitleChanged(val title: String?) : PlayPokerAction
@@ -708,6 +730,16 @@ sealed interface PlayPokerAction {
      * stays flipped across sessions.
      */
     data object AcknowledgeSwipeFoldGesture : PlayPokerAction
+
+    /** Fired by the AppCache mirror; gates the win-odds flip-tile wiggle hint. */
+    data class WinOddsFlipHintSeenChanged(val seen: Boolean) : PlayPokerAction
+
+    /**
+     * Fired by the player info tile the first time the user actually
+     * flips it during a session. Writes through to AppCache so the
+     * wiggle hint never re-plays on this account.
+     */
+    data object MarkWinOddsFlipHintSeen : PlayPokerAction
 
     /** Fired by the inventory subscription. */
     data class AvailableEmojisChanged(val emojis: List<String>) : PlayPokerAction

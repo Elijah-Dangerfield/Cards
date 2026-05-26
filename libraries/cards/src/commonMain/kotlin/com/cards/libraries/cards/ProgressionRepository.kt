@@ -86,6 +86,12 @@ interface ProgressionRepository {
 
     /** Reset all progression state. Used by "Fresh Start" / debug menus. */
     suspend fun deleteAll()
+
+    /**
+     * Force `totalXp` to an absolute value. QA-only — bypasses the XP ledger
+     * so it's safe to call from debug surfaces but never from gameplay code.
+     */
+    suspend fun debugSetTotalXp(totalXp: Long)
 }
 
 /** Read-only access to the XP ledger. Used by the detail sheet for activity views. */

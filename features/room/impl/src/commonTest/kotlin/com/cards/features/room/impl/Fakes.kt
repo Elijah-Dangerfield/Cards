@@ -183,6 +183,10 @@ class FakeProgressionRepository(initial: Progression = Progression.Empty) : Prog
 
     override suspend fun deleteAll() { state.value = Progression.Empty }
 
+    override suspend fun debugSetTotalXp(totalXp: Long) {
+        state.value = state.value.copy(totalXp = totalXp)
+    }
+
     fun emit(progression: Progression) { state.value = progression }
 }
 
@@ -205,6 +209,8 @@ class FakeAchievementRepository(
         recordedHands += (summary to context)
         return nextEarned
     }
+
+    override suspend fun recordTutorialComplete(): EarnedAchievement? = null
 
     override suspend fun deleteAll() { state.value = AchievementProgress.Empty }
 }

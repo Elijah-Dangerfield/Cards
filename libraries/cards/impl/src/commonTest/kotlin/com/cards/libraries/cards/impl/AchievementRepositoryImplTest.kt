@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.cards.AchievementGrantApi
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AllAchievements
+import com.dangerfield.cards.libraries.cards.BOT_WHISPERER_BOTS_BEATEN
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -13,6 +14,7 @@ import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.SHORT_STACK_ARMED
+import com.dangerfield.cards.libraries.cards.winsVsBotKey
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
@@ -189,6 +191,105 @@ class AchievementRepositoryImplTest : CoroutineTest() {
         assertEquals(50, deps.dao.getCounter(MAX_POT_BB_RATIO), "ratchets up, never down")
     }
 
+    @Test
+    fun botWhisperer_ticksOnce_eachTimeAPerBotCounterCrosses10() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.BOT_WHISPERER) }
+        // Three bots already at 9 wins each, one at 5 wins, last untouched —
+        // the next won hand against all five should tick the capstone
+        // counter exactly +3 (the three crossing 9→10), not +4 or +5.
+        deps.dao.counters[winsVsBotKey("Jane")] = 9
+        deps.dao.counters[winsVsBotKey("David")] = 9
+        deps.dao.counters[winsVsBotKey("Gina")] = 9
+        deps.dao.counters[winsVsBotKey("Steve")] = 5
+        // Mike untouched (0).
+        val repo = deps.build()
+
+        repo.recordHand(
+            summary = summary(bigBlind = 10, wonPot = true),
+            context = context(
+                bigBlind = 10,
+                opponentBotNames = listOf("Jane", "David", "Gina", "Steve", "Mike"),
+            ),
+        )
+
+        assertEquals(3, deps.dao.getCounter(BOT_WHISPERER_BOTS_BEATEN))
+    }
+
+    @Test
+    fun botWhisperer_doesNotDoubleTick_whenSameBotAppearsTwice() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.BOT_WHISPERER) }
+        deps.dao.counters[winsVsBotKey("Jane")] = 9
+        val repo = deps.build()
+
+        // Same bot listed twice — capstone counter must still tick exactly once.
+        repo.recordHand(
+            summary = summary(bigBlind = 10, wonPot = true),
+            context = context(bigBlind = 10, opponentBotNames = listOf("Jane", "Jane")),
+        )
+
+        assertEquals(1, deps.dao.getCounter(BOT_WHISPERER_BOTS_BEATEN))
+    }
+
+    @Test
+    fun botWhisperer_doesNotTick_afterPerBotCounterAlreadyCrossed10() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.BOT_WHISPERER) }
+        // Counter already past 10 — additional wins must not double-tick.
+        deps.dao.counters[winsVsBotKey("Jane")] = 15
+        val repo = deps.build()
+
+        repo.recordHand(
+            summary = summary(bigBlind = 10, wonPot = true),
+            context = context(bigBlind = 10, opponentBotNames = listOf("Jane")),
+        )
+
+        assertEquals(0, deps.dao.getCounter(BOT_WHISPERER_BOTS_BEATEN) ?: 0)
+    }
+
+    @Test
+    fun tutorialComplete_unlocksFirstTime_andIsIdempotent() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.TUTORIAL_COMPLETE) }
+        val repo = deps.build()
+
+        val first = repo.recordTutorialComplete()
+        assertTrue(
+            first?.achievement?.id == AchievementId.TUTORIAL_COMPLETE,
+            "first completion fires the achievement",
+        )
+        assertTrue(
+            deps.dao.earned.containsKey(AchievementId.TUTORIAL_COMPLETE.name),
+            "earned row written",
+        )
+
+        // Replay (e.g. user opens "How to play" again from Settings).
+        val second = repo.recordTutorialComplete()
+        assertTrue(second == null, "replay returns null — no double-grant")
+        // No double XP — first call awarded once, second call short-circuited.
+        assertTrue(
+            deps.progression.appliedAchievementXp.size == 1,
+            "XP awarded exactly once across two completions",
+        )
+    }
+
+    @Test
+    fun botWhisperer_unlocks_whenCounterReaches5() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.BOT_WHISPERER) }
+        // Four bots already counted toward the capstone; this hand is the
+        // fifth bot's first cross at 10.
+        deps.dao.counters[BOT_WHISPERER_BOTS_BEATEN] = 4
+        deps.dao.counters[winsVsBotKey("Mike")] = 9
+        val repo = deps.build()
+
+        val earned = repo.recordHand(
+            summary = summary(bigBlind = 10, wonPot = true),
+            context = context(bigBlind = 10, opponentBotNames = listOf("Mike")),
+        )
+
+        assertTrue(
+            earned.any { it.achievement.id == AchievementId.BOT_WHISPERER },
+            "fires once the fifth bot's per-bot counter crosses 10",
+        )
+    }
+
     // ---------- Test scaffolding ----------
 
     private fun summary(
@@ -211,8 +312,9 @@ class AchievementRepositoryImplTest : CoroutineTest() {
         bigBlind: Long,
         humanStartingStack: Long = 1_000L,
         humanEndingStack: Long = 1_000L,
+        opponentBotNames: List<String> = emptyList(),
     ): AchievementHandContext = AchievementHandContext(
-        opponentBotNames = emptyList(),
+        opponentBotNames = opponentBotNames,
         botDifficulty = null,
         humanStartingStack = humanStartingStack,
         humanEndingStack = humanEndingStack,
@@ -294,11 +396,16 @@ class AchievementRepositoryImplTest : CoroutineTest() {
 
     private class FakeProgressionRepository : ProgressionRepository {
         private val state = MutableStateFlow(Progression.Empty)
+        /** Each successful [applyAchievementXp] call recorded as
+         *  (delta, description). Lets tests assert idempotency without
+         *  reaching into the production XpLedger fake. */
+        val appliedAchievementXp = mutableListOf<Pair<Int, String?>>()
         override fun observeProgression(): Flow<Progression> = state.asStateFlow()
         override suspend fun getProgression(): Progression = state.value
         override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> = emptyList()
-        override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
-            XpEvent(
+        override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent {
+            appliedAchievementXp += delta to description
+            return XpEvent(
                 id = 0L,
                 deltaXp = delta,
                 source = XpSource.ACHIEVEMENT,
@@ -307,7 +414,11 @@ class AchievementRepositoryImplTest : CoroutineTest() {
                 description = description,
                 createdAtEpochMs = 0L,
             )
+        }
         override suspend fun deleteAll() {}
+        override suspend fun debugSetTotalXp(totalXp: Long) {
+            state.value = state.value.copy(totalXp = totalXp)
+        }
     }
 
     private class FakeChipsRepository : ChipsRepository {

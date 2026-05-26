@@ -20,14 +20,6 @@ import cards.libraries.ui.generated.resources.poppins_medium
 import cards.libraries.ui.generated.resources.poppins_regular
 import cards.libraries.ui.generated.resources.poppins_semibold
 
-
-val BrandFontFamily: FontFamily
-    @Composable get() = FontFamily(
-        Font(
-            resource = Res.font.DMSerifText_Regular, weight = FontWeight.Bold
-        ),
-    )
-
 val SansSerifFontFamily: FontFamily
     @Composable get() = FontFamily(
         Font(

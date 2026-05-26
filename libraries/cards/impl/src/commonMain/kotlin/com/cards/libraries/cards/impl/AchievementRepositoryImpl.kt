@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.ALL_IN_HANDS
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
+import com.dangerfield.cards.libraries.cards.BOT_WHISPERER_BOTS_BEATEN
 import com.dangerfield.cards.libraries.cards.BUSTS_DEALT
 import com.dangerfield.cards.libraries.cards.CHALLENGING_WINS
 import com.dangerfield.cards.libraries.cards.ChipsRepository
@@ -26,6 +27,7 @@ import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.MAX_POT_BB_RATIO
 import com.dangerfield.cards.libraries.cards.MAX_POT_SEEN
 import com.dangerfield.cards.libraries.cards.NO_BUST_STREAK
+import com.dangerfield.cards.libraries.cards.TUTORIAL_COMPLETE
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.TRIPLED_UP
 import com.dangerfield.cards.libraries.cards.WIN_BY_FOLD
@@ -208,6 +210,35 @@ class AchievementRepositoryImpl(
         return newlyEarned
     }
 
+    override suspend fun recordTutorialComplete(): EarnedAchievement? {
+        // Idempotent. The user can replay the tutorial from Settings; the
+        // grant only happens the first time. We check earned BEFORE
+        // bumping the counter so a replay doesn't quietly mark the
+        // sticky flag a second time either.
+        val id = AchievementId.TUTORIAL_COMPLETE
+        val alreadyEarned = achievementDao.getEarned()
+            .any { it.achievementId == id.name }
+        if (alreadyEarned) return null
+
+        achievementDao.setCounter(
+            AchievementCounterEntity(key = TUTORIAL_COMPLETE, value = 1),
+        )
+        val now = clock.now().toEpochMilliseconds()
+        achievementDao.insertEarned(
+            AchievementEarnedEntity(achievementId = id.name, earnedAtEpochMs = now),
+        )
+        val achievement = AllAchievementsById[id]
+            ?: return null // registry drift — log + bail rather than NPE
+        if (achievement.xpReward > 0) {
+            progressionRepository.applyAchievementXp(
+                delta = achievement.xpReward,
+                description = achievement.name,
+            )
+        }
+        logger.i { "Achievement earned: ${id.name} (${achievement.name})" }
+        return EarnedAchievement(achievement = achievement, earnedAtEpochMs = now)
+    }
+
     override suspend fun deleteAll() {
         achievementDao.deleteAllEarned()
         achievementDao.deleteAllCounters()
@@ -242,8 +273,18 @@ class AchievementRepositoryImpl(
         context: AchievementHandContext,
     ) {
         if (!summary.wonPot) return
-        for (bot in context.opponentBotNames) {
-            achievementDao.incrementCounter(winsVsBotKey(bot), 1)
+        // Same bot can appear in the lineup twice on busy MP-style tables;
+        // dedup so the capstone counter ticks at most once per bot per hand.
+        for (bot in context.opponentBotNames.distinct()) {
+            val key = winsVsBotKey(bot)
+            val previous = achievementDao.getCounter(key) ?: 0
+            achievementDao.incrementCounter(key, 1)
+            // First time this bot's per-bot counter crosses the BEAT_X_10
+            // threshold, tick the Bot Whisperer capstone — fires once each
+            // per-bot count goes from 9 to 10.
+            if (previous == BEAT_BOT_10_THRESHOLD - 1) {
+                achievementDao.incrementCounter(BOT_WHISPERER_BOTS_BEATEN, 1)
+            }
         }
     }
 
@@ -387,6 +428,11 @@ class AchievementRepositoryImpl(
          *  their first session — anything over the cap stays eligible and
          *  unlocks on a subsequent hand. */
         const val MAX_ACHIEVEMENTS_PER_HAND: Int = 2
+
+        /** Per-bot wins required for each BEAT_X_10 achievement; mirrored
+         *  here so the capstone counter can detect when a per-bot count
+         *  crosses the threshold for the first time. */
+        const val BEAT_BOT_10_THRESHOLD: Int = 10
     }
 
     private fun buildProgress(

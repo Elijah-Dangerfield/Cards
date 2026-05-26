@@ -322,8 +322,8 @@ private fun OpponentSeat(
             modifier = dimMod,
         )
         // Level / bot-difficulty badge intentionally omitted here — it's
-        // surfaced on the [MutePlayerSheet] that opens when the seat is
-        // tapped. Keeping it inline made the opponents row too dense.
+        // surfaced on the [PlayerProfileSheet] that opens when the seat
+        // is tapped. Keeping it inline made the opponents row too dense.
         AnimatedVisibility(
             visible = !busted,
             enter = fadeIn(animationSpec = tween(220)) +

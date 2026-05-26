@@ -67,6 +67,17 @@ data class AppData(
     val swipeFoldGestureAck: Boolean = false,
 
     /**
+     * Whether the user has ever flipped the player info tile to view
+     * their win/lose odds (only meaningful once they own
+     * `tool_win_odds`). False on a fresh install — at the start of each
+     * play session the tile does a one-shot discoverability wiggle so
+     * the gesture is teachable. Flips to true the first time the user
+     * taps to flip, after which the wiggle never plays again on any
+     * device tied to this account.
+     */
+    val winOddsFlipHintSeen: Boolean = false,
+
+    /**
      * Whether the user has seen the starter-grant welcome dialog. False on
      * a fresh install; flips to true the first time the dialog is dismissed.
      * Gates a one-shot UI that introduces the chip economy and steers new

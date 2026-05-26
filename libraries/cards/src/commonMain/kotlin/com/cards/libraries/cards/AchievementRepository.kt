@@ -68,6 +68,14 @@ interface AchievementRepository {
         context: AchievementHandContext,
     ): List<EarnedAchievement>
 
+    /**
+     * Mark the scripted poker tutorial as completed. Idempotent — repeated
+     * calls (e.g. a user replays the tutorial from Settings) return null
+     * after the first completion. Awards the [AchievementId.TUTORIAL_COMPLETE]
+     * achievement + its XP reward.
+     */
+    suspend fun recordTutorialComplete(): EarnedAchievement?
+
     /** Reset all achievement state. Used by "Fresh Start" / debug menus. */
     suspend fun deleteAll()
 }

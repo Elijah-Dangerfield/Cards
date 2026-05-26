@@ -77,6 +77,57 @@ object HandStrength {
         return wins / iterations
     }
 
+    /**
+     * Same Monte Carlo as [equityVsRandom] but reports each outcome separately
+     * (rather than rolling ties into a fractional equity number). Integer
+     * percentages summing to 100; rounding slack lands in `losePct` so
+     * `winPct + tiePct + losePct == 100` always holds.
+     */
+    fun equityBreakdownVsRandom(
+        holeCards: List<Card>,
+        community: List<Card>,
+        numOpponents: Int,
+        iterations: Int = 400,
+        random: Random = Random.Default,
+    ): EquityBreakdown {
+        require(numOpponents >= 1) { "Need at least one opponent" }
+        require(holeCards.size == 2) { "Need exactly 2 hole cards" }
+        require(community.size <= 5) { "community must have ≤ 5 cards" }
+
+        val knownCards = (holeCards + community).toSet()
+        val deck = Card.fullDeck.filter { it !in knownCards }
+
+        var wins = 0
+        var ties = 0
+        var losses = 0
+        repeat(iterations) {
+            val shuffled = deck.toMutableList().apply { shuffle(random) }
+            var cursor = 0
+
+            val opponentHoles = List(numOpponents) {
+                val a = shuffled[cursor++]
+                val b = shuffled[cursor++]
+                listOf(a, b)
+            }
+            val remainingBoardNeeded = 5 - community.size
+            val board = community + List(remainingBoardNeeded) { shuffled[cursor++] }
+
+            val myRank = HandEvaluator.evaluate(holeCards + board)
+            val oppRanks = opponentHoles.map { HandEvaluator.evaluate(it + board) }
+            val maxOpp = oppRanks.max()
+            val cmp = myRank.compareTo(maxOpp)
+            when {
+                cmp > 0 -> wins++
+                cmp == 0 -> ties++
+                else -> losses++
+            }
+        }
+        val winPct = (wins * 100) / iterations
+        val tiePct = (ties * 100) / iterations
+        val losePct = 100 - winPct - tiePct
+        return EquityBreakdown(winPct = winPct, tiePct = tiePct, losePct = losePct)
+    }
+
     fun drawPotential(holeCards: List<Card>, community: List<Card>): DrawProfile {
         if (community.size !in 3..4) return DrawProfile(flushDraw = false, openEndedStraight = false, gutshot = false)
         val all = holeCards + community
@@ -124,3 +175,16 @@ data class DrawProfile(
 ) {
     val hasDraw: Boolean get() = flushDraw || openEndedStraight || gutshot
 }
+
+/**
+ * Win/tie/lose split of a hand's equity, as integer percentages summing to
+ * 100. Unlike [HandStrength.equityVsRandom]'s single equity number — which
+ * folds ties into fractional credit — this keeps the three outcomes
+ * separate so the UI can show "you'll lose X%" as its own value.
+ */
+@Serializable
+data class EquityBreakdown(
+    val winPct: Int,
+    val tiePct: Int,
+    val losePct: Int,
+)

@@ -1,5 +1,17 @@
 package com.dangerfield.cards.libraries.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +58,11 @@ fun AvatarCircle(
 ) {
     val bg = resolveAvatarBackground(backgroundColorHex)
     val initial = name.firstOrNull()?.uppercase() ?: "?"
+    val content = if (emoji != null) {
+        AvatarContent(text = emoji, isEmoji = true)
+    } else {
+        AvatarContent(text = initial, isEmoji = false)
+    }
     Box(
         modifier = modifier
             .size(size)
@@ -54,13 +71,38 @@ fun AvatarCircle(
             .background(bg),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = emoji ?: initial,
-            typography = if (emoji != null) emojiTypography else typography,
-            color = AppTheme.colors.text,
-        )
+        // Animate emoji/initial changes so picker selections feel responsive
+        // (fade + slight scale-in on new, fade out on old). Matches the
+        // hero preview in edit-profile — every avatar surface routes through
+        // here so the transition is consistent app-wide.
+        //
+        // Only animate AFTER the first composition. AnimatedContent's
+        // entrance transition otherwise replays every time the avatar
+        // re-mounts (e.g. switching to the profile tab), which the user
+        // reads as the avatar "twitching" on every visit.
+        var hasComposed by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { hasComposed = true }
+        AnimatedContent(
+            targetState = content,
+            transitionSpec = {
+                if (hasComposed) {
+                    (fadeIn() + scaleIn(initialScale = 0.75f)) togetherWith fadeOut()
+                } else {
+                    EnterTransition.None togetherWith ExitTransition.None
+                }
+            },
+            label = "avatar-content",
+        ) { current ->
+            Text(
+                text = current.text,
+                typography = if (current.isEmoji) emojiTypography else typography,
+                color = AppTheme.colors.text,
+            )
+        }
     }
 }
+
+private data class AvatarContent(val text: String, val isEmoji: Boolean)
 
 /**
  * Resolve a server-supplied `#rrggbb` hex into the avatar's background

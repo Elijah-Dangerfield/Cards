@@ -285,17 +285,20 @@ private fun AchievementsHighlights(
     progress: AchievementProgress,
     onSeeAll: () -> Unit,
 ) {
-    // Show the 3 most-recently-earned achievements on the XP page so progress
-    // feels visible at a glance. If nothing's earned yet, surface 3 "easy
-    // wins" instead so the section never reads as empty.
-    val earnedOrdered = progress.earned.entries
-        .sortedByDescending { it.value }
-        .mapNotNull { (id, ts) -> AllAchievementsById[id]?.let { it to ts } }
-    val toShow = if (earnedOrdered.isNotEmpty()) {
-        earnedOrdered.take(3).map { (ach, ts) -> ach to ts }
-    } else {
-        AllAchievements.take(3).map { it to (null as Long?) }
-    }
+    // Always fill 3 slots. Lead with most-recently-earned, then back-fill
+    // with locked achievements as a "what's next" preview — otherwise the
+    // medallion's aspectRatio(1f) blows it up to full-row width when only
+    // one is earned. See [AchievementMedallion].
+    val slotCount = 3
+    val earnedOrdered: List<Pair<com.dangerfield.cards.libraries.cards.Achievement, Long?>> =
+        progress.earned.entries
+            .sortedByDescending { it.value }
+            .mapNotNull { (id, ts) -> AllAchievementsById[id]?.let { it to (ts as Long?) } }
+    val preview: List<Pair<com.dangerfield.cards.libraries.cards.Achievement, Long?>> =
+        AllAchievements
+            .filter { it.id !in progress.earned.keys }
+            .map { it to (null as Long?) }
+    val toShow = (earnedOrdered + preview).take(slotCount)
     val total = AllAchievements.size
     val earnedCount = progress.earned.size
 
@@ -423,6 +426,38 @@ private fun StatsScreenPreview_Populated() {
                     XpEvent(id = 2, deltaXp = 3, source = XpSource.INVESTMENT, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                     XpEvent(id = 3, deltaXp = 5, source = XpSource.SHOWDOWN, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                     XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
+                ),
+            ),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun StatsScreenPreview_SingleAchievementEarned() {
+    // Pins the bug we hit when only one achievement was earned: the
+    // medallion's aspectRatio(1f) made it fill the whole row. The highlights
+    // strip now back-fills with locked previews so the layout stays the
+    // same 3-up at any earned count.
+    PreviewContent {
+        val earnedId = AllAchievements.first().id
+        StatsScreen(
+            state = StatsState(
+                isLoading = false,
+                progression = Progression(
+                    totalXp = 320,
+                    handsPlayed = 14,
+                    handsWon = 3,
+                    handsFolded = 8,
+                    handsLostAtShowdown = 3,
+                    botHandsPlayed = 14,
+                    updatedAtEpochMs = 0,
+                ),
+                achievements = AchievementProgress(
+                    earned = mapOf(earnedId to 0L),
+                    counters = emptyMap(),
+                    customCounters = emptyMap(),
                 ),
             ),
             onBack = {},

@@ -29,6 +29,7 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -70,6 +71,14 @@ fun PlayPokerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onTapXp: () -> Unit = {},
+    /** Hides the centered Level pill in the top bar. The tutorial sets
+     *  this false so its own step-counter pill can occupy the centered
+     *  slot without colliding. */
+    showXpPill: Boolean = true,
+    /** When false, the back button leaves immediately instead of opening
+     *  the "you'll lose this hand" confirm dialog. Tutorial sets this
+     *  false because there's no real hand or XP at stake. */
+    confirmLeave: Boolean = true,
 ) {
     var actionSheetOpen by remember { mutableStateOf(false) }
     var blindExplainerOpen by remember { mutableStateOf(false) }
@@ -77,7 +86,7 @@ fun PlayPokerScreen(
     var stackExplainerOpen by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
-    var muteSheetSeat by remember { mutableStateOf<SeatView?>(null) }
+    var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     // Action / bet / hand-label explainers carry their own context so each
     // dialog can render specific copy instead of opening the whole cheat sheet.
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
@@ -114,7 +123,7 @@ fun PlayPokerScreen(
         onBack()
     }
     val requestLeave: () -> Unit = {
-        if (!handInProgress) {
+        if (!confirmLeave || !handInProgress) {
             leaveTable()
         } else {
             leaveConfirmOpen = true
@@ -157,6 +166,7 @@ fun PlayPokerScreen(
                     onBack = requestLeave,
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
+                    showXpPill = showXpPill,
                     availableEmojis = state.availableEmojis,
                     emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
                     onBlastEmoji = { emoji ->
@@ -169,9 +179,13 @@ fun PlayPokerScreen(
                 } else {
                     ActiveTable(
                         table = active,
-                        humanWinPercent = state.humanWinPercent,
+                        humanWinOdds = state.humanWinOdds,
                         humanTitle = state.equippedTitle,
                         silentSwipeFold = state.swipeFoldGestureAck,
+                        winOddsFlipHintSeen = state.winOddsFlipHintSeen,
+                        onWinOddsFlipped = {
+                            onAction(PlayPokerAction.MarkWinOddsFlipHintSeen)
+                        },
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -190,7 +204,7 @@ fun PlayPokerScreen(
                             }
                         },
                         onOpponentTap = { seat ->
-                            seatMuteKey(seat)?.let { muteSheetSeat = seat }
+                            seatMuteKey(seat)?.let { profileSheetSeat = seat }
                         },
                     )
                 }
@@ -309,16 +323,16 @@ fun PlayPokerScreen(
             )
         }
 
-        muteSheetSeat?.let { seat ->
-            MutePlayerSheet(
+        profileSheetSeat?.let { seat ->
+            PlayerProfileSheet(
                 seat = seat,
                 isMuted = seatMuteKey(seat) in state.mutedEmojiPlayerKeys,
-                onToggle = {
+                onToggleMute = {
                     seatMuteKey(seat)?.let { key ->
                         onAction(PlayPokerAction.ToggleMutePlayer(key))
                     }
                 },
-                onDismiss = { muteSheetSeat = null },
+                onDismiss = { profileSheetSeat = null },
             )
         }
 
@@ -386,6 +400,7 @@ private fun TopBar(
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
+    showXpPill: Boolean = true,
     availableEmojis: List<String> = emptyList(),
     emojiCooldownEndsAtEpochMs: Long = 0L,
     onBlastEmoji: ((String) -> Unit)? = null,
@@ -414,11 +429,13 @@ private fun TopBar(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart),
         )
-        LevelPill(
-            xp = xp,
-            onClick = onTapXp,
-            modifier = Modifier.align(Alignment.Center),
-        )
+        if (showXpPill) {
+            LevelPill(
+                xp = xp,
+                onClick = onTapXp,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically,
@@ -457,9 +474,11 @@ private fun LoadingTable() {
 @Composable
 private fun ActiveTable(
     table: TableUiState.Active,
-    humanWinPercent: Int?,
+    humanWinOdds: EquityBreakdown?,
     humanTitle: String?,
     silentSwipeFold: Boolean = false,
+    winOddsFlipHintSeen: Boolean = false,
+    onWinOddsFlipped: () -> Unit = {},
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -508,24 +527,13 @@ private fun ActiveTable(
         // and the player row slides DOWN to occupy the freed space —
         // instead of sitting in place above an empty reserved slot.
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Live-equity badge — visible only when the win-odds tool is
-            // owned + equipped. Sits centered just above the player area
-            // so the player can read it at a glance while staring at
-            // their own hole cards. No animations: the value updates
-            // when the inputs (hole/community/opponents) change, which
-            // is rare enough that a tick feels stable.
-            humanWinPercent?.let { percent ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    WinOddsBadge(winPercent = percent)
-                }
-            }
             PlayerArea(
                 table = table,
                 humanTitle = humanTitle,
+                humanWinOdds = humanWinOdds,
                 silentSwipeFold = silentSwipeFold,
+                winOddsFlipHintSeen = winOddsFlipHintSeen,
+                onWinOddsFlipped = onWinOddsFlipped,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,
@@ -534,11 +542,6 @@ private fun ActiveTable(
                 onSwipeFold = onSwipeFold,
             )
             QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
-            // Bottom emoji blast tray moved to the TopBar (the
-            // [TopBarEmojiButton] icon sits alongside the cheat-sheet
-            // question icon). Spacer keeps the action bar from sitting
-            // flush against the system gesture area.
-            VerticalSpacerD500()
         }
     }
 }

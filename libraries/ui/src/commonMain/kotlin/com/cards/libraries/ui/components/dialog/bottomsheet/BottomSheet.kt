@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -120,6 +121,104 @@ fun BottomSheet(
                 backgroundColor = if (backgroundColor.color.alpha < 1f) backgroundColor.withAlpha(0f) else backgroundColor,
                 bottomContent = stickyBottomContent,
             )
+        }
+    }
+}
+
+/**
+ * Title + freeform body preset. For sheets that share the
+ * centered-title-then-rows shape (informational sheets, coming-soon
+ * stubs, settings shells). Bakes the standard title typography +
+ * trailing breathing room so callsites don't each re-pick them. Body
+ * is freeform; the caller renders its own rows + spacers in the
+ * [ColumnScope].
+ */
+@Composable
+fun BottomSheet(
+    title: String,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    state: BottomSheetState = rememberBottomSheetState(),
+    showCloseButton: Boolean = false,
+    sheetGesturesEnabled: Boolean = true,
+    shouldDismissOnBackPress: Boolean = true,
+    shouldDismissOnClickOutside: Boolean = true,
+    dragHandle: BottomSheetDragHandle = BottomSheetDragHandle.Basic,
+    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
+    contentAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    topPadding: Dp = defaultTopPaddingFor(dragHandle),
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    BottomSheet(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        state = state,
+        showCloseButton = showCloseButton,
+        sheetGesturesEnabled = sheetGesturesEnabled,
+        shouldDismissOnBackPress = shouldDismissOnBackPress,
+        shouldDismissOnClickOutside = shouldDismissOnClickOutside,
+        dragHandle = dragHandle,
+        backgroundColor = backgroundColor,
+        contentAlignment = contentAlignment,
+        topPadding = topPadding,
+        title = {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Heading.H800,
+                color = AppTheme.colors.onSurfacePrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        body = body,
+    )
+}
+
+/**
+ * Composite-title variant of the title preset. Same paddings + body
+ * shape as the string-title overload, but takes a `title: @Composable`
+ * slot for cases where the title isn't a single line of text — e.g.
+ * the tap-an-opponent profile sheet's displayName + sub-badge stack.
+ * Callers using this slot own the title's typography + alignment; the
+ * preset only owns layout (top padding for the handle, D500 spacer
+ * between title and body, D800 trailing breathing room). Prefer the
+ * string overload when the title is plain text so typography stays
+ * consistent by default.
+ */
+@Composable
+fun BottomSheet(
+    title: @Composable ColumnScope.() -> Unit,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    state: BottomSheetState = rememberBottomSheetState(),
+    showCloseButton: Boolean = false,
+    sheetGesturesEnabled: Boolean = true,
+    shouldDismissOnBackPress: Boolean = true,
+    shouldDismissOnClickOutside: Boolean = true,
+    dragHandle: BottomSheetDragHandle = BottomSheetDragHandle.Basic,
+    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
+    contentAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    topPadding: Dp = defaultTopPaddingFor(dragHandle),
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    BottomSheet(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        state = state,
+        showCloseButton = showCloseButton,
+        sheetGesturesEnabled = sheetGesturesEnabled,
+        shouldDismissOnBackPress = shouldDismissOnBackPress,
+        shouldDismissOnClickOutside = shouldDismissOnClickOutside,
+        dragHandle = dragHandle,
+        backgroundColor = backgroundColor,
+        contentAlignment = contentAlignment,
+        topPadding = topPadding,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            title()
+            Spacer(modifier = Modifier.height(Dimension.D500))
+            body()
+            Spacer(modifier = Modifier.height(Dimension.D800))
         }
     }
 }

@@ -108,6 +108,16 @@ fun cardBackForProductId(productId: String?): CardBackStyle = when (productId) {
     "cardback_neon" -> CardBackStyle.Neon
     "cardback_diamond" -> CardBackStyle.Diamond
     "cardback_comeback_kid" -> CardBackStyle.ComebackKid
+    "cardback_skulls" -> CardBackStyle.Skulls
+    "cardback_galaxy" -> CardBackStyle.Galaxy
+    "cardback_holographic" -> CardBackStyle.Holographic
+    "cardback_fire" -> CardBackStyle.Fire
+    "cardback_avatar" -> CardBackStyle.Avatar
+    "cardback_lattice" -> CardBackStyle.Lattice
+    "cardback_hatching" -> CardBackStyle.Hatching
+    "cardback_crosshatch" -> CardBackStyle.Crosshatch
+    "cardback_dots" -> CardBackStyle.Dots
+    "cardback_pinstripes" -> CardBackStyle.Pinstripes
     else -> CardBackStyle.Default
 }
 
@@ -126,5 +136,6 @@ fun titleForProductId(productId: String?): String? = when (productId) {
     "title_high_roller" -> "High Roller"
     "title_pot_magnet" -> "Pot Magnet"
     "title_short_stack_hero" -> "Short Stack Hero"
+    "title_bot_whisperer" -> "Bot Whisperer"
     else -> null
 }
