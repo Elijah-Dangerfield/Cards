@@ -358,3 +358,92 @@ private fun OwnedItemRowPreview_Earned() {
         }
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun MyItemsScreenPreview_Populated() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        MyItemsScreen(
+            state = previewPopulatedState(),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+private fun previewPopulatedState(): MyItemsState {
+    val felt = com.dangerfield.cards.libraries.products.Product.ChipOffer(
+        id = "felt_midnight_blue",
+        title = "Midnight Blue Felt",
+        subtitle = "Table felt",
+        iconEmoji = "🟦",
+        costChips = 1500,
+        grantsKey = "felt.midnight_blue",
+        description = "Deep blue felt — easy on the eyes during long sessions.",
+        isEquippable = true,
+    )
+    val cardBack = com.dangerfield.cards.libraries.products.Product.ChipOffer(
+        id = "cardback_comeback_kid",
+        title = "Comeback Kid Card Back",
+        subtitle = "Card back",
+        iconEmoji = "🃏",
+        costChips = 0,
+        grantsKey = "cardback.comeback_kid",
+        description = "Earned for clawing back from short stack to full.",
+        isEquippable = true,
+    )
+    val emotes = com.dangerfield.cards.libraries.products.Product.ChipOffer(
+        id = "emotes_drama",
+        title = "Drama Emote Pack",
+        subtitle = "Emotes · 4 reactions",
+        iconEmoji = "💃",
+        costChips = 3500,
+        grantsKey = "emotes.drama",
+        description = "Unlocks 💃 🧂 🎭 🤦 — big screen-filling reactions.",
+        isEquippable = false,
+    )
+    val title = com.dangerfield.cards.libraries.products.Product.ChipOffer(
+        id = "title_pot_magnet",
+        title = "Pot Magnet",
+        subtitle = "Title",
+        iconEmoji = "🧲",
+        costChips = 0,
+        grantsKey = "title.pot_magnet",
+        description = "Unlocked by sitting at a pot 25× the big blind.",
+        isEquippable = true,
+    )
+    return MyItemsState(
+        inventory = listOf(
+            com.dangerfield.cards.libraries.cards.InventoryItem(
+                productId = felt.id,
+                state = com.dangerfield.cards.libraries.cards.PurchaseState.Confirmed,
+                purchasedAtEpochMs = 1_700_000_000_000,
+                costChipsAtPurchase = felt.costChips,
+            ),
+            com.dangerfield.cards.libraries.cards.InventoryItem(
+                productId = cardBack.id,
+                state = com.dangerfield.cards.libraries.cards.PurchaseState.Confirmed,
+                purchasedAtEpochMs = 1_700_000_100_000,
+                costChipsAtPurchase = 0,
+                acquisitionSource = AcquisitionSource.Earned,
+            ),
+            com.dangerfield.cards.libraries.cards.InventoryItem(
+                productId = emotes.id,
+                state = com.dangerfield.cards.libraries.cards.PurchaseState.Confirmed,
+                purchasedAtEpochMs = 1_700_000_200_000,
+                costChipsAtPurchase = emotes.costChips,
+            ),
+            com.dangerfield.cards.libraries.cards.InventoryItem(
+                productId = title.id,
+                state = com.dangerfield.cards.libraries.cards.PurchaseState.Confirmed,
+                purchasedAtEpochMs = 1_700_000_300_000,
+                costChipsAtPurchase = 0,
+                acquisitionSource = AcquisitionSource.Earned,
+            ),
+        ),
+        catalog = com.dangerfield.cards.libraries.products.ProductCatalog(
+            chipOffers = listOf(felt, cardBack, emotes, title),
+        ),
+        equippedIds = setOf(felt.id, cardBack.id),
+    )
+}
