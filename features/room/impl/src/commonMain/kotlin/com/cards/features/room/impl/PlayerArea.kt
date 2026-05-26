@@ -68,7 +68,6 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
-import com.dangerfield.cards.libraries.ui.components.icon.Filled
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -816,7 +815,7 @@ private fun FlipAffordance(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            icon = Icons.Refresh.Filled("Flip to see win odds"),
+            icon = Icons.Refresh("Flip to see win odds"),
             size = IconSize.Smallest,
             color = AppTheme.colors.textSecondary,
         )
