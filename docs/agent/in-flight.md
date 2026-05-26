@@ -1,3 +1,10 @@
+## feat(ui): BottomSheet title preset + ComingSoonSheet migration
+
+**Problem:** Same todo as the Dialog preset commit — informational `BottomSheet` callsites each hand-roll the centered title + spacing + trailing breathing room. Want an opinionated preset so the next informational sheet drops in tighter.
+**Approach:** Added a parallel `BottomSheet(title: String, …, body: @Composable ColumnScope.() -> Unit)` overload that bakes H800 centered title, D500 below the title, D800 trailing — body is freeform. Migrated `ComingSoonSheet` as the proof callsite. The other `BottomSheet` callsites (`PlayerProfileSheet`, `PurchaseConfirmSheet`, `StatsExplainersSheet`) don't quite fit (custom drag handle + H700 title; rich body with leading icon; multi-section content) and need either preset slots (a `title: @Composable` overload, leading-icon slot) or a different shape entirely — left alone here.
+**Reviewer notes:** Migrated sheet renders identically (same H800, same paddings via the prior hand-rolled `VerticalSpacerD500` / `VerticalSpacerD800`). The `HandRankingsCheatSheet` `@LowLevelDSComponent` opt-in the todo calls out is still untouched — its custom body layout (cards, sections, custom backgrounds) needs hooks the preset doesn't yet expose.
+**Deferred:** A `title: @Composable () -> Unit` overload for sheets that need a non-string title (PlayerProfileSheet's name + badge stack would use this) — same for `Dialog`. Both are next-cycle picks if this preset shape gets traction. Migrating `HandRankingsCheatSheet` off `BaseBottomSheet` per the todo — bigger lift, requires extending the opinionated wrapper's content-shape slots.
+
 ## feat(ui): Dialog title preset for content-only explainers
 
 **Problem:** Explainer dialogs each hand-rolled the same `Column { padding(24, 28), spacedBy(12), Text(title, H700 center), … }` boilerplate. Todo's DS-first item asks for opinionated `Dialog` presets that bake title typography + outer padding + content slot so callsites don't keep re-picking those.
