@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +80,18 @@ fun AchievementUnlockReveal(
     val burstProgress = remember(revealKey) { Animatable(0f) }
     val medallionAlpha = remember(revealKey) { Animatable(0f) }
     val medallionScale = remember(revealKey) { Animatable(2.2f) }
+
+    // Flips to true once the slam-in spring settles. Drives whether
+    // the medallion is tap-flippable: during the sequence we want
+    // taps suppressed (a 3D flip mid-celebration would steal focus
+    // from the reveal), but once the dust settles the user should
+    // be able to tap it for the back-face description just like on
+    // the achievements page.
+    var sequenceComplete by remember(revealKey) { mutableStateOf(false) }
+    // Stable no-op so the medallion's onClick reference doesn't churn
+    // every recomposition during the animation (which would re-arm
+    // Clickable internals on every frame).
+    val suppressFlipClick: () -> Unit = remember { {} }
 
     LaunchedEffect(revealKey) {
         // ---- 1. Anticipation -----------------------------------------
@@ -147,6 +161,7 @@ fun AchievementUnlockReveal(
             ),
         )
 
+        sequenceComplete = true
         onSequenceComplete()
     }
 
@@ -183,12 +198,15 @@ fun AchievementUnlockReveal(
             AchievementMedallion(
                 achievement = achievement,
                 // Mark earned so the medallion renders its "earned"
-                // visuals. onClick = {} suppresses the flip-to-back so
-                // the celebration moment isn't competing with a 3D
-                // flip the user could accidentally trigger.
+                // visuals. onClick = {} during the sequence suppresses
+                // the flip-to-back affordance so a tap mid-slam doesn't
+                // steal focus from the celebration. Once sequenceComplete
+                // flips, we pass null to re-enable the medallion's
+                // native tap-to-flip behavior — same as on the Stats /
+                // Achievements page.
                 earnedAtEpochMs = 1L,
                 progress = achievement.criterion.target,
-                onClick = {},
+                onClick = if (sequenceComplete) null else suppressFlipClick,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {

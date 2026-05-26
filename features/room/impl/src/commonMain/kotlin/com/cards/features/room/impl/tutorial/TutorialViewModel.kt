@@ -71,7 +71,12 @@ class TutorialViewModel @Inject constructor(
         if (current.completed) return
         val nextIndex = current.stepIndex + 1
         if (nextIndex >= script.size) {
-            _state.value = current.copy(completed = true)
+            // Flip completed=true immediately so the screen transitions
+            // without waiting on the grant. wasFirstCompletion stays
+            // null briefly; the completion screen renders text + CTA
+            // unconditionally and gates the achievement reveal on the
+            // resolved value, so a sub-100ms null window is invisible.
+            _state.value = current.copy(completed = true, wasFirstCompletion = null)
             recordCompletion()
         } else {
             _state.value = stateForIndex(nextIndex)
@@ -98,19 +103,29 @@ class TutorialViewModel @Inject constructor(
     }
 
     private fun recordCompletion() {
-        // Fire-and-forget. The grant is idempotent at the repo layer, so a
-        // process-death mid-grant is safe to retry. Wrap in `Catching` so
-        // an XP-ledger or DB hiccup doesn't tank the completion UX.
+        // Fire-and-forget on the side-effects (appCache update is OK to
+        // miss on failure; the home banner stays dismissable manually).
+        // But we DO need to await the achievement repo's response so we
+        // can tell the completion screen whether this is a first-time
+        // unlock (full reveal sequence) or a replay (no medallion).
         viewModelScope.launch {
+            val wasFirst = Catching {
+                achievementRepository.recordTutorialComplete() != null
+            }.also { result ->
+                result.exceptionOrNull()
+                    ?.let { logger.w(it) { "Tutorial-complete grant failed" } }
+            }.getOrDefault(true)
+
+            _state.value = _state.value.copy(wasFirstCompletion = wasFirst)
+
             Catching {
-                achievementRepository.recordTutorialComplete()
                 // Finishing the tutorial implicitly dismisses the Home
-                // banner, leaving a "Learn the basics" CTA in place
+                // banner; leaving a "Learn the basics" CTA in place
                 // would be weird since the user just learned them.
-                // Idempotent: appCache.update is a no-op if the flag is
-                // already true (manual dismiss happened earlier).
+                // Idempotent: appCache.update is a no-op if the flag
+                // is already true (manual dismiss happened earlier).
                 appCache.update { it.copy(tutorialBannerDismissed = true) }
-            }.onFailure { logger.w(it) { "Tutorial-complete grant failed" } }
+            }
         }
     }
 }
@@ -128,6 +143,13 @@ internal data class TutorialState(
     /** Total step count for [step.section]. */
     val sectionTotalSteps: Int,
     val completed: Boolean,
+    /** True if this completion newly unlocked TUTORIAL_COMPLETE, false
+     *  if the user had already earned it on a previous playthrough.
+     *  Null while the grant call is in flight (sub-100ms window right
+     *  after completion). The completion screen renders the celebration
+     *  reveal only when this resolves to true; on replay (false) it
+     *  hides the medallion entirely. */
+    val wasFirstCompletion: Boolean? = null,
 ) {
     val section: TutorialSection get() = step.section
 }
