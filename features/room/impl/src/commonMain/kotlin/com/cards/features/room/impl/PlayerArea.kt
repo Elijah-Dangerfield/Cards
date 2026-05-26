@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -140,6 +141,14 @@ internal fun PlayerArea(
     val haptics = LocalHapticFeedback.current
     val gestureScope = rememberCoroutineScope()
     val dragOffsetY = remember { Animatable(0f) }
+    // Manual "hide my cards" flip — toggled by tapping the hole-card
+    // area. Resets to face-up whenever the dealt cards change so each
+    // new hand starts visible (you wouldn't carry "hidden" state from
+    // a hand you already saw into a fresh deal). Reads must coexist
+    // with the swipe-up-to-fold drag, so we use a tap detector below
+    // that fires only on release without movement — a real drag past
+    // touch slop cancels the tap automatically.
+    var manuallyFacedown by remember(human.holeCards) { mutableStateOf(false) }
     // 0..1 progress used to drive the in-flight visual response.
     // Visual progress saturates at the commit threshold so the
     // tilt/fade lands at a clear "ready to fold" peak when the user
@@ -265,6 +274,18 @@ internal fun PlayerArea(
                             velocityTracker.addPosition(change.uptimeMillis, change.position)
                         },
                     )
+                }
+                // Tap-to-flip the hole cards face-down (and back). On
+                // release only — `detectTapGestures` cancels its tap if
+                // motion exceeds touch slop, so the swipe-up-to-fold
+                // drag above wins whenever the user actually drags.
+                // Always enabled (even when the fold drag is gated off
+                // mid-bot-turn) because hiding your own cards is a
+                // casual action with no game-state preconditions.
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { manuallyFacedown = !manuallyFacedown },
+                    )
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -288,12 +309,14 @@ internal fun PlayerArea(
                     dealDelayMs = 0,
                     size = PlayingCardSize.Hole,
                     avatarOverlay = humanAvatarOverlay,
+                    manuallyFacedown = manuallyFacedown,
                 )
                 HoleCardSlot(
                     card = human.holeCards.getOrNull(1),
                     dealDelayMs = 150,
                     size = PlayingCardSize.Hole,
                     avatarOverlay = humanAvatarOverlay,
+                    manuallyFacedown = manuallyFacedown,
                 )
             }
         }
@@ -341,6 +364,7 @@ private fun HoleCardSlot(
     dealDelayMs: Int,
     size: PlayingCardSize,
     avatarOverlay: AvatarBackOverlay? = null,
+    manuallyFacedown: Boolean = false,
 ) {
     if (card == null) {
         PlayingCardSlot(size = size)
@@ -362,7 +386,34 @@ private fun HoleCardSlot(
             }
         }
         if (settled) {
-            PlayingCard(card = card, size = size)
+            // Manual flip wrapper — once the deal-in animation has
+            // landed, the user can tap to flip the card face-down (and
+            // back). Same rotateY pattern as the deal-in flip; we re-
+            // use [PlayingCardBack] for the back face so the equipped
+            // card-back style (and avatar overlay) carries through.
+            val flipRotation by animateFloatAsState(
+                targetValue = if (manuallyFacedown) 180f else 0f,
+                animationSpec = tween(380),
+                label = "hole-manual-flip",
+            )
+            Box(
+                modifier = Modifier
+                    .size(width = size.width, height = size.height)
+                    .graphicsLayer {
+                        rotationY = flipRotation
+                        cameraDistance = 12f * density
+                    },
+            ) {
+                if (flipRotation <= 90f) {
+                    PlayingCard(card = card, size = size)
+                } else {
+                    Box(
+                        modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f },
+                    ) {
+                        PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
+                    }
+                }
+            }
         } else {
             val flightDp = -260f
             val flightPx = with(LocalDensity.current) { flightDp.dp.toPx() }
