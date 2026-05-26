@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,8 +34,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import com.dangerfield.cards.libraries.gameplay.Card
+import com.dangerfield.cards.libraries.gameplay.Rank
+import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.Card
+import com.dangerfield.cards.libraries.ui.components.Card as DsCard
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -43,6 +47,8 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
+import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
+import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -294,19 +300,29 @@ private fun formatChipCount(amount: Int): String {
 private fun HandRanksHero() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         RankRow(
-            cards = "K♠  9♥",
+            cards = listOf(
+                Card(Rank.King, Suit.Spades),
+                Card(Rank.Nine, Suit.Hearts),
+            ),
             title = "High card",
             subtitle = "Just your highest card",
             highlighted = false,
         )
         RankRow(
-            cards = "Q♦  Q♣",
+            cards = listOf(
+                Card(Rank.Queen, Suit.Diamonds),
+                Card(Rank.Queen, Suit.Clubs),
+            ),
             title = "Pair",
             subtitle = "Two of the same rank",
             highlighted = false,
         )
         RankRow(
-            cards = "A♥  A♠  A♦",
+            cards = listOf(
+                Card(Rank.Ace, Suit.Hearts),
+                Card(Rank.Ace, Suit.Spades),
+                Card(Rank.Ace, Suit.Diamonds),
+            ),
             title = "Three of a kind",
             subtitle = "Three of the same rank",
             highlighted = true,
@@ -316,7 +332,7 @@ private fun HandRanksHero() {
 
 @Composable
 private fun RankRow(
-    cards: String,
+    cards: List<Card>,
     title: String,
     subtitle: String,
     highlighted: Boolean,
@@ -328,17 +344,15 @@ private fun RankRow(
     // theme's stock outline without us hand-coding a color.
     val outline = if (highlighted) ColorResource.Amber500.color else AppTheme.colors.border.color
     val titleColor = if (highlighted) ColorResource.Amber500 else AppTheme.colors.text
-    Card(
+    DsCard(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, outline, Radii.Card.shape),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = cards,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
-                modifier = Modifier.width(78.dp),
+            MiniCardStack(
+                cards = cards,
+                modifier = Modifier.width(MiniCardStackSlotWidth),
             )
             Column {
                 Text(
@@ -352,6 +366,42 @@ private fun RankRow(
                     color = AppTheme.colors.textSecondary,
                 )
             }
+        }
+    }
+}
+
+/**
+ * Reserved width for the rank-row card stack. Sized to fit up to
+ * three [PlayingCardSize.Mini] cards at the [MiniCardStackOverlap]
+ * offset without clipping or wrapping. Pulled out so the Column
+ * beside it can use the remaining space predictably across rows
+ * with different card counts (high-card has 2, three-of-a-kind has 3).
+ */
+private val MiniCardStackSlotWidth = 76.dp
+
+/** Horizontal offset between successive mini cards in a stack. Small
+ *  enough that each card's rank corner peeks through behind the next
+ *  one, large enough that all three ranks are individually legible. */
+private val MiniCardStackOverlap = 18.dp
+
+/**
+ * Horizontal stack of small [PlayingCard]s, each offset slightly from
+ * the previous so they read as a "hand" rather than a deck. Uses the
+ * DS [PlayingCardSize.Mini] preset so the cards visually match the
+ * cheat-sheet and seat-indicator card renderings elsewhere in the app.
+ */
+@Composable
+private fun MiniCardStack(
+    cards: List<Card>,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier) {
+        cards.forEachIndexed { index, card ->
+            PlayingCard(
+                card = card,
+                size = PlayingCardSize.Mini,
+                modifier = Modifier.offset(x = MiniCardStackOverlap * index),
+            )
         }
     }
 }
