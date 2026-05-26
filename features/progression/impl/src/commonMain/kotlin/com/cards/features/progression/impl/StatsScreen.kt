@@ -383,6 +383,17 @@ private fun formatThousands(value: Long): String {
 
 @Preview
 @Composable
+private fun StatsScreenPreview_Loading() {
+    PreviewContent {
+        StatsScreen(
+            state = StatsState(),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
 private fun StatsScreenPreview_Empty() {
     PreviewContent {
         StatsScreen(
@@ -413,6 +424,34 @@ private fun StatsScreenPreview_Populated() {
                     XpEvent(id = 2, deltaXp = 3, source = XpSource.INVESTMENT, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                     XpEvent(id = 3, deltaXp = 5, source = XpSource.SHOWDOWN, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                     XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
+                ),
+            ),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun StatsScreenPreview_WithAchievements() {
+    PreviewContent {
+        val earnedIds = AllAchievements.take(3).map { it.id }
+        StatsScreen(
+            state = StatsState(
+                isLoading = false,
+                progression = Progression(
+                    totalXp = 6_120,
+                    handsPlayed = 980,
+                    handsWon = 260,
+                    handsFolded = 500,
+                    handsLostAtShowdown = 220,
+                    botHandsPlayed = 980,
+                    updatedAtEpochMs = 0,
+                ),
+                achievements = AchievementProgress(
+                    earned = earnedIds.associateWith { 0L },
+                    counters = emptyMap(),
+                    customCounters = emptyMap(),
                 ),
             ),
             onBack = {},
