@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.routes
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.AcquisitionSource
+import com.dangerfield.cards.server.domain.ClientGrantableAchievements
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.Product
@@ -29,7 +30,6 @@ import java.util.Date
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -37,18 +37,20 @@ import kotlin.time.Instant
 /**
  * Route-level tests for `POST /v1/me/grants/achievement/{achievementId}`.
  *
- * What we pin:
- *  - Mapped achievement → 200 + OwnedItemDto, repo sees one
- *    `recordEarnedGrant` call with the right productId.
- *  - Unmapped achievement → 204, repo untouched.
- *  - Empty / whitespace path segment surfaces 4xx (Ktor returns 404 for
- *    a missing path segment; we cover the blank-segment case via a
- *    trailing-slash request that lands here as blank).
- *  - Catalog absence for a mapped product → 204 (graceful degrade).
+ * Pins all four resolution branches of [ClientGrantableAchievements] plus
+ * the auth gate:
+ *  - Client-grantable id → 200 + OwnedItemDto, repo sees one
+ *    `recordEarnedGrant` with the right productId.
+ *  - Server-witnessed id → 403, repo untouched. This is the load-bearing
+ *    branch the tests exist to lock down — without it, a future PvP
+ *    achievement added to `serverWitnessed` could be self-granted by a
+ *    malicious client.
+ *  - Unknown id → 204, repo untouched (graceful client/server skew).
+ *  - Catalog absence for a client-grantable id → 204 (graceful degrade
+ *    when a cosmetic is removed in a future build).
  *  - Missing / wrong-secret bearer → 401.
- *  - Two posts for the same achievement → repo called twice, but the
- *    repo-level idempotency keeps one owned row. The route stays dumb;
- *    storage owns idempotency (same split as `inventoryRoutes`).
+ *  - Two posts for the same achievement → repo called twice; route stays
+ *    dumb, storage owns idempotency (same split as `inventoryRoutes`).
  */
 @OptIn(ExperimentalTime::class)
 class GrantsRoutesTest {
@@ -57,11 +59,17 @@ class GrantsRoutesTest {
     private val testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef"
     private val userId = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
 
+    private val defaultPolicy = ClientGrantableAchievements.Default
+    private val policyWithServerWitnessed = ClientGrantableAchievements(
+        clientGrantable = mapOf("POT_5000" to "title_pot_magnet"),
+        serverWitnessed = setOf("RANKED_TOP_FINISH"),
+    )
+
     @Test
-    fun mappedAchievement_returnsOwnedItem_andRecordsEarnedGrant() = runTest {
+    fun clientGrantableAchievement_returnsOwnedItem_andRecordsEarnedGrant() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_pot_magnet"))
-        post(inventory, catalog, "POT_5000") { resp ->
+        post(inventory, catalog, defaultPolicy, "POT_5000") { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
             val body = resp.body<OwnedItemDto>()
             assertEquals("title_pot_magnet", body.productId)
@@ -75,10 +83,20 @@ class GrantsRoutesTest {
     }
 
     @Test
-    fun unmappedAchievement_returnsNoContent_andDoesNotRecord() = runTest {
+    fun serverWitnessedAchievement_returnsForbidden_andDoesNotRecord() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.empty()
-        post(inventory, catalog, "FIRST_HAND") { resp ->
+        post(inventory, catalog, policyWithServerWitnessed, "RANKED_TOP_FINISH") { resp ->
+            assertEquals(HttpStatusCode.Forbidden, resp.status)
+            assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
+    fun unknownAchievement_returnsNoContent_andDoesNotRecord() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.empty()
+        post(inventory, catalog, defaultPolicy, "FIRST_HAND") { resp ->
             assertEquals(HttpStatusCode.NoContent, resp.status)
             assertTrue(inventory.earnedGrants.isEmpty())
         }
@@ -86,13 +104,13 @@ class GrantsRoutesTest {
 
     @Test
     fun catalogMissingMappedProduct_returnsNoContent_andDoesNotRecord() = runTest {
-        // POT_5000 maps to title_pot_magnet in AchievementRewards, but the
-        // catalog source returns null (simulates the cosmetic being
-        // removed in a future server build). Route degrades to 204 rather
-        // than 500 so a stale client doesn't surface an error.
+        // POT_5000 is allowlisted, but the catalog source returns null
+        // (simulates the cosmetic being removed in a future server build).
+        // Route degrades to 204 rather than 500 so a stale client doesn't
+        // surface an error.
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.empty()
-        post(inventory, catalog, "POT_5000") { resp ->
+        post(inventory, catalog, defaultPolicy, "POT_5000") { resp ->
             assertEquals(HttpStatusCode.NoContent, resp.status)
             assertTrue(inventory.earnedGrants.isEmpty())
         }
@@ -102,10 +120,10 @@ class GrantsRoutesTest {
     fun idempotent_repoCalledTwice_butRouteResponseIsStable() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_short_stack_hero"))
-        post(inventory, catalog, "COMEBACK_FROM_5BB") { first ->
+        post(inventory, catalog, defaultPolicy, "COMEBACK_FROM_5BB") { first ->
             assertEquals(HttpStatusCode.OK, first.status)
             val firstBody = first.body<OwnedItemDto>()
-            post(inventory, catalog, "COMEBACK_FROM_5BB") { second ->
+            post(inventory, catalog, defaultPolicy, "COMEBACK_FROM_5BB") { second ->
                 assertEquals(HttpStatusCode.OK, second.status)
                 val secondBody = second.body<OwnedItemDto>()
                 assertEquals(firstBody.productId, secondBody.productId)
@@ -121,7 +139,7 @@ class GrantsRoutesTest {
     fun returns401_whenAuthHeaderMissing() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_pot_magnet"))
-        post(inventory, catalog, "POT_5000", withBearer = false) { resp ->
+        post(inventory, catalog, defaultPolicy, "POT_5000", withBearer = false) { resp ->
             assertEquals(HttpStatusCode.Unauthorized, resp.status)
             assertTrue(inventory.earnedGrants.isEmpty())
         }
@@ -138,6 +156,7 @@ class GrantsRoutesTest {
         post(
             CapturingInventory(),
             FakeCatalog.with(stubProduct("title_pot_magnet")),
+            defaultPolicy,
             "POT_5000",
             bearer = foreign,
         ) { resp ->
@@ -150,8 +169,8 @@ class GrantsRoutesTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_pot_magnet"))
         val otherUser = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
-        post(inventory, catalog, "POT_5000") {}
-        post(inventory, catalog, "POT_5000", bearer = jwt(forUserId = otherUser)) {}
+        post(inventory, catalog, defaultPolicy, "POT_5000") {}
+        post(inventory, catalog, defaultPolicy, "POT_5000", bearer = jwt(forUserId = otherUser)) {}
         assertEquals(setOf(userId, otherUser), inventory.earnedGrants.map { it.userId }.toSet())
     }
 
@@ -173,6 +192,7 @@ class GrantsRoutesTest {
     private suspend fun post(
         inventory: InventoryRepository,
         catalog: ProductCatalogSource,
+        policy: ClientGrantableAchievements,
         achievementId: String,
         withBearer: Boolean = true,
         bearer: String = jwt(),
@@ -183,7 +203,7 @@ class GrantsRoutesTest {
                 installSerialization()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { grantsRoutes(inventory, catalog) }
+                routing { grantsRoutes(inventory, catalog, policy) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }

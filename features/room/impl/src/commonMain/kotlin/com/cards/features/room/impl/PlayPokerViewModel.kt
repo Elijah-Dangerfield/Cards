@@ -737,13 +737,12 @@ sealed interface PlayPokerAction {
 
 sealed interface PlayPokerEvent {
     data object NavigatedBack : PlayPokerEvent
-    data class ShowAchievementUnlock(val achievement: EarnedAchievement) : PlayPokerEvent
     data class PlayHaptic(val kind: HapticKind) : PlayPokerEvent
     data class PlaySound(val kind: SoundKind) : PlayPokerEvent
 }
 
-enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp, AchievementUnlock }
-enum class SoundKind { CardFlick, ChipClick, Showdown, AchievementChime }
+enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp }
+enum class SoundKind { CardFlick, ChipClick, Showdown }
 
 /**
  * Factory the VM depends on for session creation + occupant derivation. Decouples the
