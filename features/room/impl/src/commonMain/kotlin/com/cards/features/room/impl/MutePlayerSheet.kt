@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
@@ -21,6 +22,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Tap-an-opponent surface. The sheet wears the seat's avatar as its
@@ -111,5 +113,47 @@ internal fun MutePlayerSheet(
                 ),
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun MutePlayerSheetPreview_BotUnmuted() {
+    PreviewContent {
+        MutePlayerSheet(
+            seat = PreviewSamples.botSeat(index = 1, name = "Jane")
+                .copy(seatBadge = "Bot · Standard"),
+            isMuted = false,
+            onToggle = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MutePlayerSheetPreview_BotMuted() {
+    PreviewContent {
+        MutePlayerSheet(
+            seat = PreviewSamples.botSeat(index = 2, name = "Maverick")
+                .copy(seatBadge = "Bot · Challenging"),
+            isMuted = true,
+            onToggle = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MutePlayerSheetPreview_NoBadge() {
+    PreviewContent {
+        MutePlayerSheet(
+            seat = PreviewSamples.botSeat(index = 3, name = "Remote Human")
+                .copy(seatBadge = null, emoji = null),
+            isMuted = false,
+            onToggle = {},
+            onDismiss = {},
+        )
     }
 }
