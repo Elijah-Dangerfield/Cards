@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -93,11 +92,11 @@ private fun BoardWell(width: androidx.compose.ui.unit.Dp, height: androidx.compo
     Box(
         modifier = Modifier
             .size(width = width, height = height)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700.shape)
             .border(
                 width = 1.5.dp,
                 color = PokerPalette.CardSlotOutline,
-                shape = RoundedCornerShape(16.dp),
+                shape = Radii.R700.shape,
             ),
     )
 }

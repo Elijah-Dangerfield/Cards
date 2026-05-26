@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,6 +75,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD300
 import kotlin.math.abs
@@ -156,8 +156,8 @@ internal fun PlayerArea(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .border(borderWidth, borderColor, RoundedCornerShape(20.dp))
+            .clip(Radii.R800.shape)
+            .border(borderWidth, borderColor, Radii.R800.shape)
             .padding(horizontal = 8.dp, vertical = 8.dp)
             .height(PlayingCardSize.Hole.height),
         verticalAlignment = Alignment.CenterVertically,
@@ -407,12 +407,12 @@ private fun PlayerInfoTile(
     // clipping the bottom chip pill. Adjust together if the row height changes.
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .border(
                 width = 1.dp,
                 color = AppTheme.colors.border.color,
-                shape = RoundedCornerShape(16.dp),
+                shape = Radii.R700.shape,
             )
             .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

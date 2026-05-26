@@ -32,6 +32,7 @@ import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -203,7 +204,7 @@ private fun PresetPill(
     Box(
         modifier = modifier
             .height(56.dp)
-            .clip(RoundedCornerShape(28.dp))
+            .clip(Radii.R1000.shape)
             .background(bg)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
