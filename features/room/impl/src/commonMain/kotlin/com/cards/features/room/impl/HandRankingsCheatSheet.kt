@@ -31,6 +31,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD300
@@ -303,7 +304,7 @@ private fun CurrentHandCard(
 private fun HandNumberPill(handNumber: Int) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceTertiary.color)
             .padding(horizontal = 12.dp, vertical = 5.dp),
     ) {
@@ -347,7 +348,7 @@ private fun StreetProgress(current: BettingRound) {
                 modifier = Modifier
                     .height(8.dp)
                     .width(if (isCurrent) 22.dp else 10.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(Radii.Round.shape)
                     .background(color),
             )
         }
@@ -387,7 +388,7 @@ private fun ActionRow(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(accent.color.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center,
         ) {

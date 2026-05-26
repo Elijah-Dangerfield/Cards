@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -149,14 +148,14 @@ private fun LevelProgressBar(progress: LevelProgress) {
         modifier = Modifier
             .fillMaxWidth()
             .height(10.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfacePrimary.color),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(progress.fraction)
                 .height(10.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(LevelProgressGradient),
         )
     }
@@ -332,7 +331,7 @@ private fun AchievementsHighlights(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(AppTheme.colors.surfacePrimary.color)
                 .clickable(onClick = onSeeAll)
                 .padding(vertical = 12.dp),

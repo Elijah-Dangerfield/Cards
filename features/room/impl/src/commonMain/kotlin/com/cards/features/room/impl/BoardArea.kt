@@ -43,6 +43,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD600
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -167,7 +168,7 @@ private fun PotPill(amount: Long, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(pillBackground)
             .clickable(onClick = onClick)
             .padding(start = 14.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -175,7 +176,7 @@ private fun PotPill(amount: Long, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(8.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(PokerPalette.ChipGold),
         )
         Text(

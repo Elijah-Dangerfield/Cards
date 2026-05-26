@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 
 /**
  * Tiny "57% win" pill rendered just above the player area when the user
@@ -46,12 +46,12 @@ fun WinOddsBadge(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(pillBackground)
             .border(
                 width = 1.dp,
                 color = pillTone.color,
-                shape = RoundedCornerShape(50),
+                shape = Radii.Round.shape,
             )
             .padding(PaddingValues(horizontal = 12.dp, vertical = 4.dp)),
     ) {

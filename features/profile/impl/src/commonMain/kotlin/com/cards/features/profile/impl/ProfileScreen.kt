@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -501,14 +500,14 @@ private fun LevelProgressBar(fraction: Float, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .height(8.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfacePrimary.color),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(fraction)
                 .height(8.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(LevelProgressGradient),
         )
     }
