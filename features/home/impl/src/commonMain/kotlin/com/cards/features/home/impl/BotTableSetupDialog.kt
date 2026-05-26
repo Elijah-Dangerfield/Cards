@@ -1,24 +1,18 @@
 package com.dangerfield.cards.features.home.impl
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.OptionPillRow
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -108,7 +102,12 @@ internal fun BotTableSetupDialog(
                 modifier = Modifier.fillMaxWidth(),
             )
             VerticalSpacerD500()
-            ConfirmPill(label = "Start") { onStart(difficulty, seatCount) }
+            ButtonPrimary(
+                onClick = { onStart(difficulty, seatCount) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = "Start")
+            }
         }
     }
 }
@@ -118,25 +117,6 @@ private fun subtitleFor(seatCount: Int, difficulty: String): String = when (seat
     4 -> "Four-handed $difficulty table. Balanced pace, room to play position."
     6 -> "Full ring with five $difficulty bots. Slower, more strategic — fold more, pick spots."
     else -> "$difficulty table with ${seatCount - 1} bots."
-}
-
-@Composable
-private fun ConfirmPill(label: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .clip(RoundedCornerShape(32.dp))
-            .background(AppTheme.colors.accentPrimary.color)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            typography = AppTheme.typography.Heading.H600,
-            color = AppTheme.colors.onAccentPrimary,
-        )
-    }
 }
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
