@@ -1,5 +1,14 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -8,32 +17,43 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension.D1000
+import com.dangerfield.cards.system.Dimension.D500
+import com.dangerfield.cards.system.DimensionResource
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
+import com.dangerfield.cards.system.then
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -61,73 +81,87 @@ internal fun NarrationStep(
         modifier = modifier,
         topBar = { TopBar(onNavigateBack = onExit) },
     ) { padding ->
-        // Hero floats centered in the upper half; headline + body +
-        // CTA anchor to the bottom. The weighted Box does the work
-        // without measuring: weight(1f) above the headline block
-        // pushes content into a top-third / bottom-third layout that
-        // breathes on tall and short screens alike.
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // The StepCounterPill renders separately as a top-center
-            // overlay, so we don't need to reserve space here for it.
-            // Just leave headroom below the topbar.
-            VerticalSpacerD800()
-            Box(
+        // Slide the entire step content horizontally on advance:
+        // outgoing exits left, incoming enters from the right, with
+        // a brief crossfade so neither edge appears suddenly. Keyed
+        // on the step itself; TutorialScript steps are stable data
+        // class values so equality drives the transition correctly.
+        AnimatedContent(
+            targetState = step,
+            transitionSpec = {
+                (slideInHorizontally(animationSpec = tween(durationMillis = 280)) { it } +
+                    fadeIn(animationSpec = tween(durationMillis = 200))) togetherWith
+                    (slideOutHorizontally(animationSpec = tween(durationMillis = 280)) { -it } +
+                        fadeOut(animationSpec = tween(durationMillis = 200)))
+            },
+            modifier = Modifier.fillMaxSize(),
+            label = "narration-step",
+        ) { animatedStep ->
+            // Hero floats centered in the upper half; headline + body +
+            // CTA anchor to the bottom. The weighted Box does the work
+            // without measuring: weight(1f) above the headline block
+            // pushes content into a top-third / bottom-third layout
+            // that breathes on tall and short screens alike.
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center,
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                NarrationHeroBlock(hero = step.hero)
-            }
-            if (!step.coach.title.isNullOrBlank()) {
+                // The StepCounterPill renders separately as a top-center
+                // overlay, so we don't need to reserve space here for it.
+                // Just leave headroom below the topbar.
+                VerticalSpacerD800()
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    NarrationHeroBlock(hero = animatedStep.hero)
+                }
+                if (!animatedStep.coach.title.isNullOrBlank()) {
+                    Text(
+                        text = animatedStep.coach.title,
+                        typography = AppTheme.typography.Display.D1100.Italic,
+                        color = ColorResource.Amber500,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    VerticalSpacerD400()
+                }
                 Text(
-                    text = step.coach.title,
-                    typography = AppTheme.typography.Display.D900.Italic,
-                    color = ColorResource.Amber500,
+                    text = animatedStep.coach.body,
+                    typography = AppTheme.typography.Body.B600,
+                    color = AppTheme.colors.textSecondary,
                     textAlign = TextAlign.Start,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                VerticalSpacerD400()
-            }
-            Text(
-                text = step.coach.body,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            VerticalSpacerD800()
-            ButtonPrimary(
-                onClick = onAdvance,
-                size = ButtonSize.Medium,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(step.coach.ctaLabel ?: "Next")
-            }
-            // Skip basics is a quiet text-link, not a full-width
-            // button: visually doesn't compete with the primary CTA.
-            // Still tappable on every basics step until the user
-            // moves past the section.
-            if (step.isBasics) {
-                VerticalSpacerD400()
-                ButtonTertiary(
-                    onClick = onSkipBasics,
-                    size = ButtonSize.Small,
+                VerticalSpacerD800()
+                ButtonPrimary(
+                    onClick = onAdvance,
+                    size = ButtonSize.Medium,
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        text = "Skip basics, I know how to play",
-                        typography = AppTheme.typography.Body.B400,
-                        color = AppTheme.colors.textSecondary,
+                    Text(animatedStep.coach.ctaLabel ?: "Next")
+                }
+                // Skip basics is a quiet text-link, not a full-width
+                // button: visually doesn't compete with the primary CTA.
+                // Still tappable on every basics step until the user
+                // moves past the section.
+                if (animatedStep.isBasics) {
+                    VerticalSpacerD400()
+                    Button(
+                        onClick = onSkipBasics,
+                        type = ButtonType.PrimaryAlt,
+                        style = ButtonStyle.Text,
+                        size = ButtonSize.Small,
+                        content = { Text("Skip basics, I know how to play") }
                     )
                 }
+                VerticalSpacerD600()
             }
-            VerticalSpacerD600()
         }
     }
 }
@@ -171,51 +205,79 @@ private fun NarrationHeroBlock(hero: NarrationHero?) {
 // ---------------------------------------------------------------------
 
 /**
- * Three colored discs stacked slightly offset to suggest a chip pile.
- * Abstract circles rather than realistic chip art because (a) we
- * don't have chip illustrations in the DS, and (b) abstract shapes
- * read cleaner at this size than detail-rich icons.
+ * Gold coin with an animated number counting up underneath. Reads as
+ * "value accumulating," matching the headline's "win the pot" framing.
+ * The ramp uses EaseOutCubic so the count climbs fast and lands soft,
+ * the way a real chip tally feels at a table.
+ *
+ * Target is hardcoded to 1,250: round enough to feel like a meaningful
+ * pot, small enough that the count-up reads at a glance.
  */
 @Composable
 private fun PotHero() {
-    Box(
-        modifier = Modifier.size(width = 140.dp, height = 110.dp),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        Disc(
-            color = Color(0xFF3E7BFA),
-            modifier = Modifier
-                .offset(x = (-28).dp, y = (-8).dp)
-                .size(56.dp),
+    val target = 1_250
+    val animated = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        // Brief hold at 0 so the user registers the starting state
+        // before the ramp begins. Without this the count feels like
+        // it's already in motion when the screen arrives.
+        delay(160)
+        animated.animateTo(
+            targetValue = target.toFloat(),
+            animationSpec = tween(durationMillis = 1400, easing = EaseOutCubic),
         )
-        Disc(
-            color = Color(0xFFE5B946),
-            modifier = Modifier
-                .offset(x = 26.dp, y = (-4).dp)
-                .size(56.dp),
-        )
-        Disc(
-            color = Color(0xFFE05656),
-            modifier = Modifier.size(72.dp),
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Coin(modifier = Modifier.size(96.dp))
+        VerticalSpacerD600()
+        Text(
+            text = formatChipCount(animated.value.toInt()),
+            typography = AppTheme.typography.Display.D1100,
+            color = AppTheme.colors.text,
         )
     }
 }
 
+/**
+ * A single gold-coin disc. Radial gradient gives a soft "lit from
+ * above" highlight, the darker rim sells the metal edge. Center
+ * glyph is "$" for universal value readability; chip art would
+ * carry more meaning but isn't in the DS yet.
+ */
 @Composable
-private fun Disc(
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
+private fun Coin(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(color)
-            .border(
-                width = 2.dp,
-                color = color.copy(alpha = 0.6f),
-                shape = CircleShape,
-            ),
-    )
+            .background(
+                Brush.radialGradient(
+                    listOf(
+                        Color(0xFFFFD66B),
+                        Color(0xFFD9A933),
+                    ),
+                ),
+            )
+            .border(3.dp, Color(0xFFB68721), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "$",
+            typography = AppTheme.typography.Display.D1100,
+            color = ColorResource.FromColor(Color(0xFF3D2A0A), "coin-glyph"),
+        )
+    }
+}
+
+/** Comma-group an integer for the counter display. Stays purely local
+ *  to this file so we don't reach for a heavier locale-aware formatter
+ *  on a value that is by construction non-negative and small. */
+private fun formatChipCount(amount: Int): String {
+    val safe = amount.coerceAtLeast(0)
+    return safe.toString()
+        .reversed()
+        .chunked(3)
+        .joinToString(",")
+        .reversed()
 }
 
 // ---------------------------------------------------------------------
@@ -259,33 +321,37 @@ private fun RankRow(
     subtitle: String,
     highlighted: Boolean,
 ) {
-    val border = if (highlighted) ColorResource.Amber500.color else AppTheme.colors.borderSecondary.color
+    // Highlighted row gets an amber border layered over the Card.
+    // Card itself doesn't expose a border slot, so we apply the
+    // amber outline via a Modifier wrapping the Card. Non-highlighted
+    // rows fall back to the DS border token so they pick up the
+    // theme's stock outline without us hand-coding a color.
+    val outline = if (highlighted) ColorResource.Amber500.color else AppTheme.colors.border.color
     val titleColor = if (highlighted) ColorResource.Amber500 else AppTheme.colors.text
-    Row(
+    Card(
         modifier = Modifier
-            .clip(Radii.R400.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .border(1.dp, border, Radii.R400.shape)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .fillMaxWidth()
+            .border(1.dp, outline, Radii.Card.shape),
     ) {
-        Text(
-            text = cards,
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
-            modifier = Modifier.width(78.dp),
-        )
-        Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = title,
-                typography = AppTheme.typography.Body.B500.SemiBold,
-                color = titleColor,
+                text = cards,
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.text,
+                modifier = Modifier.width(78.dp),
             )
-            Text(
-                text = subtitle,
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
-            )
+            Column {
+                Text(
+                    text = title,
+                    typography = AppTheme.typography.Body.B500.SemiBold,
+                    color = titleColor,
+                )
+                Text(
+                    text = subtitle,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.textSecondary,
+                )
+            }
         }
     }
 }
@@ -301,22 +367,26 @@ private fun RankRow(
  * mapping from this card to the live UI is immediate.
  */
 @Composable
-private fun ActionsHero() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+private fun ActionsHero(
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(0.85f),
+        verticalArrangement = Arrangement.spacedBy(D1000)
+    ) {
         ActionLegendRow(
+            color = AppTheme.colors.danger,
             label = "Fold",
             description = "Throw away your cards. You're out of this hand.",
-            dimmed = true,
         )
         ActionLegendRow(
+            color = AppTheme.colors.surfacePrimary,
             label = "Call",
             description = "Match the current bet. Stay in the hand.",
-            dimmed = false,
         )
         ActionLegendRow(
+            color = AppTheme.colors.surfaceSecondary,
             label = "Raise",
             description = "Bet more than the current bet. Pressure your opponents.",
-            dimmed = false,
         )
     }
 }
@@ -325,37 +395,27 @@ private fun ActionsHero() {
 private fun ActionLegendRow(
     label: String,
     description: String,
-    dimmed: Boolean,
+    color: ColorResource
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
                 .width(74.dp)
                 .clip(RoundedCornerShape(999.dp))
-                .then(
-                    if (dimmed) {
-                        Modifier.border(
-                            width = 1.dp,
-                            color = AppTheme.colors.borderSecondary.color,
-                            shape = RoundedCornerShape(999.dp),
-                        )
-                    } else {
-                        Modifier
-                    },
-                )
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .background(color.color)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = label,
-                typography = AppTheme.typography.Body.B500.SemiBold,
-                color = if (dimmed) AppTheme.colors.textSecondary else AppTheme.colors.text,
+                typography = AppTheme.typography.Body.B600.SemiBold,
+                color = AppTheme.colors.text,
             )
         }
         Row(modifier = Modifier.width(12.dp)) {}
         Text(
             text = description,
-            typography = AppTheme.typography.Body.B400,
+            typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
             modifier = Modifier.weight(1f),
         )
