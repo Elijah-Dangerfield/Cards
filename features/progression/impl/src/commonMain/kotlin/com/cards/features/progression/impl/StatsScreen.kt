@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -149,14 +148,14 @@ private fun LevelProgressBar(progress: LevelProgress) {
         modifier = Modifier
             .fillMaxWidth()
             .height(10.dp)
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfacePrimary.color),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(progress.fraction)
                 .height(10.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(LevelProgressGradient),
         )
     }
@@ -332,7 +331,7 @@ private fun AchievementsHighlights(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(AppTheme.colors.surfacePrimary.color)
                 .clickable(onClick = onSeeAll)
                 .padding(vertical = 12.dp),
@@ -383,6 +382,17 @@ private fun formatThousands(value: Long): String {
 
 @Preview
 @Composable
+private fun StatsScreenPreview_Loading() {
+    PreviewContent {
+        StatsScreen(
+            state = StatsState(),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
 private fun StatsScreenPreview_Empty() {
     PreviewContent {
         StatsScreen(
@@ -413,6 +423,34 @@ private fun StatsScreenPreview_Populated() {
                     XpEvent(id = 2, deltaXp = 3, source = XpSource.INVESTMENT, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                     XpEvent(id = 3, deltaXp = 5, source = XpSource.SHOWDOWN, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
                     XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
+                ),
+            ),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun StatsScreenPreview_WithAchievements() {
+    PreviewContent {
+        val earnedIds = AllAchievements.take(3).map { it.id }
+        StatsScreen(
+            state = StatsState(
+                isLoading = false,
+                progression = Progression(
+                    totalXp = 6_120,
+                    handsPlayed = 980,
+                    handsWon = 260,
+                    handsFolded = 500,
+                    handsLostAtShowdown = 220,
+                    botHandsPlayed = 980,
+                    updatedAtEpochMs = 0,
+                ),
+                achievements = AchievementProgress(
+                    earned = earnedIds.associateWith { 0L },
+                    counters = emptyMap(),
+                    customCounters = emptyMap(),
                 ),
             ),
             onBack = {},

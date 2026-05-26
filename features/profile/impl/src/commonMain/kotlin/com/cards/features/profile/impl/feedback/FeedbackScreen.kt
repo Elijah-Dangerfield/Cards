@@ -167,26 +167,64 @@ fun FeedbackScreen(
 
 @Preview
 @Composable
-private fun FeedbackScreenPreviewDisabled() {
+private fun FeedbackScreenPreview_Empty() {
     PreviewContent {
         FeedbackScreen(
-            state = FeedbackState(
-                message = ""
-            ),
-            onAction = {}
+            state = FeedbackState(message = ""),
+            onAction = {},
         )
     }
 }
 
 @Preview
 @Composable
-private fun FeedbackScreenPreview() {
+private fun FeedbackScreenPreview_Filled() {
+    PreviewContent {
+        FeedbackScreen(
+            state = FeedbackState(message = "I love this app!"),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun FeedbackScreenPreview_Submitting() {
     PreviewContent {
         FeedbackScreen(
             state = FeedbackState(
-                message = "I love this app!"
+                message = "Found a small thing — the chip counter sometimes shows 0 for a frame on bust.",
+                email = "player@example.com",
+                isSubmitting = true,
             ),
-            onAction = {}
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun FeedbackScreenPreview_Error() {
+    PreviewContent {
+        FeedbackScreen(
+            state = FeedbackState(
+                message = "Stuck on the lobby screen after rejoining.",
+                errorMessage = "Couldn't send feedback — check your connection and try again.",
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun FeedbackScreenPreview_CharLimitReached() {
+    PreviewContent {
+        FeedbackScreen(
+            state = FeedbackState(
+                message = "a".repeat(FEEDBACK_CHAR_LIMIT),
+            ),
+            onAction = {},
         )
     }
 }

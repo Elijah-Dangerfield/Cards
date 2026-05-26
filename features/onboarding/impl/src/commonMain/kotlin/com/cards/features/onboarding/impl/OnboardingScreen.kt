@@ -665,3 +665,70 @@ private fun OnboardingScreenPreview_HowItWorks() {
         )
     }
 }
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_Welcome_OAuthInFlight() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(
+                step = OnboardingStep.Welcome,
+                googleEnabled = true,
+                appleEnabled = true,
+                isAuthing = true,
+                oauthInFlight = com.dangerfield.cards.libraries.identity.auth.OAuthProvider.Google,
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_Welcome_AuthError() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(
+                step = OnboardingStep.Welcome,
+                googleEnabled = true,
+                appleEnabled = true,
+                authError = "Couldn't sign in — check your connection and try again.",
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_PickIdentity_Saving() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(
+                step = OnboardingStep.PickIdentity,
+                displayName = "QuietAce72",
+                selectedEmoji = "🦊",
+                selectedBackgroundColor = "#ff6b35",
+                isSavingProfile = true,
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_PickIdentity_SaveError() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(
+                step = OnboardingStep.PickIdentity,
+                displayName = "QuietAce72",
+                selectedEmoji = "🦊",
+                selectedBackgroundColor = "#ff6b35",
+                saveError = "That name is taken — try another one.",
+            ),
+            onAction = {},
+        )
+    }
+}

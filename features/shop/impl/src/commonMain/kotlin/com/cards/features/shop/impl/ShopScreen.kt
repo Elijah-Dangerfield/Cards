@@ -716,7 +716,7 @@ private fun LockIconOverlay() {
 private fun LockedFooter(requiredLevel: Int) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceTertiary.color)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
@@ -739,7 +739,7 @@ private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(Radii.Round.shape)
                 .background(AppTheme.colors.danger.color.copy(alpha = 0.18f))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -784,7 +784,7 @@ private fun OwnedCheck(modifier: Modifier = Modifier) {
 private fun OwnedFooter() {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.status.okay.color.copy(alpha = 0.18f))
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
@@ -801,7 +801,7 @@ private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
     val bg = if (canAfford) AppTheme.colors.surfaceTertiary.color else AppTheme.colors.surfaceDisabled.color
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
+            .clip(Radii.Round.shape)
             .background(bg)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,

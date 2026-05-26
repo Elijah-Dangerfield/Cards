@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.SweepResult
 import com.dangerfield.cards.server.domain.UserId
+import kotlinx.coroutines.CancellationException
 import me.tatarka.inject.annotations.Inject
 import org.slf4j.LoggerFactory
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -58,10 +59,13 @@ class DefaultOrphanAnonymousSweep(
             val outcome = adminClient.deleteUser(userId)
             when (outcome) {
                 DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
-                    runCatching { profileRepository.delete(userId) }
-                        .onFailure { e ->
-                            logger.warn("Profile delete failed after admin delete for {}; will retry next sweep", userId, e)
-                        }
+                    try {
+                        profileRepository.delete(userId)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        logger.warn("Profile delete failed after admin delete for {}; will retry next sweep", userId, e)
+                    }
                     deleted++
                 }
                 DeleteUserResult.NotConfigured -> {

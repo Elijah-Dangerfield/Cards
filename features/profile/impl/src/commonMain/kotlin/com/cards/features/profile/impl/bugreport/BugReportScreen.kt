@@ -197,16 +197,56 @@ fun BugReportScreen(
 
 @Preview
 @Composable
-private fun BugReportScreenPreview() {
+private fun BugReportScreenPreview_Empty() {
+    PreviewContent {
+        BugReportScreen(
+            state = BugReportState(),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BugReportScreenPreview_WithCapturedContext() {
     PreviewContent {
         BugReportScreen(
             state = BugReportState(
                 message = "The shortcut sheet would not open.",
                 logId = "12356j32345k1",
                 errorCode = 1200,
-                contextMessage = "Something went wrong while loading."
+                contextMessage = "Something went wrong while loading.",
             ),
-            onAction = {}
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BugReportScreenPreview_Submitting() {
+    PreviewContent {
+        BugReportScreen(
+            state = BugReportState(
+                message = "App froze when I opened the shop.",
+                email = "me@example.com",
+                isSubmitting = true,
+            ),
+            onAction = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun BugReportScreenPreview_Error() {
+    PreviewContent {
+        BugReportScreen(
+            state = BugReportState(
+                message = "App crashed on launch.",
+                errorMessage = "We couldn't send your report. Check your connection and try again.",
+            ),
+            onAction = {},
         )
     }
 }

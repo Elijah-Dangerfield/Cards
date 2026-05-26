@@ -107,6 +107,7 @@ fun cardBackForProductId(productId: String?): CardBackStyle = when (productId) {
     "cardback_gold" -> CardBackStyle.Gold
     "cardback_neon" -> CardBackStyle.Neon
     "cardback_diamond" -> CardBackStyle.Diamond
+    "cardback_comeback_kid" -> CardBackStyle.ComebackKid
     else -> CardBackStyle.Default
 }
 

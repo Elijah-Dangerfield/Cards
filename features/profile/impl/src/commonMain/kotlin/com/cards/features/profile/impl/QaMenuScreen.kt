@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -281,7 +280,7 @@ private fun QaRow(
                         val selected = option == row.currentValue
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(50))
+                                .clip(Radii.Round.shape)
                                 .background(
                                     if (selected) AppTheme.colors.accentPrimary.color
                                     else AppTheme.colors.surfaceSecondary.color,
@@ -464,6 +463,29 @@ private fun QaMenuScreenPreview_UnresolvedIdentity() {
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
             userId = null,
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun QaMenuScreenPreview_OverridesActive() {
+    val configMap = PreviewAppConfigMap(
+        map = mapOf(
+            "upgrade" to mapOf(
+                "minSupportedVersionCode" to 99,
+                "maintenanceMode" to "banner",
+                "maintenanceMessage" to "We're updating the servers...",
+            ),
+        ),
+    )
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        QaMenuScreen(
+            configStream = kotlinx.coroutines.flow.flowOf(configMap),
+            initialConfig = configMap,
+            overrideRepository = PreviewConfigOverrideRepository(),
+            onBack = {},
+            userId = "00000000-0000-4000-8000-000000000000",
         )
     }
 }

@@ -393,3 +393,13 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 - Status quo is the right V1 trade. The cleanup item exists so we don't forget the layering smell.
 
 **Status:** Backlog. Pick up when the starter kit grows past a handful of items, when a second consumer of "create user's default X" lands (e.g. default chip wallet), or when `ProfileRepository` starts importing a third cross-domain repo.
+
+---
+
+## In-game emoji tray — surface "you own this pack" hints
+
+**Idea (raised 2026-05-26):** Now that the starter kit (V18) puts `emoji_pack_starter` in every user's inventory by default, the in-game emote tray renders 👋 👍 🎉 😀 on day one — good. The deferred follow-up from that cycle was: should the tray surface ownership in some way (a subtle "earned" outline on the starter pack's row, an inline hint that more packs exist in the shop, etc.) so the value of *owning* the starter pack reads at the table? Pure inventory-decoration is fine while the pack list is small; this matters once a second earned emoji pack lands and the user has a real "owned vs locked" mix to render.
+
+**Sketch:** small `acquisitionSource` tag on each tray section header, mirrored from `MyItemsScreen`'s `Earned` / purchased treatment. Or — simpler — defer until the second pack ships and revisit the tray's whole information density together.
+
+**Status:** Backlog. Pull when a second earned emoji pack ships, or when a Phase 4.2-style server-driven pack appears.

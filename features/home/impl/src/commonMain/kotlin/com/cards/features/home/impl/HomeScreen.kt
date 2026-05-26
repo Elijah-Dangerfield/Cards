@@ -1,5 +1,11 @@
 package com.dangerfield.cards.features.home.impl
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -124,12 +130,20 @@ private fun HomeScreenContent(
                 onTapChips = onTapCash,
             )
 
-            if (showTutorialBanner) {
-                VerticalSpacerD600()
-                TutorialBanner(
-                    onStart = onStartTutorial,
-                    onDismiss = onDismissTutorialBanner,
-                )
+            AnimatedVisibility(
+                visible = showTutorialBanner,
+                enter = expandVertically(animationSpec = tween(240)) +
+                    fadeIn(animationSpec = tween(180)),
+                exit = shrinkVertically(animationSpec = tween(220)) +
+                    fadeOut(animationSpec = tween(140)),
+            ) {
+                Column {
+                    VerticalSpacerD600()
+                    TutorialBanner(
+                        onStart = onStartTutorial,
+                        onDismiss = onDismissTutorialBanner,
+                    )
+                }
             }
 
             activeRooms.forEach { room ->

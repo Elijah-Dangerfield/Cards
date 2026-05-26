@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,6 +30,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD300
@@ -263,7 +263,7 @@ private fun CurrentHandCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
+            .clip(Radii.R1000.shape)
             .background(AppTheme.colors.surfaceSecondary.color)
             .padding(horizontal = 22.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -303,7 +303,7 @@ private fun CurrentHandCard(
 private fun HandNumberPill(handNumber: Int) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(AppTheme.colors.surfaceTertiary.color)
             .padding(horizontal = 12.dp, vertical = 5.dp),
     ) {
@@ -347,7 +347,7 @@ private fun StreetProgress(current: BettingRound) {
                 modifier = Modifier
                     .height(8.dp)
                     .width(if (isCurrent) 22.dp else 10.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(Radii.Round.shape)
                     .background(color),
             )
         }
@@ -379,7 +379,7 @@ private fun ActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(Radii.R800.shape)
             .background(AppTheme.colors.surfaceSecondary.color)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -387,7 +387,7 @@ private fun ActionRow(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(accent.color.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center,
         ) {
@@ -419,7 +419,7 @@ private fun RankingCard(entry: RankingEntry) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(Radii.R800.shape)
             .background(AppTheme.colors.surfaceSecondary.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),

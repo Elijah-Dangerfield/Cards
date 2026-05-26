@@ -1,13 +1,18 @@
 package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.db.DatabaseTest
+import com.dangerfield.cards.server.db.InventoryTable
 import com.dangerfield.cards.server.db.ProfilesTable
+import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.AvatarGenerator
 import com.dangerfield.cards.server.domain.AvatarPalette
+import com.dangerfield.cards.server.domain.StarterInventory
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UsernameGenerator
 import kotlinx.coroutines.test.runTest
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteAll
+import org.jetbrains.exposed.sql.selectAll
 import org.junit.After
 import java.util.UUID
 import kotlin.test.Test
@@ -25,7 +30,10 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
 
     @After
     fun cleanTables() {
-        database.blockingTransaction { ProfilesTable.deleteAll() }
+        database.blockingTransaction {
+            InventoryTable.deleteAll()
+            ProfilesTable.deleteAll()
+        }
     }
 
     @Test
@@ -65,6 +73,45 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         assertEquals(first.userId, second.userId)
         assertEquals(first.displayName, second.displayName)
         assertEquals(first.avatarEmoji, second.avatarEmoji)
+    }
+
+    @Test
+    fun findOrCreate_seedsStarterInventoryOnFirstCreate() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+
+        repo.findOrCreate(userId)
+
+        val owned = readInventory(userId)
+        assertEquals(
+            StarterInventory.productIds.toSet(),
+            owned.map { it.productId }.toSet(),
+            "Every starter id lands in inventory atomically with the profile insert",
+        )
+        owned.forEach { row ->
+            assertEquals(
+                AcquisitionSource.Earned.wire,
+                row.acquisitionSource,
+                "Starter rows are earned, not purchased",
+            )
+            assertEquals(0L, row.costChipsAtPurchase)
+        }
+    }
+
+    @Test
+    fun findOrCreate_starterInventoryIsIdempotent() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+
+        repo.findOrCreate(userId)
+        repo.findOrCreate(userId)
+
+        val owned = readInventory(userId)
+        assertEquals(
+            StarterInventory.productIds.size,
+            owned.size,
+            "Second findOrCreate must not double-insert starter rows",
+        )
     }
 
     @Test
@@ -139,6 +186,25 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         avatarGenerator = avatarGenerator,
         clock = clock,
     )
+
+    private data class InventoryRow(
+        val productId: String,
+        val costChipsAtPurchase: Long,
+        val acquisitionSource: String,
+    )
+
+    private fun readInventory(userId: UserId): List<InventoryRow> = database.blockingTransaction {
+        InventoryTable
+            .selectAll()
+            .where { InventoryTable.userId eq userId.value }
+            .map {
+                InventoryRow(
+                    productId = it[InventoryTable.productId],
+                    costChipsAtPurchase = it[InventoryTable.costChipsAtPurchase],
+                    acquisitionSource = it[InventoryTable.acquisitionSource],
+                )
+            }
+    }
 
     private class ScriptedUsernameGenerator(names: List<String>) : UsernameGenerator {
         private val iter = names.iterator()

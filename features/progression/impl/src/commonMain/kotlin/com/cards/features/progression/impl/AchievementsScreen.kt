@@ -77,7 +77,21 @@ fun AchievementsScreen(
 
 @Preview
 @Composable
-private fun AchievementsScreenPreview() {
+private fun AchievementsScreenPreview_Empty() {
+    PreviewContent {
+        AchievementsScreen(
+            state = AchievementsState(
+                isLoading = false,
+                progress = AchievementProgress.Empty,
+            ),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun AchievementsScreenPreview_SomeEarned() {
     PreviewContent {
         AchievementsScreen(
             state = AchievementsState(
@@ -90,6 +104,25 @@ private fun AchievementsScreenPreview() {
                     counters = mapOf(
                         AllAchievements[1].id to 23,
                     ),
+                    customCounters = emptyMap(),
+                ),
+            ),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun AchievementsScreenPreview_AllEarned() {
+    val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+    PreviewContent {
+        AchievementsScreen(
+            state = AchievementsState(
+                isLoading = false,
+                progress = AchievementProgress(
+                    earned = AllAchievements.associate { it.id to now },
+                    counters = emptyMap(),
                     customCounters = emptyMap(),
                 ),
             ),

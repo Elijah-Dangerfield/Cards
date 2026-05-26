@@ -23,6 +23,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -31,6 +32,7 @@ import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Shared shell for the three email/password screens. Same vertical layout
@@ -414,10 +416,10 @@ private fun BannerText(banner: VerifyEmailState.Banner) {
     )
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun SignInScreenPreview_EmailOnly() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         SignInScreen(
             state = SignInState(email = "elijah@example.com", password = "••••••••"),
             onAction = {},
@@ -427,10 +429,10 @@ private fun SignInScreenPreview_EmailOnly() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun SignInScreenPreview_AllProvidersEnabled() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         SignInScreen(
             state = SignInState(googleEnabled = true, appleEnabled = true),
             onAction = {},
@@ -440,10 +442,10 @@ private fun SignInScreenPreview_AllProvidersEnabled() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun SignInScreenPreview_Error() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         SignInScreen(
             state = SignInState(
                 email = "elijah@example.com",
@@ -457,10 +459,10 @@ private fun SignInScreenPreview_Error() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
-private fun SignUpScreenPreview() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+private fun SignUpScreenPreview_Filled() {
+    PreviewContent {
         SignUpScreen(
             state = SignUpState(
                 email = "elijah@example.com",
@@ -474,10 +476,10 @@ private fun SignUpScreenPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun SignUpScreenPreview_PasswordMismatch() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         SignUpScreen(
             state = SignUpState(
                 email = "elijah@example.com",
@@ -491,10 +493,64 @@ private fun SignUpScreenPreview_PasswordMismatch() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
-private fun VerifyEmailScreenPreview() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+private fun SignUpScreenPreview_Submitting() {
+    PreviewContent {
+        SignUpScreen(
+            state = SignUpState(
+                email = "elijah@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22ish",
+                isSubmitting = true,
+            ),
+            onAction = {},
+            onBack = {},
+            onSignIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun SignUpScreenPreview_Error() {
+    PreviewContent {
+        SignUpScreen(
+            state = SignUpState(
+                email = "elijah@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22ish",
+                error = "Sign up failed. Please try again.",
+            ),
+            onAction = {},
+            onBack = {},
+            onSignIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun SignUpScreenPreview_AwaitingClaimConfirm() {
+    PreviewContent {
+        SignUpScreen(
+            state = SignUpState(
+                email = "elijah@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22ish",
+                awaitingClaimConfirm = true,
+            ),
+            onAction = {},
+            onBack = {},
+            onSignIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun VerifyEmailScreenPreview_AwaitingConfirmation() {
+    PreviewContent {
         VerifyEmailScreen(
             state = VerifyEmailState(email = "elijah@example.com"),
             onAction = {},
@@ -503,14 +559,74 @@ private fun VerifyEmailScreenPreview() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
+@Preview
 @Composable
 private fun VerifyEmailScreenPreview_StillPending() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
+    PreviewContent {
         VerifyEmailScreen(
             state = VerifyEmailState(
                 email = "elijah@example.com",
                 banner = VerifyEmailState.Banner.StillPending,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun VerifyEmailScreenPreview_Refreshing() {
+    PreviewContent {
+        VerifyEmailScreen(
+            state = VerifyEmailState(
+                email = "elijah@example.com",
+                isRefreshing = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun VerifyEmailScreenPreview_Resending() {
+    PreviewContent {
+        VerifyEmailScreen(
+            state = VerifyEmailState(
+                email = "elijah@example.com",
+                isResending = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun VerifyEmailScreenPreview_ResendSent() {
+    PreviewContent {
+        VerifyEmailScreen(
+            state = VerifyEmailState(
+                email = "elijah@example.com",
+                banner = VerifyEmailState.Banner.ResendSent,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun VerifyEmailScreenPreview_NetworkError() {
+    PreviewContent {
+        VerifyEmailScreen(
+            state = VerifyEmailState(
+                email = "elijah@example.com",
+                banner = VerifyEmailState.Banner.NetworkError,
             ),
             onAction = {},
             onBack = {},

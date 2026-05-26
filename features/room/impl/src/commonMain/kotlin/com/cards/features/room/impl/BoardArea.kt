@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +42,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD600
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -92,11 +92,11 @@ private fun BoardWell(width: androidx.compose.ui.unit.Dp, height: androidx.compo
     Box(
         modifier = Modifier
             .size(width = width, height = height)
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700.shape)
             .border(
                 width = 1.5.dp,
                 color = PokerPalette.CardSlotOutline,
-                shape = RoundedCornerShape(16.dp),
+                shape = Radii.R700.shape,
             ),
     )
 }
@@ -167,7 +167,7 @@ private fun PotPill(amount: Long, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round.shape)
             .background(pillBackground)
             .clickable(onClick = onClick)
             .padding(start = 14.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
@@ -175,7 +175,7 @@ private fun PotPill(amount: Long, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(8.dp)
-                .clip(RoundedCornerShape(50))
+                .clip(Radii.Round.shape)
                 .background(PokerPalette.ChipGold),
         )
         Text(

@@ -47,6 +47,7 @@ internal fun TutorialBanner(
         modifier = modifier
             .fillMaxWidth()
             .clip(Radii.Card.shape)
+            .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .bounceClick(onClick = onStart)
             .padding(horizontal = Dimension.D500, vertical = Dimension.D500),

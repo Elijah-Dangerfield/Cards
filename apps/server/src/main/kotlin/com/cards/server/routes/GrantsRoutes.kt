@@ -1,6 +1,6 @@
 package com.dangerfield.cards.server.routes
 
-import com.dangerfield.cards.server.domain.AchievementRewards
+import com.dangerfield.cards.server.domain.ClientGrantableAchievements
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.http.clientContext
@@ -20,32 +20,31 @@ import kotlin.time.ExperimentalTime
  *  achievement maps to, if any.
  *
  * Responses:
- *  - `200 OK` with [OwnedItemDto] — the achievement carried a reward and
- *    the user now owns (or already owned) it. Body shape mirrors the
+ *  - `200 OK` with [OwnedItemDto] — the achievement is on the
+ *    [ClientGrantableAchievements] allowlist and the user now owns (or
+ *    already owned) the mapped product. Body shape mirrors the
  *    inventory-sync owned snapshot so the client can fold the row in
  *    without a parallel deserializer.
- *  - `204 No Content` — no inventory reward for this achievement (the
- *    common case; achievement carried XP / chips only). Also returned
- *    when the achievement id is unknown OR the rewarded product no longer
- *    exists in the catalog, so a client on a newer build than the server
- *    quietly degrades instead of erroring.
+ *  - `204 No Content` — server doesn't recognise this achievement id (a
+ *    client on a newer build than the server quietly degrades), or the
+ *    achievement is allowlisted but its product is no longer in the
+ *    catalog.
+ *  - `403 Forbidden` — the achievement is known to the server but is
+ *    server-witnessed, so the client has no business granting it. Today
+ *    [ClientGrantableAchievements.Default] has no server-witnessed
+ *    entries; once real-PvP / league achievements ship server-side, they
+ *    land in the `serverWitnessed` set and self-grant attempts get 403.
  *
  * Idempotent on `(userId, productId)` via
  * [InventoryRepository.recordEarnedGrant] — a duplicate POST returns the
  * existing row. Clients can safely re-fire grants after a sync failure or
  * cold-boot replay without double-granting.
- *
- * **Why a route, not a sync-style batch:** the trigger is the client
- * detecting a fresh unlock at the end of a hand. Posting one
- * achievement id at the moment of unlock keeps the request body trivial,
- * and a 204 means "noted, nothing to do" — useful telemetry for tracking
- * unlock-event coverage without forcing the client to know which
- * achievements have rewards.
  */
 @OptIn(ExperimentalTime::class)
 fun Route.grantsRoutes(
     inventory: InventoryRepository,
     catalog: ProductCatalogSource,
+    policy: ClientGrantableAchievements = ClientGrantableAchievements.Default,
     clock: Clock = Clock.System,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
@@ -60,29 +59,36 @@ fun Route.grantsRoutes(
                         "Achievement id must be non-empty.",
                     ),
                 )
-            val productId = AchievementRewards.productIdFor(achievementId)
-                ?: return@post call.respond(HttpStatusCode.NoContent)
-            // Catalog lookup uses readById so unlock-only rows resolve
-            // (the read() filter would hide them). If the product was
-            // removed from the catalog between client builds, drop the
-            // grant rather than 500 — a 204 reads to the client as
-            // "no-op, nothing was wrong with your request."
-            val product = catalog.readById(productId, call.clientContext())
-                ?: return@post call.respond(HttpStatusCode.NoContent)
-            val granted = inventory.recordEarnedGrant(
-                userId = userId,
-                productId = product.id,
-                grantedAt = clock.now(),
-            )
-            call.respond(
-                HttpStatusCode.OK,
-                OwnedItemDto(
-                    productId = granted.productId,
-                    costChipsAtPurchase = granted.costChipsAtPurchase,
-                    purchasedAtEpochMs = granted.purchasedAt.toEpochMilliseconds(),
-                    acquisitionSource = granted.acquisitionSource.wire,
-                ),
-            )
+            when (val resolution = policy.resolve(achievementId)) {
+                ClientGrantableAchievements.Resolution.Unknown ->
+                    call.respond(HttpStatusCode.NoContent)
+                ClientGrantableAchievements.Resolution.ServerWitnessed ->
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        grantsProblem(
+                            "server_witnessed_achievement",
+                            "Achievement '$achievementId' is granted server-side; clients can't self-grant it.",
+                        ),
+                    )
+                is ClientGrantableAchievements.Resolution.Grant -> {
+                    val product = catalog.readById(resolution.productId, call.clientContext())
+                        ?: return@post call.respond(HttpStatusCode.NoContent)
+                    val granted = inventory.recordEarnedGrant(
+                        userId = userId,
+                        productId = product.id,
+                        grantedAt = clock.now(),
+                    )
+                    call.respond(
+                        HttpStatusCode.OK,
+                        OwnedItemDto(
+                            productId = granted.productId,
+                            costChipsAtPurchase = granted.costChipsAtPurchase,
+                            purchasedAtEpochMs = granted.purchasedAt.toEpochMilliseconds(),
+                            acquisitionSource = granted.acquisitionSource.wire,
+                        ),
+                    )
+                }
+            }
         }
     }
 }

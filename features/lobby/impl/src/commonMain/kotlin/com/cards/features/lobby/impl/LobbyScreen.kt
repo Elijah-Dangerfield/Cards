@@ -389,6 +389,72 @@ private fun LobbyScreenPreview_InRoom_Reconnecting() {
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_Idle_Creating() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(creating = true),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_Idle_Joining() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(codeInput = "ABC123", joining = true),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_Idle_Error() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                codeInput = "WXYZ12",
+                error = "We couldn't find that room. Check the code and try again.",
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun LobbyScreenPreview_InRoom_Leaving() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                currentUserId = "u1",
+                leaving = true,
+                room = com.dangerfield.cards.libraries.rooms.Room(
+                    code = "ABC123",
+                    hostUserId = "u1",
+                    createdAtEpochMs = 1_700_000_000_000,
+                    maxSeats = 4,
+                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    members = listOf(
+                        RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
+                        RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
+                    ),
+                ),
+                connectionStatus = ConnectionStatus.Connected,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 @Composable
 private fun MemberRow(member: RoomMember) {
     Row(

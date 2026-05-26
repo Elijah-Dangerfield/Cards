@@ -23,6 +23,7 @@ import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.GOOD_FOLD
 import com.dangerfield.cards.libraries.cards.HandCategoryGrade
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.MAX_POT_BB_RATIO
 import com.dangerfield.cards.libraries.cards.MAX_POT_SEEN
 import com.dangerfield.cards.libraries.cards.NO_BUST_STREAK
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -107,7 +108,7 @@ class AchievementRepositoryImpl(
         updateWinByFoldCounter(summary)
         updateGoodFoldCounter(summary)
         updateAllInCounter(summary)
-        updateMaxPotSeen(summary)
+        updateMaxPotSeen(summary, context)
         updateStackSwingCounters(context)
         updateBustsDealtCounter(summary, context)
         updateCurrentLevel()
@@ -270,14 +271,20 @@ class AchievementRepositoryImpl(
     }
 
     private suspend fun updateDontCallItComebackCounter(context: AchievementHandContext) {
-        // "Don't call it a comeback" = the human's stack dipped to <=100 chips
-        // at some point, then climbed back to a full 1,000-chip stack. Tracks
-        // the deeper "I was almost out" recovery arc (the 5BB version is
-        // single-hand only). Armed flag persists across hands; once recovery
-        // triggers, the flag resets so subsequent dips can re-arm later runs.
+        // "Don't call it a comeback" = the human's stack dipped to <=10 BB
+        // at some point, then climbed back to a full ~100 BB stack. BB-relative
+        // so the criterion reads the same on Practice/Casual/Standard/High/Premium
+        // tiers; the absolute 100/1000 chip thresholds were broken at the higher
+        // tiers (100 chips on High = 0.5 BB; 1000 chips = 5 BB). Armed flag
+        // persists across hands; once recovery triggers, the flag resets so
+        // subsequent dips can re-arm later runs.
+        val bb = context.bigBlind
+        if (bb <= 0) return
         val ending = context.humanEndingStack
         val armed = (achievementDao.getCounter(SHORT_STACK_ARMED) ?: 0) > 0
-        if (armed && ending >= 1_000L) {
+        val shortStackCeil = 10L * bb
+        val fullStackFloor = 100L * bb
+        if (armed && ending >= fullStackFloor) {
             achievementDao.incrementCounter(DONT_CALL_IT_COMEBACK_COUNTER, 1)
             achievementDao.setCounter(
                 AchievementCounterEntity(key = SHORT_STACK_ARMED, value = 0),
@@ -286,7 +293,7 @@ class AchievementRepositoryImpl(
         // Re-arm AFTER the recovery check so a single hand can't both dip
         // and recover (would defeat the purpose). `> 0` excludes the bust
         // case — bust already has its own modal + auto-rebuy story.
-        if (ending in 1L..100L) {
+        if (ending in 1L..shortStackCeil) {
             achievementDao.setCounter(
                 AchievementCounterEntity(key = SHORT_STACK_ARMED, value = 1),
             )
@@ -308,15 +315,30 @@ class AchievementRepositoryImpl(
         if (summary.humanWasAllIn) achievementDao.incrementCounter(ALL_IN_HANDS, 1)
     }
 
-    private suspend fun updateMaxPotSeen(summary: HandResultSummary) {
+    private suspend fun updateMaxPotSeen(
+        summary: HandResultSummary,
+        context: AchievementHandContext,
+    ) {
         if (summary.totalPot <= 0) return
-        // High-water mark: only ratchet up. Avoid increment — we want max,
-        // not sum.
+        // High-water marks: only ratchet up. Avoid increment — we want max,
+        // not sum. Two counters: absolute pot (used by POT_500 / POT_1000
+        // where chip thresholds read fine across tiers) and pot-as-BB-multiple
+        // (used by POT_5000 so the Whale-pot read is tier-agnostic).
         val current = achievementDao.getCounter(MAX_POT_SEEN) ?: 0
         if (summary.totalPot.toInt() > current) {
             achievementDao.setCounter(
                 AchievementCounterEntity(key = MAX_POT_SEEN, value = summary.totalPot.toInt()),
             )
+        }
+        val bb = context.bigBlind
+        if (bb > 0) {
+            val ratio = (summary.totalPot / bb).toInt()
+            val currentRatio = achievementDao.getCounter(MAX_POT_BB_RATIO) ?: 0
+            if (ratio > currentRatio) {
+                achievementDao.setCounter(
+                    AchievementCounterEntity(key = MAX_POT_BB_RATIO, value = ratio),
+                )
+            }
         }
     }
 
