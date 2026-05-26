@@ -22,7 +22,7 @@ import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
  * Adding a value WITHOUT updating [PlayingCardBack] is a compile error
  * (`when` exhaustiveness), so the renderer can't silently fall through.
  */
-enum class CardBackStyle { Default, Marble, Gold, Neon, Diamond }
+enum class CardBackStyle { Default, Marble, Gold, Neon, Diamond, ComebackKid }
 
 /**
  * Ambient style for every [PlayingCardBack] in the composition. Set
@@ -72,5 +72,11 @@ internal fun paletteFor(style: CardBackStyle): CardBackPalette = when (style) {
             listOf(Color(0xFF1F3A8A), Color(0xFF60A5FA), Color(0xFF1F3A8A)),
         ),
         borderColor = Color(0xFFA9C2FF),
+    )
+    CardBackStyle.ComebackKid -> CardBackPalette(
+        baseBrush = Brush.linearGradient(
+            listOf(Color(0xFF6B1E0E), Color(0xFFE85D1B), Color(0xFFE8BC4D)),
+        ),
+        borderColor = Color(0xFFFFC766),
     )
 }

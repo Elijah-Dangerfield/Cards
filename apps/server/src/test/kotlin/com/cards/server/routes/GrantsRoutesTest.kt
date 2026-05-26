@@ -83,6 +83,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsComebackKidCardBack_forDontCallItComeback() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("cardback_comeback_kid"))
+        post(inventory, catalog, defaultPolicy, "DONT_CALL_IT_COMEBACK") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("cardback_comeback_kid", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("cardback_comeback_kid", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun serverWitnessedAchievement_returnsForbidden_andDoesNotRecord() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.empty()

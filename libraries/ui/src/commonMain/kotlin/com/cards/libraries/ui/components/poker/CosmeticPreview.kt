@@ -130,6 +130,7 @@ private fun PreviewCosmeticPreview_CardBacks() {
             CosmeticPreview(productId = "cardback_gold", emoji = "🃏")
             CosmeticPreview(productId = "cardback_neon", emoji = "🃏")
             CosmeticPreview(productId = "cardback_diamond", emoji = "🃏")
+            CosmeticPreview(productId = "cardback_comeback_kid", emoji = "🔥")
         }
     }
 }

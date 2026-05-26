@@ -47,6 +47,7 @@ class ClientGrantableAchievements(
             clientGrantable = mapOf(
                 "POT_5000" to "title_pot_magnet",
                 "COMEBACK_FROM_5BB" to "title_short_stack_hero",
+                "DONT_CALL_IT_COMEBACK" to "cardback_comeback_kid",
             ),
             serverWitnessed = emptySet(),
         )
