@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,11 +81,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * - Other [PlayPokerAction] variants (LeaveTable, BlastEmoji, etc.) are
  *   silently dropped, the tutorial doesn't fire telemetry or progression.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun TutorialPokerScreen(
     state: TutorialState,
     onIntent: (com.dangerfield.cards.libraries.gameplay.PlayerIntent) -> Unit,
     onAdvance: () -> Unit,
+    onGoBack: () -> Unit,
     onSkipBasics: () -> Unit,
     onRestartBasics: () -> Unit,
     onAchievementUnlocked: () -> Unit,
@@ -108,22 +111,34 @@ internal fun TutorialPokerScreen(
         return
     }
 
-    // Back-press intercepts open the tutorial leave dialog instead of
-    // exiting outright. Gives the user a chance to bail back to the
-    // basics primer if they got into the tableau and realized they
-    // needed the rules first. Lifted to this level so both step types
-    // share the same affordance.
     var leaveDialogOpen by remember { mutableStateOf(false) }
-    val openLeaveDialog: () -> Unit = { leaveDialogOpen = true }
+
+    // Smart back-routing. Within the basics block, back-stepping moves
+    // through the primer one card at a time (so users who skim ahead
+    // can re-read the previous rule). On the first basics step or
+    // anywhere in the tableau, back-out routes to the leave dialog —
+    // which already exposes "Back to basics" for tableau users who
+    // want to revisit the rules.
+    val canStepBack = state.section == TutorialSection.Basics &&
+        state.sectionStepIndex > 0
+    val onBack: () -> Unit = {
+        if (canStepBack) onGoBack() else leaveDialogOpen = true
+    }
+
+    // System back gesture / hardware button. Always intercepted while
+    // a tutorial step is on screen so we can route to the right
+    // destination (previous card vs. leave dialog).
+    BackHandler(enabled = true) { onBack() }
 
     Box(modifier = modifier.fillMaxSize()) {
         val tableau = state.step.state
         if (tableau == null) {
             NarrationStep(
                 step = state.step,
+                sectionStepIndex = state.sectionStepIndex,
                 onAdvance = onAdvance,
                 onSkipBasics = onSkipBasics,
-                onExit = openLeaveDialog,
+                onBack = onBack,
             )
         } else {
             TableauStep(
@@ -132,13 +147,19 @@ internal fun TutorialPokerScreen(
                 stepIndex = state.stepIndex,
                 onIntent = onIntent,
                 onAdvance = onAdvance,
-                onExit = openLeaveDialog,
+                onExit = { leaveDialogOpen = true },
             )
         }
         StepCounterPill(
             section = state.section,
             sectionStep = state.sectionStepIndex + 1,
             sectionTotal = state.sectionTotalSteps,
+            // On basics, the pill text is the hero's user-facing name
+            // ("Your goal", "Your hand", "Your turn") rather than a
+            // generic counter. The 3-of-3 progress information moves
+            // to the dot row underneath. Tableau steps don't have
+            // per-step names, so they keep the existing counter format.
+            customLabel = (state.step.hero as? NarrationHero)?.topBarLabel,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
@@ -333,26 +354,79 @@ private fun CoachMarkBanner(
  * tableau steps. Lives in the topbar's empty middle gap rather than
  * being structurally inside any topbar, keeps the pill consistent
  * across step types and out of the back-button's way.
+ *
+ * Two modes:
+ * - [customLabel] non-null: the pill reads as a user-facing step name
+ *   ("Your goal", "Your hand", "Your turn") and a row of dots
+ *   underneath shows progress through the section. Used on basics.
+ * - [customLabel] null: the pill reads as a generic
+ *   "Step X of Y · Section" counter, no dots. Used on tableau steps
+ *   where individual steps don't carry their own names.
  */
 @Composable
 private fun StepCounterPill(
     section: TutorialSection,
     sectionStep: Int,
     sectionTotal: Int,
+    customLabel: String?,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(AppTheme.colors.surfaceSecondary.color)
-            .border(1.dp, AppTheme.colors.border.color, RoundedCornerShape(999.dp))
-            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = "Step $sectionStep of $sectionTotal · ${section.displayName}",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
-        )
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(AppTheme.colors.surfaceSecondary.color)
+                .border(1.dp, AppTheme.colors.border.color, RoundedCornerShape(999.dp))
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
+        ) {
+            Text(
+                text = customLabel
+                    ?: "Step $sectionStep of $sectionTotal · ${section.displayName}",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+            )
+        }
+        if (customLabel != null) {
+            VerticalSpacerD200()
+            ProgressDots(
+                total = sectionTotal,
+                current = sectionStep,
+            )
+        }
+    }
+}
+
+/**
+ * Three-dot-style progress indicator. Filled dot for the current
+ * step, dim dots for the others. Renders inline in the top-pill
+ * column for basics screens.
+ */
+@Composable
+private fun ProgressDots(
+    total: Int,
+    current: Int,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(total) { i ->
+            val isCurrent = i == current - 1
+            Box(
+                modifier = Modifier
+                    .size(if (isCurrent) 8.dp else 6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(
+                        if (isCurrent) AppTheme.colors.text.color
+                        else AppTheme.colors.textSecondary.color.copy(alpha = 0.4f),
+                    ),
+            )
+        }
     }
 }
 
@@ -416,6 +490,7 @@ private fun TutorialPokerScreenPreview_Orient() {
             state = previewState(index = 0),
             onIntent = {},
             onAdvance = {},
+            onGoBack = {},
             onSkipBasics = {},
             onRestartBasics = {},
             onAchievementUnlocked = {},
@@ -435,6 +510,7 @@ private fun TutorialPokerScreenPreview_ActionPrompt() {
             state = previewState(index = actionStepIndex),
             onIntent = {},
             onAdvance = {},
+            onGoBack = {},
             onSkipBasics = {},
             onRestartBasics = {},
             onAchievementUnlocked = {},
@@ -451,6 +527,7 @@ private fun TutorialPokerScreenPreview_Completed() {
             state = previewState(index = TutorialScript.steps.lastIndex, completed = true),
             onIntent = {},
             onAdvance = {},
+            onGoBack = {},
             onSkipBasics = {},
             onRestartBasics = {},
             onAchievementUnlocked = {},
@@ -468,6 +545,7 @@ private fun TutorialPokerScreenPreview_Intro() {
             state = previewState(index = introIndex),
             onIntent = {},
             onAdvance = {},
+            onGoBack = {},
             onSkipBasics = {},
             onRestartBasics = {},
             onAchievementUnlocked = {},

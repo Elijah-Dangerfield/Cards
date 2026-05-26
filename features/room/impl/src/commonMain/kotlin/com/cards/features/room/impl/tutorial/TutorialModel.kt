@@ -64,29 +64,33 @@ internal enum class TutorialSection(val displayName: String) {
 
 /**
  * Hero illustration shown at the top of a narration step. Each variant
- * has a short all-caps category label that floats above its custom
- * visual, so the user gets a glance-readable cue ("THE POT", "HANDS",
- * "ACTIONS") before they read the headline below.
+ * carries a [topBarLabel] used by the top-center pill on basics screens
+ * ("Your goal", "Your hand", "Your turn"). The label is the user-facing
+ * step name and replaces what would otherwise be a generic "Step 1 of 3"
+ * pill.
  */
 internal sealed interface NarrationHero {
-    /** Short all-caps label rendered above the hero visual. */
-    val category: String
+    /** User-facing step name shown in the top-center pill on basics
+     *  screens. Should read in the second person and pair naturally
+     *  with the hero visual ("Your goal" + chip-pile coin counter,
+     *  etc.). */
+    val topBarLabel: String
 
-    /** "The pot" card visual: stacked chip-style discs. */
+    /** "The pot" card visual: a coin counter ticking up. */
     data object Pot : NarrationHero {
-        override val category: String = "The pot"
+        override val topBarLabel: String = "Your goal"
     }
 
     /** "Hand ranks" card visual: three example mini-cards from weakest
-     *  to strongest. */
+     *  to strongest, the strongest amber-accented. */
     data object HandRanks : NarrationHero {
-        override val category: String = "Hands"
+        override val topBarLabel: String = "Your hand"
     }
 
     /** "Three actions" card visual: Fold / Call / Raise as a small
      *  legend. */
     data object Actions : NarrationHero {
-        override val category: String = "Your turn"
+        override val topBarLabel: String = "Your turn"
     }
 }
 

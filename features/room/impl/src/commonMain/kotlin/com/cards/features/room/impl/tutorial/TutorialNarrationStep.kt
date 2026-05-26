@@ -78,31 +78,44 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 internal fun NarrationStep(
     step: TutorialStep,
+    sectionStepIndex: Int,
     onAdvance: () -> Unit,
     onSkipBasics: () -> Unit,
-    onExit: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Screen(
         modifier = modifier,
-        topBar = { TopBar(onNavigateBack = onExit) },
+        topBar = { TopBar(onNavigateBack = onBack) },
     ) { padding ->
-        // Slide the entire step content horizontally on advance:
-        // outgoing exits left, incoming enters from the right, with
-        // a brief crossfade so neither edge appears suddenly. Keyed
-        // on the step itself; TutorialScript steps are stable data
-        // class values so equality drives the transition correctly.
+        // Slide horizontally on advance and back-step. Direction is
+        // inferred from the index delta: forward (target > initial)
+        // slides incoming in from the right and pushes outgoing out
+        // to the left; back-step inverts both. Section-step index is
+        // the right key here: section-bounded so direction stays
+        // intuitive across the basics block, and stable across
+        // recompositions inside the section.
         AnimatedContent(
-            targetState = step,
+            targetState = sectionStepIndex to step,
             transitionSpec = {
-                (slideInHorizontally(animationSpec = tween(durationMillis = 280)) { it } +
-                    fadeIn(animationSpec = tween(durationMillis = 200))) togetherWith
-                    (slideOutHorizontally(animationSpec = tween(durationMillis = 280)) { -it } +
-                        fadeOut(animationSpec = tween(durationMillis = 200)))
+                val targetIdx = targetState.first
+                val initialIdx = initialState.first
+                val forward = targetIdx >= initialIdx
+                if (forward) {
+                    (slideInHorizontally(animationSpec = tween(280)) { it } +
+                        fadeIn(animationSpec = tween(200))) togetherWith
+                        (slideOutHorizontally(animationSpec = tween(280)) { -it } +
+                            fadeOut(animationSpec = tween(200)))
+                } else {
+                    (slideInHorizontally(animationSpec = tween(280)) { -it } +
+                        fadeIn(animationSpec = tween(200))) togetherWith
+                        (slideOutHorizontally(animationSpec = tween(280)) { it } +
+                            fadeOut(animationSpec = tween(200)))
+                }
             },
             modifier = Modifier.fillMaxSize(),
             label = "narration-step",
-        ) { animatedStep ->
+        ) { (_, animatedStep) ->
             // Hero floats centered in the upper half; headline + body +
             // CTA anchor to the bottom. The weighted Box does the work
             // without measuring: weight(1f) above the headline block
@@ -174,30 +187,15 @@ internal fun NarrationStep(
 
 /**
  * Top-area hero for narration steps. Each [NarrationHero] variant
- * renders an all-caps category pill above its bespoke visual. No-op
- * when [hero] is null so callers can size unconditionally without
- * branching on presence.
+ * renders a bespoke visual; the user-facing step name lives in the
+ * top-center [StepCounterPill] so a duplicate in-hero label would
+ * just be visual noise. No-op when [hero] is null so callers can
+ * size unconditionally without branching on presence.
  */
 @Composable
 private fun NarrationHeroBlock(hero: NarrationHero?) {
     if (hero == null) return
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Category chip pill. Tiny all-caps label hovers above the
-        // visual so the user gets a glance-readable cue ("THE POT")
-        // before scanning the bigger illustration.
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
-                .background(AppTheme.colors.surfaceSecondary.color)
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-        ) {
-            Text(
-                text = hero.category.uppercase(),
-                typography = AppTheme.typography.Label.L400,
-                color = ColorResource.Amber500,
-            )
-        }
-        VerticalSpacerD800()
         when (hero) {
             NarrationHero.Pot -> PotHero()
             NarrationHero.HandRanks -> HandRanksHero()
@@ -491,9 +489,10 @@ private fun NarrationStepPreview_Pot() {
     PreviewContent {
         NarrationStep(
             step = previewBasicsStep(NarrationHero.Pot),
+            sectionStepIndex = 0,
             onAdvance = {},
             onSkipBasics = {},
-            onExit = {},
+            onBack = {},
         )
     }
 }
@@ -504,9 +503,10 @@ private fun NarrationStepPreview_HandRanks() {
     PreviewContent {
         NarrationStep(
             step = previewBasicsStep(NarrationHero.HandRanks),
+            sectionStepIndex = 1,
             onAdvance = {},
             onSkipBasics = {},
-            onExit = {},
+            onBack = {},
         )
     }
 }
@@ -517,9 +517,10 @@ private fun NarrationStepPreview_Actions() {
     PreviewContent {
         NarrationStep(
             step = previewBasicsStep(NarrationHero.Actions),
+            sectionStepIndex = 2,
             onAdvance = {},
             onSkipBasics = {},
-            onExit = {},
+            onBack = {},
         )
     }
 }

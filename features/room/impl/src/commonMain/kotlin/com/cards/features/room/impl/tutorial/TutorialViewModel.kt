@@ -83,6 +83,19 @@ class TutorialViewModel @Inject constructor(
         }
     }
 
+    /** Step backward to the previous script step. No-op on the very
+     *  first step. Caller is responsible for deciding when back-stepping
+     *  is appropriate (the screen routes back gestures here only while
+     *  within the basics block; tableau back-out routes to the leave
+     *  dialog instead). */
+    fun goBack() {
+        val current = _state.value
+        if (current.completed) return
+        val prevIndex = current.stepIndex - 1
+        if (prevIndex < 0) return
+        _state.value = stateForIndex(prevIndex)
+    }
+
     /** Jump past the foundational poker-rules intro to the first tableau
      *  step. No-op if we've already moved past the basics. */
     fun skipBasics() {

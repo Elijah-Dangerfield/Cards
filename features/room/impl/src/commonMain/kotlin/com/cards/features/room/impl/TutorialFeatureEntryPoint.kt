@@ -49,6 +49,7 @@ class TutorialFeatureEntryPoint(
                 state = state,
                 onIntent = viewModel::submit,
                 onAdvance = viewModel::advance,
+                onGoBack = viewModel::goBack,
                 onSkipBasics = viewModel::skipBasics,
                 onRestartBasics = viewModel::restartBasics,
                 // First-time tutorial completion stacks the unlock
