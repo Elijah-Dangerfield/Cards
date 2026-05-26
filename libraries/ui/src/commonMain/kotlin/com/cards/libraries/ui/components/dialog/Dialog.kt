@@ -15,14 +15,17 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
@@ -224,6 +227,58 @@ fun Dialog(
             }
         },
     )
+}
+
+/**
+ * Title + freeform body preset. For content-only dialogs (explainers,
+ * read-only callouts) that share a title-then-rows shape but each
+ * stack different content rows underneath. Bakes the standard heading
+ * typography, centered alignment, outer padding, and inter-row spacing
+ * so callsites don't each re-pick them.
+ *
+ * Use [Dialog]'s 3-arg `(title, description, primaryButtonText, ...)`
+ * overload when the dialog has buttons. Use this overload when it
+ * doesn't (and the body needs more than a single description string).
+ */
+@Composable
+fun Dialog(
+    title: String,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    state: DialogState = rememberDialogState(),
+    topAccessory: TopAccessory? = null,
+    properties: ModalDialogProperties = ModalDialogProperties(),
+    animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
+    scrimColor: Color = ModalDialogDefaults.scrimColor(),
+    contentAlignment: Alignment = Alignment.Center,
+    body: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        state = state,
+        topAccessory = topAccessory,
+        properties = properties,
+        animationSpec = animationSpec,
+        scrimColor = scrimColor,
+        contentAlignment = contentAlignment,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimension.D900, vertical = Dimension.D1000),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
+        ) {
+            Text(
+                text = title,
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.onSurfacePrimary,
+                textAlign = TextAlign.Center,
+            )
+            body()
+        }
+    }
 }
 
 /** Dialog top-corner radius. Matches [Radii.Card] visually but expressed

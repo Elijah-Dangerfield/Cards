@@ -1,14 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -29,35 +22,22 @@ internal fun LastActionExplainer(
     onDismiss: () -> Unit,
 ) {
     Dialog(
+        title = headline(seatName, action),
         onDismissRequest = onDismiss,
         topAccessory = topAccessoryEmoji(emoji = emojiFor(action)),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = headline(seatName, action),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = explainer(action),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = "Tap the ? icon up top for the full list of actions.",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
-                textAlign = TextAlign.Center,
-            )
-        }
+        Text(
+            text = explainer(action),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.onSurfaceSecondary,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = "Tap the ? icon up top for the full list of actions.",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.onSurfaceSecondary,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

@@ -1,3 +1,10 @@
+## feat(ui): Dialog title preset for content-only explainers
+
+**Problem:** Explainer dialogs each hand-rolled the same `Column { padding(24, 28), spacedBy(12), Text(title, H700 center), … }` boilerplate. Todo's DS-first item asks for opinionated `Dialog` presets that bake title typography + outer padding + content slot so callsites don't keep re-picking those.
+**Approach:** Added a fourth `Dialog(title: String, …, body: @Composable ColumnScope.() -> Unit)` overload that owns the H700 centered title, D900/D1000 outer padding, and D500 inter-row spacing — body is freeform. Migrated `HandLabelExplainer` and `LastActionExplainer` (the two callsites that match the preset's shape exactly: H700, centered, no buttons, no leading icon). Left explainers with a `ChipCoin` header (`StackExplainer`, `PotExplainer`, `BetPillExplainer`) and `BlindRolesExplainer` (uses H800) alone — they don't fit this preset's shape and forcing them would either drop information or require a second preset.
+**Reviewer notes:** Behavior unchanged for the two migrated callsites — same typography, same padding, same alignment. The new preset uses `Dimension.D500` (12.dp) for `spacedBy` to match what the migrated explainers already used, but `BlindRolesExplainer`'s 20.dp gap would not match if it ever migrates — would need an `itemSpacing` param or a sibling preset.
+**Deferred:** A matching `BottomSheet(title: String, …)` preset (pairs with the same todo item) — likely the next commit if the cycle has room. The "ChipCoin-headered explainer" shape is a recurring sub-pattern (3 callsites) that could justify its own preset later; left as observation, not in `docs/backlog.md` since the human's notes already mention DS-default work broadly.
+
 ## refactor(room): rename mute sheet to PlayerProfileSheet shell
 
 **Problem:** Tap-an-opponent surface today is single-purpose (mute toggle only). Todo asks for a proper profile sheet shell so new sections (friend, profile, recent style) drop in without a rename later.
