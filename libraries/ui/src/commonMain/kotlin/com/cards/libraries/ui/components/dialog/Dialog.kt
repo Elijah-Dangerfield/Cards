@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.NotchedSheetShape
 import androidx.compose.runtime.Composable
@@ -236,6 +237,10 @@ fun Dialog(
  * typography, centered alignment, outer padding, and inter-row spacing
  * so callsites don't each re-pick them.
  *
+ * [itemSpacing] controls the vertical gap between the title and each
+ * body row (default [Dimension.D500] = 12.dp). Override for explainers
+ * whose rows need more breathing room (16 / 20.dp).
+ *
  * Use [Dialog]'s 3-arg `(title, description, primaryButtonText, ...)`
  * overload when the dialog has buttons. Use this overload when it
  * doesn't (and the body needs more than a single description string).
@@ -251,6 +256,7 @@ fun Dialog(
     animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
     scrimColor: Color = ModalDialogDefaults.scrimColor(),
     contentAlignment: Alignment = Alignment.Center,
+    itemSpacing: Dp = Dimension.D500,
     body: @Composable ColumnScope.() -> Unit,
 ) {
     Dialog(
@@ -262,6 +268,7 @@ fun Dialog(
         animationSpec = animationSpec,
         scrimColor = scrimColor,
         contentAlignment = contentAlignment,
+        itemSpacing = itemSpacing,
         title = {
             Text(
                 text = title,
@@ -282,6 +289,11 @@ fun Dialog(
  * Callers using this slot own the title's typography + alignment —
  * the preset only owns layout. Prefer the string overload when the
  * title is plain text so we keep typography consistent by default.
+ *
+ * [itemSpacing] controls the vertical gap between every direct child
+ * of the inner column (title row + each body row). Default is
+ * [Dimension.D500] (12.dp); override when an explainer's rows need
+ * more breathing room.
  */
 @Composable
 fun Dialog(
@@ -294,6 +306,7 @@ fun Dialog(
     animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
     scrimColor: Color = ModalDialogDefaults.scrimColor(),
     contentAlignment: Alignment = Alignment.Center,
+    itemSpacing: Dp = Dimension.D500,
     body: @Composable ColumnScope.() -> Unit,
 ) {
     Dialog(
@@ -311,7 +324,7 @@ fun Dialog(
                 .fillMaxWidth()
                 .padding(horizontal = Dimension.D900, vertical = Dimension.D1000),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
+            verticalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
             title()
             body()
