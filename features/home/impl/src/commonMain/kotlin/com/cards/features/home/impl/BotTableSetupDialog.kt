@@ -20,7 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.OptionPillRow
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD300
@@ -44,7 +44,7 @@ internal fun BotTableSetupDialog(
     var seatCount by remember { mutableStateOf(4) }
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = dialogEmoji(emoji = "🤖"),
+        topAccessory = topAccessoryEmoji(emoji = "🤖"),
     ) {
         Column(
             modifier = Modifier

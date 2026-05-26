@@ -12,7 +12,8 @@ import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.bottomSheetEmojiHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -50,12 +51,12 @@ internal fun MutePlayerSheet(
     // surfaceSecondary via resolveAvatarBackground, matching how the
     // same seat renders elsewhere on the table.
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
-    val handle: BottomSheetDragHandle = bottomSheetEmojiHandle(
+    val handle: BottomSheetDragHandle = topAccessoryEmoji(
         emoji = seat.emoji ?: seat.displayName.firstOrNull()?.uppercase() ?: "?",
         surface = BubbleSurface.Solid(
             ColorResource.FromColor(bubbleColor, "seatAvatar"),
         ),
-    )
+    ).asDragHandle()
 
     BottomSheet(
         onDismissRequest = onDismiss,

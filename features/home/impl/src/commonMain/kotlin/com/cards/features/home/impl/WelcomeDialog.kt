@@ -27,7 +27,7 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
-import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
 import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -70,7 +70,7 @@ internal fun WelcomeDialog(
     Dialog(
         state = state,
         onDismissRequest = onDismiss,
-        emoji = dialogEmoji(
+        topAccessory = topAccessoryEmoji(
             emoji = avatarEmoji.ifBlank { "🎉" },
             surface = bubbleSurface,
         ),

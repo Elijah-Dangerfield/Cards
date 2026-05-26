@@ -22,13 +22,14 @@ import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
+import com.dangerfield.cards.libraries.ui.components.dialog.AccessoryShape
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetValue
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.bottomSheetEmojiHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.rememberBottomSheetState
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -48,9 +49,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  - [Product.ChipPack] → real-money pack via the platform store.
  *  - [Product.ChipOffer] → chip-funded cosmetic / equippable.
  *
- * Drag-handle slot uses the DS [bottomSheetEmojiHandle] with a chip-
- * themed bubble — sets a recognizable "you're about to spend chips"
- * feel before the user reads a single word.
+ * Drag-handle slot uses the DS [topAccessoryEmoji] with a chip-themed
+ * bubble — sets a recognizable "you're about to spend chips" feel
+ * before the user reads a single word.
  *
  * Mounted as the content of a `bottomSheet<ShopProductSheetRoute>`
  * destination, which is why [sheetState] is passed in rather than
@@ -92,11 +93,11 @@ internal fun PurchaseConfirmSheet(
     // bubble's fill mirrors the product's grid-card tile (gold tint, accent
     // tint, or the featured-pack gradient) so the tap-to-sheet transition
     // feels visually continuous.
-    val handle: BottomSheetDragHandle = bottomSheetEmojiHandle(
+    val handle: BottomSheetDragHandle = topAccessoryEmoji(
         emoji = product.iconEmoji,
-        style = EmojiHandleStyle.Squircle,
+        style = AccessoryShape.Squircle,
         surface = productBubbleSurface(product),
-    )
+    ).asDragHandle()
 
     BottomSheet(
         state = sheetState,

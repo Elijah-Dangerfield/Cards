@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.dialog.AccessoryShape
+import com.dangerfield.cards.libraries.ui.components.dialog.TopAccessory
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.libraries.ui.components.dialog.ModalContent
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -41,7 +43,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  The [dragHandle] param picks from the typed [BottomSheetDragHandle]
  *  vocabulary. The big choices:
  *
- *   - [BottomSheetDragHandle.Icon] — chunky icon bubble that
+ *   - [BottomSheetDragHandle.Accessory] — chunky bubble that
  *     **half-overhangs** the sheet's top edge (via [NotchedSheetShape]).
  *     The default [topPadding] for this variant is `0.dp` because the
  *     bubble already provides plenty of vertical real estate.
@@ -129,7 +131,7 @@ fun BottomSheet(
  * need a small breath between the handle and the headline.
  */
 private fun defaultTopPaddingFor(handle: BottomSheetDragHandle): Dp = when (handle) {
-    is BottomSheetDragHandle.Emoji -> 0.dp
+    is BottomSheetDragHandle.Accessory -> 0.dp
     else -> Dimension.D400
 }
 
@@ -202,7 +204,7 @@ private fun PreviewBottomSheet_EmojiCircle() {
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
             backgroundColor = AppTheme.colors.background,
-            dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉"),
+            dragHandle = TopAccessory.Emoji(emoji = "🎉").asDragHandle(),
             stickyTopContent = {
                 Text(
                     text = "Achievement unlocked",
@@ -228,10 +230,10 @@ private fun PreviewBottomSheet_EmojiSquircle() {
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
             backgroundColor = AppTheme.colors.background,
-            dragHandle = BottomSheetDragHandle.Emoji(
+            dragHandle = TopAccessory.Emoji(
                 emoji = "💃",
-                style = EmojiHandleStyle.Squircle,
-            ),
+                style = AccessoryShape.Squircle,
+            ).asDragHandle(),
             stickyTopContent = {
                 Text(
                     text = "Victory Dance",

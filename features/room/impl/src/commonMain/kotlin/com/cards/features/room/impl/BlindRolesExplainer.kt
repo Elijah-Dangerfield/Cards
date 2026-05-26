@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
@@ -35,7 +35,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = dialogEmoji(emoji = "🎲"),
+        topAccessory = topAccessoryEmoji(emoji = "🎲"),
     ) {
         Column(
             modifier = Modifier

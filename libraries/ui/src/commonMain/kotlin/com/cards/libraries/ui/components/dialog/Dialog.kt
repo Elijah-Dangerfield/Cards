@@ -23,11 +23,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.NotchedSheetShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -56,8 +54,6 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -71,12 +67,12 @@ import kotlin.random.Random
  * entirely inside our Compose hierarchy. Supply a [DialogState] if you need to trigger
  * animated dismissals from inside the dialog; otherwise a default state is provided.
  *
- * When [emoji] is non-null, the dialog gains the same notched-top + bubble
- * treatment used by [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet]'s
- * `BottomSheetDragHandle.Emoji`. Use it for hero / unlock / commerce
+ * When [topAccessory] is non-null, the dialog gains the same notched-top
+ * + bubble treatment used by [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet]'s
+ * `BottomSheetDragHandle.Accessory`. Use it for hero / unlock / commerce
  * dialogs where a glanceable cue should land before the user reads the
- * title. Rendering goes through the same [EmojiBubble] primitive so
- * sheets and dialogs stay in lockstep.
+ * title. Rendering goes through the same [TopAccessoryBubble] primitive
+ * so sheets and dialogs stay in lockstep.
  */
 @OptIn(LowLevelDSComponent::class)
 @Composable
@@ -88,7 +84,7 @@ fun Dialog(
     animationSpec: ModalDialogAnimationSpec = ModalDialogAnimationSpec(),
     scrimColor: Color = ModalDialogDefaults.scrimColor(),
     contentAlignment: Alignment = Alignment.Center,
-    emoji: DialogEmoji? = null,
+    topAccessory: TopAccessory? = null,
     content: @Composable () -> Unit = {},
 ) {
     BaseDialog(
@@ -100,21 +96,17 @@ fun Dialog(
         scrimColor = scrimColor,
         contentAlignment = contentAlignment
     ) {
-        // Hard ceiling at 92% of screen height so tall content (long
-        // achievement lists, multi-seat showdowns) is reachable via
-        // `verticalScroll` instead of running off the bottom. Short content
-        // ignores the cap and sits at its natural size.
         val capModifier = Modifier.layout { measurable, constraints ->
             val cap = (constraints.maxHeight * 0.92f).toInt()
             val capped = constraints.copy(maxHeight = cap)
             val placeable = measurable.measure(capped)
             layout(placeable.width, placeable.height) { placeable.place(0, 0) }
         }
-        val surfaceShape: Shape = if (emoji != null) {
+        val surfaceShape: Shape = if (topAccessory != null) {
             NotchedSheetShape(
                 cornerRadius = DialogCardCornerRadius,
-                notchRadius = EmojiBubbleNotchRadius,
-                notchCornerRadius = EmojiBubbleDefaults.notchCornerRadiusFor(emoji.style),
+                notchRadius = TopAccessoryNotchRadius,
+                notchCornerRadius = TopAccessoryDefaults.notchCornerRadiusFor(topAccessory.style),
                 bottomCornerRadius = DialogCardCornerRadius,
             )
         } else {
@@ -129,13 +121,11 @@ fun Dialog(
                 .background(AppTheme.colors.surfacePrimary.color, shape = surfaceShape),
             contentAlignment = Alignment.Center
         ) {
-            if (emoji != null) {
+            if (topAccessory != null) {
                 Column {
-                    EmojiBubble(
-                        emoji = emoji.emoji,
-                        style = emoji.style,
-                        surface = emoji.surface
-                            ?: BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
+                    TopAccessoryBubble(
+                        accessory = topAccessory,
+                        fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
                         contentColor = AppTheme.colors.onSurfacePrimary,
                     )
                     content()
@@ -146,57 +136,6 @@ fun Dialog(
         }
     }
 }
-
-/**
- * Specifies the emoji bubble that overhangs the top of a [Dialog].
- *
- * Mirrors [com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.Emoji]
- * — same DS constants, same shape choices. Defaults to a circle
- * bubble; pass [EmojiHandleStyle.Squircle] for commerce / equip dialogs.
- * [surface] overrides the bubble fill (color or gradient); leave null to
- * match the dialog's surface for a seamless top edge.
- *
- * Construction is restricted to the `:libraries:ui` module so every caller
- * routes through the composable factory [dialogEmoji]. The factory owns
- * theme-aware defaults — keeping it the single chokepoint means the DS
- * can pin a default surface token in one place rather than retuning every
- * callsite.
- */
-@Immutable
-data class DialogEmoji internal constructor(
-    val emoji: String,
-    val style: EmojiHandleStyle = EmojiHandleStyle.Circle,
-    val surface: BubbleSurface? = null,
-)
-
-
-@Composable
-fun dialogEmoji(
-    emoji: String,
-    style: EmojiHandleStyle = EmojiHandleStyle.Circle,
-    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
-) = DialogEmoji(emoji, style, surface)
-
-/**
- * Factory for the chip-themed top bubble used by chip-related dialogs
- * (rebuy, bust, chip rewards, soft-bust grant, tip-the-dealer). Paints
- * a solid casino-gold circle with a `$` glyph in the middle.
- *
- * Routes through the same [DialogEmoji] / [EmojiBubble] chokepoint as
- * [dialogEmoji] so geometry, notch, and ring stay in lockstep. The
- * spec called this a "sibling primitive"; we ship the factory now and
- * defer a fully separate render path until there's a documented visual
- * problem with the shared one (`$` already renders cleanly at the
- * shared `H1100` typography — verify in [Dialog]'s preview pane).
- */
-@Composable
-fun dialogChipBubble(): DialogEmoji = DialogEmoji(
-    emoji = "$",
-    style = EmojiHandleStyle.Circle,
-    surface = BubbleSurface.Solid(
-        color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
-    ),
-)
 
 @Composable
 fun Dialog(
@@ -309,7 +248,7 @@ private fun PreviewDialog_ChipBubble() {
     PreviewContent {
         Dialog(
             onDismissRequest = { -> },
-            emoji = dialogChipBubble(),
+            topAccessory = topAccessoryChipBubble(),
         ) {
             Text(
                 modifier = Modifier.padding(horizontal = Dimension.D800),
