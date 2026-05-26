@@ -558,11 +558,25 @@ private fun FlippablePlayerInfoTile(
         animationSpec = tween(durationMillis = 520),
         label = "info-tile-flip",
     )
+    // Discoverability wiggle — one-shot per VM lifecycle the first time
+    // the tile becomes flippable, so a user who just bought the tool sees
+    // the tile "preview" its back face. Hint, not a gate; we don't
+    // persist a seen-flag across launches.
+    val hintRotation = remember { Animatable(0f) }
+    var hintShown by remember { mutableStateOf(false) }
+    LaunchedEffect(canFlip, flipped) {
+        if (canFlip && !flipped && !hintShown) {
+            hintShown = true
+            hintRotation.animateTo(-22f, tween(220, easing = FastOutSlowInEasing))
+            hintRotation.animateTo(22f, tween(360, easing = LinearEasing))
+            hintRotation.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
+        }
+    }
     val swipeCommitPx = with(LocalDensity.current) { 40.dp.toPx() }
     Box(
         modifier = modifier
             .graphicsLayer {
-                rotationY = rotation
+                rotationY = rotation + hintRotation.value
                 cameraDistance = 14f * density
             }
             .pointerInput(canFlip, swipeCommitPx) {
