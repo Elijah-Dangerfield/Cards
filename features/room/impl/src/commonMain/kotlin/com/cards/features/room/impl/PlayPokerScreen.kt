@@ -77,7 +77,7 @@ fun PlayPokerScreen(
     var stackExplainerOpen by remember { mutableStateOf(false) }
     var leaveConfirmOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
-    var muteSheetSeat by remember { mutableStateOf<SeatView?>(null) }
+    var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     // Action / bet / hand-label explainers carry their own context so each
     // dialog can render specific copy instead of opening the whole cheat sheet.
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
@@ -190,7 +190,7 @@ fun PlayPokerScreen(
                             }
                         },
                         onOpponentTap = { seat ->
-                            seatMuteKey(seat)?.let { muteSheetSeat = seat }
+                            seatMuteKey(seat)?.let { profileSheetSeat = seat }
                         },
                     )
                 }
@@ -309,16 +309,16 @@ fun PlayPokerScreen(
             )
         }
 
-        muteSheetSeat?.let { seat ->
-            MutePlayerSheet(
+        profileSheetSeat?.let { seat ->
+            PlayerProfileSheet(
                 seat = seat,
                 isMuted = seatMuteKey(seat) in state.mutedEmojiPlayerKeys,
-                onToggle = {
+                onToggleMute = {
                     seatMuteKey(seat)?.let { key ->
                         onAction(PlayPokerAction.ToggleMutePlayer(key))
                     }
                 },
-                onDismiss = { muteSheetSeat = null },
+                onDismiss = { profileSheetSeat = null },
             )
         }
 

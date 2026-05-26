@@ -1,0 +1,6 @@
+## refactor(room): rename mute sheet to PlayerProfileSheet shell
+
+**Problem:** Tap-an-opponent surface today is single-purpose (mute toggle only). Todo asks for a proper profile sheet shell so new sections (friend, profile, recent style) drop in without a rename later.
+**Approach:** Renamed `MutePlayerSheet` → `PlayerProfileSheet` (file + composable + callsite + `muteSheetSeat` state var → `profileSheetSeat`). Dropped the mute-specific body paragraph; mute now sits as one row under a `ListSection(title = "Settings")` so the header reads as "settings shell, mute happens to be the only one today." Header (avatar drag handle + display name + seatBadge) unchanged.
+**Reviewer notes:** Pure shell rename. The actual data expansion (member-since, hand count, bot personality breakdown, add-friend affordance) all needs new plumbing that's still gated on the social-graph + remote-human-profile todos — left an updated todo entry pointing at the new file and listing what's left. Switch-row callback renamed from `onToggle` → `onToggleMute` for clarity at the callsite.
+**Deferred:** All the data-bearing sections per the original todo — kept the remaining work as a single shaped item under "Gameplay & table UX" in `docs/todo.md` so the reviewer can re-pick after social-graph plumbing lands.

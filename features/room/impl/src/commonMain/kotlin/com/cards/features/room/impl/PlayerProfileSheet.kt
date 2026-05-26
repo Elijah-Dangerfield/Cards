@@ -20,38 +20,22 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD200
-import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Tap-an-opponent surface. The sheet wears the seat's avatar as its
- * top emoji bubble (DS chokepoint — same primitive the welcome and
- * shop sheets use), then a single Switch row to toggle persistent
- * mute via [PlayPokerAction.ToggleMutePlayer].
- *
- * Switch toggles in place — the sheet doesn't auto-dismiss. The user
- * can flip mute on and off without the sheet bouncing closed every
- * time, which is the standard switch-row behavior elsewhere in the app.
- *
- * In V1 single-player vs bots, no one but the human emits emoji, so
- * the mute set never actually filters anything visible today. The
- * sheet is still wired and persisted so that when MP / reactive-bot
- * blasts ship in V1.x (product-spec.md §5.5), the user's existing
- * mute preferences are already in place — they don't get a wall of
- * unfamiliar emoji at first exposure.
+ * Tap-an-opponent surface. Header carries the seat's identity; the
+ * Settings list holds the per-seat preferences the local user controls.
+ * Only emoji mute today; new sections (friend, profile-of-a-stranger)
+ * land here as the social-graph todo lights up.
  */
 @Composable
-internal fun MutePlayerSheet(
+internal fun PlayerProfileSheet(
     seat: SeatView,
     isMuted: Boolean,
-    onToggle: () -> Unit,
+    onToggleMute: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // Wrap the seat's avatar hex into a ColorResource so the DS bubble
-    // surface can carry it. Null / unparseable hex falls through to
-    // surfaceSecondary via resolveAvatarBackground, matching how the
-    // same seat renders elsewhere on the table.
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
     val handle: BottomSheetDragHandle = topAccessoryEmoji(
         emoji = seat.emoji ?: seat.displayName.firstOrNull()?.uppercase() ?: "?",
@@ -73,10 +57,6 @@ internal fun MutePlayerSheet(
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally),
             )
-            // Level / bot-difficulty subtitle — moved here from the
-            // opponents row to keep the table chrome compact. Hidden
-            // when the seat has no badge (e.g. remote humans without a
-            // known level), so the heading sits alone on those rows.
             seat.seatBadge?.let { badge ->
                 VerticalSpacerD200()
                 Text(
@@ -87,16 +67,9 @@ internal fun MutePlayerSheet(
                     modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally),
                 )
             }
-            VerticalSpacerD500()
-            Text(
-                text = "Hide their table emoji blasts on your screen. You can flip this back any time.",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().align(Alignment.CenterHorizontally),
-            )
             VerticalSpacerD800()
             ListSection(
+                title = "Settings",
                 items = listOf(
                     ListSectionItem(
                         headlineText = "Mute emoji",
@@ -107,7 +80,7 @@ internal fun MutePlayerSheet(
                         },
                         accessory = ListItemAccessory.Switch(
                             checked = isMuted,
-                            onCheckedChange = { onToggle() },
+                            onCheckedChange = { onToggleMute() },
                         ),
                     ),
                 ),
@@ -118,13 +91,13 @@ internal fun MutePlayerSheet(
 
 @Preview
 @Composable
-private fun MutePlayerSheetPreview_BotUnmuted() {
+private fun PlayerProfileSheetPreview_BotUnmuted() {
     PreviewContent {
-        MutePlayerSheet(
+        PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 1, name = "Jane")
                 .copy(seatBadge = "Bot · Standard"),
             isMuted = false,
-            onToggle = {},
+            onToggleMute = {},
             onDismiss = {},
         )
     }
@@ -132,13 +105,13 @@ private fun MutePlayerSheetPreview_BotUnmuted() {
 
 @Preview
 @Composable
-private fun MutePlayerSheetPreview_BotMuted() {
+private fun PlayerProfileSheetPreview_BotMuted() {
     PreviewContent {
-        MutePlayerSheet(
+        PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 2, name = "Maverick")
                 .copy(seatBadge = "Bot · Challenging"),
             isMuted = true,
-            onToggle = {},
+            onToggleMute = {},
             onDismiss = {},
         )
     }
@@ -146,13 +119,13 @@ private fun MutePlayerSheetPreview_BotMuted() {
 
 @Preview
 @Composable
-private fun MutePlayerSheetPreview_NoBadge() {
+private fun PlayerProfileSheetPreview_NoBadge() {
     PreviewContent {
-        MutePlayerSheet(
+        PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 3, name = "Remote Human")
                 .copy(seatBadge = null, emoji = null),
             isMuted = false,
-            onToggle = {},
+            onToggleMute = {},
             onDismiss = {},
         )
     }
