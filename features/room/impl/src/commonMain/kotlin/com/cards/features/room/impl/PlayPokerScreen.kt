@@ -71,6 +71,14 @@ fun PlayPokerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onTapXp: () -> Unit = {},
+    /** Hides the centered Level pill in the top bar. The tutorial sets
+     *  this false so its own step-counter pill can occupy the centered
+     *  slot without colliding. */
+    showXpPill: Boolean = true,
+    /** When false, the back button leaves immediately instead of opening
+     *  the "you'll lose this hand" confirm dialog. Tutorial sets this
+     *  false because there's no real hand or XP at stake. */
+    confirmLeave: Boolean = true,
 ) {
     var actionSheetOpen by remember { mutableStateOf(false) }
     var blindExplainerOpen by remember { mutableStateOf(false) }
@@ -115,7 +123,7 @@ fun PlayPokerScreen(
         onBack()
     }
     val requestLeave: () -> Unit = {
-        if (!handInProgress) {
+        if (!confirmLeave || !handInProgress) {
             leaveTable()
         } else {
             leaveConfirmOpen = true
@@ -158,6 +166,7 @@ fun PlayPokerScreen(
                     onBack = requestLeave,
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
+                    showXpPill = showXpPill,
                     availableEmojis = state.availableEmojis,
                     emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
                     onBlastEmoji = { emoji ->
@@ -387,6 +396,7 @@ private fun TopBar(
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
+    showXpPill: Boolean = true,
     availableEmojis: List<String> = emptyList(),
     emojiCooldownEndsAtEpochMs: Long = 0L,
     onBlastEmoji: ((String) -> Unit)? = null,
@@ -415,11 +425,13 @@ private fun TopBar(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart),
         )
-        LevelPill(
-            xp = xp,
-            onClick = onTapXp,
-            modifier = Modifier.align(Alignment.Center),
-        )
+        if (showXpPill) {
+            LevelPill(
+                xp = xp,
+                onClick = onTapXp,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically,

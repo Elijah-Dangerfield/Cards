@@ -16,8 +16,8 @@ import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 
 /**
- * Registers [TutorialRoute] into the nav graph. The route is parameterless
- * — the script lives in `TutorialScript`. Reachable from the Home tutorial
+ * Registers [TutorialRoute] into the nav graph. The route is parameterless;
+ * the script lives in `TutorialScript`. Reachable from the Home tutorial
  * banner and Settings → "How to play".
  */
 @SingleIn(AppScope::class)

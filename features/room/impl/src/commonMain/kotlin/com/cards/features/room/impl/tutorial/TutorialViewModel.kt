@@ -19,7 +19,7 @@ import me.tatarka.inject.annotations.Inject
  * an explicit [advance] call from the coach-mark CTA (narration steps).
  *
  * Awards `AchievementId.TUTORIAL_COMPLETE` when the user reaches the
- * end of the script. Idempotent — repeated playthroughs (via Settings
+ * end of the script. Idempotent, repeated playthroughs (via Settings
  * → "How to play") no-op at the repo layer.
  */
 class TutorialViewModel @Inject constructor(
@@ -44,7 +44,7 @@ class TutorialViewModel @Inject constructor(
         val section = step.section
         val stepsInSection = script.filter { it.section == section }
         val sectionStepIndex = stepsInSection
-            .indexOfFirst { it === step } // identity-compare — list contains dupes? unlikely, but cheap
+            .indexOfFirst { it === step } // identity-compare, list contains dupes? unlikely, but cheap
             .coerceAtLeast(0)
         return TutorialState(
             step = step,
@@ -96,7 +96,7 @@ class TutorialViewModel @Inject constructor(
             Catching {
                 achievementRepository.recordTutorialComplete()
                 // Finishing the tutorial implicitly dismisses the Home
-                // banner — leaving a "Learn the basics" CTA in place
+                // banner, leaving a "Learn the basics" CTA in place
                 // would be weird since the user just learned them.
                 // Idempotent: appCache.update is a no-op if the flag is
                 // already true (manual dismiss happened earlier).

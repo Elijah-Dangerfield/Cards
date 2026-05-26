@@ -32,10 +32,10 @@ internal object TutorialScript {
     }
 
     // ------------------------------------------------------------------
-    // Intro — three foundational narration cards. Assumes ZERO poker
+    // Intro: three foundational narration cards. Assumes ZERO poker
     // knowledge. Each marked `isBasics = true` so experienced players can
-    // skip the whole block in two taps. No fabricated table behind these
-    // — pure centered explainers with a hero glyph.
+    // skip the whole block in two taps. No fabricated table behind these,
+    // just centered explainers with a hero glyph.
     // ------------------------------------------------------------------
     private fun intro(): List<TutorialStep> = listOf(
         TutorialStep(
@@ -46,7 +46,7 @@ internal object TutorialScript {
                 body = "The pot is the pile of chips in the middle of the table. Every hand, players fight to claim it.",
                 bullets = listOf(
                     "Make the best hand by the end of the hand.",
-                    "Or scare everyone else into folding — you win uncontested.",
+                    "Or scare everyone else into folding; you win uncontested.",
                 ),
                 ctaLabel = "Got it",
             ),
@@ -58,10 +58,10 @@ internal object TutorialScript {
                 title = "How the pot grows",
                 body = "Players take turns putting chips in. Four actions:",
                 bullets = listOf(
-                    "Call — match the current bet to stay in.",
-                    "Raise — put in more, forcing others to match or quit.",
-                    "Check — pass for free. Only legal when nobody has bet yet.",
-                    "Fold — give up the hand. Save your remaining chips for a better spot.",
+                    "Call: match the current bet to stay in.",
+                    "Raise: put in more, forcing others to match or quit.",
+                    "Check: pass for free. Only legal when nobody has bet yet.",
+                    "Fold: give up the hand. Save your remaining chips for a better spot.",
                 ),
                 ctaLabel = "Makes sense",
             ),
@@ -93,7 +93,7 @@ internal object TutorialScript {
     private const val CLEO_INDEX = 3
 
     // ------------------------------------------------------------------
-    // Hand 1 — Raise when you're strong (pocket aces)
+    // Hand 1, Raise when you're strong (pocket aces)
     // ------------------------------------------------------------------
     private fun handOne(): List<TutorialStep> {
         val holeCards = listOf(
@@ -103,7 +103,7 @@ internal object TutorialScript {
 
         // Opponents seeded with blinds posted; human has the button.
         // Human first-to-act preflop (heads-up convention: SB acts first
-        // preflop AND postflop, so use 4-handed positioning instead — button
+        // preflop AND postflop, so use 4-handed positioning instead, button
         // is human, SB is Ada, BB is Ben, Cleo is UTG. Cleo folds, Ada calls,
         // Ben checks → action back to human).
         // For simplicity we set everyone folded except human + Ada by
@@ -187,7 +187,7 @@ internal object TutorialScript {
         )
 
         return listOf(
-            // 1 — Orient (no actions enabled)
+            // 1, Orient (no actions enabled)
             TutorialStep(
                 state = baseState(
                     table(
@@ -198,7 +198,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Welcome to the table",
-                    body = "These are your opponents — Ada, Ben, and Cleo. They're bots, and no real chips are at stake. Let's play a hand.",
+                    body = "These are your opponents, Ada, Ben, and Cleo. They're bots, and no real chips are at stake. Let's play a hand.",
                     ctaLabel = "Got it",
                     // Opponents sit at the top of the felt; pin the mark
                     // to the bottom so the user can see who they're being
@@ -206,7 +206,7 @@ internal object TutorialScript {
                     placement = CoachMarkPlacement.Bottom,
                 ),
             ),
-            // 2 — Blinds explainer
+            // 2, Blinds explainer
             TutorialStep(
                 state = baseState(
                     table(
@@ -217,14 +217,14 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Small Blind, Big Blind",
-                    body = "Every hand starts with two forced bets — SB and BB. They build the pot before anyone acts. At this table SB is 10 and BB is 20, but real tables use different amounts depending on the stake tier you sit down at. Look at Ada and Ben.",
+                    body = "Every hand starts with two forced bets, SB and BB. They build the pot before anyone acts. At this table SB is 10 and BB is 20; real tables use different amounts depending on the stake tier. Each hand the blinds rotate one seat to the left, so everyone takes turns posting. Look at Ada and Ben.",
                     ctaLabel = "Next",
-                    // Step explicitly says "Look at Ada and Ben" — keep
-                    // their chip contributions visible at the top.
+                    // Step explicitly says "Look at Ada and Ben", so
+                    // keep their chip contributions visible at the top.
                     placement = CoachMarkPlacement.Bottom,
                 ),
             ),
-            // 3 — Hole cards explainer
+            // 3, Hole cards explainer
             TutorialStep(
                 state = baseState(
                     table(
@@ -235,11 +235,11 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Your cards",
-                    body = "Two aces — the strongest starting hand in poker. You're a clear favorite to win this pot.",
+                    body = "Two aces, the strongest starting hand in poker. You're a clear favorite to win this pot.",
                     ctaLabel = "Nice",
                 ),
             ),
-            // 4 — Prompt to raise
+            // 4, Prompt to raise
             TutorialStep(
                 state = baseState(
                     table(
@@ -268,7 +268,7 @@ internal object TutorialScript {
                 ),
                 advanceOn = { it is PlayerIntent.Raise || it is PlayerIntent.Bet },
             ),
-            // 5 — Result explainer
+            // 5, Result explainer
             TutorialStep(
                 state = baseState(
                     table(
@@ -299,7 +299,7 @@ internal object TutorialScript {
     }
 
     // ------------------------------------------------------------------
-    // Hand 2 — Call when the price is right (KQ suited, then check on flop)
+    // Hand 2, Call when the price is right (KQ suited, then check on flop)
     // ------------------------------------------------------------------
     private fun handTwo(): List<TutorialStep> {
         val holeCards = listOf(
@@ -397,7 +397,7 @@ internal object TutorialScript {
         )
 
         return listOf(
-            // 1 — Prompt to call (cheap completion)
+            // 1, Prompt to call (cheap completion)
             TutorialStep(
                 state = baseState(
                     table(
@@ -422,12 +422,12 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Call when it's cheap",
-                    body = "King-Queen suited. Not a monster, but worth seeing the flop (the first three shared cards everyone gets to use). It only costs 10 to match Ada's bet — tap Call.",
+                    body = "King-Queen suited. Not a monster, but worth seeing the flop (the first three shared cards everyone gets to use). It only costs 10 to match Ada's bet. Tap Call.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Call },
             ),
-            // 2 — Flop comes; prompt to check
+            // 2, Flop comes; prompt to check
             TutorialStep(
                 state = baseState(
                     table(
@@ -460,12 +460,12 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Check for free",
-                    body = "Two hearts on the flop — if a third heart comes, you'll have a flush (5 cards of the same suit, a strong hand). Ada checked. You don't have to bet either — tap Check to see the next card for free.",
+                    body = "Two hearts on the flop. If a third heart comes, you'll have a flush (5 cards of the same suit, a strong hand). Ada checked. You don't have to bet either. Tap Check to see the next card for free.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Check },
             ),
-            // 3 — Result + lesson
+            // 3, Result + lesson
             TutorialStep(
                 state = baseState(
                     table(
@@ -487,7 +487,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Hearts everywhere",
-                    body = "The turn (4th shared card) brought another heart — that's three hearts plus your two, you've made your flush. Ada folded (gave up the hand). Calling cheap and checking free is how you win without bloating the pot.",
+                    body = "The turn (4th shared card) brought another heart. That's three hearts plus your two: you've made your flush. Ada folded (gave up the hand). Calling cheap and checking free is how you win without bloating the pot.",
                     ctaLabel = "Next hand",
                     // Mentions Ada folding + the community cards which
                     // sit mid-table. Bottom-pin keeps both visible.
@@ -498,7 +498,7 @@ internal object TutorialScript {
     }
 
     // ------------------------------------------------------------------
-    // Hand 3 — Fold when you're beat (7-2 offsuit vs a raise)
+    // Hand 3, Fold when you're beat (7-2 offsuit vs a raise)
     // ------------------------------------------------------------------
     private fun handThree(): List<TutorialStep> {
         val holeCards = listOf(
@@ -578,11 +578,11 @@ internal object TutorialScript {
         return listOf(
             TutorialStep(
                 // Silent swipe-fold so the swipe gesture commits immediately
-                // — no confirmation dialog interrupts the lesson.
+                //, no confirmation dialog interrupts the lesson.
                 state = baseState(tableAction).copy(swipeFoldGestureAck = true),
                 coach = CoachMark(
                     title = "Fold when you're beat",
-                    body = "Seven-two offsuit — the worst hand in poker. Ben raised to 60. Don't put more chips in with junk. Tap ↑ then Fold, or swipe up on your cards.",
+                    body = "Seven-two offsuit, the worst hand in poker. Ben raised to 60. Don't put more chips in with junk. Tap ↑ then Fold, or swipe up on your cards.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Fold },
@@ -628,7 +628,7 @@ internal object TutorialScript {
 
     private fun baseState(table: TableUiState.Active): PlayPokerState = PlayPokerState(
         table = table,
-        // Hide the level-pill XP ticker — there's no real progression
+        // Hide the level-pill XP ticker, there's no real progression
         // happening during the tutorial.
         humanLevel = null,
         xp = 0,

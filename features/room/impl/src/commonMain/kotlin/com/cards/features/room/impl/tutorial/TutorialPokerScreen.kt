@@ -80,13 +80,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * step, overlaying a floating coach-mark banner at the top of the screen.
  *
  * - Action restriction comes for free from
- *   [TableUiState.Active.humanLegalActions] — the action bar already
+ *   [TableUiState.Active.humanLegalActions], the action bar already
  *   respects `canCall`/`canCheck`/`canRaise`.
  * - Tutorial advancement intercepts [PlayPokerAction.Submit]; the
  *   [TutorialScript] step's `advanceOn` predicate decides whether the
  *   submitted intent counts.
  * - Other [PlayPokerAction] variants (LeaveTable, BlastEmoji, etc.) are
- *   silently dropped — the tutorial doesn't fire telemetry or progression.
+ *   silently dropped, the tutorial doesn't fire telemetry or progression.
  */
 @Composable
 internal fun TutorialPokerScreen(
@@ -103,7 +103,7 @@ internal fun TutorialPokerScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        // Narration-only intro steps have no fabricated table — render a
+        // Narration-only intro steps have no fabricated table, render a
         // clean centered explainer instead of overlaying on PlayPokerScreen.
         val tableau = state.step.state
         if (tableau == null) {
@@ -161,10 +161,16 @@ private fun TableauStep(
             onAction = { action ->
                 if (action is PlayPokerAction.Submit) onIntent(action.intent)
                 // Other actions (LeaveTable, RequestNextHand, BlastEmoji)
-                // are no-ops — the script controls flow, not a real
+                // are no-ops. The script controls flow, not a real
                 // engine.
             },
             onBack = onExit,
+            // Hide the centered Level pill so our step-counter pill
+            // owns the top-bar middle slot without colliding.
+            showXpPill = false,
+            // No real hand or XP at stake in the tutorial, so back-out
+            // skips the "you'll lose this hand" confirm dialog.
+            confirmLeave = false,
         )
 
         val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
@@ -199,7 +205,7 @@ private fun TableauStep(
                 label = "coachMarkY",
             )
 
-            // Per-step drag offset — keyed on stepIndex so each new step
+            // Per-step drag offset, keyed on stepIndex so each new step
             // starts at its placement-default Y. Keeping drag across
             // steps would defeat per-step placement (we picked each
             // default specifically to keep important UI visible).
@@ -252,7 +258,7 @@ private fun CoachMarkBanner(
             }
             .padding(Dimension.D500),
     ) {
-        // iOS-style grabber — pure visual affordance; the whole banner
+        // iOS-style grabber, pure visual affordance; the whole banner
         // is the actual drag target.
         Box(
             modifier = Modifier
@@ -300,7 +306,7 @@ private fun CoachMarkBanner(
 /**
  * Pinned-top-center step pill rendered above both narration and
  * tableau steps. Lives in the topbar's empty middle gap rather than
- * being structurally inside any topbar — keeps the pill consistent
+ * being structurally inside any topbar, keeps the pill consistent
  * across step types and out of the back-button's way.
  */
 @Composable
@@ -407,7 +413,7 @@ private fun NarrationStep(
             if (step.coach.bullets.isNotEmpty()) {
                 VerticalSpacerD500()
                 // Bullets are left-aligned even inside this centered
-                // column — centered bullets read awkwardly because the
+                // column, centered bullets read awkwardly because the
                 // bullet glyph and text don't share a stable left edge.
                 BulletList(bullets = step.coach.bullets)
             }
@@ -419,7 +425,7 @@ private fun NarrationStep(
             ) {
                 Text(step.coach.ctaLabel ?: "Next")
             }
-            // Skip-basics escape hatch — only shown on the intro
+            // Skip-basics escape hatch, only shown on the intro
             // narration block. Once we're past the basics there's
             // nothing to skip; the button vanishes.
             if (step.isBasics) {
@@ -429,7 +435,7 @@ private fun NarrationStep(
                     size = ButtonSize.Small,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Skip basics — I know how to play")
+                    Text("Skip basics, I know how to play")
                 }
             }
         }
@@ -482,11 +488,11 @@ private fun TutorialCompletedScreen(
  * Sequence:
  *  1. Brief pause (180ms) so the surrounding text has a beat to render
  *     and the slam doesn't feel like it's racing the transition.
- *  2. Scale tweens from 2.2 → 0.88 over 220ms with EaseInQuad — the
+ *  2. Scale tweens from 2.2 → 0.88 over 220ms with EaseInQuad, the
  *     downward "stamp" motion. Alpha fades in alongside.
  *  3. LongPress haptic fires at the moment of impact (bottom of the
  *     stamp, just before the rebound).
- *  4. Scale springs back to 1.0 with a medium-bouncy spring — the
+ *  4. Scale springs back to 1.0 with a medium-bouncy spring, the
  *     squash-and-stretch rebound that sells the impact.
  *
  * onClick = {} on the medallion suppresses the flip-to-back affordance
@@ -496,7 +502,7 @@ private fun TutorialCompletedScreen(
 @Composable
 private fun SlamInMedallion() {
     val achievement = AllAchievementsById[AchievementId.TUTORIAL_COMPLETE]
-        ?: return // registry drift — bail rather than crash the completion
+        ?: return // registry drift, bail rather than crash the completion
     val haptics = LocalHapticFeedback.current
     val scale = remember { Animatable(2.2f) }
     val alpha = remember { Animatable(0f) }
@@ -524,7 +530,7 @@ private fun SlamInMedallion() {
         achievement = achievement,
         // Mark earned for the medallion's "earned" visuals. The
         // displayed-on-back timestamp would be off if we passed an
-        // arbitrary epoch, but onClick={} suppresses the flip — back
+        // arbitrary epoch, but onClick={} suppresses the flip, back
         // face is never seen here.
         earnedAtEpochMs = 1L,
         progress = 1,
@@ -624,7 +630,7 @@ private fun CoachMarkBannerPreview_Narration() {
             CoachMarkBanner(
                 coach = CoachMark(
                     title = "Your cards",
-                    body = "Two aces — the strongest starting hand in poker. You're a clear favorite to win this pot.",
+                    body = "Two aces, the strongest starting hand in poker. You're a clear favorite to win this pot.",
                     ctaLabel = "Nice",
                 ),
                 stepIndex = 2,

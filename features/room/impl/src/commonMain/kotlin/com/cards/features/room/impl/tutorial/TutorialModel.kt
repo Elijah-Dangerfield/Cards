@@ -6,7 +6,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 /**
  * Step model for the scripted tutorial. Two shapes:
  *
- * - **Tableau step** (`state != null`) — renders the **live**
+ * - **Tableau step** (`state != null`), renders the **live**
  *   `PlayPokerScreen` with a fabricated [PlayPokerState], overlaying a
  *   floating [CoachMark] banner. Advancement is gated either by:
  *    - the user submitting a matching [PlayerIntent] (action-prompt
@@ -14,13 +14,13 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
  *    - the user tapping the CTA on the coach-mark itself (narration
  *      steps); indicated by a non-null [CoachMark.ctaLabel]
  *
- * - **Narration step** (`state == null`) — renders a clean centered
+ * - **Narration step** (`state == null`), renders a clean centered
  *   explainer card with an optional [heroGlyph]. Used for the
  *   foundational poker-rules intro before Hand 1, where there's no
  *   table to point at.
  *
- * The screen reuses the real table chrome — opponents, board, hole
- * cards, action bar — so the tutorial visually matches the live
+ * The screen reuses the real table chrome, opponents, board, hole
+ * cards, action bar, so the tutorial visually matches the live
  * experience. Action-button restriction falls out naturally from
  * setting only the desired flags on [PlayPokerState.table.humanLegalActions].
  */
@@ -28,7 +28,7 @@ internal data class TutorialStep(
     val coach: CoachMark,
     /** Which act of the tutorial this step belongs to. Drives the
      *  per-section step counter (so it reads "Step 2 of 3 · Basics"
-     *  instead of "Step 2 of 13" — the global number hides the fact
+     *  instead of "Step 2 of 13", the global number hides the fact
      *  that the basics are a self-contained block you can finish).
      *  Defaults to [TutorialSection.AtTheTable] because the tableau
      *  steps outnumber the basics steps 10:3. */
@@ -40,7 +40,7 @@ internal data class TutorialStep(
     /** Predicate that returns true if the submitted intent should advance
      *  the script. Null = the step advances only via the coach-mark CTA. */
     val advanceOn: ((PlayerIntent) -> Boolean)? = null,
-    /** Optional hero emoji for narration steps — gives each intro card
+    /** Optional hero emoji for narration steps, gives each intro card
      *  a distinct identity. Ignored for tableau steps. */
     val heroGlyph: String? = null,
 ) {
@@ -52,9 +52,9 @@ internal data class TutorialStep(
 /**
  * The two acts of the tutorial.
  *
- * - [Basics] — pure narration, zero-knowledge poker primer. Three cards
+ * - [Basics], pure narration, zero-knowledge poker primer. Three cards
  *   covering the goal, betting verbs, and hand ranks. Skippable.
- * - [AtTheTable] — three scripted hands at a fabricated table. Teaches
+ * - [AtTheTable], three scripted hands at a fabricated table. Teaches
  *   when to raise, call/check, and fold by walking the player through
  *   a worked example of each.
  */
@@ -67,7 +67,7 @@ internal data class CoachMark(
     val title: String?,
     val body: String,
     /** Optional bullets rendered below the body. Left-aligned regardless
-     *  of where the surrounding text aligns — centered bullets read
+     *  of where the surrounding text aligns, centered bullets read
      *  awkwardly. Empty list = no bullets, just body. */
     val bullets: List<String> = emptyList(),
     /** Non-null = narration step with an inline Next/Got-it/etc. button.
@@ -84,12 +84,12 @@ internal data class CoachMark(
 /**
  * Where the floating coach mark sits on tableau steps.
  *
- * - [Top] — clears the play-screen top bar; good for steps that point
+ * - [Top], clears the play-screen top bar; good for steps that point
  *   at the action bar or hole cards (both at the bottom of the screen).
- * - [Middle] — sits over the dead zone where the community cards live.
- *   The default — most steps don't need to highlight a specific edge
+ * - [Middle], sits over the dead zone where the community cards live.
+ *   The default, most steps don't need to highlight a specific edge
  *   of the screen.
- * - [Bottom] — hugs the bottom safe-area inset; use for steps that
+ * - [Bottom], hugs the bottom safe-area inset; use for steps that
  *   explicitly point at opponents (Ada/Ben/Cleo sit at the top of
  *   the felt) or the pot reaction.
  */
