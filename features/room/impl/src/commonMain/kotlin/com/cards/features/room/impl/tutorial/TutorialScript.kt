@@ -39,29 +39,45 @@ internal object TutorialScript {
     // ------------------------------------------------------------------
     private fun intro(): List<TutorialStep> = listOf(
         TutorialStep(
-            isBasics = true,
+            section = TutorialSection.Basics,
             heroGlyph = "🎯",
             coach = CoachMark(
                 title = "The goal: win the pot",
-                body = "The pot is the pile of chips in the middle of the table. Every hand, players fight to claim it. Either you make the best hand by the end — or everyone else gives up and you win it uncontested.",
+                body = "The pot is the pile of chips in the middle of the table. Every hand, players fight to claim it.",
+                bullets = listOf(
+                    "Make the best hand by the end of the hand.",
+                    "Or scare everyone else into folding — you win uncontested.",
+                ),
                 ctaLabel = "Got it",
             ),
         ),
         TutorialStep(
-            isBasics = true,
+            section = TutorialSection.Basics,
             heroGlyph = "💰",
             coach = CoachMark(
                 title = "How the pot grows",
-                body = "Players take turns putting chips in. You can CALL (match the current bet to stay in), RAISE (put in more, forcing others to match or quit), or CHECK (pass — only legal when no one's bet yet). Raise enough and opponents may FOLD — give up the hand and let you win it without showdown.",
+                body = "Players take turns putting chips in. Four actions:",
+                bullets = listOf(
+                    "Call — match the current bet to stay in.",
+                    "Raise — put in more, forcing others to match or quit.",
+                    "Check — pass for free. Only legal when nobody has bet yet.",
+                    "Fold — give up the hand. Save your remaining chips for a better spot.",
+                ),
                 ctaLabel = "Makes sense",
             ),
         ),
         TutorialStep(
-            isBasics = true,
+            section = TutorialSection.Basics,
             heroGlyph = "🏆",
             coach = CoachMark(
                 title = "Best 5-card hand wins",
-                body = "If multiple players survive to the end, the strongest 5-card hand wins. Weakest → strongest: pair · two pair · three of a kind · straight · flush · full house · four of a kind · straight flush · royal flush. Tap the ? on the live table anytime to pull up the full chart.",
+                body = "If multiple players survive to the end, the strongest 5-card hand wins the pot. Ranks weakest to strongest:",
+                bullets = listOf(
+                    "Pair, two pair, three of a kind.",
+                    "Straight, flush, full house.",
+                    "Four of a kind, straight flush, royal flush.",
+                    "Tap the ? on the live table anytime for the full chart.",
+                ),
                 ctaLabel = "Let's play",
             ),
         ),

@@ -1,13 +1,20 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -79,73 +89,127 @@ internal fun TutorialPokerScreen(
         return
     }
 
-    // Narration-only intro steps have no fabricated table — render a
-    // clean centered explainer instead of overlaying on PlayPokerScreen.
-    val tableau = state.step.state
-    if (tableau == null) {
-        NarrationStep(
-            step = state.step,
-            stepIndex = state.stepIndex,
-            totalSteps = state.totalSteps,
-            onAdvance = onAdvance,
-            onSkipBasics = onSkipBasics,
-            onExit = onExit,
-            modifier = modifier,
-        )
-        return
-    }
-
     Box(modifier = modifier.fillMaxSize()) {
+        // Narration-only intro steps have no fabricated table — render a
+        // clean centered explainer instead of overlaying on PlayPokerScreen.
+        val tableau = state.step.state
+        if (tableau == null) {
+            NarrationStep(
+                step = state.step,
+                onAdvance = onAdvance,
+                onSkipBasics = onSkipBasics,
+                onExit = onExit,
+            )
+        } else {
+            TableauStep(
+                tableau = tableau,
+                step = state.step,
+                stepIndex = state.stepIndex,
+                onIntent = onIntent,
+                onAdvance = onAdvance,
+                onExit = onExit,
+            )
+        }
+        // Floating section step counter pinned top-center across both
+        // step types. Sits inside the play-screen top bar's "empty
+        // middle" between the back chevron (left) and level pill
+        // (right); on narration steps it overlays the Screen's top bar
+        // similarly without colliding with the back button.
+        StepCounterPill(
+            section = state.section,
+            sectionStep = state.sectionStepIndex + 1,
+            sectionTotal = state.sectionTotalSteps,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                .padding(top = 14.dp),
+        )
+    }
+}
+
+/**
+ * Tableau step rendering. Owns the animated coach-mark position so
+ * transitions between Top/Middle/Bottom placements slide instead of
+ * snap. Drag offset is per-step (`remember(stepIndex)`) so the user
+ * starts each step at the placement default we picked for it.
+ */
+@Composable
+private fun TableauStep(
+    tableau: com.dangerfield.cards.features.room.impl.PlayPokerState,
+    step: TutorialStep,
+    stepIndex: Int,
+    onIntent: (com.dangerfield.cards.libraries.gameplay.PlayerIntent) -> Unit,
+    onAdvance: () -> Unit,
+    onExit: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
         PlayPokerScreen(
             state = tableau,
             onAction = { action ->
                 if (action is PlayPokerAction.Submit) onIntent(action.intent)
-                // All other actions (LeaveTable, RequestNextHand,
-                // BlastEmoji, etc.) are no-ops for the tutorial. We don't
-                // dispatch into a real engine — the script controls flow.
+                // Other actions (LeaveTable, RequestNextHand, BlastEmoji)
+                // are no-ops — the script controls flow, not a real
+                // engine.
             },
             onBack = onExit,
         )
 
-        val placement = state.step.coach.placement
-        val alignment = when (placement) {
-            CoachMarkPlacement.Top -> Alignment.TopCenter
-            CoachMarkPlacement.Bottom -> Alignment.BottomCenter
-        }
-        val insetSides = when (placement) {
-            CoachMarkPlacement.Top -> WindowInsetsSides.Top
-            CoachMarkPlacement.Bottom -> WindowInsetsSides.Bottom
-        }
-        // Top placement clears the play screen's top bar (back / level
-        // pill). Bottom placement just hugs the safe-area inset —
-        // narration steps don't show the action bar (humanLegalActions
-        // is null), so we don't need to reserve space for it.
-        val topPadding = if (placement == CoachMarkPlacement.Top) 56.dp else 0.dp
-        val bottomPadding = if (placement == CoachMarkPlacement.Bottom) 16.dp else 0.dp
+        val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
+        val layoutDir = LocalLayoutDirection.current
+        val topSafe = safeInsets.calculateTopPadding()
+        val bottomSafe = safeInsets.calculateBottomPadding()
 
-        // Per-step drag offset — keyed on stepIndex so each new step
-        // starts at the placement default. Keeping drag across steps
-        // would defeat the point of per-step placement (we picked the
-        // default specifically so opponents / hole cards stay visible).
-        var dragOffset by remember(state.stepIndex) { mutableStateOf(Offset.Zero) }
+        // Measure the banner so Middle/Bottom placements can position
+        // it precisely. First frame: bannerHeight = 0 → banner lands at
+        // its target without animation. Second frame: bannerHeight is
+        // known, animation begins. Imperceptible in practice.
+        var bannerHeightDp by remember { mutableStateOf(0.dp) }
+        val density = LocalDensity.current
 
-        CoachMarkBanner(
-            coach = state.step.coach,
-            stepIndex = state.stepIndex,
-            totalSteps = state.totalSteps,
-            onAdvance = onAdvance,
-            onDrag = { dragOffset += it },
-            modifier = Modifier
-                .align(alignment)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(insetSides))
-                .padding(
-                    top = topPadding,
-                    bottom = bottomPadding,
-                    start = 12.dp,
-                    end = 12.dp,
-                )
-                .offset { IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) },
-        )
+        val placement = step.coach.placement
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val maxH = maxHeight
+            // 56dp clears the play screen's top bar (back chevron +
+            // level pill row). The pill counter is 14 + ~28dp tall, so
+            // 60dp total reserves space for both.
+            val topAnchor = topSafe + 60.dp
+            val middleAnchor = (maxH - bannerHeightDp) / 2
+            val bottomAnchor = maxH - bannerHeightDp - bottomSafe - 16.dp
+            val targetY = when (placement) {
+                CoachMarkPlacement.Top -> topAnchor
+                CoachMarkPlacement.Middle -> middleAnchor.coerceAtLeast(topAnchor)
+                CoachMarkPlacement.Bottom -> bottomAnchor.coerceAtLeast(topAnchor)
+            }
+            val animatedY by animateDpAsState(
+                targetValue = targetY,
+                animationSpec = tween(durationMillis = 320),
+                label = "coachMarkY",
+            )
+
+            // Per-step drag offset — keyed on stepIndex so each new step
+            // starts at its placement-default Y. Keeping drag across
+            // steps would defeat per-step placement (we picked each
+            // default specifically to keep important UI visible).
+            var dragOffset by remember(stepIndex) { mutableStateOf(Offset.Zero) }
+
+            CoachMarkBanner(
+                coach = step.coach,
+                stepIndex = stepIndex,
+                onAdvance = onAdvance,
+                onDrag = { dragOffset += it },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(
+                        start = 12.dp + safeInsets.calculateStartPadding(layoutDir),
+                        end = 12.dp + safeInsets.calculateEndPadding(layoutDir),
+                    )
+                    .offset(y = animatedY)
+                    .onSizeChanged { size ->
+                        bannerHeightDp = with(density) { size.height.toDp() }
+                    }
+                    .offset { IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) },
+            )
+        }
     }
 }
 
@@ -153,7 +217,6 @@ internal fun TutorialPokerScreen(
 private fun CoachMarkBanner(
     coach: CoachMark,
     stepIndex: Int,
-    totalSteps: Int,
     onAdvance: () -> Unit,
     onDrag: (Offset) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -165,9 +228,9 @@ private fun CoachMarkBanner(
             .background(AppTheme.colors.surfacePrimary.color)
             .border(1.dp, AppTheme.colors.borderSecondary.color, Radii.Card.shape)
             // Listen on the whole banner so the user can grab anywhere
-            // non-interactive (gaps, text, the step counter). The CTA
-            // button still receives taps because tap doesn't cross the
-            // touch-slop threshold that arms the drag detector.
+            // non-interactive (gaps, text, bullets). The CTA button
+            // still receives taps because tap doesn't cross the touch-
+            // slop threshold that arms the drag detector.
             .pointerInput(stepIndex) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
@@ -187,26 +250,23 @@ private fun CoachMarkBanner(
                 .background(AppTheme.colors.borderSecondary.color),
         )
         VerticalSpacerD200()
-        // Step counter line — keeps the player oriented (1 / 12, etc.).
-        Text(
-            text = "Step ${stepIndex + 1} of $totalSteps",
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
-        )
         if (!coach.title.isNullOrBlank()) {
-            VerticalSpacerD200()
             Text(
                 text = coach.title,
                 typography = AppTheme.typography.Heading.H500,
                 color = AppTheme.colors.text,
             )
+            VerticalSpacerD200()
         }
-        VerticalSpacerD200()
         Text(
             text = coach.body,
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
         )
+        if (coach.bullets.isNotEmpty()) {
+            VerticalSpacerD200()
+            BulletList(bullets = coach.bullets)
+        }
         if (!coach.ctaLabel.isNullOrBlank()) {
             VerticalSpacerD400()
             Row(
@@ -225,6 +285,64 @@ private fun CoachMarkBanner(
 }
 
 /**
+ * Pinned-top-center step pill rendered above both narration and
+ * tableau steps. Lives in the topbar's empty middle gap rather than
+ * being structurally inside any topbar — keeps the pill consistent
+ * across step types and out of the back-button's way.
+ */
+@Composable
+private fun StepCounterPill(
+    section: TutorialSection,
+    sectionStep: Int,
+    sectionTotal: Int,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .border(1.dp, AppTheme.colors.borderSecondary.color, RoundedCornerShape(999.dp))
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
+    ) {
+        Text(
+            text = "Step $sectionStep of $sectionTotal · ${section.displayName}",
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
+    }
+}
+
+/**
+ * Left-aligned bullet list. Used both in the floating coach mark and
+ * in the centered narration card; centered bullets read awkwardly so
+ * the list always anchors Start regardless of caller's text alignment.
+ */
+@Composable
+private fun BulletList(
+    bullets: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        bullets.forEachIndexed { index, bullet ->
+            if (index > 0) VerticalSpacerD200()
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    text = "•",
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.textSecondary,
+                    modifier = Modifier.padding(end = Dimension.D300),
+                )
+                Text(
+                    text = bullet,
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+/**
  * Centered explainer card used for the foundational poker-rules intro
  * steps (the ones marked `isBasics = true`). No fabricated table —
  * just hero glyph, title, body, primary CTA, and a Tertiary "Skip
@@ -233,8 +351,6 @@ private fun CoachMarkBanner(
 @Composable
 private fun NarrationStep(
     step: TutorialStep,
-    stepIndex: Int,
-    totalSteps: Int,
     onAdvance: () -> Unit,
     onSkipBasics: () -> Unit,
     onExit: () -> Unit,
@@ -260,12 +376,6 @@ private fun NarrationStep(
                 )
                 VerticalSpacerD800()
             }
-            Text(
-                text = "Step ${stepIndex + 1} of $totalSteps",
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
-            )
-            VerticalSpacerD200()
             if (!step.coach.title.isNullOrBlank()) {
                 Text(
                     text = step.coach.title,
@@ -281,6 +391,13 @@ private fun NarrationStep(
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
             )
+            if (step.coach.bullets.isNotEmpty()) {
+                VerticalSpacerD500()
+                // Bullets are left-aligned even inside this centered
+                // column — centered bullets read awkwardly because the
+                // bullet glyph and text don't share a stable left edge.
+                BulletList(bullets = step.coach.bullets)
+            }
             VerticalSpacerD800()
             ButtonPrimary(
                 onClick = onAdvance,
@@ -351,18 +468,29 @@ private fun TutorialCompletedScreen(
     }
 }
 
+/** Builds a [TutorialState] from a script index, mirroring the VM's
+ *  `stateForIndex` logic so previews show the same section-counter
+ *  numbers the app would render. Test/preview only. */
+private fun previewState(index: Int, completed: Boolean = false): TutorialState {
+    val script = TutorialScript.steps
+    val step = script[index]
+    val inSection = script.filter { it.section == step.section }
+    return TutorialState(
+        step = step,
+        stepIndex = index,
+        totalSteps = script.size,
+        sectionStepIndex = inSection.indexOfFirst { it === step }.coerceAtLeast(0),
+        sectionTotalSteps = inSection.size,
+        completed = completed,
+    )
+}
+
 @Preview
 @Composable
 private fun TutorialPokerScreenPreview_Orient() {
     PreviewContent {
-        val script = TutorialScript.steps
         TutorialPokerScreen(
-            state = TutorialState(
-                step = script.first(),
-                stepIndex = 0,
-                totalSteps = script.size,
-                completed = false,
-            ),
+            state = previewState(index = 0),
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
@@ -375,16 +503,11 @@ private fun TutorialPokerScreenPreview_Orient() {
 @Composable
 private fun TutorialPokerScreenPreview_ActionPrompt() {
     PreviewContent {
-        val script = TutorialScript.steps
-        val actionStepIndex = script.indexOfFirst { it.advanceOn != null }
+        val actionStepIndex = TutorialScript.steps
+            .indexOfFirst { it.advanceOn != null }
             .coerceAtLeast(0)
         TutorialPokerScreen(
-            state = TutorialState(
-                step = script[actionStepIndex],
-                stepIndex = actionStepIndex,
-                totalSteps = script.size,
-                completed = false,
-            ),
+            state = previewState(index = actionStepIndex),
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
@@ -397,14 +520,8 @@ private fun TutorialPokerScreenPreview_ActionPrompt() {
 @Composable
 private fun TutorialPokerScreenPreview_Completed() {
     PreviewContent {
-        val script = TutorialScript.steps
         TutorialPokerScreen(
-            state = TutorialState(
-                step = script.last(),
-                stepIndex = script.lastIndex,
-                totalSteps = script.size,
-                completed = true,
-            ),
+            state = previewState(index = TutorialScript.steps.lastIndex, completed = true),
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
@@ -417,15 +534,9 @@ private fun TutorialPokerScreenPreview_Completed() {
 @Composable
 private fun TutorialPokerScreenPreview_Intro() {
     PreviewContent {
-        val script = TutorialScript.steps
-        val introIndex = script.indexOfFirst { it.isBasics }.coerceAtLeast(0)
+        val introIndex = TutorialScript.steps.indexOfFirst { it.isBasics }.coerceAtLeast(0)
         TutorialPokerScreen(
-            state = TutorialState(
-                step = script[introIndex],
-                stepIndex = introIndex,
-                totalSteps = script.size,
-                completed = false,
-            ),
+            state = previewState(index = introIndex),
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
@@ -446,7 +557,6 @@ private fun CoachMarkBannerPreview_Narration() {
                     ctaLabel = "Nice",
                 ),
                 stepIndex = 2,
-                totalSteps = 12,
                 onAdvance = {},
             )
         }
@@ -465,7 +575,6 @@ private fun CoachMarkBannerPreview_ActionPrompt() {
                     ctaLabel = null,
                 ),
                 stepIndex = 3,
-                totalSteps = 12,
                 onAdvance = {},
             )
         }

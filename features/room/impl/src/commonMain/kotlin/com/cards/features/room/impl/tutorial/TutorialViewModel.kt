@@ -30,15 +30,31 @@ class TutorialViewModel @Inject constructor(
     private val logger = KLog.withTag("TutorialViewModel")
 
     private val script = TutorialScript.steps
-    private val _state = MutableStateFlow(
-        TutorialState(
-            step = script.first(),
-            stepIndex = 0,
+    private val _state = MutableStateFlow(stateForIndex(0))
+    internal val state: StateFlow<TutorialState> = _state.asStateFlow()
+
+    /**
+     * Builds a [TutorialState] for the given global step index, deriving
+     * the per-section progress counter so the UI can show "Step 2 of 3 ·
+     * Basics" instead of "Step 2 of 13." Section transitions reset the
+     * within-section counter back to 1.
+     */
+    private fun stateForIndex(globalIndex: Int): TutorialState {
+        val step = script[globalIndex]
+        val section = step.section
+        val stepsInSection = script.filter { it.section == section }
+        val sectionStepIndex = stepsInSection
+            .indexOfFirst { it === step } // identity-compare — list contains dupes? unlikely, but cheap
+            .coerceAtLeast(0)
+        return TutorialState(
+            step = step,
+            stepIndex = globalIndex,
             totalSteps = script.size,
+            sectionStepIndex = sectionStepIndex,
+            sectionTotalSteps = stepsInSection.size,
             completed = false,
         )
-    )
-    internal val state: StateFlow<TutorialState> = _state.asStateFlow()
+    }
 
     /** User submitted an intent through the live action bar / swipe-fold.
      *  Advances the script if the current step's predicate accepts it. */
@@ -58,10 +74,7 @@ class TutorialViewModel @Inject constructor(
             _state.value = current.copy(completed = true)
             recordCompletion()
         } else {
-            _state.value = current.copy(
-                step = script[nextIndex],
-                stepIndex = nextIndex,
-            )
+            _state.value = stateForIndex(nextIndex)
         }
     }
 
@@ -72,10 +85,7 @@ class TutorialViewModel @Inject constructor(
         if (current.completed) return
         val firstNonBasics = script.indexOfFirst { !it.isBasics }
         if (firstNonBasics <= current.stepIndex || firstNonBasics == -1) return
-        _state.value = current.copy(
-            step = script[firstNonBasics],
-            stepIndex = firstNonBasics,
-        )
+        _state.value = stateForIndex(firstNonBasics)
     }
 
     private fun recordCompletion() {
@@ -98,7 +108,17 @@ class TutorialViewModel @Inject constructor(
 
 internal data class TutorialState(
     val step: TutorialStep,
+    /** 0-based index into the global step list. Still useful as an
+     *  animation key (e.g. for resetting drag offset between steps)
+     *  even though the UI surfaces the per-section counter to the user. */
     val stepIndex: Int,
     val totalSteps: Int,
+    /** 0-based index of [step] within its [TutorialSection]. Drives the
+     *  human-facing "Step 2 of 3 · Basics" pill. */
+    val sectionStepIndex: Int,
+    /** Total step count for [step.section]. */
+    val sectionTotalSteps: Int,
     val completed: Boolean,
-)
+) {
+    val section: TutorialSection get() = step.section
+}
