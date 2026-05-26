@@ -32,6 +32,10 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
+import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
+import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
+import com.dangerfield.cards.libraries.ui.components.poker.titleForProductId
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import kotlinx.coroutines.ExperimentalCoroutinesApi

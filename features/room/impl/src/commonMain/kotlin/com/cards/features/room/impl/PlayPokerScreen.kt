@@ -46,7 +46,11 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.LocalCardBackStyle
+import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
+import com.dangerfield.cards.libraries.ui.components.poker.feltAccentSurface
+import com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.HorizontalSpacerD100
