@@ -155,6 +155,7 @@ class PlayPokerViewModel @Inject constructor(
                 latestBotSpeed = data.botSpeed
                 takeAction(PlayPokerAction.TurnFeedbackChanged(data.turnFeedback))
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
+                takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
             }
         }
@@ -482,6 +483,18 @@ class PlayPokerViewModel @Inject constructor(
                     appCache.update { it.copy(swipeFoldGestureAck = true) }
                 }
             }
+            is PlayPokerAction.WinOddsFlipHintSeenChanged -> action.updateState {
+                it.copy(winOddsFlipHintSeen = action.seen)
+            }
+            is PlayPokerAction.MarkWinOddsFlipHintSeen -> {
+                // Fire-and-forget — the state mirror above flips on the
+                // next cache emit. Writes are idempotent so repeated
+                // flips (the user keeps toggling the tile) are no-ops
+                // after the first.
+                viewModelScope.launch {
+                    appCache.update { it.copy(winOddsFlipHintSeen = true) }
+                }
+            }
             is PlayPokerAction.AvailableEmojisChanged -> action.updateState {
                 it.copy(availableEmojis = action.emojis)
             }
@@ -614,6 +627,15 @@ data class PlayPokerState(
     val swipeFoldGestureAck: Boolean = false,
 
     /**
+     * Mirrors `AppData.winOddsFlipHintSeen`. False = the player info
+     * tile plays a one-shot discoverability wiggle once per session
+     * when the win-odds tool is owned. Flips to true the first time
+     * the user actually taps to flip the tile — after which the wiggle
+     * never plays again.
+     */
+    val winOddsFlipHintSeen: Boolean = false,
+
+    /**
      * Emojis the user can blast from the in-game tray. Sourced entirely
      * from owned `emotes_*` packs — users with no pack get an empty list
      * and the tray UI hides. Order is stable across reorderings of
@@ -708,6 +730,16 @@ sealed interface PlayPokerAction {
      * stays flipped across sessions.
      */
     data object AcknowledgeSwipeFoldGesture : PlayPokerAction
+
+    /** Fired by the AppCache mirror; gates the win-odds flip-tile wiggle hint. */
+    data class WinOddsFlipHintSeenChanged(val seen: Boolean) : PlayPokerAction
+
+    /**
+     * Fired by the player info tile the first time the user actually
+     * flips it during a session. Writes through to AppCache so the
+     * wiggle hint never re-plays on this account.
+     */
+    data object MarkWinOddsFlipHintSeen : PlayPokerAction
 
     /** Fired by the inventory subscription. */
     data class AvailableEmojisChanged(val emojis: List<String>) : PlayPokerAction

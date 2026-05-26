@@ -87,8 +87,10 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD300
 import kotlin.math.abs
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -97,6 +99,8 @@ internal fun PlayerArea(
     humanTitle: String? = null,
     humanWinOdds: EquityBreakdown? = null,
     silentSwipeFold: Boolean = false,
+    winOddsFlipHintSeen: Boolean = false,
+    onWinOddsFlipped: () -> Unit = {},
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit = { _, _ -> },
@@ -325,6 +329,8 @@ internal fun PlayerArea(
             isWinner = isWinner,
             title = humanTitle,
             winOdds = humanWinOdds,
+            winOddsFlipHintSeen = winOddsFlipHintSeen,
+            onFirstFlip = onWinOddsFlipped,
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
@@ -611,6 +617,8 @@ private fun FlippablePlayerInfoTile(
     isWinner: Boolean,
     title: String?,
     winOdds: EquityBreakdown?,
+    winOddsFlipHintSeen: Boolean,
+    onFirstFlip: () -> Unit,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
@@ -630,20 +638,36 @@ private fun FlippablePlayerInfoTile(
         animationSpec = tween(durationMillis = 520),
         label = "info-tile-flip",
     )
-    // Discoverability wiggle — one-shot per VM lifecycle the first time
-    // the tile becomes flippable, so a user who just bought the tool sees
-    // the tile "preview" its back face. Hint, not a gate; we don't
-    // persist a seen-flag across launches.
+
+    // Discoverability wiggle — fires once per session when the user owns
+    // the tool AND has never flipped the tile before (persisted via
+    // AppCache.winOddsFlipHintSeen). Keyed on canFlip + the persisted
+    // seen-flag only — NOT on `flipped` — so a user tap mid-wiggle
+    // doesn't cancel the animation halfway through and leave the tile
+    // sitting at a stuck intermediate angle. The NonCancellable finally
+    // snaps hintRotation back to 0 in case canFlip flips off (tool
+    // un-equipped) or the persisted flag arrives mid-wiggle.
     val hintRotation = remember { Animatable(0f) }
-    var hintShown by remember { mutableStateOf(false) }
-    LaunchedEffect(canFlip, flipped) {
-        if (canFlip && !flipped && !hintShown) {
-            hintShown = true
-            hintRotation.animateTo(-22f, tween(220, easing = FastOutSlowInEasing))
-            hintRotation.animateTo(22f, tween(360, easing = LinearEasing))
-            hintRotation.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
+    LaunchedEffect(canFlip, winOddsFlipHintSeen) {
+        if (canFlip && !winOddsFlipHintSeen) {
+            try {
+                hintRotation.animateTo(-22f, tween(220, easing = FastOutSlowInEasing))
+                hintRotation.animateTo(22f, tween(360, easing = LinearEasing))
+                hintRotation.animateTo(0f, tween(220, easing = FastOutSlowInEasing))
+            } finally {
+                withContext(NonCancellable) { hintRotation.snapTo(0f) }
+            }
         }
     }
+
+    // Single helper so every flip path (icon tap, swipe, back-tap)
+    // routes through the same first-flip persistence call. Cheap when
+    // already-seen because the cache write is idempotent.
+    val toggleFlipped: (Boolean) -> Unit = { target ->
+        flipped = target
+        if (!winOddsFlipHintSeen) onFirstFlip()
+    }
+
     val swipeCommitPx = with(LocalDensity.current) { 40.dp.toPx() }
     Box(
         modifier = modifier
@@ -657,7 +681,7 @@ private fun FlippablePlayerInfoTile(
                 detectHorizontalDragGestures(
                     onDragStart = { dragTotal = 0f },
                     onDragEnd = {
-                        if (abs(dragTotal) >= swipeCommitPx) flipped = !flipped
+                        if (abs(dragTotal) >= swipeCommitPx) toggleFlipped(!flipped)
                     },
                     onHorizontalDrag = { _, dx -> dragTotal += dx },
                 )
@@ -678,7 +702,7 @@ private fun FlippablePlayerInfoTile(
             )
             if (canFlip) {
                 FlipAffordance(
-                    onClick = { flipped = true },
+                    onClick = { toggleFlipped(true) },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .offset(x = (-2).dp, y = 2.dp),
@@ -688,7 +712,7 @@ private fun FlippablePlayerInfoTile(
             Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
                 PlayerInfoTileBack(
                     winOdds = winOdds,
-                    onTapClose = { flipped = false },
+                    onTapClose = { toggleFlipped(false) },
                 )
             }
         }

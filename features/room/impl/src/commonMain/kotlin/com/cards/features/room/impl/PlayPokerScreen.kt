@@ -182,6 +182,10 @@ fun PlayPokerScreen(
                         humanWinOdds = state.humanWinOdds,
                         humanTitle = state.equippedTitle,
                         silentSwipeFold = state.swipeFoldGestureAck,
+                        winOddsFlipHintSeen = state.winOddsFlipHintSeen,
+                        onWinOddsFlipped = {
+                            onAction(PlayPokerAction.MarkWinOddsFlipHintSeen)
+                        },
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
                         onExpandRaise = { actionSheetOpen = true },
                         onBlindClick = { blindExplainerOpen = true },
@@ -473,6 +477,8 @@ private fun ActiveTable(
     humanWinOdds: EquityBreakdown?,
     humanTitle: String?,
     silentSwipeFold: Boolean = false,
+    winOddsFlipHintSeen: Boolean = false,
+    onWinOddsFlipped: () -> Unit = {},
     onIntent: (PlayerIntent) -> Unit,
     onExpandRaise: () -> Unit,
     onBlindClick: () -> Unit,
@@ -526,6 +532,8 @@ private fun ActiveTable(
                 humanTitle = humanTitle,
                 humanWinOdds = humanWinOdds,
                 silentSwipeFold = silentSwipeFold,
+                winOddsFlipHintSeen = winOddsFlipHintSeen,
+                onWinOddsFlipped = onWinOddsFlipped,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,
