@@ -183,6 +183,21 @@ private fun DeleteAccountScreenPreview_Error() {
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun DeleteAccountScreenPreview_Submitting() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        DeleteAccountScreen(
+            state = DeleteAccountState(
+                confirmationInput = "delete",
+                isSubmitting = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 @Composable
 private fun BulletItem(text: String) {
     Text(
