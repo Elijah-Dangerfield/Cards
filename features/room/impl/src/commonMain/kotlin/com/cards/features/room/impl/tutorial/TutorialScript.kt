@@ -411,8 +411,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Tap Call",
-                    body = "10 chips to match Ada and see the flop.",
+                    title = "King-Queen suited",
+                    body = "Decent hand: same suit, both high cards. Straight, flush, even a royal flush are all on the table. 10 chips to call and see the flop.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Call },
@@ -449,8 +449,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "The flop",
-                    body = "Three shared cards. Ada checked. Tap Check to advance without betting.",
+                    title = "Flush draw",
+                    body = "Two hearts on the flop plus your two: one more heart and you've made a flush. Ada checked, so you can see the next card free. Tap Check.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Check },
@@ -476,8 +476,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Ada folded",
-                    body = "Pot's yours. Most hands end with folds, not showdowns.",
+                    title = "Hearts everywhere",
+                    body = "Turn brought another heart, you made your flush. Ada folded along the way, so the pot is yours. Most hands end like this, not at showdown.",
                     ctaLabel = "Next hand",
                     // Mentions Ada folding + the community cards which
                     // sit mid-table. Bottom-pin keeps both visible.
