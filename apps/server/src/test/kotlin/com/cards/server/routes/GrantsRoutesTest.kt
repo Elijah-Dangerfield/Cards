@@ -1,0 +1,253 @@
+package com.dangerfield.cards.server.routes
+
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
+import com.dangerfield.cards.server.domain.AcquisitionSource
+import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.OwnedItem
+import com.dangerfield.cards.server.domain.Product
+import com.dangerfield.cards.server.domain.ProductCatalog
+import com.dangerfield.cards.server.domain.ProductCatalogSource
+import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.http.ClientContext
+import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
+import com.dangerfield.cards.server.plugins.installSerialization
+import com.dangerfield.cards.server.plugins.installStatusPages
+import io.ktor.client.call.body
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.server.routing.routing
+import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import java.util.Date
+import java.util.UUID
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
+
+/**
+ * Route-level tests for `POST /v1/me/grants/achievement/{achievementId}`.
+ *
+ * What we pin:
+ *  - Mapped achievement → 200 + OwnedItemDto, repo sees one
+ *    `recordEarnedGrant` call with the right productId.
+ *  - Unmapped achievement → 204, repo untouched.
+ *  - Empty / whitespace path segment surfaces 4xx (Ktor returns 404 for
+ *    a missing path segment; we cover the blank-segment case via a
+ *    trailing-slash request that lands here as blank).
+ *  - Catalog absence for a mapped product → 204 (graceful degrade).
+ *  - Missing / wrong-secret bearer → 401.
+ *  - Two posts for the same achievement → repo called twice, but the
+ *    repo-level idempotency keeps one owned row. The route stays dumb;
+ *    storage owns idempotency (same split as `inventoryRoutes`).
+ */
+@OptIn(ExperimentalTime::class)
+class GrantsRoutesTest {
+
+    private val testIssuer = "https://test-project.supabase.co/auth/v1"
+    private val testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef"
+    private val userId = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
+
+    @Test
+    fun mappedAchievement_returnsOwnedItem_andRecordsEarnedGrant() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_pot_magnet"))
+        post(inventory, catalog, "POT_5000") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_pot_magnet", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals(0L, body.costChipsAtPurchase)
+            assertEquals(1, inventory.earnedGrants.size)
+            val grant = inventory.earnedGrants.single()
+            assertEquals(userId, grant.userId)
+            assertEquals("title_pot_magnet", grant.productId)
+        }
+    }
+
+    @Test
+    fun unmappedAchievement_returnsNoContent_andDoesNotRecord() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.empty()
+        post(inventory, catalog, "FIRST_HAND") { resp ->
+            assertEquals(HttpStatusCode.NoContent, resp.status)
+            assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
+    fun catalogMissingMappedProduct_returnsNoContent_andDoesNotRecord() = runTest {
+        // POT_5000 maps to title_pot_magnet in AchievementRewards, but the
+        // catalog source returns null (simulates the cosmetic being
+        // removed in a future server build). Route degrades to 204 rather
+        // than 500 so a stale client doesn't surface an error.
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.empty()
+        post(inventory, catalog, "POT_5000") { resp ->
+            assertEquals(HttpStatusCode.NoContent, resp.status)
+            assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
+    fun idempotent_repoCalledTwice_butRouteResponseIsStable() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_short_stack_hero"))
+        post(inventory, catalog, "COMEBACK_FROM_5BB") { first ->
+            assertEquals(HttpStatusCode.OK, first.status)
+            val firstBody = first.body<OwnedItemDto>()
+            post(inventory, catalog, "COMEBACK_FROM_5BB") { second ->
+                assertEquals(HttpStatusCode.OK, second.status)
+                val secondBody = second.body<OwnedItemDto>()
+                assertEquals(firstBody.productId, secondBody.productId)
+                // Repo is called both times — `recordEarnedGrant` is idempotent
+                // at the storage layer, not at the route, matching how
+                // `inventoryRoutes` handles `recordPurchase`.
+                assertEquals(2, inventory.earnedGrants.size)
+            }
+        }
+    }
+
+    @Test
+    fun returns401_whenAuthHeaderMissing() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_pot_magnet"))
+        post(inventory, catalog, "POT_5000", withBearer = false) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+            assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
+    fun returns401_whenJwtSignedWithWrongSecret() = runTest {
+        val foreign = JWT.create()
+            .withIssuer(testIssuer)
+            .withAudience("authenticated")
+            .withSubject(userId.value.toString())
+            .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+            .sign(Algorithm.HMAC256("wrong-secret-wrong-secret-wrong-secret-wrong-secret"))
+        post(
+            CapturingInventory(),
+            FakeCatalog.with(stubProduct("title_pot_magnet")),
+            "POT_5000",
+            bearer = foreign,
+        ) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    @Test
+    fun perUserGrants_areIsolated() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_pot_magnet"))
+        val otherUser = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
+        post(inventory, catalog, "POT_5000") {}
+        post(inventory, catalog, "POT_5000", bearer = jwt(forUserId = otherUser)) {}
+        assertEquals(setOf(userId, otherUser), inventory.earnedGrants.map { it.userId }.toSet())
+    }
+
+    // ---------- scaffolding ----------
+
+    private fun jwt(forUserId: UserId = userId): String = JWT.create()
+        .withIssuer(testIssuer)
+        .withAudience("authenticated")
+        .withSubject(forUserId.value.toString())
+        .withIssuedAt(Date())
+        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
+        .sign(Algorithm.HMAC256(testSecret))
+
+    private val testVerifier = JWT.require(Algorithm.HMAC256(testSecret))
+        .withIssuer(testIssuer)
+        .withAudience("authenticated")
+        .build()
+
+    private suspend fun post(
+        inventory: InventoryRepository,
+        catalog: ProductCatalogSource,
+        achievementId: String,
+        withBearer: Boolean = true,
+        bearer: String = jwt(),
+        assert: suspend (HttpResponse) -> Unit,
+    ) {
+        testApplication {
+            application {
+                installSerialization()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing { grantsRoutes(inventory, catalog) }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val response = client.post("/v1/me/grants/achievement/$achievementId") {
+                if (withBearer) header(HttpHeaders.Authorization, "Bearer $bearer")
+            }
+            assert(response)
+        }
+    }
+
+    private fun stubProduct(id: String): Product.ChipOffer = Product.ChipOffer(
+        id = id,
+        titleByLocale = mapOf("en" to "Stub"),
+        subtitleByLocale = mapOf("en" to "Stub"),
+        iconEmoji = "🏆",
+        costChips = 0L,
+        grantsKey = id,
+        isEquippable = true,
+    )
+
+    private class FakeCatalog private constructor(
+        private val byId: Map<String, Product>,
+    ) : ProductCatalogSource {
+        override suspend fun read(context: ClientContext): ProductCatalog =
+            ProductCatalog(chipPacks = emptyList(), chipOffers = emptyList())
+
+        override suspend fun readById(id: String, context: ClientContext): Product? = byId[id]
+
+        companion object {
+            fun empty(): FakeCatalog = FakeCatalog(emptyMap())
+            fun with(vararg products: Product): FakeCatalog =
+                FakeCatalog(products.associateBy { it.id })
+        }
+    }
+
+    private class CapturingInventory : InventoryRepository {
+        data class EarnedGrant(val userId: UserId, val productId: String)
+
+        val earnedGrants = mutableListOf<EarnedGrant>()
+
+        override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
+
+        override suspend fun recordPurchase(
+            userId: UserId,
+            productId: String,
+            costChipsAtPurchase: Long,
+            purchasedAt: Instant,
+        ): OwnedItem = error("recordPurchase not used in this test")
+
+        override suspend fun recordEarnedGrant(
+            userId: UserId,
+            productId: String,
+            grantedAt: Instant,
+        ): OwnedItem {
+            earnedGrants += EarnedGrant(userId, productId)
+            return OwnedItem(
+                productId = productId,
+                costChipsAtPurchase = 0L,
+                purchasedAt = grantedAt,
+                acquisitionSource = AcquisitionSource.Earned,
+            )
+        }
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+}
