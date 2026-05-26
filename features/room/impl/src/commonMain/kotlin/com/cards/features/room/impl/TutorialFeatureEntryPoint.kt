@@ -36,6 +36,7 @@ class TutorialFeatureEntryPoint(
                 onIntent = viewModel::submit,
                 onAdvance = viewModel::advance,
                 onSkipBasics = viewModel::skipBasics,
+                onRestartBasics = viewModel::restartBasics,
                 onExit = { router.goBack() },
             )
         }

@@ -85,6 +85,7 @@ internal fun TutorialPokerScreen(
     onIntent: (com.dangerfield.cards.libraries.gameplay.PlayerIntent) -> Unit,
     onAdvance: () -> Unit,
     onSkipBasics: () -> Unit,
+    onRestartBasics: () -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -93,16 +94,22 @@ internal fun TutorialPokerScreen(
         return
     }
 
+    // Back-press intercepts open the tutorial leave dialog instead of
+    // exiting outright. Gives the user a chance to bail back to the
+    // basics primer if they got into the tableau and realized they
+    // needed the rules first. Lifted to this level so both step types
+    // share the same affordance.
+    var leaveDialogOpen by remember { mutableStateOf(false) }
+    val openLeaveDialog: () -> Unit = { leaveDialogOpen = true }
+
     Box(modifier = modifier.fillMaxSize()) {
-        // Narration-only intro steps have no fabricated table, render a
-        // clean centered explainer instead of overlaying on PlayPokerScreen.
         val tableau = state.step.state
         if (tableau == null) {
             NarrationStep(
                 step = state.step,
                 onAdvance = onAdvance,
                 onSkipBasics = onSkipBasics,
-                onExit = onExit,
+                onExit = openLeaveDialog,
             )
         } else {
             TableauStep(
@@ -111,14 +118,9 @@ internal fun TutorialPokerScreen(
                 stepIndex = state.stepIndex,
                 onIntent = onIntent,
                 onAdvance = onAdvance,
-                onExit = onExit,
+                onExit = openLeaveDialog,
             )
         }
-        // Floating section step counter pinned top-center across both
-        // step types. Sits inside the play-screen top bar's "empty
-        // middle" between the back chevron (left) and level pill
-        // (right); on narration steps it overlays the Screen's top bar
-        // similarly without colliding with the back button.
         StepCounterPill(
             section = state.section,
             sectionStep = state.sectionStepIndex + 1,
@@ -127,6 +129,24 @@ internal fun TutorialPokerScreen(
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
                 .padding(top = 14.dp),
+        )
+    }
+
+    if (leaveDialogOpen) {
+        TutorialLeaveDialog(
+            // "Back to basics" only makes sense when we're NOT already
+            // there. Hides the button on basics steps so the dialog
+            // doesn't offer a self-restart loop.
+            showBackToBasics = state.section != TutorialSection.Basics,
+            onBackToBasics = {
+                onRestartBasics()
+                leaveDialogOpen = false
+            },
+            onExit = {
+                leaveDialogOpen = false
+                onExit()
+            },
+            onDismiss = { leaveDialogOpen = false },
         )
     }
 }
@@ -433,6 +453,69 @@ private fun NarrationStep(
     }
 }
 
+/**
+ * Three-option leave dialog opened when the user taps back on any
+ * tutorial step. Replaces PlayPokerScreen's bots-table confirm dialog,
+ * which talks about losing XP and chips (irrelevant here).
+ *
+ * "Back to basics" is the differentiator: a player who skipped the
+ * basics and got disoriented in the tableau can land back at the
+ * primer in one tap instead of restarting the whole tutorial.
+ */
+@Composable
+private fun TutorialLeaveDialog(
+    showBackToBasics: Boolean,
+    onBackToBasics: () -> Unit,
+    onExit: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
+        onDismissRequest = onDismiss,
+        topAccessory = com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji(
+            emoji = "🎓",
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Leave the tutorial?",
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.onSurfacePrimary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = if (showBackToBasics) {
+                    "Bail out, or jump back to the basics primer if you need a refresher first."
+                } else {
+                    "Exit the tutorial? You can restart it anytime from Settings."
+                },
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.onSurfaceSecondary,
+                textAlign = TextAlign.Center,
+            )
+            if (showBackToBasics) {
+                ButtonPrimary(
+                    onClick = onBackToBasics,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Back to basics") }
+            }
+            ButtonTertiary(
+                onClick = onExit,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Exit tutorial") }
+            ButtonTertiary(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Cancel") }
+        }
+    }
+}
+
 @Composable
 private fun TutorialCompletedScreen(
     onExit: () -> Unit,
@@ -510,6 +593,7 @@ private fun TutorialPokerScreenPreview_Orient() {
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
+            onRestartBasics = {},
             onExit = {},
         )
     }
@@ -527,6 +611,7 @@ private fun TutorialPokerScreenPreview_ActionPrompt() {
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
+            onRestartBasics = {},
             onExit = {},
         )
     }
@@ -541,6 +626,7 @@ private fun TutorialPokerScreenPreview_Completed() {
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
+            onRestartBasics = {},
             onExit = {},
         )
     }
@@ -556,6 +642,7 @@ private fun TutorialPokerScreenPreview_Intro() {
             onIntent = {},
             onAdvance = {},
             onSkipBasics = {},
+            onRestartBasics = {},
             onExit = {},
         )
     }

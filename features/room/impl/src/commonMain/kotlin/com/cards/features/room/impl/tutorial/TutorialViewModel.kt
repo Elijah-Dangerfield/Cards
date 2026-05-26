@@ -88,6 +88,15 @@ class TutorialViewModel @Inject constructor(
         _state.value = stateForIndex(firstNonBasics)
     }
 
+    /** Restart from the first basics step. Triggered by the "Back to
+     *  basics" option in the leave dialog, for players who got into the
+     *  tableau and realized they actually do want the primer. */
+    fun restartBasics() {
+        val firstBasics = script.indexOfFirst { it.isBasics }
+        if (firstBasics == -1) return
+        _state.value = stateForIndex(firstBasics)
+    }
+
     private fun recordCompletion() {
         // Fire-and-forget. The grant is idempotent at the repo layer, so a
         // process-death mid-grant is safe to retry. Wrap in `Catching` so
