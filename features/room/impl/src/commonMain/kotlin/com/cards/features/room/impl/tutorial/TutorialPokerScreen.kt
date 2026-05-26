@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl.tutorial
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,17 +10,29 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.dangerfield.cards.features.room.impl.PlayPokerAction
 import com.dangerfield.cards.features.room.impl.PlayPokerScreen
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -74,17 +87,44 @@ internal fun TutorialPokerScreen(
             onBack = onExit,
         )
 
+        val placement = state.step.coach.placement
+        val alignment = when (placement) {
+            CoachMarkPlacement.Top -> Alignment.TopCenter
+            CoachMarkPlacement.Bottom -> Alignment.BottomCenter
+        }
+        val insetSides = when (placement) {
+            CoachMarkPlacement.Top -> WindowInsetsSides.Top
+            CoachMarkPlacement.Bottom -> WindowInsetsSides.Bottom
+        }
+        // Top placement clears the play screen's top bar (back / level
+        // pill). Bottom placement just hugs the safe-area inset —
+        // narration steps don't show the action bar (humanLegalActions
+        // is null), so we don't need to reserve space for it.
+        val topPadding = if (placement == CoachMarkPlacement.Top) 56.dp else 0.dp
+        val bottomPadding = if (placement == CoachMarkPlacement.Bottom) 16.dp else 0.dp
+
+        // Per-step drag offset — keyed on stepIndex so each new step
+        // starts at the placement default. Keeping drag across steps
+        // would defeat the point of per-step placement (we picked the
+        // default specifically so opponents / hole cards stay visible).
+        var dragOffset by remember(state.stepIndex) { mutableStateOf(Offset.Zero) }
+
         CoachMarkBanner(
             coach = state.step.coach,
             stepIndex = state.stepIndex,
             totalSteps = state.totalSteps,
             onAdvance = onAdvance,
+            onDrag = { dragOffset += it },
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                // Clears the play screen's top bar so the banner sits
-                // just below the back/level pill row.
-                .padding(top = 56.dp, start = 12.dp, end = 12.dp),
+                .align(alignment)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(insetSides))
+                .padding(
+                    top = topPadding,
+                    bottom = bottomPadding,
+                    start = 12.dp,
+                    end = 12.dp,
+                )
+                .offset { IntOffset(dragOffset.x.roundToInt(), dragOffset.y.roundToInt()) },
         )
     }
 }
@@ -95,6 +135,7 @@ private fun CoachMarkBanner(
     stepIndex: Int,
     totalSteps: Int,
     onAdvance: () -> Unit,
+    onDrag: (Offset) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -103,8 +144,29 @@ private fun CoachMarkBanner(
             .clip(Radii.Card.shape)
             .background(AppTheme.colors.surfacePrimary.color)
             .border(1.dp, AppTheme.colors.borderSecondary.color, Radii.Card.shape)
+            // Listen on the whole banner so the user can grab anywhere
+            // non-interactive (gaps, text, the step counter). The CTA
+            // button still receives taps because tap doesn't cross the
+            // touch-slop threshold that arms the drag detector.
+            .pointerInput(stepIndex) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount)
+                }
+            }
             .padding(Dimension.D500),
     ) {
+        // iOS-style grabber — pure visual affordance; the whole banner
+        // is the actual drag target.
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .width(36.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(AppTheme.colors.borderSecondary.color),
+        )
+        VerticalSpacerD200()
         // Step counter line — keeps the player oriented (1 / 12, etc.).
         Text(
             text = "Step ${stepIndex + 1} of $totalSteps",

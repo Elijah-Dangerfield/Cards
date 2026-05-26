@@ -31,4 +31,11 @@ internal data class CoachMark(
     /** Non-null = narration step with an inline Next/Got-it/etc. button.
      *  Null = action-prompt step; the action bar itself is the CTA. */
     val ctaLabel: String? = null,
+    /** Where the coach mark sits by default. Picked per-step so steps
+     *  that talk about opponents / pot don't cover them, and steps
+     *  pointing at hole cards / action bar don't cover those instead.
+     *  The user can still drag the mark anywhere via the handle. */
+    val placement: CoachMarkPlacement = CoachMarkPlacement.Top,
 )
+
+internal enum class CoachMarkPlacement { Top, Bottom }

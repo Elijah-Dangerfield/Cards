@@ -147,6 +147,10 @@ internal object TutorialScript {
                     title = "Welcome to the table",
                     body = "These are your opponents — Ada, Ben, and Cleo. They're bots, and no real chips are at stake. Let's play a hand.",
                     ctaLabel = "Got it",
+                    // Opponents sit at the top of the felt; pin the mark
+                    // to the bottom so the user can see who they're being
+                    // introduced to.
+                    placement = CoachMarkPlacement.Bottom,
                 ),
             ),
             // 2 — Blinds explainer
@@ -162,6 +166,9 @@ internal object TutorialScript {
                     title = "Small Blind, Big Blind",
                     body = "Every hand starts with two forced bets — SB (10) and BB (20). They build the pot before anyone acts. Look at Ada and Ben.",
                     ctaLabel = "Next",
+                    // Step explicitly says "Look at Ada and Ben" — keep
+                    // their chip contributions visible at the top.
+                    placement = CoachMarkPlacement.Bottom,
                 ),
             ),
             // 3 — Hole cards explainer
@@ -230,6 +237,9 @@ internal object TutorialScript {
                     title = "Now there's something to play for",
                     body = "Both bots called. The pot's a real pot now. Raising with strong hands is how you make money over the long run.",
                     ctaLabel = "Next hand",
+                    // Talks about the bots' reactions + the pot —
+                    // bottom-pin so the opponents and pot stay visible.
+                    placement = CoachMarkPlacement.Bottom,
                 ),
             ),
         )
@@ -426,6 +436,9 @@ internal object TutorialScript {
                     title = "Hearts everywhere",
                     body = "The turn brought another heart — you made your flush. Ada folded. Calling cheap and checking free is how you win hands without bloating the pot.",
                     ctaLabel = "Next hand",
+                    // Mentions Ada folding + the community cards which
+                    // sit mid-table. Bottom-pin keeps both visible.
+                    placement = CoachMarkPlacement.Bottom,
                 ),
             ),
         )
