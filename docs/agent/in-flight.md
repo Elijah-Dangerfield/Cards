@@ -74,3 +74,10 @@
 **Problem:** the QA menu's allowed-value chip was the last DS-first hold-out in `QaMenuScreen` — it hand-rolled `RoundedCornerShape(50)` for the pill shape instead of the existing `Radii.Round` token. Also, the screen had only two previews (default config, with + without user id), neither of which exercised the chip-selected accent state or the "current ≠ default" branch of the row footer.
 **Approach:** replaced `RoundedCornerShape(50)` with `Radii.Round.shape` and dropped the now-unused import. Added `QaMenuScreenPreview_OverridesActive` that pre-selects `maintenanceMode = "banner"` (pins the chip-selected accent) and `minSupportedVersionCode = 99` (pins the "current: 99    default: 1" row).
 **Reviewer notes:** None.
+
+## refactor(ds): route remaining pill-shape callsites through Radii.Round
+
+**Problem:** todo §A "DS components should own their visual defaults" — `RoundedCornerShape(50)` was still hand-rolled at 12 callsites across `BoardArea`, `WinOddsBadge`, `HandRankingsCheatSheet`, `ProfileScreen`, and `StatsScreen`. The QA menu sweep landed earlier this cycle removed the last one in that screen; this finishes the job everywhere else `Radii.Round` already would have fit.
+**Approach:** mechanical swap to `Radii.Round.shape` per the DS-first rule. Same visual (both expressions resolve to `RoundedCornerShape(CornerSize(percent = 50))`); the codebase now has one source of truth for the pill radius. Dropped the now-unused `RoundedCornerShape` import from the three files that no longer have any callsites left; `BoardArea` and `HandRankingsCheatSheet` keep theirs for the remaining `RoundedCornerShape(N.dp)` callsites that don't have a matching token.
+**Reviewer notes:** the `N.dp` callsites in `HandRankingsCheatSheet` (20.dp, 28.dp) and `BoardArea` (16.dp) map cleanly to `Radii.R800` / `Radii.R1000` / `Radii.R700` — left untouched to keep this sweep narrow to pills, but they're a natural next pass.
+**Deferred:** the dp-valued `RoundedCornerShape(...)` callsites — left in `docs/todo.md` § "DS components should own their visual defaults"; reviewer can pick up in a follow-up cycle.
