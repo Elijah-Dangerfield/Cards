@@ -190,6 +190,7 @@ fun App(appComponent: AppComponent) {
                             },
                             userMessageRepository = appComponent.userMessageRepository,
                             profileRepository = appComponent.profileRepository,
+                            shopBadgeStateRepository = appComponent.shopBadgeStateRepository,
                         )
                     }
                 }
@@ -234,6 +235,7 @@ private fun AppNavigation(
     router: DelegatingRouter,
     userMessageRepository: com.dangerfield.cards.libraries.cards.UserMessageRepository,
     profileRepository: ProfileRepository,
+    shopBadgeStateRepository: com.dangerfield.cards.libraries.products.ShopBadgeStateRepository,
     topBar: @Composable () -> Unit = {},
 ) {
 
@@ -244,6 +246,9 @@ private fun AppNavigation(
         .collectAsState(initial = 0)
     val profile by profileRepository.observe().collectAsState(initial = null)
     val authedProfile = profile as? Profile.Authenticated
+    val shopHasUnseenItems by shopBadgeStateRepository.observeHasUnseenItems()
+        .collectAsState(initial = false)
+    val shopMarkSeenScope = rememberCoroutineScope()
 
     Screen(
         topBar = topBar,
@@ -265,7 +270,14 @@ private fun AppNavigation(
                 AppBottomBar(
                     items = listOf(
                         BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
-                        BottomBarItem.Shop(isSelected = isShopSelected),
+                        BottomBarItem.Shop(
+                            isSelected = isShopSelected,
+                            // Dot only shows when the user is NOT already on
+                            // the Shop tab — once you're looking at the
+                            // catalog, the "you should look at the catalog"
+                            // cue is noise.
+                            showsBadgeDot = shopHasUnseenItems && !isShopSelected,
+                        ),
                         BottomBarItem.Profile(
                             isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
                             badgeAmount = unreadNotifications,
@@ -283,6 +295,18 @@ private fun AppNavigation(
                             // recreates the ShopViewModel on every visit.)
                             is BottomBarItem.Shop -> isShopSelected to ShopGraph
                             is BottomBarItem.Profile -> (currentDestination?.hasRoute<ProfileRoute>() == true) to ProfileRoute()
+                        }
+
+                        if (item is BottomBarItem.Shop) {
+                            // Tab open clears the "new items" dot — whether
+                            // this is a first-tap or a re-tap, the user is
+                            // now looking at the catalog. Fire-and-forget
+                            // via the composition scope; the write is
+                            // idempotent against the current catalog so a
+                            // double-tap is harmless.
+                            shopMarkSeenScope.launch {
+                                shopBadgeStateRepository.markCurrentItemsSeen()
+                            }
                         }
 
                         if (isAlreadySelected) {

@@ -105,6 +105,16 @@ data class AppData(
      * emitter the same way.
      */
     val mutedEmojiPlayerKeys: Set<String> = emptySet(),
+
+    /**
+     * Product ids the user has already seen on the Shop tab. Powers the
+     * "new items" dot on the bottom-nav Shop badge — if the catalog
+     * holds any id not in this set, the dot shows. Updated to the union
+     * of (current catalog ids ∪ existing seen) on every Shop tab open;
+     * empty on fresh install so a brand-new user sees the dot until they
+     * land on Shop for the first time.
+     */
+    val shopSeenProductIds: Set<String> = emptySet(),
 )
 
 /**

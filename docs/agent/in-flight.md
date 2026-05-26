@@ -17,6 +17,12 @@
 **Reviewer notes:** Built on top of the EquippedFelt move; pairs cleanly with that commit. Same primitive is the natural fit for the shop's `ProductIcon` tile and the `PurchaseConfirmSheet` body — left as a todo entry because the size + placement on those bigger surfaces want a design judgment, not a worker call.
 **Deferred:** Shop integration (grid tile + purchase sheet) — left as a `docs/todo.md` entry pointing at the new `CosmeticPreview` primitive.
 
+## feat(shop): show "new items" dot on bottom-nav Shop tab
+
+**Problem:** Bottom-nav Shop tab had no indicator that the catalog had unseen items, so users had to remember to peek. §A "New items in shop notification bubble" specced a tiny dot (no count) clearing on tab open.
+**Approach:** New `ShopBadgeStateRepository` (interface in `:libraries:products`, impl in `:libraries:products:impl`) combines `ProductsRepository.observeCatalog()` with a new `AppData.shopSeenProductIds` field; emits `true` when the catalog has any id not in the seen set. Bottom-nav exposes `BottomBarItem.Shop(showsBadgeDot = ...)` rendered as a fresh `BottomBarBadgeDot()` (no-content variant of the existing `Badge`). Numbered badges still win the slot if both are active. App.kt observes the flow and calls `markCurrentItemsSeen()` on every Shop tab tap — clears the dot whether it's a first-tap or re-tap. Empty catalog (cold start before refresh lands) suppresses the dot to avoid false-positives. Tests cover fresh install, mark-seen flow, catalog gaining a new id after mark, empty-catalog no-op, and the spans-both-buckets case.
+**Reviewer notes:** Suppressed the dot when the user is *already* on the Shop tab — once you're looking at the catalog the "look at the catalog" cue is noise. The seen-set is replaced (not unioned) on each mark so dead ids prune automatically. Markdown on AppData round-trips through `versionedJsonSerializer` — existing installs hydrate with `shopSeenProductIds = emptySet()` (default), which means anyone with the v1→v2 upgrade sees the dot on their next cold start until they tap Shop once. That's the right behavior IMO ("hey, while you were away, here's the catalog page"), but flag if it reads as a regression for legacy installs.
+
 ## feat(catalog): seed two unlock-only achievement titles
 
 **Problem:** [product-spec.md §4.2] promises legendary-achievement cosmetics but the unlock-only catalog only had `felt_default` (auto-granted, zero prestige). The "Seed an opening pool" bullet in §A asked for a handful of well-placed unlocks so the unlock-only path reads true on day one.
