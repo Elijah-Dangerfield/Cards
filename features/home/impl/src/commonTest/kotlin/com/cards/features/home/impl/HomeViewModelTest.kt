@@ -477,6 +477,8 @@ class HomeViewModelTest : CoroutineTest() {
             summary: HandResultSummary,
             context: AchievementHandContext,
         ): List<EarnedAchievement> = error("recordHand not used by HomeViewModel")
+        override suspend fun recordTutorialComplete(): EarnedAchievement? =
+            error("recordTutorialComplete not used by HomeViewModel")
         override suspend fun deleteAll() { /* not used */ }
     }
 

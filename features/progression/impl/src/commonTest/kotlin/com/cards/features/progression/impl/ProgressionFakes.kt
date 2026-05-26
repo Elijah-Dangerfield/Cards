@@ -62,6 +62,8 @@ internal class FakeAchievementRepository(
         summary: HandResultSummary,
         context: AchievementHandContext,
     ): List<EarnedAchievement> = error("recordHand not used by the progression VMs")
+    override suspend fun recordTutorialComplete(): EarnedAchievement? =
+        error("recordTutorialComplete not used by the progression VMs")
     override suspend fun deleteAll() { /* not used here */ }
 }
 
