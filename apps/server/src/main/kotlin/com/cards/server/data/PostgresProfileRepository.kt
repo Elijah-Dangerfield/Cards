@@ -1,13 +1,16 @@
 package com.dangerfield.cards.server.data
 
 import com.dangerfield.cards.server.db.Database
+import com.dangerfield.cards.server.db.InventoryTable
 import com.dangerfield.cards.server.db.ProfilesTable
 import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.AvatarGenerator
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.StarterInventory
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UsernameGenerator
@@ -17,6 +20,7 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.update
@@ -160,6 +164,7 @@ class PostgresProfileRepository(
         repeat(MAX_ATTEMPTS) {
             val name = usernameGenerator.random()
             if (tryInsert(userId, name, emoji, backgroundColor, nowJava)) {
+                seedStarterInventory(userId, nowJava)
                 return Profile(
                     userId = userId,
                     displayName = name,
@@ -171,6 +176,25 @@ class PostgresProfileRepository(
             }
         }
         error("Unable to generate a unique display name after $MAX_ATTEMPTS attempts")
+    }
+
+    /**
+     * Insert [StarterInventory.productIds] rows for the newly-created
+     * profile in the same outer transaction. `insertIgnore` so a future
+     * pre-grant path can't trip a unique-violation that aborts the whole
+     * `findOrCreate` — first-grant-wins matches how the inventory repo
+     * handles concurrent writes elsewhere.
+     */
+    private fun seedStarterInventory(userId: UserId, nowJava: java.time.Instant) {
+        StarterInventory.productIds.forEach { productId ->
+            InventoryTable.insertIgnore {
+                it[InventoryTable.userId] = userId.value
+                it[InventoryTable.productId] = productId
+                it[InventoryTable.costChipsAtPurchase] = 0L
+                it[InventoryTable.purchasedAt] = nowJava
+                it[InventoryTable.acquisitionSource] = AcquisitionSource.Earned.wire
+            }
+        }
     }
 
     private fun tryInsert(

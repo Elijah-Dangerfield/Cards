@@ -75,7 +75,6 @@ fun Application.module(config: ServerConfig) {
             component.walletRepository,
             component.userMessageRepository,
             component.roomService,
-            component.provideClock(),
         )
         grantsRoutes(
             inventory = component.inventoryRepository,

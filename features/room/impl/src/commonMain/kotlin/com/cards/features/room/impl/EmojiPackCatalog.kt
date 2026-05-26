@@ -24,6 +24,7 @@ internal object EmojiPackCatalog {
      * values match the localized "Unlocks ..." copy in `V14__emote_pack_copy.sql`.
      */
     private val PackEmojis: Map<String, List<String>> = mapOf(
+        "emoji_pack_starter" to listOf("👋", "👍", "🎉", "😀"),
         "emotes_drama" to listOf("💃", "🧂", "🎭", "🤦"),
         "emotes_cute" to listOf("🥺", "🥰", "😇", "🤗"),
         "emotes_fierce" to listOf("😤", "🔥", "💀", "😎"),

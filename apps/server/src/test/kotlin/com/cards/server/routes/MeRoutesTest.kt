@@ -98,15 +98,14 @@ class MeRoutesTest {
     }
 
     @Test
-    fun me_grantsDefaultFelt_onEveryCall() = runTest {
+    fun me_doesNotInvokeInventoryGrants() = runTest {
+        // Starter inventory now seeds inside ProfileRepository.findOrCreate
+        // (V18). /v1/me must not call back into the inventory grant pathway —
+        // it's reserved for achievement rewards. EmptyInventory.recordEarnedGrant
+        // throws so a regression that re-introduces the call fails this test.
         val repo = FakeProfileRepository(existing = fakeProfile(userId))
-        val inventory = CapturingInventory()
-        callMe(repo, bearer = validJwt(), inventory = inventory) { resp ->
+        callMe(repo, bearer = validJwt()) { resp ->
             assertEquals(HttpStatusCode.OK, resp.status)
-            assertEquals(1, inventory.earnedGrants.size)
-            val grant = inventory.earnedGrants.single()
-            assertEquals(userId, grant.userId)
-            assertEquals("felt_default", grant.productId)
         }
     }
 
@@ -448,36 +447,6 @@ class MeRoutesTest {
         }
     }
 
-    private class CapturingInventory : InventoryRepository {
-        data class EarnedGrant(val userId: UserId, val productId: String)
-
-        val earnedGrants = mutableListOf<EarnedGrant>()
-
-        override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
-        override suspend fun recordPurchase(
-            userId: UserId,
-            productId: String,
-            costChipsAtPurchase: Long,
-            purchasedAt: Instant,
-        ): OwnedItem = error("unused")
-
-        override suspend fun recordEarnedGrant(
-            userId: UserId,
-            productId: String,
-            grantedAt: Instant,
-        ): OwnedItem {
-            earnedGrants += EarnedGrant(userId, productId)
-            return OwnedItem(
-                productId = productId,
-                costChipsAtPurchase = 0L,
-                purchasedAt = grantedAt,
-                acquisitionSource = com.dangerfield.cards.server.domain.AcquisitionSource.Earned,
-            )
-        }
-
-        override suspend fun deleteAllForUser(userId: UserId) = Unit
-    }
-
     private object EmptyInventory : InventoryRepository {
         override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
         override suspend fun recordPurchase(
@@ -491,12 +460,7 @@ class MeRoutesTest {
             userId: UserId,
             productId: String,
             grantedAt: kotlin.time.Instant,
-        ): OwnedItem = OwnedItem(
-            productId = productId,
-            costChipsAtPurchase = 0L,
-            purchasedAt = grantedAt,
-            acquisitionSource = com.dangerfield.cards.server.domain.AcquisitionSource.Earned,
-        )
+        ): OwnedItem = error("/v1/me must not grant inventory — starter kit seeds via ProfileRepository.findOrCreate (V18)")
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
