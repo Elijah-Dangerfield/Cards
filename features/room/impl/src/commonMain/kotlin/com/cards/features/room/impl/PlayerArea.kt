@@ -387,9 +387,12 @@ private fun HoleCardSlot(
         if (settled) {
             // Manual flip wrapper — once the deal-in animation has
             // landed, the user can tap to flip the card face-down (and
-            // back). Same rotateY pattern as the deal-in flip; we re-
-            // use [PlayingCardBack] for the back face so the equipped
-            // card-back style (and avatar overlay) carries through.
+            // back). Same rotateY pattern as the deal-in flip but with
+            // a much larger [cameraDistance] so the perspective stays
+            // shallow — the card keeps its width through the rotation
+            // instead of pinching at 90°. Both branches render inside
+            // an identical centered Box so the rectangle the flip
+            // occupies never shifts shape between front and back.
             val flipRotation by animateFloatAsState(
                 targetValue = if (manuallyFacedown) 180f else 0f,
                 animationSpec = tween(380),
@@ -400,15 +403,14 @@ private fun HoleCardSlot(
                     .size(width = size.width, height = size.height)
                     .graphicsLayer {
                         rotationY = flipRotation
-                        cameraDistance = 12f * density
+                        cameraDistance = 48f * density
                     },
+                contentAlignment = Alignment.Center,
             ) {
                 if (flipRotation <= 90f) {
                     PlayingCard(card = card, size = size)
                 } else {
-                    Box(
-                        modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f },
-                    ) {
+                    Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
                         PlayingCardBack(size = size, avatarOverlay = avatarOverlay)
                     }
                 }
