@@ -85,6 +85,27 @@ interface ProgressionDao : ClearableDao {
         )
     }
 
+    /**
+     * Overwrite `total_xp` to an absolute value. QA/debug only — production
+     * code paths must go through `applyHandDeltas` / `addXpOnly` to keep the
+     * ledger and counters consistent.
+     */
+    @Query(
+        """
+        UPDATE progression SET
+            total_xp = :totalXp,
+            updated_at_epoch_ms = :updatedAtEpochMs
+        WHERE id = 'user'
+        """
+    )
+    suspend fun setTotalXp(totalXp: Long, updatedAtEpochMs: Long)
+
+    @Transaction
+    suspend fun ensureExistsAndSetTotalXp(totalXp: Long, updatedAtEpochMs: Long) {
+        insertIfMissing(ProgressionEntity())
+        setTotalXp(totalXp = totalXp, updatedAtEpochMs = updatedAtEpochMs)
+    }
+
     @Query("DELETE FROM progression")
     override suspend fun deleteAll()
 }

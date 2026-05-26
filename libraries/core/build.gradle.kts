@@ -2,9 +2,10 @@ plugins {
     id("cards.kotlin.multiplatform")
 }
 
-android {
-    namespace = "com.dangerfield.cards.libraries.core"
-}
+// AGP namespace is defaulted from the project path by the KMP convention
+// plugin (= `com.dangerfield.cards.libraries.core`). No `android { ... }`
+// block here on purpose: the server-only Docker build doesn't apply AGP,
+// and a top-level `android { ... }` would fail script compilation there.
 
 kotlin {
     // The Ktor server (apps:server) consumes :libraries:core transitively

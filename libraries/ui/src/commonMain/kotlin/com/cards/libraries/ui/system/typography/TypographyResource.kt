@@ -86,7 +86,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  */
 
 @Suppress("ComplexMethod")
-data class TypographyResource internal constructor(
+data class TypographyResource(
     internal val fontFamily: FontFamily,
     internal val fontWeight: FontWeight,
     internal val fontSize: TextUnit,
@@ -183,7 +183,6 @@ data class TypographyResource internal constructor(
 }
 
 interface Typography {
-    val Brand: BrandTypography
     val Display: DisplayTypography
     val Heading: HeadingTypography
     val Body: BodyTypography
@@ -254,13 +253,11 @@ interface CaptionTypography {
 fun rememberTypography(): Typography {
     val serifFontFamily = SerifFontFamily
     val sansSerifFontFamily = SansSerifFontFamily
-    val brandFontFamily = BrandFontFamily
 
-    return remember(serifFontFamily, sansSerifFontFamily, brandFontFamily) {
+    return remember(serifFontFamily, sansSerifFontFamily) {
         DefaultTypography(
             serifFontFamily = serifFontFamily,
             sansSerifFontFamily = sansSerifFontFamily,
-            brandFontFamily = brandFontFamily
         )
     }
 }
@@ -268,11 +265,8 @@ fun rememberTypography(): Typography {
 class DefaultTypography(
     serifFontFamily: FontFamily,
     sansSerifFontFamily: FontFamily,
-    brandFontFamily: FontFamily
 ) : Typography {
     override val Display: DisplayTypography = DisplayTypographyImpl(serifFontFamily)
-
-    override val Brand: BrandTypography = BrandTypographyImpl(brandFontFamily)
 
     override val Heading: HeadingTypography = HeadingTypographyImpl(sansSerifFontFamily)
 
@@ -725,98 +719,6 @@ private fun TypographySpecItem(
     }
 }
 
-@Preview(widthDp = 800, heightDp = 2400)
-@Composable
-private fun PreviewBrandTypography() {
-    PreviewContent {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.White)
-                .padding(Dimension.D800)
-        ) {
-            item {
-                Text(
-                    text = "Brand Typography",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF000000),
-                    modifier = Modifier.padding(bottom = Dimension.D500)
-                )
-                Text(
-                    text = "Lust Script font for brand identity, logos, and decorative headlines",
-                    fontSize = 14.sp,
-                    color = Color(0xFF666666),
-                    modifier = Modifier.padding(bottom = Dimension.D1000)
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 1500",
-                    typographyResource = AppTheme.typography.Brand.B1500,
-                    exampleText = "Cards"
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 1400",
-                    typographyResource = AppTheme.typography.Brand.B1400,
-                    exampleText = "Cards"
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 1300",
-                    typographyResource = AppTheme.typography.Brand.B1300,
-                    exampleText = "Cards"
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 1200",
-                    typographyResource = AppTheme.typography.Brand.B1200,
-                    exampleText = "Cards"
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 1100",
-                    typographyResource = AppTheme.typography.Brand.B1100,
-                    exampleText = "Cards"
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 1000",
-                    typographyResource = AppTheme.typography.Brand.B1000,
-                    exampleText = "Cards"
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 900",
-                    typographyResource = AppTheme.typography.Brand.B900,
-                    exampleText = "Cards"
-                )
-            }
-
-            item {
-                TypographySpecItem(
-                    name = "Brand 800",
-                    typographyResource = AppTheme.typography.Brand.B800,
-                    exampleText = "Cards"
-                )
-            }
-        }
-    }
-}
 
 @Preview(widthDp = 800, heightDp = 2400, )
 @Composable

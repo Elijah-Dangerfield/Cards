@@ -10,9 +10,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -39,7 +41,7 @@ internal fun TutorialLeaveDialog(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        topAccessory = topAccessoryEmoji(emoji = "🎓"),
+        topAccessory = topAccessoryEmoji(emoji = "🤨"),
     ) {
         Column(
             modifier = Modifier
@@ -78,10 +80,12 @@ internal fun TutorialLeaveDialog(
                     onClick = onExit,
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Exit tutorial") }
-                ButtonTertiary(
+
+                Button(
                     onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Cancel") }
+                    type = ButtonType.Ghost,
+                    content = { Text("Cancel") }
+                )
             } else {
                 // On basics steps there's nothing to "go back to",
                 // so the dialog collapses to a two-button choice:

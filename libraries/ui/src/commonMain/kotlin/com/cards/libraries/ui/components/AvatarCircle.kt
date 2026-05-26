@@ -1,10 +1,17 @@
 package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,10 +75,21 @@ fun AvatarCircle(
         // (fade + slight scale-in on new, fade out on old). Matches the
         // hero preview in edit-profile — every avatar surface routes through
         // here so the transition is consistent app-wide.
+        //
+        // Only animate AFTER the first composition. AnimatedContent's
+        // entrance transition otherwise replays every time the avatar
+        // re-mounts (e.g. switching to the profile tab), which the user
+        // reads as the avatar "twitching" on every visit.
+        var hasComposed by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { hasComposed = true }
         AnimatedContent(
             targetState = content,
             transitionSpec = {
-                (fadeIn() + scaleIn(initialScale = 0.75f)) togetherWith fadeOut()
+                if (hasComposed) {
+                    (fadeIn() + scaleIn(initialScale = 0.75f)) togetherWith fadeOut()
+                } else {
+                    EnterTransition.None togetherWith ExitTransition.None
+                }
             },
             label = "avatar-content",
         ) { current ->

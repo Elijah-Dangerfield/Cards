@@ -2,9 +2,10 @@ plugins {
     id("cards.kotlin.multiplatform")
 }
 
-android {
-    namespace = "com.dangerfield.cards.libraries.gameplay"
-}
+// AGP namespace is defaulted from the project path by the KMP convention
+// plugin (= `com.dangerfield.cards.libraries.gameplay`). No `android { ... }`
+// block here on purpose: the server-only Docker build doesn't apply AGP,
+// and a top-level `android { ... }` would fail script compilation there.
 
 kotlin {
     // Server consumption: apps:server depends on this module to run the

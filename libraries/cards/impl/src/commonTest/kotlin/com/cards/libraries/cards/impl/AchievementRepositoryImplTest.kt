@@ -416,6 +416,9 @@ class AchievementRepositoryImplTest : CoroutineTest() {
             )
         }
         override suspend fun deleteAll() {}
+        override suspend fun debugSetTotalXp(totalXp: Long) {
+            state.value = state.value.copy(totalXp = totalXp)
+        }
     }
 
     private class FakeChipsRepository : ChipsRepository {

@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -39,6 +40,7 @@ import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.border
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview

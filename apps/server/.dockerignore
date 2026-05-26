@@ -14,14 +14,25 @@
 *.iml
 .vscode/
 
-# Other apps that don't ship with the server image
+# Other apps + client-only code that doesn't ship with the server image.
+# The Dockerfile explicitly COPYs the libraries the server consumes
+# (libraries/{core,gameplay,bots}) via un-ignore patterns below — adding
+# `libraries/` as a blanket ignore here would mask those COPYs.
 apps/compose/
 apps/ios/
 features/
-libraries/
 docs/
 pages/
 scripts/
+
+# Ignore client-only libraries, but un-ignore the three the server actually
+# consumes. If apps/server picks up a new :libraries:* dep, add a matching
+# `!libraries/<name>/` line here and a COPY line in the Dockerfile. See
+# apps/server/DEPLOY.md → "Server build slimming".
+libraries/
+!libraries/core/
+!libraries/gameplay/
+!libraries/bots/
 
 # Misc
 .git/

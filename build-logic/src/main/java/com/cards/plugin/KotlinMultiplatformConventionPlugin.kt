@@ -6,6 +6,7 @@ import com.dangerfield.cards.util.configureAndroid
 import com.dangerfield.cards.util.configureKotlinMultiplatform
 import com.dangerfield.cards.util.configureKotlinInject
 import com.dangerfield.cards.util.enforceModuleBoundaries
+import com.dangerfield.cards.util.isServerOnlyBuild
 import com.dangerfield.cards.util.libs
 import com.dangerfield.cards.util.loadServerMetadata
 import com.dangerfield.cards.util.loadSupabaseMetadata
@@ -50,10 +51,13 @@ import org.gradle.kotlin.dsl.configure
  */
 class KotlinMultiplatformConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {
+        val serverOnly = isServerOnlyBuild
         with(target) {
             with(pluginManager) {
                 apply("org.jetbrains.kotlin.multiplatform")
-                apply("com.android.library")
+                // Skip AGP in server-only Docker builds — the image has no
+                // Android SDK and the server target is JVM-only anyway.
+                if (!serverOnly) apply("com.android.library")
                 apply(libs.plugins.kotlinSerialization.get().pluginId)
             }
 
@@ -63,8 +67,20 @@ class KotlinMultiplatformConventionPlugin : Plugin<Project> {
             project.optInKotlinMarkers("kotlin.time.ExperimentalTime")
             project.optInKotlinMarkers("kotlin.uuid.ExperimentalUuidApi")
 
-            extensions.configure<LibraryExtension> {
-                configureAndroid()
+            if (!serverOnly) {
+                extensions.configure<LibraryExtension> {
+                    // Default the AGP namespace from the project path
+                    // (`:libraries:core` → `com.dangerfield.cards.libraries.core`)
+                    // so the per-module script doesn't need an `android {}`
+                    // block just for namespace — which would otherwise fail
+                    // script compilation in server-only builds where AGP
+                    // isn't applied. Per-module scripts can still override
+                    // by declaring `android { namespace = "..." }`.
+                    if (namespace == null) {
+                        namespace = "com.dangerfield.cards${path.replace(":", ".")}"
+                    }
+                    configureAndroid()
+                }
             }
 
             (extensions.findByName("moduleConfig") as? ConfigurationExtension)

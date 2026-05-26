@@ -297,6 +297,42 @@ without the sweep above wired up, abandoned seats block joiners. Make
 sure the disconnect-sweep cron is scheduled before inviting real
 users.
 
+## Server build slimming (`cards.serverOnly`)
+
+The Docker image only carries what `:apps:server` needs — the server
+module itself plus the three shared KMP libraries it depends on
+(`:libraries:core`, `:libraries:gameplay`, `:libraries:bots`). The rest
+of the repo (features, client-only libraries, the Compose/iOS apps) is
+omitted from the build context, and the Android SDK / Kotlin Native
+toolchain are not installed in the image.
+
+Three pieces conspire to make this work — keep them in sync:
+
+1. **`settings.gradle.kts`** reads `-Dcards.serverOnly=true` and only
+   `include(...)`s the server + the three shared libraries. Without this,
+   Gradle 9 fails configuration with "project directory does not exist"
+   for every missing `:features:*` module.
+2. **`build-logic/.../KotlinMultiplatform.kt` + `KotlinMultiplatformConventionPlugin.kt`**
+   skip `androidTarget()`, the iOS targets, and the `com.android.library`
+   plugin when `cards.serverOnly` is set. The per-library
+   `jvm { jvmTarget = JVM_17 }` block still supplies the JVM target.
+3. **`apps/server/Dockerfile` + `apps/server/.dockerignore`** pass
+   `-Dcards.serverOnly=true`, `COPY` the three library directories, and
+   un-ignore them with `!libraries/<name>/`.
+
+**Adding a new `:libraries:*` dep to the server.** The Docker build will
+fail at link time with `Project with path ':libraries:foo' could not be
+found`. That's the deliberate flag to:
+
+1. Add `include(":libraries:foo")` to `settings.gradle.kts`'s always-on
+   section (above the `if (!serverOnly)` block).
+2. Add `COPY libraries/foo/ libraries/foo/` to the Dockerfile.
+3. Add `!libraries/foo/` to `.dockerignore`.
+
+The new lib must be a KMP module with a `jvm()` target pinned to JVM 17
+(see `libraries/core/build.gradle.kts` for the pattern and the
+rationale on why the pin is scoped to `jvm()` and not the whole module).
+
 ## Day-to-day
 
 - **Tail logs**: `fly logs -a cards-server-dev`

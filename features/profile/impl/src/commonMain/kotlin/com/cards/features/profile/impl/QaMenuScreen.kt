@@ -36,6 +36,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.dangerfield.cards.features.upgrade.UpgradeConfig
+import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.cards.xpToLevelUpFrom
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.ConfigOverride
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
@@ -60,6 +62,8 @@ fun QaMenuScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     userId: String? = null,
+    totalXp: Long = 0L,
+    onSetTotalXp: (Long) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val configMap by configStream.collectAsState(initial = initialConfig)
@@ -100,6 +104,11 @@ fun QaMenuScreen(
             )
 
             UserIdBlock(userId = userId)
+
+            ProgressionDebugBlock(
+                totalXp = totalXp,
+                onSetTotalXp = onSetTotalXp,
+            )
 
             Box(
                 modifier = Modifier
@@ -194,6 +203,125 @@ private fun UserIdBlock(userId: String?) {
             color = AppTheme.colors.onSurfaceSecondary,
         )
     }
+}
+
+/**
+ * Manual XP override block. Two inputs because both modes come up while
+ * testing — sometimes you want "drop me at level 7 exactly," sometimes you
+ * want "set XP to 12,345 to verify the comma formatting." Setting level
+ * jumps to that level's start XP; setting XP just writes the raw value.
+ *
+ * Bypasses the XP ledger by design — gameplay never calls into this path.
+ */
+@Composable
+private fun ProgressionDebugBlock(
+    totalXp: Long,
+    onSetTotalXp: (Long) -> Unit,
+) {
+    val progress = remember(totalXp) { levelProgressFor(totalXp) }
+    var xpDraft by remember(totalXp) { mutableStateOf(totalXp.toString()) }
+    var levelDraft by remember(progress.level) { mutableStateOf(progress.level.toString()) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Progression",
+            typography = AppTheme.typography.Heading.H500,
+            color = AppTheme.colors.text,
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(Radii.R700.shape)
+                .background(AppTheme.colors.surfacePrimary.color)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Current: Level ${progress.level} · $totalXp XP",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.onSurfacePrimary,
+            )
+            Text(
+                text = "Sets XP directly — bypasses the ledger. Level snaps to that level's start XP.",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
+            ProgressionInputRow(
+                label = "XP",
+                draft = xpDraft,
+                onDraftChange = { xpDraft = it },
+                onApply = {
+                    val parsed = xpDraft.toLongOrNull() ?: return@ProgressionInputRow
+                    onSetTotalXp(parsed.coerceAtLeast(0L))
+                },
+                keyboardType = KeyboardType.Number,
+            )
+            ProgressionInputRow(
+                label = "Level",
+                draft = levelDraft,
+                onDraftChange = { levelDraft = it },
+                onApply = {
+                    val parsed = levelDraft.toIntOrNull() ?: return@ProgressionInputRow
+                    onSetTotalXp(xpAtStartOfLevel(parsed))
+                },
+                keyboardType = KeyboardType.Number,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProgressionInputRow(
+    label: String,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onApply: () -> Unit,
+    keyboardType: KeyboardType,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.onSurfacePrimary,
+            modifier = Modifier.width(56.dp),
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(Radii.R400.shape)
+                .background(AppTheme.colors.surfaceSecondary.color)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            BasicTextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+                typographyToken = AppTheme.typography.Body.B500,
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .clip(Radii.R400.shape)
+                .background(AppTheme.colors.accentPrimary.color)
+                .clickable(onClick = onApply)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Text(
+                text = "Apply",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.onAccentPrimary,
+            )
+        }
+    }
+}
+
+private fun xpAtStartOfLevel(level: Int): Long {
+    val target = level.coerceAtLeast(1)
+    var sum = 0L
+    for (n in 1 until target) sum += xpToLevelUpFrom(n)
+    return sum
 }
 
 @Composable

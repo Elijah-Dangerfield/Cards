@@ -185,7 +185,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Let's play a hand",
-                    body = "Meet Ada, Ben, and Cleo. They're bots. Tap anything on this screen if you're curious; most things will tell you what they are.",
+                    body = "Meet Ada, Ben, and Cleo. They're bots. Tap anything on this screen if you're curious; most things will tell you what they are. Tapping your cards show your their card backs.",
                     ctaLabel = "Got it",
                     // Middle placement so we don't cover either the
                     // opponents row or the hole-card area while the
@@ -222,7 +222,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Pocket aces",
-                    body = "Best starting hand in poker. A raise builds the pot when you're strong, but raise too big and opponents fold rather than pay you off. Tap your cards anytime to flip them.",
+                    body = "Best starting hand in poker. A raise builds the pot when you're strong, but raise too big and opponents fold rather than pay you off.",
                     ctaLabel = "Got it",
                     // Cards are at the bottom; pin the mark up top so
                     // it doesn't cover what we're talking about.

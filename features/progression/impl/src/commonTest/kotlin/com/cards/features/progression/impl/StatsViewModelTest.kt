@@ -147,6 +147,7 @@ class StatsViewModelTest : CoroutineTest() {
         override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
             error("not used")
         override suspend fun deleteAll() { /* not used */ }
+        override suspend fun debugSetTotalXp(totalXp: Long) { /* not used */ }
     }
 
     private object NeverEmittingXpEventRepository :

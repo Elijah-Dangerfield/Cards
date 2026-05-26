@@ -76,14 +76,14 @@ fun Surface(
                 border = border,
                 colorOverride = colorOverride,
             )
+            .padding(contentPadding)
             .bounceClick(
                 enabled = enabled,
                 scaleDown = bounceScale,
                 indication = indication,
                 mutableInteractionSource = interactionSource,
                 onClick = onClick,
-            )
-            .padding(contentPadding),
+            ),
         propagateMinConstraints = true
     ) {
         ProvideContentColor(contentColor, content)

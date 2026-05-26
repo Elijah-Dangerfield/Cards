@@ -42,6 +42,9 @@ internal class FakeProgressionRepository(
     override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
         error("applyAchievementXp not used by the progression VMs")
     override suspend fun deleteAll() { /* not used here */ }
+    override suspend fun debugSetTotalXp(totalXp: Long) {
+        progression.value = progression.value.copy(totalXp = totalXp)
+    }
 }
 
 internal class FakeXpEventRepository(

@@ -21,9 +21,11 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -55,17 +57,18 @@ internal fun AchievementUnlockedDialog(
     Dialog(
         state = state,
         onDismissRequest = onDismiss,
+        topAccessory = topAccessoryEmoji("🏆")
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 28.dp),
+                .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             Text(
                 text = "Achievement unlocked",
-                typography = AppTheme.typography.Label.L400,
+                typography = AppTheme.typography.Display.D1100,
                 color = ColorResource.Amber500,
                 textAlign = TextAlign.Center,
             )
@@ -84,10 +87,10 @@ internal fun AchievementUnlockedDialog(
                 Box(modifier = Modifier.size(180.dp)) {
                     AchievementUnlockReveal(achievement = achievement)
                 }
-                VerticalSpacerD500()
+                VerticalSpacerD800()
                 Text(
                     text = achievement.name,
-                    typography = AppTheme.typography.Heading.H700,
+                    typography = AppTheme.typography.Heading.H800.Italic,
                     color = AppTheme.colors.text,
                     textAlign = TextAlign.Center,
                 )
@@ -109,6 +112,8 @@ internal fun AchievementUnlockedDialog(
             ) {
                 Text("Continue")
             }
+
+            VerticalSpacerD1000()
         }
     }
 }
