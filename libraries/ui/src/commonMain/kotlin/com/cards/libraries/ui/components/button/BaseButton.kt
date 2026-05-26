@@ -59,15 +59,22 @@ internal fun BaseButton(
         val effectiveOnClick = if (enabled) onClick else onDisabledTap
         Box(
             contentAlignment = Alignment.Center,
-            modifier = modifier.thenIf(effectiveOnClick != null) {
-                bounceClick(
-                    mutableInteractionSource = interactionSource,
-                    onClick = effectiveOnClick!!
-                )
-            }
+            // Propagate min constraints so a caller-supplied
+            // `Modifier.fillMaxWidth()` (which sets minWidth = maxWidth on the
+            // outer Box) flows down to the Surface and stretches the button.
+            // Default behavior — no width modifier — leaves minWidth at 0,
+            // so the button still wraps content inside weighted Rows.
+            propagateMinConstraints = true,
+            modifier = modifier
+                .thenIf(effectiveOnClick != null) {
+                    bounceClick(
+                        mutableInteractionSource = interactionSource,
+                        onClick = effectiveOnClick!!
+                    )
+                }
         ) {
             Surface(
-                modifier = modifier
+                modifier = Modifier
                     .semantics { role = Role.Button },
                 radius = Radii.Button,
                 // `flat` suppresses the drop shadow on filled buttons so
