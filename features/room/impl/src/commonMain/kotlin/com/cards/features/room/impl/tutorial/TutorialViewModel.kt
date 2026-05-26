@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.room.impl.tutorial
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
@@ -23,6 +24,7 @@ import me.tatarka.inject.annotations.Inject
  */
 class TutorialViewModel @Inject constructor(
     private val achievementRepository: AchievementRepository,
+    private val appCache: AppCache,
 ) : ViewModel() {
 
     private val logger = KLog.withTag("TutorialViewModel")
@@ -83,6 +85,12 @@ class TutorialViewModel @Inject constructor(
         viewModelScope.launch {
             Catching {
                 achievementRepository.recordTutorialComplete()
+                // Finishing the tutorial implicitly dismisses the Home
+                // banner — leaving a "Learn the basics" CTA in place
+                // would be weird since the user just learned them.
+                // Idempotent: appCache.update is a no-op if the flag is
+                // already true (manual dismiss happened earlier).
+                appCache.update { it.copy(tutorialBannerDismissed = true) }
             }.onFailure { logger.w(it) { "Tutorial-complete grant failed" } }
         }
     }

@@ -201,7 +201,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Small Blind, Big Blind",
-                    body = "Every hand starts with two forced bets — SB (10) and BB (20). They build the pot before anyone acts. Look at Ada and Ben.",
+                    body = "Every hand starts with two forced bets — SB and BB. They build the pot before anyone acts. At this table SB is 10 and BB is 20, but real tables use different amounts depending on the stake tier you sit down at. Look at Ada and Ben.",
                     ctaLabel = "Next",
                     // Step explicitly says "Look at Ada and Ben" — keep
                     // their chip contributions visible at the top.
