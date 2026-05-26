@@ -24,11 +24,48 @@ internal object TutorialScript {
     // constants declared later in this object; eager init would NPE.
     val steps: List<TutorialStep> by lazy {
         buildList {
+            addAll(intro())
             addAll(handOne())
             addAll(handTwo())
             addAll(handThree())
         }
     }
+
+    // ------------------------------------------------------------------
+    // Intro — three foundational narration cards. Assumes ZERO poker
+    // knowledge. Each marked `isBasics = true` so experienced players can
+    // skip the whole block in two taps. No fabricated table behind these
+    // — pure centered explainers with a hero glyph.
+    // ------------------------------------------------------------------
+    private fun intro(): List<TutorialStep> = listOf(
+        TutorialStep(
+            isBasics = true,
+            heroGlyph = "🎯",
+            coach = CoachMark(
+                title = "The goal: win the pot",
+                body = "The pot is the pile of chips in the middle of the table. Every hand, players fight to claim it. Either you make the best hand by the end — or everyone else gives up and you win it uncontested.",
+                ctaLabel = "Got it",
+            ),
+        ),
+        TutorialStep(
+            isBasics = true,
+            heroGlyph = "💰",
+            coach = CoachMark(
+                title = "How the pot grows",
+                body = "Players take turns putting chips in. You can CALL (match the current bet to stay in), RAISE (put in more, forcing others to match or quit), or CHECK (pass — only legal when no one's bet yet). Raise enough and opponents may FOLD — give up the hand and let you win it without showdown.",
+                ctaLabel = "Makes sense",
+            ),
+        ),
+        TutorialStep(
+            isBasics = true,
+            heroGlyph = "🏆",
+            coach = CoachMark(
+                title = "Best 5-card hand wins",
+                body = "If multiple players survive to the end, the strongest 5-card hand wins. Weakest → strongest: pair · two pair · three of a kind · straight · flush · full house · four of a kind · straight flush · royal flush. Tap the ? on the live table anytime to pull up the full chart.",
+                ctaLabel = "Let's play",
+            ),
+        ),
+    )
 
     // -- Constants -----------------------------------------------------
 
@@ -235,7 +272,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Now there's something to play for",
-                    body = "Both bots called. The pot's a real pot now. Raising with strong hands is how you make money over the long run.",
+                    body = "Both bots called (matched your raise of 60). The pot's a real pot now. Raising with strong hands is how you make chips over the long run.",
                     ctaLabel = "Next hand",
                     // Talks about the bots' reactions + the pot —
                     // bottom-pin so the opponents and pot stay visible.
@@ -369,7 +406,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Call when it's cheap",
-                    body = "King-Queen suited. Not a monster, but worth seeing a flop. It only costs 10 to call — tap Call.",
+                    body = "King-Queen suited. Not a monster, but worth seeing the flop (the first three shared cards everyone gets to use). It only costs 10 to match Ada's bet — tap Call.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Call },
@@ -407,7 +444,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Check for free",
-                    body = "Two hearts on the flop — you have a flush draw. Ada checked. You don't have to bet; tap Check to see the next card for free.",
+                    body = "Two hearts on the flop — if a third heart comes, you'll have a flush (5 cards of the same suit, a strong hand). Ada checked. You don't have to bet either — tap Check to see the next card for free.",
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Check },
@@ -434,7 +471,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Hearts everywhere",
-                    body = "The turn brought another heart — you made your flush. Ada folded. Calling cheap and checking free is how you win hands without bloating the pot.",
+                    body = "The turn (4th shared card) brought another heart — that's three hearts plus your two, you've made your flush. Ada folded (gave up the hand). Calling cheap and checking free is how you win without bloating the pot.",
                     ctaLabel = "Next hand",
                     // Mentions Ada folding + the community cards which
                     // sit mid-table. Bottom-pin keeps both visible.

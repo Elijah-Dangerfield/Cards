@@ -27,6 +27,7 @@ import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.MAX_POT_BB_RATIO
 import com.dangerfield.cards.libraries.cards.MAX_POT_SEEN
 import com.dangerfield.cards.libraries.cards.NO_BUST_STREAK
+import com.dangerfield.cards.libraries.cards.TUTORIAL_COMPLETE
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.TRIPLED_UP
 import com.dangerfield.cards.libraries.cards.WIN_BY_FOLD
@@ -207,6 +208,35 @@ class AchievementRepositoryImpl(
         }
 
         return newlyEarned
+    }
+
+    override suspend fun recordTutorialComplete(): EarnedAchievement? {
+        // Idempotent. The user can replay the tutorial from Settings; the
+        // grant only happens the first time. We check earned BEFORE
+        // bumping the counter so a replay doesn't quietly mark the
+        // sticky flag a second time either.
+        val id = AchievementId.TUTORIAL_COMPLETE
+        val alreadyEarned = achievementDao.getEarned()
+            .any { it.achievementId == id.name }
+        if (alreadyEarned) return null
+
+        achievementDao.setCounter(
+            AchievementCounterEntity(key = TUTORIAL_COMPLETE, value = 1),
+        )
+        val now = clock.now().toEpochMilliseconds()
+        achievementDao.insertEarned(
+            AchievementEarnedEntity(achievementId = id.name, earnedAtEpochMs = now),
+        )
+        val achievement = AllAchievementsById[id]
+            ?: return null // registry drift — log + bail rather than NPE
+        if (achievement.xpReward > 0) {
+            progressionRepository.applyAchievementXp(
+                delta = achievement.xpReward,
+                description = achievement.name,
+            )
+        }
+        logger.i { "Achievement earned: ${id.name} (${achievement.name})" }
+        return EarnedAchievement(achievement = achievement, earnedAtEpochMs = now)
     }
 
     override suspend fun deleteAll() {

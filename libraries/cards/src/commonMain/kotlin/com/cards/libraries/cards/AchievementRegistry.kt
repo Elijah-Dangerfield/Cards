@@ -431,6 +431,17 @@ val AllAchievements: List<Achievement> = listOf(
         xpReward = AchievementRarity.EPIC.defaultXpReward,
         chipReward = 1_000L,
     ),
+
+    // Onboarding
+    Achievement(
+        id = AchievementId.TUTORIAL_COMPLETE,
+        name = "Tutorial done",
+        description = "Finish the tutorial.",
+        icon = "🎓",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = TUTORIAL_COMPLETE, target = 1),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+    ),
 )
 
 val AllAchievementsById: Map<AchievementId, Achievement> = AllAchievements.associateBy { it.id }
@@ -480,6 +491,10 @@ const val MAX_POT_BB_RATIO: String = "max_pot_bb_ratio"
 
 /** Current player level (mirrored from progression for level-threshold achievements). */
 const val CURRENT_LEVEL: String = "current_level"
+
+/** Set to 1 the first time the user finishes the scripted poker tutorial.
+ *  Stays at 1 forever afterwards — sticky completion flag. */
+const val TUTORIAL_COMPLETE: String = "tutorial_complete"
 
 /** Key for "hands won against bot with [name]". */
 fun winsVsBotKey(name: String): String = "wins_vs_bot_$name"

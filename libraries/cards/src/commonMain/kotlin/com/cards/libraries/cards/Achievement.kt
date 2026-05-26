@@ -95,6 +95,9 @@ enum class AchievementId {
     REACH_LEVEL_5,
     REACH_LEVEL_10,
     REACH_LEVEL_25,
+
+    // Onboarding
+    TUTORIAL_COMPLETE,
 }
 
 enum class AchievementRarity {

@@ -37,8 +37,10 @@ import com.dangerfield.cards.features.room.impl.PlayPokerAction
 import com.dangerfield.cards.features.room.impl.PlayPokerScreen
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -46,6 +48,7 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD500
+import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -67,6 +70,7 @@ internal fun TutorialPokerScreen(
     state: TutorialState,
     onIntent: (com.dangerfield.cards.libraries.gameplay.PlayerIntent) -> Unit,
     onAdvance: () -> Unit,
+    onSkipBasics: () -> Unit,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -75,9 +79,25 @@ internal fun TutorialPokerScreen(
         return
     }
 
+    // Narration-only intro steps have no fabricated table — render a
+    // clean centered explainer instead of overlaying on PlayPokerScreen.
+    val tableau = state.step.state
+    if (tableau == null) {
+        NarrationStep(
+            step = state.step,
+            stepIndex = state.stepIndex,
+            totalSteps = state.totalSteps,
+            onAdvance = onAdvance,
+            onSkipBasics = onSkipBasics,
+            onExit = onExit,
+            modifier = modifier,
+        )
+        return
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         PlayPokerScreen(
-            state = state.step.state,
+            state = tableau,
             onAction = { action ->
                 if (action is PlayPokerAction.Submit) onIntent(action.intent)
                 // All other actions (LeaveTable, RequestNextHand,
@@ -204,6 +224,88 @@ private fun CoachMarkBanner(
     }
 }
 
+/**
+ * Centered explainer card used for the foundational poker-rules intro
+ * steps (the ones marked `isBasics = true`). No fabricated table —
+ * just hero glyph, title, body, primary CTA, and a Tertiary "Skip
+ * basics" button so experienced players can jump straight to Hand 1.
+ */
+@Composable
+private fun NarrationStep(
+    step: TutorialStep,
+    stepIndex: Int,
+    totalSteps: Int,
+    onAdvance: () -> Unit,
+    onSkipBasics: () -> Unit,
+    onExit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Screen(
+        modifier = modifier,
+        topBar = { TopBar(onNavigateBack = onExit) },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            if (!step.heroGlyph.isNullOrBlank()) {
+                Text(
+                    text = step.heroGlyph,
+                    typography = AppTheme.typography.Display.D1400,
+                    color = AppTheme.colors.text,
+                )
+                VerticalSpacerD800()
+            }
+            Text(
+                text = "Step ${stepIndex + 1} of $totalSteps",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+            )
+            VerticalSpacerD200()
+            if (!step.coach.title.isNullOrBlank()) {
+                Text(
+                    text = step.coach.title,
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.text,
+                    textAlign = TextAlign.Center,
+                )
+                VerticalSpacerD500()
+            }
+            Text(
+                text = step.coach.body,
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD800()
+            ButtonPrimary(
+                onClick = onAdvance,
+                size = ButtonSize.Medium,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(step.coach.ctaLabel ?: "Next")
+            }
+            // Skip-basics escape hatch — only shown on the intro
+            // narration block. Once we're past the basics there's
+            // nothing to skip; the button vanishes.
+            if (step.isBasics) {
+                VerticalSpacerD400()
+                ButtonTertiary(
+                    onClick = onSkipBasics,
+                    size = ButtonSize.Small,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Skip basics — I know how to play")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TutorialCompletedScreen(
     onExit: () -> Unit,
@@ -263,6 +365,7 @@ private fun TutorialPokerScreenPreview_Orient() {
             ),
             onIntent = {},
             onAdvance = {},
+            onSkipBasics = {},
             onExit = {},
         )
     }
@@ -284,6 +387,7 @@ private fun TutorialPokerScreenPreview_ActionPrompt() {
             ),
             onIntent = {},
             onAdvance = {},
+            onSkipBasics = {},
             onExit = {},
         )
     }
@@ -303,6 +407,28 @@ private fun TutorialPokerScreenPreview_Completed() {
             ),
             onIntent = {},
             onAdvance = {},
+            onSkipBasics = {},
+            onExit = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun TutorialPokerScreenPreview_Intro() {
+    PreviewContent {
+        val script = TutorialScript.steps
+        val introIndex = script.indexOfFirst { it.isBasics }.coerceAtLeast(0)
+        TutorialPokerScreen(
+            state = TutorialState(
+                step = script[introIndex],
+                stepIndex = introIndex,
+                totalSteps = script.size,
+                completed = false,
+            ),
+            onIntent = {},
+            onAdvance = {},
+            onSkipBasics = {},
             onExit = {},
         )
     }

@@ -4,25 +4,42 @@ import com.dangerfield.cards.features.room.impl.PlayPokerState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 
 /**
- * Step model for the scripted tutorial. Each step renders the **live**
- * `PlayPokerScreen` with a fabricated [PlayPokerState], overlaying a
- * floating [CoachMark] banner. Advancement is gated either by:
- *  - the user submitting a matching [PlayerIntent] (action-prompt steps);
- *    see [advanceOn]
- *  - the user tapping the CTA on the coach-mark itself (narration steps);
- *    indicated by a non-null [CoachMark.ctaLabel]
+ * Step model for the scripted tutorial. Two shapes:
  *
- * The screen reuses the real table chrome — opponents, board, hole cards,
- * action bar — so the tutorial visually matches the live experience.
- * Action-button restriction falls out naturally from setting only the
- * desired flags on [PlayPokerState.table.humanLegalActions].
+ * - **Tableau step** (`state != null`) — renders the **live**
+ *   `PlayPokerScreen` with a fabricated [PlayPokerState], overlaying a
+ *   floating [CoachMark] banner. Advancement is gated either by:
+ *    - the user submitting a matching [PlayerIntent] (action-prompt
+ *      steps); see [advanceOn]
+ *    - the user tapping the CTA on the coach-mark itself (narration
+ *      steps); indicated by a non-null [CoachMark.ctaLabel]
+ *
+ * - **Narration step** (`state == null`) — renders a clean centered
+ *   explainer card with an optional [heroGlyph]. Used for the
+ *   foundational poker-rules intro before Hand 1, where there's no
+ *   table to point at.
+ *
+ * The screen reuses the real table chrome — opponents, board, hole
+ * cards, action bar — so the tutorial visually matches the live
+ * experience. Action-button restriction falls out naturally from
+ * setting only the desired flags on [PlayPokerState.table.humanLegalActions].
  */
 internal data class TutorialStep(
-    val state: PlayPokerState,
     val coach: CoachMark,
+    /** Null for narration-only intro steps (rendered as centered
+     *  explainer cards). Non-null for tableau steps that fabricate a
+     *  real-looking table behind the coach mark. */
+    val state: PlayPokerState? = null,
     /** Predicate that returns true if the submitted intent should advance
      *  the script. Null = the step advances only via the coach-mark CTA. */
     val advanceOn: ((PlayerIntent) -> Boolean)? = null,
+    /** True for the foundational poker-rules narration before Hand 1.
+     *  Players who already know how to play can tap "Skip basics" to
+     *  jump straight to the first hand. */
+    val isBasics: Boolean = false,
+    /** Optional hero emoji for narration steps — gives each intro card
+     *  a distinct identity. Ignored for tableau steps. */
+    val heroGlyph: String? = null,
 )
 
 internal data class CoachMark(
@@ -34,7 +51,8 @@ internal data class CoachMark(
     /** Where the coach mark sits by default. Picked per-step so steps
      *  that talk about opponents / pot don't cover them, and steps
      *  pointing at hole cards / action bar don't cover those instead.
-     *  The user can still drag the mark anywhere via the handle. */
+     *  The user can still drag the mark anywhere via the handle.
+     *  Ignored for narration-only steps (which center their content). */
     val placement: CoachMarkPlacement = CoachMarkPlacement.Top,
 )
 
