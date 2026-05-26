@@ -204,7 +204,7 @@ internal object TutorialScript {
                 ),
                 coach = CoachMark(
                     title = "Blinds are in",
-                    body = "Ada posted the small blind, Ben the big. The pot already has chips in it before anyone has had a real choice.",
+                    body = "Ada has the small blind (10), Ben the big blind (20). Two forced bets that start every hand and seed the pot. They rotate left each hand so everyone takes turns posting.",
                     ctaLabel = "Next",
                     // Pointing at Ada and Ben's chip contributions
                     // at the top of the felt.
