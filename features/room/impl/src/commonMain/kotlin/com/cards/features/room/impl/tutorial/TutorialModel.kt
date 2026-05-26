@@ -15,9 +15,8 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
  *      steps); indicated by a non-null [CoachMark.ctaLabel]
  *
  * - **Narration step** (`state == null`), renders a clean centered
- *   explainer card with an optional [heroGlyph]. Used for the
- *   foundational poker-rules intro before Hand 1, where there's no
- *   table to point at.
+ *   explainer card with a hero illustration up top, a serif italic
+ *   headline + body anchored to the bottom, and a primary CTA.
  *
  * The screen reuses the real table chrome, opponents, board, hole
  * cards, action bar, so the tutorial visually matches the live
@@ -31,7 +30,7 @@ internal data class TutorialStep(
      *  instead of "Step 2 of 13", the global number hides the fact
      *  that the basics are a self-contained block you can finish).
      *  Defaults to [TutorialSection.AtTheTable] because the tableau
-     *  steps outnumber the basics steps 10:3. */
+     *  steps outnumber the basics steps. */
     val section: TutorialSection = TutorialSection.AtTheTable,
     /** Null for narration-only intro steps (rendered as centered
      *  explainer cards). Non-null for tableau steps that fabricate a
@@ -40,9 +39,10 @@ internal data class TutorialStep(
     /** Predicate that returns true if the submitted intent should advance
      *  the script. Null = the step advances only via the coach-mark CTA. */
     val advanceOn: ((PlayerIntent) -> Boolean)? = null,
-    /** Optional hero emoji for narration steps, gives each intro card
-     *  a distinct identity. Ignored for tableau steps. */
-    val heroGlyph: String? = null,
+    /** Hero illustration for narration steps. Sealed-typed so each
+     *  basics card can render a bespoke visual instead of a generic
+     *  emoji glyph. Ignored for tableau steps. */
+    val hero: NarrationHero? = null,
 ) {
     /** True for the foundational basics block. Convenience for the
      *  "Skip basics" button visibility check. */
@@ -52,23 +52,51 @@ internal data class TutorialStep(
 /**
  * The two acts of the tutorial.
  *
- * - [Basics], pure narration, zero-knowledge poker primer. Three cards
- *   covering the goal, betting verbs, and hand ranks. Skippable.
- * - [AtTheTable], three scripted hands at a fabricated table. Teaches
- *   when to raise, call/check, and fold by walking the player through
- *   a worked example of each.
+ * - [Basics], pure narration, zero-knowledge poker primer. Skippable.
+ * - [AtTheTable], scripted hands at a fabricated table. Walks the
+ *   player through how the app's chrome works, assuming basic poker
+ *   vocabulary.
  */
 internal enum class TutorialSection(val displayName: String) {
     Basics(displayName = "Basics"),
     AtTheTable(displayName = "At the table"),
 }
 
+/**
+ * Hero illustration shown at the top of a narration step. Each variant
+ * has a short all-caps category label that floats above its custom
+ * visual, so the user gets a glance-readable cue ("THE POT", "HANDS",
+ * "ACTIONS") before they read the headline below.
+ */
+internal sealed interface NarrationHero {
+    /** Short all-caps label rendered above the hero visual. */
+    val category: String
+
+    /** "The pot" card visual: stacked chip-style discs. */
+    data object Pot : NarrationHero {
+        override val category: String = "The pot"
+    }
+
+    /** "Hand ranks" card visual: three example mini-cards from weakest
+     *  to strongest. */
+    data object HandRanks : NarrationHero {
+        override val category: String = "Hands"
+    }
+
+    /** "Three actions" card visual: Fold / Call / Raise as a small
+     *  legend. */
+    data object Actions : NarrationHero {
+        override val category: String = "Your turn"
+    }
+}
+
 internal data class CoachMark(
     val title: String?,
     val body: String,
-    /** Optional bullets rendered below the body. Left-aligned regardless
-     *  of where the surrounding text aligns, centered bullets read
-     *  awkwardly. Empty list = no bullets, just body. */
+    /** Optional bullets rendered below the body in the floating coach
+     *  mark. The redesigned basics narration uses [NarrationHero]
+     *  illustrations instead of bullets; bullets remain available for
+     *  tableau coach marks if a future step wants them. */
     val bullets: List<String> = emptyList(),
     /** Non-null = narration step with an inline Next/Got-it/etc. button.
      *  Null = action-prompt step; the action bar itself is the CTA. */
@@ -87,10 +115,8 @@ internal data class CoachMark(
  * - [Top], clears the play-screen top bar; good for steps that point
  *   at the action bar or hole cards (both at the bottom of the screen).
  * - [Middle], sits over the dead zone where the community cards live.
- *   The default, most steps don't need to highlight a specific edge
- *   of the screen.
+ *   The default; most steps don't need to highlight a specific edge.
  * - [Bottom], hugs the bottom safe-area inset; use for steps that
- *   explicitly point at opponents (Ada/Ben/Cleo sit at the top of
- *   the felt) or the pot reaction.
+ *   point at opponents (top of the felt) or the pot reaction.
  */
 internal enum class CoachMarkPlacement { Top, Middle, Bottom }
