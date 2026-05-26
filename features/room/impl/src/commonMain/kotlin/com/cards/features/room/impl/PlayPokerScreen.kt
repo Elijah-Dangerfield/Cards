@@ -29,6 +29,7 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -169,7 +170,7 @@ fun PlayPokerScreen(
                 } else {
                     ActiveTable(
                         table = active,
-                        humanWinPercent = state.humanWinPercent,
+                        humanWinOdds = state.humanWinOdds,
                         humanTitle = state.equippedTitle,
                         silentSwipeFold = state.swipeFoldGestureAck,
                         onIntent = { onAction(PlayPokerAction.Submit(it)) },
@@ -457,7 +458,7 @@ private fun LoadingTable() {
 @Composable
 private fun ActiveTable(
     table: TableUiState.Active,
-    humanWinPercent: Int?,
+    humanWinOdds: EquityBreakdown?,
     humanTitle: String?,
     silentSwipeFold: Boolean = false,
     onIntent: (PlayerIntent) -> Unit,
@@ -508,23 +509,10 @@ private fun ActiveTable(
         // and the player row slides DOWN to occupy the freed space —
         // instead of sitting in place above an empty reserved slot.
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Live-equity badge — visible only when the win-odds tool is
-            // owned + equipped. Sits centered just above the player area
-            // so the player can read it at a glance while staring at
-            // their own hole cards. No animations: the value updates
-            // when the inputs (hole/community/opponents) change, which
-            // is rare enough that a tick feels stable.
-            humanWinPercent?.let { percent ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    WinOddsBadge(winPercent = percent)
-                }
-            }
             PlayerArea(
                 table = table,
                 humanTitle = humanTitle,
+                humanWinOdds = humanWinOdds,
                 silentSwipeFold = silentSwipeFold,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,

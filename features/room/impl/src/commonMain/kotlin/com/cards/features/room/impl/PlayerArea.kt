@@ -14,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +35,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +55,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -64,6 +67,10 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
+import com.dangerfield.cards.libraries.ui.components.icon.Filled
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
@@ -87,6 +94,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun PlayerArea(
     table: TableUiState.Active,
     humanTitle: String? = null,
+    humanWinOdds: EquityBreakdown? = null,
     silentSwipeFold: Boolean = false,
     onBlindClick: () -> Unit = {},
     onBetPillClick: (seatName: String, amount: Long) -> Unit = { _, _ -> },
@@ -274,11 +282,12 @@ internal fun PlayerArea(
                 HoleCardSlot(card = human.holeCards.getOrNull(1), dealDelayMs = 150, size = PlayingCardSize.Hole)
             }
         }
-        PlayerInfoTile(
+        FlippablePlayerInfoTile(
             seat = human,
             handLabel = table.humanHandLabel,
             isWinner = isWinner,
             title = humanTitle,
+            winOdds = humanWinOdds,
             onBlindClick = onBlindClick,
             onBetPillClick = onBetPillClick,
             onLastActionClick = onLastActionClick,
@@ -507,6 +516,225 @@ private fun PlayerInfoTile(
                 )
             }
         }
+    }
+}
+
+/**
+ * Wraps [PlayerInfoTile] in a horizontal 3D flip. The back face shows the
+ * human's live Win % / Lose % when the win-odds tool is owned + a value
+ * has resolved; otherwise the tile stays a static front face with no
+ * flip affordance, no gesture, no animation overhead.
+ *
+ * Gestures (only when [winOdds] != null):
+ *  - Tap on the small Refresh glyph (top-right corner).
+ *  - Horizontal drag past ~40dp.
+ * Nested clickables inside the front face (hand label, stack, blind
+ * marker, pill) still receive their own clicks — only "dead space" taps
+ * fall through to the wrapper's tap-to-flip below.
+ */
+@Composable
+private fun FlippablePlayerInfoTile(
+    seat: SeatView,
+    handLabel: String?,
+    isWinner: Boolean,
+    title: String?,
+    winOdds: EquityBreakdown?,
+    onBlindClick: () -> Unit,
+    onBetPillClick: (seatName: String, amount: Long) -> Unit,
+    onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
+    onStackClick: () -> Unit,
+    onHandLabelClick: (label: String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val canFlip = winOdds != null
+    var flipped by rememberSaveable { mutableStateOf(false) }
+    // Force back to front when the tool flips off mid-session — otherwise
+    // re-enabling later would land on a blank back face.
+    LaunchedEffect(canFlip) {
+        if (!canFlip) flipped = false
+    }
+    val rotation by animateFloatAsState(
+        targetValue = if (flipped) 180f else 0f,
+        animationSpec = tween(durationMillis = 520),
+        label = "info-tile-flip",
+    )
+    val swipeCommitPx = with(LocalDensity.current) { 40.dp.toPx() }
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                rotationY = rotation
+                cameraDistance = 14f * density
+            }
+            .pointerInput(canFlip, swipeCommitPx) {
+                if (!canFlip) return@pointerInput
+                var dragTotal = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { dragTotal = 0f },
+                    onDragEnd = {
+                        if (abs(dragTotal) >= swipeCommitPx) flipped = !flipped
+                    },
+                    onHorizontalDrag = { _, dx -> dragTotal += dx },
+                )
+            },
+    ) {
+        if (rotation <= 90f) {
+            PlayerInfoTile(
+                seat = seat,
+                handLabel = handLabel,
+                isWinner = isWinner,
+                title = title,
+                onBlindClick = onBlindClick,
+                onBetPillClick = onBetPillClick,
+                onLastActionClick = onLastActionClick,
+                onStackClick = onStackClick,
+                onHandLabelClick = onHandLabelClick,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (canFlip) {
+                FlipAffordance(
+                    onClick = { flipped = true },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-2).dp, y = 2.dp),
+                )
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
+                PlayerInfoTileBack(
+                    winOdds = winOdds,
+                    onTapClose = { flipped = false },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Back face of the flippable [PlayerInfoTile] — shows Win % and Lose %
+ * side-by-side. Tie % is collapsed into the Win/Lose split unless it's
+ * non-trivial (≥2%), in which case it surfaces as a small footer.
+ */
+@Composable
+private fun PlayerInfoTileBack(
+    winOdds: EquityBreakdown?,
+    onTapClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(Radii.R700.shape)
+            .background(AppTheme.colors.surfacePrimary.color)
+            .border(
+                width = 1.dp,
+                color = AppTheme.colors.border.color,
+                shape = Radii.R700.shape,
+            )
+            .clickable(onClick = onTapClose)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = "Odds",
+            typography = AppTheme.typography.Body.B400.Bold,
+            color = AppTheme.colors.textSecondary,
+            maxLines = 1,
+        )
+        VerticalSpacerD100()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OddsDial(
+                label = "Win",
+                percent = winOdds?.winPct,
+                tone = OddsDialTone.Win,
+            )
+            OddsDial(
+                label = "Lose",
+                percent = winOdds?.losePct,
+                tone = OddsDialTone.Lose,
+            )
+        }
+        if (winOdds != null && winOdds.tiePct >= 2) {
+            VerticalSpacerD100()
+            Text(
+                text = "Tie ${winOdds.tiePct}%",
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+private enum class OddsDialTone { Win, Lose }
+
+@Composable
+private fun OddsDial(
+    label: String,
+    percent: Int?,
+    tone: OddsDialTone,
+) {
+    val accent = when (tone) {
+        OddsDialTone.Win -> AppTheme.colors.status.okay
+        OddsDialTone.Lose -> AppTheme.colors.danger
+    }
+    val displayPct = percent ?: 0
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(AppTheme.colors.surfaceSecondary.color)
+                .border(
+                    width = 2.dp,
+                    color = accent.color,
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = if (percent == null) "—" else "$displayPct%",
+                typography = AppTheme.typography.Body.B500.Bold,
+                color = accent,
+                maxLines = 1,
+            )
+        }
+        VerticalSpacerD100()
+        Text(
+            text = label,
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * Small Refresh glyph anchored to the top-right of the tile to advertise
+ * the flip. Only rendered when the win-odds tool is owned — otherwise
+ * there's nothing to flip TO and the affordance would mislead.
+ */
+@Composable
+private fun FlipAffordance(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(20.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon = Icons.Refresh.Filled("Flip to see win odds"),
+            size = IconSize.Smallest,
+            color = AppTheme.colors.textSecondary,
+        )
     }
 }
 
