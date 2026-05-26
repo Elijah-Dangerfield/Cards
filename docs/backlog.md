@@ -375,3 +375,21 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 - Noise: this surface dies the moment it feels like a Twitter timeline. Aggressive de-duping + thresholds + a hard cap on shelf size matter more than picking the right event kinds.
 
 **Status:** Backlog. Strictly downstream of the friends/social-graph system; pull once the friend graph is real.
+
+---
+
+## ProfileRepository → InventoryRepository import
+
+**Idea:** When the V18 starter-inventory work lands (see `docs/todo.md` → Catalog gating), `ProfileRepository.findOrCreate` will need to write the default inventory rows inside its profile-insert transaction — either by holding an `InventoryRepository` reference or by hand-writing the inventory SQL. A layer that was previously "just profiles" then reaches into products + inventory. Defensible in the moment ("give a new user their starter kit" is a profile-creation concern), but worth revisiting once the starter kit grows or `ProfileRepository`'s responsibilities feel too broad.
+
+**Sketch directions when revisiting:**
+- **Postgres trigger.** `AFTER INSERT ON profiles` fires a stored procedure that writes the starter inventory rows. App layer stays clean; schema enforces atomicity. Cost: defaults live in SQL; harder to test; trigger logic harder to evolve as the starter kit grows.
+- **Starter-kit seeder service.** A separate `StarterInventorySeeder` class invoked from the route after `findOrCreate` (using a `wasCreated` flag, or an "is empty" check). `ProfileRepository` goes back to single-concern; the seeder owns the cross-domain knowledge.
+- **Status quo from V18:** `ProfileRepository` imports `InventoryRepository` directly. Greppable, testable in Kotlin, minimal moving parts. Sufficient until the starter kit grows past a handful of items.
+
+**Tradeoffs:**
+- Triggers move correctness into the schema, where it can't be bypassed by a buggy code path. Price: schema changes are slower, and trigger debugging is harder than reading a Kotlin transaction block.
+- A seeder service is the most "clean architecture" answer but adds a layer when the V1 starter kit is three rows. Premature.
+- Status quo is the right V1 trade. The cleanup item exists so we don't forget the layering smell.
+
+**Status:** Backlog. Pick up when the starter kit grows past a handful of items, when a second consumer of "create user's default X" lands (e.g. default chip wallet), or when `ProfileRepository` starts importing a third cross-domain repo.

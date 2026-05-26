@@ -13,13 +13,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.bounceClick
 import com.dangerfield.cards.libraries.ui.components.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.elevation
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.HorizontalSpacerD200
@@ -45,8 +48,8 @@ internal fun TutorialBanner(
             .fillMaxWidth()
             .clip(Radii.Card.shape)
             .background(AppTheme.colors.surfacePrimary.color)
-            .border(1.dp, AppTheme.colors.borderSecondary.color, Radii.Card.shape)
-            .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
+            .bounceClick(onClick = onStart)
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconTile()
@@ -54,17 +57,17 @@ internal fun TutorialBanner(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "New here? Learn the basics",
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Body.B700.SemiBold,
                 color = AppTheme.colors.text,
             )
             VerticalSpacerD100()
             Text(
                 text = "2-minute tutorial · hands, betting, suits",
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
         }
-        HorizontalSpacerD200()
+        HorizontalSpacerD500()
         ButtonSecondary(
             onClick = onStart,
             size = ButtonSize.Small,

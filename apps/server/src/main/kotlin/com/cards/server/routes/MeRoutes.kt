@@ -26,6 +26,8 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import org.slf4j.LoggerFactory
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * `GET /v1/me`              — returns the currently-authenticated user's profile,
@@ -59,6 +61,7 @@ import org.slf4j.LoggerFactory
  * recoverable by a future sweep; an orphan auth.users with a live JWT is
  * a security problem.
  */
+@OptIn(ExperimentalTime::class)
 fun Route.meRoutes(
     repository: ProfileRepository,
     adminClient: SupabaseAdminClient,
@@ -66,11 +69,17 @@ fun Route.meRoutes(
     wallet: WalletRepository,
     messages: UserMessageRepository,
     rooms: RoomService,
+    clock: Clock = Clock.System,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val profile = repository.findOrCreate(userId)
+            inventory.recordEarnedGrant(
+                userId = userId,
+                productId = DEFAULT_FELT_PRODUCT_ID,
+                grantedAt = clock.now(),
+            )
             call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
         }
 
@@ -209,6 +218,14 @@ fun Route.meRoutes(
 }
 
 private val NAME_LENGTH = 1..32
+
+/**
+ * Catalog product id for the auto-granted "default" felt. Lives here
+ * rather than in a shared constants file because /v1/me is the only
+ * place the grant happens — keeping the id colocated with its single
+ * caller. Mirror the V16 migration row when extending.
+ */
+private const val DEFAULT_FELT_PRODUCT_ID = "felt_default"
 
 private fun problem(code: String, message: String): Map<String, Map<String, String>> =
     mapOf("error" to mapOf("code" to code, "message" to message))

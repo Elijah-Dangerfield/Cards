@@ -1,14 +1,11 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,13 +13,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.checkbox.Checkbox
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -35,7 +33,7 @@ internal fun SwipeFoldConfirmDialog(
     var dontShowAgain by remember { mutableStateOf(true) }
     Dialog(
         onDismissRequest = onCancel,
-        emoji = dialogEmoji(emoji = "🃏"),
+        topAccessory = topAccessoryEmoji(emoji = "🃏"),
     ) {
         Column(
             modifier = Modifier
@@ -79,45 +77,16 @@ internal fun SwipeFoldConfirmDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ConfirmPill(
-                    label = "Cancel",
-                    modifier = Modifier.weight(1f),
-                    primary = false,
+                ButtonTertiary(
                     onClick = onCancel,
-                )
-                ConfirmPill(
-                    label = "Fold",
                     modifier = Modifier.weight(1f),
-                    primary = true,
+                ) { Text(text = "Cancel") }
+                ButtonPrimary(
                     onClick = { onConfirmFold(dontShowAgain) },
-                )
+                    modifier = Modifier.weight(1f),
+                ) { Text(text = "Fold") }
             }
         }
-    }
-}
-
-@Composable
-private fun ConfirmPill(
-    label: String,
-    primary: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val bg = if (primary) AppTheme.colors.accentPrimary else AppTheme.colors.surfaceSecondary
-    val fg = if (primary) AppTheme.colors.onAccentPrimary else AppTheme.colors.onSurfacePrimary
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(32.dp))
-            .background(bg.color)
-            .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            typography = AppTheme.typography.Heading.H600,
-            color = fg,
-        )
     }
 }
 

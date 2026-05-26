@@ -1,28 +1,23 @@
 package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementRarity
@@ -35,16 +30,20 @@ import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.describe
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.dialogChipBubble
-import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryChipBubble
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
+import com.dangerfield.cards.system.clip
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -79,7 +78,7 @@ internal fun ShowdownDialog(
 
     Dialog(
         onDismissRequest = onNextHand,
-        emoji = dialogEmoji(emoji = heroEmoji),
+        topAccessory = topAccessoryEmoji(emoji = heroEmoji),
     ) {
         Column(
             modifier = Modifier
@@ -174,20 +173,11 @@ internal fun ShowdownDialog(
             }
 
             VerticalSpacerD100()
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(AppTheme.colors.accentPrimary.color)
-                    .clickable(onClick = onNextHand)
-                    .padding(vertical = 18.dp),
-                contentAlignment = Alignment.Center,
+            ButtonPrimary(
+                onClick = onNextHand,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    text = "Next hand",
-                    typography = AppTheme.typography.Heading.H600,
-                    color = AppTheme.colors.onAccentPrimary,
-                )
+                Text(text = "Next hand")
             }
         }
     }
@@ -208,7 +198,7 @@ internal fun BustDialog(
 ) {
     Dialog(
         onDismissRequest = onDealMeIn,
-        emoji = dialogChipBubble(),
+        topAccessory = topAccessoryChipBubble(),
     ) {
         Column(
             modifier = Modifier
@@ -239,20 +229,11 @@ internal fun BustDialog(
             earnedAchievements.forEach { earned ->
                 AchievementUnlockedCallout(earned = earned)
             }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(AppTheme.colors.accentPrimary.color)
-                    .clickable(onClick = onDealMeIn)
-                    .padding(vertical = 18.dp),
-                contentAlignment = Alignment.Center,
+            ButtonPrimary(
+                onClick = onDealMeIn,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    text = "Deal me in",
-                    typography = AppTheme.typography.Heading.H600,
-                    color = AppTheme.colors.onAccentPrimary,
-                )
+                Text(text = "Deal me in")
             }
         }
     }
@@ -270,7 +251,7 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(Radii.R700)
             .background(PokerPalette.ChipGold.copy(alpha = 0.18f))
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
@@ -318,7 +299,7 @@ private fun XpEarnedBubble(amount: Int) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
+            .clip(Radii.Round)
             .background(AppTheme.colors.surfaceSecondary.color)
             .padding(horizontal = 18.dp, vertical = 12.dp),
     ) {
@@ -326,11 +307,7 @@ private fun XpEarnedBubble(amount: Int) {
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
-                    ),
-                ),
+                .background(LevelProgressGradient),
             contentAlignment = Alignment.Center,
         ) {
             Text(

@@ -69,6 +69,7 @@ sealed class BottomBarItem(
     val unselectedContent: @Composable () -> Unit,
     open val badgeAmount: Int,
     open val isSelected: Boolean,
+    open val showsBadgeDot: Boolean = false,
 ) {
 
     data class Home(override val isSelected: Boolean, override val badgeAmount: Int = 0) :
@@ -80,14 +81,18 @@ sealed class BottomBarItem(
             unselectedContent = { BottomBarTabIcon(Icons.Home.Outlined("Home"), selected = false) },
         )
 
-    data class Shop(override val isSelected: Boolean, override val badgeAmount: Int = 0) :
-        BottomBarItem(
-            title = "Shop",
-            isSelected = isSelected,
-            badgeAmount = badgeAmount,
-            selectedContent = { BottomBarTabIcon(Icons.Shop.Filled("Shop Tab"), selected = true) },
-            unselectedContent = { BottomBarTabIcon(Icons.Shop.Outlined("Shop Tab"), selected = false) },
-        )
+    data class Shop(
+        override val isSelected: Boolean,
+        override val badgeAmount: Int = 0,
+        override val showsBadgeDot: Boolean = false,
+    ) : BottomBarItem(
+        title = "Shop",
+        isSelected = isSelected,
+        badgeAmount = badgeAmount,
+        showsBadgeDot = showsBadgeDot,
+        selectedContent = { BottomBarTabIcon(Icons.Shop.Filled("Shop Tab"), selected = true) },
+        unselectedContent = { BottomBarTabIcon(Icons.Shop.Outlined("Shop Tab"), selected = false) },
+    )
 
     data class Profile(
         override val isSelected: Boolean,
@@ -259,10 +264,12 @@ private fun MagnifyingBottomBarItem(
             BadgedBox(
                 badgeTranslation = DpOffset(x = (-5).dp, y = (5).dp),
                 badge = {
-                    if (item.badgeAmount > 0) {
-                        BottomBarBadge(
-                            count = item.badgeAmount
-                        )
+                    // Numbered badge wins over the dot — if there's a real
+                    // count to surface (notifications etc.), the dot
+                    // shouldn't compete with it for the same slot.
+                    when {
+                        item.badgeAmount > 0 -> BottomBarBadge(count = item.badgeAmount)
+                        item.showsBadgeDot -> BottomBarBadgeDot()
                     }
                 }
             ) {
@@ -309,6 +316,23 @@ fun BottomBarBadge(
             )
         }
     }
+}
+
+/**
+ * Tiny dot variant of [BottomBarBadge] for "something is new but we don't
+ * have a count to show" surfaces (Shop catalog has unseen items, etc.).
+ * Uses the same container tint as the counted badge so the visual
+ * language stays unified.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BottomBarBadgeDot(
+    modifier: Modifier = Modifier
+) {
+    Badge(
+        modifier = modifier,
+        containerColor = AppTheme.colors.accentPrimary.color,
+    )
 }
 
 @Preview(heightDp = 200)
@@ -361,6 +385,30 @@ private fun BottomBarPreviewActivity() {
     }
 }
 
+
+// Pins the "Shop has unseen items" dot path — no count, just a small
+// accent dot. Numbered badges still win the slot if both signals are
+// active, so this preview shows the dot-only case in isolation.
+@Preview(heightDp = 200)
+@Composable
+private fun BottomBarPreviewShopUnseenDot() {
+    PreviewContent(
+        backgroundColor = ColorResource.White
+    ) {
+        Column {
+            VerticalSpacerD1600()
+            AppBottomBar(
+                items = listOf(
+                    BottomBarItem.Home(isSelected = true),
+                    BottomBarItem.Shop(isSelected = false, showsBadgeDot = true),
+                    BottomBarItem.Profile(isSelected = false),
+                ),
+                onItemClick = {},
+            )
+            VerticalSpacerD1600()
+        }
+    }
+}
 
 @Preview(heightDp = 200)
 @Composable

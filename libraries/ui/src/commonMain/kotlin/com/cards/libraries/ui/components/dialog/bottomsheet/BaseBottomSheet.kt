@@ -23,10 +23,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.libraries.ui.components.dialog.AccessoryShape
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
-import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubble
-import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleDefaults
-import com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleNotchRadius
+import com.dangerfield.cards.libraries.ui.components.dialog.TopAccessory
+import com.dangerfield.cards.libraries.ui.components.dialog.TopAccessoryBubble
+import com.dangerfield.cards.libraries.ui.components.dialog.TopAccessoryDefaults
+import com.dangerfield.cards.libraries.ui.components.dialog.TopAccessoryNotchRadius
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.libraries.ui.system.LocalContentColor
 import com.dangerfield.cards.system.color.ProvideContentColor
@@ -50,10 +52,11 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *
  * Drag-handle selection happens via the typed [dragHandle] parameter
  * (see [BottomSheetDragHandle]). When the handle is
- * [BottomSheetDragHandle.Emoji], the container's shape is replaced with
- * a [NotchedSheetShape] sized to match the emoji bubble so the bubble
- * sits half-above the sheet's top edge. Look-and-feel for the bubble
- * lives in [EmojiBubble] / [com.dangerfield.cards.libraries.ui.components.dialog.EmojiBubbleDefaults]
+ * [BottomSheetDragHandle.Accessory], the container's shape is replaced
+ * with a [NotchedSheetShape] sized to match the accessory bubble so the
+ * bubble sits half-above the sheet's top edge. Look-and-feel for the
+ * bubble lives in [TopAccessoryBubble] /
+ * [com.dangerfield.cards.libraries.ui.components.dialog.TopAccessoryDefaults]
  * — sheets don't tune it.
  */
 @LowLevelDSComponent
@@ -87,10 +90,10 @@ fun BaseBottomSheet(
     }
 
     val sheetShape: Shape = when (dragHandle) {
-        is BottomSheetDragHandle.Emoji -> NotchedSheetShape(
+        is BottomSheetDragHandle.Accessory -> NotchedSheetShape(
             cornerRadius = SheetCornerRadius,
-            notchRadius = EmojiBubbleNotchRadius,
-            notchCornerRadius = EmojiBubbleDefaults.notchCornerRadiusFor(dragHandle.style),
+            notchRadius = TopAccessoryNotchRadius,
+            notchCornerRadius = TopAccessoryDefaults.notchCornerRadiusFor(dragHandle.accessory.style),
         )
         else -> RoundedTopSheetShape
     }
@@ -115,11 +118,9 @@ fun BaseBottomSheet(
                     color = contentColor.color,
                 )
                 is BottomSheetDragHandle.Custom -> dragHandle.render()
-                is BottomSheetDragHandle.Emoji -> EmojiBubble(
-                    emoji = dragHandle.emoji,
-                    style = dragHandle.style,
-                    surface = dragHandle.surface
-                        ?: BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
+                is BottomSheetDragHandle.Accessory -> TopAccessoryBubble(
+                    accessory = dragHandle.accessory,
+                    fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
                     contentColor = contentColor,
                 )
             }
@@ -136,7 +137,7 @@ fun BaseBottomSheet(
 }
 
 /** Standard rounded-top-corner sheet shape (no notch). Used when the drag
- *  handle is anything other than [BottomSheetDragHandle.Emoji]. */
+ *  handle is anything other than [BottomSheetDragHandle.Accessory]. */
 private val RoundedTopSheetShape: Shape =
     RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
 
@@ -174,7 +175,7 @@ private fun PreviewBaseBottomSheet_EmojiHandle_DefaultSurface() {
             onDismissRequest = {},
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             backgroundColor = AppTheme.colors.surfacePrimary,
-            dragHandle = BottomSheetDragHandle.Emoji(emoji = "🎉"),
+            dragHandle = TopAccessory.Emoji(emoji = "🎉").asDragHandle(),
         ) {
             Text(
                 text = "Emoji handle, default surface — bubble matches the sheet background.",
@@ -199,11 +200,11 @@ private fun PreviewBaseBottomSheet_EmojiHandle_AccentSurface() {
             onDismissRequest = {},
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             backgroundColor = AppTheme.colors.surfacePrimary,
-            dragHandle = BottomSheetDragHandle.Emoji(
+            dragHandle = TopAccessory.Emoji(
                 emoji = "$",
-                style = EmojiHandleStyle.Squircle,
+                style = AccessoryShape.Squircle,
                 surface = BubbleSurface.Solid(AppTheme.colors.accentPrimary),
-            ),
+            ).asDragHandle(),
         ) {
             Text(
                 text = "Emoji handle, explicit surfaceColor — bubble pops against the sheet.",

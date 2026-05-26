@@ -26,12 +26,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -269,7 +268,7 @@ private fun SignOutConfirmDialog(
     }
     com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
         onDismissRequest = onDismiss,
-        emoji = com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji(emoji = "👋"),
+        topAccessory = com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji(emoji = "👋"),
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
@@ -514,12 +513,6 @@ private fun LevelProgressBar(fraction: Float, modifier: Modifier = Modifier) {
         )
     }
 }
-
-/** Cyan-to-green gradient — same swatches the XP details hero uses, so
- *  the same level state reads identically across both surfaces. */
-private val LevelProgressGradient: Brush = Brush.linearGradient(
-    listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
-)
 
 private fun formatThousands(value: Long): String {
     val s = value.toString()

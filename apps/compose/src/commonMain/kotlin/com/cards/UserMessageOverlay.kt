@@ -20,7 +20,7 @@ import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
-import com.dangerfield.cards.libraries.ui.components.dialog.dialogEmoji
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -64,7 +64,7 @@ private fun UserMessageDialogContent(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        emoji = message.emoji?.takeUnless { it.isBlank() }?.let { dialogEmoji(emoji = it) },
+        topAccessory = message.emoji?.takeUnless { it.isBlank() }?.let { topAccessoryEmoji(emoji = it) },
     ) {
         Column(
             modifier = Modifier

@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
 import androidx.compose.ui.Alignment
@@ -28,6 +27,7 @@ import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
+import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -112,18 +112,11 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
             .background(AppTheme.colors.surfacePrimary.color)
             .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(AppTheme.colors.surfaceSecondary.color),
-        ) {
-            Text(
-                text = item.iconEmoji,
-                typography = AppTheme.typography.Heading.H600,
-            )
-        }
+        CosmeticPreview(
+            productId = item.productId,
+            emoji = item.iconEmoji,
+            size = 48.dp,
+        )
         Spacer(modifier = Modifier.size(Dimension.D500))
         Column(modifier = Modifier.weight(1f)) {
             Text(

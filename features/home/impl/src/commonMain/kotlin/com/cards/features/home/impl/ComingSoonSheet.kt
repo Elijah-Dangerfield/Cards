@@ -5,13 +5,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.bottomSheetEmojiHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Generic "this isn't built yet" bottom sheet for Home CTAs that
@@ -32,10 +35,10 @@ internal fun ComingSoonSheet(
     BottomSheet(
         onDismissRequest = onDismiss,
         backgroundColor = AppTheme.colors.surfacePrimary,
-        dragHandle = bottomSheetEmojiHandle(
+        dragHandle = topAccessoryEmoji(
             emoji = emoji,
             surface = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
-        ),
+        ).asDragHandle(),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
@@ -55,5 +58,31 @@ internal fun ComingSoonSheet(
             )
             VerticalSpacerD800()
         }
+    }
+}
+
+@Preview
+@Composable
+private fun ComingSoonSheetPreview_QuickMatch() {
+    PreviewContent {
+        ComingSoonSheet(
+            title = "Quick Match",
+            body = "Public rooms are still in the oven. We'll flip this on once matchmaking is ready.",
+            emoji = "⚡",
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ComingSoonSheetPreview_Tournament() {
+    PreviewContent {
+        ComingSoonSheet(
+            title = "Tournaments",
+            body = "Coming in a future release once the league season cadence is locked in.",
+            emoji = "🏆",
+            onDismiss = {},
+        )
     }
 }

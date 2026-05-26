@@ -1,10 +1,9 @@
-package com.dangerfield.cards.features.room.impl
+package com.dangerfield.cards.libraries.ui.components.poker
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
-import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
 import com.dangerfield.cards.system.AppTheme
 
 /**
@@ -32,9 +31,6 @@ fun feltForProductId(productId: String?): EquippedFelt = when (productId) {
     "felt_midnight_blue" -> EquippedFelt.MidnightBlue
     "felt_charcoal" -> EquippedFelt.Charcoal
     "felt_pine_green" -> EquippedFelt.PineGreen
-    // Both the weekend-sale felt and the premium table theme share the
-    // sunset palette — they're priced differently but they paint the
-    // same warm-orange surface.
     "felt_sunset_weekend", "table_sunset" -> EquippedFelt.Sunset
     "table_neon" -> EquippedFelt.Neon
     else -> EquippedFelt.Default
@@ -127,5 +123,7 @@ fun titleForProductId(productId: String?): String? = when (productId) {
     "title_bluff_master" -> "Bluff Master"
     "title_shark" -> "The Shark"
     "title_high_roller" -> "High Roller"
+    "title_pot_magnet" -> "Pot Magnet"
+    "title_short_stack_hero" -> "Short Stack Hero"
     else -> null
 }

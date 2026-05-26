@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.DeepLinkBridge
+import com.dangerfield.cards.libraries.products.ShopBadgeStateRepository
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -32,6 +33,7 @@ interface AppComponent {
     val configOverrideRepository: ConfigOverrideRepository
     val userMessageRepository: UserMessageRepository
     val profileRepository: ProfileRepository
+    val shopBadgeStateRepository: ShopBadgeStateRepository
     val inAppMessageManager: InAppMessageManager
     val appState: AppState
 

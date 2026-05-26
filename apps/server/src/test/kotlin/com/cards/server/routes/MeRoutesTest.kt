@@ -98,6 +98,19 @@ class MeRoutesTest {
     }
 
     @Test
+    fun me_grantsDefaultFelt_onEveryCall() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val inventory = CapturingInventory()
+        callMe(repo, bearer = validJwt(), inventory = inventory) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(1, inventory.earnedGrants.size)
+            val grant = inventory.earnedGrants.single()
+            assertEquals(userId, grant.userId)
+            assertEquals("felt_default", grant.productId)
+        }
+    }
+
+    @Test
     fun me_returns401_whenAuthHeaderMissing() = runTest {
         val repo = FakeProfileRepository(existing = null)
         callMe(repo, bearer = null) { resp ->
@@ -264,6 +277,7 @@ class MeRoutesTest {
         repo: ProfileRepository,
         bearer: String?,
         adminClient: SupabaseAdminClient = AlwaysSuccessAdmin,
+        inventory: InventoryRepository = EmptyInventory,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -272,7 +286,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages, EmptyRooms) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyMessages, EmptyRooms) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -434,6 +448,36 @@ class MeRoutesTest {
         }
     }
 
+    private class CapturingInventory : InventoryRepository {
+        data class EarnedGrant(val userId: UserId, val productId: String)
+
+        val earnedGrants = mutableListOf<EarnedGrant>()
+
+        override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
+        override suspend fun recordPurchase(
+            userId: UserId,
+            productId: String,
+            costChipsAtPurchase: Long,
+            purchasedAt: Instant,
+        ): OwnedItem = error("unused")
+
+        override suspend fun recordEarnedGrant(
+            userId: UserId,
+            productId: String,
+            grantedAt: Instant,
+        ): OwnedItem {
+            earnedGrants += EarnedGrant(userId, productId)
+            return OwnedItem(
+                productId = productId,
+                costChipsAtPurchase = 0L,
+                purchasedAt = grantedAt,
+                acquisitionSource = com.dangerfield.cards.server.domain.AcquisitionSource.Earned,
+            )
+        }
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
     private object EmptyInventory : InventoryRepository {
         override suspend fun listOwned(userId: UserId): List<OwnedItem> = emptyList()
         override suspend fun recordPurchase(
@@ -447,7 +491,12 @@ class MeRoutesTest {
             userId: UserId,
             productId: String,
             grantedAt: kotlin.time.Instant,
-        ): OwnedItem = error("unused")
+        ): OwnedItem = OwnedItem(
+            productId = productId,
+            costChipsAtPurchase = 0L,
+            purchasedAt = grantedAt,
+            acquisitionSource = com.dangerfield.cards.server.domain.AcquisitionSource.Earned,
+        )
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }

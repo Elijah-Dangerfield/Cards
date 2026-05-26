@@ -16,6 +16,7 @@ import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
 import com.dangerfield.cards.server.routes.equipmentRoutes
+import com.dangerfield.cards.server.routes.grantsRoutes
 import com.dangerfield.cards.server.routes.healthRoutes
 import com.dangerfield.cards.server.routes.inventoryRoutes
 import com.dangerfield.cards.server.routes.meRoutes
@@ -74,6 +75,12 @@ fun Application.module(config: ServerConfig) {
             component.walletRepository,
             component.userMessageRepository,
             component.roomService,
+            component.provideClock(),
+        )
+        grantsRoutes(
+            inventory = component.inventoryRepository,
+            catalog = component.productCatalogSource,
+            clock = component.provideClock(),
         )
         messageRoutes(component.userMessageRepository, component.provideClock())
         avatarRoutes()

@@ -22,13 +22,15 @@ import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
+import com.dangerfield.cards.libraries.ui.components.dialog.AccessoryShape
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetState
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetValue
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.EmojiHandleStyle
-import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.bottomSheetEmojiHandle
+import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.rememberBottomSheetState
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
+import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -48,9 +50,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  - [Product.ChipPack] → real-money pack via the platform store.
  *  - [Product.ChipOffer] → chip-funded cosmetic / equippable.
  *
- * Drag-handle slot uses the DS [bottomSheetEmojiHandle] with a chip-
- * themed bubble — sets a recognizable "you're about to spend chips"
- * feel before the user reads a single word.
+ * Drag-handle slot uses the DS [topAccessoryEmoji] with a chip-themed
+ * bubble — sets a recognizable "you're about to spend chips" feel
+ * before the user reads a single word.
  *
  * Mounted as the content of a `bottomSheet<ShopProductSheetRoute>`
  * destination, which is why [sheetState] is passed in rather than
@@ -92,11 +94,11 @@ internal fun PurchaseConfirmSheet(
     // bubble's fill mirrors the product's grid-card tile (gold tint, accent
     // tint, or the featured-pack gradient) so the tap-to-sheet transition
     // feels visually continuous.
-    val handle: BottomSheetDragHandle = bottomSheetEmojiHandle(
+    val handle: BottomSheetDragHandle = topAccessoryEmoji(
         emoji = product.iconEmoji,
-        style = EmojiHandleStyle.Squircle,
+        style = AccessoryShape.Squircle,
         surface = productBubbleSurface(product),
-    )
+    ).asDragHandle()
 
     BottomSheet(
         state = sheetState,
@@ -254,6 +256,20 @@ private fun ChipOfferConfirmContent(
         offer.badge?.let {
             VerticalSpacerD300()
             BadgePill(text = it, accent = ColorResource.Red400)
+        }
+        // Hero preview of the cosmetic itself — felts paint as a tinted
+        // swatch, card backs render the real PlayingCardBack. The user
+        // tapped a 64dp tile to get here; this larger surface answers
+        // "yes, this is what you're buying." Skipped for non-cosmetic
+        // offers (titles, emote/avatar packs) whose visual is the emoji
+        // already shown in the drag-handle bubble.
+        if (hasCosmeticPreview(offer.id)) {
+            VerticalSpacerD400()
+            CosmeticPreview(
+                productId = offer.id,
+                emoji = offer.iconEmoji,
+                size = 120.dp,
+            )
         }
         // Description is the "what does this DO" sentence the user needs
         // before committing — "Victory Dance" / "Bluff Master" / "Neon
@@ -597,6 +613,56 @@ private fun PurchaseConfirmSheetPreview_ChipOfferLocked() {
             ),
             mode = PurchaseSheetMode.Locked(requiredLevel = 15),
             chipBalance = 25_000,
+            timeAnchor = null,
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PurchaseConfirmSheetPreview_FeltAvailable() {
+    PreviewContent {
+        PurchaseConfirmSheet(
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "felt_royal_red",
+                title = "Royal Red Felt",
+                subtitle = "Felt",
+                description = "Deep crimson felt that paints under your cards at every table. Equip from your items.",
+                iconEmoji = "🟥",
+                costChips = 6_000,
+                grantsKey = "felt.royal_red",
+                isEquippable = true,
+            ),
+            mode = PurchaseSheetMode.Available,
+            chipBalance = 12_450,
+            timeAnchor = null,
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PurchaseConfirmSheetPreview_CardBackAvailable() {
+    PreviewContent {
+        PurchaseConfirmSheet(
+            sheetState = rememberBottomSheetState(),
+            product = Product.ChipOffer(
+                id = "cardback_marble",
+                title = "Marble",
+                subtitle = "Card back",
+                description = "Marble-pattern card back — replaces the default. Equip from your items.",
+                iconEmoji = "🂠",
+                costChips = 6_000,
+                grantsKey = "cardback.marble",
+                isEquippable = true,
+            ),
+            mode = PurchaseSheetMode.Available,
+            chipBalance = 12_450,
             timeAnchor = null,
             onConfirm = {},
             onDismiss = {},
