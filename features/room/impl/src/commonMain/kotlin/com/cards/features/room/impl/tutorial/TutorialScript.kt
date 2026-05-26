@@ -32,10 +32,16 @@ internal object TutorialScript {
     }
 
     // ------------------------------------------------------------------
-    // Intro: three foundational narration cards. Assumes ZERO poker
+    // Intro: five foundational narration cards. Assumes ZERO poker
     // knowledge. Each marked `isBasics = true` so experienced players can
     // skip the whole block in two taps. No fabricated table behind these,
     // just centered explainers with a hero glyph.
+    //
+    // Order is intentional: goal -> verbs -> how a hand unfolds (streets)
+    // -> who acts when (position + blinds) -> who wins (hand ranks). Each
+    // card builds on the previous: you can't explain "the flop" until the
+    // player knows the verbs they'll use on it, and ranking matters most
+    // at the end when you compare hands.
     // ------------------------------------------------------------------
     private fun intro(): List<TutorialStep> = listOf(
         TutorialStep(
@@ -68,10 +74,41 @@ internal object TutorialScript {
         ),
         TutorialStep(
             section = TutorialSection.Basics,
+            heroGlyph = "🃏",
+            coach = CoachMark(
+                title = "How a hand unfolds",
+                body = "Each hand plays out over four rounds. New community cards reveal between rounds, and betting happens after each reveal:",
+                bullets = listOf(
+                    "Preflop: you get two private cards (your hole cards). First bet.",
+                    "Flop: three shared cards land in the middle. Second bet.",
+                    "Turn: a fourth shared card. Third bet.",
+                    "River: the fifth and final shared card. Last bet.",
+                    "If you survive to the end, hands are compared and the best 5-card combo wins.",
+                ),
+                ctaLabel = "Got it",
+            ),
+        ),
+        TutorialStep(
+            section = TutorialSection.Basics,
+            heroGlyph = "🔁",
+            coach = CoachMark(
+                title = "Who acts when",
+                body = "Each hand has a dealer seat marked with a small button. Two seats to the dealer's left post forced bets to seed the pot:",
+                bullets = listOf(
+                    "Small Blind (SB): one seat left of the dealer.",
+                    "Big Blind (BB): two seats left of the dealer, double the SB.",
+                    "Action starts left of the BB and moves clockwise.",
+                    "Each new hand, the dealer button shifts one seat left, so everyone takes turns posting.",
+                ),
+                ctaLabel = "Got it",
+            ),
+        ),
+        TutorialStep(
+            section = TutorialSection.Basics,
             heroGlyph = "🏆",
             coach = CoachMark(
                 title = "Best 5-card hand wins",
-                body = "If multiple players survive to the end, the strongest 5-card hand wins the pot. Ranks weakest to strongest:",
+                body = "If multiple players survive to the river, the strongest 5-card hand (made from your two hole cards plus the five shared cards) wins the pot. Ranks weakest to strongest:",
                 bullets = listOf(
                     "Pair, two pair, three of a kind.",
                     "Straight, flush, full house.",
