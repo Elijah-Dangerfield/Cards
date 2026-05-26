@@ -1,5 +1,11 @@
 **Stashed WIP:** `worker-presweep-20260526-130458` — pre-existing human WIP on the "Bot Whisperer" title (V22 migration + achievement-chain capstone). Touches `ClientGrantableAchievements.kt`, `GrantsRoutesTest.kt`, `AchievementRepositoryImpl[Test].kt`, `Achievement.kt`, `AchievementRegistry.kt`, `EquippedFelt.kt`. Restored at end-of-run; my commits steer clear of those files.
 
+## refactor(room): lift PlayerActionSheet capsule shapes to Radii tokens
+
+**Problem:** The expanded poker action sheet hand-rolled `RoundedCornerShape(32.dp)` (two callsites — amount text-field wrapper and StepperButton) and `RoundedCornerShape(36.dp)` (two callsites — BigActionPill, ConfirmPill) instead of leaning on a token. The radii were geometric capsules (= height / 2 on 64dp + 72dp pills), so the magic numbers were doing work that `Radii.Button` (= `CornerSize(percent = 50)`) already expresses with no callsite math.
+**Approach:** Replaced all four with `Radii.Button.shape` for the pill controls and `Radii.IconButton.shape` for the square stepper (semantically a small icon-style button, identical visual via the shared `percent = 50` definition). Dropped the now-unused `RoundedCornerShape` import.
+**Reviewer notes:** Visually byte-identical — `percent = 50` of the shorter side of a 64×N or 72×N rectangle is exactly 32 / 36 dp, which is what the magic numbers were. No layout impact.
+
 ## feat(ui): itemSpacing param on Dialog title presets
 
 **Problem:** Prior worker landed the `title: String` / `title: @Composable` Dialog presets but deferred `BetPillExplainer` / `PotExplainer` / `BlindRolesExplainer` because their inter-row spacing (12dp+6dp / 16dp / 20dp) doesn't match the preset's hardcoded `Dimension.D500` (12dp). Each explainer had to stay on the hand-rolled `Dialog { Column { ... } }` shape.

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -246,7 +245,7 @@ private fun StepperRow(
             modifier = Modifier
                 .weight(1f)
                 .height(64.dp)
-                .clip(RoundedCornerShape(32.dp))
+                .clip(Radii.Button.shape)
                 .background(AppTheme.colors.surfaceSecondary.color)
                 .clickable(
                     interactionSource = interactionSource,
@@ -289,7 +288,7 @@ private fun StepperButton(
     Box(
         modifier = Modifier
             .size(64.dp)
-            .clip(RoundedCornerShape(32.dp))
+            .clip(Radii.IconButton.shape)
             .background(bg)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -327,7 +326,7 @@ private fun BigActionPill(
     Box(
         modifier = modifier
             .height(72.dp)
-            .clip(RoundedCornerShape(36.dp))
+            .clip(Radii.Button.shape)
             .background(bg.color)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -356,7 +355,7 @@ private fun ConfirmPill(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
-            .clip(RoundedCornerShape(36.dp))
+            .clip(Radii.Button.shape)
             .background(PokerPalette.ChipGold)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
