@@ -12,6 +12,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.CosmeticSlot
+import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -149,6 +151,16 @@ internal fun productBubbleSurface(product: Product): BubbleSurface = when (produ
         alpha = 0.18f,
     )
 }
+
+/**
+ * True for product ids that resolve to a real visual swatch via
+ * `CosmeticPreview` — felts and card backs today. Titles are cosmetic
+ * but have no visual preview shape, so they keep the toned emoji tile.
+ * Centralised so the shop grid + purchase sheet stay in sync on which
+ * products get the swatch treatment.
+ */
+internal fun hasCosmeticPreview(productId: String): Boolean =
+    cosmeticSlotFor(productId).let { it == CosmeticSlot.Felt || it == CosmeticSlot.CardBack }
 
 /** Format chip costs with a thousands separator (KMP — no Locale ergonomics). */
 internal fun formatChips(amount: Long): String {

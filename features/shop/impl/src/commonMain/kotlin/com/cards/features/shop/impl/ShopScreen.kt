@@ -41,6 +41,7 @@ import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BadgePlacement
 import com.dangerfield.cards.libraries.ui.components.BadgedBox
+import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
@@ -568,11 +569,20 @@ private fun ChipOfferCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    ProductIcon(
-                        emoji = offer.iconEmoji,
-                        tone = IconTone.Accent,
-                        modifier = Modifier.alpha(dimmableAlpha),
-                    )
+                    if (hasCosmeticPreview(offer.id)) {
+                        CosmeticPreview(
+                            productId = offer.id,
+                            emoji = offer.iconEmoji,
+                            size = 64.dp,
+                            modifier = Modifier.alpha(dimmableAlpha),
+                        )
+                    } else {
+                        ProductIcon(
+                            emoji = offer.iconEmoji,
+                            tone = IconTone.Accent,
+                            modifier = Modifier.alpha(dimmableAlpha),
+                        )
+                    }
                     when (cardState) {
                         is ChipOfferCardState.Owned -> OwnedCheck(
                             modifier = Modifier.align(Alignment.TopEnd),
