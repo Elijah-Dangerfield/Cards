@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
@@ -511,17 +512,6 @@ private fun LevelProgressBar(fraction: Float, modifier: Modifier = Modifier) {
                 .background(LevelProgressGradient),
         )
     }
-}
-
-private fun formatThousands(value: Long): String {
-    val s = value.toString()
-    val sb = StringBuilder()
-    val len = s.length
-    for (i in 0 until len) {
-        if (i > 0 && (len - i) % 3 == 0) sb.append(',')
-        sb.append(s[i])
-    }
-    return sb.toString()
 }
 
 @Composable

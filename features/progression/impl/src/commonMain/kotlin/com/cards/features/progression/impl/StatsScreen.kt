@@ -31,6 +31,7 @@ import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -371,17 +372,6 @@ private fun modeLabel(mode: XpMode): String = when (mode) {
     XpMode.MULTIPLAYER -> "Multiplayer"
 }
 
-private fun formatThousands(value: Long): String {
-    val s = value.toString()
-    if (s.length <= 3) return s
-    val withCommas = StringBuilder()
-    val len = s.length
-    for (i in 0 until len) {
-        if (i > 0 && (len - i) % 3 == 0) withCommas.append(',')
-        withCommas.append(s[i])
-    }
-    return withCommas.toString()
-}
 
 @Preview
 @Composable
