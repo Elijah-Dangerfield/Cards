@@ -50,7 +50,15 @@ class ClientGrantableAchievements(
                 "DONT_CALL_IT_COMEBACK" to "cardback_comeback_kid",
                 "BOT_WHISPERER" to "title_bot_whisperer",
             ),
-            serverWitnessed = emptySet(),
+            // Multiplayer-mode achievements live here so the client grant
+            // route returns 403, not 204. Once Phase 4.2 server-authoritative
+            // hand resolution lands, these grants fire server-side and the
+            // 403 keeps a malicious client from self-granting via the
+            // existing POST endpoint.
+            serverWitnessed = setOf(
+                "FIRST_BUST_DEALT_MP",
+                "BUST_DEALT_5_MP",
+            ),
         )
     }
 }

@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.BUSTS_DEALT
+import com.dangerfield.cards.libraries.cards.BUSTS_DEALT_MP
 import com.dangerfield.cards.libraries.cards.Criterion
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -161,6 +162,38 @@ class AchievementsViewModelTest : CoroutineTest() {
         // Same counter feeds the 5-bust threshold without clamping (3 < 5).
         val fifth = AllAchievementsById.getValue(AchievementId.BUST_DEALT_5)
         assertEquals(3, fifth.currentProgress(progress))
+    }
+
+    @Test
+    fun bustAchievementsMp_areRegistered_multiplayerMode_separateCounter() {
+        val firstMp = AllAchievementsById.getValue(AchievementId.FIRST_BUST_DEALT_MP)
+        val fifthMp = AllAchievementsById.getValue(AchievementId.BUST_DEALT_5_MP)
+
+        // MP siblings read from a distinct counter so a client-side bot
+        // bust can't accidentally tick MP progress; the MP counter stays
+        // at 0 until server-witnessed grants populate it post-Phase 4.2.
+        assertEquals(BUSTS_DEALT_MP, (firstMp.criterion as Criterion.Custom).key)
+        assertEquals(BUSTS_DEALT_MP, (fifthMp.criterion as Criterion.Custom).key)
+        assertEquals(1, firstMp.criterion.target)
+        assertEquals(5, fifthMp.criterion.target)
+
+        assertEquals(AchievementMode.MULTIPLAYER, firstMp.mode)
+        assertEquals(AchievementMode.MULTIPLAYER, fifthMp.mode)
+    }
+
+    @Test
+    fun bustAchievementMp_currentProgress_isZero_whenCounterNeverIncrements() {
+        val firstMp = AllAchievementsById.getValue(AchievementId.FIRST_BUST_DEALT_MP)
+        val fifthMp = AllAchievementsById.getValue(AchievementId.BUST_DEALT_5_MP)
+        // Even if the BOTS counter has accumulated value, the MP counter
+        // is independent and stays at zero until Phase 4.2.
+        val progress = AchievementProgress(
+            earned = emptyMap(),
+            counters = emptyMap(),
+            customCounters = mapOf(BUSTS_DEALT to 12),
+        )
+        assertEquals(0, firstMp.currentProgress(progress))
+        assertEquals(0, fifthMp.currentProgress(progress))
     }
 
     /** A repository whose Flow never emits — used to pin the initial-state

@@ -119,6 +119,22 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_refusesMultiplayerBustAchievements_with403() = runTest {
+        // MP-mode achievements (FIRST_BUST_DEALT_MP / BUST_DEALT_5_MP) live in
+        // the default `serverWitnessed` set so a client posting them never
+        // self-grants — they will be granted server-side once Phase 4.2
+        // server-authoritative gameplay lands.
+        for (id in listOf("FIRST_BUST_DEALT_MP", "BUST_DEALT_5_MP")) {
+            val inventory = CapturingInventory()
+            val catalog = FakeCatalog.empty()
+            post(inventory, catalog, defaultPolicy, id) { resp ->
+                assertEquals(HttpStatusCode.Forbidden, resp.status, "id=$id")
+                assertTrue(inventory.earnedGrants.isEmpty(), "id=$id")
+            }
+        }
+    }
+
+    @Test
     fun unknownAchievement_returnsNoContent_andDoesNotRecord() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.empty()

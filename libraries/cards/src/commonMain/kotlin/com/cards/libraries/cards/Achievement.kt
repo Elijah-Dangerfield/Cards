@@ -91,6 +91,11 @@ enum class AchievementId {
     FIRST_BUST_DEALT,
     BUST_DEALT_5,
 
+    // Busting opponents — MP siblings. Counter stays at 0 until Phase 4.2
+    // server-authoritative hand resolution grants them server-side.
+    FIRST_BUST_DEALT_MP,
+    BUST_DEALT_5_MP,
+
     // Level milestones
     REACH_LEVEL_5,
     REACH_LEVEL_10,

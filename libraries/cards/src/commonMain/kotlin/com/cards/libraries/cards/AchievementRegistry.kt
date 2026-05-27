@@ -402,6 +402,32 @@ val AllAchievements: List<Achievement> = listOf(
         mode = AchievementMode.BOTS,
     ),
 
+    // Busting opponents — multiplayer siblings. Counter is a server-driven
+    // stub today (Phase 4.2 will grant these server-side once hand resolution
+    // moves to the server); the client never increments BUSTS_DEALT_MP and
+    // the grant route refuses MP ids posted from clients.
+    Achievement(
+        id = AchievementId.FIRST_BUST_DEALT_MP,
+        name = "First scalp",
+        description = "Knock a real player out of a hand. Their chips, your win.",
+        icon = "💀",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = BUSTS_DEALT_MP, target = 1),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+    Achievement(
+        id = AchievementId.BUST_DEALT_5_MP,
+        name = "Headhunter",
+        description = "Bust five real opponents.",
+        icon = "🏴",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = BUSTS_DEALT_MP, target = 5),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 500L,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+
     // Level milestones
     Achievement(
         id = AchievementId.REACH_LEVEL_5,
@@ -479,6 +505,16 @@ const val TRIPLED_UP: String = "tripled_up"
  * the human won the pot). Multi-bust hands count each busted opponent.
  */
 const val BUSTS_DEALT: String = "busts_dealt"
+
+/**
+ * Multiplayer-only sibling of [BUSTS_DEALT]. Stays at 0 in V1 — the client
+ * doesn't witness multiplayer hand resolution, so it never increments this
+ * counter. Populated server-side once Phase 4.2 server-authoritative
+ * gameplay grants the MP bust achievements directly. Lives here as a
+ * placeholder so the registry can reference the key consistently with
+ * every other custom-counter key.
+ */
+const val BUSTS_DEALT_MP: String = "busts_dealt_mp"
 
 /** Max pot (absolute chip total) the human has been a part of. Sticky high-water
  *  mark. Used by tier-tolerant POT_500 / POT_1000. */
