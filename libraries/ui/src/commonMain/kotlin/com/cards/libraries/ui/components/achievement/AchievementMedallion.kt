@@ -247,7 +247,7 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
 
 private fun rewardLabel(achievement: Achievement): String = buildString {
     append("+${achievement.xpReward} XP")
-    if (achievement.chipReward > 0L) append(" · +${achievement.chipReward}")
+    if (achievement.chipReward > 0L) append(" · +${achievement.chipReward} chips")
 }
 
 private const val DayMs: Long = 24L * 60L * 60L * 1000L
