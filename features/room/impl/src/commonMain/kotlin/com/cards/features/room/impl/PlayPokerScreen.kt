@@ -92,7 +92,23 @@ fun PlayPokerScreen(
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
     var betPillDialog by remember { mutableStateOf<Pair<String, Long>?>(null) }
     var handLabelDialog by remember { mutableStateOf<String?>(null) }
+    // Achievement-celebration sequencing — declared up here so the displayed-XP
+    // gate below can freeze the LevelPill while either the hand-result dialog
+    // or the celebration sheet is on screen.
+    var celebrationActive by remember { mutableStateOf(false) }
     val active = state.table as? TableUiState.Active
+    // The hand-result dialog and (in bot mode) the celebration sheet both
+    // overlay the top-bar LevelPill, so any XP earned by this hand animates
+    // behind the scrim — the user never sees the ring fill. Hold the pill at
+    // its pre-hand value while either surface is visible; release once both
+    // dismiss so `animateFloatAsState` inside `LevelPill` can play the
+    // progress-ring change against an uncovered top bar.
+    val handResultOverlaying = active?.handResult != null
+    val xpFrozen = handResultOverlaying || celebrationActive
+    var displayedXp by remember { mutableStateOf(state.xp) }
+    LaunchedEffect(state.xp, xpFrozen) {
+        if (!xpFrozen) displayedXp = state.xp
+    }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(active?.isHumanTurn) {
         if (active?.isHumanTurn != true) {
@@ -162,7 +178,7 @@ fun PlayPokerScreen(
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                 ConnectionBanner(connection = state.connection)
                 TopBar(
-                    xp = state.xp,
+                    xp = displayedXp,
                     onBack = requestLeave,
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
@@ -341,11 +357,12 @@ fun PlayPokerScreen(
         // Bot-mode achievement-unlock celebration is sequenced *after* the
         // showdown / bust dialog dismisses so the unlock isn't crammed into
         // the dialog summary (the legacy inline shape still renders for MP
-        // unlocks — fast feedback in the middle of a live game). Local
-        // `celebrationActive` gates which surface is on screen during the
-        // brief window after dismissal: the dialog hides, the sheet shows,
-        // then the next-hand request fires when the sheet is dismissed.
-        var celebrationActive by remember { mutableStateOf(false) }
+        // unlocks — fast feedback in the middle of a live game). The
+        // `celebrationActive` flag (declared at the top of the screen so
+        // the displayed-XP gate can read it) gates which surface is on
+        // screen during the brief window after dismissal: the dialog hides,
+        // the sheet shows, then the next-hand request fires when the sheet
+        // is dismissed.
         val celebrateOnDismiss = state.xpMode == com.dangerfield.cards.libraries.cards.XpMode.BOTS &&
             state.recentlyEarned.isNotEmpty()
 

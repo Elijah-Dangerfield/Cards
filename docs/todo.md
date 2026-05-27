@@ -49,7 +49,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Animations / table polish
 
-- `[P1]` **XP / coin earned distribution animation.** Today the showdown dialog overlays the XP/coin badges, so the user never sees the odometer count up. Defer the XP/coin badge animation until *after* the showdown / bust dialog dismisses, then play it as a small "zip" — XP particle flying up to the XP badge, coin particle flying down to the chip badge, each landing into an odometer count-up. Pairs with the full-bleed cosmetic celebration above for the post-dismiss sequencing.
+- `[P1]` **Coin / chip-stack earned distribution animation — remaining work.** XP deferral landed 2026-05-27: the top-bar `LevelPill` now holds its pre-hand value while either the hand-result dialog or the bot-mode celebration sheet is on screen, then animates the progress ring after dismiss (the existing `animateFloatAsState` inside the pill plays once the value is released). Remaining: do the same for the human seat's chip stack — today `ChipCoinAmount` snaps to the post-hand stack value the moment state updates, so the count-up happens behind the dialog. Swap the human seat's stack to `AnimatedNumberText` (or a new `ChipCoinAmount` overload that uses it) plus a screen-local `displayedHumanStack` gated on the same `xpFrozen` flag in `PlayPokerScreen.kt`. The "particle zip" overlay (XP particle flying up to the badge / coin particle flying down to the stack) is a separate polish layer on top — pick once the stack count-up lands.
 
 ### Gameplay & table UX
 
