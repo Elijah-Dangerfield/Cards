@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -247,7 +248,7 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
 
 private fun rewardLabel(achievement: Achievement): String = buildString {
     append("+${achievement.xpReward} XP")
-    if (achievement.chipReward > 0L) append(" · +${achievement.chipReward} chips")
+    if (achievement.chipReward > 0L) append(" · +${formatThousands(achievement.chipReward)} chips")
 }
 
 private const val DayMs: Long = 24L * 60L * 60L * 1000L

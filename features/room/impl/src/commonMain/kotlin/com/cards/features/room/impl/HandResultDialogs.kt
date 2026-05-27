@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -283,7 +284,7 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
             val rewardSummary = buildString {
                 append("+${earned.achievement.xpReward} XP")
                 if (earned.achievement.chipReward > 0L) {
-                    append(" · +${earned.achievement.chipReward} chips")
+                    append(" · +${formatThousands(earned.achievement.chipReward)} chips")
                 }
             }
             Text(
