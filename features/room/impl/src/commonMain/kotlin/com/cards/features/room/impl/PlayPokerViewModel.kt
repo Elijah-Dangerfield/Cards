@@ -80,7 +80,7 @@ class PlayPokerViewModel @Inject constructor(
     private val dispatcherProvider: DispatcherProvider,
     private val clock: Clock,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
-    initialStateArg = PlayPokerState(),
+    initialStateArg = PlayPokerState(xpMode = sessionFactory.xpMode),
 ) {
 
     private val logger = KLog.withTag("PlayPokerViewModel")
@@ -668,6 +668,16 @@ data class PlayPokerState(
      * tray and show a countdown.
      */
     val emojiCooldownEndsAtMs: Long = 0L,
+
+    /**
+     * Whether this session counts as bot or multiplayer play. Constant for
+     * the lifetime of the screen — set from `PokerSessionFactory.xpMode` at
+     * VM construction. Drives the achievement-unlock celebration split:
+     * bots get a full-bleed [AchievementCelebrationSheet] sequenced after
+     * the showdown / bust dialog dismisses; multiplayer keeps the inline
+     * row on the dialog itself.
+     */
+    val xpMode: XpMode = XpMode.BOTS,
 )
 
 sealed interface PlayPokerAction {

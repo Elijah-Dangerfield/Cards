@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
+import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -62,6 +63,7 @@ internal fun ShowdownDialog(
     seats: List<SeatView>,
     xpEarned: Int?,
     earnedAchievements: List<EarnedAchievement>,
+    xpMode: XpMode,
     onNextHand: () -> Unit,
 ) {
     val winnerIndices = result.winners.map { it.seatIndex }.toSet()
@@ -131,10 +133,15 @@ internal fun ShowdownDialog(
                 XpEarnedBubble(amount = xpEarned)
             }
 
-            // Newly-unlocked achievements get their own celebratory callouts —
-            // one per earned achievement.
-            earnedAchievements.forEach { earned ->
-                AchievementUnlockedCallout(earned = earned)
+            // MP-mode unlocks stay inline so the game flow isn't interrupted by
+            // a follow-up sheet (per the locked split: bots get a focused
+            // celebration after dismissal, MP keeps the fast inline row).
+            // Bot-mode unlocks render in [AchievementCelebrationSheet] sequenced
+            // after this dialog dismisses.
+            if (xpMode == XpMode.MULTIPLAYER) {
+                earnedAchievements.forEach { earned ->
+                    AchievementUnlockedCallout(earned = earned)
+                }
             }
 
             // Show the community cards so the player can read each hand against
@@ -197,6 +204,7 @@ internal fun ShowdownDialog(
 internal fun BustDialog(
     xpEarned: Int?,
     earnedAchievements: List<EarnedAchievement>,
+    xpMode: XpMode,
     onDealMeIn: () -> Unit,
 ) {
     Dialog(
@@ -229,8 +237,10 @@ internal fun BustDialog(
             if (xpEarned != null && xpEarned > 0) {
                 XpEarnedBubble(amount = xpEarned)
             }
-            earnedAchievements.forEach { earned ->
-                AchievementUnlockedCallout(earned = earned)
+            if (xpMode == XpMode.MULTIPLAYER) {
+                earnedAchievements.forEach { earned ->
+                    AchievementUnlockedCallout(earned = earned)
+                }
             }
             ButtonPrimary(
                 onClick = onDealMeIn,
@@ -437,6 +447,7 @@ private fun ShowdownDialogPreview_HumanWinsAtRiver() {
                     xpReward = 200,
                 ),
             ),
+            xpMode = XpMode.MULTIPLAYER,
             onNextHand = {},
         )
     }
@@ -462,6 +473,7 @@ private fun ShowdownDialogPreview_BotWinsByFold() {
             ),
             xpEarned = 10,
             earnedAchievements = emptyList(),
+            xpMode = XpMode.BOTS,
             onNextHand = {},
         )
     }
@@ -474,6 +486,7 @@ private fun BustDialogPreview() {
         BustDialog(
             xpEarned = 25,
             earnedAchievements = emptyList(),
+            xpMode = XpMode.BOTS,
             onDealMeIn = {},
         )
     }
@@ -482,6 +495,8 @@ private fun BustDialogPreview() {
 @Preview
 @Composable
 private fun BustDialogPreview_WithAchievement() {
+    // MP variant — inline row is the legacy shape kept for multiplayer
+    // hands. Bot-mode unlocks render in [AchievementCelebrationSheet].
     PreviewContent {
         BustDialog(
             xpEarned = 25,
@@ -493,6 +508,7 @@ private fun BustDialogPreview_WithAchievement() {
                     rarity = AchievementRarity.COMMON,
                 ),
             ),
+            xpMode = XpMode.MULTIPLAYER,
             onDealMeIn = {},
         )
     }
@@ -536,6 +552,7 @@ private fun ShowdownDialogPreview_AchievementUnlocksCosmetic() {
                     xpReward = 500,
                 ),
             ),
+            xpMode = XpMode.MULTIPLAYER,
             onNextHand = {},
         )
     }

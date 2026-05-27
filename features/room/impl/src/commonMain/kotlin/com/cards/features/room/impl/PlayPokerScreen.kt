@@ -337,10 +337,28 @@ fun PlayPokerScreen(
             )
         }
 
+        // Bot-mode achievement-unlock celebration is sequenced *after* the
+        // showdown / bust dialog dismisses so the unlock isn't crammed into
+        // the dialog summary (the legacy inline shape still renders for MP
+        // unlocks — fast feedback in the middle of a live game). Local
+        // `celebrationActive` gates which surface is on screen during the
+        // brief window after dismissal: the dialog hides, the sheet shows,
+        // then the next-hand request fires when the sheet is dismissed.
+        var celebrationActive by remember { mutableStateOf(false) }
+        val celebrateOnDismiss = state.xpMode == com.dangerfield.cards.libraries.cards.XpMode.BOTS &&
+            state.recentlyEarned.isNotEmpty()
+
         val handResult = active?.handResult
-        if (handResult != null && active.seats.isNotEmpty()) {
+        if (handResult != null && active.seats.isNotEmpty() && !celebrationActive) {
             val humanSeat = active.seats.firstOrNull { it.isHuman }
             val humanBust = humanSeat != null && humanSeat.stack <= 0
+            val onDismiss: () -> Unit = {
+                if (celebrateOnDismiss) {
+                    celebrationActive = true
+                } else {
+                    onAction(PlayPokerAction.RequestNextHand)
+                }
+            }
             if (humanBust) {
                 // Bust takes over the moment — focused "you went bust, here's
                 // a fresh stack" modal instead of the full showdown. Per the
@@ -351,7 +369,8 @@ fun PlayPokerScreen(
                 BustDialog(
                     xpEarned = state.lastHandXpAwarded,
                     earnedAchievements = state.recentlyEarned,
-                    onDealMeIn = { onAction(PlayPokerAction.RequestNextHand) },
+                    xpMode = state.xpMode,
+                    onDealMeIn = onDismiss,
                 )
             } else {
                 ShowdownDialog(
@@ -359,9 +378,20 @@ fun PlayPokerScreen(
                     seats = active.seats,
                     xpEarned = state.lastHandXpAwarded,
                     earnedAchievements = state.recentlyEarned,
-                    onNextHand = { onAction(PlayPokerAction.RequestNextHand) },
+                    xpMode = state.xpMode,
+                    onNextHand = onDismiss,
                 )
             }
+        }
+
+        if (celebrationActive && state.recentlyEarned.isNotEmpty()) {
+            AchievementCelebrationSheet(
+                earned = state.recentlyEarned,
+                onContinue = {
+                    celebrationActive = false
+                    onAction(PlayPokerAction.RequestNextHand)
+                },
+            )
         }
     }
     } // close CompositionLocalProvider
@@ -954,8 +984,11 @@ private fun PlayPokerScreenPreview_BustDialog() {
 @Preview
 @Composable
 private fun PlayPokerScreenPreview_HandEndedWithXpAndAchievement() {
-    // Showdown dialog with both an XP award and a freshly-earned achievement.
-    // Exercises the combined "won the pot" + "leveled up" celebration UX.
+    // MP variant — the inline "Achievement unlocked" row stays on the
+    // showdown dialog so the game flow isn't interrupted by a follow-up
+    // sheet. Bot-mode unlocks render in [AchievementCelebrationSheet]
+    // sequenced after the dialog dismisses; that surface has its own
+    // previews in AchievementCelebrationSheet.kt.
     val board = listOf(
         card(Rank.Ten, Suit.Hearts),
         card(Rank.Jack, Suit.Hearts),
@@ -1016,6 +1049,7 @@ private fun PlayPokerScreenPreview_HandEndedWithXpAndAchievement() {
                 ),
                 lastHandXpAwarded = 47,
                 recentlyEarned = earned,
+                xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
             ),
             onAction = {},
             onBack = {},

@@ -46,6 +46,18 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals(null, state.lastHandXpAwarded)
         assertTrue(state.recentlyEarned.isEmpty())
         assertEquals(TurnFeedback.Vibrate, state.turnFeedback)
+        assertEquals(XpMode.BOTS, state.xpMode, "default factory advertises bot mode")
+    }
+
+    @Test
+    fun initialState_xpMode_mirrorsFactory_forMultiplayerSessions() = runUnitTest {
+        val factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER)
+        val vm = buildVm(factory = factory)
+        assertEquals(
+            XpMode.MULTIPLAYER,
+            vm.state.xpMode,
+            "MP factory must propagate xpMode so the screen can pick the right unlock-celebration shape",
+        )
     }
 
     // ---------- Settings mirror (AppCache → state) ----------
