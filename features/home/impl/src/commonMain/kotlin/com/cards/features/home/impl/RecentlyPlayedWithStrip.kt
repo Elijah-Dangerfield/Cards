@@ -2,14 +2,12 @@ package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -21,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -59,9 +58,7 @@ internal fun RecentlyPlayedWithStrip(
             onClick = onSeeAll,
         )
         VerticalSpacerD500()
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-        ) {
+        EdgeToEdgeRow {
             items(items = opponents, key = { it.id }) { opponent ->
                 OpponentTile(opponent = opponent, onAddFriend = { onAddFriend(opponent) })
             }

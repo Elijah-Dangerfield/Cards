@@ -51,8 +51,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Screen / chrome consistency
 
-- `[P1]` **Horizontal scrollers should be edge-to-edge with internal content padding, not page-padded.** Today horizontal carousels (Home tiles, Recently-played-with strip, anywhere `LazyRow` lives inside the standard screen page padding) align the first/last items with the page content edge — no "scroll for more" affordance. **Acceptance:** every horizontal `LazyRow` lays out edge-to-edge (the screen's horizontal page padding doesn't apply); the row uses `contentPadding = PaddingValues(horizontal = …)` matching the page padding so the first item still visually insets, and items partially clip off the right edge to advertise scrollability. Pull out a `EdgeToEdgeRow`-style DS primitive if 3+ usages share the same shape. **Files / hints:** survey `LazyRow` usage in `:features` and convert. **Out of scope:** vertical scrollers; fixed-N non-scrolling rows.
-
 ### Animations / table polish
 
 - `[P1]` **XP / coin earned distribution animation.** Today the showdown dialog overlays the XP/coin badges, so the user never sees the odometer count up. Defer the XP/coin badge animation until *after* the showdown / bust dialog dismisses, then play it as a small "zip" — XP particle flying up to the XP badge, coin particle flying down to the chip badge, each landing into an odometer count-up. Pairs with the full-bleed cosmetic celebration above for the post-dismiss sequencing.
