@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
+import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
@@ -289,6 +291,24 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
             )
+            cosmeticRewardFor(earned.achievement.id)?.let { cosmetic ->
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "🎁",
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.text,
+                    )
+                    Text(
+                        text = "Also unlocked · ${cosmetic.label}",
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.text,
+                    )
+                }
+            }
         }
     }
 }
@@ -473,6 +493,49 @@ private fun BustDialogPreview_WithAchievement() {
                 ),
             ),
             onDealMeIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShowdownDialogPreview_AchievementUnlocksCosmetic() {
+    PreviewContent {
+        ShowdownDialog(
+            result = HandResultView(
+                winners = listOf(PreviewSamples.handWinner(seatIndex = 0, amount = 4_800)),
+                board = PreviewSamples.riverBoard(),
+            ),
+            seats = listOf(
+                PreviewSamples.humanSeat(
+                    stack = 5_200,
+                    holeCards = listOf(
+                        PreviewSamples.card(Rank.Ace, Suit.Spades),
+                        PreviewSamples.card(Rank.Ace, Suit.Clubs),
+                    ),
+                ),
+                PreviewSamples.botSeat(
+                    index = 1,
+                    name = "Mike",
+                    stack = 240,
+                    holeCards = listOf(
+                        PreviewSamples.card(Rank.King, Suit.Hearts),
+                        PreviewSamples.card(Rank.King, Suit.Diamonds),
+                    ),
+                ),
+            ),
+            xpEarned = 500,
+            earnedAchievements = listOf(
+                PreviewSamples.earnedAchievement(
+                    id = com.dangerfield.cards.libraries.cards.AchievementId.DONT_CALL_IT_COMEBACK,
+                    name = "Don't call it a comeback",
+                    description = "Dip to 10 BB, climb back to a full 100 BB stack.",
+                    icon = "🎙️",
+                    rarity = AchievementRarity.EPIC,
+                    xpReward = 500,
+                ),
+            ),
+            onNextHand = {},
         )
     }
 }
