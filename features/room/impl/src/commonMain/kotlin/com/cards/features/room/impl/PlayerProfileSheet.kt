@@ -18,13 +18,15 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD200
+import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Tap-an-opponent surface. Header carries the seat's identity; the
- * Settings list holds the per-seat preferences the local user controls.
- * Only emoji mute today; new sections (friend, profile-of-a-stranger)
- * land here as the social-graph todo lights up.
+ * body stacks an at-a-glance "Playing style" card (bots only, derived
+ * from [SeatView.personality]) and a Settings list of per-seat
+ * preferences. New sections (friend, profile-of-a-stranger) land here
+ * as the social-graph todo lights up.
  */
 @Composable
 internal fun PlayerProfileSheet(
@@ -65,6 +67,20 @@ internal fun PlayerProfileSheet(
             }
         },
     ) {
+        seat.personality?.let { personality ->
+            val style = playingStyleFor(personality)
+            ListSection(
+                title = "Playing style",
+                items = listOf(
+                    ListSectionItem(
+                        headlineText = style.label,
+                        supportingText = style.description,
+                        accessory = ListItemAccessory.None,
+                    ),
+                ),
+            )
+            VerticalSpacerD500()
+        }
         ListSection(
             title = "Settings",
             items = listOf(
@@ -87,11 +103,14 @@ internal fun PlayerProfileSheet(
 
 @Preview
 @Composable
-private fun PlayerProfileSheetPreview_BotUnmuted() {
+private fun PlayerProfileSheetPreview_BotUnmuted_TightPassive() {
     PreviewContent {
         PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 1, name = "Jane")
-                .copy(seatBadge = "Bot · Standard"),
+                .copy(
+                    seatBadge = "Bot · Standard",
+                    personality = com.dangerfield.cards.libraries.bots.BotPersonality.Jane,
+                ),
             isMuted = false,
             onToggleMute = {},
             onDismiss = {},
@@ -101,11 +120,14 @@ private fun PlayerProfileSheetPreview_BotUnmuted() {
 
 @Preview
 @Composable
-private fun PlayerProfileSheetPreview_BotMuted() {
+private fun PlayerProfileSheetPreview_BotMuted_Maniac() {
     PreviewContent {
         PlayerProfileSheet(
-            seat = PreviewSamples.botSeat(index = 2, name = "Maverick")
-                .copy(seatBadge = "Bot · Challenging"),
+            seat = PreviewSamples.botSeat(index = 2, name = "Mike")
+                .copy(
+                    seatBadge = "Bot · Challenging",
+                    personality = com.dangerfield.cards.libraries.bots.BotPersonality.Mike,
+                ),
             isMuted = true,
             onToggleMute = {},
             onDismiss = {},
@@ -115,11 +137,28 @@ private fun PlayerProfileSheetPreview_BotMuted() {
 
 @Preview
 @Composable
-private fun PlayerProfileSheetPreview_NoBadge() {
+private fun PlayerProfileSheetPreview_Bot_LooseAggressive() {
+    PreviewContent {
+        PlayerProfileSheet(
+            seat = PreviewSamples.botSeat(index = 3, name = "David")
+                .copy(
+                    seatBadge = "Bot · Standard",
+                    personality = com.dangerfield.cards.libraries.bots.BotPersonality.David,
+                ),
+            isMuted = false,
+            onToggleMute = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayerProfileSheetPreview_NoPersonality() {
     PreviewContent {
         PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 3, name = "Remote Human")
-                .copy(seatBadge = null, emoji = null),
+                .copy(seatBadge = null, emoji = null, personality = null),
             isMuted = false,
             onToggleMute = {},
             onDismiss = {},

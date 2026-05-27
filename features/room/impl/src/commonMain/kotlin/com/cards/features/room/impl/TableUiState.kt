@@ -185,6 +185,13 @@ data class SeatView(
      * human pre-level-plumbing). See [TableUiState.Companion.badgeFor].
      */
     val seatBadge: String? = null,
+    /**
+     * Bot personality for this seat — `null` for the human seat and any
+     * non-bot seat. Tap-an-opponent surfaces use it to render an archetype
+     * descriptor ("Tight aggressive — …"); gameplay code path doesn't read
+     * this — bots' decisions go through the engine's own personality map.
+     */
+    val personality: BotPersonality? = null,
 ) {
     companion object {
         fun fromSeat(
@@ -252,6 +259,7 @@ data class SeatView(
                 isSmallBlind = isSmallBlind,
                 isBigBlind = isBigBlind,
                 seatBadge = seatBadge,
+                personality = personality,
             )
         }
     }
