@@ -50,6 +50,13 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun tripleUp_mapsToBallerEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.TRIPLE_UP)
+        assertEquals("emotes_baller", reward?.productId)
+        assertEquals("Baller emote pack", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
