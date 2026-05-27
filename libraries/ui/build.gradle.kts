@@ -17,6 +17,11 @@ kotlin {
 
         commonMain.dependencies {
             implementation(projects.libraries.core)
+            // DispatcherProvider so platform AudioRecorder / PhotoSaver
+            // impls route I/O through the injected dispatcher instead of
+            // grabbing Dispatchers.IO directly (per AGENTS.md coroutines
+            // rule — production code never reaches for raw Dispatchers).
+            implementation(projects.libraries.flowroutines)
             // TODO honestly the cards library should expose the component that require cards domain
             implementation(projects.libraries.cards)
             // Poker game types (Card, Rank, Suit) for components/poker. These

@@ -3,7 +3,7 @@ package com.dangerfield.cards.libraries.ui
 import android.content.Context
 import android.media.MediaRecorder
 import android.os.Build
-import kotlinx.coroutines.Dispatchers
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import kotlinx.coroutines.withContext
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -15,13 +15,14 @@ import java.util.UUID
 @Inject
 class AndroidAudioRecorder(
     private val context: Context,
+    private val dispatchers: DispatcherProvider,
 ) : AudioRecorder {
 
     private var mediaRecorder: MediaRecorder? = null
     private var currentFilePath: String? = null
     private var recording = false
 
-    override suspend fun startRecording(): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun startRecording(): Boolean = withContext(dispatchers.io) {
         try {
             val recordingsDir = File(context.filesDir, "recordings")
             if (!recordingsDir.exists()) {
@@ -56,7 +57,7 @@ class AndroidAudioRecorder(
         }
     }
 
-    override suspend fun stopRecording(): String? = withContext(Dispatchers.IO) {
+    override suspend fun stopRecording(): String? = withContext(dispatchers.io) {
         try {
             mediaRecorder?.apply {
                 stop()

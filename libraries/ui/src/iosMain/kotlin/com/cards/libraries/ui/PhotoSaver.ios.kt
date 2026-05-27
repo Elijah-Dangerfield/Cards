@@ -1,10 +1,9 @@
 package com.dangerfield.cards.libraries.ui
 
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import me.tatarka.inject.annotations.Inject
 import platform.Foundation.NSData
@@ -22,10 +21,12 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 @Inject
-class IosPhotoSaver : PhotoSaver {
+class IosPhotoSaver(
+    private val dispatchers: DispatcherProvider,
+) : PhotoSaver {
 
     @OptIn(ExperimentalForeignApi::class)
-    override suspend fun savePhoto(photoData: ByteArray): String? = withContext(Dispatchers.IO) {
+    override suspend fun savePhoto(photoData: ByteArray): String? = withContext(dispatchers.io) {
         try {
             val fileManager = NSFileManager.defaultManager
             val documentsUrl = fileManager.URLsForDirectory(
