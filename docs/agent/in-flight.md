@@ -1,5 +1,11 @@
 # In-flight
 
+## fix(room): drop gendered pronoun from "Loose aggressive" bot blurb
+
+**Problem:** The "Loose aggressive" archetype description in [`BotPlayingStyle.kt`](../../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/BotPlayingStyle.kt) read `"Will push hard when he senses weakness."` — singular "he" referencing the bot. The five seeded roster bots (Jane / David / Gina / Steve / Mike) split across genders, so the blurb literally misgenders any female bot that lands in this archetype (today: nobody, but `BotPersonality.David` is loose-aggressive, and the bucket is wide enough that a future personality tweak could put a female bot here). The other five archetype descriptions in the same file all use neutral phrasing — "this seat", imperative "you", or no pronoun at all — so the gendered line was the lone outlier.
+**Approach:** One-string fix: `"...when he senses weakness."` → `"Pushes hard when they sense weakness."` Picked singular "they" (the convention the prod app already uses elsewhere) over restructuring around "this seat" because the archetype is talking about the player's actual behavior, not the seat as a vessel. `BotPlayingStyleTest.descriptionsAreNonBlank` still passes, no other test pins the exact copy.
+**Reviewer notes:** Tiny voice/safety hygiene fix, surfaced while scanning for substantive items this cycle. Brand has no canonical bot-pronoun convention recorded yet — singular "they" matches both common style guides and what reads naturally in poker commentary. If a future product call wants gendered pronouns per bot, that's a richer change (bot-specific copy, not archetype-level), and the archetype line stays neutral either way.
+
 ## fix(room): format winnings on the showdown row
 
 **Problem:** The per-seat "+winnings" label inside the showdown dialog's [`ShowdownRow`](../../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/HandResultDialogs.kt) still rendered as `"+$winAmount"` (e.g. `"+25000"`), even though every sibling chip readout inside the same dialog already routes through `formatThousands` (the achievement-callout chip-reward line, the XP/coin bubble). Means the prominent gold "+25000" pot-share text was the lone visual outlier on the surface that's specifically about counting chips. Small but jarring once you notice it.

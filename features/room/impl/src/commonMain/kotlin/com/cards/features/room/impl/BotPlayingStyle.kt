@@ -32,7 +32,7 @@ internal fun playingStyleFor(personality: BotPersonality): BotPlayingStyle {
         )
         loose && aggressive -> BotPlayingStyle(
             label = "Loose aggressive",
-            description = "Plays a wide range and bets confidently. Will push hard when he senses weakness.",
+            description = "Plays a wide range and bets confidently. Pushes hard when they sense weakness.",
         )
         tight && aggressive -> BotPlayingStyle(
             label = "Tight aggressive",
