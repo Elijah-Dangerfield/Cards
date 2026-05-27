@@ -2,11 +2,13 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.libraries.gameplay.GameState
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -49,6 +51,20 @@ class TableUiStateTest {
         )
         val sittingOut = table.seats.single { it.index == 1 }
         assertTrue(sittingOut.isBusted, "Sat-out (NotDealt) with 0 stack reads as busted between hands")
+    }
+
+    @Test
+    fun shortLabel_compactlyFormatsChipAmounts() {
+        assertEquals("Folded", PlayerAction.Fold.shortLabel())
+        assertEquals("Checked", PlayerAction.Check.shortLabel())
+        assertEquals("Called 20", PlayerAction.Call(amount = 20L).shortLabel())
+        assertEquals("Bet 500", PlayerAction.Bet(amount = 500L).shortLabel())
+        assertEquals(
+            "Raised to 1.5k",
+            PlayerAction.Raise(totalStreetContribution = 1_500L, raiseAmount = 500L).shortLabel(),
+        )
+        assertEquals("All in 12k", PlayerAction.AllIn(amount = 12_000L).shortLabel())
+        assertEquals("Called 1M", PlayerAction.Call(amount = 1_000_000L).shortLabel())
     }
 
     @Test

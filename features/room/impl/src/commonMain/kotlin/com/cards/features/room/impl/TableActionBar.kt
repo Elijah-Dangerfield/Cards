@@ -28,6 +28,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
+import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.LocalFeltAccentSurface
@@ -117,7 +118,7 @@ internal fun QuickActionBar(
                         ) {
                             Text(
                                 text = if (legal.canCheck) "Check"
-                                else "Call ${legal.callAmount}",
+                                else "Call ${formatCompactChips(legal.callAmount)}",
                             )
                         }
                         ButtonPrimary(
@@ -138,8 +139,8 @@ internal fun QuickActionBar(
                             Text(
                                 text = when {
                                     !legal.canRaise -> if (legal.isOpenBet) "Bet" else "Raise"
-                                    legal.isOpenBet -> "Bet ${legal.minRaiseTotal}"
-                                    else -> "Raise ${legal.minRaiseTotal}"
+                                    legal.isOpenBet -> "Bet ${formatCompactChips(legal.minRaiseTotal)}"
+                                    else -> "Raise ${formatCompactChips(legal.minRaiseTotal)}"
                                 },
                             )
                         }

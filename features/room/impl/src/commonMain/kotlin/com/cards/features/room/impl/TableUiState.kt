@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 
 sealed interface TableUiState {
     data object Loading : TableUiState
@@ -277,10 +278,10 @@ data class SeatView(
 fun PlayerAction.shortLabel(): String = when (this) {
     is PlayerAction.Fold -> "Folded"
     is PlayerAction.Check -> "Checked"
-    is PlayerAction.Call -> "Called $amount"
-    is PlayerAction.Bet -> "Bet $amount"
-    is PlayerAction.Raise -> "Raised to $totalStreetContribution"
-    is PlayerAction.AllIn -> "All in $amount"
+    is PlayerAction.Call -> "Called ${formatCompactChips(amount)}"
+    is PlayerAction.Bet -> "Bet ${formatCompactChips(amount)}"
+    is PlayerAction.Raise -> "Raised to ${formatCompactChips(totalStreetContribution)}"
+    is PlayerAction.AllIn -> "All in ${formatCompactChips(amount)}"
 }
 
 data class LegalActions(

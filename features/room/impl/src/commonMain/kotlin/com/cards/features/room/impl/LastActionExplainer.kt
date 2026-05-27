@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -44,9 +45,9 @@ internal fun LastActionExplainer(
 private fun headline(seatName: String, action: PlayerAction): String = when (action) {
     is PlayerAction.Fold -> "$seatName folded"
     is PlayerAction.Check -> "$seatName checked"
-    is PlayerAction.Call -> "$seatName called ${action.amount}"
-    is PlayerAction.Bet -> "$seatName bet ${action.amount}"
-    is PlayerAction.Raise -> "$seatName raised to ${action.totalStreetContribution}"
+    is PlayerAction.Call -> "$seatName called ${formatThousands(action.amount)}"
+    is PlayerAction.Bet -> "$seatName bet ${formatThousands(action.amount)}"
+    is PlayerAction.Raise -> "$seatName raised to ${formatThousands(action.totalStreetContribution)}"
     is PlayerAction.AllIn -> "$seatName went all in"
 }
 
