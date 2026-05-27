@@ -48,7 +48,7 @@ private fun headline(seatName: String, action: PlayerAction): String = when (act
     is PlayerAction.Call -> "$seatName called ${formatThousands(action.amount)}"
     is PlayerAction.Bet -> "$seatName bet ${formatThousands(action.amount)}"
     is PlayerAction.Raise -> "$seatName raised to ${formatThousands(action.totalStreetContribution)}"
-    is PlayerAction.AllIn -> "$seatName went all in"
+    is PlayerAction.AllIn -> "$seatName went all in for ${formatThousands(action.amount)}"
 }
 
 private fun emojiFor(action: PlayerAction): String = when (action) {
@@ -94,6 +94,18 @@ private fun LastActionExplainerPreview_Fold() {
         LastActionExplainer(
             seatName = "Mike",
             action = PlayerAction.Fold,
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LastActionExplainerPreview_AllIn() {
+    PreviewContent {
+        LastActionExplainer(
+            seatName = "Mike",
+            action = PlayerAction.AllIn(amount = 12_500L),
             onDismiss = {},
         )
     }

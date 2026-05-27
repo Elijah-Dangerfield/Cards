@@ -1,5 +1,11 @@
 # In-flight
 
+## fix(room): surface the all-in amount in the action explainer headline
+
+**Problem:** The [`LastActionExplainer`](../../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/LastActionExplainer.kt) headlines for Call / Bet / Raise carry the chip amount (`"$seatName called 5,000"`), but the All In branch was just `"$seatName went all in"` — no number. Inconsistent: the seat-side `LastActionPill` already shows `"All in 12k"`, the explainer body talks about "their entire stack", but the headline itself loses the size. A user who tapped the pill specifically to get more info about an all-in then has to dismiss and re-read the pill to recover what they just saw.
+**Approach:** Headline now reads `"$seatName went all in for ${formatThousands(action.amount)}"`. Used `formatThousands` (matches the sibling Call/Bet/Raise headlines in this file, dialog has horizontal room) instead of compact. Added a new `LastActionExplainerPreview_AllIn` so the branch shows up in Studio.
+**Reviewer notes:** Reverses my earlier-in-this-cycle decision to keep the All In headline amount-less ("the action's drama is the event, not the size"). The drama argument is true but the consistency argument wins — Call/Bet/Raise all carry the amount, and forcing the user to remember the pill's number to grok what just happened is needless friction. Voice copy is intentionally `"all in for X"` (not `"all in with X"`); reads as poker-natural.
+
 ## fix(room): drop gendered pronoun from "Loose aggressive" bot blurb
 
 **Problem:** The "Loose aggressive" archetype description in [`BotPlayingStyle.kt`](../../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/BotPlayingStyle.kt) read `"Will push hard when he senses weakness."` — singular "he" referencing the bot. The five seeded roster bots (Jane / David / Gina / Steve / Mike) split across genders, so the blurb literally misgenders any female bot that lands in this archetype (today: nobody, but `BotPersonality.David` is loose-aggressive, and the bucket is wide enough that a future personality tweak could put a female bot here). The other five archetype descriptions in the same file all use neutral phrasing — "this seat", imperative "you", or no pronoun at all — so the gendered line was the lone outlier.
