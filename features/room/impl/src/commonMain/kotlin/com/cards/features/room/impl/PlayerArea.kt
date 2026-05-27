@@ -99,6 +99,7 @@ internal fun PlayerArea(
     table: TableUiState.Active,
     humanTitle: String? = null,
     humanPermanentBadgeEmoji: String? = null,
+    humanStackOverride: Long? = null,
     humanWinOdds: EquityBreakdown? = null,
     silentSwipeFold: Boolean = false,
     winOddsFlipHintSeen: Boolean = false,
@@ -331,6 +332,7 @@ internal fun PlayerArea(
             isWinner = isWinner,
             title = humanTitle,
             permanentBadgeEmoji = humanPermanentBadgeEmoji,
+            stackOverride = humanStackOverride,
             winOdds = humanWinOdds,
             winOddsFlipHintSeen = winOddsFlipHintSeen,
             onFirstFlip = onWinOddsFlipped,
@@ -467,6 +469,7 @@ private fun PlayerInfoTile(
     isWinner: Boolean,
     title: String?,
     permanentBadgeEmoji: String?,
+    stackOverride: Long?,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit,
@@ -580,12 +583,13 @@ private fun PlayerInfoTile(
         )
         VerticalSpacerD100()
         ChipCoinAmount(
-            amount = seat.stack,
+            amount = stackOverride ?: seat.stack,
             coinSize = 14.dp,
             typography = AppTheme.typography.Body.B600,
             color = AppTheme.colors.text,
             gap = 5.dp,
             formatter = ::formatCompactChips,
+            animated = stackOverride != null,
             modifier = Modifier.clickable(onClick = onStackClick),
         )
         // Show the chip contribution (gold pill) OR the last-action label, not
@@ -632,6 +636,7 @@ private fun FlippablePlayerInfoTile(
     isWinner: Boolean,
     title: String?,
     permanentBadgeEmoji: String?,
+    stackOverride: Long?,
     winOdds: EquityBreakdown?,
     winOddsFlipHintSeen: Boolean,
     onFirstFlip: () -> Unit,
@@ -710,6 +715,7 @@ private fun FlippablePlayerInfoTile(
                 isWinner = isWinner,
                 title = title,
                 permanentBadgeEmoji = permanentBadgeEmoji,
+                stackOverride = stackOverride,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
                 onLastActionClick = onLastActionClick,

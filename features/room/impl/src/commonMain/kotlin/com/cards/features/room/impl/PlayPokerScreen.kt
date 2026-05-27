@@ -109,6 +109,18 @@ fun PlayPokerScreen(
     LaunchedEffect(state.xp, xpFrozen) {
         if (!xpFrozen) displayedXp = state.xp
     }
+    // Mirror of the XP-deferral gate for the human's chip stack. The chip
+    // tile sits below the dialog/sheet scrim during the win-celebration
+    // moment, so a naive snap from old-stack to new-stack happens behind
+    // the overlay and the user never sees the count-up. Holding the
+    // displayed value at its pre-hand number until both overlays dismiss
+    // lets `AnimatedNumberText` (inside `ChipCoinAmount(animated = true)`)
+    // play the odometer roll against an uncovered tile.
+    val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
+    var displayedHumanStack by remember { mutableStateOf(humanStack) }
+    LaunchedEffect(humanStack, xpFrozen) {
+        if (!xpFrozen) displayedHumanStack = humanStack
+    }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(active?.isHumanTurn) {
         if (active?.isHumanTurn != true) {
@@ -198,6 +210,7 @@ fun PlayPokerScreen(
                         humanWinOdds = state.humanWinOdds,
                         humanTitle = state.equippedTitle,
                         humanPermanentBadgeEmoji = state.equippedBadgeEmoji,
+                        humanStackOverride = displayedHumanStack,
                         silentSwipeFold = state.swipeFoldGestureAck,
                         winOddsFlipHintSeen = state.winOddsFlipHintSeen,
                         onWinOddsFlipped = {
@@ -268,7 +281,6 @@ fun PlayPokerScreen(
         }
 
         if (stackExplainerOpen) {
-            val humanStack = active?.seats?.firstOrNull { it.isHuman }?.stack ?: 0L
             StackExplainer(stack = humanStack, onDismiss = { stackExplainerOpen = false })
         }
 
@@ -526,6 +538,7 @@ private fun ActiveTable(
     humanWinOdds: EquityBreakdown?,
     humanTitle: String?,
     humanPermanentBadgeEmoji: String?,
+    humanStackOverride: Long? = null,
     silentSwipeFold: Boolean = false,
     winOddsFlipHintSeen: Boolean = false,
     onWinOddsFlipped: () -> Unit = {},
@@ -581,6 +594,7 @@ private fun ActiveTable(
                 table = table,
                 humanTitle = humanTitle,
                 humanPermanentBadgeEmoji = humanPermanentBadgeEmoji,
+                humanStackOverride = humanStackOverride,
                 humanWinOdds = humanWinOdds,
                 silentSwipeFold = silentSwipeFold,
                 winOddsFlipHintSeen = winOddsFlipHintSeen,
