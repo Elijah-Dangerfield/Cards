@@ -36,10 +36,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * recent-achievements / recently-played-with shelves so the three
  * surfaces feel like siblings.
  *
- * Auto-hides when there are no online friends AND no pending requests
- * — per the spec's voice rule, Home doesn't push a "make a friend!"
- * empty state. Pending requests alone still surface so the user sees
- * the inbox indicator at the see-all link.
+ * Always renders, even with zero friends and zero pending requests: the
+ * empty state carries a one-line echo of the friend-via-play rule — the
+ * full explanation + CTAs live on the Recently-played-with shelf below,
+ * so this strip's empty state stays terse and points the user there.
  */
 @Composable
 internal fun FriendsStrip(
@@ -48,12 +48,16 @@ internal fun FriendsStrip(
     onSeeAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (friends.isEmpty() && pendingRequests <= 0) return
+    val hasContent = friends.isNotEmpty() || pendingRequests > 0
     Column(modifier = modifier.fillMaxWidth()) {
         SectionHeader(
             title = "Friends",
-            trailingLabel = seeAllLabel(onlineCount = friends.size, pendingRequests = pendingRequests),
-            onClick = onSeeAll,
+            trailingLabel = if (hasContent) {
+                seeAllLabel(onlineCount = friends.size, pendingRequests = pendingRequests)
+            } else {
+                null
+            },
+            onClick = if (hasContent) onSeeAll else null,
         )
         VerticalSpacerD500()
         if (friends.isNotEmpty()) {
@@ -62,6 +66,12 @@ internal fun FriendsStrip(
                     FriendTile(friend = friend, onClick = onSeeAll)
                 }
             }
+        } else if (pendingRequests <= 0) {
+            Text(
+                text = "Friends grow from the felt — play someone, then add them from \"Recently played with\".",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.onSurfaceSecondary,
+            )
         }
     }
 }
@@ -190,6 +200,21 @@ private fun FriendsStripPreview_EmptyButPending() {
         FriendsStrip(
             friends = emptyList(),
             pendingRequests = 1,
+            onSeeAll = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun FriendsStripPreview_FullyEmpty() {
+    // No friends, no pending — empty state echoes the friend-via-play
+    // rule with a pointer to the Recently-played-with shelf where the
+    // full explanation and CTAs live.
+    PreviewContent(contentPadding = PaddingValues(16.dp)) {
+        FriendsStrip(
+            friends = emptyList(),
+            pendingRequests = 0,
             onSeeAll = {},
         )
     }
