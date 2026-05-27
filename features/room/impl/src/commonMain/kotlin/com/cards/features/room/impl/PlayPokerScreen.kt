@@ -333,6 +333,7 @@ fun PlayPokerScreen(
                     }
                 },
                 onDismiss = { profileSheetSeat = null },
+                botDifficultyLabel = active?.botDifficultyLabel,
             )
         }
 

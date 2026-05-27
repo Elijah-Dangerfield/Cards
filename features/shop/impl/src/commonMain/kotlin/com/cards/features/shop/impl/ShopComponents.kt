@@ -163,22 +163,14 @@ internal fun productBubbleSurface(product: Product): BubbleSurface = when (produ
 internal fun hasCosmeticPreview(productId: String): Boolean =
     cosmeticSlotFor(productId).let { it == CosmeticSlot.Felt || it == CosmeticSlot.CardBack }
 
-/** Format chip costs with a thousands separator (KMP — no Locale ergonomics). */
-internal fun formatChips(amount: Long): String {
-    if (amount < 1_000) return amount.toString()
-    val s = amount.toString()
-    val out = StringBuilder()
-    var count = 0
-    for (i in s.lastIndex downTo 0) {
-        out.append(s[i])
-        count++
-        if (count == 3 && i > 0) {
-            out.append(',')
-            count = 0
-        }
-    }
-    return out.reverse().toString()
-}
+/**
+ * Re-export of the shared thousands-separator formatter so the shop
+ * module's existing callsites keep their familiar `formatChips(...)`
+ * import path. The canonical implementation lives in
+ * [com.dangerfield.cards.libraries.cards.formatThousands].
+ */
+internal fun formatChips(amount: Long): String =
+    com.dangerfield.cards.libraries.cards.formatThousands(amount)
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable

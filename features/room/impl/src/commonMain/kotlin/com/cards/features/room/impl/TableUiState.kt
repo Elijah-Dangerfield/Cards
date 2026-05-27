@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 
 sealed interface TableUiState {
     data object Loading : TableUiState
@@ -32,6 +33,14 @@ sealed interface TableUiState {
         val buttonSeatIndex: Int,
         val smallBlindSeatIndex: Int?,
         val bigBlindSeatIndex: Int?,
+        /**
+         * Table-level bot difficulty label ("Casual" / "Standard" /
+         * "Challenging") for solo bot sessions. Surfaced by the
+         * tap-an-opponent profile sheet's "Difficulty" section so the user
+         * sees the table's tuning alongside the individual bot's playing
+         * style. Null for MP tables where bots aren't seated.
+         */
+        val botDifficultyLabel: String? = null,
     ) : TableUiState
 
     companion object {
@@ -111,6 +120,7 @@ sealed interface TableUiState {
                 buttonSeatIndex = gameState.buttonSeatIndex,
                 smallBlindSeatIndex = sbIndex,
                 bigBlindSeatIndex = bbIndex,
+                botDifficultyLabel = botDifficultyLabel,
             )
         }
 
@@ -185,6 +195,13 @@ data class SeatView(
      * human pre-level-plumbing). See [TableUiState.Companion.badgeFor].
      */
     val seatBadge: String? = null,
+    /**
+     * Bot personality for this seat — `null` for the human seat and any
+     * non-bot seat. Tap-an-opponent surfaces use it to render an archetype
+     * descriptor ("Tight aggressive — …"); gameplay code path doesn't read
+     * this — bots' decisions go through the engine's own personality map.
+     */
+    val personality: BotPersonality? = null,
 ) {
     companion object {
         fun fromSeat(
@@ -252,6 +269,7 @@ data class SeatView(
                 isSmallBlind = isSmallBlind,
                 isBigBlind = isBigBlind,
                 seatBadge = seatBadge,
+                personality = personality,
             )
         }
     }
@@ -260,10 +278,10 @@ data class SeatView(
 fun PlayerAction.shortLabel(): String = when (this) {
     is PlayerAction.Fold -> "Folded"
     is PlayerAction.Check -> "Checked"
-    is PlayerAction.Call -> "Called $amount"
-    is PlayerAction.Bet -> "Bet $amount"
-    is PlayerAction.Raise -> "Raised to $totalStreetContribution"
-    is PlayerAction.AllIn -> "All in $amount"
+    is PlayerAction.Call -> "Called ${formatCompactChips(amount)}"
+    is PlayerAction.Bet -> "Bet ${formatCompactChips(amount)}"
+    is PlayerAction.Raise -> "Raised to ${formatCompactChips(totalStreetContribution)}"
+    is PlayerAction.AllIn -> "All in ${formatCompactChips(amount)}"
 }
 
 data class LegalActions(

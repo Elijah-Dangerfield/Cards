@@ -9,6 +9,7 @@ import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
@@ -126,13 +127,13 @@ private fun showPurchaseSnackbar(outcome: IapPurchaseOutcome) {
     when (outcome) {
         is IapPurchaseOutcome.Success -> showSnackBar(
             title = "Chips added",
-            message = "+${outcome.grantedChips} chips",
+            message = "+${formatThousands(outcome.grantedChips)} chips",
             emoji = "🪙",
             duration = SnackbarDuration.Short,
         )
         is IapPurchaseOutcome.AlreadyOwned -> showSnackBar(
             title = "Restored",
-            message = "+${outcome.grantedChips} chips re-credited from a prior purchase.",
+            message = "+${formatThousands(outcome.grantedChips)} chips re-credited from a prior purchase.",
             emoji = "🪙",
             duration = SnackbarDuration.Short,
         )

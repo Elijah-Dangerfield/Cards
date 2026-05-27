@@ -220,7 +220,7 @@ val AllAchievements: List<Achievement> = listOf(
     Achievement(
         id = AchievementId.BOT_WHISPERER,
         name = "Bot whisperer",
-        description = "Beat all five bot personalities 10 times each. Unlocks a player title.",
+        description = "Beat all five bot personalities 10 times each.",
         icon = "🎓",
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.Custom(key = BOT_WHISPERER_BOTS_BEATEN, target = 5),

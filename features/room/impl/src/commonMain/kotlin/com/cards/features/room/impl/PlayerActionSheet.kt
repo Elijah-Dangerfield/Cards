@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
@@ -97,7 +98,7 @@ internal fun PlayerActionSheet(
             }
             BigActionPill(
                 label = "All in",
-                sublabel = legal.allInAmount.toString(),
+                sublabel = formatCompactChips(legal.allInAmount),
                 modifier = Modifier.weight(1f),
                 style = PillStyle.Neutral,
             ) {
@@ -124,7 +125,7 @@ internal fun PlayerActionSheet(
                 maxAmount = legal.maxRaiseTotal,
             )
             Text(
-                text = "max ${legal.maxRaiseTotal}",
+                text = "max ${formatCompactChips(legal.maxRaiseTotal)}",
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,
