@@ -18,10 +18,27 @@ import com.dangerfield.cards.libraries.navigation.bottomSheet
 import com.dangerfield.cards.libraries.navigation.graphScopedViewModel
 import com.dangerfield.cards.libraries.navigation.navigation
 import com.dangerfield.cards.libraries.navigation.screen
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_message
+import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_title
+import cards.libraries.resources.generated.resources.shop_snackbar_chips_added_message
+import cards.libraries.resources.generated.resources.shop_snackbar_chips_added_title
+import cards.libraries.resources.generated.resources.shop_snackbar_chips_restored_message
+import cards.libraries.resources.generated.resources.shop_snackbar_chips_restored_title
+import cards.libraries.resources.generated.resources.shop_snackbar_not_signed_in_message
+import cards.libraries.resources.generated.resources.shop_snackbar_not_signed_in_title
+import cards.libraries.resources.generated.resources.shop_snackbar_offer_expired_message
+import cards.libraries.resources.generated.resources.shop_snackbar_offer_expired_title
+import cards.libraries.resources.generated.resources.shop_snackbar_purchase_failed_title
+import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_message
+import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_title
+import cards.libraries.resources.generated.resources.shop_snackbar_store_unavailable_message
+import cards.libraries.resources.generated.resources.shop_snackbar_store_unavailable_title
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.compose.resources.getString
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
@@ -54,20 +71,20 @@ class ShopFeatureEntryPoint(
                     when (event) {
                         is ShopEvent.PurchaseFinished -> showPurchaseSnackbar(event.outcome)
                         is ShopEvent.RedeemSucceeded -> showSnackBar(
-                            title = "Unlocked!",
-                            message = "${event.offer.title} is yours.",
+                            title = getString(Res.string.shop_snackbar_redeem_succeeded_title),
+                            message = getString(Res.string.shop_snackbar_redeem_succeeded_message, event.offer.title),
                             emoji = event.offer.iconEmoji,
                             duration = SnackbarDuration.Short,
                         )
                         is ShopEvent.AlreadyOwned -> showSnackBar(
-                            title = "Already yours",
-                            message = "Look for ${event.offer.title} in your items.",
+                            title = getString(Res.string.shop_snackbar_already_owned_title),
+                            message = getString(Res.string.shop_snackbar_already_owned_message, event.offer.title),
                             emoji = event.offer.iconEmoji,
                             duration = SnackbarDuration.Short,
                         )
                         is ShopEvent.OfferExpired -> showSnackBar(
-                            title = "Just missed it",
-                            message = "That offer's window closed. Refreshed the shop.",
+                            title = getString(Res.string.shop_snackbar_offer_expired_title),
+                            message = getString(Res.string.shop_snackbar_offer_expired_message),
                             duration = SnackbarDuration.Short,
                         )
                     }
@@ -123,33 +140,39 @@ class ShopFeatureEntryPoint(
     }
 }
 
-private fun showPurchaseSnackbar(outcome: IapPurchaseOutcome) {
+private suspend fun showPurchaseSnackbar(outcome: IapPurchaseOutcome) {
     when (outcome) {
         is IapPurchaseOutcome.Success -> showSnackBar(
-            title = "Chips added",
-            message = "+${formatThousands(outcome.grantedChips)} chips",
+            title = getString(Res.string.shop_snackbar_chips_added_title),
+            message = getString(
+                Res.string.shop_snackbar_chips_added_message,
+                formatThousands(outcome.grantedChips),
+            ),
             emoji = "🪙",
             duration = SnackbarDuration.Short,
         )
         is IapPurchaseOutcome.AlreadyOwned -> showSnackBar(
-            title = "Restored",
-            message = "+${formatThousands(outcome.grantedChips)} chips re-credited from a prior purchase.",
+            title = getString(Res.string.shop_snackbar_chips_restored_title),
+            message = getString(
+                Res.string.shop_snackbar_chips_restored_message,
+                formatThousands(outcome.grantedChips),
+            ),
             emoji = "🪙",
             duration = SnackbarDuration.Short,
         )
         IapPurchaseOutcome.Cancelled -> Unit
         IapPurchaseOutcome.StoreUnavailable -> showSnackBar(
-            title = "Store unavailable",
-            message = "Couldn't reach the App Store right now. Try again in a moment.",
+            title = getString(Res.string.shop_snackbar_store_unavailable_title),
+            message = getString(Res.string.shop_snackbar_store_unavailable_message),
             duration = SnackbarDuration.Short,
         )
         IapPurchaseOutcome.NotSignedIn -> showSnackBar(
-            title = "Sign in first",
-            message = "Purchases require a signed-in account.",
+            title = getString(Res.string.shop_snackbar_not_signed_in_title),
+            message = getString(Res.string.shop_snackbar_not_signed_in_message),
             duration = SnackbarDuration.Short,
         )
         is IapPurchaseOutcome.Failed -> showSnackBar(
-            title = "Purchase failed",
+            title = getString(Res.string.shop_snackbar_purchase_failed_title),
             message = outcome.reason,
             duration = SnackbarDuration.Long,
         )

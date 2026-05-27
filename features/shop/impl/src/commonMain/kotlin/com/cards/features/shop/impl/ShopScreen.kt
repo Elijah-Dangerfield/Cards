@@ -1,5 +1,10 @@
 package com.dangerfield.cards.features.shop.impl
 
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.shop_need_chips_more
+import cards.libraries.resources.generated.resources.shop_owned_badge
+import cards.libraries.resources.generated.resources.shop_unlocks_at_level
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -723,7 +728,7 @@ private fun LockedFooter(requiredLevel: Int) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
-            text = "Unlocks at Level $requiredLevel",
+            text = stringResource(Res.string.shop_unlocks_at_level, requiredLevel),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
@@ -757,7 +762,7 @@ private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
         if (shortBy > 0) {
             VerticalSpacerD100()
             Text(
-                text = "Need ${formatChips(shortBy)} more",
+                text = stringResource(Res.string.shop_need_chips_more, formatChips(shortBy)),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.danger,
             )
@@ -791,7 +796,7 @@ private fun OwnedFooter() {
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
-            text = "OWNED",
+            text = stringResource(Res.string.shop_owned_badge),
             typography = AppTheme.typography.Label.L400,
             color = AppTheme.colors.status.okay,
         )

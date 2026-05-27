@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Centralized user-facing string catalog. Compose Multiplatform Resources
+  generates a `Res.string.*` accessor per entry — read via
+  `stringResource(Res.string.foo, args)` in a Composable context, or
+  `getString(Res.string.foo, args)` in any coroutine context (snackbars
+  fired from a ViewModel / Router, suspend lambdas, etc).
+
+  New user-facing strings always go here, not inline at the callsite —
+  see `docs/todo.md` "Strings — centralize everything in
+  :libraries:resources". Naming convention: `{surface}_{role}_{specifier}`.
+-->
+<resources>
+    <!-- Shop — snackbar titles + messages fired from non-Composable contexts. -->
+    <string name="shop_snackbar_redeem_succeeded_title">Unlocked!</string>
+    <string name="shop_snackbar_redeem_succeeded_message">%1$s is yours.</string>
+    <string name="shop_snackbar_already_owned_title">Already yours</string>
+    <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
+    <string name="shop_snackbar_offer_expired_title">Just missed it</string>
+    <string name="shop_snackbar_offer_expired_message">That offer\'s window closed. Refreshed the shop.</string>
+    <string name="shop_snackbar_chips_added_title">Chips added</string>
+    <string name="shop_snackbar_chips_added_message">+%1$s chips</string>
+    <string name="shop_snackbar_chips_restored_title">Restored</string>
+    <string name="shop_snackbar_chips_restored_message">+%1$s chips re-credited from a prior purchase.</string>
+    <string name="shop_snackbar_store_unavailable_title">Store unavailable</string>
+    <string name="shop_snackbar_store_unavailable_message">Couldn\'t reach the App Store right now. Try again in a moment.</string>
+    <string name="shop_snackbar_not_signed_in_title">Sign in first</string>
+    <string name="shop_snackbar_not_signed_in_message">Purchases require a signed-in account.</string>
+    <string name="shop_snackbar_purchase_failed_title">Purchase failed</string>
+
+    <!-- Shop — owned-state badge + locked / insufficient footers on product cards. -->
+    <string name="shop_owned_badge">OWNED</string>
+    <string name="shop_unlocks_at_level">Unlocks at Level %1$d</string>
+    <string name="shop_need_chips_more">Need %1$s more</string>
+</resources>
