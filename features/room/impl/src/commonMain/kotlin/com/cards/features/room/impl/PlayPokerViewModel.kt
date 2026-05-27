@@ -34,6 +34,7 @@ import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
+import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.titleForProductId
@@ -201,10 +202,12 @@ class PlayPokerViewModel @Inject constructor(
                 // Newest-equipped-title wins so a freshly-equipped title
                 // takes over from a prior one without an explicit unequip.
                 val title = entries.firstNotNullOfOrNull { titleForProductId(it.productId) }
+                val badgeEmoji = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) }
                 takeAction(PlayPokerAction.EquippedFeltChanged(felt))
                 takeAction(PlayPokerAction.EquippedCardBackChanged(cardBack))
                 takeAction(PlayPokerAction.WinOddsToolEquippedChanged(winOddsTool))
                 takeAction(PlayPokerAction.EquippedTitleChanged(title))
+                takeAction(PlayPokerAction.EquippedBadgeChanged(badgeEmoji))
             }
         }
         // Live win-odds — only computes when the user owns + equips the
@@ -465,6 +468,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.EquippedTitleChanged -> action.updateState {
                 it.copy(equippedTitle = action.title)
             }
+            is PlayPokerAction.EquippedBadgeChanged -> action.updateState {
+                it.copy(equippedBadgeEmoji = action.emoji)
+            }
             is PlayPokerAction.ConnectionChanged -> action.updateState {
                 it.copy(connection = action.connection)
             }
@@ -619,6 +625,12 @@ data class PlayPokerState(
      */
     val equippedTitle: String? = null,
     /**
+     * Emoji of the equipped permanent seat badge (founding-member,
+     * league rewards, etc.) rendered in the slot mirrored opposite the
+     * SB/BB chip on the human seat. Null = empty slot.
+     */
+    val equippedBadgeEmoji: String? = null,
+    /**
      * Mirrors `AppData.swipeFoldGestureAck`. False = swipe-up-to-fold on
      * the human's hole cards opens a confirmation dialog; true = it folds
      * silently. Flips the moment the user ticks "Don't show this again"
@@ -718,6 +730,9 @@ sealed interface PlayPokerAction {
 
     /** Fired by the equipment subscription; flips the equipped title shown under the name. */
     data class EquippedTitleChanged(val title: String?) : PlayPokerAction
+
+    /** Fired by the equipment subscription; flips the equipped permanent seat badge. */
+    data class EquippedBadgeChanged(val emoji: String?) : PlayPokerAction
 
     /** Fired by the session's connection-state subscription. */
     data class ConnectionChanged(val connection: ConnectionState) : PlayPokerAction

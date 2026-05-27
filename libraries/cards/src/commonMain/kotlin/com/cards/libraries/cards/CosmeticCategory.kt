@@ -17,6 +17,7 @@ enum class CosmeticSlot {
     CardBack,
     Title,
     Tool,
+    Badge,
 }
 
 /**
@@ -30,6 +31,7 @@ fun cosmeticSlotFor(productId: String): CosmeticSlot? = when {
     productId.startsWith("cardback_") -> CosmeticSlot.CardBack
     productId.startsWith("title_") -> CosmeticSlot.Title
     productId.startsWith("tool_") -> CosmeticSlot.Tool
+    productId.startsWith("badge_") -> CosmeticSlot.Badge
     else -> null
 }
 
@@ -52,5 +54,6 @@ fun isPersonalCosmetic(productId: String): Boolean = when (cosmeticSlotFor(produ
     CosmeticSlot.CardBack -> true
     CosmeticSlot.Tool -> true
     CosmeticSlot.Title -> false
+    CosmeticSlot.Badge -> false
     null -> false
 }
