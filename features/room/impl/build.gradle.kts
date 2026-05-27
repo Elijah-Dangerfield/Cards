@@ -47,6 +47,7 @@ kotlin {
             implementation(projects.libraries.review)
             implementation(projects.libraries.storage)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.ui)
         }
     }
 }

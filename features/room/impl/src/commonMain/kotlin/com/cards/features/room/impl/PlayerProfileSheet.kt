@@ -1,13 +1,22 @@
 package com.dangerfield.cards.features.room.impl
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
+import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
+import com.dangerfield.cards.libraries.ui.components.RadarChart
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
@@ -17,6 +26,8 @@ import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -69,17 +80,7 @@ internal fun PlayerProfileSheet(
         },
     ) {
         seat.personality?.let { personality ->
-            val style = playingStyleFor(personality)
-            ListSection(
-                title = "Playing style",
-                items = listOf(
-                    ListSectionItem(
-                        headlineText = style.label,
-                        supportingText = style.description,
-                        accessory = ListItemAccessory.None,
-                    ),
-                ),
-            )
+            PlayingStyleBlock(personality = personality)
             VerticalSpacerD500()
         }
         if (seat.isBot) {
@@ -114,6 +115,48 @@ internal fun PlayerProfileSheet(
                 ),
             ),
         )
+    }
+}
+
+@Composable
+private fun PlayingStyleBlock(personality: BotPersonality) {
+    val style = playingStyleFor(personality)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Playing style",
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.onSurfacePrimary,
+        )
+        VerticalSpacerD200()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(Radii.Card.shape)
+                .background(AppTheme.colors.surfacePrimary.color)
+                .padding(Dimension.D500),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = style.label,
+                        typography = AppTheme.typography.Body.B600,
+                        color = AppTheme.colors.onSurfacePrimary,
+                    )
+                    VerticalSpacerD200()
+                    Text(
+                        text = style.description,
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.onSurfaceSecondary,
+                    )
+                }
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    RadarChart(axes = radarAxesFor(personality))
+                }
+            }
+        }
     }
 }
 
