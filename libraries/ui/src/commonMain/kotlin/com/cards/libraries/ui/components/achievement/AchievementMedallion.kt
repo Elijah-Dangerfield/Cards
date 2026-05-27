@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.Achievement
+import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -230,6 +231,16 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )
+            cosmeticRewardFor(achievement.id)?.let { cosmetic ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Unlocks · ${cosmetic.label}",
+                    typography = AppTheme.typography.Label.L400,
+                    color = AppTheme.colors.textSecondary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                )
+            }
         }
     }
 }
@@ -351,6 +362,40 @@ private fun MedallionPreview_Earned() {
             achievement = com.dangerfield.cards.libraries.cards.AllAchievements[1],
             earnedAtEpochMs = kotlin.time.Clock.System.now().toEpochMilliseconds() - (1000L * 60 * 60 * 24 * 3),
             progress = 100,
+            modifier = Modifier.padding(8.dp),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MedallionPreview_LockedWithCosmeticReward() {
+    // Non-mystery achievement that grants a cosmetic — the back face
+    // should advertise it as a chase goal alongside the XP/chip reward.
+    val achievement = com.dangerfield.cards.libraries.cards.AllAchievements
+        .first { it.id == com.dangerfield.cards.libraries.cards.AchievementId.BOT_WHISPERER }
+    PreviewContent {
+        AchievementMedallion(
+            achievement = achievement,
+            earnedAtEpochMs = null,
+            progress = 3,
+            modifier = Modifier.padding(8.dp),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun MedallionPreview_EarnedWithCosmeticReward() {
+    // Mystery achievement that's now earned — the back face should name
+    // the cosmetic so the user knows what they just unlocked.
+    val achievement = com.dangerfield.cards.libraries.cards.AllAchievements
+        .first { it.id == com.dangerfield.cards.libraries.cards.AchievementId.POT_5000 }
+    PreviewContent {
+        AchievementMedallion(
+            achievement = achievement,
+            earnedAtEpochMs = kotlin.time.Clock.System.now().toEpochMilliseconds() - (1000L * 60 * 60 * 24),
+            progress = achievement.criterion.target,
             modifier = Modifier.padding(8.dp),
         )
     }
