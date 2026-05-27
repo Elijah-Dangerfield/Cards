@@ -57,6 +57,13 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun noBust100_mapsToIronStackEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.NO_BUST_100)
+        assertEquals("emotes_iron_stack", reward?.productId)
+        assertEquals("Iron Stack emote pack", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to

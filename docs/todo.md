@@ -33,7 +33,7 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 ### Catalog gating — unlock-only vs purchasable
 
-- `[P2]` **More emote / blast-pack unlocks beyond the seeded Eliminator + Baller packs.** Two pairings shipped: `emotes_eliminator` for `BUST_DEALT_5` (V25), `emotes_baller` for `TRIPLE_UP` (V27). Remaining work: extend the catalog — pick the next achievement → pack pairing each time a new themed bundle makes sense. Candidates worth considering: `NO_BUST_100` ("Survivor" pack), `BEAT_*_10` per-bot signature packs, or a multi-suit theme tied to `SHOW_*` rare-hand achievements. **Out of scope:** the existing pathway itself.
+- `[P2]` **More emote / blast-pack unlocks beyond the seeded Eliminator + Baller + Iron Stack packs.** Three pairings shipped: `emotes_eliminator` for `BUST_DEALT_5` (V25), `emotes_baller` for `TRIPLE_UP` (V27), `emotes_iron_stack` for `NO_BUST_100` (V28). Remaining work: extend the catalog — pick the next achievement → pack pairing each time a new themed bundle makes sense. Candidates worth considering: `BEAT_*_10` per-bot signature packs (one pack per personality), a multi-suit theme tied to `SHOW_*` rare-hand achievements (`SHOW_STRAIGHT_FLUSH` / `SHOW_ROYAL_FLUSH`), or a comeback-energy pack pairing with `WIN_BY_FOLD_10` (the "I bluffed my way back" identity). **Out of scope:** the existing pathway itself.
 
 - `[P2]` **League-tier rewards (blocked on league mechanic).** One cosmetic per league tier granted at season end. Genuinely blocked — re-pick once the league system has a real surface.
 

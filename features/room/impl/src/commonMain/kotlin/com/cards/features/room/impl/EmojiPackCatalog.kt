@@ -30,6 +30,7 @@ internal object EmojiPackCatalog {
         "emotes_royal" to listOf("👑", "🃏", "♠️", "♥️"),
         "emotes_eliminator" to listOf("🪦", "⚰️", "👻", "🥀"),
         "emotes_baller" to listOf("💸", "💎", "🤑", "📈"),
+        "emotes_iron_stack" to listOf("🛡️", "🧱", "🗿", "🦾"),
     )
 
     /**

@@ -122,6 +122,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsIronStackEmotePack_forNoBust100() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("emotes_iron_stack"))
+        post(inventory, catalog, defaultPolicy, "NO_BUST_100") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("emotes_iron_stack", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("emotes_iron_stack", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun defaultPolicy_grantsBotWhispererTitle_forBotWhispererCapstone() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_bot_whisperer"))
