@@ -390,7 +390,7 @@ private fun ShowdownRow(
             )
             if (isWinner && winAmount > 0) {
                 Text(
-                    text = "+$winAmount",
+                    text = "+${formatThousands(winAmount)}",
                     typography = AppTheme.typography.Body.B500,
                     color = goldText,
                 )

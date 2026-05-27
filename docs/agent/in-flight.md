@@ -1,5 +1,11 @@
 # In-flight
 
+## fix(room): format winnings on the showdown row
+
+**Problem:** The per-seat "+winnings" label inside the showdown dialog's [`ShowdownRow`](../../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/HandResultDialogs.kt) still rendered as `"+$winAmount"` (e.g. `"+25000"`), even though every sibling chip readout inside the same dialog already routes through `formatThousands` (the achievement-callout chip-reward line, the XP/coin bubble). Means the prominent gold "+25000" pot-share text was the lone visual outlier on the surface that's specifically about counting chips. Small but jarring once you notice it.
+**Approach:** Single-character change at `HandResultDialogs.kt:393` — `"+$winAmount"` → `"+${formatThousands(winAmount)}"`. `formatThousands` is already imported in this file, so no new wiring. Used the wide-form formatter (matching the dialog's sibling reward line) rather than `formatCompactChips` because the showdown dialog has full horizontal room and a precise number reads more honestly when the user is parsing "what did I just win."
+**Reviewer notes:** No test added — the rendering branch is one interpolation swap against an already-pinned utility, and the existing `ShowdownDialogPreview_*` previews surface the visual delta. Pairs with the same-cycle action-pill / action-bar / player-action-sheet commits — together they close out the raw-chip-number drift on the play screen surfaces.
+
 ## fix(room): format chip amounts in the player action sheet
 
 **Problem:** Sibling polish to the same-cycle action-label commit below — two read-only chip displays inside the expanded raise sheet ([`PlayerActionSheet.kt`](../../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayerActionSheet.kt)) still rendered raw `Long.toString()`: (1) the "All in" big action pill's sublabel was `legal.allInAmount.toString()` (`5000` instead of `5k`); (2) the "max ${legal.maxRaiseTotal}" hint under the stepper was `5000` instead of `5k`. Both surfaces are the same kind of ambient chip readout the action-bar quick buttons already format compactly — the inconsistency was harder to spot here because this sheet only opens when the user taps the More-raise-options chevron.
