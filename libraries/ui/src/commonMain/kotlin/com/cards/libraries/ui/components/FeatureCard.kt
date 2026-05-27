@@ -57,7 +57,7 @@ fun FeatureCard(
             modifier = Modifier
                 .size(52.dp)
                 .clip(Radii.R700.shape)
-                .background(Color.White.copy(alpha = 0.15f)),
+                .background(AppTheme.colors.onAccentPrimary.color.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
