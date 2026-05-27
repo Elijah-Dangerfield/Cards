@@ -96,6 +96,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsEliminatorEmotePack_forBustDealt5() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("emotes_eliminator"))
+        post(inventory, catalog, defaultPolicy, "BUST_DEALT_5") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("emotes_eliminator", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("emotes_eliminator", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun defaultPolicy_grantsBotWhispererTitle_forBotWhispererCapstone() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_bot_whisperer"))

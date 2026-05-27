@@ -28,6 +28,7 @@ internal object EmojiPackCatalog {
         "emotes_cute" to listOf("🥺", "🥰", "😇", "🤗"),
         "emotes_fierce" to listOf("😤", "🔥", "💀", "😎"),
         "emotes_royal" to listOf("👑", "🃏", "♠️", "♥️"),
+        "emotes_eliminator" to listOf("🪦", "⚰️", "👻", "🥀"),
     )
 
     /**

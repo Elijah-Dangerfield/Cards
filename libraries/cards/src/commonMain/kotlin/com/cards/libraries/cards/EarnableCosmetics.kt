@@ -50,5 +50,9 @@ fun cosmeticRewardFor(id: AchievementId): CosmeticReward? = when (id) {
         productId = "title_bot_whisperer",
         label = "Bot Whisperer title",
     )
+    AchievementId.BUST_DEALT_5 -> CosmeticReward(
+        productId = "emotes_eliminator",
+        label = "Eliminator emote pack",
+    )
     else -> null
 }
