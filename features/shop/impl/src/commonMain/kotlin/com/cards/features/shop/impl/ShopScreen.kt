@@ -1,8 +1,16 @@
 package com.dangerfield.cards.features.shop.impl
 
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.shop_empty_subtitle
+import cards.libraries.resources.generated.resources.shop_empty_title
+import cards.libraries.resources.generated.resources.shop_error_retry
+import cards.libraries.resources.generated.resources.shop_error_title
+import cards.libraries.resources.generated.resources.shop_header_subtitle
+import cards.libraries.resources.generated.resources.shop_header_title
+import cards.libraries.resources.generated.resources.shop_idea_footer_button
 import cards.libraries.resources.generated.resources.shop_need_chips_more
 import cards.libraries.resources.generated.resources.shop_owned_badge
+import cards.libraries.resources.generated.resources.shop_personal_cosmetic_hint
 import cards.libraries.resources.generated.resources.shop_unlocks_at_level
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
@@ -256,7 +264,7 @@ private fun IdeaFooter(onClick: () -> Unit) {
             size = ButtonSize.Small,
             style = ButtonStyle.Text,
         ) {
-            Text("Got an idea? Tell us")
+            Text(stringResource(Res.string.shop_idea_footer_button))
         }
     }
 }
@@ -266,13 +274,13 @@ private fun ShopHeader(chips: Long) {
     BalancePillSlot(chips = chips) {
         Column {
             Text(
-                text = "Shop",
+                text = stringResource(Res.string.shop_header_title),
                 typography = AppTheme.typography.Heading.H1000,
                 color = AppTheme.colors.text,
             )
             VerticalSpacerD100()
             Text(
-                text = "Spend chips. Stock up. Flex.",
+                text = stringResource(Res.string.shop_header_subtitle),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
@@ -624,7 +632,7 @@ private fun ChipOfferCard(
                     // about the product, not state of the purchase.
                     VerticalSpacerD100()
                     Text(
-                        text = "Only you see this",
+                        text = stringResource(Res.string.shop_personal_cosmetic_hint),
                         typography = AppTheme.typography.Label.L300,
                         color = AppTheme.colors.textSecondary,
                         textAlign = TextAlign.Center,
@@ -858,13 +866,13 @@ private fun EmptyState() {
         }
         VerticalSpacerD700()
         Text(
-            text = "Shop is empty for now",
+            text = stringResource(Res.string.shop_empty_title),
             typography = AppTheme.typography.Heading.H700,
             color = AppTheme.colors.text,
         )
         VerticalSpacerD200()
         Text(
-            text = "Might be a bug? New chip packs and cosmetics drop weekly. Check back soon.",
+            text = stringResource(Res.string.shop_empty_subtitle),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
@@ -892,7 +900,7 @@ private fun ErrorBanner(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Couldn't load shop",
+                    text = stringResource(Res.string.shop_error_title),
                     typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.text,
                 )
@@ -906,7 +914,7 @@ private fun ErrorBanner(
             }
             Spacer(modifier = Modifier.size(Dimension.D300))
             ButtonPrimary(onClick = onRetry, size = ButtonSize.Small) {
-                Text(text = "Retry")
+                Text(text = stringResource(Res.string.shop_error_retry))
             }
         }
     }

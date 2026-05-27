@@ -32,4 +32,18 @@
     <string name="shop_owned_badge">OWNED</string>
     <string name="shop_unlocks_at_level">Unlocks at Level %1$d</string>
     <string name="shop_need_chips_more">Need %1$s more</string>
+
+    <!-- Shop — header + footer chrome on the main grid screen. -->
+    <string name="shop_header_title">Shop</string>
+    <string name="shop_header_subtitle">Spend chips. Stock up. Flex.</string>
+    <string name="shop_idea_footer_button">Got an idea? Tell us</string>
+    <string name="shop_personal_cosmetic_hint">Only you see this</string>
+
+    <!-- Shop — empty state. -->
+    <string name="shop_empty_title">Shop is empty for now</string>
+    <string name="shop_empty_subtitle">Might be a bug? New chip packs and cosmetics drop weekly. Check back soon.</string>
+
+    <!-- Shop — error banner shown when the catalog fetch fails. -->
+    <string name="shop_error_title">Couldn\'t load shop</string>
+    <string name="shop_error_retry">Retry</string>
 </resources>
