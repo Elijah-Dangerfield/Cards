@@ -1,5 +1,11 @@
 # In-flight
 
+## docs(todo): drop two dead cross-references in todo.md
+
+**Problem:** Two parenthetical "see bullet above" pointers in [docs/todo.md](../todo.md) had nothing to point at — the §A "Extend `Dialog` / `BottomSheet` with preset overloads" bullet said `"Pairs with the top-accessory bullet above"` but no top-accessory bullet exists in that section, and the §C `FeatureConfig` bullet said `"Out of scope: AppConfig (server-driven config — see bullet above)"` but the cross-referenced AppConfig bullet doesn't exist in §C either. Same shape as the prior worker's dead cross-reference cleanup — a sibling bullet got removed and the pointer was left dangling, which makes the reader chase a tracked gap that isn't actually tracked anywhere.
+**Approach:** Pure doc cleanup. The dialog bullet's pointer was a tail "Pairs with the …" so I deleted the dangling clause outright — the bullet stands on its own. The FeatureConfig bullet's pointer was load-bearing (the parenthetical was explaining *why* `AppConfig` is out of scope), so I rewrote it to be self-contained — `"AppConfig (the server-driven `GET /v1/app-config` channel — different cascade, different consumers)"` — same exclusion intent, no orphan cross-reference.
+**Reviewer notes:** Pure doc fix — no code touched. Verified by grep that nothing else points at "top-accessory bullet" or "AppConfig … see bullet above" in either todo.md or backlog.md.
+
 ## feat(room): call out cosmetic unlocks in the achievement callout
 
 **Problem:** §A "Wire the earned-grant path" had a `**Client:**` sub-bullet asking for a "celebratory unlock dialog at the moment of earning — prestige lives at earn-time, not on the shelf." Today an EPIC achievement that grants `cardback_comeback_kid` (or any of the four allowlisted cosmetics) silently drops the row into inventory via the server's `POST /v1/me/grants/achievement/{id}` and the sync. The user sees the achievement callout in the showdown / bust dialog, then later finds the cosmetic in My Items with no thread tying the two together.
