@@ -34,6 +34,7 @@ internal fun PlayerProfileSheet(
     isMuted: Boolean,
     onToggleMute: () -> Unit,
     onDismiss: () -> Unit,
+    botDifficultyLabel: String? = null,
 ) {
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
     val handle: BottomSheetDragHandle = topAccessoryEmoji(
@@ -81,6 +82,21 @@ internal fun PlayerProfileSheet(
             )
             VerticalSpacerD500()
         }
+        if (seat.isBot) {
+            botDifficultyLabel?.let { difficultyTierFor(it) }?.let { tier ->
+                ListSection(
+                    title = "Difficulty",
+                    items = listOf(
+                        ListSectionItem(
+                            headlineText = tier.label,
+                            supportingText = tier.description,
+                            accessory = ListItemAccessory.None,
+                        ),
+                    ),
+                )
+                VerticalSpacerD500()
+            }
+        }
         ListSection(
             title = "Settings",
             items = listOf(
@@ -114,6 +130,7 @@ private fun PlayerProfileSheetPreview_BotUnmuted_TightPassive() {
             isMuted = false,
             onToggleMute = {},
             onDismiss = {},
+            botDifficultyLabel = "Standard",
         )
     }
 }
@@ -131,6 +148,7 @@ private fun PlayerProfileSheetPreview_BotMuted_Maniac() {
             isMuted = true,
             onToggleMute = {},
             onDismiss = {},
+            botDifficultyLabel = "Challenging",
         )
     }
 }
@@ -142,12 +160,13 @@ private fun PlayerProfileSheetPreview_Bot_LooseAggressive() {
         PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 3, name = "David")
                 .copy(
-                    seatBadge = "Bot · Standard",
+                    seatBadge = "Bot · Casual",
                     personality = com.dangerfield.cards.libraries.bots.BotPersonality.David,
                 ),
             isMuted = false,
             onToggleMute = {},
             onDismiss = {},
+            botDifficultyLabel = "Casual",
         )
     }
 }

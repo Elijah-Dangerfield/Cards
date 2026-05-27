@@ -32,6 +32,14 @@ sealed interface TableUiState {
         val buttonSeatIndex: Int,
         val smallBlindSeatIndex: Int?,
         val bigBlindSeatIndex: Int?,
+        /**
+         * Table-level bot difficulty label ("Casual" / "Standard" /
+         * "Challenging") for solo bot sessions. Surfaced by the
+         * tap-an-opponent profile sheet's "Difficulty" section so the user
+         * sees the table's tuning alongside the individual bot's playing
+         * style. Null for MP tables where bots aren't seated.
+         */
+        val botDifficultyLabel: String? = null,
     ) : TableUiState
 
     companion object {
@@ -111,6 +119,7 @@ sealed interface TableUiState {
                 buttonSeatIndex = gameState.buttonSeatIndex,
                 smallBlindSeatIndex = sbIndex,
                 bigBlindSeatIndex = bbIndex,
+                botDifficultyLabel = botDifficultyLabel,
             )
         }
 
