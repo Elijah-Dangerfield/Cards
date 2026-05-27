@@ -105,11 +105,12 @@ class HomeFeatureEntryPoint(
                 // explains what's planned.
                 onTapFriends = {
                     comingSoon = ComingSoonContent(
-                        title = "Friends in the Hall",
-                        emoji = "✦",
-                        body = "Adding friends, seeing who's online, and managing " +
-                            "requests ships with Friend Games in an upcoming update. " +
-                            "We'll surface tables, stakes, and a one-tap join.",
+                        title = "Friends",
+                        emoji = "🤝",
+                        body = "Adding friends, online presence, and the requests " +
+                            "inbox all land together. Friends grow from the felt — " +
+                            "anyone you face will surface in 'Recently played with' " +
+                            "below, ready to add the moment the graph ships.",
                     )
                 },
                 // Recent opponents — the social cold-start lever. Once
