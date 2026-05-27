@@ -8,3 +8,9 @@
 **Deferred:**
 - Difficulty-tier breakdown ("Casual is forgiving / Standard punishes mistakes / Challenging exploits patterns") — left noted in the bullet's remaining-work list. Would need either threading `botDifficultyLabel` through `SeatView` or stashing it on `TableUiState.Active`; small change, but I'd want a designer eyeball on whether table-level difficulty wants its own section or should fold into the existing "Bot · Standard" subtitle in the sheet title.
 - "Playing since {createdAt}" + "N hands at the table" + Add-friend + view-full-profile — same bullet, all gated on real MP profile + room-membership plumbing that doesn't exist yet.
+
+## docs(todo): drop dead cross-reference in client-grant security note
+
+**Problem:** The Catalog-gating bullet at `docs/todo.md:39` said `"see the 'Harden the client-grant endpoint' bullet below"` but no such bullet exists anywhere in `todo.md`. The cross-reference was load-bearing — without it, "today any authed user can request any mapped id with no proof" reads as a passing remark instead of a tracked gap.
+**Approach:** Replaced the dead pointer with a self-contained statement of the gap: the real fix lands with Phase 4.2 (server-authoritative gameplay can witness the unlock directly), not a V1 blocker for invite-only, public-launch needs a story. Didn't invent a hardening sketch since that's a real product/security judgement call the human should make.
+**Reviewer notes:** Pure doc fix — no code touched. If the human wants the sketch back (rate cap / session nonce / hand-count floor), it's two minutes to add.
