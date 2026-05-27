@@ -83,6 +83,13 @@ internal fun PlayerProfileSheet(
             PlayingStyleBlock(personality = personality)
             VerticalSpacerD500()
         }
+        tenureRows(seat).takeIf { it.isNotEmpty() }?.let { rows ->
+            ListSection(
+                title = "At this table",
+                items = rows,
+            )
+            VerticalSpacerD500()
+        }
         if (seat.isBot) {
             botDifficultyLabel?.let { difficultyTierFor(it) }?.let { tier ->
                 ListSection(
@@ -169,6 +176,7 @@ private fun PlayerProfileSheetPreview_BotUnmuted_TightPassive() {
                 .copy(
                     seatBadge = "Bot · Standard",
                     personality = com.dangerfield.cards.libraries.bots.BotPersonality.Jane,
+                    handsAtTable = 47,
                 ),
             isMuted = false,
             onToggleMute = {},

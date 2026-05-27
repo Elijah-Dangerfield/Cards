@@ -92,6 +92,7 @@ sealed interface TableUiState {
                         humanLevel = humanLevel,
                         botDifficultyLabel = botDifficultyLabel,
                     ),
+                    handsAtTable = gameState.handNumber,
                 )
             }
             val humanSeat = gameState.seats.firstOrNull { it.index == humanSeatIndex }
@@ -202,6 +203,23 @@ data class SeatView(
      * this — bots' decisions go through the engine's own personality map.
      */
     val personality: BotPersonality? = null,
+    /**
+     * How many hands this seat has been at this table. Surfaces in the
+     * tap-an-opponent profile sheet's "At this table" section as
+     * "{N} hands at this table". For solo bot sessions this is the
+     * session's hand count (every seat has been here since hand 1); for
+     * MP it'll become the seat's own join-tenure once room-membership
+     * timestamps are wired. `0` means the seat is empty or no hand has
+     * resolved yet — the row is hidden in that case.
+     */
+    val handsAtTable: Int = 0,
+    /**
+     * For the local human seat only — `Profile.createdAt` in epoch ms —
+     * used by the profile sheet to render "Playing since {month year}".
+     * Null for every other seat (no source for remote-human or bot
+     * tenure today).
+     */
+    val playingSinceEpochMs: Long? = null,
 ) {
     companion object {
         fun fromSeat(
@@ -218,6 +236,7 @@ data class SeatView(
             street: BettingRound,
             humanProfile: Profile.Authenticated? = null,
             seatBadge: String? = null,
+            handsAtTable: Int = 0,
         ): SeatView {
             val visibleHole = when {
                 seat.handParticipation == HandParticipation.NotDealt -> emptyList()
@@ -270,6 +289,8 @@ data class SeatView(
                 isBigBlind = isBigBlind,
                 seatBadge = seatBadge,
                 personality = personality,
+                handsAtTable = if (seatEmpty) 0 else handsAtTable,
+                playingSinceEpochMs = if (isHuman) humanProfile?.createdAt?.toEpochMilliseconds() else null,
             )
         }
     }
