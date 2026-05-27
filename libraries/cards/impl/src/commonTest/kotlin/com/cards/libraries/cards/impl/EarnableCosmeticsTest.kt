@@ -64,6 +64,13 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun winByFold10_mapsToConvincerEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.WIN_BY_FOLD_10)
+        assertEquals("emotes_convincer", reward?.productId)
+        assertEquals("Convincer emote pack", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
