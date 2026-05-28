@@ -1,7 +1,6 @@
 package com.dangerfield.cards.libraries.ui.system.color
 
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 
 /**
  * Cyan-to-green linear gradient used for every surface that visualises
@@ -16,5 +15,5 @@ import androidx.compose.ui.graphics.Color
  * identically under any future light/dark theme.
  */
 val LevelProgressGradient: Brush = Brush.linearGradient(
-    listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
+    listOf(PokerPalette.ProgressionCyan, PokerPalette.ProgressionGreen),
 )

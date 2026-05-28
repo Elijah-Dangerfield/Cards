@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -157,7 +158,7 @@ fun XpBadge(
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
-                        listOf(Color(0xFF4FC3F7), Color(0xFF66BB6A)),
+                        listOf(PokerPalette.ProgressionCyan, PokerPalette.ProgressionGreen),
                     ),
                 ),
             contentAlignment = Alignment.Center,
@@ -208,11 +209,8 @@ private fun SparkleGlyph(size: androidx.compose.ui.unit.Dp, color: Color) {
 private val RING_SIZE = 18.dp
 
 /** Matches the cyan start of the inner gradient so the ring reads as
- *  the same family of colour as the fill it surrounds. Hardcoded
- *  because the surrounding gradient is too — a `PokerPalette` entry
- *  for "progression cyan" would let both lift off the literal,
- *  separate cleanup. */
-private val RING_HUE = Color(0xFF4FC3F7)
+ *  the same family of colour as the fill it surrounds. */
+private val RING_HUE = PokerPalette.ProgressionCyan
 
 // ---------------------------------------------------------------------------
 // Previews — pin the visual across the states the pill will actually render:
