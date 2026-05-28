@@ -109,6 +109,48 @@
     <string name="home_coming_soon_recently_played_title">Recently played with</string>
     <string name="home_coming_soon_recently_played_body">The full history of humans you\'ve played comes with Quick Match + Friend Games. For now we\'re showing the most recent at the table.</string>
 
+    <!-- Auth — shared back affordance + field labels used by every screen. -->
+    <string name="auth_back_button">← Back</string>
+    <string name="auth_field_email_label">Email</string>
+    <string name="auth_field_password_label">Password</string>
+
+    <!-- Auth — SignIn screen. -->
+    <string name="auth_sign_in_title">Welcome back</string>
+    <string name="auth_sign_in_subtitle">Sign in to keep your progress across devices.</string>
+    <string name="auth_sign_in_oauth_google">Continue with Google</string>
+    <string name="auth_sign_in_oauth_apple">Continue with Apple</string>
+    <string name="auth_sign_in_oauth_divider">— or —</string>
+    <string name="auth_sign_in_submit_button">Sign in</string>
+    <string name="auth_sign_in_submit_button_progress">Signing in…</string>
+    <string name="auth_sign_in_to_create_account_button">Don\'t have an account? Create one</string>
+
+    <!-- Auth — SignUp screen. -->
+    <string name="auth_sign_up_title">Create your account</string>
+    <string name="auth_sign_up_subtitle">Save your chips + progress. We\'ll send a verification email.</string>
+    <string name="auth_sign_up_password_helper">At least %1$d characters</string>
+    <string name="auth_sign_up_confirm_password_label">Confirm password</string>
+    <string name="auth_sign_up_password_mismatch_helper">Passwords don\'t match</string>
+    <string name="auth_sign_up_submit_button">Create account</string>
+    <string name="auth_sign_up_submit_button_progress">Creating account…</string>
+    <string name="auth_sign_up_to_sign_in_button">Already have an account? Sign in</string>
+    <string name="auth_sign_up_claim_dialog_title">Save your progress to %1$s?</string>
+    <string name="auth_sign_up_claim_dialog_description">We\'ll send a verification link. Your chips, XP, and unlocks come with you to the new account.</string>
+    <string name="auth_sign_up_claim_dialog_primary">Send link</string>
+    <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
+
+    <!-- Auth — VerifyEmail screen. -->
+    <string name="auth_verify_email_title">Check your email</string>
+    <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then come back here.</string>
+    <string name="auth_verify_email_confirm_button">I confirmed, continue</string>
+    <string name="auth_verify_email_confirm_button_progress">Checking…</string>
+    <string name="auth_verify_email_resend_button">Resend email</string>
+    <string name="auth_verify_email_resend_button_progress">Sending…</string>
+    <string name="auth_verify_email_banner_still_pending">Email not yet confirmed. Tap the link in your inbox first.</string>
+    <string name="auth_verify_email_banner_resend_sent">Verification email sent. Check your inbox.</string>
+    <string name="auth_verify_email_banner_resend_rate_limited">Too many resends in a row. Wait a minute and try again.</string>
+    <string name="auth_verify_email_banner_network_error">Couldn\'t reach the server. Check your connection.</string>
+    <string name="auth_verify_email_banner_generic_error">Something went wrong. Try again.</string>
+
     <!-- Onboarding — HowItWorks step (final explainer). -->
     <string name="onboarding_how_eyebrow">LAST THING</string>
     <string name="onboarding_how_title">How Cards works.</string>

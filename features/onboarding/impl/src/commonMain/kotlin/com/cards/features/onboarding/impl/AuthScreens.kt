@@ -22,8 +22,44 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.auth_back_button
+import cards.libraries.resources.generated.resources.auth_field_email_label
+import cards.libraries.resources.generated.resources.auth_field_password_label
+import cards.libraries.resources.generated.resources.auth_sign_in_oauth_apple
+import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
+import cards.libraries.resources.generated.resources.auth_sign_in_oauth_google
+import cards.libraries.resources.generated.resources.auth_sign_in_submit_button
+import cards.libraries.resources.generated.resources.auth_sign_in_submit_button_progress
+import cards.libraries.resources.generated.resources.auth_sign_in_subtitle
+import cards.libraries.resources.generated.resources.auth_sign_in_title
+import cards.libraries.resources.generated.resources.auth_sign_in_to_create_account_button
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_description
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_primary
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_secondary
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_title
+import cards.libraries.resources.generated.resources.auth_sign_up_confirm_password_label
+import cards.libraries.resources.generated.resources.auth_sign_up_password_helper
+import cards.libraries.resources.generated.resources.auth_sign_up_password_mismatch_helper
+import cards.libraries.resources.generated.resources.auth_sign_up_submit_button
+import cards.libraries.resources.generated.resources.auth_sign_up_submit_button_progress
+import cards.libraries.resources.generated.resources.auth_sign_up_subtitle
+import cards.libraries.resources.generated.resources.auth_sign_up_title
+import cards.libraries.resources.generated.resources.auth_sign_up_to_sign_in_button
+import cards.libraries.resources.generated.resources.auth_verify_email_banner_generic_error
+import cards.libraries.resources.generated.resources.auth_verify_email_banner_network_error
+import cards.libraries.resources.generated.resources.auth_verify_email_banner_resend_rate_limited
+import cards.libraries.resources.generated.resources.auth_verify_email_banner_resend_sent
+import cards.libraries.resources.generated.resources.auth_verify_email_banner_still_pending
+import cards.libraries.resources.generated.resources.auth_verify_email_body
+import cards.libraries.resources.generated.resources.auth_verify_email_confirm_button
+import cards.libraries.resources.generated.resources.auth_verify_email_confirm_button_progress
+import cards.libraries.resources.generated.resources.auth_verify_email_resend_button
+import cards.libraries.resources.generated.resources.auth_verify_email_resend_button_progress
+import cards.libraries.resources.generated.resources.auth_verify_email_title
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -32,6 +68,8 @@ import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -68,7 +106,7 @@ private fun AuthShell(
             ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
                 Button(onClick = onBack, style = ButtonStyle.Text) {
-                    Text("← Back")
+                    Text(stringResource(Res.string.auth_back_button))
                 }
                 Spacer(modifier = Modifier.height(Dimension.D700))
                 content()
@@ -87,13 +125,13 @@ fun SignInScreen(
 ) {
     AuthShell(onBack = onBack) {
         Text(
-            text = "Welcome back",
+            text = stringResource(Res.string.auth_sign_in_title),
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.onSurfacePrimary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
-            text = "Sign in to keep your progress across devices.",
+            text = stringResource(Res.string.auth_sign_in_subtitle),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -105,7 +143,7 @@ fun SignInScreen(
                     onClick = { onAction(SignInAction.SignInWithOAuth(OAuthProvider.Google)) },
                     enabled = !state.isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Continue with Google") }
+                ) { Text(stringResource(Res.string.auth_sign_in_oauth_google)) }
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
             if (state.appleEnabled) {
@@ -113,11 +151,11 @@ fun SignInScreen(
                     onClick = { onAction(SignInAction.SignInWithOAuth(OAuthProvider.Apple)) },
                     enabled = !state.isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Continue with Apple") }
+                ) { Text(stringResource(Res.string.auth_sign_in_oauth_apple)) }
             }
             Spacer(modifier = Modifier.height(Dimension.D700))
             Text(
-                text = "— or —",
+                text = stringResource(Res.string.auth_sign_in_oauth_divider),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,
@@ -153,7 +191,12 @@ fun SignInScreen(
             enabled = state.canSubmit,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isSubmitting) "Signing in…" else "Sign in")
+            Text(
+                stringResource(
+                    if (state.isSubmitting) Res.string.auth_sign_in_submit_button_progress
+                    else Res.string.auth_sign_in_submit_button,
+                ),
+            )
         }
 
         Spacer(modifier = Modifier.height(Dimension.D400))
@@ -164,7 +207,7 @@ fun SignInScreen(
             enabled = !state.isSubmitting,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Don't have an account? Create one")
+            Text(stringResource(Res.string.auth_sign_in_to_create_account_button))
         }
     }
 }
@@ -178,13 +221,13 @@ fun SignUpScreen(
 ) {
     AuthShell(onBack = onBack) {
         Text(
-            text = "Create your account",
+            text = stringResource(Res.string.auth_sign_up_title),
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.onSurfacePrimary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
-            text = "Save your chips + progress. We'll send a verification email.",
+            text = stringResource(Res.string.auth_sign_up_subtitle),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -203,7 +246,10 @@ fun SignUpScreen(
             onChange = { onAction(SignUpAction.PasswordChanged(it)) },
             imeAction = ImeAction.Next,
             onSubmitImeAction = { onAction(SignUpAction.Submit) },
-            helper = "At least ${SignUpState.MIN_PASSWORD_LENGTH} characters",
+            helper = stringResource(
+                Res.string.auth_sign_up_password_helper,
+                SignUpState.MIN_PASSWORD_LENGTH,
+            ),
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
         PasswordField(
@@ -212,8 +258,12 @@ fun SignUpScreen(
             onChange = { onAction(SignUpAction.ConfirmPasswordChanged(it)) },
             imeAction = ImeAction.Go,
             onSubmitImeAction = { onAction(SignUpAction.Submit) },
-            label = "Confirm password",
-            helper = if (state.passwordMismatch) "Passwords don't match" else null,
+            label = stringResource(Res.string.auth_sign_up_confirm_password_label),
+            helper = if (state.passwordMismatch) {
+                stringResource(Res.string.auth_sign_up_password_mismatch_helper)
+            } else {
+                null
+            },
             isError = state.passwordMismatch,
         )
 
@@ -229,7 +279,12 @@ fun SignUpScreen(
             enabled = state.canSubmit,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isSubmitting) "Creating account…" else "Create account")
+            Text(
+                stringResource(
+                    if (state.isSubmitting) Res.string.auth_sign_up_submit_button_progress
+                    else Res.string.auth_sign_up_submit_button,
+                ),
+            )
         }
 
         Spacer(modifier = Modifier.height(Dimension.D400))
@@ -240,7 +295,7 @@ fun SignUpScreen(
             enabled = !state.isSubmitting,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Already have an account? Sign in")
+            Text(stringResource(Res.string.auth_sign_up_to_sign_in_button))
         }
     }
 
@@ -250,10 +305,13 @@ fun SignUpScreen(
         // dialog (`ConfirmSwitchToExisting`) covers the destructive case;
         // this covers the constructive one.
         Dialog(
-            title = "Save your progress to ${state.email.trim()}?",
-            description = "We'll send a verification link. Your chips, XP, and unlocks come with you to the new account.",
-            primaryButtonText = "Send link",
-            secondaryButtonText = "Not yet",
+            title = stringResource(
+                Res.string.auth_sign_up_claim_dialog_title,
+                state.email.trim(),
+            ),
+            description = stringResource(Res.string.auth_sign_up_claim_dialog_description),
+            primaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_primary),
+            secondaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_secondary),
             onPrimaryButtonClicked = { onAction(SignUpAction.ConfirmClaim) },
             onSecondaryButtonClicked = { onAction(SignUpAction.DismissClaimConfirm) },
             onDismissRequest = { onAction(SignUpAction.DismissClaimConfirm) },
@@ -277,7 +335,7 @@ fun VerifyEmailScreen(
         Spacer(modifier = Modifier.height(Dimension.D600))
 
         Text(
-            text = "Check your email",
+            text = stringResource(Res.string.auth_verify_email_title),
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.onSurfacePrimary,
             textAlign = TextAlign.Center,
@@ -286,7 +344,7 @@ fun VerifyEmailScreen(
         Spacer(modifier = Modifier.height(Dimension.D400))
 
         Text(
-            text = "We sent a verification link to ${state.email}. Tap the link, then come back here.",
+            text = stringResource(Res.string.auth_verify_email_body, state.email),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
@@ -305,7 +363,12 @@ fun VerifyEmailScreen(
             enabled = !state.isRefreshing,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isRefreshing) "Checking…" else "I confirmed, continue")
+            Text(
+                stringResource(
+                    if (state.isRefreshing) Res.string.auth_verify_email_confirm_button_progress
+                    else Res.string.auth_verify_email_confirm_button,
+                ),
+            )
         }
 
         Spacer(modifier = Modifier.height(Dimension.D400))
@@ -316,7 +379,12 @@ fun VerifyEmailScreen(
             enabled = !state.isResending && !state.isRefreshing,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isResending) "Sending…" else "Resend email")
+            Text(
+                stringResource(
+                    if (state.isResending) Res.string.auth_verify_email_resend_button_progress
+                    else Res.string.auth_verify_email_resend_button,
+                ),
+            )
         }
     }
 }
@@ -338,7 +406,7 @@ private fun EmailField(
             keyboardType = KeyboardType.Email,
             imeAction = ImeAction.Next,
         ),
-        label = { Text("Email") },
+        label = { Text(stringResource(Res.string.auth_field_email_label)) },
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -350,7 +418,7 @@ private fun PasswordField(
     onChange: (String) -> Unit,
     imeAction: ImeAction,
     onSubmitImeAction: () -> Unit,
-    label: String = "Password",
+    label: String = stringResource(Res.string.auth_field_password_label),
     helper: String? = null,
     isError: Boolean = false,
 ) {
@@ -395,26 +463,31 @@ private fun ErrorText(text: String) {
 
 @Composable
 private fun BannerText(banner: VerifyEmailState.Banner) {
-    val (text, color) = when (banner) {
-        VerifyEmailState.Banner.StillPending ->
-            "Email not yet confirmed. Tap the link in your inbox first." to AppTheme.colors.onSurfaceSecondary
-        VerifyEmailState.Banner.ResendSent ->
-            "Verification email sent. Check your inbox." to AppTheme.colors.onSurfaceSecondary
-        VerifyEmailState.Banner.ResendRateLimited ->
-            "Too many resends in a row. Wait a minute and try again." to AppTheme.colors.danger
-        VerifyEmailState.Banner.NetworkError ->
-            "Couldn't reach the server. Check your connection." to AppTheme.colors.danger
-        VerifyEmailState.Banner.GenericError ->
-            "Something went wrong. Try again." to AppTheme.colors.danger
-    }
+    val (resource, color) = bannerResource(banner)
     Text(
-        text = text,
+        text = stringResource(resource),
         typography = AppTheme.typography.Body.B500,
         color = color,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth(),
     )
 }
+
+@Composable
+@Suppress("DEPRECATION")
+private fun bannerResource(banner: VerifyEmailState.Banner): Pair<StringResource, ColorResource> =
+    when (banner) {
+        VerifyEmailState.Banner.StillPending ->
+            Res.string.auth_verify_email_banner_still_pending to AppTheme.colors.onSurfaceSecondary
+        VerifyEmailState.Banner.ResendSent ->
+            Res.string.auth_verify_email_banner_resend_sent to AppTheme.colors.onSurfaceSecondary
+        VerifyEmailState.Banner.ResendRateLimited ->
+            Res.string.auth_verify_email_banner_resend_rate_limited to AppTheme.colors.danger
+        VerifyEmailState.Banner.NetworkError ->
+            Res.string.auth_verify_email_banner_network_error to AppTheme.colors.danger
+        VerifyEmailState.Banner.GenericError ->
+            Res.string.auth_verify_email_banner_generic_error to AppTheme.colors.danger
+    }
 
 @Preview
 @Composable
