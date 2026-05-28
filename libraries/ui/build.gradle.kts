@@ -24,6 +24,10 @@ kotlin {
             implementation(projects.libraries.flowroutines)
             // TODO honestly the cards library should expose the component that require cards domain
             implementation(projects.libraries.cards)
+            // User-facing copy on DS dialogs / banners / snackbars resolves
+            // through the centralized resource catalog (see docs/todo.md
+            // "Strings — centralize everything in :libraries:resources").
+            implementation(projects.libraries.resources)
             // Poker game types (Card, Rank, Suit) for components/poker. These
             // are pure data classes — no engine, no Compose — so they're safe
             // to pull into the DS.
