@@ -11,6 +11,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_bot_setup_balance_disclaimer
+import cards.libraries.resources.generated.resources.home_bot_setup_difficulty_label
+import cards.libraries.resources.generated.resources.home_bot_setup_seat_summary_heads_up
+import cards.libraries.resources.generated.resources.home_bot_setup_seat_summary_other
+import cards.libraries.resources.generated.resources.home_bot_setup_seats_label
+import cards.libraries.resources.generated.resources.home_bot_setup_start_button
+import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_four
+import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_heads_up
+import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_other
+import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_six
+import cards.libraries.resources.generated.resources.home_bot_setup_title
 import com.dangerfield.cards.libraries.ui.components.OptionPillRow
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -20,6 +32,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Pre-game configuration dialog for the bot table. Picks both
@@ -46,7 +59,7 @@ internal fun BotTableSetupDialog(
                 .padding(horizontal = 24.dp, vertical = 28.dp),
         ) {
             Text(
-                text = "Practice table",
+                text = stringResource(Res.string.home_bot_setup_title),
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
             )
@@ -58,9 +71,13 @@ internal fun BotTableSetupDialog(
             )
             VerticalSpacerD800()
             // Difficulty first — it changes the table's feel; seat
-            // count is the lighter follow-up choice.
+            // count is the lighter follow-up choice. Difficulty values
+            // ("Casual" / "Standard" / "Challenging") double as wire
+            // keys consumed by `PlayPokerFeatureEntryPoint`'s downstream
+            // routing — kept inline at the OptionPillRow until that
+            // contract grows a typed enum.
             Text(
-                text = "Difficulty",
+                text = stringResource(Res.string.home_bot_setup_difficulty_label),
                 typography = AppTheme.typography.Label.L400,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
@@ -73,7 +90,7 @@ internal fun BotTableSetupDialog(
             )
             VerticalSpacerD500()
             Text(
-                text = "Seats",
+                text = stringResource(Res.string.home_bot_setup_seats_label),
                 typography = AppTheme.typography.Label.L400,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
@@ -86,7 +103,7 @@ internal fun BotTableSetupDialog(
             )
             VerticalSpacerD500()
             Text(
-                text = "${seatCount - 1} bots, you, ${if (seatCount == 2) "heads-up" else "$seatCount seats"}",
+                text = seatSummaryLabel(seatCount),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,
@@ -95,7 +112,7 @@ internal fun BotTableSetupDialog(
 
             VerticalSpacerD500()
             Text(
-                text = "Bot tables don't move your chip balance.",
+                text = stringResource(Res.string.home_bot_setup_balance_disclaimer),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,
@@ -106,18 +123,27 @@ internal fun BotTableSetupDialog(
                 onClick = { onStart(difficulty, seatCount) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(text = "Start")
+                Text(text = stringResource(Res.string.home_bot_setup_start_button))
             }
         }
     }
 }
 
+@Composable
 private fun subtitleFor(seatCount: Int, difficulty: String): String = when (seatCount) {
-    2 -> "Heads-up against one $difficulty bot. Fast and aggressive — you're always in the action."
-    4 -> "Four-handed $difficulty table. Balanced pace, room to play position."
-    6 -> "Full ring with five $difficulty bots. Slower, more strategic — fold more, pick spots."
-    else -> "$difficulty table with ${seatCount - 1} bots."
+    2 -> stringResource(Res.string.home_bot_setup_subtitle_heads_up, difficulty)
+    4 -> stringResource(Res.string.home_bot_setup_subtitle_four, difficulty)
+    6 -> stringResource(Res.string.home_bot_setup_subtitle_six, difficulty)
+    else -> stringResource(Res.string.home_bot_setup_subtitle_other, difficulty, seatCount - 1)
 }
+
+@Composable
+private fun seatSummaryLabel(seatCount: Int): String =
+    if (seatCount == 2) {
+        stringResource(Res.string.home_bot_setup_seat_summary_heads_up, seatCount - 1)
+    } else {
+        stringResource(Res.string.home_bot_setup_seat_summary_other, seatCount - 1, seatCount)
+    }
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
