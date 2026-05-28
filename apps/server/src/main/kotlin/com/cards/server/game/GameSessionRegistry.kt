@@ -87,7 +87,9 @@ interface GameSessionRegistry {
 @SingleIn(ServerScope::class)
 @ContributesBinding(ServerScope::class)
 @Inject
-class InMemoryGameSessionRegistry : GameSessionRegistry {
+class InMemoryGameSessionRegistry(
+    private val eventWriter: GameEventWriter,
+) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
     // the read-modify-write of the map so two concurrent startHand
@@ -101,7 +103,7 @@ class InMemoryGameSessionRegistry : GameSessionRegistry {
         settings: RoomSettings,
     ): IntentResult {
         val session = mutex.withLock {
-            sessions.value[code] ?: GameSession().also { fresh ->
+            sessions.value[code] ?: GameSession(eventWriter = eventWriter).also { fresh ->
                 sessions.value = sessions.value + (code to fresh)
             }
         }

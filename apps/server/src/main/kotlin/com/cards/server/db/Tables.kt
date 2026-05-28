@@ -166,14 +166,16 @@ object UserMessagesTable : Table("user_messages") {
  * payload)` (libraries/gameplay) — the `v` field is the envelope
  * version discriminator a future v2 reader forks on. `event_type`
  * mirrors the kotlinx `@SerialName` for cheap SQL filtering without
- * unmarshalling JSONB. Exposed surfaces JSONB as text and parses with
- * kotlinx-serialization (same trick as `products.title_by_locale`).
+ * unmarshalling JSONB. The Exposed column type wraps the JSONB value
+ * as a `PGobject(type="jsonb")` on write (text→jsonb has no implicit
+ * cast in Postgres) and exchanges it as `String` on read — callers
+ * (de)serialize at the application layer via kotlinx-serialization.
  */
 object GameEventsTable : Table("game_events") {
     val sessionId = uuid("session_id")
     val seq = long("seq")
     val occurredAt = timestamp("occurred_at")
     val eventType = text("event_type")
-    val eventJsonb = text("event_jsonb")
+    val eventJsonb = jsonb("event_jsonb")
     override val primaryKey = PrimaryKey(sessionId, seq)
 }

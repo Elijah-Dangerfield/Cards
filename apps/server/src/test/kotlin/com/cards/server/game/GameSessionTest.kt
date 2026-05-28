@@ -1,9 +1,11 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import kotlinx.coroutines.test.runTest
+import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -233,5 +235,100 @@ class GameSessionTest {
     fun stateFlow_isNull_beforeFirstHand() = runTest {
         val session = newSession()
         assertNull(session.state.value)
+    }
+
+    @Test
+    fun startHand_persistsEvents_taggedWithSessionId() = runTest {
+        val writer = RecordingGameEventWriter()
+        val session = GameSession(random = Random(seed = 42), eventWriter = writer)
+
+        val result = session.startHand(listOf(alice, bob), settings)
+
+        assertIs<IntentResult.Accepted>(result)
+        val emitted = session.events.replayCache.toList()
+        assertTrue(emitted.isNotEmpty(), "session emitted events")
+        assertEquals(emitted, writer.appendedEvents(session.id))
+    }
+
+    @Test
+    fun applyIntent_persistsEvents_inSeqOrderAfterStartHand() = runTest {
+        val writer = RecordingGameEventWriter()
+        val session = GameSession(random = Random(seed = 42), eventWriter = writer)
+        session.startHand(listOf(alice, bob), settings)
+        val startCount = writer.appendedEvents(session.id).size
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+
+        val result = session.applyIntent(
+            actorUserId = actor.playerId!!,
+            intent = PlayerIntent.Fold(seatIndex = acting),
+            clientNonce = "n1",
+        )
+
+        assertIs<IntentResult.Accepted>(result)
+        val all = writer.appendedEvents(session.id)
+        // applyIntent's events appended after startHand's, and the
+        // session's seq numbers are strictly monotonic.
+        assertTrue(all.size > startCount, "applyIntent produced events")
+        val seqs = all.map { it.sequence }
+        assertEquals(seqs.sorted(), seqs)
+    }
+
+    @Test
+    fun startHand_writerFailure_doesNotMutateStateOrBroadcast() = runTest {
+        val writer = ExplodingGameEventWriter()
+        val session = GameSession(random = Random(seed = 42), eventWriter = writer)
+
+        val result = session.startHand(listOf(alice, bob), settings)
+
+        assertIs<IntentResult.Rejected>(result)
+        assertTrue(result.reason.contains("persistence failed"))
+        assertNull(session.state.value)
+        assertTrue(session.events.replayCache.isEmpty())
+    }
+
+    @Test
+    fun applyIntent_writerFailure_leavesStateUnchanged() = runTest {
+        val writer = FlippableGameEventWriter()
+        val session = GameSession(random = Random(seed = 42), eventWriter = writer)
+        session.startHand(listOf(alice, bob), settings)
+        val stateBefore = session.state.value!!
+        val emittedBefore = session.events.replayCache.toList()
+        writer.fail = true
+        val acting = stateBefore.actingSeatIndex!!
+        val actor = stateBefore.seats.first { it.index == acting }
+
+        val result = session.applyIntent(
+            actorUserId = actor.playerId!!,
+            intent = PlayerIntent.Fold(seatIndex = acting),
+            clientNonce = "fail-1",
+        )
+
+        assertIs<IntentResult.Rejected>(result)
+        assertTrue(result.reason.contains("persistence failed"))
+        assertEquals(stateBefore, session.state.value)
+        assertEquals(emittedBefore, session.events.replayCache.toList())
+    }
+}
+
+private class RecordingGameEventWriter : GameEventWriter {
+    private val rows = mutableListOf<Pair<UUID, GameEvent>>()
+    override suspend fun append(sessionId: UUID, events: List<GameEvent>) {
+        events.forEach { rows += sessionId to it }
+    }
+    fun appendedEvents(sessionId: UUID): List<GameEvent> =
+        rows.filter { it.first == sessionId }.map { it.second }
+}
+
+private class ExplodingGameEventWriter : GameEventWriter {
+    override suspend fun append(sessionId: UUID, events: List<GameEvent>) {
+        throw RuntimeException("DB is down")
+    }
+}
+
+private class FlippableGameEventWriter : GameEventWriter {
+    @Volatile var fail: Boolean = false
+    override suspend fun append(sessionId: UUID, events: List<GameEvent>) {
+        if (fail) throw RuntimeException("DB is down")
     }
 }
