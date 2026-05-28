@@ -35,6 +35,7 @@ internal object EmojiPackCatalog {
         "emotes_disciplined" to listOf("🧘", "🦉", "👁️", "🪞"),
         "emotes_grinder" to listOf("☕", "⛏️", "🛠️", "⌛"),
         "emotes_doubler" to listOf("🚀", "⏫", "🎯", "💰"),
+        "emotes_tactician" to listOf("♟️", "🦅", "🥷", "🏹"),
     )
 
     /**
