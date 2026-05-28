@@ -17,6 +17,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_delete_back_a11y
+import cards.libraries.resources.generated.resources.profile_delete_bullet_history
+import cards.libraries.resources.generated.resources.profile_delete_bullet_identity
+import cards.libraries.resources.generated.resources.profile_delete_bullet_oauth
+import cards.libraries.resources.generated.resources.profile_delete_bullet_progress
+import cards.libraries.resources.generated.resources.profile_delete_cancel_button
+import cards.libraries.resources.generated.resources.profile_delete_confirm_input_label
+import cards.libraries.resources.generated.resources.profile_delete_section_title
+import cards.libraries.resources.generated.resources.profile_delete_submit_button
+import cards.libraries.resources.generated.resources.profile_delete_submit_button_progress
+import cards.libraries.resources.generated.resources.profile_delete_subtitle
+import cards.libraries.resources.generated.resources.profile_delete_title
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.ButtonDanger
@@ -28,6 +41,7 @@ import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Type-to-confirm destructive screen. Lists exactly what gets deleted so
@@ -58,7 +72,7 @@ fun DeleteAccountScreen(
         ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
                 IconButton(
-                    icon = Icons.ArrowBack("Back"),
+                    icon = Icons.ArrowBack(stringResource(Res.string.profile_delete_back_a11y)),
                     onClick = onBack,
                     enabled = !state.isSubmitting,
                     iconColor = AppTheme.colors.onSurfacePrimary,
@@ -75,14 +89,13 @@ fun DeleteAccountScreen(
                 Spacer(modifier = Modifier.height(Dimension.D500))
 
                 Text(
-                    text = "Delete account",
+                    text = stringResource(Res.string.profile_delete_title),
                     typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.onSurfacePrimary,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
-                    text = "This permanently deletes your account from our servers. " +
-                        "There is no undo.",
+                    text = stringResource(Res.string.profile_delete_subtitle),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                 )
@@ -90,15 +103,15 @@ fun DeleteAccountScreen(
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
                 Text(
-                    text = "What gets deleted",
+                    text = stringResource(Res.string.profile_delete_section_title),
                     typography = AppTheme.typography.Heading.H500,
                     color = AppTheme.colors.onSurfacePrimary,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
-                BulletItem("Your display name and avatar.")
-                BulletItem("Your chips, XP, level, rank, and unlocked achievements.")
-                BulletItem("Your hand history.")
-                BulletItem("Any linked Apple/Google identity on this account.")
+                BulletItem(stringResource(Res.string.profile_delete_bullet_identity))
+                BulletItem(stringResource(Res.string.profile_delete_bullet_progress))
+                BulletItem(stringResource(Res.string.profile_delete_bullet_history))
+                BulletItem(stringResource(Res.string.profile_delete_bullet_oauth))
 
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
@@ -109,7 +122,14 @@ fun DeleteAccountScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onAction(DeleteAccountAction.ConfirmDelete) }),
-                    label = { Text("Type \"${DeleteAccountState.REQUIRED_PHRASE}\" to confirm") },
+                    label = {
+                        Text(
+                            stringResource(
+                                Res.string.profile_delete_confirm_input_label,
+                                DeleteAccountState.REQUIRED_PHRASE,
+                            )
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -129,7 +149,13 @@ fun DeleteAccountScreen(
                     enabled = state.canSubmit,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (state.isSubmitting) "Deleting…" else "Delete my account")
+                    Text(
+                        if (state.isSubmitting) {
+                            stringResource(Res.string.profile_delete_submit_button_progress)
+                        } else {
+                            stringResource(Res.string.profile_delete_submit_button)
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(Dimension.D400))
@@ -140,7 +166,7 @@ fun DeleteAccountScreen(
                     style = ButtonStyle.Text,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(Res.string.profile_delete_cancel_button))
                 }
 
             Spacer(modifier = Modifier.height(Dimension.D800))

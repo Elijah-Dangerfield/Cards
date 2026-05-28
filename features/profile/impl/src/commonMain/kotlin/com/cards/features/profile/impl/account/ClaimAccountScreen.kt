@@ -13,6 +13,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_claim_back_a11y
+import cards.libraries.resources.generated.resources.profile_claim_coming_soon
+import cards.libraries.resources.generated.resources.profile_claim_conflict_switch_button
+import cards.libraries.resources.generated.resources.profile_claim_provider_apple
+import cards.libraries.resources.generated.resources.profile_claim_provider_email
+import cards.libraries.resources.generated.resources.profile_claim_provider_google
+import cards.libraries.resources.generated.resources.profile_claim_subtitle
+import cards.libraries.resources.generated.resources.profile_claim_title
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
@@ -23,6 +32,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Renders the claim-account CTAs. When the underlying OAuth providers
@@ -54,7 +64,7 @@ fun ClaimAccountScreen(
         ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
                 IconButton(
-                    icon = Icons.ArrowBack("Back"),
+                    icon = Icons.ArrowBack(stringResource(Res.string.profile_claim_back_a11y)),
                     onClick = onBack,
                     enabled = !state.isSubmitting,
                     iconColor = AppTheme.colors.onSurfacePrimary,
@@ -70,13 +80,13 @@ fun ClaimAccountScreen(
                 Spacer(modifier = Modifier.height(Dimension.D500))
 
                 Text(
-                    text = "Claim your account",
+                    text = stringResource(Res.string.profile_claim_title),
                     typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.onSurfacePrimary,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
-                    text = "Save your chips, XP, and achievements across devices.",
+                    text = stringResource(Res.string.profile_claim_subtitle),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                 )
@@ -85,7 +95,7 @@ fun ClaimAccountScreen(
 
                 if (state.googleEnabled) {
                     ProviderButton(
-                        label = "Continue with Google",
+                        label = stringResource(Res.string.profile_claim_provider_google),
                         enabled = !state.isSubmitting,
                         onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google)) },
                     )
@@ -93,14 +103,14 @@ fun ClaimAccountScreen(
                 }
                 if (state.appleEnabled) {
                     ProviderButton(
-                        label = "Continue with Apple",
+                        label = stringResource(Res.string.profile_claim_provider_apple),
                         enabled = !state.isSubmitting,
                         onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Apple)) },
                     )
                     Spacer(modifier = Modifier.height(Dimension.D400))
                 }
                 ProviderButton(
-                    label = "Continue with email",
+                    label = stringResource(Res.string.profile_claim_provider_email),
                     enabled = !state.isSubmitting,
                     onClick = onContinueWithEmail,
                     style = if (state.anyProviderEnabled) ButtonStyle.Outlined else ButtonStyle.Filled,
@@ -126,7 +136,12 @@ fun ClaimAccountScreen(
                         enabled = !state.isSubmitting,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Switch to my ${provider.label} account anyway")
+                        Text(
+                            stringResource(
+                                Res.string.profile_claim_conflict_switch_button,
+                                provider.label,
+                            )
+                        )
                     }
                 }
 
@@ -211,7 +226,7 @@ private fun ClaimAccountScreenPreview_Conflict() {
 @Composable
 private fun ComingSoonNotice() {
     Text(
-        text = "Apple and Google sign-in are coming soon.",
+        text = stringResource(Res.string.profile_claim_coming_soon),
         typography = AppTheme.typography.Body.B500,
         color = AppTheme.colors.onSurfaceSecondary,
         textAlign = TextAlign.Center,
