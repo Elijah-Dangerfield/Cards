@@ -76,4 +76,37 @@
     <string name="lobby_connection_connecting">Connecting…</string>
     <string name="lobby_connection_reconnecting">Reconnecting (attempt %1$d)…</string>
     <string name="lobby_connection_connected">Connected</string>
+
+    <!-- Onboarding — Welcome step (entry screen). -->
+    <string name="onboarding_welcome_title">Cards</string>
+    <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they\'re busy.</string>
+    <string name="onboarding_welcome_continue_guest">Continue as guest</string>
+    <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
+    <string name="onboarding_welcome_oauth_apple"> Apple</string>
+    <string name="onboarding_welcome_oauth_google">G  Google</string>
+    <string name="onboarding_welcome_oauth_in_flight">…</string>
+    <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
+
+    <!-- Onboarding — PickIdentity step (name + starter-pack avatar picker). -->
+    <string name="onboarding_identity_skip_button">Skip ›</string>
+    <string name="onboarding_identity_avatar_placeholder">?</string>
+    <string name="onboarding_identity_title">This is you</string>
+    <string name="onboarding_identity_subtitle">Other players see this on the table. Change anything you like — or just keep going.</string>
+    <string name="onboarding_identity_section_name">DISPLAY NAME</string>
+    <string name="onboarding_identity_section_pack">STARTER PACK</string>
+    <string name="onboarding_identity_edit_name_icon_desc">Edit name</string>
+    <string name="onboarding_identity_more_packs_hint">More packs in the shop</string>
+    <string name="onboarding_identity_continue_button">Continue</string>
+    <string name="onboarding_identity_continue_button_progress">Saving…</string>
+
+    <!-- Onboarding — HowItWorks step (final explainer). -->
+    <string name="onboarding_how_eyebrow">LAST THING</string>
+    <string name="onboarding_how_title">How Cards works.</string>
+    <string name="onboarding_how_card_play_title">Play three ways</string>
+    <string name="onboarding_how_card_play_subtitle">Bots, strangers, or friends.</string>
+    <string name="onboarding_how_card_chips_title">Chips fund the table</string>
+    <string name="onboarding_how_card_chips_subtitle">Earn at play. Spend in the shop.</string>
+    <string name="onboarding_how_card_league_title">Climb the league</string>
+    <string name="onboarding_how_card_league_subtitle">Top 7 of 30 promote each week.</string>
+    <string name="onboarding_how_continue_button">Take a seat</string>
 </resources>

@@ -19,6 +19,13 @@
 **Reviewer notes:** Existing lobby tests still pass; `:apps:compose:assembleDebug` clean. No `@Preview` was touched — they render through the same screen Composable so they get the migrated copy automatically.
 **Deferred:** `LobbyViewModel.kt`'s error-state strings (currently raw `String` written into `LobbyState.error`) need either a typed `ErrorReason` enum + screen-side `stringResource(...)`, or a `suspend getString(...)` resolution in the VM before the `String` lands in state. Both shapes are valid; picking one is a small judgement call I'm leaving for the reviewer / human to direct. Noted in the updated `docs/todo.md` strings-sweep entry under "Remaining work."
 
+## refactor(onboarding): migrate OnboardingScreen copy to `:libraries:resources`
+
+**Problem:** `OnboardingScreen.kt` carried ~25 inline user-facing strings across Welcome / PickIdentity / HowItWorks steps — the same per-callsite duplication the strings-sweep §A P0 names as the V1 quality bar. Shop and Lobby are already migrated; onboarding's main screen was the next contained Composable-only surface.
+**Approach:** Added the `onboarding_welcome_*`, `onboarding_identity_*`, `onboarding_how_*` families under the existing `{surface}_{role}_{specifier}` naming convention and routed every Composable callsite through `stringResource(...)`. Helpers that take a raw `String` (`SectionLabel`, `Icons.Pencil`-style content-desc, `AvatarCircle.name` placeholder) consume `stringResource(...)` at the callsite — kept the helpers raw-string-shaped so they remain testable from previews. Added `implementation(projects.libraries.resources)` to `features/onboarding/impl/build.gradle.kts`.
+**Reviewer notes:** Existing onboarding tests still pass; `:apps:compose:assembleDebug` clean. `@Preview`s render through the same screen so they pick up migrated copy automatically. Only Composable-side copy moved — `AuthScreens.kt` and the VM-side error strings (raw `authError` / `saveError` typed as `String`) stayed inline; same architectural call as the Lobby cycle's deferral and now noted that way in the todo.
+**Deferred:** (1) `AuthScreens.kt` (sign-in / sign-up / verify-email surfaces) — own follow-up commit, ~30 more strings. (2) `OnboardingViewModel` / `SignInViewModel` / `SignUpViewModel` error-state strings — same `ErrorReason` enum vs. `suspend resolve` judgement call as the deferred `LobbyViewModel.error`; one decision should land both. Both noted under "Remaining work" in the updated `docs/todo.md` strings-sweep entry. Reviewer please triage whether the two VM-error deferrals get bundled into one shared resolution this cycle or stay parked.
+
 ## test(achievements): pin AchievementMode filter across bots / MP hands
 
 **Source:** worker-hydrated this cycle (not human-curated).

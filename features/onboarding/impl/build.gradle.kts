@@ -19,6 +19,7 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.config)
             implementation(projects.libraries.identity)
+            implementation(projects.libraries.resources)
 
             implementation(compose.runtime)
             implementation(compose.foundation)
