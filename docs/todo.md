@@ -159,8 +159,6 @@ Quality issues flagged across the codebase. None are blockers; they compound.
 
 These are surfaces where a regression would silently corrupt user-visible state (wallets, XP, levels, onboarding) and the sibling pattern in the same module already has tests — so the gap is unambiguous.
 
-- `[P2]` **Round out `ChipsRepositoryImpl` test coverage with the AppEvent lifecycle path.** [`ChipsRepositoryImplSyncTest.kt`](../libraries/cards/impl/src/commonTest/kotlin/com/cards/libraries/cards/impl/ChipsRepositoryImplSyncTest.kt) already pins the sync reconciliation (Applied / AlreadyApplied / InsufficientChips drop rows; Unknown leaves; balance reset; network failure leaves rows pending). Still untested: (a) `onColdBoot` triggers a sync; (b) `onForeground(isColdBoot = true)` no-ops (the lifecycle gate handed off to `SessionTracker`); (c) the `syncMutex` serialises concurrent `sync()` calls (one POST observed across two parallel invocations). Useful but lower-stakes than the reconciliation itself — the lifecycle hooks are short methods that delegate to `sync()` via `appScope.launch`.
-
 ### Dispatcher hygiene
 
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
