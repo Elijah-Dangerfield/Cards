@@ -4,10 +4,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.room_celebration_tap_to_reveal
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_achievement_cosmetic_label
 import cards.libraries.resources.generated.resources.room_achievement_reward_xp
@@ -118,7 +122,11 @@ internal fun AchievementCelebrationSheet(
     ) {
         earned.forEachIndexed { index, item ->
             if (index > 0) VerticalSpacerD500()
-            CelebrationCard(earned = item, index = index)
+            CelebrationCard(
+                earned = item,
+                index = index,
+                autoReveal = index == 0,
+            )
         }
         VerticalSpacerD700()
         ButtonPrimary(
@@ -131,18 +139,26 @@ internal fun AchievementCelebrationSheet(
 }
 
 @Composable
-private fun CelebrationCard(earned: EarnedAchievement, index: Int) {
+private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: Boolean) {
     val achievement = earned.achievement
     val cosmetic = remember(achievement.id) { cosmeticRewardFor(achievement.id) }
     val accent = remember(achievement.rarity) { rarityAccent(achievement.rarity) }
 
-    // Stagger the entrance so multi-unlock celebrations cascade rather than
-    // popping in all at once. Each card waits 90ms longer than the prior one.
+    // Stagger the card chrome's entrance so multi-unlock celebrations cascade
+    // rather than popping in all at once. Each card waits 90ms longer than
+    // the prior one before its outline fades in.
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(achievement.id) {
         kotlinx.coroutines.delay(index * 90L)
         shown = true
     }
+
+    // Per-card reveal gate. The first card (or any single-unlock celebration)
+    // auto-reveals so the user always sees the reveal animation play once
+    // without input; subsequent cards stay as a mystery `?` placeholder
+    // until tapped, so the player paces the celebration one beat at a time
+    // instead of watching N reveals fire in parallel.
+    var revealed by remember(achievement.id) { mutableStateOf(autoReveal) }
 
     AnimatedVisibility(
         visible = shown,
@@ -156,76 +172,131 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int) {
                 .padding(horizontal = Dimension.D700, vertical = Dimension.D700),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Mystery-card → shake → burst → medallion slam-in sequence.
-            // Sits inside the per-card AnimatedVisibility above so the
-            // card chrome fades in first and the reveal animation runs
-            // against a solid surface. Sized at 140dp so multi-unlock
-            // stacks stay scrollable while still giving each medallion
-            // a satisfying footprint. Built-in haptics on each shake
-            // peak + burst + medallion land — the sheet inherits the
-            // Duolingo-style tactile beat the dialog already used for
-            // tutorial completion.
+            // 140dp keeps multi-unlock stacks scrollable while still giving
+            // each medallion a satisfying footprint. AchievementUnlockReveal
+            // owns the shake → burst → slam-in sequence + haptics; gating
+            // it behind `revealed` means the sequence (and its haptic ticks)
+            // only fires when the card is tapped, never on pre-reveal mount.
             Box(modifier = Modifier.size(REVEAL_SIZE)) {
-                AchievementUnlockReveal(achievement = achievement)
+                if (revealed) {
+                    AchievementUnlockReveal(achievement = achievement)
+                } else {
+                    MysteryRevealTrigger(onTap = { revealed = true })
+                }
             }
-            VerticalSpacerD400()
-            Text(
-                text = achievement.name,
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
-                textAlign = TextAlign.Center,
-            )
-            if (achievement.description.isNotBlank()) {
-                VerticalSpacerD200()
-                Text(
-                    text = achievement.description,
-                    typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            VerticalSpacerD400()
-            val rewardText = if (achievement.chipReward > 0L) {
-                stringResource(
-                    Res.string.room_achievement_reward_xp_plus_chips,
-                    achievement.xpReward,
-                    formatThousands(achievement.chipReward),
-                )
-            } else {
-                stringResource(Res.string.room_achievement_reward_xp, achievement.xpReward)
-            }
-            Text(
-                text = rewardText,
-                typography = AppTheme.typography.Body.B600,
-                color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
-                textAlign = TextAlign.Center,
-            )
-            cosmetic?.let { reward ->
-                VerticalSpacerD300()
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Dimension.D200),
+            // Identity-bearing detail (name / description / reward / cosmetic
+            // gift) is gated on `revealed` so the surprise is the medallion's
+            // contents, not just its animation. Mystery cards show a "Tap to
+            // reveal" hint instead so the affordance is unambiguous.
+            AnimatedVisibility(
+                visible = revealed,
+                enter = fadeIn(),
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
+                    VerticalSpacerD400()
                     Text(
-                        text = "🎁",
-                        typography = AppTheme.typography.Body.B600,
-                        color = AppTheme.colors.text,
-                    )
-                    Text(
-                        text = stringResource(Res.string.room_achievement_cosmetic_label, reward.label),
-                        typography = AppTheme.typography.Body.B500,
+                        text = achievement.name,
+                        typography = AppTheme.typography.Heading.H700,
                         color = AppTheme.colors.onSurfacePrimary,
+                        textAlign = TextAlign.Center,
+                    )
+                    if (achievement.description.isNotBlank()) {
+                        VerticalSpacerD200()
+                        Text(
+                            text = achievement.description,
+                            typography = AppTheme.typography.Body.B500,
+                            color = AppTheme.colors.onSurfaceSecondary,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    VerticalSpacerD400()
+                    val rewardText = if (achievement.chipReward > 0L) {
+                        stringResource(
+                            Res.string.room_achievement_reward_xp_plus_chips,
+                            achievement.xpReward,
+                            formatThousands(achievement.chipReward),
+                        )
+                    } else {
+                        stringResource(Res.string.room_achievement_reward_xp, achievement.xpReward)
+                    }
+                    Text(
+                        text = rewardText,
+                        typography = AppTheme.typography.Body.B600,
+                        color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
+                        textAlign = TextAlign.Center,
+                    )
+                    cosmetic?.let { reward ->
+                        VerticalSpacerD300()
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Dimension.D200),
+                        ) {
+                            Text(
+                                text = "🎁",
+                                typography = AppTheme.typography.Body.B600,
+                                color = AppTheme.colors.text,
+                            )
+                            Text(
+                                text = stringResource(Res.string.room_achievement_cosmetic_label, reward.label),
+                                typography = AppTheme.typography.Body.B500,
+                                color = AppTheme.colors.onSurfacePrimary,
+                            )
+                        }
+                        VerticalSpacerD200()
+                        Text(
+                            text = stringResource(Res.string.room_celebration_cosmetic_attribution, achievement.name),
+                            typography = AppTheme.typography.Body.B400,
+                            color = AppTheme.colors.onSurfaceSecondary,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+            AnimatedVisibility(
+                visible = !revealed,
+                enter = fadeIn(),
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    VerticalSpacerD400()
+                    Text(
+                        text = stringResource(Res.string.room_celebration_tap_to_reveal),
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.onSurfaceSecondary,
+                        textAlign = TextAlign.Center,
                     )
                 }
-                VerticalSpacerD200()
-                Text(
-                    text = stringResource(Res.string.room_celebration_cosmetic_attribution, achievement.name),
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
-                    textAlign = TextAlign.Center,
-                )
             }
         }
+    }
+}
+
+@Composable
+private fun MysteryRevealTrigger(onTap: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(Radii.Card.shape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onTap,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "?",
+            typography = AppTheme.typography.Display.D1400,
+            color = AppTheme.colors.textSecondary,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

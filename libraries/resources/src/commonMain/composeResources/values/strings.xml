@@ -517,6 +517,7 @@
     <string name="room_celebration_subtitle_multi">Stacked them in one hand.</string>
     <string name="room_celebration_continue_button">Continue</string>
     <string name="room_celebration_cosmetic_attribution">from the %1$s achievement</string>
+    <string name="room_celebration_tap_to_reveal">Tap to reveal</string>
 
     <!-- Room — Hand-rankings cheat sheet (tap the ? icon on the table). -->
     <string name="room_cheat_sheet_hand_number_pill">HAND #%1$d</string>
