@@ -33,6 +33,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.tutorial_actions_call_description
+import cards.libraries.resources.generated.resources.tutorial_actions_call_label
+import cards.libraries.resources.generated.resources.tutorial_actions_fold_description
+import cards.libraries.resources.generated.resources.tutorial_actions_fold_label
+import cards.libraries.resources.generated.resources.tutorial_actions_raise_description
+import cards.libraries.resources.generated.resources.tutorial_actions_raise_label
+import cards.libraries.resources.generated.resources.tutorial_handranks_row1_subtitle
+import cards.libraries.resources.generated.resources.tutorial_handranks_row1_title
+import cards.libraries.resources.generated.resources.tutorial_handranks_row2_subtitle
+import cards.libraries.resources.generated.resources.tutorial_handranks_row2_title
+import cards.libraries.resources.generated.resources.tutorial_handranks_row3_subtitle
+import cards.libraries.resources.generated.resources.tutorial_handranks_row3_title
+import cards.libraries.resources.generated.resources.tutorial_narration_default_cta
+import cards.libraries.resources.generated.resources.tutorial_skip_basics_button
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
@@ -60,6 +75,8 @@ import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.then
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -140,9 +157,10 @@ internal fun NarrationStep(
                 ) {
                     NarrationHeroBlock(hero = animatedStep.hero)
                 }
-                if (!animatedStep.coach.title.isNullOrBlank()) {
+                val titleRes = animatedStep.coach.title
+                if (titleRes != null) {
                     Text(
-                        text = animatedStep.coach.title,
+                        text = stringResource(titleRes),
                         typography = AppTheme.typography.Display.D1100.Italic,
                         color = ColorResource.Amber500,
                         textAlign = TextAlign.Start,
@@ -151,7 +169,7 @@ internal fun NarrationStep(
                     VerticalSpacerD400()
                 }
                 Text(
-                    text = animatedStep.coach.body,
+                    text = stringResource(animatedStep.coach.body),
                     typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.textSecondary,
                     textAlign = TextAlign.Start,
@@ -163,7 +181,8 @@ internal fun NarrationStep(
                     size = ButtonSize.Medium,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(animatedStep.coach.ctaLabel ?: "Next")
+                    val ctaRes = animatedStep.coach.ctaLabel
+                    Text(stringResource(ctaRes ?: Res.string.tutorial_narration_default_cta))
                 }
                 // Skip basics is a quiet text-link, not a full-width
                 // button: visually doesn't compete with the primary CTA.
@@ -176,7 +195,7 @@ internal fun NarrationStep(
                         type = ButtonType.PrimaryAlt,
                         style = ButtonStyle.Text,
                         size = ButtonSize.Small,
-                        content = { Text("Skip basics, I know how to play") }
+                        content = { Text(stringResource(Res.string.tutorial_skip_basics_button)) }
                     )
                 }
                 VerticalSpacerD600()
@@ -302,8 +321,8 @@ private fun HandRanksHero() {
                 Card(Rank.King, Suit.Spades),
                 Card(Rank.Nine, Suit.Hearts),
             ),
-            title = "High card",
-            subtitle = "Just your highest card",
+            title = Res.string.tutorial_handranks_row1_title,
+            subtitle = Res.string.tutorial_handranks_row1_subtitle,
             highlighted = false,
         )
         RankRow(
@@ -311,8 +330,8 @@ private fun HandRanksHero() {
                 Card(Rank.Queen, Suit.Diamonds),
                 Card(Rank.Queen, Suit.Clubs),
             ),
-            title = "Pair",
-            subtitle = "Two of the same rank",
+            title = Res.string.tutorial_handranks_row2_title,
+            subtitle = Res.string.tutorial_handranks_row2_subtitle,
             highlighted = false,
         )
         RankRow(
@@ -321,8 +340,8 @@ private fun HandRanksHero() {
                 Card(Rank.Ace, Suit.Spades),
                 Card(Rank.Ace, Suit.Diamonds),
             ),
-            title = "Three of a kind",
-            subtitle = "Three of the same rank",
+            title = Res.string.tutorial_handranks_row3_title,
+            subtitle = Res.string.tutorial_handranks_row3_subtitle,
             highlighted = true,
         )
     }
@@ -331,8 +350,8 @@ private fun HandRanksHero() {
 @Composable
 private fun RankRow(
     cards: List<Card>,
-    title: String,
-    subtitle: String,
+    title: StringResource,
+    subtitle: StringResource,
     highlighted: Boolean,
 ) {
     // Highlighted row gets an amber border layered over the Card.
@@ -354,12 +373,12 @@ private fun RankRow(
             )
             Column {
                 Text(
-                    text = title,
+                    text = stringResource(title),
                     typography = AppTheme.typography.Body.B500.SemiBold,
                     color = titleColor,
                 )
                 Text(
-                    text = subtitle,
+                    text = stringResource(subtitle),
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.textSecondary,
                 )
@@ -423,26 +442,26 @@ private fun ActionsHero(
     ) {
         ActionLegendRow(
             color = AppTheme.colors.danger,
-            label = "Fold",
-            description = "Throw away your cards. You're out of this hand.",
+            label = Res.string.tutorial_actions_fold_label,
+            description = Res.string.tutorial_actions_fold_description,
         )
         ActionLegendRow(
             color = AppTheme.colors.surfacePrimary,
-            label = "Call",
-            description = "Match the current bet. Stay in the hand.",
+            label = Res.string.tutorial_actions_call_label,
+            description = Res.string.tutorial_actions_call_description,
         )
         ActionLegendRow(
             color = AppTheme.colors.surfaceSecondary,
-            label = "Raise",
-            description = "Bet more than the current bet. Pressure your opponents.",
+            label = Res.string.tutorial_actions_raise_label,
+            description = Res.string.tutorial_actions_raise_description,
         )
     }
 }
 
 @Composable
 private fun ActionLegendRow(
-    label: String,
-    description: String,
+    label: StringResource,
+    description: StringResource,
     color: ColorResource
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -455,14 +474,14 @@ private fun ActionLegendRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = label,
+                text = stringResource(label),
                 typography = AppTheme.typography.Body.B600.SemiBold,
                 color = AppTheme.colors.text,
             )
         }
         Row(modifier = Modifier.width(12.dp)) {}
         Text(
-            text = description,
+            text = stringResource(description),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
             modifier = Modifier.weight(1f),

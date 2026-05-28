@@ -601,4 +601,79 @@
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
+
+    <!-- Tutorial — section labels (basics narration block vs. tableau hands). -->
+    <string name="tutorial_section_basics">Basics</string>
+    <string name="tutorial_section_at_the_table">At the table</string>
+
+    <!-- Tutorial — step-counter pill format on tableau steps. -->
+    <string name="tutorial_step_counter">Step %1$d of %2$d · %3$s</string>
+
+    <!-- Tutorial — narration hero pill labels (replaces generic step counter on basics). -->
+    <string name="tutorial_hero_pot_label">Your goal</string>
+    <string name="tutorial_hero_handranks_label">Your hand</string>
+    <string name="tutorial_hero_actions_label">Your turn</string>
+
+    <!-- Tutorial — narration step inline buttons. -->
+    <string name="tutorial_narration_default_cta">Next</string>
+    <string name="tutorial_skip_basics_button">Skip basics, I know how to play</string>
+
+    <!-- Tutorial — basics intro (three foundational narration cards). -->
+    <string name="tutorial_basics_pot_title">Win the pot.</string>
+    <string name="tutorial_basics_pot_body">Every hand, players bet chips into a shared pot. Win the hand and you take it all, either by having the best cards at showdown, or by getting everyone else to fold first.</string>
+    <string name="tutorial_basics_pot_cta">Got it</string>
+    <string name="tutorial_basics_handranks_title">Better hands beat worse ones.</string>
+    <string name="tutorial_basics_handranks_body">Your hand is your two cards combined with five shared cards on the table. The strongest five-card combination wins. We\'ll show you the ranking in-game whenever you need it.</string>
+    <string name="tutorial_basics_handranks_cta">Got it</string>
+    <string name="tutorial_basics_actions_title">Three things to do on your turn.</string>
+    <string name="tutorial_basics_actions_body">When it\'s your action, you have three choices. Fold and you\'re out. Call to stay in. Raise to put pressure on. That\'s the whole game, done thousands of different ways.</string>
+    <string name="tutorial_basics_actions_cta">Try a hand</string>
+
+    <!-- Tutorial — Hand 1: pocket aces, raise prompt. -->
+    <string name="tutorial_hand1_orient_title">Let\'s play a hand</string>
+    <string name="tutorial_hand1_orient_body">Meet Ada, Ben, and Cleo. They\'re bots. Tap anything on this screen if you\'re curious; most things will tell you what they are. Tapping your cards show your their card backs.</string>
+    <string name="tutorial_hand1_orient_cta">Got it</string>
+    <string name="tutorial_hand1_blinds_title">Blinds are in</string>
+    <string name="tutorial_hand1_blinds_body">Ada has the small blind (10), Ben the big blind (20). Two forced bets that start every hand and seed the pot. They rotate left each hand so everyone takes turns posting.</string>
+    <string name="tutorial_hand1_blinds_cta">Next</string>
+    <string name="tutorial_hand1_pocketaces_title">Pocket aces</string>
+    <string name="tutorial_hand1_pocketaces_body">Best starting hand in poker. A raise builds the pot when you\'re strong, but raise too big and opponents fold rather than pay you off.</string>
+    <string name="tutorial_hand1_pocketaces_cta">Got it</string>
+    <string name="tutorial_hand1_move_title">Your move</string>
+    <string name="tutorial_hand1_move_body">Tap Raise to put chips in. The ↑ opens a sheet for sizing the bet; the button itself raises the minimum.</string>
+    <string name="tutorial_hand1_result_title">They called</string>
+    <string name="tutorial_hand1_result_body">Each player\'s last move shows next to their seat. The pot ticked up.</string>
+    <string name="tutorial_hand1_result_cta">Next hand</string>
+
+    <!-- Tutorial — Hand 2: KQ suited, call → flop, check → result. -->
+    <string name="tutorial_hand2_kq_title">King-Queen suited</string>
+    <string name="tutorial_hand2_kq_body">Decent hand: same suit, both high cards. Straight, flush, even a royal flush are all on the table. 10 chips to call and see the flop.</string>
+    <string name="tutorial_hand2_flushdraw_title">Flush draw</string>
+    <string name="tutorial_hand2_flushdraw_body">Two hearts on the flop plus your two: one more heart and you\'ve made a flush. Ada checked, so you can see the next card free. Tap Check.</string>
+    <string name="tutorial_hand2_result_title">Hearts everywhere</string>
+    <string name="tutorial_hand2_result_body">Turn brought another heart, you made your flush. Ada folded along the way, so the pot is yours. Most hands end like this, not at showdown.</string>
+    <string name="tutorial_hand2_result_cta">Next hand</string>
+
+    <!-- Tutorial — Hand 3: 7-2 offsuit, fold prompt → ready. -->
+    <string name="tutorial_hand3_fold_title">Fold this one</string>
+    <string name="tutorial_hand3_fold_body">Tap ↑ then Fold, or swipe up on your cards. Either works.</string>
+    <string name="tutorial_hand3_ready_title">Ready</string>
+    <string name="tutorial_hand3_ready_body">Tap anything on a real table you\'re not sure about; most things will explain themselves. Bots are waiting in Practice.</string>
+    <string name="tutorial_hand3_ready_cta">Done</string>
+
+    <!-- Tutorial — HandRanksHero (3 example rank rows on basics card 2). -->
+    <string name="tutorial_handranks_row1_title">High card</string>
+    <string name="tutorial_handranks_row1_subtitle">Just your highest card</string>
+    <string name="tutorial_handranks_row2_title">Pair</string>
+    <string name="tutorial_handranks_row2_subtitle">Two of the same rank</string>
+    <string name="tutorial_handranks_row3_title">Three of a kind</string>
+    <string name="tutorial_handranks_row3_subtitle">Three of the same rank</string>
+
+    <!-- Tutorial — ActionsHero (3 action legend rows on basics card 3). -->
+    <string name="tutorial_actions_fold_label">Fold</string>
+    <string name="tutorial_actions_fold_description">Throw away your cards. You\'re out of this hand.</string>
+    <string name="tutorial_actions_call_label">Call</string>
+    <string name="tutorial_actions_call_description">Match the current bet. Stay in the hand.</string>
+    <string name="tutorial_actions_raise_label">Raise</string>
+    <string name="tutorial_actions_raise_description">Bet more than the current bet. Pressure your opponents.</string>
 </resources>

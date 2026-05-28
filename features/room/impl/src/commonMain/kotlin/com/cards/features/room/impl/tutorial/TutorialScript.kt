@@ -1,5 +1,41 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.tutorial_basics_actions_body
+import cards.libraries.resources.generated.resources.tutorial_basics_actions_cta
+import cards.libraries.resources.generated.resources.tutorial_basics_actions_title
+import cards.libraries.resources.generated.resources.tutorial_basics_handranks_body
+import cards.libraries.resources.generated.resources.tutorial_basics_handranks_cta
+import cards.libraries.resources.generated.resources.tutorial_basics_handranks_title
+import cards.libraries.resources.generated.resources.tutorial_basics_pot_body
+import cards.libraries.resources.generated.resources.tutorial_basics_pot_cta
+import cards.libraries.resources.generated.resources.tutorial_basics_pot_title
+import cards.libraries.resources.generated.resources.tutorial_hand1_blinds_body
+import cards.libraries.resources.generated.resources.tutorial_hand1_blinds_cta
+import cards.libraries.resources.generated.resources.tutorial_hand1_blinds_title
+import cards.libraries.resources.generated.resources.tutorial_hand1_move_body
+import cards.libraries.resources.generated.resources.tutorial_hand1_move_title
+import cards.libraries.resources.generated.resources.tutorial_hand1_orient_body
+import cards.libraries.resources.generated.resources.tutorial_hand1_orient_cta
+import cards.libraries.resources.generated.resources.tutorial_hand1_orient_title
+import cards.libraries.resources.generated.resources.tutorial_hand1_pocketaces_body
+import cards.libraries.resources.generated.resources.tutorial_hand1_pocketaces_cta
+import cards.libraries.resources.generated.resources.tutorial_hand1_pocketaces_title
+import cards.libraries.resources.generated.resources.tutorial_hand1_result_body
+import cards.libraries.resources.generated.resources.tutorial_hand1_result_cta
+import cards.libraries.resources.generated.resources.tutorial_hand1_result_title
+import cards.libraries.resources.generated.resources.tutorial_hand2_flushdraw_body
+import cards.libraries.resources.generated.resources.tutorial_hand2_flushdraw_title
+import cards.libraries.resources.generated.resources.tutorial_hand2_kq_body
+import cards.libraries.resources.generated.resources.tutorial_hand2_kq_title
+import cards.libraries.resources.generated.resources.tutorial_hand2_result_body
+import cards.libraries.resources.generated.resources.tutorial_hand2_result_cta
+import cards.libraries.resources.generated.resources.tutorial_hand2_result_title
+import cards.libraries.resources.generated.resources.tutorial_hand3_fold_body
+import cards.libraries.resources.generated.resources.tutorial_hand3_fold_title
+import cards.libraries.resources.generated.resources.tutorial_hand3_ready_body
+import cards.libraries.resources.generated.resources.tutorial_hand3_ready_cta
+import cards.libraries.resources.generated.resources.tutorial_hand3_ready_title
 import com.dangerfield.cards.features.room.impl.LegalActions
 import com.dangerfield.cards.features.room.impl.PlayPokerState
 import com.dangerfield.cards.features.room.impl.SeatView
@@ -45,27 +81,27 @@ internal object TutorialScript {
             section = TutorialSection.Basics,
             hero = NarrationHero.Pot,
             coach = CoachMark(
-                title = "Win the pot.",
-                body = "Every hand, players bet chips into a shared pot. Win the hand and you take it all, either by having the best cards at showdown, or by getting everyone else to fold first.",
-                ctaLabel = "Got it",
+                title = Res.string.tutorial_basics_pot_title,
+                body = Res.string.tutorial_basics_pot_body,
+                ctaLabel = Res.string.tutorial_basics_pot_cta,
             ),
         ),
         TutorialStep(
             section = TutorialSection.Basics,
             hero = NarrationHero.HandRanks,
             coach = CoachMark(
-                title = "Better hands beat worse ones.",
-                body = "Your hand is your two cards combined with five shared cards on the table. The strongest five-card combination wins. We'll show you the ranking in-game whenever you need it.",
-                ctaLabel = "Got it",
+                title = Res.string.tutorial_basics_handranks_title,
+                body = Res.string.tutorial_basics_handranks_body,
+                ctaLabel = Res.string.tutorial_basics_handranks_cta,
             ),
         ),
         TutorialStep(
             section = TutorialSection.Basics,
             hero = NarrationHero.Actions,
             coach = CoachMark(
-                title = "Three things to do on your turn.",
-                body = "When it's your action, you have three choices. Fold and you're out. Call to stay in. Raise to put pressure on. That's the whole game, done thousands of different ways.",
-                ctaLabel = "Try a hand",
+                title = Res.string.tutorial_basics_actions_title,
+                body = Res.string.tutorial_basics_actions_body,
+                ctaLabel = Res.string.tutorial_basics_actions_cta,
             ),
         ),
     )
@@ -184,9 +220,9 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Let's play a hand",
-                    body = "Meet Ada, Ben, and Cleo. They're bots. Tap anything on this screen if you're curious; most things will tell you what they are. Tapping your cards show your their card backs.",
-                    ctaLabel = "Got it",
+                    title = Res.string.tutorial_hand1_orient_title,
+                    body = Res.string.tutorial_hand1_orient_body,
+                    ctaLabel = Res.string.tutorial_hand1_orient_cta,
                     // Middle placement so we don't cover either the
                     // opponents row or the hole-card area while the
                     // user gets oriented.
@@ -203,9 +239,9 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Blinds are in",
-                    body = "Ada has the small blind (10), Ben the big blind (20). Two forced bets that start every hand and seed the pot. They rotate left each hand so everyone takes turns posting.",
-                    ctaLabel = "Next",
+                    title = Res.string.tutorial_hand1_blinds_title,
+                    body = Res.string.tutorial_hand1_blinds_body,
+                    ctaLabel = Res.string.tutorial_hand1_blinds_cta,
                     // Pointing at Ada and Ben's chip contributions
                     // at the top of the felt.
                     placement = CoachMarkPlacement.Bottom,
@@ -221,9 +257,9 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Pocket aces",
-                    body = "Best starting hand in poker. A raise builds the pot when you're strong, but raise too big and opponents fold rather than pay you off.",
-                    ctaLabel = "Got it",
+                    title = Res.string.tutorial_hand1_pocketaces_title,
+                    body = Res.string.tutorial_hand1_pocketaces_body,
+                    ctaLabel = Res.string.tutorial_hand1_pocketaces_cta,
                     // Cards are at the bottom; pin the mark up top so
                     // it doesn't cover what we're talking about.
                     placement = CoachMarkPlacement.Top,
@@ -252,8 +288,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Your move",
-                    body = "Tap Raise to put chips in. The ↑ opens a sheet for sizing the bet; the button itself raises the minimum.",
+                    title = Res.string.tutorial_hand1_move_title,
+                    body = Res.string.tutorial_hand1_move_body,
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Raise || it is PlayerIntent.Bet },
@@ -277,9 +313,9 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "They called",
-                    body = "Each player's last move shows next to their seat. The pot ticked up.",
-                    ctaLabel = "Next hand",
+                    title = Res.string.tutorial_hand1_result_title,
+                    body = Res.string.tutorial_hand1_result_body,
+                    ctaLabel = Res.string.tutorial_hand1_result_cta,
                     // Pointing at the seat labels + pot in the middle,
                     // both at the top half of the screen.
                     placement = CoachMarkPlacement.Bottom,
@@ -411,8 +447,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "King-Queen suited",
-                    body = "Decent hand: same suit, both high cards. Straight, flush, even a royal flush are all on the table. 10 chips to call and see the flop.",
+                    title = Res.string.tutorial_hand2_kq_title,
+                    body = Res.string.tutorial_hand2_kq_body,
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Call },
@@ -449,8 +485,8 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Flush draw",
-                    body = "Two hearts on the flop plus your two: one more heart and you've made a flush. Ada checked, so you can see the next card free. Tap Check.",
+                    title = Res.string.tutorial_hand2_flushdraw_title,
+                    body = Res.string.tutorial_hand2_flushdraw_body,
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Check },
@@ -476,9 +512,9 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Hearts everywhere",
-                    body = "Turn brought another heart, you made your flush. Ada folded along the way, so the pot is yours. Most hands end like this, not at showdown.",
-                    ctaLabel = "Next hand",
+                    title = Res.string.tutorial_hand2_result_title,
+                    body = Res.string.tutorial_hand2_result_body,
+                    ctaLabel = Res.string.tutorial_hand2_result_cta,
                     // Mentions Ada folding + the community cards which
                     // sit mid-table. Bottom-pin keeps both visible.
                     placement = CoachMarkPlacement.Bottom,
@@ -571,8 +607,8 @@ internal object TutorialScript {
                 //, no confirmation dialog interrupts the lesson.
                 state = baseState(tableAction).copy(swipeFoldGestureAck = true),
                 coach = CoachMark(
-                    title = "Fold this one",
-                    body = "Tap ↑ then Fold, or swipe up on your cards. Either works.",
+                    title = Res.string.tutorial_hand3_fold_title,
+                    body = Res.string.tutorial_hand3_fold_body,
                     ctaLabel = null,
                 ),
                 advanceOn = { it is PlayerIntent.Fold },
@@ -604,9 +640,9 @@ internal object TutorialScript {
                     )
                 ),
                 coach = CoachMark(
-                    title = "Ready",
-                    body = "Tap anything on a real table you're not sure about; most things will explain themselves. Bots are waiting in Practice.",
-                    ctaLabel = "Done",
+                    title = Res.string.tutorial_hand3_ready_title,
+                    body = Res.string.tutorial_hand3_ready_body,
+                    ctaLabel = Res.string.tutorial_hand3_ready_cta,
                 ),
             ),
         )

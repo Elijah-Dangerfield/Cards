@@ -1,7 +1,14 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.tutorial_hero_actions_label
+import cards.libraries.resources.generated.resources.tutorial_hero_handranks_label
+import cards.libraries.resources.generated.resources.tutorial_hero_pot_label
+import cards.libraries.resources.generated.resources.tutorial_section_at_the_table
+import cards.libraries.resources.generated.resources.tutorial_section_basics
 import com.dangerfield.cards.features.room.impl.PlayPokerState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import org.jetbrains.compose.resources.StringResource
 
 /**
  * Step model for the scripted tutorial. Two shapes:
@@ -57,9 +64,9 @@ internal data class TutorialStep(
  *   player through how the app's chrome works, assuming basic poker
  *   vocabulary.
  */
-internal enum class TutorialSection(val displayName: String) {
-    Basics(displayName = "Basics"),
-    AtTheTable(displayName = "At the table"),
+internal enum class TutorialSection(val displayName: StringResource) {
+    Basics(displayName = Res.string.tutorial_section_basics),
+    AtTheTable(displayName = Res.string.tutorial_section_at_the_table),
 }
 
 /**
@@ -74,37 +81,37 @@ internal sealed interface NarrationHero {
      *  screens. Should read in the second person and pair naturally
      *  with the hero visual ("Your goal" + chip-pile coin counter,
      *  etc.). */
-    val topBarLabel: String
+    val topBarLabel: StringResource
 
     /** "The pot" card visual: a coin counter ticking up. */
     data object Pot : NarrationHero {
-        override val topBarLabel: String = "Your goal"
+        override val topBarLabel: StringResource = Res.string.tutorial_hero_pot_label
     }
 
     /** "Hand ranks" card visual: three example mini-cards from weakest
      *  to strongest, the strongest amber-accented. */
     data object HandRanks : NarrationHero {
-        override val topBarLabel: String = "Your hand"
+        override val topBarLabel: StringResource = Res.string.tutorial_hero_handranks_label
     }
 
     /** "Three actions" card visual: Fold / Call / Raise as a small
      *  legend. */
     data object Actions : NarrationHero {
-        override val topBarLabel: String = "Your turn"
+        override val topBarLabel: StringResource = Res.string.tutorial_hero_actions_label
     }
 }
 
 internal data class CoachMark(
-    val title: String?,
-    val body: String,
+    val title: StringResource?,
+    val body: StringResource,
     /** Optional bullets rendered below the body in the floating coach
      *  mark. The redesigned basics narration uses [NarrationHero]
      *  illustrations instead of bullets; bullets remain available for
      *  tableau coach marks if a future step wants them. */
-    val bullets: List<String> = emptyList(),
+    val bullets: List<StringResource> = emptyList(),
     /** Non-null = narration step with an inline Next/Got-it/etc. button.
      *  Null = action-prompt step; the action bar itself is the CTA. */
-    val ctaLabel: String? = null,
+    val ctaLabel: StringResource? = null,
     /** Where the coach mark sits by default. Picked per-step so steps
      *  that talk about opponents / pot don't cover them, and steps
      *  pointing at hole cards / action bar don't cover those instead.

@@ -45,6 +45,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.tutorial_step_counter
 import com.dangerfield.cards.features.room.impl.PlayPokerAction
 import com.dangerfield.cards.features.room.impl.PlayPokerScreen
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -64,6 +66,8 @@ import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -159,7 +163,7 @@ internal fun TutorialPokerScreen(
             // generic counter. The 3-of-3 progress information moves
             // to the dot row underneath. Tableau steps don't have
             // per-step names, so they keep the existing counter format.
-            customLabel = (state.step.hero as? NarrationHero)?.topBarLabel,
+            customLabelRes = (state.step.hero as? NarrationHero)?.topBarLabel,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
@@ -315,16 +319,17 @@ private fun CoachMarkBanner(
                 .background(AppTheme.colors.borderSecondary.color),
         )
         VerticalSpacerD200()
-        if (!coach.title.isNullOrBlank()) {
+        val titleRes = coach.title
+        if (titleRes != null) {
             Text(
-                text = coach.title,
+                text = stringResource(titleRes),
                 typography = AppTheme.typography.Heading.H500,
                 color = AppTheme.colors.text,
             )
             VerticalSpacerD200()
         }
         Text(
-            text = coach.body,
+            text = stringResource(coach.body),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
         )
@@ -332,7 +337,8 @@ private fun CoachMarkBanner(
             VerticalSpacerD200()
             BulletList(bullets = coach.bullets)
         }
-        if (!coach.ctaLabel.isNullOrBlank()) {
+        val ctaRes = coach.ctaLabel
+        if (ctaRes != null) {
             VerticalSpacerD400()
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -342,7 +348,7 @@ private fun CoachMarkBanner(
                     onClick = onAdvance,
                     size = ButtonSize.Small,
                 ) {
-                    Text(coach.ctaLabel)
+                    Text(stringResource(ctaRes))
                 }
             }
         }
@@ -368,7 +374,7 @@ private fun StepCounterPill(
     section: TutorialSection,
     sectionStep: Int,
     sectionTotal: Int,
-    customLabel: String?,
+    customLabelRes: StringResource?,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -383,13 +389,21 @@ private fun StepCounterPill(
                 .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
         ) {
             Text(
-                text = customLabel
-                    ?: "Step $sectionStep of $sectionTotal · ${section.displayName}",
+                text = if (customLabelRes != null) {
+                    stringResource(customLabelRes)
+                } else {
+                    stringResource(
+                        Res.string.tutorial_step_counter,
+                        sectionStep,
+                        sectionTotal,
+                        stringResource(section.displayName),
+                    )
+                },
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
             )
         }
-        if (customLabel != null) {
+        if (customLabelRes != null) {
             VerticalSpacerD200()
             ProgressDots(
                 total = sectionTotal,
@@ -437,7 +451,7 @@ private fun ProgressDots(
  */
 @Composable
 private fun BulletList(
-    bullets: List<String>,
+    bullets: List<StringResource>,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -451,7 +465,7 @@ private fun BulletList(
                     modifier = Modifier.padding(end = Dimension.D300),
                 )
                 Text(
-                    text = bullet,
+                    text = stringResource(bullet),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.textSecondary,
                 )
@@ -560,11 +574,7 @@ private fun CoachMarkBannerPreview_Narration() {
     PreviewContent {
         Box(modifier = Modifier.padding(Dimension.D500)) {
             CoachMarkBanner(
-                coach = CoachMark(
-                    title = "Your cards",
-                    body = "Two aces, the strongest starting hand in poker. You're a clear favorite to win this pot.",
-                    ctaLabel = "Nice",
-                ),
+                coach = TutorialScript.steps.first { it.coach.ctaLabel != null && !it.isBasics }.coach,
                 stepIndex = 2,
                 onAdvance = {},
             )
@@ -578,11 +588,7 @@ private fun CoachMarkBannerPreview_ActionPrompt() {
     PreviewContent {
         Box(modifier = Modifier.padding(Dimension.D500)) {
             CoachMarkBanner(
-                coach = CoachMark(
-                    title = "Raise",
-                    body = "When you have the best of it, raise to build the pot. Tap Raise to put more chips in.",
-                    ctaLabel = null,
-                ),
+                coach = TutorialScript.steps.first { it.coach.ctaLabel == null }.coach,
                 stepIndex = 3,
                 onAdvance = {},
             )
