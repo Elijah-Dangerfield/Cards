@@ -223,15 +223,6 @@ fun EditProfileScreen(
                     onSelect = { onAction(EditProfileAction.AvatarSelected(it)) },
                     onUnlockPack = { productId -> onNavigateToShop(productId) },
                 )
-
-                state.error?.let {
-                    Spacer(modifier = Modifier.height(Dimension.D500))
-                    Text(
-                        text = it,
-                        typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.danger,
-                    )
-                }
             }
 
             // Floating Save bar — sits over the bottom of the scroll
@@ -709,27 +700,6 @@ private fun EditProfileScreenPreview_Submitting() {
                     AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯", "🦄", "🐲", "🦁", "🐸")),
                 ),
                 isSubmitting = true,
-            ),
-            onAction = {},
-            onBack = {},
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@Composable
-private fun EditProfileScreenPreview_GenericError() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        EditProfileScreen(
-            state = EditProfileState(
-                initialDisplayName = "Elijah",
-                displayName = "ElijahNew",
-                initialAvatarEmoji = "🦊",
-                selectedAvatarEmoji = "🦊",
-                allAvatarPacks = listOf(
-                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
-                ),
-                error = "Couldn't save changes — check your connection.",
             ),
             onAction = {},
             onBack = {},

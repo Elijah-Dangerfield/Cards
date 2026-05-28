@@ -117,19 +117,19 @@ class EditProfileViewModel(
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
-                it.copy(displayName = action.value, error = null, displayNameError = null)
+                it.copy(displayName = action.value, displayNameError = null)
             }
 
             is EditProfileAction.AvatarSelected -> action.updateState {
-                it.copy(selectedAvatarEmoji = action.emoji, error = null)
+                it.copy(selectedAvatarEmoji = action.emoji)
             }
 
             is EditProfileAction.AvatarBackgroundColorSelected -> action.updateState {
-                it.copy(selectedAvatarBackgroundColor = action.color, error = null)
+                it.copy(selectedAvatarBackgroundColor = action.color)
             }
 
             is EditProfileAction.DismissError -> action.updateState {
-                it.copy(error = null, displayNameError = null)
+                it.copy(displayNameError = null)
             }
 
             is EditProfileAction.Submit -> action.run {
@@ -137,7 +137,7 @@ class EditProfileViewModel(
                 if (!current.canSubmit) return@run
 
                 updateState {
-                    it.copy(isSubmitting = true, error = null, displayNameError = null)
+                    it.copy(isSubmitting = true, displayNameError = null)
                 }
 
                 val colorChanged = current.selectedAvatarBackgroundColor != current.initialAvatarBackgroundColor
@@ -261,13 +261,6 @@ data class EditProfileState(
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
-    val error: String? = null,
-    /**
-     * Inline error rendered under the display-name field. Set when the
-     * server rejects the new name (already taken, or otherwise invalid).
-     * Cleared on the next edit of the field. Distinct from [error] so
-     * the UI can place it at the field rather than as a generic banner.
-     */
     val displayNameError: EditProfileDisplayNameError? = null,
 ) {
     /**
