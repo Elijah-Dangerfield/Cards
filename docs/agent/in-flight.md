@@ -19,6 +19,13 @@
 **Reviewer notes:** Existing lobby tests still pass; `:apps:compose:assembleDebug` clean. No `@Preview` was touched — they render through the same screen Composable so they get the migrated copy automatically.
 **Deferred:** `LobbyViewModel.kt`'s error-state strings (currently raw `String` written into `LobbyState.error`) need either a typed `ErrorReason` enum + screen-side `stringResource(...)`, or a `suspend getString(...)` resolution in the VM before the `String` lands in state. Both shapes are valid; picking one is a small judgement call I'm leaving for the reviewer / human to direct. Noted in the updated `docs/todo.md` strings-sweep entry under "Remaining work."
 
+## test(achievements): pin AchievementMode filter across bots / MP hands
+
+**Source:** worker-hydrated this cycle (not human-curated).
+**Problem:** `AchievementRepositoryImpl.modeAllows()` already filters `BOTS` / `MULTIPLAYER` achievements off the wrong-mode hands, and `ClientGrantableAchievements.Default.serverWitnessed` blocks self-grants on the server, but neither half had a regression-pinning test. A future refactor could silently drop the client-side filter and let a player self-grant `FIRST_BUST_DEALT_MP` from a bot table — the server 403 is the only remaining guardrail.
+**Approach:** Added three tests against the existing fake DAO + counter-preload scaffolding: MP achievement criterion-met in a BOTS hand → not earned; same achievement in an MP hand → earned; BOTS achievement criterion-met in an MP hand → not earned. The `summary(...)` factory grew an optional `mode = XpMode.BOTS` parameter — every existing call defaults the same way, no other tests change. Picked `FIRST_BUST_DEALT_MP` + `BEAT_JANE_10` as the representative pair because both criteria are single-counter custom keys with a target of 1/10 (cheap to preload) and they ship as the canonical mode-gated entries in the V1 registry.
+**Reviewer notes:** None. Tests run under `testDebugUnitTest` clean. The shipped behavior was already correct — these tests just pin it so a future "drop modeAllows since the server enforces it anyway" wouldn't slip through review.
+
 ## feat(gameplay): add v1 GameEvent envelope for future persistence
 
 **Problem:** Once `game_events.event_jsonb` rows start landing (B0 first bullet), every row is forever — a future v2 reader must fork on a stable version discriminator without rewriting history. AGENTS.md / docs/decisions.md (2026-05-27 MP architecture revisit) call this out as the first prereq before any event-log persistence ships.
