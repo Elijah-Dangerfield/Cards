@@ -229,7 +229,7 @@
 
     <!-- Auth — VerifyEmail screen. -->
     <string name="auth_verify_email_title">Check your email</string>
-    <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then return here and we\'ll check with our server.</string>
+    <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then return here and we'll check with our server.</string>
     <string name="auth_verify_email_confirm_button">Check verification</string>
     <string name="auth_verify_email_confirm_button_progress">Checking with server…</string>
     <string name="auth_verify_email_resend_button">Resend email</string>
