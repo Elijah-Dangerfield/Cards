@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.BOT_WHISPERER_BOTS_BEATEN
+import com.dangerfield.cards.libraries.cards.BUSTS_DEALT_MP
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -290,15 +291,67 @@ class AchievementRepositoryImplTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun mpAchievement_doesNotFire_inBotsModeHand_evenIfCriterionMet() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.FIRST_BUST_DEALT_MP) }
+        deps.dao.counters[BUSTS_DEALT_MP] = 1
+        val repo = deps.build()
+
+        val earned = repo.recordHand(
+            summary = summary(bigBlind = 10, mode = XpMode.BOTS),
+            context = context(bigBlind = 10),
+        )
+
+        assertFalse(
+            earned.any { it.achievement.id == AchievementId.FIRST_BUST_DEALT_MP },
+            "MP-mode achievement cannot unlock from a bots-mode hand",
+        )
+    }
+
+    @Test
+    fun mpAchievement_fires_inMultiplayerHand_whenCriterionMet() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.FIRST_BUST_DEALT_MP) }
+        deps.dao.counters[BUSTS_DEALT_MP] = 1
+        val repo = deps.build()
+
+        val earned = repo.recordHand(
+            summary = summary(bigBlind = 10, mode = XpMode.MULTIPLAYER),
+            context = context(bigBlind = 10),
+        )
+
+        assertTrue(
+            earned.any { it.achievement.id == AchievementId.FIRST_BUST_DEALT_MP },
+            "MP-mode achievement unlocks from a multiplayer hand",
+        )
+    }
+
+    @Test
+    fun botsAchievement_doesNotFire_inMultiplayerHand_evenIfCriterionMet() = runUnitTest {
+        val deps = Deps().also { it.preEarnAllExcept(AchievementId.BEAT_JANE_10) }
+        deps.dao.counters[winsVsBotKey("Jane")] = 10
+        val repo = deps.build()
+
+        val earned = repo.recordHand(
+            summary = summary(bigBlind = 10, mode = XpMode.MULTIPLAYER),
+            context = context(bigBlind = 10),
+        )
+
+        assertFalse(
+            earned.any { it.achievement.id == AchievementId.BEAT_JANE_10 },
+            "bots-mode achievement cannot unlock from a multiplayer hand",
+        )
+    }
+
     // ---------- Test scaffolding ----------
 
     private fun summary(
         bigBlind: Long,
         totalPot: Long = 0L,
         wonPot: Boolean = false,
+        mode: XpMode = XpMode.BOTS,
     ): HandResultSummary = HandResultSummary(
         handId = "h-${bigBlind}-${totalPot}",
-        mode = XpMode.BOTS,
+        mode = mode,
         wasFold = false,
         reachedShowdown = false,
         wonPot = wonPot,
