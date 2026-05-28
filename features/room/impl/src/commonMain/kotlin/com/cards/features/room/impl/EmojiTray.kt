@@ -85,7 +85,9 @@ internal fun TopBarEmojiButton(
         if (cooling) expanded = false
     }
 
-    Box(modifier = modifier) {
+    val triggerFootprint = TriggerSize.iconSize.dp + TriggerSize.padding * 2
+
+    Box(modifier = modifier.size(triggerFootprint)) {
         if (cooling) {
             CooldownChip(remainingSeconds = remainingSeconds)
         } else {
@@ -111,7 +113,6 @@ internal fun TopBarEmojiButton(
             // gap stays consistent if the Size scale changes. Aligned
             // to TopEnd so the row hugs the right edge — same side as
             // the trigger.
-            val triggerFootprint = TriggerSize.iconSize.dp + TriggerSize.padding * 2
             val offsetY = with(LocalDensity.current) {
                 (triggerFootprint + Dimension.D200).roundToPx()
             }
