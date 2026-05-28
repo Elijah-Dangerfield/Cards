@@ -28,6 +28,12 @@
 **Approach:** Added `LevelTest` covering the curve at known levels, the `<1` clamp on `xpToLevelUpFrom`, the level-from-XP boundaries (0, 99, 100, negative, beyond MAX_LEVEL), the three derived `LevelProgress` properties, plus a monotonicity sweep. New `commonTest.dependencies` block added to `:libraries:cards` (it had none) wired to `:libraries:flowroutines:testing` for source-set parity with the rest of the module graph; the tests themselves use plain `kotlin.test` because `Level.kt` is pure math.
 **Reviewer notes:** None.
 
+## fix(auth): dismiss keyboard when submitting sign-in / sign-up forms
+
+**Problem:** Tapping the submit button or pressing the keyboard's "Go" action on the auth screens left the soft keyboard on screen, covering inline errors, loading state, and the claim-progress dialog.
+**Approach:** Captured `LocalSoftwareKeyboardController.current` at each `SignInScreen` / `SignUpScreen` body, wrapped it in a local `submit = { keyboardController?.hide(); onAction(...Submit) }` lambda, and routed every Submit caller (the primary button + every `onSubmitImeAction` slot on the email/password fields) through it. Doesn't touch `VerifyEmailScreen` — that one has no text inputs to begin with.
+**Reviewer notes:** None.
+
 ## test(progression): pin ProgressionRepositoryImpl counter deltas + ledger rows
 
 **Problem:** `ProgressionRepositoryImpl` is the only thing standing between hand outcomes and the player's lifetime XP / hand counters, but had no test sibling. `XpCalculatorTest` pins the pure math; the repo's counter-delta + ledger-row composition (the five `handsWonDelta` / `handsFoldedDelta` / `handsLostAtShowdownDelta` / `botHandsPlayedDelta` derivations + `applyAchievementXp`'s `require(delta>0)` + `ACHIEVEMENT/BOTS/null-handId` tagging) was unverified.

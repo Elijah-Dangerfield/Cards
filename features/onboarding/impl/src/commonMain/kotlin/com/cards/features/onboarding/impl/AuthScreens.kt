@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -123,6 +124,11 @@ fun SignInScreen(
     onBack: () -> Unit,
     onCreateAccount: () -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val submit = {
+        keyboardController?.hide()
+        onAction(SignInAction.Submit)
+    }
     AuthShell(onBack = onBack) {
         Text(
             text = stringResource(Res.string.auth_sign_in_title),
@@ -176,7 +182,7 @@ fun SignInScreen(
             enabled = !state.isSubmitting,
             onChange = { onAction(SignInAction.PasswordChanged(it)) },
             imeAction = ImeAction.Go,
-            onSubmitImeAction = { onAction(SignInAction.Submit) },
+            onSubmitImeAction = submit,
         )
 
         state.error?.let {
@@ -187,7 +193,7 @@ fun SignInScreen(
         Spacer(modifier = Modifier.height(Dimension.D800))
 
         Button(
-            onClick = { onAction(SignInAction.Submit) },
+            onClick = submit,
             enabled = state.canSubmit,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -219,6 +225,11 @@ fun SignUpScreen(
     onBack: () -> Unit,
     onSignIn: () -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val submit = {
+        keyboardController?.hide()
+        onAction(SignUpAction.Submit)
+    }
     AuthShell(onBack = onBack) {
         Text(
             text = stringResource(Res.string.auth_sign_up_title),
@@ -245,7 +256,7 @@ fun SignUpScreen(
             enabled = !state.isSubmitting,
             onChange = { onAction(SignUpAction.PasswordChanged(it)) },
             imeAction = ImeAction.Next,
-            onSubmitImeAction = { onAction(SignUpAction.Submit) },
+            onSubmitImeAction = submit,
             helper = stringResource(
                 Res.string.auth_sign_up_password_helper,
                 SignUpState.MIN_PASSWORD_LENGTH,
@@ -257,7 +268,7 @@ fun SignUpScreen(
             enabled = !state.isSubmitting,
             onChange = { onAction(SignUpAction.ConfirmPasswordChanged(it)) },
             imeAction = ImeAction.Go,
-            onSubmitImeAction = { onAction(SignUpAction.Submit) },
+            onSubmitImeAction = submit,
             label = stringResource(Res.string.auth_sign_up_confirm_password_label),
             helper = if (state.passwordMismatch) {
                 stringResource(Res.string.auth_sign_up_password_mismatch_helper)
@@ -275,7 +286,7 @@ fun SignUpScreen(
         Spacer(modifier = Modifier.height(Dimension.D800))
 
         Button(
-            onClick = { onAction(SignUpAction.Submit) },
+            onClick = submit,
             enabled = state.canSubmit,
             modifier = Modifier.fillMaxWidth(),
         ) {
