@@ -36,6 +36,11 @@ internal object EmojiPackCatalog {
         "emotes_grinder" to listOf("☕", "⛏️", "🛠️", "⌛"),
         "emotes_doubler" to listOf("🚀", "⏫", "🎯", "💰"),
         "emotes_tactician" to listOf("♟️", "🦅", "🥷", "🏹"),
+        "emotes_inspector" to listOf("🔍", "📋", "🤓", "☝️"),
+        "emotes_showstopper" to listOf("🎤", "✨", "👏", "🎬"),
+        "emotes_outsmarter" to listOf("💡", "🪤", "🕸️", "🔮"),
+        "emotes_marathoner" to listOf("🦥", "🐌", "🪨", "🌅"),
+        "emotes_tamer" to listOf("🦁", "🎪", "🤹", "🪅"),
     )
 
     /**

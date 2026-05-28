@@ -106,6 +106,41 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun beatJane10_mapsToInspectorEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_JANE_10)
+        assertEquals("emotes_inspector", reward?.productId)
+        assertEquals("Inspector emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatDavid10_mapsToShowstopperEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_DAVID_10)
+        assertEquals("emotes_showstopper", reward?.productId)
+        assertEquals("Showstopper emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatGina10_mapsToOutsmarterEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_GINA_10)
+        assertEquals("emotes_outsmarter", reward?.productId)
+        assertEquals("Outsmarter emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatSteve10_mapsToMarathonerEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_STEVE_10)
+        assertEquals("emotes_marathoner", reward?.productId)
+        assertEquals("Marathoner emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatMike10_mapsToTamerEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_MIKE_10)
+        assertEquals("emotes_tamer", reward?.productId)
+        assertEquals("Tamer emote pack", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to

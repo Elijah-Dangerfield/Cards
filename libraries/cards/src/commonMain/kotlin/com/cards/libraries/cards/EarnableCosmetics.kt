@@ -86,5 +86,25 @@ fun cosmeticRewardFor(id: AchievementId): CosmeticReward? = when (id) {
         productId = "title_felt_veteran",
         label = "Felt Veteran title",
     )
+    AchievementId.BEAT_JANE_10 -> CosmeticReward(
+        productId = "emotes_inspector",
+        label = "Inspector emote pack",
+    )
+    AchievementId.BEAT_DAVID_10 -> CosmeticReward(
+        productId = "emotes_showstopper",
+        label = "Showstopper emote pack",
+    )
+    AchievementId.BEAT_GINA_10 -> CosmeticReward(
+        productId = "emotes_outsmarter",
+        label = "Outsmarter emote pack",
+    )
+    AchievementId.BEAT_STEVE_10 -> CosmeticReward(
+        productId = "emotes_marathoner",
+        label = "Marathoner emote pack",
+    )
+    AchievementId.BEAT_MIKE_10 -> CosmeticReward(
+        productId = "emotes_tamer",
+        label = "Tamer emote pack",
+    )
     else -> null
 }

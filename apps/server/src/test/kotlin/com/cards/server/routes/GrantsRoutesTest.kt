@@ -227,6 +227,28 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsBeatBotSignaturePacks_forBeat10AchievementsPerBot() = runTest {
+        val pairings = listOf(
+            "BEAT_JANE_10" to "emotes_inspector",
+            "BEAT_DAVID_10" to "emotes_showstopper",
+            "BEAT_GINA_10" to "emotes_outsmarter",
+            "BEAT_STEVE_10" to "emotes_marathoner",
+            "BEAT_MIKE_10" to "emotes_tamer",
+        )
+        for ((achievementId, expectedProductId) in pairings) {
+            val inventory = CapturingInventory()
+            val catalog = FakeCatalog.with(stubProduct(expectedProductId))
+            post(inventory, catalog, defaultPolicy, achievementId) { resp ->
+                assertEquals(HttpStatusCode.OK, resp.status, "id=$achievementId")
+                val body = resp.body<OwnedItemDto>()
+                assertEquals(expectedProductId, body.productId, "id=$achievementId")
+                assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource, "id=$achievementId")
+                assertEquals(expectedProductId, inventory.earnedGrants.single().productId, "id=$achievementId")
+            }
+        }
+    }
+
+    @Test
     fun serverWitnessedAchievement_returnsForbidden_andDoesNotRecord() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.empty()
