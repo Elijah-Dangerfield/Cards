@@ -110,5 +110,9 @@ fun cosmeticRewardFor(id: AchievementId): CosmeticReward? = when (id) {
         productId = "title_royalty",
         label = "Royalty title",
     )
+    AchievementId.SHOW_STRAIGHT_FLUSH -> CosmeticReward(
+        productId = "title_suited_run",
+        label = "Suited Run title",
+    )
     else -> null
 }

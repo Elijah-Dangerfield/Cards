@@ -240,6 +240,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsSuitedRunTitle_forShowStraightFlush() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_suited_run"))
+        post(inventory, catalog, defaultPolicy, "SHOW_STRAIGHT_FLUSH") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_suited_run", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("title_suited_run", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun defaultPolicy_grantsBeatBotSignaturePacks_forBeat10AchievementsPerBot() = runTest {
         val pairings = listOf(
             "BEAT_JANE_10" to "emotes_inspector",

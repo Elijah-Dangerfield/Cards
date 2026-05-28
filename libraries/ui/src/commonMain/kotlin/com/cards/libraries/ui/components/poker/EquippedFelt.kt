@@ -139,6 +139,7 @@ fun titleForProductId(productId: String?): String? = when (productId) {
     "title_bot_whisperer" -> "Bot Whisperer"
     "title_felt_veteran" -> "Felt Veteran"
     "title_royalty" -> "Royalty"
+    "title_suited_run" -> "Suited Run"
     else -> null
 }
 
