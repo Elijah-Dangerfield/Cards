@@ -69,6 +69,35 @@ import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.onboarding_how_card_chips_subtitle
+import cards.libraries.resources.generated.resources.onboarding_how_card_chips_title
+import cards.libraries.resources.generated.resources.onboarding_how_card_league_subtitle
+import cards.libraries.resources.generated.resources.onboarding_how_card_league_title
+import cards.libraries.resources.generated.resources.onboarding_how_card_play_subtitle
+import cards.libraries.resources.generated.resources.onboarding_how_card_play_title
+import cards.libraries.resources.generated.resources.onboarding_how_continue_button
+import cards.libraries.resources.generated.resources.onboarding_how_eyebrow
+import cards.libraries.resources.generated.resources.onboarding_how_title
+import cards.libraries.resources.generated.resources.onboarding_identity_avatar_placeholder
+import cards.libraries.resources.generated.resources.onboarding_identity_continue_button
+import cards.libraries.resources.generated.resources.onboarding_identity_continue_button_progress
+import cards.libraries.resources.generated.resources.onboarding_identity_edit_name_icon_desc
+import cards.libraries.resources.generated.resources.onboarding_identity_more_packs_hint
+import cards.libraries.resources.generated.resources.onboarding_identity_section_name
+import cards.libraries.resources.generated.resources.onboarding_identity_section_pack
+import cards.libraries.resources.generated.resources.onboarding_identity_skip_button
+import cards.libraries.resources.generated.resources.onboarding_identity_subtitle
+import cards.libraries.resources.generated.resources.onboarding_identity_title
+import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
+import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest_progress
+import cards.libraries.resources.generated.resources.onboarding_welcome_footer
+import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
+import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google
+import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_in_flight
+import cards.libraries.resources.generated.resources.onboarding_welcome_subtitle
+import cards.libraries.resources.generated.resources.onboarding_welcome_title
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Three-step onboarding flow driven by [OnboardingViewModel.state.step]:
@@ -185,13 +214,13 @@ private fun WelcomeStep(
             Spacer(modifier = Modifier.height(Dimension.D1100))
 
             Text(
-                text = "Cards",
+                text = stringResource(Res.string.onboarding_welcome_title),
                 typography = AppTheme.typography.Display.D1300,
                 color = AppTheme.colors.text,
             )
             Spacer(modifier = Modifier.height(Dimension.D500))
             Text(
-                text = "Poker with your friends.\nPractice with bots when they're busy.",
+                text = stringResource(Res.string.onboarding_welcome_subtitle),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -225,7 +254,12 @@ private fun WelcomeStep(
                 enabled = !state.isAuthing && state.oauthInFlight == null,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (state.isAuthing) "One moment…" else "Continue as guest")
+                Text(
+                    stringResource(
+                        if (state.isAuthing) Res.string.onboarding_welcome_continue_guest_progress
+                        else Res.string.onboarding_welcome_continue_guest,
+                    ),
+                )
             }
 
             if (state.showOAuthRow) {
@@ -240,7 +274,12 @@ private fun WelcomeStep(
                             enabled = state.oauthInFlight == null && !state.isAuthing,
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text(if (state.oauthInFlight == OAuthProvider.Apple) "…" else " Apple")
+                            Text(
+                                stringResource(
+                                    if (state.oauthInFlight == OAuthProvider.Apple) Res.string.onboarding_welcome_oauth_in_flight
+                                    else Res.string.onboarding_welcome_oauth_apple,
+                                ),
+                            )
                         }
                     }
                     if (state.googleEnabled) {
@@ -249,7 +288,12 @@ private fun WelcomeStep(
                             enabled = state.oauthInFlight == null && !state.isAuthing,
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text(if (state.oauthInFlight == OAuthProvider.Google) "…" else "G  Google")
+                            Text(
+                                stringResource(
+                                    if (state.oauthInFlight == OAuthProvider.Google) Res.string.onboarding_welcome_oauth_in_flight
+                                    else Res.string.onboarding_welcome_oauth_google,
+                                ),
+                            )
                         }
                     }
                 }
@@ -257,7 +301,7 @@ private fun WelcomeStep(
 
             Spacer(modifier = Modifier.height(Dimension.D500))
             Text(
-                text = "No account required to play.\nSign in later if you want to save your progress.",
+                text = stringResource(Res.string.onboarding_welcome_footer),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,
@@ -289,19 +333,20 @@ private fun PickIdentityStep(
             horizontalArrangement = Arrangement.End,
         ) {
             ButtonGhost(onClick = { onAction(OnboardingAction.Skip) }) {
-                Text("Skip ›")
+                Text(stringResource(Res.string.onboarding_identity_skip_button))
             }
         }
 
         Spacer(modifier = Modifier.height(Dimension.D300))
 
+        val avatarPlaceholder = stringResource(Res.string.onboarding_identity_avatar_placeholder)
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
             Box(contentAlignment = Alignment.BottomEnd) {
                 AvatarCircle(
-                    name = state.displayName.ifBlank { "?" },
+                    name = state.displayName.ifBlank { avatarPlaceholder },
                     emoji = state.selectedEmoji,
                     backgroundColorHex = state.selectedBackgroundColor,
                     size = 96.dp,
@@ -325,7 +370,7 @@ private fun PickIdentityStep(
 
         Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
-            text = "This is you",
+            text = stringResource(Res.string.onboarding_identity_title),
             typography = AppTheme.typography.Heading.H800,
             color = AppTheme.colors.onSurfacePrimary,
             textAlign = TextAlign.Center,
@@ -333,7 +378,7 @@ private fun PickIdentityStep(
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
-            text = "Other players see this on the table. Change anything you like — or just keep going.",
+            text = stringResource(Res.string.onboarding_identity_subtitle),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
@@ -342,8 +387,9 @@ private fun PickIdentityStep(
 
         Spacer(modifier = Modifier.height(Dimension.D900))
 
-        SectionLabel("DISPLAY NAME")
+        SectionLabel(stringResource(Res.string.onboarding_identity_section_name))
         Spacer(modifier = Modifier.height(Dimension.D300))
+        val editNameIconDesc = stringResource(Res.string.onboarding_identity_edit_name_icon_desc)
         OutlinedTextField(
             value = state.displayName,
             onValueChange = { onAction(OnboardingAction.DisplayNameChanged(it)) },
@@ -355,7 +401,7 @@ private fun PickIdentityStep(
             ),
             trailingIcon = {
                 Icon(
-                    icon = Icons.Pencil("Edit name"),
+                    icon = Icons.Pencil(editNameIconDesc),
                     size = IconSize.Small,
                     color = AppTheme.colors.onSurfaceSecondary,
                 )
@@ -375,7 +421,7 @@ private fun PickIdentityStep(
 
         Spacer(modifier = Modifier.height(Dimension.D700))
 
-        SectionLabel("STARTER PACK")
+        SectionLabel(stringResource(Res.string.onboarding_identity_section_pack))
         Spacer(modifier = Modifier.height(Dimension.D400))
         StarterPackGrid(
             avatars = state.starterPack,
@@ -403,7 +449,7 @@ private fun PickIdentityStep(
             )
             Spacer(modifier = Modifier.width(Dimension.D300))
             Text(
-                text = "More packs in the shop",
+                text = stringResource(Res.string.onboarding_identity_more_packs_hint),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
             )
@@ -416,7 +462,12 @@ private fun PickIdentityStep(
             enabled = !state.isSavingProfile && state.displayName.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.isSavingProfile) "Saving…" else "Continue")
+            Text(
+                stringResource(
+                    if (state.isSavingProfile) Res.string.onboarding_identity_continue_button_progress
+                    else Res.string.onboarding_identity_continue_button,
+                ),
+            )
         }
         Spacer(modifier = Modifier.height(Dimension.D700))
     }
@@ -503,13 +554,13 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
     ) {
         Spacer(modifier = Modifier.height(Dimension.D900))
         Text(
-            text = "LAST THING",
+            text = stringResource(Res.string.onboarding_how_eyebrow),
             typography = AppTheme.typography.Label.L400,
             color = AppTheme.colors.textSecondary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
-            text = "How Cards works.",
+            text = stringResource(Res.string.onboarding_how_title),
             typography = AppTheme.typography.Display.D1000,
             color = AppTheme.colors.onSurfacePrimary,
         )
@@ -517,15 +568,15 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
         Spacer(modifier = Modifier.weight(1f))
 
         InfoCard(
-            title = "Play three ways",
-            subtitle = "Bots, strangers, or friends.",
+            title = stringResource(Res.string.onboarding_how_card_play_title),
+            subtitle = stringResource(Res.string.onboarding_how_card_play_subtitle),
         ) {
             EmojiTile(glyph = "🎴", tint = Color(0xFF3F5B45))
         }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(
-            title = "Chips fund the table",
-            subtitle = "Earn at play. Spend in the shop.",
+            title = stringResource(Res.string.onboarding_how_card_chips_title),
+            subtitle = stringResource(Res.string.onboarding_how_card_chips_subtitle),
         ) {
             ChipCoin(
                 size = 48.dp,
@@ -534,8 +585,8 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
         }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(
-            title = "Climb the league",
-            subtitle = "Top 7 of 30 promote each week.",
+            title = stringResource(Res.string.onboarding_how_card_league_title),
+            subtitle = stringResource(Res.string.onboarding_how_card_league_subtitle),
         ) {
             XpBadge(fraction = 0.6f, size = 48.dp)
         }
@@ -547,7 +598,7 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
             onClick = { onAction(OnboardingAction.Finish) },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Take a seat")
+            Text(stringResource(Res.string.onboarding_how_continue_button))
         }
         Spacer(modifier = Modifier.height(Dimension.D700))
     }
