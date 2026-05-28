@@ -445,4 +445,17 @@
     <string name="room_hand_label_body_high_card">No combinations — the highest single card wins. The weakest hand category.</string>
     <string name="room_hand_label_body_default">Your current hand, based on your hole cards and what\'s on the board.</string>
     <string name="room_hand_label_cheat_sheet_hint">Tap the ? icon up top for the full ranking list with examples.</string>
+
+    <!-- Room — Action sheet (Fold / All in / preset bet pills / stepper / confirm). -->
+    <string name="room_action_fold">Fold</string>
+    <string name="room_action_all_in">All in</string>
+    <string name="room_action_confirm_bet">Bet %1$s</string>
+    <string name="room_action_confirm_raise_to">Raise to %1$s</string>
+    <string name="room_action_max_hint">max %1$s</string>
+    <string name="room_action_preset_min">Min</string>
+    <string name="room_action_preset_half_pot">½ Pot</string>
+    <string name="room_action_preset_three_quarter_pot">¾ Pot</string>
+    <string name="room_action_preset_pot">Pot</string>
+    <string name="room_action_stepper_decrement">–</string>
+    <string name="room_action_stepper_increment">+</string>
 </resources>

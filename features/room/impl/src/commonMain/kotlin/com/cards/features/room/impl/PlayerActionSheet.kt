@@ -25,6 +25,18 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_action_all_in
+import cards.libraries.resources.generated.resources.room_action_confirm_bet
+import cards.libraries.resources.generated.resources.room_action_confirm_raise_to
+import cards.libraries.resources.generated.resources.room_action_fold
+import cards.libraries.resources.generated.resources.room_action_max_hint
+import cards.libraries.resources.generated.resources.room_action_preset_half_pot
+import cards.libraries.resources.generated.resources.room_action_preset_min
+import cards.libraries.resources.generated.resources.room_action_preset_pot
+import cards.libraries.resources.generated.resources.room_action_preset_three_quarter_pot
+import cards.libraries.resources.generated.resources.room_action_stepper_decrement
+import cards.libraries.resources.generated.resources.room_action_stepper_increment
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
@@ -34,6 +46,8 @@ import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -90,14 +104,14 @@ internal fun PlayerActionSheet(
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             BigActionPill(
-                label = "Fold",
+                label = stringResource(Res.string.room_action_fold),
                 modifier = Modifier.weight(1f),
                 style = PillStyle.Destructive,
             ) {
                 onIntent(PlayerIntent.Fold(humanSeatIndex))
             }
             BigActionPill(
-                label = "All in",
+                label = stringResource(Res.string.room_action_all_in),
                 sublabel = formatCompactChips(legal.allInAmount),
                 modifier = Modifier.weight(1f),
                 style = PillStyle.Neutral,
@@ -107,8 +121,6 @@ internal fun PlayerActionSheet(
         }
 
         if (legal.canRaise) {
-            val verb = if (legal.isOpenBet) "Bet" else "Raise to"
-
             BetPresetGrid(
                 presets = presets,
                 selected = selectedPreset,
@@ -125,14 +137,19 @@ internal fun PlayerActionSheet(
                 maxAmount = legal.maxRaiseTotal,
             )
             Text(
-                text = "max ${formatCompactChips(legal.maxRaiseTotal)}",
+                text = stringResource(Res.string.room_action_max_hint, formatCompactChips(legal.maxRaiseTotal)),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
 
-            ConfirmPill(label = "$verb $raiseTotal") {
+            val confirmLabel = if (legal.isOpenBet) {
+                stringResource(Res.string.room_action_confirm_bet, raiseTotal.toString())
+            } else {
+                stringResource(Res.string.room_action_confirm_raise_to, raiseTotal.toString())
+            }
+            ConfirmPill(label = confirmLabel) {
                 onIntent(
                     if (legal.isOpenBet) {
                         PlayerIntent.Bet(humanSeatIndex, raiseTotal)
@@ -153,7 +170,7 @@ internal fun PlayerActionSheet(
  * round below the legal min — collapsing those into a single Min keeps the
  * row clean instead of showing three pills that all submit the same value.
  */
-private data class BetPreset(val label: String, val amount: Long)
+private data class BetPreset(val labelResource: StringResource, val amount: Long)
 
 private object BetPresets {
     fun from(legal: LegalActions): List<BetPreset> {
@@ -161,10 +178,10 @@ private object BetPresets {
         val max = legal.maxRaiseTotal
         val pot = legal.potIfYouCall
         val raw = listOfNotNull(
-            BetPreset("Min", min),
-            if (pot >= min * 2) BetPreset("½ Pot", (pot / 2).coerceIn(min, max)) else null,
-            if (pot >= min) BetPreset("¾ Pot", ((pot * 3) / 4).coerceIn(min, max)) else null,
-            BetPreset("Pot", pot.coerceIn(min, max)),
+            BetPreset(Res.string.room_action_preset_min, min),
+            if (pot >= min * 2) BetPreset(Res.string.room_action_preset_half_pot, (pot / 2).coerceIn(min, max)) else null,
+            if (pot >= min) BetPreset(Res.string.room_action_preset_three_quarter_pot, ((pot * 3) / 4).coerceIn(min, max)) else null,
+            BetPreset(Res.string.room_action_preset_pot, pot.coerceIn(min, max)),
         )
         return raw.distinctBy { it.amount }
     }
@@ -182,7 +199,7 @@ private fun BetPresetGrid(
     ) {
         presets.forEach { preset ->
             PresetPill(
-                label = preset.label,
+                label = stringResource(preset.labelResource),
                 selected = selected?.amount == preset.amount,
                 modifier = Modifier.weight(1f),
                 onClick = { onSelect(preset) },
@@ -235,7 +252,7 @@ private fun StepperRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StepperButton(
-            label = "–",
+            label = stringResource(Res.string.room_action_stepper_decrement),
             enabled = amount > minAmount,
             onClick = { onStep(-step) },
         )
@@ -270,7 +287,7 @@ private fun StepperRow(
             )
         }
         StepperButton(
-            label = "+",
+            label = stringResource(Res.string.room_action_stepper_increment),
             enabled = amount < maxAmount,
             onClick = { onStep(step) },
         )
