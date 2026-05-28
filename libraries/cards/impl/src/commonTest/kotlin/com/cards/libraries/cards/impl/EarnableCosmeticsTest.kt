@@ -71,6 +71,13 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun goodFold25_mapsToDisciplinedEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.GOOD_FOLD_25)
+        assertEquals("emotes_disciplined", reward?.productId)
+        assertEquals("Disciplined emote pack", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
