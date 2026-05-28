@@ -29,6 +29,11 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_connection_lost_banner
+import cards.libraries.resources.generated.resources.room_loading_dealing_in
+import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
+import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -60,6 +65,7 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD700
 import com.dangerfield.cards.system.VerticalSpacerD800
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 
@@ -447,7 +453,7 @@ private fun ConnectionBanner(connection: ConnectionState) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "Connection lost. We're keeping your seat warm — back in a moment.",
+            text = stringResource(Res.string.room_connection_lost_banner),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
@@ -486,7 +492,7 @@ private fun TopBar(
             .padding(vertical = 4.dp),
     ) {
         IconButton(
-            icon = Icons.ArrowBack("Back"),
+            icon = Icons.ArrowBack(stringResource(Res.string.room_top_bar_back_a11y)),
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart),
         )
@@ -512,7 +518,7 @@ private fun TopBar(
             IconButton(
                 backgroundColor = AppTheme.colors.surfacePrimary,
                 icon = Icons.Question(
-                    "Hand info and rankings",
+                    stringResource(Res.string.room_top_bar_hand_info_a11y),
                 ),
                 onClick = onCheatSheet,
             )
@@ -525,7 +531,7 @@ private fun TopBar(
 private fun LoadingTable() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            text = "Dealing in…",
+            text = stringResource(Res.string.room_loading_dealing_in),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )

@@ -595,4 +595,10 @@
     <string name="room_quick_action_bet_button_with_amount">Bet %1$s</string>
     <string name="room_quick_action_raise_button_with_amount">Raise %1$s</string>
     <string name="room_quick_action_more_options_a11y">More raise options</string>
+
+    <!-- Room — PlayPokerScreen chrome: connection banner + top-bar icon a11y + loading state. -->
+    <string name="room_connection_lost_banner">Connection lost. We\'re keeping your seat warm — back in a moment.</string>
+    <string name="room_top_bar_back_a11y">Back</string>
+    <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
+    <string name="room_loading_dealing_in">Dealing in…</string>
 </resources>
