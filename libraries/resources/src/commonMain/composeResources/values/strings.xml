@@ -99,6 +99,37 @@
     <string name="onboarding_identity_continue_button">Continue</string>
     <string name="onboarding_identity_continue_button_progress">Saving…</string>
 
+    <!-- Home — Take-a-seat section + HomeCtaCard copy. -->
+    <string name="home_section_take_a_seat">Take a seat</string>
+    <string name="home_cta_practice_title">Practice</string>
+    <string name="home_cta_practice_subtitle">Solo vs. bots</string>
+    <string name="home_cta_friend_game_title">Friend Game</string>
+    <string name="home_cta_friend_game_subtitle">Room code · just you and yours</string>
+    <string name="home_cta_quick_match_title">Quick Match</string>
+    <string name="home_cta_quick_match_subtitle">Public seat · one tap</string>
+    <string name="home_cta_quick_match_trailing">Soon</string>
+
+    <!-- Home — Friends strip header + empty state + see-all label variants. -->
+    <string name="home_friends_section_title">Friends</string>
+    <string name="home_friends_empty_state">Friends grow from the felt — play someone, then add them from \"Recently played with\".</string>
+    <string name="home_friends_see_all">See all</string>
+    <string name="home_friends_see_all_with_online">%1$d online · See all</string>
+    <string name="home_friends_see_all_with_one_request">1 request · See all</string>
+    <string name="home_friends_see_all_with_requests">%1$d requests · See all</string>
+
+    <!-- Home — Recent-achievements strip header. -->
+    <string name="home_recent_achievements_section_title">Recent achievements</string>
+    <string name="home_recent_achievements_see_all">See all</string>
+
+    <!-- Home — Recently-played-with strip header, empty state, suggest pills, add-friend tile. -->
+    <string name="home_recents_section_title">Recently played with</string>
+    <string name="home_recents_see_all">See all</string>
+    <string name="home_recents_empty_state">Make a friend by playing together — start a Friend Game or sit down at a public table. Anyone you face will show up here.</string>
+    <string name="home_recents_suggest_friend_game">Friend Game</string>
+    <string name="home_recents_suggest_quick_match">Quick Match</string>
+    <string name="home_recents_add_friend">Add friend</string>
+    <string name="home_recents_add_friend_sent">Sent</string>
+
     <!-- Home — "coming soon" sheet copy for unbuilt CTAs (Quick Match, Friends, requests, recently-played). -->
     <string name="home_coming_soon_quick_match_title">Quick Match</string>
     <string name="home_coming_soon_quick_match_body">Public matchmaking ships once we have enough humans playing to keep wait times short. Until then, grab a Friend Game or a Practice table.</string>

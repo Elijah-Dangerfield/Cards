@@ -9,12 +9,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_recent_achievements_section_title
+import cards.libraries.resources.generated.resources.home_recent_achievements_see_all
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
 import com.dangerfield.cards.system.VerticalSpacerD500
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -38,8 +42,8 @@ internal fun RecentAchievementsStrip(
     if (items.isEmpty()) return
     Column(modifier = modifier.fillMaxWidth()) {
         SectionHeader(
-            title = "Recent achievements",
-            trailingLabel = "See all",
+            title = stringResource(Res.string.home_recent_achievements_section_title),
+            trailingLabel = stringResource(Res.string.home_recent_achievements_see_all),
             onClick = onSeeAll,
         )
         VerticalSpacerD500()
