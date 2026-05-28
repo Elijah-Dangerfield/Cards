@@ -27,6 +27,29 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.lobby_connection_connected
+import cards.libraries.resources.generated.resources.lobby_connection_connecting
+import cards.libraries.resources.generated.resources.lobby_connection_disconnected
+import cards.libraries.resources.generated.resources.lobby_connection_reconnecting
+import cards.libraries.resources.generated.resources.lobby_idle_code_field_label
+import cards.libraries.resources.generated.resources.lobby_idle_create_button
+import cards.libraries.resources.generated.resources.lobby_idle_create_button_progress
+import cards.libraries.resources.generated.resources.lobby_idle_join_button
+import cards.libraries.resources.generated.resources.lobby_idle_join_button_progress
+import cards.libraries.resources.generated.resources.lobby_idle_or_join_heading
+import cards.libraries.resources.generated.resources.lobby_idle_subtitle
+import cards.libraries.resources.generated.resources.lobby_in_room_code_label
+import cards.libraries.resources.generated.resources.lobby_in_room_code_share_hint
+import cards.libraries.resources.generated.resources.lobby_in_room_leave_button
+import cards.libraries.resources.generated.resources.lobby_in_room_leave_button_progress
+import cards.libraries.resources.generated.resources.lobby_in_room_member_seat_label
+import cards.libraries.resources.generated.resources.lobby_in_room_players_count
+import cards.libraries.resources.generated.resources.lobby_in_room_start_button
+import cards.libraries.resources.generated.resources.lobby_in_room_start_button_waiting
+import cards.libraries.resources.generated.resources.lobby_in_room_waiting_for_host
+import cards.libraries.resources.generated.resources.lobby_topbar_title_idle
+import cards.libraries.resources.generated.resources.lobby_topbar_title_in_room
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
@@ -39,6 +62,7 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Multiplayer lobby. Two-mode layout:
@@ -62,7 +86,10 @@ fun LobbyScreen(
         containerColor = AppTheme.colors.background.color,
         topBar = {
             TopBar(
-                title = if (state.isInRoom) "Game room" else "Play with friends",
+                title = stringResource(
+                    if (state.isInRoom) Res.string.lobby_topbar_title_in_room
+                    else Res.string.lobby_topbar_title_idle,
+                ),
                 onNavigateBack = onBack,
                 backEnabled = !state.isBusy,
             )
@@ -98,7 +125,7 @@ fun LobbyScreen(
 @Composable
 private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     Text(
-        text = "Start a new room and share the code — or type a friend's code to join theirs.",
+        text = stringResource(Res.string.lobby_idle_subtitle),
         typography = AppTheme.typography.Body.B500,
         color = AppTheme.colors.onSurfaceSecondary,
     )
@@ -110,13 +137,18 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         enabled = state.canCreate,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(if (state.creating) "Creating…" else "Create a room")
+        Text(
+            stringResource(
+                if (state.creating) Res.string.lobby_idle_create_button_progress
+                else Res.string.lobby_idle_create_button,
+            ),
+        )
     }
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
     Text(
-        text = "Or join with a code",
+        text = stringResource(Res.string.lobby_idle_or_join_heading),
         typography = AppTheme.typography.Heading.H500,
         color = AppTheme.colors.onSurfacePrimary,
     )
@@ -132,7 +164,7 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
             capitalization = KeyboardCapitalization.Characters,
         ),
         keyboardActions = KeyboardActions(onGo = { onAction(LobbyAction.SubmitJoin) }),
-        label = { Text("Room code") },
+        label = { Text(stringResource(Res.string.lobby_idle_code_field_label)) },
         modifier = Modifier.fillMaxWidth(),
     )
 
@@ -143,7 +175,12 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         enabled = state.canSubmitJoin,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(if (state.joining) "Joining…" else "Join room")
+        Text(
+            stringResource(
+                if (state.joining) Res.string.lobby_idle_join_button_progress
+                else Res.string.lobby_idle_join_button,
+            ),
+        )
     }
 }
 
@@ -164,7 +201,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
             .padding(vertical = Dimension.D900),
     ) {
         Text(
-            text = "Room code",
+            text = stringResource(Res.string.lobby_in_room_code_label),
             typography = AppTheme.typography.Label.L500,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -177,7 +214,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
         Text(
-            text = "Share with your friends to invite",
+            text = stringResource(Res.string.lobby_in_room_code_share_hint),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -190,7 +227,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     Spacer(modifier = Modifier.height(Dimension.D700))
 
     Text(
-        text = "Players (${room.seatCount}/${room.maxSeats})",
+        text = stringResource(Res.string.lobby_in_room_players_count, room.seatCount, room.maxSeats),
         typography = AppTheme.typography.Heading.H500,
         color = AppTheme.colors.onSurfacePrimary,
     )
@@ -223,14 +260,19 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
             enabled = state.canStart,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (state.canStart) "Start game" else "Waiting for players…")
+            Text(
+                stringResource(
+                    if (state.canStart) Res.string.lobby_in_room_start_button
+                    else Res.string.lobby_in_room_start_button_waiting,
+                ),
+            )
         }
         Spacer(modifier = Modifier.height(Dimension.D400))
     } else if (state.currentUserId != null) {
         // Hide the hint for the brief pre-identity window so it doesn't
         // flash to non-host viewers who are actually the host.
         Text(
-            text = "Waiting for the host to start the game…",
+            text = stringResource(Res.string.lobby_in_room_waiting_for_host),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -243,17 +285,28 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         style = ButtonStyle.Outlined,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(if (state.leaving) "Leaving…" else "Leave room")
+        Text(
+            stringResource(
+                if (state.leaving) Res.string.lobby_in_room_leave_button_progress
+                else Res.string.lobby_in_room_leave_button,
+            ),
+        )
     }
 }
 
 @Composable
 private fun ConnectionStatusRow(status: ConnectionStatus) {
-    val (label, tone) = when (status) {
-        ConnectionStatus.Disconnected -> "Disconnected" to AppTheme.colors.status.bad
-        ConnectionStatus.Connecting -> "Connecting…" to AppTheme.colors.status.warning
-        is ConnectionStatus.Reconnecting -> "Reconnecting (attempt ${status.attempt})…" to AppTheme.colors.status.warning
-        ConnectionStatus.Connected -> "Connected" to AppTheme.colors.status.okay
+    val label = when (status) {
+        ConnectionStatus.Disconnected -> stringResource(Res.string.lobby_connection_disconnected)
+        ConnectionStatus.Connecting -> stringResource(Res.string.lobby_connection_connecting)
+        is ConnectionStatus.Reconnecting -> stringResource(Res.string.lobby_connection_reconnecting, status.attempt)
+        ConnectionStatus.Connected -> stringResource(Res.string.lobby_connection_connected)
+    }
+    val tone = when (status) {
+        ConnectionStatus.Disconnected -> AppTheme.colors.status.bad
+        ConnectionStatus.Connecting -> AppTheme.colors.status.warning
+        is ConnectionStatus.Reconnecting -> AppTheme.colors.status.warning
+        ConnectionStatus.Connected -> AppTheme.colors.status.okay
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
@@ -484,7 +537,7 @@ private fun MemberRow(member: RoomMember) {
                 color = AppTheme.colors.onSurfacePrimary,
             )
             Text(
-                text = "Seat ${member.seatIndex + 1}",
+                text = stringResource(Res.string.lobby_in_room_member_seat_label, member.seatIndex + 1),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
             )

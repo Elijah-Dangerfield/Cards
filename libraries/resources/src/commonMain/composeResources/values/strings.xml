@@ -46,4 +46,34 @@
     <!-- Shop — error banner shown when the catalog fetch fails. -->
     <string name="shop_error_title">Couldn\'t load shop</string>
     <string name="shop_error_retry">Retry</string>
+
+    <!-- Lobby — top-bar titles. Two phases: pre-room (Idle) vs. in-room. -->
+    <string name="lobby_topbar_title_idle">Play with friends</string>
+    <string name="lobby_topbar_title_in_room">Game room</string>
+
+    <!-- Lobby — Idle (no room yet): hero copy + create + join affordances. -->
+    <string name="lobby_idle_subtitle">Start a new room and share the code — or type a friend\'s code to join theirs.</string>
+    <string name="lobby_idle_create_button">Create a room</string>
+    <string name="lobby_idle_create_button_progress">Creating…</string>
+    <string name="lobby_idle_or_join_heading">Or join with a code</string>
+    <string name="lobby_idle_code_field_label">Room code</string>
+    <string name="lobby_idle_join_button">Join room</string>
+    <string name="lobby_idle_join_button_progress">Joining…</string>
+
+    <!-- Lobby — InRoom: code surface, member list, start + leave CTAs. -->
+    <string name="lobby_in_room_code_label">Room code</string>
+    <string name="lobby_in_room_code_share_hint">Share with your friends to invite</string>
+    <string name="lobby_in_room_players_count">Players (%1$d/%2$d)</string>
+    <string name="lobby_in_room_start_button">Start game</string>
+    <string name="lobby_in_room_start_button_waiting">Waiting for players…</string>
+    <string name="lobby_in_room_waiting_for_host">Waiting for the host to start the game…</string>
+    <string name="lobby_in_room_leave_button">Leave room</string>
+    <string name="lobby_in_room_leave_button_progress">Leaving…</string>
+    <string name="lobby_in_room_member_seat_label">Seat %1$d</string>
+
+    <!-- Lobby — connection-status banner above the member list. -->
+    <string name="lobby_connection_disconnected">Disconnected</string>
+    <string name="lobby_connection_connecting">Connecting…</string>
+    <string name="lobby_connection_reconnecting">Reconnecting (attempt %1$d)…</string>
+    <string name="lobby_connection_connected">Connected</string>
 </resources>
