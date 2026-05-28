@@ -40,4 +40,13 @@ object PokerPalette {
     /** 1.5dp outline color for the community-board "well" — sits on top of the
      *  felt, intentionally subtle so dealt cards visually fill the outline. */
     val CardSlotOutline: Color = Color(0x1AFFFFFF)
+
+    /** XP-progression cyan — start of the `XpBadge` inner gradient and the
+     *  hue of its surrounding ring. The ring + gradient share a colour
+     *  family so the badge reads as one object. */
+    val ProgressionCyan: Color = Color(0xFF4FC3F7)
+
+    /** XP-progression green — end of the `XpBadge` inner gradient. Pairs
+     *  with [ProgressionCyan]. */
+    val ProgressionGreen: Color = Color(0xFF66BB6A)
 }
