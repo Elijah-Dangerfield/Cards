@@ -552,6 +552,11 @@
     <string name="room_player_profile_mute_emoji_supporting_muted">You won\'t see their table blasts.</string>
     <string name="room_player_profile_mute_emoji_supporting_unmuted">Their blasts will show on your screen.</string>
 
+    <!-- Room — Seat badge (small pill rendered below avatar: human level vs bot difficulty). -->
+    <string name="room_seat_badge_level">Lvl %1$d</string>
+    <string name="room_seat_badge_bot_with_difficulty">Bot · %1$s</string>
+    <string name="room_seat_badge_bot_plain">Bot</string>
+
     <!-- Room — Seat tenure ("At this table" rows: hand count + when-you-joined). -->
     <string name="room_seat_tenure_hands_single">1 hand at this table</string>
     <string name="room_seat_tenure_hands_multi">%1$d hands at this table</string>
