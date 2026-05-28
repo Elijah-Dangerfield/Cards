@@ -1,9 +1,26 @@
 package com.dangerfield.cards.features.room.impl
 
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.month_april
+import cards.libraries.resources.generated.resources.month_august
+import cards.libraries.resources.generated.resources.month_december
+import cards.libraries.resources.generated.resources.month_february
+import cards.libraries.resources.generated.resources.month_january
+import cards.libraries.resources.generated.resources.month_july
+import cards.libraries.resources.generated.resources.month_june
+import cards.libraries.resources.generated.resources.month_march
+import cards.libraries.resources.generated.resources.month_may
+import cards.libraries.resources.generated.resources.month_november
+import cards.libraries.resources.generated.resources.month_october
+import cards.libraries.resources.generated.resources.month_september
+import cards.libraries.resources.generated.resources.month_unknown
+import cards.libraries.resources.generated.resources.room_seat_tenure_playing_since_supporting
+import cards.libraries.resources.generated.resources.room_seat_tenure_supporting_human
+import cards.libraries.resources.generated.resources.room_seat_tenure_supporting_other
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
-import kotlinx.datetime.LocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -11,31 +28,38 @@ import kotlin.test.assertTrue
 class SeatTenureTest {
 
     @Test
-    fun handsAtTable_singular() {
-        assertEquals("1 hand at this table", formatHandsAtTable(1))
+    fun handsAtTable_singular_specHeadlineIsSingleResource() {
+        val seat = sampleSeat(isHuman = true, handsAtTable = 1)
+        val spec = tenureSpecs(seat).single()
+        assertEquals(TenureHeadline.HandsSingle, spec.headline)
+        assertEquals(Res.string.room_seat_tenure_supporting_human, spec.supporting)
     }
 
     @Test
-    fun handsAtTable_plural() {
-        assertEquals("12 hands at this table", formatHandsAtTable(12))
+    fun handsAtTable_plural_specCarriesCountInHeadline() {
+        val seat = sampleSeat(isHuman = false, handsAtTable = 12)
+        val spec = tenureSpecs(seat).single()
+        assertEquals(TenureHeadline.HandsMulti(12), spec.headline)
+        assertEquals(Res.string.room_seat_tenure_supporting_other, spec.supporting)
     }
 
     @Test
-    fun playingSince_rendersMonthAndYear_inDeviceTimeZone() {
+    fun playingSince_rendersMonthResourceAndYear_inDeviceTimeZone() {
         // 2025-03-15 00:30 UTC — depending on the device TZ this may roll
         // back a day, but the month + year stay the same on every IANA TZ
         // (the date crosses no month boundary in any zone). Asserting the
-        // month and year only keeps this test stable across CI hosts.
+        // month-resource id and the year keeps this test stable across CI
+        // hosts.
         val epochMs = LocalDateTime(2025, 3, 15, 0, 30, 0)
             .toInstant(TimeZone.UTC)
             .toEpochMilliseconds()
-        val formatted = formatPlayingSince(epochMs)
-        assertTrue(formatted.contains("March"), "expected March, got $formatted")
-        assertTrue(formatted.contains("2025"), "expected 2025, got $formatted")
+        val components = playingSinceComponents(epochMs)
+        assertEquals(Res.string.month_march, components.monthResource)
+        assertEquals(2025, components.year)
     }
 
     @Test
-    fun tenureRows_humanSeat_includesBothRows() {
+    fun tenureSpecs_humanSeat_includesBothSpecs() {
         val epochMs = LocalDateTime(2025, 7, 4, 12, 0)
             .toInstant(TimeZone.UTC)
             .toEpochMilliseconds()
@@ -44,34 +68,63 @@ class SeatTenureTest {
             handsAtTable = 23,
             playingSinceEpochMs = epochMs,
         )
-        val rows = tenureRows(seat)
-        assertEquals(2, rows.size)
-        assertEquals("23 hands at this table", rows[0].headlineText)
+        val specs = tenureSpecs(seat)
+        assertEquals(2, specs.size)
+        assertEquals(TenureHeadline.HandsMulti(23), specs[0].headline)
+        assertEquals(Res.string.room_seat_tenure_supporting_human, specs[0].supporting)
         assertTrue(
-            rows[1].headlineText.startsWith("Playing since"),
-            "second row should be the join-date line, got ${rows[1].headlineText}",
+            specs[1].headline is TenureHeadline.PlayingSince,
+            "second spec should be the join-date headline, got ${specs[1].headline}",
         )
+        assertEquals(Res.string.room_seat_tenure_playing_since_supporting, specs[1].supporting)
     }
 
     @Test
-    fun tenureRows_botSeat_omitsPlayingSince() {
+    fun tenureSpecs_botSeat_omitsPlayingSince() {
         val seat = sampleSeat(
             isHuman = false,
             handsAtTable = 5,
             playingSinceEpochMs = null,
         )
-        val rows = tenureRows(seat)
-        assertEquals(1, rows.size, "bots have no playing-since source — only the hand count row renders")
-        assertEquals("5 hands at this table", rows[0].headlineText)
+        val specs = tenureSpecs(seat)
+        assertEquals(1, specs.size, "bots have no playing-since source — only the hand-count spec emits")
+        assertEquals(TenureHeadline.HandsMulti(5), specs[0].headline)
     }
 
     @Test
-    fun tenureRows_emptyOrPreGame_yieldsNoRows() {
+    fun tenureSpecs_emptyOrPreGame_yieldsNoSpecs() {
         val seat = sampleSeat(handsAtTable = 0, playingSinceEpochMs = null)
         assertTrue(
-            tenureRows(seat).isEmpty(),
+            tenureSpecs(seat).isEmpty(),
             "zero hands and no tenure source = section is hidden by caller",
         )
+    }
+
+    @Test
+    fun monthResource_mapsEachKnownMonth() {
+        val expected = listOf(
+            1 to Res.string.month_january,
+            2 to Res.string.month_february,
+            3 to Res.string.month_march,
+            4 to Res.string.month_april,
+            5 to Res.string.month_may,
+            6 to Res.string.month_june,
+            7 to Res.string.month_july,
+            8 to Res.string.month_august,
+            9 to Res.string.month_september,
+            10 to Res.string.month_october,
+            11 to Res.string.month_november,
+            12 to Res.string.month_december,
+        )
+        for ((monthNumber, resource) in expected) {
+            assertEquals(resource, monthResource(monthNumber), "month $monthNumber")
+        }
+    }
+
+    @Test
+    fun monthResource_outOfRange_fallsBackToUnknown() {
+        assertEquals(Res.string.month_unknown, monthResource(0))
+        assertEquals(Res.string.month_unknown, monthResource(13))
     }
 
     private fun sampleSeat(
