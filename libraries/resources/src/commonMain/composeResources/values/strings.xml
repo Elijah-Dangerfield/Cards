@@ -292,6 +292,31 @@
     <string name="profile_notifications_empty_title">No notifications</string>
     <string name="profile_notifications_empty_subtitle">Heads-ups and announcements will show up here.</string>
 
+    <!-- Profile — Send feedback form. -->
+    <string name="profile_feedback_title">Share Your Feedback</string>
+    <string name="profile_feedback_hero">We\'d love to hear from you</string>
+    <string name="profile_feedback_field_message_label">Message</string>
+    <string name="profile_feedback_field_message_placeholder">Describe what happened…</string>
+    <string name="profile_feedback_field_email_label">Email (so we can follow up)</string>
+    <string name="profile_feedback_field_email_placeholder">optional</string>
+    <string name="profile_feedback_char_counter">%1$d/%2$d</string>
+    <string name="profile_feedback_submit_button">Send</string>
+    <string name="profile_feedback_submit_button_progress">Sending…</string>
+
+    <!-- Profile — Report a bug form. -->
+    <string name="profile_bug_title">Report a Bug</string>
+    <string name="profile_bug_context_section_title">Captured details</string>
+    <string name="profile_bug_context_error_code_label">Error code</string>
+    <string name="profile_bug_context_report_id_label">Report id</string>
+    <string name="profile_bug_hero">Help us understand what went wrong. We would love to fix it!</string>
+    <string name="profile_bug_field_message_label">Message</string>
+    <string name="profile_bug_field_message_placeholder">Describe what happened…</string>
+    <string name="profile_bug_field_email_label">Email (so we can follow up)</string>
+    <string name="profile_bug_field_email_placeholder">optional</string>
+    <string name="profile_bug_char_counter">%1$d/%2$d</string>
+    <string name="profile_bug_submit_button">Send</string>
+    <string name="profile_bug_submit_button_progress">Sending…</string>
+
     <!-- Profile — My items inventory screen. -->
     <string name="profile_my_items_title">My items</string>
     <string name="profile_my_items_subtitle_empty">Pick up card backs, felts, and emotes in the shop.</string>
