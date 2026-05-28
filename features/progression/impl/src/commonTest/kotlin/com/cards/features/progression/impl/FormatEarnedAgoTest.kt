@@ -1,9 +1,17 @@
 package com.dangerfield.cards.features.progression.impl
 
-import com.dangerfield.cards.libraries.ui.components.achievement.formatEarnedAgo
+import com.dangerfield.cards.libraries.ui.components.achievement.EarnedAgo
+import com.dangerfield.cards.libraries.ui.components.achievement.earnedAgo
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
+/**
+ * Pins the `earnedAgo(epochMs, nowEpochMs)` factory's bucketing across
+ * each [EarnedAgo] variant. Replaces the prior `formatEarnedAgo` string
+ * assertions — same boundaries, structural shape instead of literal text
+ * so the strings live in `:libraries:resources` and the test doesn't have
+ * to track copy changes.
+ */
 class FormatEarnedAgoTest {
 
     private val day: Long = 24L * 60L * 60L * 1000L
@@ -11,41 +19,41 @@ class FormatEarnedAgoTest {
 
     @Test
     fun zeroDaysAgo_isToday() {
-        assertEquals("today", formatEarnedAgo(now, now))
-        assertEquals("today", formatEarnedAgo(now - day + 1, now))
+        assertEquals(EarnedAgo.Today, earnedAgo(now, now))
+        assertEquals(EarnedAgo.Today, earnedAgo(now - day + 1, now))
     }
 
     @Test
     fun oneDayAgo_isYesterday() {
-        assertEquals("yesterday", formatEarnedAgo(now - day, now))
+        assertEquals(EarnedAgo.Yesterday, earnedAgo(now - day, now))
     }
 
     @Test
     fun underAWeek_isDaysAgo() {
-        assertEquals("3d ago", formatEarnedAgo(now - 3 * day, now))
-        assertEquals("6d ago", formatEarnedAgo(now - 6 * day, now))
+        assertEquals(EarnedAgo.DaysAgo(3), earnedAgo(now - 3 * day, now))
+        assertEquals(EarnedAgo.DaysAgo(6), earnedAgo(now - 6 * day, now))
     }
 
     @Test
     fun underAMonth_isWeeksAgo() {
-        assertEquals("1w ago", formatEarnedAgo(now - 7 * day, now))
-        assertEquals("4w ago", formatEarnedAgo(now - 29 * day, now))
+        assertEquals(EarnedAgo.WeeksAgo(1), earnedAgo(now - 7 * day, now))
+        assertEquals(EarnedAgo.WeeksAgo(4), earnedAgo(now - 29 * day, now))
     }
 
     @Test
     fun underAYear_isMonthsAgo() {
-        assertEquals("1mo ago", formatEarnedAgo(now - 30 * day, now))
-        assertEquals("12mo ago", formatEarnedAgo(now - 364 * day, now))
+        assertEquals(EarnedAgo.MonthsAgo(1), earnedAgo(now - 30 * day, now))
+        assertEquals(EarnedAgo.MonthsAgo(12), earnedAgo(now - 364 * day, now))
     }
 
     @Test
     fun overAYear_isYearsAgo() {
-        assertEquals("1y ago", formatEarnedAgo(now - 365 * day, now))
-        assertEquals("2y ago", formatEarnedAgo(now - 730 * day, now))
+        assertEquals(EarnedAgo.YearsAgo(1), earnedAgo(now - 365 * day, now))
+        assertEquals(EarnedAgo.YearsAgo(2), earnedAgo(now - 730 * day, now))
     }
 
     @Test
     fun futureEarnedAt_clampsToToday() {
-        assertEquals("today", formatEarnedAgo(now + day, now))
+        assertEquals(EarnedAgo.Today, earnedAgo(now + day, now))
     }
 }
