@@ -8,11 +8,14 @@ import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.AvatarGenerator
+import com.dangerfield.cards.server.domain.FoundingMemberCatalog
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.StarterInventory
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessageKind
+import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.UsernameGenerator
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.exceptions.ExposedSQLException
@@ -26,6 +29,7 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.update
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import java.util.UUID
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -50,7 +54,15 @@ class PostgresProfileRepository(
     private val database: Database,
     private val usernameGenerator: UsernameGenerator,
     private val avatarGenerator: AvatarGenerator,
+    private val userMessageRepository: UserMessageRepository,
     private val clock: Clock,
+    /**
+     * Inclusive upper bound on `profiles.seq` that qualifies a user for
+     * the founding-member badge grant. Defaults to the production value;
+     * tests override with a lower number so they don't need to insert
+     * thousands of profiles to exercise the boundary.
+     */
+    private val foundingMemberThreshold: Long = FoundingMemberCatalog.FOUNDING_MEMBER_THRESHOLD,
 ) : ProfileRepository {
 
     override suspend fun findById(userId: UserId): Profile? = database.transaction {
@@ -149,7 +161,7 @@ class PostgresProfileRepository(
         }
     }
 
-    private fun insertWithUniqueName(userId: UserId): Profile {
+    private suspend fun insertWithUniqueName(userId: UserId): Profile {
         val now = clock.now()
         val nowJava = now.toJavaInstant()
         val emoji = avatarGenerator.random()
@@ -165,6 +177,10 @@ class PostgresProfileRepository(
             val name = usernameGenerator.random()
             if (tryInsert(userId, name, emoji, backgroundColor, nowJava)) {
                 seedStarterInventory(userId, nowJava)
+                val seq = readSeq(userId)
+                if (seq <= foundingMemberThreshold) {
+                    grantFoundingMemberBadge(userId, nowJava)
+                }
                 return Profile(
                     userId = userId,
                     displayName = name,
@@ -176,6 +192,51 @@ class PostgresProfileRepository(
             }
         }
         error("Unable to generate a unique display name after $MAX_ATTEMPTS attempts")
+    }
+
+    /**
+     * The seq column is `BIGSERIAL` (V26) — Postgres assigned a value
+     * at insert time. We read it back rather than threading it through
+     * [tryInsert]'s return so the existing display-name-collision retry
+     * loop stays focused on its own concern.
+     */
+    private fun readSeq(userId: UserId): Long = ProfilesTable
+        .selectAll()
+        .where { ProfilesTable.userId eq userId.value }
+        .single()[ProfilesTable.seq]
+
+    /**
+     * Drop the founding-member badge inventory row + an inbox UserMessage
+     * pointing the user at the cosmetic. Both writes ride the outer
+     * `findOrCreate` transaction so a partial grant (badge without
+     * notification, or vice versa) can't be observed by a later read.
+     *
+     * Inventory is `insertIgnore`-shaped — a duplicate grant on retry
+     * would be a no-op rather than a unique-violation that aborts the
+     * outer transaction. The UserMessage path goes through
+     * [UserMessageRepository.create]; its `(userId, idempotencyKey)`
+     * dedup guarantees the welcome doesn't double-deliver on a retried
+     * `findOrCreate`.
+     */
+    private suspend fun grantFoundingMemberBadge(userId: UserId, nowJava: java.time.Instant) {
+        InventoryTable.insertIgnore {
+            it[InventoryTable.userId] = userId.value
+            it[InventoryTable.productId] = FoundingMemberCatalog.PRODUCT_ID
+            it[InventoryTable.costChipsAtPurchase] = 0L
+            it[InventoryTable.purchasedAt] = nowJava
+            it[InventoryTable.acquisitionSource] = AcquisitionSource.Earned.wire
+        }
+        userMessageRepository.create(
+            id = UUID.randomUUID(),
+            userId = userId,
+            idempotencyKey = FOUNDING_MEMBER_MESSAGE_KEY,
+            kind = UserMessageKind.Inbox,
+            emoji = "🏛",
+            title = "You're a founding member",
+            body = "You're one of the first ${foundingMemberThreshold} players to find a seat. Your founding-member badge is in My Items — equip it any time and it shows at your seat.",
+            deepLink = null,
+            expiresAt = null,
+        )
     }
 
     /**
@@ -261,5 +322,6 @@ class PostgresProfileRepository(
         private const val POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505"
         private const val PROFILES_DISPLAY_NAME_UQ = "profiles_display_name_uq"
         private const val MAX_ATTEMPTS = 25
+        private const val FOUNDING_MEMBER_MESSAGE_KEY: String = "founding_member_v1"
     }
 }

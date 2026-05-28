@@ -3,16 +3,20 @@ package com.dangerfield.cards.server.data
 import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.InventoryTable
 import com.dangerfield.cards.server.db.ProfilesTable
+import com.dangerfield.cards.server.db.UserMessagesTable
 import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.AvatarGenerator
 import com.dangerfield.cards.server.domain.AvatarPalette
+import com.dangerfield.cards.server.domain.FoundingMemberCatalog
 import com.dangerfield.cards.server.domain.StarterInventory
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UsernameGenerator
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.junit.After
 import java.util.UUID
 import kotlin.test.Test
@@ -31,8 +35,13 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     @After
     fun cleanTables() {
         database.blockingTransaction {
+            UserMessagesTable.deleteAll()
             InventoryTable.deleteAll()
             ProfilesTable.deleteAll()
+            // BIGSERIAL ignores row deletes, so the seq would carry over
+            // between tests and break the founding-member boundary tests
+            // that assume the first inserted profile lands at seq=1.
+            TransactionManager.current().exec("ALTER SEQUENCE profiles_seq_seq RESTART WITH 1")
         }
     }
 
@@ -77,7 +86,11 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
 
     @Test
     fun findOrCreate_seedsStarterInventoryOnFirstCreate() = runTest {
-        val repo = newRepository()
+        // Threshold = 0 so the founding-member grant doesn't add an
+        // extra row — this test is scoped to the starter set, which
+        // is the persistent baseline every user gets regardless of
+        // cohort.
+        val repo = newRepository(foundingMemberThreshold = 0)
         val userId = seedAuthUser()
 
         repo.findOrCreate(userId)
@@ -100,7 +113,7 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
 
     @Test
     fun findOrCreate_starterInventoryIsIdempotent() = runTest {
-        val repo = newRepository()
+        val repo = newRepository(foundingMemberThreshold = 0)
         val userId = seedAuthUser()
 
         repo.findOrCreate(userId)
@@ -111,6 +124,75 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
             StarterInventory.productIds.size,
             owned.size,
             "Second findOrCreate must not double-insert starter rows",
+        )
+    }
+
+    @Test
+    fun findOrCreate_grantsFoundingMemberBadge_whenSeqUnderThreshold() = runTest {
+        // Threshold = 2; profile #1 sits at seq=1, profile #2 at seq=2,
+        // profile #3 at seq=3. Only the first two qualify for the
+        // founding-member cosmetic.
+        val repo = newRepository(foundingMemberThreshold = 2)
+
+        val first = repo.findOrCreate(seedAuthUser())
+        val second = repo.findOrCreate(seedAuthUser())
+        val third = repo.findOrCreate(seedAuthUser())
+
+        assertTrue(
+            readInventory(first.userId).any { it.productId == FoundingMemberCatalog.PRODUCT_ID },
+            "Profile at seq=1 must receive the founding-member badge",
+        )
+        assertTrue(
+            readInventory(second.userId).any { it.productId == FoundingMemberCatalog.PRODUCT_ID },
+            "Profile at seq=2 must receive the founding-member badge (inclusive threshold)",
+        )
+        assertTrue(
+            readInventory(third.userId).none { it.productId == FoundingMemberCatalog.PRODUCT_ID },
+            "Profile at seq=3 is outside the cohort and must not receive the badge",
+        )
+    }
+
+    @Test
+    fun findOrCreate_grantedFoundingMemberRow_isEarnedNotPurchased() = runTest {
+        val repo = newRepository(foundingMemberThreshold = 1)
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+
+        val row = readInventory(userId).single { it.productId == FoundingMemberCatalog.PRODUCT_ID }
+        assertEquals(
+            AcquisitionSource.Earned.wire,
+            row.acquisitionSource,
+            "Cohort grants follow the same provenance as starter inventory — earned, not purchased",
+        )
+        assertEquals(0L, row.costChipsAtPurchase)
+    }
+
+    @Test
+    fun findOrCreate_postsFoundingMemberInboxMessage_whenQualified() = runTest {
+        val repo = newRepository(foundingMemberThreshold = 1)
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+
+        val founding = readUserMessages(userId).single()
+        assertEquals(UserMessageKind.Inbox.wire, founding.kind)
+        assertEquals("🏛", founding.emoji)
+        assertTrue(
+            founding.title.contains("founding member", ignoreCase = true),
+            "Title should name the cohort so the inbox row is self-describing",
+        )
+        assertNull(founding.deepLink)
+        assertNull(founding.expiresAt)
+    }
+
+    @Test
+    fun findOrCreate_doesNotPostFoundingMemberMessage_whenOverThreshold() = runTest {
+        val repo = newRepository(foundingMemberThreshold = 0)
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+
+        assertTrue(
+            readUserMessages(userId).isEmpty(),
+            "Users outside the founding cohort must not receive the welcome inbox row",
         )
     }
 
@@ -180,11 +262,14 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         usernameGenerator: UsernameGenerator = AdjectiveNounUsernameGenerator(),
         avatarGenerator: AvatarGenerator = EmojiAvatarGenerator(),
         clock: Clock = Clock.System,
+        foundingMemberThreshold: Long = FoundingMemberCatalog.FOUNDING_MEMBER_THRESHOLD,
     ): PostgresProfileRepository = PostgresProfileRepository(
         database = database,
         usernameGenerator = usernameGenerator,
         avatarGenerator = avatarGenerator,
+        userMessageRepository = PostgresUserMessageRepository(database, clock),
         clock = clock,
+        foundingMemberThreshold = foundingMemberThreshold,
     )
 
     private data class InventoryRow(
@@ -202,6 +287,31 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
                     productId = it[InventoryTable.productId],
                     costChipsAtPurchase = it[InventoryTable.costChipsAtPurchase],
                     acquisitionSource = it[InventoryTable.acquisitionSource],
+                )
+            }
+    }
+
+    private data class UserMessageRow(
+        val kind: String,
+        val emoji: String?,
+        val title: String,
+        val body: String,
+        val deepLink: String?,
+        val expiresAt: java.time.Instant?,
+    )
+
+    private fun readUserMessages(userId: UserId): List<UserMessageRow> = database.blockingTransaction {
+        UserMessagesTable
+            .selectAll()
+            .where { UserMessagesTable.userId eq userId.value }
+            .map {
+                UserMessageRow(
+                    kind = it[UserMessagesTable.kind],
+                    emoji = it[UserMessagesTable.emoji],
+                    title = it[UserMessagesTable.title],
+                    body = it[UserMessagesTable.body],
+                    deepLink = it[UserMessagesTable.deepLink],
+                    expiresAt = it[UserMessagesTable.expiresAt],
                 )
             }
     }
