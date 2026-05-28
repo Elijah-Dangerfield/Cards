@@ -118,9 +118,12 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun continueAsGuest_anonymousDisabled_surfacesSpecificMessage() = runUnitTest {
+    fun continueAsGuest_anonymousDisabled_surfacesAnonymousSignInDisabled() = runUnitTest {
         // Load-bearing dev message: this is the #1 cause of "no user
-        // appeared in the Supabase dashboard" head-scratching.
+        // appeared in the Supabase dashboard" head-scratching. Carrying
+        // the raw exception message through `debugDetails` lets the
+        // screen append a `DEBUG:` suffix on debug builds without putting
+        // BuildInfo.isDebug branching into the VM.
         val auth = FakeAuthRepository(
             initialAuthState = AuthState.Unauthenticated(
                 RuntimeException("Anonymous sign-ins are disabled"),
@@ -132,13 +135,14 @@ class OnboardingViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertEquals(OnboardingStep.Welcome, vm.state.step)
-        val msg = vm.state.authError ?: error("expected an error message")
-        assertTrue(msg.contains("Anonymous sign-in", ignoreCase = true), "got: $msg")
-        assertTrue(msg.contains("Providers", ignoreCase = true), "should name the dashboard path; got: $msg")
+        assertEquals(
+            OnboardingAuthError.AnonymousSignInDisabled(debugDetails = "Anonymous sign-ins are disabled"),
+            vm.state.authError,
+        )
     }
 
     @Test
-    fun continueAsGuest_network_surfacesFriendlyError() = runUnitTest {
+    fun continueAsGuest_network_surfacesGuestSignInFailed() = runUnitTest {
         val auth = FakeAuthRepository(
             initialAuthState = AuthState.Unauthenticated(RuntimeException("network is unreachable")),
         )
@@ -147,12 +151,14 @@ class OnboardingViewModelTest : CoroutineTest() {
         vm.takeAction(OnboardingAction.ContinueAsGuest)
         runCurrent()
 
-        val msg = vm.state.authError ?: error("expected an error message")
-        assertTrue(msg.contains("connection", ignoreCase = true) || msg.contains("server", ignoreCase = true))
+        assertEquals(
+            OnboardingAuthError.GuestSignInFailed(debugDetails = "network is unreachable"),
+            vm.state.authError,
+        )
     }
 
     @Test
-    fun continueAsGuest_invalidAnonKey_surfacesSpecificMessage() = runUnitTest {
+    fun continueAsGuest_invalidAnonKey_surfacesInvalidConfig() = runUnitTest {
         val auth = FakeAuthRepository(
             initialAuthState = AuthState.Unauthenticated(RuntimeException("Invalid API key")),
         )
@@ -161,9 +167,63 @@ class OnboardingViewModelTest : CoroutineTest() {
         vm.takeAction(OnboardingAction.ContinueAsGuest)
         runCurrent()
 
-        val msg = vm.state.authError ?: error("expected an error message")
-        assertTrue(msg.contains("anon key", ignoreCase = true), "got: $msg")
-        assertTrue(msg.contains("IdentityConfig", ignoreCase = true), "should name the file; got: $msg")
+        assertEquals(
+            OnboardingAuthError.InvalidConfig(debugDetails = "Invalid API key"),
+            vm.state.authError,
+        )
+    }
+
+    @Test
+    fun continueAsGuest_captcha_surfacesCaptchaRequired() = runUnitTest {
+        val auth = FakeAuthRepository(
+            initialAuthState = AuthState.Unauthenticated(RuntimeException("captcha required by project")),
+        )
+        val vm = newVm(auth = auth)
+
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+
+        assertEquals(
+            OnboardingAuthError.CaptchaRequired(debugDetails = "captcha required by project"),
+            vm.state.authError,
+        )
+    }
+
+    @Test
+    fun signInWithOAuth_providerNotEnabled_surfacesOAuthProviderNotEnabled() = runUnitTest {
+        val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.ProviderNotEnabled)
+        val vm = newVm(auth = auth)
+
+        vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
+        runCurrent()
+
+        assertEquals(OnboardingAuthError.OAuthProviderNotEnabled, vm.state.authError)
+    }
+
+    @Test
+    fun signInWithOAuth_networkError_surfacesOAuthNetworkError() = runUnitTest {
+        val auth = FakeAuthRepository(
+            oauthSignInOutcome = SignInOutcome.NetworkError(RuntimeException("offline")),
+        )
+        val vm = newVm(auth = auth)
+
+        vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Apple))
+        runCurrent()
+
+        assertEquals(OnboardingAuthError.OAuthNetworkError, vm.state.authError)
+    }
+
+    @Test
+    fun signInWithOAuth_unknownLikeOutcome_surfacesOAuthFailed() = runUnitTest {
+        val auth = FakeAuthRepository(
+            oauthSignInOutcome = SignInOutcome.Unknown(RuntimeException("boom")),
+        )
+        val vm = newVm(auth = auth)
+
+        vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
+        runCurrent()
+
+        assertEquals(OnboardingAuthError.OAuthFailed, vm.state.authError)
     }
 
     @Test
@@ -285,8 +345,7 @@ class OnboardingViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertEquals(OnboardingStep.PickIdentity, vm.state.step)
-        assertNotNull(vm.state.saveError)
-        assertTrue(vm.state.saveError!!.contains("taken", ignoreCase = true))
+        assertEquals(OnboardingSaveError.DisplayNameTaken, vm.state.saveError)
     }
 
     @Test

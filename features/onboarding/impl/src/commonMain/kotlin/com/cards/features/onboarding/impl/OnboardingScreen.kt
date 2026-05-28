@@ -70,6 +70,16 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.onboarding_auth_error_debug_suffix
+import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_anonymous_disabled
+import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_captcha
+import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_failed
+import cards.libraries.resources.generated.resources.onboarding_auth_error_guest_invalid_config
+import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_failed
+import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_network
+import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_provider_not_enabled
+import cards.libraries.resources.generated.resources.onboarding_save_error_display_name_taken
+import cards.libraries.resources.generated.resources.onboarding_save_error_invalid_display_name
 import cards.libraries.resources.generated.resources.onboarding_how_card_chips_subtitle
 import cards.libraries.resources.generated.resources.onboarding_how_card_chips_title
 import cards.libraries.resources.generated.resources.onboarding_how_card_league_subtitle
@@ -238,9 +248,9 @@ private fun WelcomeStep(
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (state.authError != null) {
+            state.authError?.let { error ->
                 Text(
-                    text = state.authError,
+                    text = error.message(),
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.danger,
                     textAlign = TextAlign.Center,
@@ -410,7 +420,7 @@ private fun PickIdentityStep(
             supportingText = state.saveError?.let { error ->
                 {
                     Text(
-                        text = error,
+                        text = error.message(),
                         typography = AppTheme.typography.Body.B400,
                         color = AppTheme.colors.danger,
                     )
@@ -659,6 +669,46 @@ private fun stepIndex(step: OnboardingStep): Int = when (step) {
     OnboardingStep.HowItWorks -> 2
 }
 
+@Composable
+private fun OnboardingAuthError.message(): String {
+    val main = stringResource(mainMessageKey())
+    val debug = debugDetails()
+    return if (BuildInfo.isDebug && !debug.isNullOrEmpty()) {
+        main + stringResource(Res.string.onboarding_auth_error_debug_suffix, debug)
+    } else {
+        main
+    }
+}
+
+private fun OnboardingAuthError.mainMessageKey() = when (this) {
+    OnboardingAuthError.OAuthProviderNotEnabled -> Res.string.onboarding_auth_error_oauth_provider_not_enabled
+    OnboardingAuthError.OAuthNetworkError -> Res.string.onboarding_auth_error_oauth_network
+    OnboardingAuthError.OAuthFailed -> Res.string.onboarding_auth_error_oauth_failed
+    is OnboardingAuthError.AnonymousSignInDisabled -> Res.string.onboarding_auth_error_guest_anonymous_disabled
+    is OnboardingAuthError.CaptchaRequired -> Res.string.onboarding_auth_error_guest_captcha
+    is OnboardingAuthError.InvalidConfig -> Res.string.onboarding_auth_error_guest_invalid_config
+    is OnboardingAuthError.GuestSignInFailed -> Res.string.onboarding_auth_error_guest_failed
+}
+
+private fun OnboardingAuthError.debugDetails(): String? = when (this) {
+    OnboardingAuthError.OAuthProviderNotEnabled,
+    OnboardingAuthError.OAuthNetworkError,
+    OnboardingAuthError.OAuthFailed,
+    -> null
+    is OnboardingAuthError.AnonymousSignInDisabled -> debugDetails
+    is OnboardingAuthError.CaptchaRequired -> debugDetails
+    is OnboardingAuthError.InvalidConfig -> debugDetails
+    is OnboardingAuthError.GuestSignInFailed -> debugDetails
+}
+
+@Composable
+private fun OnboardingSaveError.message(): String = when (this) {
+    OnboardingSaveError.DisplayNameTaken ->
+        stringResource(Res.string.onboarding_save_error_display_name_taken)
+    OnboardingSaveError.InvalidDisplayName ->
+        stringResource(Res.string.onboarding_save_error_invalid_display_name)
+}
+
 // ---------------------------------------------------------------------------
 // Previews
 // ---------------------------------------------------------------------------
@@ -743,7 +793,7 @@ private fun OnboardingScreenPreview_Welcome_AuthError() {
                 step = OnboardingStep.Welcome,
                 googleEnabled = true,
                 appleEnabled = true,
-                authError = "Couldn't sign in — check your connection and try again.",
+                authError = OnboardingAuthError.GuestSignInFailed(debugDetails = null),
             ),
             onAction = {},
         )
@@ -777,7 +827,7 @@ private fun OnboardingScreenPreview_PickIdentity_SaveError() {
                 displayName = "QuietAce72",
                 selectedEmoji = "🦊",
                 selectedBackgroundColor = "#ff6b35",
-                saveError = "That name is taken — try another one.",
+                saveError = OnboardingSaveError.DisplayNameTaken,
             ),
             onAction = {},
         )
