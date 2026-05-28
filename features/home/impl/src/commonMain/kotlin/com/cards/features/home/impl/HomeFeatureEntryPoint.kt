@@ -9,6 +9,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_coming_soon_friend_requests_body
+import cards.libraries.resources.generated.resources.home_coming_soon_friend_requests_title
+import cards.libraries.resources.generated.resources.home_coming_soon_friends_body
+import cards.libraries.resources.generated.resources.home_coming_soon_friends_title
+import cards.libraries.resources.generated.resources.home_coming_soon_quick_match_body
+import cards.libraries.resources.generated.resources.home_coming_soon_quick_match_title
+import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_body
+import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_title
+import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
@@ -73,6 +83,15 @@ class HomeFeatureEntryPoint(
             // (V2). Null = closed.
             var comingSoon by remember { mutableStateOf<ComingSoonContent?>(null) }
 
+            val quickMatchTitle = stringResource(Res.string.home_coming_soon_quick_match_title)
+            val quickMatchBody = stringResource(Res.string.home_coming_soon_quick_match_body)
+            val friendsTitle = stringResource(Res.string.home_coming_soon_friends_title)
+            val friendsBody = stringResource(Res.string.home_coming_soon_friends_body)
+            val friendRequestsTitle = stringResource(Res.string.home_coming_soon_friend_requests_title)
+            val friendRequestsBody = stringResource(Res.string.home_coming_soon_friend_requests_body)
+            val recentlyPlayedTitle = stringResource(Res.string.home_coming_soon_recently_played_title)
+            val recentlyPlayedBody = stringResource(Res.string.home_coming_soon_recently_played_body)
+
             HomeScreen(
                 viewModel = viewModel,
                 onPlayBots = { botSetupOpen = true },
@@ -81,11 +100,9 @@ class HomeFeatureEntryPoint(
                     // matchmaker. Until that lands, surface an honest
                     // "coming soon" sheet rather than a stub navigation.
                     comingSoon = ComingSoonContent(
-                        title = "Quick Match",
+                        title = quickMatchTitle,
                         emoji = "⚯",
-                        body = "Public matchmaking ships once we have enough humans " +
-                            "playing to keep wait times short. Until then, grab a " +
-                            "Friend Game or a Practice table.",
+                        body = quickMatchBody,
                     )
                 },
                 // Friend Game = the existing lobby flow (create/join via
@@ -105,12 +122,9 @@ class HomeFeatureEntryPoint(
                 // explains what's planned.
                 onTapFriends = {
                     comingSoon = ComingSoonContent(
-                        title = "Friends",
+                        title = friendsTitle,
                         emoji = "🤝",
-                        body = "Adding friends, online presence, and the requests " +
-                            "inbox all land together. Friends grow from the felt — " +
-                            "anyone you face will surface in 'Recently played with' " +
-                            "below, ready to add the moment the graph ships.",
+                        body = friendsBody,
                     )
                 },
                 // Recent opponents — the social cold-start lever. Once
@@ -122,20 +136,16 @@ class HomeFeatureEntryPoint(
                 // doesn't yet.
                 onAddRecentOpponent = { _ ->
                     comingSoon = ComingSoonContent(
-                        title = "Friend requests",
+                        title = friendRequestsTitle,
                         emoji = "🤝",
-                        body = "Sending friend requests ships with the friend graph. " +
-                            "We hang onto who you've played with so you can opt in " +
-                            "the moment that lands.",
+                        body = friendRequestsBody,
                     )
                 },
                 onSeeAllRecentOpponents = {
                     comingSoon = ComingSoonContent(
-                        title = "Recently played with",
+                        title = recentlyPlayedTitle,
                         emoji = "🃏",
-                        body = "The full history of humans you've played comes with " +
-                            "Quick Match + Friend Games. For now we're showing the " +
-                            "most recent at the table.",
+                        body = recentlyPlayedBody,
                     )
                 },
                 scrollState = scrollState,
