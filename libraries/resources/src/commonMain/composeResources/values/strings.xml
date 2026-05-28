@@ -571,6 +571,14 @@
     <string name="ui_shake_dialog_send_cta">Send</string>
     <string name="ui_shake_dialog_cancel_cta">Cancel</string>
 
+    <!-- UI library — AppBottomBar tab icon a11y labels (announced by TalkBack / VoiceOver). -->
+    <string name="ui_bottom_bar_home_a11y">Home</string>
+    <string name="ui_bottom_bar_shop_a11y">Shop</string>
+    <string name="ui_bottom_bar_profile_a11y">Profile</string>
+
+    <!-- UI library — shared close-button a11y label (BottomSheet dismiss + Snackbar dismiss). -->
+    <string name="ui_close_a11y">Close</string>
+
     <!-- Calendar — Month names (used wherever a friendly Month + Year string is built). -->
     <string name="month_january">January</string>
     <string name="month_february">February</string>

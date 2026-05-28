@@ -26,6 +26,9 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_close_a11y
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -106,7 +109,7 @@ fun BottomSheet(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     IconButton(
-                        icon = Icons.Close("Close"),
+                        icon = Icons.Close(stringResource(Res.string.ui_close_a11y)),
                         onClick = state::dismiss,
                     )
                 }
