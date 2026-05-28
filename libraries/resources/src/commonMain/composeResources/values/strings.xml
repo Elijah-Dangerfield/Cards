@@ -458,4 +458,40 @@
     <string name="room_action_preset_pot">Pot</string>
     <string name="room_action_stepper_decrement">–</string>
     <string name="room_action_stepper_increment">+</string>
+
+    <!-- Room — Showdown dialog (hand-end summary). -->
+    <string name="room_showdown_outcome_you_win">You win</string>
+    <string name="room_showdown_outcome_win_by_fold">%1$s wins by fold</string>
+    <string name="room_showdown_outcome_showdown">Showdown</string>
+    <string name="room_showdown_winner_fallback_name">Player</string>
+    <string name="room_showdown_win_amount">+%1$s</string>
+    <string name="room_showdown_pot_amount">Pot %1$s</string>
+    <string name="room_showdown_board_label">Board</string>
+    <string name="room_showdown_next_hand_button">Next hand</string>
+    <string name="room_showdown_row_you">You</string>
+    <string name="room_showdown_row_no_hand">—</string>
+    <string name="room_showdown_row_win_amount">+%1$s</string>
+
+    <!-- Room — Bust dialog (human stack reached 0 this hand). -->
+    <string name="room_bust_title">You went bust</string>
+    <string name="room_bust_body">Practice chips refilled — chips against bots don\'t count for keeps. Deal yourself in and keep sharpening up.</string>
+    <string name="room_bust_deal_me_in_button">Deal me in</string>
+
+    <!-- Room — Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
+    <string name="room_achievement_callout_heading">Achievement unlocked</string>
+    <string name="room_achievement_reward_xp">+%1$d XP</string>
+    <string name="room_achievement_reward_xp_plus_chips">+%1$d XP · +%2$s chips</string>
+    <string name="room_achievement_cosmetic_label">Also unlocked · %1$s</string>
+
+    <!-- Room — XP-earned bubble (rendered after the headline in hand-end dialogs). -->
+    <string name="room_xp_bubble_amount">+%1$d XP</string>
+    <string name="room_xp_bubble_suffix">earned</string>
+    <string name="room_xp_bubble_glyph">✦</string>
+
+    <!-- Room — Bot-mode achievement celebration sheet (sequenced after hand-end dialog). -->
+    <string name="room_celebration_title_single">Achievement unlocked</string>
+    <string name="room_celebration_title_multi">%1$d achievements unlocked</string>
+    <string name="room_celebration_subtitle_multi">Stacked them in one hand.</string>
+    <string name="room_celebration_continue_button">Continue</string>
+    <string name="room_celebration_cosmetic_attribution">from the %1$s achievement</string>
 </resources>

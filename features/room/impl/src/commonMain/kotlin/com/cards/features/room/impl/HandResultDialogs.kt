@@ -21,6 +21,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_achievement_callout_heading
+import cards.libraries.resources.generated.resources.room_achievement_cosmetic_label
+import cards.libraries.resources.generated.resources.room_achievement_reward_xp
+import cards.libraries.resources.generated.resources.room_achievement_reward_xp_plus_chips
+import cards.libraries.resources.generated.resources.room_bust_body
+import cards.libraries.resources.generated.resources.room_bust_deal_me_in_button
+import cards.libraries.resources.generated.resources.room_bust_title
+import cards.libraries.resources.generated.resources.room_showdown_board_label
+import cards.libraries.resources.generated.resources.room_showdown_next_hand_button
+import cards.libraries.resources.generated.resources.room_showdown_outcome_showdown
+import cards.libraries.resources.generated.resources.room_showdown_outcome_win_by_fold
+import cards.libraries.resources.generated.resources.room_showdown_outcome_you_win
+import cards.libraries.resources.generated.resources.room_showdown_pot_amount
+import cards.libraries.resources.generated.resources.room_showdown_row_no_hand
+import cards.libraries.resources.generated.resources.room_showdown_row_win_amount
+import cards.libraries.resources.generated.resources.room_showdown_row_you
+import cards.libraries.resources.generated.resources.room_showdown_win_amount
+import cards.libraries.resources.generated.resources.room_showdown_winner_fallback_name
+import cards.libraries.resources.generated.resources.room_xp_bubble_amount
+import cards.libraries.resources.generated.resources.room_xp_bubble_glyph
+import cards.libraries.resources.generated.resources.room_xp_bubble_suffix
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -48,6 +70,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.clip
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -99,27 +122,29 @@ internal fun ShowdownDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                val winnerFallback = stringResource(Res.string.room_showdown_winner_fallback_name)
+                val headlineText = when {
+                    humanWon -> stringResource(Res.string.room_showdown_outcome_you_win)
+                    byFold -> {
+                        val winnerName = seats.firstOrNull { it.index in winnerIndices }?.displayName ?: winnerFallback
+                        stringResource(Res.string.room_showdown_outcome_win_by_fold, winnerName)
+                    }
+                    else -> stringResource(Res.string.room_showdown_outcome_showdown)
+                }
                 Text(
-                    text = when {
-                        humanWon -> "You win"
-                        byFold -> {
-                            val winnerName = seats.firstOrNull { it.index in winnerIndices }?.displayName ?: "Player"
-                            "$winnerName wins by fold"
-                        }
-                        else -> "Showdown"
-                    },
+                    text = headlineText,
                     typography = AppTheme.typography.Display.D1200,
                     color = if (humanWon) goldText else AppTheme.colors.onSurfacePrimary,
                 )
                 if (humanWon) {
                     Text(
-                        text = "+$humanWinAmount",
+                        text = stringResource(Res.string.room_showdown_win_amount, humanWinAmount.toString()),
                         typography = AppTheme.typography.Heading.H800,
                         color = goldText,
                     )
                 } else {
                     Text(
-                        text = "Pot $totalPot",
+                        text = stringResource(Res.string.room_showdown_pot_amount, totalPot.toString()),
                         typography = AppTheme.typography.Body.B500,
                         color = AppTheme.colors.onSurfaceSecondary,
                     )
@@ -152,7 +177,7 @@ internal fun ShowdownDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = "Board",
+                        text = stringResource(Res.string.room_showdown_board_label),
                         typography = AppTheme.typography.Body.B400,
                         color = AppTheme.colors.onSurfaceSecondary,
                     )
@@ -187,7 +212,7 @@ internal fun ShowdownDialog(
                 onClick = onNextHand,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(text = "Next hand")
+                Text(text = stringResource(Res.string.room_showdown_next_hand_button))
             }
         }
     }
@@ -223,12 +248,12 @@ internal fun BustDialog(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = "You went bust",
+                    text = stringResource(Res.string.room_bust_title),
                     typography = AppTheme.typography.Heading.H700,
                     color = AppTheme.colors.onSurfacePrimary,
                 )
                 Text(
-                    text = "Practice chips refilled — chips against bots don't count for keeps. Deal yourself in and keep sharpening up.",
+                    text = stringResource(Res.string.room_bust_body),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                     textAlign = TextAlign.Center,
@@ -246,7 +271,7 @@ internal fun BustDialog(
                 onClick = onDealMeIn,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(text = "Deal me in")
+                Text(text = stringResource(Res.string.room_bust_deal_me_in_button))
             }
         }
     }
@@ -275,7 +300,7 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Achievement unlocked",
+                text = stringResource(Res.string.room_achievement_callout_heading),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
             )
@@ -291,11 +316,14 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
                     color = AppTheme.colors.textSecondary,
                 )
             }
-            val rewardSummary = buildString {
-                append("+${earned.achievement.xpReward} XP")
-                if (earned.achievement.chipReward > 0L) {
-                    append(" · +${formatThousands(earned.achievement.chipReward)} chips")
-                }
+            val rewardSummary = if (earned.achievement.chipReward > 0L) {
+                stringResource(
+                    Res.string.room_achievement_reward_xp_plus_chips,
+                    earned.achievement.xpReward,
+                    formatThousands(earned.achievement.chipReward),
+                )
+            } else {
+                stringResource(Res.string.room_achievement_reward_xp, earned.achievement.xpReward)
             }
             Text(
                 text = rewardSummary,
@@ -314,7 +342,7 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
                         color = AppTheme.colors.text,
                     )
                     Text(
-                        text = "Also unlocked · ${cosmetic.label}",
+                        text = stringResource(Res.string.room_achievement_cosmetic_label, cosmetic.label),
                         typography = AppTheme.typography.Body.B500,
                         color = AppTheme.colors.text,
                     )
@@ -342,18 +370,18 @@ private fun XpEarnedBubble(amount: Int) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "✦",
+                text = stringResource(Res.string.room_xp_bubble_glyph),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.text,
             )
         }
         Text(
-            text = "+$amount XP",
+            text = stringResource(Res.string.room_xp_bubble_amount, amount),
             typography = AppTheme.typography.Heading.H600,
             color = AppTheme.colors.text,
         )
         Text(
-            text = "earned",
+            text = stringResource(Res.string.room_xp_bubble_suffix),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
         )
@@ -382,7 +410,7 @@ private fun ShowdownRow(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
-            text = if (seat.isHuman) "You" else seat.displayName,
+            text = if (seat.isHuman) stringResource(Res.string.room_showdown_row_you) else seat.displayName,
             typography = AppTheme.typography.Body.B500,
             color = if (isWinner) goldText else AppTheme.colors.text,
             modifier = Modifier.width(64.dp),
@@ -393,14 +421,14 @@ private fun ShowdownRow(
         Spacer(modifier = Modifier.weight(1f))
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = handDescription ?: "—",
+                text = handDescription ?: stringResource(Res.string.room_showdown_row_no_hand),
                 typography = AppTheme.typography.Body.B400,
                 color = if (isWinner) goldText else AppTheme.colors.onSurfaceSecondary,
                 textAlign = androidx.compose.ui.text.style.TextAlign.End,
             )
             if (isWinner && winAmount > 0) {
                 Text(
-                    text = "+${formatThousands(winAmount)}",
+                    text = stringResource(Res.string.room_showdown_row_win_amount, formatThousands(winAmount)),
                     typography = AppTheme.typography.Body.B500,
                     color = goldText,
                 )

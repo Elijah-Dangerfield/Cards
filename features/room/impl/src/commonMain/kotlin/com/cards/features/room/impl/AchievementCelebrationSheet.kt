@@ -19,6 +19,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_achievement_cosmetic_label
+import cards.libraries.resources.generated.resources.room_achievement_reward_xp
+import cards.libraries.resources.generated.resources.room_achievement_reward_xp_plus_chips
+import cards.libraries.resources.generated.resources.room_celebration_continue_button
+import cards.libraries.resources.generated.resources.room_celebration_cosmetic_attribution
+import cards.libraries.resources.generated.resources.room_celebration_subtitle_multi
+import cards.libraries.resources.generated.resources.room_celebration_title_multi
+import cards.libraries.resources.generated.resources.room_celebration_title_single
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
@@ -41,6 +50,7 @@ import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD700
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -70,14 +80,14 @@ internal fun AchievementCelebrationSheet(
     ).asDragHandle()
 
     val title = if (earned.size == 1) {
-        "Achievement unlocked"
+        stringResource(Res.string.room_celebration_title_single)
     } else {
-        "${earned.size} achievements unlocked"
+        stringResource(Res.string.room_celebration_title_multi, earned.size)
     }
     val titleSubtitle = if (earned.size == 1) {
         earned.first().achievement.name
     } else {
-        "Stacked them in one hand."
+        stringResource(Res.string.room_celebration_subtitle_multi)
     }
 
     BottomSheet(
@@ -111,7 +121,7 @@ internal fun AchievementCelebrationSheet(
             onClick = onContinue,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(text = "Continue")
+            Text(text = stringResource(Res.string.room_celebration_continue_button))
         }
     }
 }
@@ -164,8 +174,17 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int) {
                 )
             }
             VerticalSpacerD400()
+            val rewardText = if (achievement.chipReward > 0L) {
+                stringResource(
+                    Res.string.room_achievement_reward_xp_plus_chips,
+                    achievement.xpReward,
+                    formatThousands(achievement.chipReward),
+                )
+            } else {
+                stringResource(Res.string.room_achievement_reward_xp, achievement.xpReward)
+            }
             Text(
-                text = rewardSummary(achievement.xpReward, achievement.chipReward),
+                text = rewardText,
                 typography = AppTheme.typography.Body.B600,
                 color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
                 textAlign = TextAlign.Center,
@@ -182,14 +201,14 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int) {
                         color = AppTheme.colors.text,
                     )
                     Text(
-                        text = "Also unlocked · ${reward.label}",
+                        text = stringResource(Res.string.room_achievement_cosmetic_label, reward.label),
                         typography = AppTheme.typography.Body.B500,
                         color = AppTheme.colors.onSurfacePrimary,
                     )
                 }
                 VerticalSpacerD200()
                 Text(
-                    text = "from the ${achievement.name} achievement",
+                    text = stringResource(Res.string.room_celebration_cosmetic_attribution, achievement.name),
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.onSurfaceSecondary,
                     textAlign = TextAlign.Center,
@@ -197,11 +216,6 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int) {
             }
         }
     }
-}
-
-private fun rewardSummary(xp: Int, chips: Long): String = buildString {
-    append("+$xp XP")
-    if (chips > 0L) append(" · +${formatThousands(chips)} chips")
 }
 
 private fun rarityAccent(rarity: AchievementRarity): androidx.compose.ui.graphics.Color = when (rarity) {
