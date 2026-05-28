@@ -287,6 +287,23 @@
     <string name="profile_claim_card_body">Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.</string>
     <string name="profile_claim_card_cta">Get started</string>
 
+    <!-- Profile — Notifications inbox top bar + empty state. -->
+    <string name="profile_notifications_title">Notifications</string>
+    <string name="profile_notifications_empty_title">No notifications</string>
+    <string name="profile_notifications_empty_subtitle">Heads-ups and announcements will show up here.</string>
+
+    <!-- Profile — My items inventory screen. -->
+    <string name="profile_my_items_title">My items</string>
+    <string name="profile_my_items_subtitle_empty">Pick up card backs, felts, and emotes in the shop.</string>
+    <string name="profile_my_items_subtitle_populated">%1$d unlocked — tap to equip.</string>
+    <string name="profile_my_items_badge_earned">Earned</string>
+    <string name="profile_my_items_badge_unlocked">Unlocked</string>
+    <string name="profile_my_items_personal_cosmetic_tag">Only you see this</string>
+    <string name="profile_my_items_button_equip">Equip</string>
+    <string name="profile_my_items_button_unequip">Unequip</string>
+    <string name="profile_my_items_empty_title">No items yet</string>
+    <string name="profile_my_items_empty_body">Pick up card backs, felts, and emote packs from the shop. Once you own them, they\'ll show up here.</string>
+
     <!-- Onboarding — HowItWorks step (final explainer). -->
     <string name="onboarding_how_eyebrow">LAST THING</string>
     <string name="onboarding_how_title">How Cards works.</string>
