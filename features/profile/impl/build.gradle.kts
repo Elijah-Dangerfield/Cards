@@ -22,6 +22,7 @@ kotlin {
             implementation(projects.libraries.products)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.resources)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)
 

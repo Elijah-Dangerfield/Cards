@@ -218,6 +218,75 @@
     <string name="auth_verify_email_banner_network_error">Couldn\'t reach the server. Check your connection.</string>
     <string name="auth_verify_email_banner_generic_error">Something went wrong. Try again.</string>
 
+    <!-- Profile — top-level sections + footer. -->
+    <string name="profile_section_account">Account</string>
+    <string name="profile_section_gameplay">Gameplay</string>
+    <string name="profile_section_support">Support</string>
+    <string name="profile_section_about">About</string>
+    <string name="profile_section_debug">Debug</string>
+    <string name="profile_app_version_footer">v%1$s</string>
+
+    <!-- Profile — Account section rows. -->
+    <string name="profile_account_notifications_headline">Notifications</string>
+    <string name="profile_account_notifications_supporting_unread">%1$d new</string>
+    <string name="profile_account_notifications_supporting_default">Heads-ups and announcements</string>
+    <string name="profile_account_my_items_headline">My items</string>
+    <string name="profile_account_my_items_supporting">Owned card backs, felts, emotes, titles, earned trophies</string>
+    <string name="profile_account_rank_headline">Rank</string>
+    <string name="profile_account_rank_supporting">Skill rating · multiplayer only</string>
+    <string name="profile_account_rank_unranked">Unranked</string>
+    <string name="profile_account_stats_headline">Stats</string>
+    <string name="profile_account_stats_supporting">XP, hands played, achievements</string>
+
+    <!-- Profile — Gameplay section rows + picker option labels. -->
+    <string name="profile_gameplay_tutorial_headline">How to play</string>
+    <string name="profile_gameplay_tutorial_supporting">Replay the 2-minute poker tutorial</string>
+    <string name="profile_gameplay_bot_speed_headline">Bot speed</string>
+    <string name="profile_gameplay_bot_speed_supporting">How fast the bots think and act</string>
+    <string name="profile_gameplay_turn_feedback_headline">Your turn feedback</string>
+    <string name="profile_gameplay_turn_feedback_supporting">Cue when it becomes your turn</string>
+    <string name="profile_bot_speed_slow">Slow</string>
+    <string name="profile_bot_speed_normal">Normal</string>
+    <string name="profile_bot_speed_fast">Fast</string>
+    <string name="profile_turn_feedback_mute">Mute</string>
+    <string name="profile_turn_feedback_vibrate">Vibrate</string>
+    <string name="profile_turn_feedback_sound">Sound</string>
+
+    <!-- Profile — Support section rows. -->
+    <string name="profile_support_feedback_headline">Send feedback</string>
+    <string name="profile_support_feedback_supporting">Tell us what\'s working and what isn\'t</string>
+    <string name="profile_support_bug_headline">Report a bug</string>
+    <string name="profile_support_bug_supporting">Something broken? Let us know</string>
+
+    <!-- Profile — About section rows. -->
+    <string name="profile_about_privacy">Privacy policy</string>
+    <string name="profile_about_terms">Terms of service</string>
+
+    <!-- Profile — Sign out + delete account row + dialog copy. -->
+    <string name="profile_sign_out_button">Sign out</string>
+    <string name="profile_sign_out_button_progress">Signing out…</string>
+    <string name="profile_delete_account_button">Delete account</string>
+    <string name="profile_sign_out_dialog_anonymous_title">Sign out of guest account?</string>
+    <string name="profile_sign_out_dialog_claimed_title">Sign out?</string>
+    <string name="profile_sign_out_dialog_anonymous_body">Your chips, XP, and game history are tied to this guest account. Signing out drops them. To keep your progress, choose \'Claim your account\' instead.</string>
+    <string name="profile_sign_out_dialog_claimed_body">You\'ll be returned to the welcome screen. Your account stays — sign in again any time to come back.</string>
+    <string name="profile_sign_out_dialog_confirm_button">Sign out</string>
+    <string name="profile_sign_out_dialog_cancel_button">Cancel</string>
+
+    <!-- Profile — Debug-build-only QA menu entry. -->
+    <string name="profile_debug_qa_headline">QA menu</string>
+    <string name="profile_debug_qa_supporting">Override config values for this session</string>
+
+    <!-- Profile — Header (avatar + level summary). -->
+    <string name="profile_avatar_edit_a11y">Edit profile</string>
+    <string name="profile_level_summary_level_xp">Level %1$d · %2$s XP</string>
+    <string name="profile_level_summary_to_next_level">%1$s XP to level %2$d</string>
+
+    <!-- Profile — Anonymous-only "claim your account" hero card. -->
+    <string name="profile_claim_card_title">Claim your account</string>
+    <string name="profile_claim_card_body">Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.</string>
+    <string name="profile_claim_card_cta">Get started</string>
+
     <!-- Onboarding — HowItWorks step (final explainer). -->
     <string name="onboarding_how_eyebrow">LAST THING</string>
     <string name="onboarding_how_title">How Cards works.</string>
