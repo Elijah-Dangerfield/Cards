@@ -32,6 +32,20 @@ import cards.libraries.resources.generated.resources.lobby_connection_connected
 import cards.libraries.resources.generated.resources.lobby_connection_connecting
 import cards.libraries.resources.generated.resources.lobby_connection_disconnected
 import cards.libraries.resources.generated.resources.lobby_connection_reconnecting
+import cards.libraries.resources.generated.resources.lobby_error_connect_rejected
+import cards.libraries.resources.generated.resources.lobby_error_create_network
+import cards.libraries.resources.generated.resources.lobby_error_create_not_signed_in
+import cards.libraries.resources.generated.resources.lobby_error_create_unknown
+import cards.libraries.resources.generated.resources.lobby_error_join_blank_code
+import cards.libraries.resources.generated.resources.lobby_error_join_full
+import cards.libraries.resources.generated.resources.lobby_error_join_network
+import cards.libraries.resources.generated.resources.lobby_error_join_not_accepting
+import cards.libraries.resources.generated.resources.lobby_error_join_not_found
+import cards.libraries.resources.generated.resources.lobby_error_join_not_signed_in
+import cards.libraries.resources.generated.resources.lobby_error_join_unknown
+import cards.libraries.resources.generated.resources.lobby_error_leave_server_not_notified
+import cards.libraries.resources.generated.resources.lobby_error_room_was_closed
+import cards.libraries.resources.generated.resources.lobby_error_start_coming_soon
 import cards.libraries.resources.generated.resources.lobby_idle_code_field_label
 import cards.libraries.resources.generated.resources.lobby_idle_create_button
 import cards.libraries.resources.generated.resources.lobby_idle_create_button_progress
@@ -112,7 +126,7 @@ fun LobbyScreen(
             state.error?.let { err ->
                 Spacer(modifier = Modifier.height(Dimension.D500))
                 Text(
-                    text = err,
+                    text = err.message(),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.danger,
                 )
@@ -473,7 +487,7 @@ private fun LobbyScreenPreview_Idle_Error() {
         LobbyScreen(
             state = LobbyState(
                 codeInput = "WXYZ12",
-                error = "We couldn't find that room. Check the code and try again.",
+                error = LobbyError.JoinRoomNotFound(code = "WXYZ12"),
             ),
             onAction = {},
             onBack = {},
@@ -543,4 +557,23 @@ private fun MemberRow(member: RoomMember) {
             )
         }
     }
+}
+
+@Composable
+private fun LobbyError.message(): String = when (this) {
+    is LobbyError.CreateInvalidMaxSeats -> message
+    LobbyError.CreateNotSignedIn -> stringResource(Res.string.lobby_error_create_not_signed_in)
+    LobbyError.CreateNetworkError -> stringResource(Res.string.lobby_error_create_network)
+    LobbyError.CreateUnknownError -> stringResource(Res.string.lobby_error_create_unknown)
+    LobbyError.JoinBlankCode -> stringResource(Res.string.lobby_error_join_blank_code)
+    is LobbyError.JoinRoomNotFound -> stringResource(Res.string.lobby_error_join_not_found, code)
+    LobbyError.JoinRoomFull -> stringResource(Res.string.lobby_error_join_full)
+    LobbyError.JoinRoomNotAcceptingPlayers -> stringResource(Res.string.lobby_error_join_not_accepting)
+    LobbyError.JoinNotSignedIn -> stringResource(Res.string.lobby_error_join_not_signed_in)
+    LobbyError.JoinNetworkError -> stringResource(Res.string.lobby_error_join_network)
+    LobbyError.JoinUnknownError -> stringResource(Res.string.lobby_error_join_unknown)
+    LobbyError.LeaveServerNotNotified -> stringResource(Res.string.lobby_error_leave_server_not_notified)
+    LobbyError.RoomWasClosed -> stringResource(Res.string.lobby_error_room_was_closed)
+    LobbyError.ConnectRejected -> stringResource(Res.string.lobby_error_connect_rejected)
+    LobbyError.StartGameComingSoon -> stringResource(Res.string.lobby_error_start_coming_soon)
 }

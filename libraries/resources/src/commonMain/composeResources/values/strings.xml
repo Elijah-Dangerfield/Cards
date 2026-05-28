@@ -88,6 +88,22 @@
     <string name="lobby_connection_reconnecting">Reconnecting (attempt %1$d)…</string>
     <string name="lobby_connection_connected">Connected</string>
 
+    <!-- Lobby — inline error states surfaced by the VM (sealed LobbyError → resource). -->
+    <string name="lobby_error_create_not_signed_in">Sign in first to create a room.</string>
+    <string name="lobby_error_create_network">Couldn't reach the server.</string>
+    <string name="lobby_error_create_unknown">Couldn't create a room.</string>
+    <string name="lobby_error_join_blank_code">Enter a room code to join.</string>
+    <string name="lobby_error_join_not_found">No room with code %1$s.</string>
+    <string name="lobby_error_join_full">That room is full.</string>
+    <string name="lobby_error_join_not_accepting">That room isn't accepting players right now.</string>
+    <string name="lobby_error_join_not_signed_in">Sign in first to join a room.</string>
+    <string name="lobby_error_join_network">Couldn't reach the server.</string>
+    <string name="lobby_error_join_unknown">Couldn't join.</string>
+    <string name="lobby_error_leave_server_not_notified">Couldn't tell the server we left. Your seat will free up.</string>
+    <string name="lobby_error_room_was_closed">The room was closed.</string>
+    <string name="lobby_error_connect_rejected">Couldn't connect — try rejoining.</string>
+    <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update — invite your friends and stand by.</string>
+
     <!-- Onboarding — Welcome step (entry screen). -->
     <string name="onboarding_welcome_title">Cards</string>
     <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
