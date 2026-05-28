@@ -292,6 +292,30 @@
     <string name="profile_notifications_empty_title">No notifications</string>
     <string name="profile_notifications_empty_subtitle">Heads-ups and announcements will show up here.</string>
 
+    <!-- Profile — Claim account hero (anonymous → claimed flow). -->
+    <string name="profile_claim_back_a11y">Back</string>
+    <string name="profile_claim_title">Claim your account</string>
+    <string name="profile_claim_subtitle">Save your chips, XP, and achievements across devices.</string>
+    <string name="profile_claim_provider_google">Continue with Google</string>
+    <string name="profile_claim_provider_apple">Continue with Apple</string>
+    <string name="profile_claim_provider_email">Continue with email</string>
+    <string name="profile_claim_coming_soon">Apple and Google sign-in are coming soon.</string>
+    <string name="profile_claim_conflict_switch_button">Switch to my %1$s account anyway</string>
+
+    <!-- Profile — Delete account destructive flow. -->
+    <string name="profile_delete_back_a11y">Back</string>
+    <string name="profile_delete_title">Delete account</string>
+    <string name="profile_delete_subtitle">This permanently deletes your account from our servers. There is no undo.</string>
+    <string name="profile_delete_section_title">What gets deleted</string>
+    <string name="profile_delete_bullet_identity">Your display name and avatar.</string>
+    <string name="profile_delete_bullet_progress">Your chips, XP, level, rank, and unlocked achievements.</string>
+    <string name="profile_delete_bullet_history">Your hand history.</string>
+    <string name="profile_delete_bullet_oauth">Any linked Apple/Google identity on this account.</string>
+    <string name="profile_delete_confirm_input_label">Type \"%1$s\" to confirm</string>
+    <string name="profile_delete_submit_button">Delete my account</string>
+    <string name="profile_delete_submit_button_progress">Deleting…</string>
+    <string name="profile_delete_cancel_button">Cancel</string>
+
     <!-- Profile — Send feedback form. -->
     <string name="profile_feedback_title">Share Your Feedback</string>
     <string name="profile_feedback_hero">We\'d love to hear from you</string>
