@@ -50,6 +50,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension.D1000
 import com.dangerfield.cards.system.Dimension.D500
@@ -255,18 +256,18 @@ private fun Coin(modifier: Modifier = Modifier) {
             .background(
                 Brush.radialGradient(
                     listOf(
-                        Color(0xFFFFD66B),
-                        Color(0xFFD9A933),
+                        PokerPalette.CoinGradientStart,
+                        PokerPalette.CoinGradientEnd,
                     ),
                 ),
             )
-            .border(3.dp, Color(0xFFB68721), CircleShape),
+            .border(3.dp, PokerPalette.CoinOutline, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "$",
             typography = AppTheme.typography.Display.D1100,
-            color = ColorResource.FromColor(Color(0xFF3D2A0A), "coin-glyph"),
+            color = ColorResource.FromColor(PokerPalette.CoinGlyph, "coin-glyph"),
         )
     }
 }

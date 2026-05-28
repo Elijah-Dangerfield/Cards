@@ -41,6 +41,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
@@ -232,8 +233,8 @@ private fun GoldGlow(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val brush = Brush.radialGradient(
             colors = listOf(
-                Color(0xFFE5B946).copy(alpha = 0.35f),
-                Color(0xFFE5B946).copy(alpha = 0.08f),
+                PokerPalette.SparkleGold.copy(alpha = 0.35f),
+                PokerPalette.SparkleGold.copy(alpha = 0.08f),
                 Color.Transparent,
             ),
             center = Offset(size.width / 2f, size.height / 2f),
@@ -285,7 +286,7 @@ private fun Sparkle(
                 this.alpha = alpha
             },
     ) {
-        val color = Color(0xFFE5B946)
+        val color = PokerPalette.SparkleGold
         val cx = this.size.width / 2f
         val cy = this.size.height / 2f
         val armLong = this.size.minDimension * 0.5f

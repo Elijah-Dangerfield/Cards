@@ -49,4 +49,27 @@ object PokerPalette {
     /** XP-progression green — end of the `XpBadge` inner gradient. Pairs
      *  with [ProgressionCyan]. */
     val ProgressionGreen: Color = Color(0xFF66BB6A)
+
+    /** Celebratory / "ready" amber — sparkle glyph + radial glow on the
+     *  tutorial ready screen. Distinct from [ChipGold] (used for bet pills
+     *  and the dealer button) so the celebration reads brighter than a
+     *  routine chip stack. */
+    val SparkleGold: Color = Color(0xFFE5B946)
+
+    /** Coin face — light end of the radial gradient that gives the disc
+     *  its "lit from above" highlight. Pairs with [CoinGradientEnd]. */
+    val CoinGradientStart: Color = Color(0xFFFFD66B)
+
+    /** Coin face — dark end of the radial gradient. Pairs with
+     *  [CoinGradientStart]. */
+    val CoinGradientEnd: Color = Color(0xFFD9A933)
+
+    /** Coin-edge ring — darker than the disc face so the metal rim reads
+     *  as 3D against the lit gradient. */
+    val CoinOutline: Color = Color(0xFFB68721)
+
+    /** Coin-face glyph color — deep amber-brown chosen for contrast against
+     *  the gold disc, not pure black so it reads as warm-on-metal rather
+     *  than ink-on-coin. */
+    val CoinGlyph: Color = Color(0xFF3D2A0A)
 }
