@@ -233,7 +233,7 @@ class PostgresProfileRepository(
             kind = UserMessageKind.Inbox,
             emoji = "🏛",
             title = "You're a founding member",
-            body = "You're one of the first ${foundingMemberThreshold} players to find a seat. Your founding-member badge is in My Items — equip it any time and it shows at your seat.",
+            body = "You're one of the first ${String.format(java.util.Locale.US, "%,d", foundingMemberThreshold)} players to find a seat. Your founding-member badge is in My Items — equip it any time and it shows at your seat.",
             deepLink = null,
             expiresAt = null,
         )
