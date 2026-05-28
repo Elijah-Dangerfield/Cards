@@ -2,6 +2,20 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_last_action_body_all_in
+import cards.libraries.resources.generated.resources.room_last_action_body_bet
+import cards.libraries.resources.generated.resources.room_last_action_body_call
+import cards.libraries.resources.generated.resources.room_last_action_body_check
+import cards.libraries.resources.generated.resources.room_last_action_body_fold
+import cards.libraries.resources.generated.resources.room_last_action_body_raise
+import cards.libraries.resources.generated.resources.room_last_action_cheat_sheet_hint
+import cards.libraries.resources.generated.resources.room_last_action_headline_all_in
+import cards.libraries.resources.generated.resources.room_last_action_headline_bet
+import cards.libraries.resources.generated.resources.room_last_action_headline_call
+import cards.libraries.resources.generated.resources.room_last_action_headline_check
+import cards.libraries.resources.generated.resources.room_last_action_headline_fold
+import cards.libraries.resources.generated.resources.room_last_action_headline_raise
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -9,6 +23,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -28,13 +43,13 @@ internal fun LastActionExplainer(
         topAccessory = topAccessoryEmoji(emoji = emojiFor(action)),
     ) {
         Text(
-            text = explainer(action),
+            text = stringResource(explainerResourceFor(action)),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "Tap the ? icon up top for the full list of actions.",
+            text = stringResource(Res.string.room_last_action_cheat_sheet_hint),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
@@ -42,13 +57,22 @@ internal fun LastActionExplainer(
     }
 }
 
+@Composable
 private fun headline(seatName: String, action: PlayerAction): String = when (action) {
-    is PlayerAction.Fold -> "$seatName folded"
-    is PlayerAction.Check -> "$seatName checked"
-    is PlayerAction.Call -> "$seatName called ${formatThousands(action.amount)}"
-    is PlayerAction.Bet -> "$seatName bet ${formatThousands(action.amount)}"
-    is PlayerAction.Raise -> "$seatName raised to ${formatThousands(action.totalStreetContribution)}"
-    is PlayerAction.AllIn -> "$seatName went all in for ${formatThousands(action.amount)}"
+    is PlayerAction.Fold -> stringResource(Res.string.room_last_action_headline_fold, seatName)
+    is PlayerAction.Check -> stringResource(Res.string.room_last_action_headline_check, seatName)
+    is PlayerAction.Call ->
+        stringResource(Res.string.room_last_action_headline_call, seatName, formatThousands(action.amount))
+    is PlayerAction.Bet ->
+        stringResource(Res.string.room_last_action_headline_bet, seatName, formatThousands(action.amount))
+    is PlayerAction.Raise ->
+        stringResource(
+            Res.string.room_last_action_headline_raise,
+            seatName,
+            formatThousands(action.totalStreetContribution),
+        )
+    is PlayerAction.AllIn ->
+        stringResource(Res.string.room_last_action_headline_all_in, seatName, formatThousands(action.amount))
 }
 
 private fun emojiFor(action: PlayerAction): String = when (action) {
@@ -60,19 +84,13 @@ private fun emojiFor(action: PlayerAction): String = when (action) {
     is PlayerAction.AllIn -> "🔥"
 }
 
-private fun explainer(action: PlayerAction): String = when (action) {
-    is PlayerAction.Fold ->
-        "Fold means giving up the hand. Any chips already in the pot stay there — they don't come back."
-    is PlayerAction.Check ->
-        "Check passes the action without putting any chips in. Only legal when there's nothing to call."
-    is PlayerAction.Call ->
-        "Call matches the current bet so they can stay in the hand. No raise, just keeping up."
-    is PlayerAction.Bet ->
-        "Bet opens the betting on this street. Everyone else now has to call, raise, or fold."
-    is PlayerAction.Raise ->
-        "Raise increases the current bet. Everyone else who wants to stay in has to match the new total."
-    is PlayerAction.AllIn ->
-        "All in means pushing their entire stack into the pot. They can't act again this hand."
+private fun explainerResourceFor(action: PlayerAction) = when (action) {
+    is PlayerAction.Fold -> Res.string.room_last_action_body_fold
+    is PlayerAction.Check -> Res.string.room_last_action_body_check
+    is PlayerAction.Call -> Res.string.room_last_action_body_call
+    is PlayerAction.Bet -> Res.string.room_last_action_body_bet
+    is PlayerAction.Raise -> Res.string.room_last_action_body_raise
+    is PlayerAction.AllIn -> Res.string.room_last_action_body_all_in
 }
 
 @Preview
