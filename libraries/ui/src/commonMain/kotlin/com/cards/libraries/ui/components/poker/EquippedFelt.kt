@@ -146,9 +146,14 @@ fun titleForProductId(productId: String?): String? = when (productId) {
  * server-side badge id renders nothing instead of crashing.
  *
  * Badges live in the permanent seat slot (mirrored placement opposite
- * the SB/BB chip). Empty catalog today; the first entry lands with
- * the founding-member item.
+ * the SB/BB chip). Granted server-side during profile creation when the
+ * user falls inside the matching cohort window — see
+ * `apps/server/.../V26__founding_member_badge.sql` for the catalog
+ * entry and `PostgresProfileRepository.grantFoundingMemberBadge` for
+ * the issuance pathway.
  */
 fun badgeEmojiForProductId(productId: String?): String? = badgeRegistry[productId]
 
-private val badgeRegistry: Map<String, String> = emptyMap()
+private val badgeRegistry: Map<String, String> = mapOf(
+    "badge_founding_member_1000" to "🏛",
+)
