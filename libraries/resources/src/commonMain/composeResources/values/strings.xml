@@ -728,4 +728,17 @@
     <string name="tutorial_ready_title">You\'re ready.</string>
     <string name="tutorial_ready_body">Raise the strong hands. Call when the price is right. Fold the rest. The bots are waiting in Practice.</string>
     <string name="tutorial_ready_done_cta">Done</string>
+
+    <!-- UI library — LevelPill (progression pill "Level N" rendered in headers / shelves). -->
+    <string name="ui_level_pill_label">Level %1$d</string>
+
+    <!-- UI library — TopBar back-icon a11y label (every screen with a back button reads this). -->
+    <string name="ui_top_bar_back_a11y">Navigate back</string>
+
+    <!-- UI library — AchievementMedallion front + back faces (Apple-Fitness-style achievement card). -->
+    <string name="ui_achievement_medallion_locked_label">Locked</string>
+    <string name="ui_achievement_medallion_earned_label">Earned</string>
+    <string name="ui_achievement_medallion_earned_back">Earned · %1$s</string>
+    <string name="ui_achievement_medallion_how_to_earn">How to earn</string>
+    <string name="ui_achievement_medallion_unlocks">Unlocks · %1$s</string>
 </resources>
