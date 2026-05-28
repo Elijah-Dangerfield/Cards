@@ -240,11 +240,13 @@ class ProfileFeatureEntryPoint(
             )
         }
 
-        screen<MyItemsRoute> {
+        screen<MyItemsRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<MyItemsRoute>()
             val viewModel: MyItemsViewModel = viewModel { myItemsViewModelFactory() }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
             MyItemsScreen(
                 state = state,
+                highlightProductId = route.highlightProductId,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
             )

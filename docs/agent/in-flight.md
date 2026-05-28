@@ -1,0 +1,7 @@
+# In-flight
+
+## feat(shop): jump to just-unlocked item from redeem snackbar
+
+**Problem:** After a cosmetic redeem the "Unlocked! X is yours." snackbar fires and the user has to navigate Profile → My Items themselves to actually equip the thing.
+**Approach:** Add an action button on the `RedeemSucceeded` snackbar that calls `router.navigate(MyItemsRoute(highlightProductId = …))`. `MyItemsRoute` now carries an optional `highlightProductId`; `MyItemsScreen` reads it, scrolls the matching row into view, and pulses an accent border on the row for ~1.8s. Action label switches between "Equip" (for `Product.ChipOffer.isEquippable = true`) and "View" (avatar / emote packs that don't have an equip toggle — the row still surfaces the "Unlocked" badge). Chose this over a generic "View" for every case so the CTA copy reads honestly per the todo's "no equip target" caveat for non-equippables.
+**Reviewer notes:** Per todo, AlreadyOwned + chips-added snackbars stay action-less even though the AlreadyOwned case arguably benefits from a "View" jump too — happy to extend if you want it. Highlight pulse + scroll-to is screen-side only (no VM state), so existing `MyItemsViewModelTest` cases pass unchanged; the new behavior would need a Compose UI test harness to assert on, which doesn't exist in this module yet. The DS chose accentPrimary border at alpha 0→1→0 over a background flash to avoid clipping the row's existing surface treatment.

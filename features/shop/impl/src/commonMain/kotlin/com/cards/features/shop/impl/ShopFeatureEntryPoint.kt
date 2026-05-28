@@ -6,6 +6,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
+import com.dangerfield.cards.features.profile.MyItemsRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
@@ -30,6 +31,8 @@ import cards.libraries.resources.generated.resources.shop_snackbar_not_signed_in
 import cards.libraries.resources.generated.resources.shop_snackbar_offer_expired_message
 import cards.libraries.resources.generated.resources.shop_snackbar_offer_expired_title
 import cards.libraries.resources.generated.resources.shop_snackbar_purchase_failed_title
+import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_action_equip
+import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_action_view
 import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_message
 import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_title
 import cards.libraries.resources.generated.resources.shop_snackbar_store_unavailable_message
@@ -70,12 +73,36 @@ class ShopFeatureEntryPoint(
                 viewModel.ObserveEvents { event ->
                     when (event) {
                         is ShopEvent.PurchaseFinished -> showPurchaseSnackbar(event.outcome)
-                        is ShopEvent.RedeemSucceeded -> showSnackBar(
-                            title = getString(Res.string.shop_snackbar_redeem_succeeded_title),
-                            message = getString(Res.string.shop_snackbar_redeem_succeeded_message, event.offer.title),
-                            emoji = event.offer.iconEmoji,
-                            duration = SnackbarDuration.Short,
-                        )
+                        is ShopEvent.RedeemSucceeded -> {
+                            // Equippable cosmetics get an "Equip" jump so
+                            // the user lands on the row's toggle. Unlock-
+                            // style products (avatar / emote packs) get a
+                            // "View" action that drops them on the same
+                            // row but without an equip target — the row
+                            // shows the "Unlocked" badge instead.
+                            val actionLabel = getString(
+                                if (event.offer.isEquippable) {
+                                    Res.string.shop_snackbar_redeem_succeeded_action_equip
+                                } else {
+                                    Res.string.shop_snackbar_redeem_succeeded_action_view
+                                },
+                            )
+                            showSnackBar(
+                                title = getString(Res.string.shop_snackbar_redeem_succeeded_title),
+                                message = getString(
+                                    Res.string.shop_snackbar_redeem_succeeded_message,
+                                    event.offer.title,
+                                ),
+                                emoji = event.offer.iconEmoji,
+                                duration = SnackbarDuration.Short,
+                                actionLabel = actionLabel,
+                                onAction = {
+                                    router.navigate(
+                                        MyItemsRoute(highlightProductId = event.offer.id),
+                                    )
+                                },
+                            )
+                        }
                         is ShopEvent.AlreadyOwned -> showSnackBar(
                             title = getString(Res.string.shop_snackbar_already_owned_title),
                             message = getString(Res.string.shop_snackbar_already_owned_message, event.offer.title),

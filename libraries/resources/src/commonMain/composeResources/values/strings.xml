@@ -23,6 +23,8 @@
     <!-- Shop — snackbar titles + messages fired from non-Composable contexts. -->
     <string name="shop_snackbar_redeem_succeeded_title">Unlocked!</string>
     <string name="shop_snackbar_redeem_succeeded_message">%1$s is yours.</string>
+    <string name="shop_snackbar_redeem_succeeded_action_equip">Equip</string>
+    <string name="shop_snackbar_redeem_succeeded_action_view">View</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>
