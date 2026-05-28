@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.UUID
 import kotlin.random.Random
 
 /**
@@ -54,6 +55,20 @@ import kotlin.random.Random
  */
 class GameSession internal constructor(
     private val random: Random = Random.Default,
+    /**
+     * Stable identity for this session's row family in `game_events`.
+     * Stamped at construction so the registry's `code → session` map
+     * can stay string-keyed today while every persisted event carries
+     * the UUID the future event-sourced replay path (B1+) reads back.
+     */
+    val id: UUID = UUID.randomUUID(),
+    /**
+     * Durable log surface. Writes inside the mutex, before any
+     * in-memory mutation or `_events` broadcast — see [applyIntent].
+     * Defaults to [GameEventWriter.NoOp] so engine-focused unit tests
+     * stay terse.
+     */
+    private val eventWriter: GameEventWriter = GameEventWriter.NoOp,
 ) {
     private val mutex = Mutex()
 
@@ -129,6 +144,13 @@ class GameSession internal constructor(
         } catch (e: IllegalArgumentException) {
             return@withLock IntentResult.Rejected(e.message ?: "illegal intent")
         }
+        try {
+            eventWriter.append(id, result.events)
+        } catch (t: Throwable) {
+            return@withLock IntentResult.Rejected(
+                "persistence failed: ${t.message ?: t::class.simpleName ?: "unknown"}",
+            )
+        }
         _state.value = result.state
         result.events.forEach { _events.tryEmit(it) }
         recordNonce(clientNonce)
@@ -176,7 +198,7 @@ class GameSession internal constructor(
         startHandLocked(occupants, settings)
     }
 
-    private fun startHandLocked(
+    private suspend fun startHandLocked(
         occupants: List<SeatOccupant>,
         settings: RoomSettings,
     ): IntentResult {
@@ -225,6 +247,13 @@ class GameSession internal constructor(
             buttonSeatIndex = newButton,
             deck = deck,
         )
+        try {
+            eventWriter.append(id, result.events)
+        } catch (t: Throwable) {
+            return IntentResult.Rejected(
+                "persistence failed: ${t.message ?: t::class.simpleName ?: "unknown"}",
+            )
+        }
         _state.value = result.state
         result.events.forEach { _events.tryEmit(it) }
         return IntentResult.Accepted

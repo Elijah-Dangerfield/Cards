@@ -35,7 +35,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun observeSession_emitsNull_beforeStart() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = InMemoryGameSessionRegistry(GameEventWriter.NoOp)
 
         // Cold flow with no session yet → first emit is null.
         assertNull(registry.observeSession("ROOM1").first())
@@ -43,7 +43,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun observeSession_emitsSession_afterStart() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = InMemoryGameSessionRegistry(GameEventWriter.NoOp)
 
         registry.startHand("ROOM1", listOf(alice, bob), settings)
         val session = registry.observeSession("ROOM1").first()
@@ -54,7 +54,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun observeSession_isCodeScoped() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = InMemoryGameSessionRegistry(GameEventWriter.NoOp)
 
         registry.startHand("ROOM_A", listOf(alice, bob), settings)
 
@@ -67,7 +67,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun fullHand_fold_drivesStateToComplete_through_registry() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = InMemoryGameSessionRegistry(GameEventWriter.NoOp)
 
         val started = registry.startHand("ROOM1", listOf(alice, bob), settings)
         assertIs<IntentResult.Accepted>(started)
@@ -90,7 +90,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun applyIntent_unknownCode_isRejected() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = InMemoryGameSessionRegistry(GameEventWriter.NoOp)
 
         val result = registry.applyIntent(
             code = "GHOST",
@@ -105,7 +105,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun end_dropsSession_andSubsequentLookupReturnsNull() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = InMemoryGameSessionRegistry(GameEventWriter.NoOp)
         registry.startHand("ROOM1", listOf(alice, bob), settings)
         assertNotNull(registry.peek("ROOM1"))
 
@@ -117,7 +117,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun nextHand_continues_after_completion() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = InMemoryGameSessionRegistry(GameEventWriter.NoOp)
         registry.startHand("ROOM1", listOf(alice, bob), settings)
 
         val session = registry.peek("ROOM1")!!
