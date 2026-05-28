@@ -126,7 +126,10 @@ Broken: fix as a small commit, or revert the breaking commit. Don't knowingly pu
 
    **Cycle block rules** — the human reads this on their phone:
    - One screen scroll per cycle. If it doesn't fit, cut.
-   - **Write for a dev who hasn't read the todo doc.** No internal IDs (achievement enums, productIds, spec section refs, todo bullet names). Describe behaviour in plain user-facing terms — *what does the player see and when*. If you can't avoid a name, say what it does: "the 'Pot Magnet' title (awarded for winning a 5K-chip pot)" not "POT_5000".
+   - **Write for a dev who hasn't read the todo doc, the decisions log, or the architecture eval.** Assume they read the *last* PR but nothing else, and don't remember the project's internal vocabulary. Every name you use must either be self-explanatory or carry a parenthetical that explains it. No internal IDs (achievement enums, productIds), no phase refs (`§B0`, `Phase 4.2`), no spec section refs, no todo bullet names, no class/field names that haven't been introduced this cycle. Translate every one into the behaviour it produces.
+     - **Bad:** *"The §B0 event-log producer is wired, but `GameSession.id` is process-local — the persisted `code → session_uuid` map lands with §B1."*
+     - **Good:** *"Multiplayer rooms now persist every gameplay event to a durable log before broadcasting, so a server crash mid-hand no longer loses history. Server restart still mints a new internal ID for an existing room — fine until persisted membership lands; flagging so you remember the seam."*
+     - Same idea for product names: "the 'Pot Magnet' title (awarded for winning a 5K-chip pot)" not "POT_5000".
    - Plain English, not commit log. No short-shas, no conventional-commit prefixes, no "Worker did X."
    - One line per item. If it needs a paragraph, it's probably "Heads up."
    - Group commits that tell one story into one bullet.
