@@ -238,6 +238,14 @@
     <string name="auth_sign_up_claim_dialog_primary">Send link</string>
     <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
 
+    <!-- Sign-up — inline error states surfaced by the VM (sealed SignUpError → resource). -->
+    <string name="auth_sign_up_error_passwords_dont_match">Passwords don\'t match.</string>
+    <string name="auth_sign_up_error_email_already_registered">That email is already in use. Try signing in instead.</string>
+    <string name="auth_sign_up_error_weak_password">Pick a stronger password (at least %1$d characters).</string>
+    <string name="auth_sign_up_error_invalid_email">That email doesn\'t look right.</string>
+    <string name="auth_sign_up_error_network">Couldn\'t reach the server. Check your connection.</string>
+    <string name="auth_sign_up_error_unknown">Sign up failed. Please try again.</string>
+
     <!-- Auth — Forgot password screen. -->
     <string name="auth_forgot_password_link">Forgot password?</string>
     <string name="auth_forgot_password_title">Reset your password</string>

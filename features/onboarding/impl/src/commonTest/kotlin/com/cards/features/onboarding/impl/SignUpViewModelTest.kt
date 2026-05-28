@@ -8,7 +8,6 @@ import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * Pins [SignUpViewModel]'s outcome mapping. The big invariant: on
@@ -20,10 +19,11 @@ import kotlin.test.assertTrue
  *  - canSubmit gates on '@' AND password ≥ 6 chars
  *  - Submit short-circuits when canSubmit is false
  *  - VerificationRequired → NavigateToVerifyEmail with the server's email
- *  - EmailAlreadyRegistered surfaces a "try signing in" hint
- *  - WeakPassword surfaces a strength hint
- *  - InvalidEmail surfaces an email-shape hint
- *  - NetworkError surfaces a network-shaped message
+ *  - EmailAlreadyRegistered surfaces the typed sealed variant
+ *  - WeakPassword surfaces the typed sealed variant (with MIN_PASSWORD_LENGTH)
+ *  - InvalidEmail surfaces the typed sealed variant
+ *  - NetworkError surfaces the typed sealed variant
+ *  - Unknown surfaces the typed sealed variant
  *  - Submit trims the email before the network call
  *  - DismissError clears the error
  */
@@ -98,7 +98,7 @@ class SignUpViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun submit_emailAlreadyRegistered_surfacesSignInHint() = runUnitTest {
+    fun submit_emailAlreadyRegistered_surfacesEmailAlreadyRegistered() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.EmailAlreadyRegistered),
         )
@@ -110,16 +110,13 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(
-                last.error!!.contains("signing in", ignoreCase = true),
-                "expected a 'try signing in' hint, got: ${last.error}",
-            )
+            assertEquals(SignUpError.EmailAlreadyRegistered, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun submit_weakPassword_surfacesStrengthHint() = runUnitTest {
+    fun submit_weakPassword_surfacesWeakPasswordWithMinLength() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.WeakPassword),
         )
@@ -131,21 +128,21 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(
-                last.error!!.contains("stronger", ignoreCase = true),
-                "expected a strength hint, got: ${last.error}",
+            assertEquals(
+                SignUpError.WeakPassword(SignUpState.MIN_PASSWORD_LENGTH),
+                last.error,
             )
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun submit_invalidEmail_surfacesShapeHint() = runUnitTest {
+    fun submit_invalidEmail_surfacesInvalidEmail() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(signUpOutcome = SignUpOutcome.InvalidEmail),
         )
         // canSubmit only checks for '@' so a server-side reject is the
-        // only way to surface "that email doesn't look right" here.
+        // only way to surface InvalidEmail from this path.
         vm.takeAction(SignUpAction.EmailChanged("weird@x"))
         vm.takeAction(SignUpAction.PasswordChanged("password"))
         vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
@@ -154,16 +151,13 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(
-                last.error!!.contains("doesn't look right", ignoreCase = true),
-                "expected email-shape hint, got: ${last.error}",
-            )
+            assertEquals(SignUpError.InvalidEmail, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun submit_networkError_surfacesNetworkMessage() = runUnitTest {
+    fun submit_networkError_surfacesNetworkError() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(
                 signUpOutcome = SignUpOutcome.NetworkError(RuntimeException("nope")),
@@ -177,11 +171,27 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(
-                last.error!!.contains("reach", ignoreCase = true) ||
-                    last.error!!.contains("connection", ignoreCase = true),
-                "expected a network-shaped error, got: ${last.error}",
-            )
+            assertEquals(SignUpError.NetworkError, last.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun submit_unknown_surfacesUnknownError() = runUnitTest {
+        val vm = buildVm(
+            identity = FakeAuthRepository(
+                signUpOutcome = SignUpOutcome.Unknown(RuntimeException("boom")),
+            ),
+        )
+        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
+        vm.takeAction(SignUpAction.PasswordChanged("password"))
+        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
+        vm.takeAction(SignUpAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(SignUpError.Unknown, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -336,10 +346,7 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(
-                last.error!!.contains("signing in", ignoreCase = true),
-                "expected a 'try signing in' hint, got: ${last.error}",
-            )
+            assertEquals(SignUpError.EmailAlreadyRegistered, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }
