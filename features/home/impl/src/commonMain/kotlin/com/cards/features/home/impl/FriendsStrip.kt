@@ -19,6 +19,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_friends_empty_state
+import cards.libraries.resources.generated.resources.home_friends_section_title
+import cards.libraries.resources.generated.resources.home_friends_see_all
+import cards.libraries.resources.generated.resources.home_friends_see_all_with_online
+import cards.libraries.resources.generated.resources.home_friends_see_all_with_one_request
+import cards.libraries.resources.generated.resources.home_friends_see_all_with_requests
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
@@ -27,6 +34,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -51,7 +59,7 @@ internal fun FriendsStrip(
     val hasContent = friends.isNotEmpty() || pendingRequests > 0
     Column(modifier = modifier.fillMaxWidth()) {
         SectionHeader(
-            title = "Friends",
+            title = stringResource(Res.string.home_friends_section_title),
             trailingLabel = if (hasContent) {
                 seeAllLabel(onlineCount = friends.size, pendingRequests = pendingRequests)
             } else {
@@ -68,7 +76,7 @@ internal fun FriendsStrip(
             }
         } else if (pendingRequests <= 0) {
             Text(
-                text = "Friends grow from the felt — play someone, then add them from \"Recently played with\".",
+                text = stringResource(Res.string.home_friends_empty_state),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
@@ -132,11 +140,12 @@ private fun FriendTile(friend: FriendOnline, onClick: () -> Unit) {
  * otherwise so the strip still earns its space when only the inbox is
  * non-empty.
  */
+@Composable
 private fun seeAllLabel(onlineCount: Int, pendingRequests: Int): String = when {
-    onlineCount > 0 -> "$onlineCount online · See all"
-    pendingRequests == 1 -> "1 request · See all"
-    pendingRequests > 1 -> "$pendingRequests requests · See all"
-    else -> "See all"
+    onlineCount > 0 -> stringResource(Res.string.home_friends_see_all_with_online, onlineCount)
+    pendingRequests == 1 -> stringResource(Res.string.home_friends_see_all_with_one_request)
+    pendingRequests > 1 -> stringResource(Res.string.home_friends_see_all_with_requests, pendingRequests)
+    else -> stringResource(Res.string.home_friends_see_all)
 }
 
 /**

@@ -20,6 +20,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_recents_add_friend
+import cards.libraries.resources.generated.resources.home_recents_add_friend_sent
+import cards.libraries.resources.generated.resources.home_recents_empty_state
+import cards.libraries.resources.generated.resources.home_recents_section_title
+import cards.libraries.resources.generated.resources.home_recents_see_all
+import cards.libraries.resources.generated.resources.home_recents_suggest_friend_game
+import cards.libraries.resources.generated.resources.home_recents_suggest_quick_match
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
@@ -29,6 +37,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -60,8 +69,8 @@ internal fun RecentlyPlayedWithStrip(
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         SectionHeader(
-            title = "Recently played with",
-            trailingLabel = if (opponents.isEmpty()) null else "See all",
+            title = stringResource(Res.string.home_recents_section_title),
+            trailingLabel = if (opponents.isEmpty()) null else stringResource(Res.string.home_recents_see_all),
             onClick = if (opponents.isEmpty()) null else onSeeAll,
         )
         VerticalSpacerD500()
@@ -86,7 +95,7 @@ private fun EmptyRecentOpponents(
     onStartQuickMatch: () -> Unit,
 ) {
     Text(
-        text = "Make a friend by playing together — start a Friend Game or sit down at a public table. Anyone you face will show up here.",
+        text = stringResource(Res.string.home_recents_empty_state),
         typography = AppTheme.typography.Body.B500,
         color = AppTheme.colors.onSurfaceSecondary,
     )
@@ -95,8 +104,16 @@ private fun EmptyRecentOpponents(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
     ) {
-        SuggestPill(label = "Friend Game", onClick = onStartFriendGame, modifier = Modifier.weight(1f))
-        SuggestPill(label = "Quick Match", onClick = onStartQuickMatch, modifier = Modifier.weight(1f))
+        SuggestPill(
+            label = stringResource(Res.string.home_recents_suggest_friend_game),
+            onClick = onStartFriendGame,
+            modifier = Modifier.weight(1f),
+        )
+        SuggestPill(
+            label = stringResource(Res.string.home_recents_suggest_quick_match),
+            onClick = onStartQuickMatch,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -168,7 +185,10 @@ private fun AddFriendPill(sent: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = if (sent) "Sent" else "Add friend",
+            text = stringResource(
+                if (sent) Res.string.home_recents_add_friend_sent
+                else Res.string.home_recents_add_friend,
+            ),
             typography = AppTheme.typography.Label.L400,
             color = fg,
         )

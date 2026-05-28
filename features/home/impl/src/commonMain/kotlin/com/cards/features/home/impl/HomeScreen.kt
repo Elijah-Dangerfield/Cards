@@ -18,6 +18,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_cta_friend_game_subtitle
+import cards.libraries.resources.generated.resources.home_cta_friend_game_title
+import cards.libraries.resources.generated.resources.home_cta_practice_subtitle
+import cards.libraries.resources.generated.resources.home_cta_practice_title
+import cards.libraries.resources.generated.resources.home_cta_quick_match_subtitle
+import cards.libraries.resources.generated.resources.home_cta_quick_match_title
+import cards.libraries.resources.generated.resources.home_cta_quick_match_trailing
+import cards.libraries.resources.generated.resources.home_section_take_a_seat
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
@@ -30,6 +39,7 @@ import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD1100
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -156,30 +166,30 @@ private fun HomeScreenContent(
             }
 
             VerticalSpacerD1100()
-            SectionHeader(title = "Take a seat")
+            SectionHeader(title = stringResource(Res.string.home_section_take_a_seat))
             VerticalSpacerD600()
             HomeCtaCard(
-                title = "Practice",
-                subtitle = "Solo vs. bots",
+                title = stringResource(Res.string.home_cta_practice_title),
+                subtitle = stringResource(Res.string.home_cta_practice_subtitle),
                 glyph = "🤖",
                 accent = FeatureCardAccents.Green,
                 onClick = onPlayBots,
             )
             HomeCtaCard(
-                title = "Friend Game",
-                subtitle = "Room code · just you and yours",
+                title = stringResource(Res.string.home_cta_friend_game_title),
+                subtitle = stringResource(Res.string.home_cta_friend_game_subtitle),
                 glyph = "👯‍♂️",
                 accent = FeatureCardAccents.Gold,
                 onClick = onFriendGame,
             )
 
             HomeCtaCard(
-                title = "Quick Match",
-                subtitle = "Public seat · one tap",
+                title = stringResource(Res.string.home_cta_quick_match_title),
+                subtitle = stringResource(Res.string.home_cta_quick_match_subtitle),
                 glyph = "⏳",
                 accent = FeatureCardAccents.Blue,
                 onClick = onQuickMatch,
-                trailing = "Soon",
+                trailing = stringResource(Res.string.home_cta_quick_match_trailing),
             )
 
             VerticalSpacerD1100()
