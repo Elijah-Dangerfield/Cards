@@ -27,6 +27,58 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_about_privacy
+import cards.libraries.resources.generated.resources.profile_about_terms
+import cards.libraries.resources.generated.resources.profile_account_my_items_headline
+import cards.libraries.resources.generated.resources.profile_account_my_items_supporting
+import cards.libraries.resources.generated.resources.profile_account_notifications_headline
+import cards.libraries.resources.generated.resources.profile_account_notifications_supporting_default
+import cards.libraries.resources.generated.resources.profile_account_notifications_supporting_unread
+import cards.libraries.resources.generated.resources.profile_account_rank_headline
+import cards.libraries.resources.generated.resources.profile_account_rank_supporting
+import cards.libraries.resources.generated.resources.profile_account_rank_unranked
+import cards.libraries.resources.generated.resources.profile_account_stats_headline
+import cards.libraries.resources.generated.resources.profile_account_stats_supporting
+import cards.libraries.resources.generated.resources.profile_app_version_footer
+import cards.libraries.resources.generated.resources.profile_avatar_edit_a11y
+import cards.libraries.resources.generated.resources.profile_bot_speed_fast
+import cards.libraries.resources.generated.resources.profile_bot_speed_normal
+import cards.libraries.resources.generated.resources.profile_bot_speed_slow
+import cards.libraries.resources.generated.resources.profile_claim_card_body
+import cards.libraries.resources.generated.resources.profile_claim_card_cta
+import cards.libraries.resources.generated.resources.profile_claim_card_title
+import cards.libraries.resources.generated.resources.profile_debug_qa_headline
+import cards.libraries.resources.generated.resources.profile_debug_qa_supporting
+import cards.libraries.resources.generated.resources.profile_delete_account_button
+import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_headline
+import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_supporting
+import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_headline
+import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_supporting
+import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_headline
+import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_supporting
+import cards.libraries.resources.generated.resources.profile_level_summary_level_xp
+import cards.libraries.resources.generated.resources.profile_level_summary_to_next_level
+import cards.libraries.resources.generated.resources.profile_section_about
+import cards.libraries.resources.generated.resources.profile_section_account
+import cards.libraries.resources.generated.resources.profile_section_debug
+import cards.libraries.resources.generated.resources.profile_section_gameplay
+import cards.libraries.resources.generated.resources.profile_section_support
+import cards.libraries.resources.generated.resources.profile_sign_out_button
+import cards.libraries.resources.generated.resources.profile_sign_out_button_progress
+import cards.libraries.resources.generated.resources.profile_sign_out_dialog_anonymous_body
+import cards.libraries.resources.generated.resources.profile_sign_out_dialog_anonymous_title
+import cards.libraries.resources.generated.resources.profile_sign_out_dialog_cancel_button
+import cards.libraries.resources.generated.resources.profile_sign_out_dialog_claimed_body
+import cards.libraries.resources.generated.resources.profile_sign_out_dialog_claimed_title
+import cards.libraries.resources.generated.resources.profile_sign_out_dialog_confirm_button
+import cards.libraries.resources.generated.resources.profile_support_bug_headline
+import cards.libraries.resources.generated.resources.profile_support_bug_supporting
+import cards.libraries.resources.generated.resources.profile_support_feedback_headline
+import cards.libraries.resources.generated.resources.profile_support_feedback_supporting
+import cards.libraries.resources.generated.resources.profile_turn_feedback_mute
+import cards.libraries.resources.generated.resources.profile_turn_feedback_sound
+import cards.libraries.resources.generated.resources.profile_turn_feedback_vibrate
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
@@ -54,6 +106,8 @@ import com.dangerfield.cards.system.VerticalSpacerD1100
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 
 data class ProfileSettings(
     val displayName: String,
@@ -110,33 +164,40 @@ fun ProfileScreen(
             }
 
             ListSection(
-                title = "Account",
+                title = stringResource(Res.string.profile_section_account),
                 items = listOf(
                     ListSectionItem(
-                        headlineText = "Notifications",
+                        headlineText = stringResource(Res.string.profile_account_notifications_headline),
                         supportingText = if (settings.unreadNotificationCount > 0) {
-                            "${settings.unreadNotificationCount} new"
+                            stringResource(
+                                Res.string.profile_account_notifications_supporting_unread,
+                                settings.unreadNotificationCount,
+                            )
                         } else {
-                            "Heads-ups and announcements"
+                            stringResource(Res.string.profile_account_notifications_supporting_default)
                         },
                         onClick = onOpenNotifications,
                     ),
                     ListSectionItem(
-                        headlineText = "My items",
-                        supportingText = "Owned card backs, felts, emotes, titles, earned trophies",
+                        headlineText = stringResource(Res.string.profile_account_my_items_headline),
+                        supportingText = stringResource(Res.string.profile_account_my_items_supporting),
                         onClick = onOpenMyItems,
                     ),
                     ListSectionItem(
-                        headlineText = "Rank",
-                        supportingText = "Skill rating · multiplayer only",
+                        headlineText = stringResource(Res.string.profile_account_rank_headline),
+                        supportingText = stringResource(Res.string.profile_account_rank_supporting),
                         accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
-                            text = if (settings.rank <= 0) "Unranked" else settings.rank.toString(),
+                            text = if (settings.rank <= 0) {
+                                stringResource(Res.string.profile_account_rank_unranked)
+                            } else {
+                                settings.rank.toString()
+                            },
                         ),
                         onClick = onTapRank,
                     ),
                     ListSectionItem(
-                        headlineText = "Stats",
-                        supportingText = "XP, hands played, achievements",
+                        headlineText = stringResource(Res.string.profile_account_stats_headline),
+                        supportingText = stringResource(Res.string.profile_account_stats_supporting),
                         accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
                             text = settings.xp.toString(),
                         ),
@@ -158,16 +219,16 @@ fun ProfileScreen(
             VerticalSpacerD800()
 
             ListSection(
-                title = "Support",
+                title = stringResource(Res.string.profile_section_support),
                 items = listOf(
                     ListSectionItem(
-                        headlineText = "Send feedback",
-                        supportingText = "Tell us what's working and what isn't",
+                        headlineText = stringResource(Res.string.profile_support_feedback_headline),
+                        supportingText = stringResource(Res.string.profile_support_feedback_supporting),
                         onClick = onSendFeedback,
                     ),
                     ListSectionItem(
-                        headlineText = "Report a bug",
-                        supportingText = "Something broken? Let us know",
+                        headlineText = stringResource(Res.string.profile_support_bug_headline),
+                        supportingText = stringResource(Res.string.profile_support_bug_supporting),
                         onClick = onReportBug,
                     ),
                 ),
@@ -176,14 +237,14 @@ fun ProfileScreen(
             VerticalSpacerD800()
 
             ListSection(
-                title = "About",
+                title = stringResource(Res.string.profile_section_about),
                 items = listOf(
                     ListSectionItem(
-                        headlineText = "Privacy policy",
+                        headlineText = stringResource(Res.string.profile_about_privacy),
                         onClick = onPrivacyPolicy,
                     ),
                     ListSectionItem(
-                        headlineText = "Terms of service",
+                        headlineText = stringResource(Res.string.profile_about_terms),
                         onClick = onTermsOfService,
                     ),
                 ),
@@ -202,7 +263,13 @@ fun ProfileScreen(
                     enabled = !isSigningOut,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (isSigningOut) "Signing out…" else "Sign out")
+                    Text(
+                        if (isSigningOut) {
+                            stringResource(Res.string.profile_sign_out_button_progress)
+                        } else {
+                            stringResource(Res.string.profile_sign_out_button)
+                        }
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
@@ -210,18 +277,18 @@ fun ProfileScreen(
                     style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Text,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Delete account")
+                    Text(stringResource(Res.string.profile_delete_account_button))
                 }
             }
 
             if (settings.showQaMenu) {
                 VerticalSpacerD800()
                 ListSection(
-                    title = "Debug",
+                    title = stringResource(Res.string.profile_section_debug),
                     items = listOf(
                         ListSectionItem(
-                            headlineText = "QA menu",
-                            supportingText = "Override config values for this session",
+                            headlineText = stringResource(Res.string.profile_debug_qa_headline),
+                            supportingText = stringResource(Res.string.profile_debug_qa_supporting),
                             onClick = onOpenQaMenu,
                         ),
                     ),
@@ -232,7 +299,7 @@ fun ProfileScreen(
             // App version as a quiet, centered footer rather than a table cell.
             // It's a "where am I in the release cycle" reference, not an action.
             Text(
-                text = "v${settings.appVersion}",
+                text = stringResource(Res.string.profile_app_version_footer, settings.appVersion),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -260,11 +327,15 @@ private fun SignOutConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val title = if (isAnonymous) "Sign out of guest account?" else "Sign out?"
-    val body = if (isAnonymous) {
-        "Your chips, XP, and game history are tied to this guest account. Signing out drops them. To keep your progress, choose 'Claim your account' instead."
+    val title = if (isAnonymous) {
+        stringResource(Res.string.profile_sign_out_dialog_anonymous_title)
     } else {
-        "You'll be returned to the welcome screen. Your account stays — sign in again any time to come back."
+        stringResource(Res.string.profile_sign_out_dialog_claimed_title)
+    }
+    val body = if (isAnonymous) {
+        stringResource(Res.string.profile_sign_out_dialog_anonymous_body)
+    } else {
+        stringResource(Res.string.profile_sign_out_dialog_claimed_body)
     }
     com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
         onDismissRequest = onDismiss,
@@ -287,7 +358,7 @@ private fun SignOutConfirmDialog(
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Sign out")
+                Text(stringResource(Res.string.profile_sign_out_dialog_confirm_button))
             }
             Spacer(modifier = Modifier.height(8.dp))
             com.dangerfield.cards.libraries.ui.components.button.Button(
@@ -295,7 +366,7 @@ private fun SignOutConfirmDialog(
                 style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Text,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Cancel")
+                Text(stringResource(Res.string.profile_sign_out_dialog_cancel_button))
             }
         }
     }
@@ -325,23 +396,23 @@ private fun GameplaySection(
     var turnFeedbackExpanded by remember { mutableStateOf(false) }
 
     ListSection(
-        title = "Gameplay",
+        title = stringResource(Res.string.profile_section_gameplay),
         items = listOf(
             ListSectionItem(
-                headlineText = "How to play",
-                supportingText = "Replay the 2-minute poker tutorial",
+                headlineText = stringResource(Res.string.profile_gameplay_tutorial_headline),
+                supportingText = stringResource(Res.string.profile_gameplay_tutorial_supporting),
                 onClick = onOpenTutorial,
             ),
             ListSectionItem(
-                headlineText = "Bot speed",
-                supportingText = "How fast the bots think and act",
+                headlineText = stringResource(Res.string.profile_gameplay_bot_speed_headline),
+                supportingText = stringResource(Res.string.profile_gameplay_bot_speed_supporting),
                 accessory = ListItemAccessory.Custom {
                     DropdownAccessory(
-                        text = botSpeed.label,
+                        text = stringResource(botSpeed.labelResource()),
                         expanded = botSpeedExpanded,
                         onDismiss = { botSpeedExpanded = false },
                         options = com.dangerfield.cards.libraries.cards.BotSpeed.entries.toList(),
-                        label = { it.label },
+                        label = { stringResource(it.labelResource()) },
                         onSelect = {
                             botSpeedExpanded = false
                             onBotSpeedChange(it)
@@ -351,16 +422,16 @@ private fun GameplaySection(
                 onClick = { botSpeedExpanded = true },
             ),
             ListSectionItem(
-                headlineText = "Your turn feedback",
-                supportingText = "Cue when it becomes your turn",
+                headlineText = stringResource(Res.string.profile_gameplay_turn_feedback_headline),
+                supportingText = stringResource(Res.string.profile_gameplay_turn_feedback_supporting),
                 accessory = ListItemAccessory.Custom {
                     val displayed = turnFeedback.pickerDisplayValue()
                     DropdownAccessory(
-                        text = displayed.label,
+                        text = stringResource(displayed.labelResource()),
                         expanded = turnFeedbackExpanded,
                         onDismiss = { turnFeedbackExpanded = false },
                         options = turnFeedbackPickerOptions,
-                        label = { it.label },
+                        label = { stringResource(it.labelResource()) },
                         onSelect = {
                             turnFeedbackExpanded = false
                             onTurnFeedbackChange(it)
@@ -373,13 +444,27 @@ private fun GameplaySection(
     )
 }
 
+private fun com.dangerfield.cards.libraries.cards.BotSpeed.labelResource(): StringResource =
+    when (this) {
+        com.dangerfield.cards.libraries.cards.BotSpeed.Slow -> Res.string.profile_bot_speed_slow
+        com.dangerfield.cards.libraries.cards.BotSpeed.Normal -> Res.string.profile_bot_speed_normal
+        com.dangerfield.cards.libraries.cards.BotSpeed.Fast -> Res.string.profile_bot_speed_fast
+    }
+
+private fun com.dangerfield.cards.libraries.cards.TurnFeedback.labelResource(): StringResource =
+    when (this) {
+        com.dangerfield.cards.libraries.cards.TurnFeedback.Mute -> Res.string.profile_turn_feedback_mute
+        com.dangerfield.cards.libraries.cards.TurnFeedback.Sound -> Res.string.profile_turn_feedback_sound
+        com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate -> Res.string.profile_turn_feedback_vibrate
+    }
+
 @Composable
 private fun <T> DropdownAccessory(
     text: String,
     expanded: Boolean,
     onDismiss: () -> Unit,
     options: List<T>,
-    label: (T) -> String,
+    label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
 ) {
     Box {
@@ -445,7 +530,7 @@ private fun ProfileHeader(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    icon = Icons.Pencil("Edit profile"),
+                    icon = Icons.Pencil(stringResource(Res.string.profile_avatar_edit_a11y)),
                     size = IconSize.Small,
                     color = AppTheme.colors.onSurfaceSecondary,
                 )
@@ -480,7 +565,11 @@ private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier)
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            text = "Level ${progress.level} · ${formatThousands(progress.totalXp)} XP",
+            text = stringResource(
+                Res.string.profile_level_summary_level_xp,
+                progress.level,
+                formatThousands(progress.totalXp),
+            ),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
@@ -489,7 +578,11 @@ private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier)
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",
+            text = stringResource(
+                Res.string.profile_level_summary_to_next_level,
+                formatThousands(progress.xpToNextLevel),
+                progress.level + 1,
+            ),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
         )
@@ -527,12 +620,12 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = "Claim your account",
+                text = stringResource(Res.string.profile_claim_card_title),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.text,
             )
             Text(
-                text = "Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.",
+                text = stringResource(Res.string.profile_claim_card_body),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.text,
             )
@@ -546,7 +639,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Get started",
+                    text = stringResource(Res.string.profile_claim_card_cta),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.text,
                 )
