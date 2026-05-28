@@ -16,6 +16,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_bug_char_counter
+import cards.libraries.resources.generated.resources.profile_bug_context_error_code_label
+import cards.libraries.resources.generated.resources.profile_bug_context_report_id_label
+import cards.libraries.resources.generated.resources.profile_bug_context_section_title
+import cards.libraries.resources.generated.resources.profile_bug_field_email_label
+import cards.libraries.resources.generated.resources.profile_bug_field_email_placeholder
+import cards.libraries.resources.generated.resources.profile_bug_field_message_label
+import cards.libraries.resources.generated.resources.profile_bug_field_message_placeholder
+import cards.libraries.resources.generated.resources.profile_bug_hero
+import cards.libraries.resources.generated.resources.profile_bug_submit_button
+import cards.libraries.resources.generated.resources.profile_bug_submit_button_progress
+import cards.libraries.resources.generated.resources.profile_bug_title
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD1000
@@ -30,6 +43,7 @@ import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private const val BUG_REPORT_CHAR_LIMIT = 180
@@ -48,7 +62,7 @@ fun BugReportScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopBar(
-                title = "Report a Bug",
+                title = stringResource(Res.string.profile_bug_title),
                 onNavigateBack = { onAction(BugReportAction.Back) },
                 scrollState = scrollState,
             )
@@ -67,7 +81,7 @@ fun BugReportScreen(
             VerticalSpacerD1000()
 
             if (state.hasContext) {
-                SectionCard(title = "Captured details") {
+                SectionCard(title = stringResource(Res.string.profile_bug_context_section_title)) {
                     state.contextMessage?.let {
                         Text(
                             text = it,
@@ -78,14 +92,14 @@ fun BugReportScreen(
 
                     state.errorCode?.let {
                         SummaryRow(
-                            label = "Error code",
+                            label = stringResource(Res.string.profile_bug_context_error_code_label),
                             value = "$it"
                         )
                     }
 
                     state.logId?.let {
                         SummaryRow(
-                            label = "Report id",
+                            label = stringResource(Res.string.profile_bug_context_report_id_label),
                             value = it
                         )
                     }
@@ -95,7 +109,7 @@ fun BugReportScreen(
             }
 
             Text(
-                text = "Help us understand what went wrong. We would love to fix it!",
+                text = stringResource(Res.string.profile_bug_hero),
                 typography = AppTheme.typography.Body.B700,
                 color = AppTheme.colors.textSecondary
             )
@@ -111,8 +125,8 @@ fun BugReportScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(Dimension.D1900),
-                label = { Text("Message") },
-                placeholder = { Text("Describe what happened…") },
+                label = { Text(stringResource(Res.string.profile_bug_field_message_label)) },
+                placeholder = { Text(stringResource(Res.string.profile_bug_field_message_placeholder)) },
                 singleLine = false,
                 minLines = 6,
                 maxLines = 10,
@@ -127,8 +141,8 @@ fun BugReportScreen(
                     onAction(BugReportAction.EmailChanged(newValue.take(EMAIL_CHAR_LIMIT)))
                 },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Email (so we can follow up)") },
-                placeholder = { Text("optional") },
+                label = { Text(stringResource(Res.string.profile_bug_field_email_label)) },
+                placeholder = { Text(stringResource(Res.string.profile_bug_field_email_placeholder)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions.Default.copy(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
@@ -159,7 +173,11 @@ fun BugReportScreen(
                 }
 
                 Text(
-                    text = "$messageLength/$BUG_REPORT_CHAR_LIMIT",
+                    text = stringResource(
+                        Res.string.profile_bug_char_counter,
+                        messageLength,
+                        BUG_REPORT_CHAR_LIMIT,
+                    ),
                     color = counterColor,
                     typography = AppTheme.typography.Body.B500
                 )
@@ -187,7 +205,13 @@ fun BugReportScreen(
                     }
                 }
             ) {
-                Text(if (state.isSubmitting) "Sending…" else "Send")
+                Text(
+                    if (state.isSubmitting) {
+                        stringResource(Res.string.profile_bug_submit_button_progress)
+                    } else {
+                        stringResource(Res.string.profile_bug_submit_button)
+                    }
+                )
             }
 
             VerticalSpacerD500()
