@@ -290,6 +290,7 @@
     <string name="profile_avatar_edit_a11y">Edit profile</string>
     <string name="profile_level_summary_level_xp">Level %1$d · %2$s XP</string>
     <string name="profile_level_summary_to_next_level">%1$s XP to level %2$d</string>
+    <string name="profile_header_member_since">Member since %1$s %2$d</string>
 
     <!-- Profile — Anonymous-only "claim your account" hero card. -->
     <string name="profile_claim_card_title">Claim your account</string>

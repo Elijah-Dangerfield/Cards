@@ -1,5 +1,12 @@
 **Stashed WIP — resolved:** A prior worker stashed mid-flight test edits to `ChipsRepositoryImplSyncTest.kt` as `stash@{0}: worker-postsweep-chips-lifecycle-tests-mystery-20260528-124013` (note in the previous in-flight version). Those edits were my work-in-progress on the ChipsRepository lifecycle-path todo from a concurrent run; the proper, working version ships in the `test(chips)` block below. The stash is superseded — reviewer can `git stash drop stash@{0}` after confirming the new tests cover the same surface (`onColdBoot` triggers sync; `onForeground(isColdBoot=true)` no-ops; `syncMutex` serializes).
 
+## feat(profile): surface "Member since {Month YYYY}" on ProfileHeader
+
+**Problem:** Spec §6.2 lists "Member-since date" as a profile field, and `Profile.Authenticated.createdAt: Instant` already carries it, but `ProfileHeader` rendered avatar + name + LevelSummary with no member-since affordance.
+**Approach:** Threaded `authenticated?.createdAt` into a new `ProfileSettings.memberSince: Instant?` and rendered a subdued `Body.B400` / `textSecondary` caption between the display name and LevelSummary when the field is non-null. Formatter follows the existing `SeatTenure` pattern: `Instant.toLocalDateTime(TimeZone.currentSystemDefault())` → `Month` resource + year, dropped into a new `profile_header_member_since` string ("Member since %1$s %2$d"). Fallback profiles naturally skip the row (no `createdAt`), matching the spec's "degrade gracefully" guidance. Updated the Claimed preview to seed a fixed `Instant` so the row renders in Studio.
+**Reviewer notes:** The `monthResource(Int) → StringResource` switch is duplicated from `features/room/impl/.../SeatTenure.kt` — both call sites are tiny, so the lift wasn't worth pulling into a shared module right now; if a third call site lands, lift it. Flagging here so it's visible.
+**Deferred:** Could lift `monthResource` + `Instant→"Month Year"` into `:libraries:ui` or `:libraries:cards` once a third caller appears — noting inline, nothing tracked yet.
+
 ## test(chips): pin ChipsRepositoryImpl lifecycle hooks + sync mutex
 
 **Problem:** `ChipsRepositoryImplSyncTest` pinned the per-outcome sync reconciliation but left the `AppEventListener` surface uncovered — `onColdBoot` launching a sync, `onForeground(isColdBoot=true)` defer-to-cold-boot guard, and the `syncMutex`'s serialization contract had no tests.
