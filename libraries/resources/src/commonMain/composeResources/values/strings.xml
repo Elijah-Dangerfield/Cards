@@ -552,6 +552,29 @@
     <string name="room_player_profile_mute_emoji_supporting_muted">You won\'t see their table blasts.</string>
     <string name="room_player_profile_mute_emoji_supporting_unmuted">Their blasts will show on your screen.</string>
 
+    <!-- Room — Seat tenure ("At this table" rows: hand count + when-you-joined). -->
+    <string name="room_seat_tenure_hands_single">1 hand at this table</string>
+    <string name="room_seat_tenure_hands_multi">%1$d hands at this table</string>
+    <string name="room_seat_tenure_supporting_human">Hands you\'ve shared with this table.</string>
+    <string name="room_seat_tenure_supporting_other">Hands they\'ve shared with this table.</string>
+    <string name="room_seat_tenure_playing_since">Playing since %1$s %2$d</string>
+    <string name="room_seat_tenure_playing_since_supporting">When your account joined.</string>
+
+    <!-- Calendar — Month names (used wherever a friendly Month + Year string is built). -->
+    <string name="month_january">January</string>
+    <string name="month_february">February</string>
+    <string name="month_march">March</string>
+    <string name="month_april">April</string>
+    <string name="month_may">May</string>
+    <string name="month_june">June</string>
+    <string name="month_july">July</string>
+    <string name="month_august">August</string>
+    <string name="month_september">September</string>
+    <string name="month_october">October</string>
+    <string name="month_november">November</string>
+    <string name="month_december">December</string>
+    <string name="month_unknown">—</string>
+
     <!-- Room — Bot playing-style archetypes (derived label + description per personality). -->
     <string name="room_player_profile_style_maniac_label">Maniac</string>
     <string name="room_player_profile_style_maniac_description">Plays nearly every hand and bets big. Bluffs often — hard to fold to, but hard to trust.</string>
