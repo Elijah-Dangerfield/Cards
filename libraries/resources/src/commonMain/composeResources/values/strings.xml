@@ -17,13 +17,13 @@
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>
-    <string name="shop_snackbar_offer_expired_message">That offer\'s window closed. Refreshed the shop.</string>
+    <string name="shop_snackbar_offer_expired_message">That offer's window closed. Refreshed the shop.</string>
     <string name="shop_snackbar_chips_added_title">Chips added</string>
     <string name="shop_snackbar_chips_added_message">+%1$s chips</string>
     <string name="shop_snackbar_chips_restored_title">Restored</string>
     <string name="shop_snackbar_chips_restored_message">+%1$s chips re-credited from a prior purchase.</string>
     <string name="shop_snackbar_store_unavailable_title">Store unavailable</string>
-    <string name="shop_snackbar_store_unavailable_message">Couldn\'t reach the App Store right now. Try again in a moment.</string>
+    <string name="shop_snackbar_store_unavailable_message">Couldn't reach the App Store right now. Try again in a moment.</string>
     <string name="shop_snackbar_not_signed_in_title">Sign in first</string>
     <string name="shop_snackbar_not_signed_in_message">Purchases require a signed-in account.</string>
     <string name="shop_snackbar_purchase_failed_title">Purchase failed</string>
@@ -44,7 +44,7 @@
     <string name="shop_empty_subtitle">Might be a bug? New chip packs and cosmetics drop weekly. Check back soon.</string>
 
     <!-- Shop — error banner shown when the catalog fetch fails. -->
-    <string name="shop_error_title">Couldn\'t load shop</string>
+    <string name="shop_error_title">Couldn't load shop</string>
     <string name="shop_error_retry">Retry</string>
 
     <!-- Lobby — top-bar titles. Two phases: pre-room (Idle) vs. in-room. -->
@@ -52,7 +52,7 @@
     <string name="lobby_topbar_title_in_room">Game room</string>
 
     <!-- Lobby — Idle (no room yet): hero copy + create + join affordances. -->
-    <string name="lobby_idle_subtitle">Start a new room and share the code — or type a friend\'s code to join theirs.</string>
+    <string name="lobby_idle_subtitle">Start a new room and share the code — or type a friend's code to join theirs.</string>
     <string name="lobby_idle_create_button">Create a room</string>
     <string name="lobby_idle_create_button_progress">Creating…</string>
     <string name="lobby_idle_or_join_heading">Or join with a code</string>
@@ -79,7 +79,7 @@
 
     <!-- Onboarding — Welcome step (entry screen). -->
     <string name="onboarding_welcome_title">Cards</string>
-    <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they\'re busy.</string>
+    <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
     <string name="onboarding_welcome_oauth_apple"> Apple</string>
@@ -111,7 +111,7 @@
 
     <!-- Home — Friends strip header + empty state + see-all label variants. -->
     <string name="home_friends_section_title">Friends</string>
-    <string name="home_friends_empty_state">Friends grow from the felt — play someone, then add them from \"Recently played with\".</string>
+    <string name="home_friends_empty_state">Friends grow from the felt — play someone, then add them from "Recently played with".</string>
     <string name="home_friends_see_all">See all</string>
     <string name="home_friends_see_all_with_online">%1$d online · See all</string>
     <string name="home_friends_see_all_with_one_request">1 request · See all</string>
@@ -134,11 +134,11 @@
     <string name="home_coming_soon_quick_match_title">Quick Match</string>
     <string name="home_coming_soon_quick_match_body">Public matchmaking ships once we have enough humans playing to keep wait times short. Until then, grab a Friend Game or a Practice table.</string>
     <string name="home_coming_soon_friends_title">Friends</string>
-    <string name="home_coming_soon_friends_body">Adding friends, online presence, and the requests inbox all land together. Friends grow from the felt — anyone you face will surface in \'Recently played with\' below, ready to add the moment the graph ships.</string>
+    <string name="home_coming_soon_friends_body">Adding friends, online presence, and the requests inbox all land together. Friends grow from the felt — anyone you face will surface in 'Recently played with' below, ready to add the moment the graph ships.</string>
     <string name="home_coming_soon_friend_requests_title">Friend requests</string>
-    <string name="home_coming_soon_friend_requests_body">Sending friend requests ships with the friend graph. We hang onto who you\'ve played with so you can opt in the moment that lands.</string>
+    <string name="home_coming_soon_friend_requests_body">Sending friend requests ships with the friend graph. We hang onto who you've played with so you can opt in the moment that lands.</string>
     <string name="home_coming_soon_recently_played_title">Recently played with</string>
-    <string name="home_coming_soon_recently_played_body">The full history of humans you\'ve played comes with Quick Match + Friend Games. For now we\'re showing the most recent at the table.</string>
+    <string name="home_coming_soon_recently_played_body">The full history of humans you've played comes with Quick Match + Friend Games. For now we're showing the most recent at the table.</string>
 
     <!-- Home — "ongoing game" rejoin/forfeit banner. -->
     <string name="home_active_room_title">You have an ongoing game</string>
@@ -158,14 +158,14 @@
 
     <!-- Home — Welcome dialog (one-shot starter-grant intro on first launch). -->
     <string name="home_welcome_dialog_greeting">Welcome,</string>
-    <string name="home_welcome_dialog_gift_line">Here\'s a little gift from us to start with.</string>
+    <string name="home_welcome_dialog_gift_line">Here's a little gift from us to start with.</string>
     <string name="home_welcome_dialog_chip_use_line">Use these to play against other players and buy upgrades.</string>
-    <string name="home_welcome_dialog_daily_grant_line">Open the app every day this week — we\'ll add another 500 chips, on us.</string>
-    <string name="home_welcome_dialog_primary_cta">Let\'s play</string>
+    <string name="home_welcome_dialog_daily_grant_line">Open the app every day this week — we'll add another 500 chips, on us.</string>
+    <string name="home_welcome_dialog_primary_cta">Let's play</string>
 
     <!-- Home — Practice (bot-table) setup dialog. -->
     <string name="home_bot_setup_title">Practice table</string>
-    <string name="home_bot_setup_subtitle_heads_up">Heads-up against one %1$s bot. Fast and aggressive — you\'re always in the action.</string>
+    <string name="home_bot_setup_subtitle_heads_up">Heads-up against one %1$s bot. Fast and aggressive — you're always in the action.</string>
     <string name="home_bot_setup_subtitle_four">Four-handed %1$s table. Balanced pace, room to play position.</string>
     <string name="home_bot_setup_subtitle_six">Full ring with five %1$s bots. Slower, more strategic — fold more, pick spots.</string>
     <string name="home_bot_setup_subtitle_other">%1$s table with %2$d bots.</string>
@@ -173,7 +173,7 @@
     <string name="home_bot_setup_seats_label">Seats</string>
     <string name="home_bot_setup_seat_summary_heads_up">%1$d bots, you, heads-up</string>
     <string name="home_bot_setup_seat_summary_other">%1$d bots, you, %2$d seats</string>
-    <string name="home_bot_setup_balance_disclaimer">Bot tables don\'t move your chip balance.</string>
+    <string name="home_bot_setup_balance_disclaimer">Bot tables don't move your chip balance.</string>
     <string name="home_bot_setup_start_button">Start</string>
 
     <!-- Auth — shared back affordance + field labels used by every screen. -->
@@ -189,19 +189,19 @@
     <string name="auth_sign_in_oauth_divider">— or —</string>
     <string name="auth_sign_in_submit_button">Sign in</string>
     <string name="auth_sign_in_submit_button_progress">Signing in…</string>
-    <string name="auth_sign_in_to_create_account_button">Don\'t have an account? Create one</string>
+    <string name="auth_sign_in_to_create_account_button">Don't have an account? Create one</string>
 
     <!-- Auth — SignUp screen. -->
     <string name="auth_sign_up_title">Create your account</string>
-    <string name="auth_sign_up_subtitle">Save your chips + progress. We\'ll send a verification email.</string>
+    <string name="auth_sign_up_subtitle">Save your chips + progress. We'll send a verification email.</string>
     <string name="auth_sign_up_password_helper">At least %1$d characters</string>
     <string name="auth_sign_up_confirm_password_label">Confirm password</string>
-    <string name="auth_sign_up_password_mismatch_helper">Passwords don\'t match</string>
+    <string name="auth_sign_up_password_mismatch_helper">Passwords don't match</string>
     <string name="auth_sign_up_submit_button">Create account</string>
     <string name="auth_sign_up_submit_button_progress">Creating account…</string>
     <string name="auth_sign_up_to_sign_in_button">Already have an account? Sign in</string>
     <string name="auth_sign_up_claim_dialog_title">Save your progress to %1$s?</string>
-    <string name="auth_sign_up_claim_dialog_description">We\'ll send a verification link. Your chips, XP, and unlocks come with you to the new account.</string>
+    <string name="auth_sign_up_claim_dialog_description">We'll send a verification link. Your chips, XP, and unlocks come with you to the new account.</string>
     <string name="auth_sign_up_claim_dialog_primary">Send link</string>
     <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
 
@@ -215,7 +215,7 @@
     <string name="auth_verify_email_banner_still_pending">Email not yet confirmed. Tap the link in your inbox first.</string>
     <string name="auth_verify_email_banner_resend_sent">Verification email sent. Check your inbox.</string>
     <string name="auth_verify_email_banner_resend_rate_limited">Too many resends in a row. Wait a minute and try again.</string>
-    <string name="auth_verify_email_banner_network_error">Couldn\'t reach the server. Check your connection.</string>
+    <string name="auth_verify_email_banner_network_error">Couldn't reach the server. Check your connection.</string>
     <string name="auth_verify_email_banner_generic_error">Something went wrong. Try again.</string>
 
     <!-- Profile — top-level sections + footer. -->
@@ -254,7 +254,7 @@
 
     <!-- Profile — Support section rows. -->
     <string name="profile_support_feedback_headline">Send feedback</string>
-    <string name="profile_support_feedback_supporting">Tell us what\'s working and what isn\'t</string>
+    <string name="profile_support_feedback_supporting">Tell us what's working and what isn't</string>
     <string name="profile_support_bug_headline">Report a bug</string>
     <string name="profile_support_bug_supporting">Something broken? Let us know</string>
 
@@ -268,8 +268,8 @@
     <string name="profile_delete_account_button">Delete account</string>
     <string name="profile_sign_out_dialog_anonymous_title">Sign out of guest account?</string>
     <string name="profile_sign_out_dialog_claimed_title">Sign out?</string>
-    <string name="profile_sign_out_dialog_anonymous_body">Your chips, XP, and game history are tied to this guest account. Signing out drops them. To keep your progress, choose \'Claim your account\' instead.</string>
-    <string name="profile_sign_out_dialog_claimed_body">You\'ll be returned to the welcome screen. Your account stays — sign in again any time to come back.</string>
+    <string name="profile_sign_out_dialog_anonymous_body">Your chips, XP, and game history are tied to this guest account. Signing out drops them. To keep your progress, choose 'Claim your account' instead.</string>
+    <string name="profile_sign_out_dialog_claimed_body">You'll be returned to the welcome screen. Your account stays — sign in again any time to come back.</string>
     <string name="profile_sign_out_dialog_confirm_button">Sign out</string>
     <string name="profile_sign_out_dialog_cancel_button">Cancel</string>
 
@@ -302,7 +302,7 @@
     <string name="profile_edit_save_button">Save</string>
     <string name="profile_edit_save_button_progress">Saving…</string>
     <string name="profile_edit_avatars_loading">Loading…</string>
-    <string name="profile_edit_avatars_load_error">Avatars couldn\'t load. You can still save your current avatar.</string>
+    <string name="profile_edit_avatars_load_error">Avatars couldn't load. You can still save your current avatar.</string>
     <string name="profile_edit_pack_locked_prefix">🔒  %1$s</string>
     <string name="profile_edit_pack_unlock_button">Get in shop</string>
 
@@ -325,14 +325,14 @@
     <string name="profile_delete_bullet_progress">Your chips, XP, level, rank, and unlocked achievements.</string>
     <string name="profile_delete_bullet_history">Your hand history.</string>
     <string name="profile_delete_bullet_oauth">Any linked Apple/Google identity on this account.</string>
-    <string name="profile_delete_confirm_input_label">Type \"%1$s\" to confirm</string>
+    <string name="profile_delete_confirm_input_label">Type "%1$s" to confirm</string>
     <string name="profile_delete_submit_button">Delete my account</string>
     <string name="profile_delete_submit_button_progress">Deleting…</string>
     <string name="profile_delete_cancel_button">Cancel</string>
 
     <!-- Profile — Send feedback form. -->
     <string name="profile_feedback_title">Share Your Feedback</string>
-    <string name="profile_feedback_hero">We\'d love to hear from you</string>
+    <string name="profile_feedback_hero">We'd love to hear from you</string>
     <string name="profile_feedback_field_message_label">Message</string>
     <string name="profile_feedback_field_message_placeholder">Describe what happened…</string>
     <string name="profile_feedback_field_email_label">Email (so we can follow up)</string>
@@ -365,7 +365,7 @@
     <string name="profile_my_items_button_equip">Equip</string>
     <string name="profile_my_items_button_unequip">Unequip</string>
     <string name="profile_my_items_empty_title">No items yet</string>
-    <string name="profile_my_items_empty_body">Pick up card backs, felts, and emote packs from the shop. Once you own them, they\'ll show up here.</string>
+    <string name="profile_my_items_empty_body">Pick up card backs, felts, and emote packs from the shop. Once you own them, they'll show up here.</string>
 
     <!-- Onboarding — HowItWorks step (final explainer). -->
     <string name="onboarding_how_eyebrow">LAST THING</string>
@@ -380,14 +380,14 @@
 
     <!-- Room — Leave-bots confirm dialog (back-press while a hand is in progress). -->
     <string name="room_leave_bots_title">Leave the table?</string>
-    <string name="room_leave_bots_body">You\'ll lose progress on this hand. Your XP and chips are saved.</string>
+    <string name="room_leave_bots_body">You'll lose progress on this hand. Your XP and chips are saved.</string>
     <string name="room_leave_bots_stay_button">Stay</string>
     <string name="room_leave_bots_leave_button">Leave</string>
 
     <!-- Room — Swipe-fold confirm dialog (swipe-down to fold while in a hand). -->
     <string name="room_swipe_fold_title">Fold this hand?</string>
-    <string name="room_swipe_fold_body">You\'ll forfeit the round and any chips already in the pot.</string>
-    <string name="room_swipe_fold_dont_show_again">Don\'t show this again</string>
+    <string name="room_swipe_fold_body">You'll forfeit the round and any chips already in the pot.</string>
+    <string name="room_swipe_fold_dont_show_again">Don't show this again</string>
     <string name="room_swipe_fold_cancel_button">Cancel</string>
     <string name="room_swipe_fold_confirm_button">Fold</string>
 
@@ -395,14 +395,14 @@
     <string name="room_pot_explainer_title">The pot</string>
     <string name="room_pot_explainer_body">Every bet and call this hand stacks into the pot. The player with the best hand at showdown wins it all.</string>
 
-    <!-- Room — Stack explainer (tap on the human\'s own chip stack on the bot table). -->
+    <!-- Room — Stack explainer (tap on the human's own chip stack on the bot table). -->
     <string name="room_stack_explainer_title">You have %1$s chips</string>
     <string name="room_stack_explainer_body">Use them to bet, call, and raise during a hand. Chips you put in go to the pot — the player with the best hand at showdown wins it.</string>
-    <string name="room_stack_explainer_practice_note">Go bust against bots and a fresh stack arrives next hand. Practice chips don\'t count for keeps.</string>
+    <string name="room_stack_explainer_practice_note">Go bust against bots and a fresh stack arrives next hand. Practice chips don't count for keeps.</string>
 
-    <!-- Room — Bet-pill explainer (tap on a player\'s gold bet pill). -->
+    <!-- Room — Bet-pill explainer (tap on a player's gold bet pill). -->
     <string name="room_bet_pill_explainer_title">%1$s put in %2$s</string>
-    <string name="room_bet_pill_explainer_body">That\'s how many chips they\'ve added to the pot on this betting round. It resets when the next card hits the board.</string>
+    <string name="room_bet_pill_explainer_body">That's how many chips they've added to the pot on this betting round. It resets when the next card hits the board.</string>
 
     <!-- Room — Blind-roles explainer (tap any of the D / SB / BB chips). -->
     <string name="room_blind_roles_title">Table positions</string>
@@ -416,22 +416,22 @@
     <string name="room_blind_roles_big_blind_title">Big blind</string>
     <string name="room_blind_roles_big_blind_description">Forced full bet, posted left of the small blind. The minimum opening bet for the hand.</string>
 
-    <!-- Room — Last-action explainer (tap a player\'s "Folded" / "Called 10" / etc. pill). -->
+    <!-- Room — Last-action explainer (tap a player's "Folded" / "Called 10" / etc. pill). -->
     <string name="room_last_action_headline_fold">%1$s folded</string>
     <string name="room_last_action_headline_check">%1$s checked</string>
     <string name="room_last_action_headline_call">%1$s called %2$s</string>
     <string name="room_last_action_headline_bet">%1$s bet %2$s</string>
     <string name="room_last_action_headline_raise">%1$s raised to %2$s</string>
     <string name="room_last_action_headline_all_in">%1$s went all in for %2$s</string>
-    <string name="room_last_action_body_fold">Fold means giving up the hand. Any chips already in the pot stay there — they don\'t come back.</string>
-    <string name="room_last_action_body_check">Check passes the action without putting any chips in. Only legal when there\'s nothing to call.</string>
+    <string name="room_last_action_body_fold">Fold means giving up the hand. Any chips already in the pot stay there — they don't come back.</string>
+    <string name="room_last_action_body_check">Check passes the action without putting any chips in. Only legal when there's nothing to call.</string>
     <string name="room_last_action_body_call">Call matches the current bet so they can stay in the hand. No raise, just keeping up.</string>
     <string name="room_last_action_body_bet">Bet opens the betting on this street. Everyone else now has to call, raise, or fold.</string>
     <string name="room_last_action_body_raise">Raise increases the current bet. Everyone else who wants to stay in has to match the new total.</string>
-    <string name="room_last_action_body_all_in">All in means pushing their entire stack into the pot. They can\'t act again this hand.</string>
+    <string name="room_last_action_body_all_in">All in means pushing their entire stack into the pot. They can't act again this hand.</string>
     <string name="room_last_action_cheat_sheet_hint">Tap the ? icon up top for the full list of actions.</string>
 
-    <!-- Room — Hand-label explainer (tap the human\'s hand-label pill: "Pair", "Two pair", etc.). -->
+    <!-- Room — Hand-label explainer (tap the human's hand-label pill: "Pair", "Two pair", etc.). -->
     <string name="room_hand_label_body_royal_flush">Ten through Ace, all the same suit. The strongest hand in poker.</string>
     <string name="room_hand_label_body_straight_flush">Five cards in a row, all the same suit. Above four of a kind.</string>
     <string name="room_hand_label_body_four_of_a_kind">Four cards of the same rank. Beats every hand except a straight flush or royal flush.</string>
@@ -443,7 +443,7 @@
     <string name="room_hand_label_body_pocket_pair">Your two hole cards are the same rank — already a pair before any community cards. Strong starting hand.</string>
     <string name="room_hand_label_body_pair">Two cards of the same rank. Beats a high card.</string>
     <string name="room_hand_label_body_high_card">No combinations — the highest single card wins. The weakest hand category.</string>
-    <string name="room_hand_label_body_default">Your current hand, based on your hole cards and what\'s on the board.</string>
+    <string name="room_hand_label_body_default">Your current hand, based on your hole cards and what's on the board.</string>
     <string name="room_hand_label_cheat_sheet_hint">Tap the ? icon up top for the full ranking list with examples.</string>
 
     <!-- Room — Action sheet (Fold / All in / preset bet pills / stepper / confirm). -->
@@ -474,7 +474,7 @@
 
     <!-- Room — Bust dialog (human stack reached 0 this hand). -->
     <string name="room_bust_title">You went bust</string>
-    <string name="room_bust_body">Practice chips refilled — chips against bots don\'t count for keeps. Deal yourself in and keep sharpening up.</string>
+    <string name="room_bust_body">Practice chips refilled — chips against bots don't count for keeps. Deal yourself in and keep sharpening up.</string>
     <string name="room_bust_deal_me_in_button">Deal me in</string>
 
     <!-- Room — Achievement-unlocked callout (inline within hand-end dialogs in MP mode). -->
@@ -541,7 +541,7 @@
     <string name="room_cheat_sheet_street_explainer_turn">Fourth community card on the board. One more round of betting before the river — bets typically get bigger here.</string>
     <string name="room_cheat_sheet_street_explainer_river">Fifth and final community card. One last round of betting, then any remaining players show their cards.</string>
     <string name="room_cheat_sheet_street_explainer_showdown">All remaining players reveal their hands. Best 5-card hand using any combination of hole and community cards wins the pot.</string>
-    <string name="room_cheat_sheet_street_explainer_complete">Hand finished — chips are being awarded. Tap \"Next hand\" to play again.</string>
+    <string name="room_cheat_sheet_street_explainer_complete">Hand finished — chips are being awarded. Tap "Next hand" to play again.</string>
 
     <!-- Room — Tap-an-opponent profile sheet (per-seat playing style + difficulty + settings). -->
     <string name="room_player_profile_playing_style_heading">Playing style</string>
@@ -549,7 +549,7 @@
     <string name="room_player_profile_difficulty_section_title">Difficulty</string>
     <string name="room_player_profile_settings_section_title">Settings</string>
     <string name="room_player_profile_mute_emoji_headline">Mute emoji</string>
-    <string name="room_player_profile_mute_emoji_supporting_muted">You won\'t see their table blasts.</string>
+    <string name="room_player_profile_mute_emoji_supporting_muted">You won't see their table blasts.</string>
     <string name="room_player_profile_mute_emoji_supporting_unmuted">Their blasts will show on your screen.</string>
 
     <!-- Room — Seat badge (small pill rendered below avatar: human level vs bot difficulty). -->
@@ -604,7 +604,7 @@
     <string name="room_player_profile_style_tight_passive_label">Tight passive</string>
     <string name="room_player_profile_style_tight_passive_description">Folds often, rarely raises. A big bet from this seat usually means the goods.</string>
     <string name="room_player_profile_style_loose_passive_label">Loose passive</string>
-    <string name="room_player_profile_style_loose_passive_description">Calls a lot, rarely raises. Hard to push off marginal hands — value bet, don\'t bluff.</string>
+    <string name="room_player_profile_style_loose_passive_description">Calls a lot, rarely raises. Hard to push off marginal hands — value bet, don't bluff.</string>
     <string name="room_player_profile_style_balanced_label">Balanced</string>
     <string name="room_player_profile_style_balanced_description">Mixes it up. No single tendency to exploit — read each hand.</string>
 
@@ -616,7 +616,7 @@
     <!-- Room — BoardArea pot pill (small "POT" + amount label below community cards). -->
     <string name="room_board_pot_pill_label">POT</string>
 
-    <!-- Room — EmojiTray cooldown text shown on the tray\'s trigger button between blasts. -->
+    <!-- Room — EmojiTray cooldown text shown on the tray's trigger button between blasts. -->
     <string name="room_emoji_tray_cooldown">%1$ds</string>
 
     <!-- Room — Win/odds tile on the human seat (PlayerInfoTile back face). -->
@@ -628,7 +628,7 @@
     <string name="room_player_odds_dial_value">%1$d%%</string>
     <string name="room_player_odds_flip_a11y">Flip to see win odds</string>
 
-    <!-- Room — Bottom-of-table QuickActionBar (the Check/Call + Bet/Raise + more-options row on the human\'s turn). -->
+    <!-- Room — Bottom-of-table QuickActionBar (the Check/Call + Bet/Raise + more-options row on the human's turn). -->
     <string name="room_quick_action_raise_hint_no_chips">Not enough chips to raise — try All In via ↑</string>
     <string name="room_quick_action_check_button">Check</string>
     <string name="room_quick_action_call_button">Call %1$s</string>
