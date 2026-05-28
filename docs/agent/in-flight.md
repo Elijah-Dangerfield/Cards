@@ -28,6 +28,12 @@
 **Approach:** Added `LevelTest` covering the curve at known levels, the `<1` clamp on `xpToLevelUpFrom`, the level-from-XP boundaries (0, 99, 100, negative, beyond MAX_LEVEL), the three derived `LevelProgress` properties, plus a monotonicity sweep. New `commonTest.dependencies` block added to `:libraries:cards` (it had none) wired to `:libraries:flowroutines:testing` for source-set parity with the rest of the module graph; the tests themselves use plain `kotlin.test` because `Level.kt` is pure math.
 **Reviewer notes:** None.
 
+## fix(ui): stop AvatarCircle twitching on profile-tab visits
+
+**Problem:** The DS rule says identity content animates between states, not on mount, but `AvatarCircle` twitched every time the profile tab opened. The old `hasComposed` gate suppressed only the literal first composition; the tab mounts with the initial-fallback (emoji=null → first letter), profile data arrives a frame later with an emoji, and that second composition passed the gate — so the entrance transition fired for the "first real avatar value" on every visit.
+**Approach:** Replaced the `hasComposed` gate with `hasShownAnEmoji`, keyed on `LaunchedEffect(content.isEmoji)` so it only flips to `true` after a real emoji content lands. The placeholder → real-data hand-off no longer animates; EditProfile (which mounts with the user's current emoji already resolved) still animates every picker swap because the gate has flipped by the time the user taps.
+**Reviewer notes:** Edge case I considered but didn't try to engineer around: a user with no emoji set who edits their display name (initial letter changes A→B) won't get an animated letter swap, because `hasShownAnEmoji` never flips. This was acceptable: the symptom hits every user on every tab visit; the regression only hits the "no-emoji user renaming themselves" path which is rare. If we wanted to cover both, the right move is probably a separate "content has been stable for one frame" timer — overkill for this PR.
+
 ## fix(ui): kill red ripple on bottom-sheet drag handle
 
 **Problem:** Long-pressing the top of any bottom sheet flashed red. M3's `ModalBottomSheet` wraps its drag-handle slot in `Modifier.clickable` (for the a11y expand/collapse), whose default ripple resolves to `MaterialTheme.colorScheme.primary` — and `AppTheme.MaterialWrapper` deliberately paints every Material color `Color.Red` as a tripwire for un-DS'd widgets. The ripple was the tripwire firing legitimately.

@@ -72,20 +72,26 @@ fun AvatarCircle(
         contentAlignment = Alignment.Center,
     ) {
         // Animate emoji/initial changes so picker selections feel responsive
-        // (fade + slight scale-in on new, fade out on old). Matches the
-        // hero preview in edit-profile — every avatar surface routes through
-        // here so the transition is consistent app-wide.
+        // (fade + slight scale-in on new, fade out on old). Matches the hero
+        // preview in edit-profile — every avatar surface routes through here
+        // so the transition is consistent app-wide.
         //
-        // Only animate AFTER the first composition. AnimatedContent's
-        // entrance transition otherwise replays every time the avatar
-        // re-mounts (e.g. switching to the profile tab), which the user
-        // reads as the avatar "twitching" on every visit.
-        var hasComposed by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { hasComposed = true }
+        // Gate: only animate AFTER the first real emoji has rendered. The
+        // previous `hasComposed` gate (flip-after-first-composition) still
+        // let the entrance fire when the profile tab mounted with the
+        // initial-fallback then resolved a frame later to the user's emoji —
+        // every tab visit twitched. Keying the gate on `content.isEmoji`
+        // instead suppresses that placeholder → real-data hand-off, while
+        // EditProfile (which mounts with the user's current emoji already
+        // resolved) still animates every picker swap.
+        var hasShownAnEmoji by remember { mutableStateOf(false) }
+        LaunchedEffect(content.isEmoji) {
+            if (content.isEmoji) hasShownAnEmoji = true
+        }
         AnimatedContent(
             targetState = content,
             transitionSpec = {
-                if (hasComposed) {
+                if (hasShownAnEmoji) {
                     (fadeIn() + scaleIn(initialScale = 0.75f)) togetherWith fadeOut()
                 } else {
                     EnterTransition.None togetherWith ExitTransition.None
