@@ -36,6 +36,13 @@ import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.upgrade_debug_clear_overrides
+import cards.libraries.resources.generated.resources.upgrade_maintenance_blocking_title
+import cards.libraries.resources.generated.resources.upgrade_required_body
+import cards.libraries.resources.generated.resources.upgrade_required_cta
+import cards.libraries.resources.generated.resources.upgrade_required_title
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Renders blocking overlays (upgrade-required, maintenance) for the current
@@ -131,21 +138,21 @@ private fun MaintenanceBanner(message: String) {
 private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: () -> Unit) {
     BlockingScreen(debugEscape = { DebugEscapeHatch(onClearOverrides = onClearOverrides) }) {
         Text(
-            text = "Time to update",
+            text = stringResource(Res.string.upgrade_required_title),
             typography = AppTheme.typography.Heading.H700,
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "This version of Cards is no longer supported. Grab the latest from your app store to keep playing.",
+            text = stringResource(Res.string.upgrade_required_body),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(24.dp))
         ButtonPrimary(onClick = onOpenStore) {
-            Text("Update Cards")
+            Text(stringResource(Res.string.upgrade_required_cta))
         }
     }
 }
@@ -156,7 +163,7 @@ private fun MaintenanceBlockingOverlay(message: String, onClearOverrides: () -> 
         // TODO: replace this with a watchable animation/illustration so users
         // have something to look at while we're down for maintenance.
         Text(
-            text = "We'll be right back",
+            text = stringResource(Res.string.upgrade_maintenance_blocking_title),
             typography = AppTheme.typography.Heading.H700,
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
@@ -179,7 +186,7 @@ private fun DebugEscapeHatch(onClearOverrides: () -> Unit) {
         style = ButtonStyle.Text,
         size = ButtonSize.Small,
     ) {
-        Text("Clear overrides")
+        Text(stringResource(Res.string.upgrade_debug_clear_overrides))
     }
 }
 
