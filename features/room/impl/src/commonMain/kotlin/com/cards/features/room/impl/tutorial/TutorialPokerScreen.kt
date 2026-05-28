@@ -377,9 +377,9 @@ private fun StepCounterPill(
     ) {
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(999.dp))
+                .clip(Radii.Round.shape)
                 .background(AppTheme.colors.surfaceSecondary.color)
-                .border(1.dp, AppTheme.colors.border.color, RoundedCornerShape(999.dp))
+                .border(1.dp, AppTheme.colors.border.color, Radii.Round.shape)
                 .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
         ) {
             Text(
@@ -420,7 +420,7 @@ private fun ProgressDots(
             Box(
                 modifier = Modifier
                     .size(if (isCurrent) 8.dp else 6.dp)
-                    .clip(RoundedCornerShape(999.dp))
+                    .clip(Radii.Round.shape)
                     .background(
                         if (isCurrent) AppTheme.colors.text.color
                         else AppTheme.colors.textSecondary.color.copy(alpha = 0.4f),
