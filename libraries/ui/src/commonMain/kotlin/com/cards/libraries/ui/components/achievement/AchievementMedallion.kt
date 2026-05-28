@@ -34,11 +34,18 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.cards.formatThousands
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_achievement_medallion_earned_back
+import cards.libraries.resources.generated.resources.ui_achievement_medallion_earned_label
+import cards.libraries.resources.generated.resources.ui_achievement_medallion_how_to_earn
+import cards.libraries.resources.generated.resources.ui_achievement_medallion_locked_label
+import cards.libraries.resources.generated.resources.ui_achievement_medallion_unlocks
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -165,7 +172,7 @@ private fun MedallionFront(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (isMysteryLocked) "Locked" else achievement.name,
+                text = if (isMysteryLocked) stringResource(Res.string.ui_achievement_medallion_locked_label) else achievement.name,
                 typography = AppTheme.typography.Body.B500,
                 color = if (isMysteryLocked) AppTheme.colors.textSecondary else AppTheme.colors.text,
                 textAlign = TextAlign.Center,
@@ -175,7 +182,7 @@ private fun MedallionFront(
                 Spacer(modifier = Modifier.height(4.dp))
                 val target = achievement.criterion.target
                 val label = when {
-                    isEarned -> "Earned"
+                    isEarned -> stringResource(Res.string.ui_achievement_medallion_earned_label)
                     target > 1 -> "$progress / $target"
                     else -> "+${achievement.xpReward} XP"
                 }
@@ -210,8 +217,8 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
         ) {
             Text(
                 text = earnedAtEpochMs
-                    ?.let { "Earned · ${formatEarnedAgo(it)}" }
-                    ?: "How to earn",
+                    ?.let { stringResource(Res.string.ui_achievement_medallion_earned_back, formatEarnedAgo(it)) }
+                    ?: stringResource(Res.string.ui_achievement_medallion_how_to_earn),
                 typography = AppTheme.typography.Label.L400,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -235,7 +242,7 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
             cosmeticRewardFor(achievement.id)?.let { cosmetic ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Unlocks · ${cosmetic.label}",
+                    text = stringResource(Res.string.ui_achievement_medallion_unlocks, cosmetic.label),
                     typography = AppTheme.typography.Label.L400,
                     color = AppTheme.colors.textSecondary,
                     textAlign = TextAlign.Center,

@@ -24,9 +24,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_level_pill_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -54,7 +57,7 @@ fun LevelPill(
     modifier: Modifier = Modifier,
 ) {
     LeadingPill(
-        text = "Level ${progress.level}",
+        text = stringResource(Res.string.ui_level_pill_label, progress.level),
         modifier = modifier,
         onClick = onClick,
         leading = { XpBadge(fraction = progress.fraction) },

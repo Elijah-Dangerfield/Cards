@@ -25,12 +25,15 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.thenIf
 import com.dangerfield.cards.system.typography.TypographyResource
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_top_bar_back_a11y
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.HorizontalSpacerD500
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -63,7 +66,7 @@ fun TopBar(
             if (onNavigateBack != null) {
                 IconButton(
                     size = IconButton.Size.Medium,
-                    icon = Icons.ChevronLeft("Navigate back"),
+                    icon = Icons.ChevronLeft(stringResource(Res.string.ui_top_bar_back_a11y)),
                     enabled = backEnabled,
                     onClick = onNavigateBack
                 )
