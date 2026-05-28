@@ -30,6 +30,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.tutorial_ready_body
+import cards.libraries.resources.generated.resources.tutorial_ready_done_cta
+import cards.libraries.resources.generated.resources.tutorial_ready_title
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
@@ -47,6 +51,7 @@ import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -87,7 +92,7 @@ internal fun TutorialReadyScreen(
                 ReadyHero()
             }
             Text(
-                text = "You're ready.",
+                text = stringResource(Res.string.tutorial_ready_title),
                 typography = AppTheme.typography.Display.D1100.Italic,
                 color = ColorResource.Amber500,
                 textAlign = TextAlign.Center,
@@ -95,7 +100,7 @@ internal fun TutorialReadyScreen(
             )
             VerticalSpacerD500()
             Text(
-                text = "Raise the strong hands. Call when the price is right. Fold the rest. The bots are waiting in Practice.",
+                text = stringResource(Res.string.tutorial_ready_body),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -107,7 +112,7 @@ internal fun TutorialReadyScreen(
                 size = ButtonSize.Medium,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Done")
+                Text(stringResource(Res.string.tutorial_ready_done_cta))
             }
             VerticalSpacerD800()
         }

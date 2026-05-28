@@ -9,6 +9,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.tutorial_leave_dialog_back_to_basics_cta
+import cards.libraries.resources.generated.resources.tutorial_leave_dialog_body_already_basics
+import cards.libraries.resources.generated.resources.tutorial_leave_dialog_body_with_basics
+import cards.libraries.resources.generated.resources.tutorial_leave_dialog_cancel_cta
+import cards.libraries.resources.generated.resources.tutorial_leave_dialog_exit_cta
+import cards.libraries.resources.generated.resources.tutorial_leave_dialog_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -19,6 +26,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -51,16 +59,16 @@ internal fun TutorialLeaveDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Leave the tutorial?",
+                text = stringResource(Res.string.tutorial_leave_dialog_title),
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
                 textAlign = TextAlign.Center,
             )
             Text(
                 text = if (showBackToBasics) {
-                    "Bail out, or jump back to the basics primer if you need a refresher first."
+                    stringResource(Res.string.tutorial_leave_dialog_body_with_basics)
                 } else {
-                    "Exit the tutorial? You can restart it anytime from Settings."
+                    stringResource(Res.string.tutorial_leave_dialog_body_already_basics)
                 },
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
@@ -75,16 +83,16 @@ internal fun TutorialLeaveDialog(
                 ButtonPrimary(
                     onClick = onBackToBasics,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Back to basics") }
+                ) { Text(stringResource(Res.string.tutorial_leave_dialog_back_to_basics_cta)) }
                 ButtonSecondary(
                     onClick = onExit,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Exit tutorial") }
+                ) { Text(stringResource(Res.string.tutorial_leave_dialog_exit_cta)) }
 
                 Button(
                     onClick = onDismiss,
                     type = ButtonType.Ghost,
-                    content = { Text("Cancel") }
+                    content = { Text(stringResource(Res.string.tutorial_leave_dialog_cancel_cta)) }
                 )
             } else {
                 // On basics steps there's nothing to "go back to",
@@ -93,11 +101,11 @@ internal fun TutorialLeaveDialog(
                 ButtonPrimary(
                     onClick = onExit,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Exit tutorial") }
+                ) { Text(stringResource(Res.string.tutorial_leave_dialog_exit_cta)) }
                 ButtonSecondary(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Cancel") }
+                ) { Text(stringResource(Res.string.tutorial_leave_dialog_cancel_cta)) }
             }
         }
     }

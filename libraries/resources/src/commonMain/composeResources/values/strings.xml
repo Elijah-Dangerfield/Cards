@@ -676,4 +676,22 @@
     <string name="tutorial_actions_call_description">Match the current bet. Stay in the hand.</string>
     <string name="tutorial_actions_raise_label">Raise</string>
     <string name="tutorial_actions_raise_description">Bet more than the current bet. Pressure your opponents.</string>
+
+    <!-- Tutorial — Achievement-unlocked dialog (generic celebration: tutorial-complete is the first consumer). -->
+    <string name="achievement_unlocked_dialog_heading">Achievement unlocked</string>
+    <string name="achievement_unlocked_dialog_registry_drift_fallback">Nice work!</string>
+    <string name="achievement_unlocked_dialog_continue_cta">Continue</string>
+
+    <!-- Tutorial — Leave-dialog (three-option exit shown on back-tap during tutorial). -->
+    <string name="tutorial_leave_dialog_title">Leave the tutorial?</string>
+    <string name="tutorial_leave_dialog_body_with_basics">Bail out, or jump back to the basics primer if you need a refresher first.</string>
+    <string name="tutorial_leave_dialog_body_already_basics">Exit the tutorial? You can restart it anytime from Settings.</string>
+    <string name="tutorial_leave_dialog_back_to_basics_cta">Back to basics</string>
+    <string name="tutorial_leave_dialog_exit_cta">Exit tutorial</string>
+    <string name="tutorial_leave_dialog_cancel_cta">Cancel</string>
+
+    <!-- Tutorial — Ready screen (final page: pair of aces hero + closing pep). -->
+    <string name="tutorial_ready_title">You\'re ready.</string>
+    <string name="tutorial_ready_body">Raise the strong hands. Call when the price is right. Fold the rest. The bots are waiting in Practice.</string>
+    <string name="tutorial_ready_done_cta">Done</string>
 </resources>

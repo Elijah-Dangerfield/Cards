@@ -11,6 +11,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.achievement_unlocked_dialog_continue_cta
+import cards.libraries.resources.generated.resources.achievement_unlocked_dialog_heading
+import cards.libraries.resources.generated.resources.achievement_unlocked_dialog_registry_drift_fallback
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.AchievementId
@@ -28,6 +32,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -67,7 +72,7 @@ internal fun AchievementUnlockedDialog(
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             Text(
-                text = "Achievement unlocked",
+                text = stringResource(Res.string.achievement_unlocked_dialog_heading),
                 typography = AppTheme.typography.Display.D1100,
                 color = ColorResource.Amber500,
                 textAlign = TextAlign.Center,
@@ -78,7 +83,7 @@ internal fun AchievementUnlockedDialog(
                 // know about. Don't crash the celebration; show a
                 // generic congrats and a way out.
                 Text(
-                    text = "Nice work!",
+                    text = stringResource(Res.string.achievement_unlocked_dialog_registry_drift_fallback),
                     typography = AppTheme.typography.Heading.H700,
                     color = AppTheme.colors.text,
                     textAlign = TextAlign.Center,
@@ -110,7 +115,7 @@ internal fun AchievementUnlockedDialog(
                 size = ButtonSize.Medium,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Continue")
+                Text(stringResource(Res.string.achievement_unlocked_dialog_continue_cta))
             }
 
             VerticalSpacerD1000()
