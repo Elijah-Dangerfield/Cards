@@ -18,6 +18,53 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_all_in_description
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_all_in_title
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_call_description
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_call_title
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_check_description
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_check_title
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_fold_description
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_fold_title
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_raise_description
+import cards.libraries.resources.generated.resources.room_cheat_sheet_action_raise_title
+import cards.libraries.resources.generated.resources.room_cheat_sheet_actions_heading
+import cards.libraries.resources.generated.resources.room_cheat_sheet_hand_number_pill
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_flush_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_flush_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_four_of_a_kind_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_four_of_a_kind_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_full_house_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_full_house_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_high_card_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_high_card_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_pair_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_pair_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_royal_flush_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_royal_flush_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_straight_flush_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_straight_flush_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_straight_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_straight_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_three_of_a_kind_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_three_of_a_kind_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_two_pair_name
+import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_two_pair_tagline
+import cards.libraries.resources.generated.resources.room_cheat_sheet_rankings_heading
+import cards.libraries.resources.generated.resources.room_cheat_sheet_rankings_subtitle
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_complete
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_flop
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_preflop
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_river
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_showdown
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_turn
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_complete
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_flop
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_preflop
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_river
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_showdown
+import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_turn
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.Rank
@@ -39,17 +86,19 @@ import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 
 private data class RankingEntry(
-    val name: String,
-    val tagline: String,
+    val name: StringResource,
+    val tagline: StringResource,
     val cards: List<Card>,
 )
 
 private val rankings: List<RankingEntry> = listOf(
     RankingEntry(
-        name = "Royal Flush",
-        tagline = "10, J, Q, K, A — all same suit",
+        name = Res.string.room_cheat_sheet_ranking_royal_flush_name,
+        tagline = Res.string.room_cheat_sheet_ranking_royal_flush_tagline,
         cards = listOf(
             Card(Rank.Ten, Suit.Spades),
             Card(Rank.Jack, Suit.Spades),
@@ -59,8 +108,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Straight Flush",
-        tagline = "Five in a row, same suit",
+        name = Res.string.room_cheat_sheet_ranking_straight_flush_name,
+        tagline = Res.string.room_cheat_sheet_ranking_straight_flush_tagline,
         cards = listOf(
             Card(Rank.Five, Suit.Hearts),
             Card(Rank.Six, Suit.Hearts),
@@ -70,8 +119,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Four of a Kind",
-        tagline = "Four cards of the same rank",
+        name = Res.string.room_cheat_sheet_ranking_four_of_a_kind_name,
+        tagline = Res.string.room_cheat_sheet_ranking_four_of_a_kind_tagline,
         cards = listOf(
             Card(Rank.Jack, Suit.Spades),
             Card(Rank.Jack, Suit.Hearts),
@@ -81,8 +130,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Full House",
-        tagline = "Three of a kind + a pair",
+        name = Res.string.room_cheat_sheet_ranking_full_house_name,
+        tagline = Res.string.room_cheat_sheet_ranking_full_house_tagline,
         cards = listOf(
             Card(Rank.Queen, Suit.Spades),
             Card(Rank.Queen, Suit.Hearts),
@@ -92,8 +141,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Flush",
-        tagline = "Five cards of the same suit",
+        name = Res.string.room_cheat_sheet_ranking_flush_name,
+        tagline = Res.string.room_cheat_sheet_ranking_flush_tagline,
         cards = listOf(
             Card(Rank.Ace, Suit.Diamonds),
             Card(Rank.Jack, Suit.Diamonds),
@@ -103,8 +152,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Straight",
-        tagline = "Five in a row, any suits",
+        name = Res.string.room_cheat_sheet_ranking_straight_name,
+        tagline = Res.string.room_cheat_sheet_ranking_straight_tagline,
         cards = listOf(
             Card(Rank.Five, Suit.Spades),
             Card(Rank.Six, Suit.Diamonds),
@@ -114,8 +163,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Three of a Kind",
-        tagline = "Three cards of the same rank",
+        name = Res.string.room_cheat_sheet_ranking_three_of_a_kind_name,
+        tagline = Res.string.room_cheat_sheet_ranking_three_of_a_kind_tagline,
         cards = listOf(
             Card(Rank.Seven, Suit.Spades),
             Card(Rank.Seven, Suit.Hearts),
@@ -125,8 +174,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Two Pair",
-        tagline = "Two pairs of different ranks",
+        name = Res.string.room_cheat_sheet_ranking_two_pair_name,
+        tagline = Res.string.room_cheat_sheet_ranking_two_pair_tagline,
         cards = listOf(
             Card(Rank.Ace, Suit.Spades),
             Card(Rank.Ace, Suit.Hearts),
@@ -136,8 +185,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "Pair",
-        tagline = "Two cards of the same rank",
+        name = Res.string.room_cheat_sheet_ranking_pair_name,
+        tagline = Res.string.room_cheat_sheet_ranking_pair_tagline,
         cards = listOf(
             Card(Rank.Ten, Suit.Spades),
             Card(Rank.Ten, Suit.Hearts),
@@ -147,8 +196,8 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
-        name = "High Card",
-        tagline = "Best single card wins",
+        name = Res.string.room_cheat_sheet_ranking_high_card_name,
+        tagline = Res.string.room_cheat_sheet_ranking_high_card_tagline,
         cards = listOf(
             Card(Rank.Ace, Suit.Spades),
             Card(Rank.Jack, Suit.Hearts),
@@ -178,9 +227,6 @@ fun HandRankingsCheatSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
-            // "Current hand" hero — explains what street we're on for players
-            // who tapped the (?) because they're confused, not because they
-            // forgot what beats what.
             if (street != null) {
                 CurrentHandCard(
                     handNumber = handNumber,
@@ -191,55 +237,55 @@ fun HandRankingsCheatSheet(
             }
 
             Text(
-                text = "How to act",
+                text = stringResource(Res.string.room_cheat_sheet_actions_heading),
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
             )
             VerticalSpacerD600()
             ActionRow(
                 symbol = "✓",
-                title = "Check",
-                desc = "Pass to the next player without betting.",
+                title = stringResource(Res.string.room_cheat_sheet_action_check_title),
+                desc = stringResource(Res.string.room_cheat_sheet_action_check_description),
                 accent = ColorResource.Green600,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "=",
-                title = "Call",
-                desc = "Match the current bet to stay in the hand.",
+                title = stringResource(Res.string.room_cheat_sheet_action_call_title),
+                desc = stringResource(Res.string.room_cheat_sheet_action_call_description),
                 accent = ColorResource.Blue600,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "↑",
-                title = "Raise",
-                desc = "Increase the current bet. Everyone else must call, raise, or fold.",
+                title = stringResource(Res.string.room_cheat_sheet_action_raise_title),
+                desc = stringResource(Res.string.room_cheat_sheet_action_raise_description),
                 accent = ColorResource.Orange600,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "✕",
-                title = "Fold",
-                desc = "Give up the hand. Any chips already in the pot stay.",
+                title = stringResource(Res.string.room_cheat_sheet_action_fold_title),
+                desc = stringResource(Res.string.room_cheat_sheet_action_fold_description),
                 accent = ColorResource.Red600,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "★",
-                title = "All in",
-                desc = "Push your entire stack. If you win, you win up to what everyone matched.",
+                title = stringResource(Res.string.room_cheat_sheet_action_all_in_title),
+                desc = stringResource(Res.string.room_cheat_sheet_action_all_in_description),
                 accent = ColorResource.Purple600,
             )
 
             VerticalSpacerD1000()
             Text(
-                text = "Hand rankings",
+                text = stringResource(Res.string.room_cheat_sheet_rankings_heading),
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
             )
             VerticalSpacerD200()
             Text(
-                text = "Strongest on top.",
+                text = stringResource(Res.string.room_cheat_sheet_rankings_subtitle),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
@@ -281,7 +327,7 @@ private fun CurrentHandCard(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = streetLabelForCheatSheet(street),
+                text = stringResource(streetLabelResourceFor(street)),
                 typography = AppTheme.typography.Heading.H900,
                 color = AppTheme.colors.onSurfacePrimary,
             )
@@ -292,7 +338,7 @@ private fun CurrentHandCard(
         }
 
         Text(
-            text = streetExplainer(street),
+            text = stringResource(streetExplainerResourceFor(street)),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -308,7 +354,7 @@ private fun HandNumberPill(handNumber: Int) {
             .padding(horizontal = 12.dp, vertical = 5.dp),
     ) {
         Text(
-            text = "HAND #$handNumber",
+            text = stringResource(Res.string.room_cheat_sheet_hand_number_pill, handNumber),
             typography = AppTheme.typography.Label.L500,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -325,8 +371,6 @@ private val progressStages = listOf(
 
 @Composable
 private fun StreetProgress(current: BettingRound) {
-    // Map Complete back onto Showdown for progress purposes — once the hand's
-    // resolved the journey is "all the way through."
     val currentIndex = when (current) {
         BettingRound.Complete -> progressStages.lastIndex
         else -> progressStages.indexOf(current).coerceAtLeast(0)
@@ -354,19 +398,13 @@ private fun StreetProgress(current: BettingRound) {
     }
 }
 
-private fun streetExplainer(street: BettingRound): String = when (street) {
-    BettingRound.Preflop ->
-        "Two cards dealt face-down to each player. Blinds are posted; players act starting left of the big blind. Fold, call, or raise."
-    BettingRound.Flop ->
-        "Three community cards revealed. Combine any two of your hole cards with the board (or play the board) to make your best 5-card hand. A new round of betting begins."
-    BettingRound.Turn ->
-        "Fourth community card on the board. One more round of betting before the river — bets typically get bigger here."
-    BettingRound.River ->
-        "Fifth and final community card. One last round of betting, then any remaining players show their cards."
-    BettingRound.Showdown ->
-        "All remaining players reveal their hands. Best 5-card hand using any combination of hole and community cards wins the pot."
-    BettingRound.Complete ->
-        "Hand finished — chips are being awarded. Tap \"Next hand\" to play again."
+private fun streetExplainerResourceFor(street: BettingRound): StringResource = when (street) {
+    BettingRound.Preflop -> Res.string.room_cheat_sheet_street_explainer_preflop
+    BettingRound.Flop -> Res.string.room_cheat_sheet_street_explainer_flop
+    BettingRound.Turn -> Res.string.room_cheat_sheet_street_explainer_turn
+    BettingRound.River -> Res.string.room_cheat_sheet_street_explainer_river
+    BettingRound.Showdown -> Res.string.room_cheat_sheet_street_explainer_showdown
+    BettingRound.Complete -> Res.string.room_cheat_sheet_street_explainer_complete
 }
 
 @Composable
@@ -426,12 +464,12 @@ private fun RankingCard(entry: RankingEntry) {
     ) {
         Column {
             Text(
-                text = entry.name,
+                text = stringResource(entry.name),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.onSurfacePrimary,
             )
             Text(
-                text = entry.tagline,
+                text = stringResource(entry.tagline),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
@@ -442,13 +480,13 @@ private fun RankingCard(entry: RankingEntry) {
     }
 }
 
-private fun streetLabelForCheatSheet(street: BettingRound): String = when (street) {
-    BettingRound.Preflop -> "Preflop"
-    BettingRound.Flop -> "Flop"
-    BettingRound.Turn -> "Turn"
-    BettingRound.River -> "River"
-    BettingRound.Showdown -> "Showdown"
-    BettingRound.Complete -> "Hand complete"
+private fun streetLabelResourceFor(street: BettingRound): StringResource = when (street) {
+    BettingRound.Preflop -> Res.string.room_cheat_sheet_street_label_preflop
+    BettingRound.Flop -> Res.string.room_cheat_sheet_street_label_flop
+    BettingRound.Turn -> Res.string.room_cheat_sheet_street_label_turn
+    BettingRound.River -> Res.string.room_cheat_sheet_street_label_river
+    BettingRound.Showdown -> Res.string.room_cheat_sheet_street_label_showdown
+    BettingRound.Complete -> Res.string.room_cheat_sheet_street_label_complete
 }
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
