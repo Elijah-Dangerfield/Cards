@@ -24,6 +24,7 @@ import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.products.Product
@@ -590,6 +591,8 @@ class ShopViewModelTest : CoroutineTest() {
             error("not used in shop tests")
         override suspend fun refreshSession(): RefreshOutcome = error("not used in shop tests")
         override suspend fun resendVerificationEmail(email: String): ResendOutcome =
+            error("not used in shop tests")
+        override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome =
             error("not used in shop tests")
         override suspend fun signOut() = error("not used in shop tests")
         override suspend fun deleteAccount(): DeleteAccountOutcome = error("not used in shop tests")

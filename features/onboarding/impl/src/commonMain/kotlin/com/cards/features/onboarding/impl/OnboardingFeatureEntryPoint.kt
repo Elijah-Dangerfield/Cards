@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.HomeRoute
+import com.dangerfield.cards.features.onboarding.ForgotPasswordRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.features.onboarding.SignInRoute
 import com.dangerfield.cards.features.onboarding.SignUpRoute
@@ -27,6 +28,7 @@ class OnboardingFeatureEntryPoint(
     private val signInViewModelFactory: () -> SignInViewModel,
     private val signUpViewModelFactory: () -> SignUpViewModel,
     private val verifyEmailViewModelFactory: (email: String) -> VerifyEmailViewModel,
+    private val forgotPasswordViewModelFactory: () -> ForgotPasswordViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -64,6 +66,19 @@ class OnboardingFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onCreateAccount = { router.navigate(SignUpRoute()) },
+                onForgotPassword = { router.navigate(ForgotPasswordRoute()) },
+            )
+        }
+
+        screen<ForgotPasswordRoute> {
+            val viewModel: ForgotPasswordViewModel = viewModel { forgotPasswordViewModelFactory() }
+            val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+
+            ForgotPasswordScreen(
+                state = state,
+                onAction = viewModel::takeAction,
+                onBack = { router.goBack() },
+                onBackToSignIn = { router.goBack() },
             )
         }
 

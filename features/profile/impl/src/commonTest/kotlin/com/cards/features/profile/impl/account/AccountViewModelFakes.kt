@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
@@ -65,6 +66,9 @@ internal class FakeAuthRepository(
 
     override suspend fun resendVerificationEmail(email: String): ResendOutcome =
         error("resendVerificationEmail not used by the account ViewModels")
+
+    override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome =
+        error("sendPasswordResetEmail not used by the account ViewModels")
 
     override suspend fun signOut() { /* not used here */ }
 

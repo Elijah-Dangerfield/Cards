@@ -48,6 +48,9 @@ interface SupabaseAuthGateway {
     /** Resend the verification email for an unconfirmed sign-up. Throws on failure. */
     suspend fun resendVerificationEmail(email: String)
 
+    /** Trigger Supabase's password-reset email. Throws on failure. */
+    suspend fun resetPasswordForEmail(email: String)
+
     /** Tear down the current session. Throws on failure. */
     suspend fun signOut()
 

@@ -49,6 +49,13 @@ sealed interface ResendOutcome {
     data class Unknown(val cause: Throwable) : ResendOutcome
 }
 
+sealed interface SendResetOutcome {
+    data object Sent : SendResetOutcome
+    data object RateLimited : SendResetOutcome
+    data class NetworkError(val cause: Throwable) : SendResetOutcome
+    data class Unknown(val cause: Throwable) : SendResetOutcome
+}
+
 sealed interface DeleteAccountOutcome {
     data object Success : DeleteAccountOutcome
     data object NotConfigured : DeleteAccountOutcome

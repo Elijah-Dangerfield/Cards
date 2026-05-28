@@ -27,6 +27,17 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.auth_back_button
 import cards.libraries.resources.generated.resources.auth_field_email_label
 import cards.libraries.resources.generated.resources.auth_field_password_label
+import cards.libraries.resources.generated.resources.auth_forgot_password_back_to_sign_in_button
+import cards.libraries.resources.generated.resources.auth_forgot_password_banner_generic_error
+import cards.libraries.resources.generated.resources.auth_forgot_password_banner_network_error
+import cards.libraries.resources.generated.resources.auth_forgot_password_banner_rate_limited
+import cards.libraries.resources.generated.resources.auth_forgot_password_link
+import cards.libraries.resources.generated.resources.auth_forgot_password_sent_body
+import cards.libraries.resources.generated.resources.auth_forgot_password_sent_title
+import cards.libraries.resources.generated.resources.auth_forgot_password_submit_button
+import cards.libraries.resources.generated.resources.auth_forgot_password_submit_button_progress
+import cards.libraries.resources.generated.resources.auth_forgot_password_subtitle
+import cards.libraries.resources.generated.resources.auth_forgot_password_title
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_apple
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_google
@@ -123,6 +134,7 @@ fun SignInScreen(
     onAction: (SignInAction) -> Unit,
     onBack: () -> Unit,
     onCreateAccount: () -> Unit,
+    onForgotPassword: () -> Unit,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val submit = {
@@ -190,7 +202,18 @@ fun SignInScreen(
             ErrorText(it)
         }
 
-        Spacer(modifier = Modifier.height(Dimension.D800))
+        Spacer(modifier = Modifier.height(Dimension.D300))
+
+        Button(
+            onClick = onForgotPassword,
+            style = ButtonStyle.Text,
+            enabled = !state.isSubmitting,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.auth_forgot_password_link))
+        }
+
+        Spacer(modifier = Modifier.height(Dimension.D500))
 
         Button(
             onClick = submit,
@@ -214,6 +237,80 @@ fun SignInScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(Res.string.auth_sign_in_to_create_account_button))
+        }
+    }
+}
+
+@Composable
+fun ForgotPasswordScreen(
+    state: ForgotPasswordState,
+    onAction: (ForgotPasswordAction) -> Unit,
+    onBack: () -> Unit,
+    onBackToSignIn: () -> Unit,
+) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val submit = {
+        keyboardController?.hide()
+        onAction(ForgotPasswordAction.Submit)
+    }
+    AuthShell(onBack = onBack) {
+        Text(
+            text = stringResource(
+                if (state.sent) Res.string.auth_forgot_password_sent_title
+                else Res.string.auth_forgot_password_title,
+            ),
+            typography = AppTheme.typography.Heading.H800,
+            color = AppTheme.colors.onSurfacePrimary,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D300))
+        Text(
+            text = if (state.sent) {
+                stringResource(Res.string.auth_forgot_password_sent_body, state.email.trim())
+            } else {
+                stringResource(Res.string.auth_forgot_password_subtitle)
+            },
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.onSurfaceSecondary,
+        )
+
+        if (!state.sent) {
+            Spacer(modifier = Modifier.height(Dimension.D900))
+            EmailField(
+                value = state.email,
+                enabled = !state.isSubmitting,
+                onChange = { onAction(ForgotPasswordAction.EmailChanged(it)) },
+                imeAction = ImeAction.Go,
+                onSubmitImeAction = submit,
+            )
+        }
+
+        state.banner?.let { banner ->
+            Spacer(modifier = Modifier.height(Dimension.D500))
+            ForgotPasswordBannerText(banner)
+        }
+
+        Spacer(modifier = Modifier.height(Dimension.D800))
+
+        if (state.sent) {
+            Button(
+                onClick = onBackToSignIn,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(Res.string.auth_forgot_password_back_to_sign_in_button))
+            }
+        } else {
+            Button(
+                onClick = submit,
+                enabled = state.canSubmit,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    stringResource(
+                        if (state.isSubmitting) Res.string.auth_forgot_password_submit_button_progress
+                        else Res.string.auth_forgot_password_submit_button,
+                    ),
+                )
+            }
         }
     }
 }
@@ -407,6 +504,8 @@ private fun EmailField(
     value: String,
     enabled: Boolean,
     onChange: (String) -> Unit,
+    imeAction: ImeAction = ImeAction.Next,
+    onSubmitImeAction: (() -> Unit)? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -415,7 +514,11 @@ private fun EmailField(
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Email,
-            imeAction = ImeAction.Next,
+            imeAction = imeAction,
+        ),
+        keyboardActions = KeyboardActions(
+            onGo = { onSubmitImeAction?.invoke() },
+            onNext = { onSubmitImeAction?.invoke() },
         ),
         label = { Text(stringResource(Res.string.auth_field_email_label)) },
         modifier = Modifier.fillMaxWidth(),
@@ -485,6 +588,31 @@ private fun BannerText(banner: VerifyEmailState.Banner) {
 }
 
 @Composable
+private fun ForgotPasswordBannerText(banner: ForgotPasswordState.Banner) {
+    val (resource, color) = forgotPasswordBannerResource(banner)
+    Text(
+        text = stringResource(resource),
+        typography = AppTheme.typography.Body.B500,
+        color = color,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+@Suppress("DEPRECATION")
+private fun forgotPasswordBannerResource(
+    banner: ForgotPasswordState.Banner,
+): Pair<StringResource, ColorResource> = when (banner) {
+    ForgotPasswordState.Banner.RateLimited ->
+        Res.string.auth_forgot_password_banner_rate_limited to AppTheme.colors.danger
+    ForgotPasswordState.Banner.NetworkError ->
+        Res.string.auth_forgot_password_banner_network_error to AppTheme.colors.danger
+    ForgotPasswordState.Banner.GenericError ->
+        Res.string.auth_forgot_password_banner_generic_error to AppTheme.colors.danger
+}
+
+@Composable
 @Suppress("DEPRECATION")
 private fun bannerResource(banner: VerifyEmailState.Banner): Pair<StringResource, ColorResource> =
     when (banner) {
@@ -509,6 +637,7 @@ private fun SignInScreenPreview_EmailOnly() {
             onAction = {},
             onBack = {},
             onCreateAccount = {},
+            onForgotPassword = {},
         )
     }
 }
@@ -522,6 +651,7 @@ private fun SignInScreenPreview_AllProvidersEnabled() {
             onAction = {},
             onBack = {},
             onCreateAccount = {},
+            onForgotPassword = {},
         )
     }
 }
@@ -539,6 +669,7 @@ private fun SignInScreenPreview_Error() {
             onAction = {},
             onBack = {},
             onCreateAccount = {},
+            onForgotPassword = {},
         )
     }
 }
@@ -627,6 +758,67 @@ private fun SignUpScreenPreview_AwaitingClaimConfirm() {
             onAction = {},
             onBack = {},
             onSignIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ForgotPasswordScreenPreview_Empty() {
+    PreviewContent {
+        ForgotPasswordScreen(
+            state = ForgotPasswordState(),
+            onAction = {},
+            onBack = {},
+            onBackToSignIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ForgotPasswordScreenPreview_Submitting() {
+    PreviewContent {
+        ForgotPasswordScreen(
+            state = ForgotPasswordState(
+                email = "elijah@example.com",
+                isSubmitting = true,
+            ),
+            onAction = {},
+            onBack = {},
+            onBackToSignIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ForgotPasswordScreenPreview_Sent() {
+    PreviewContent {
+        ForgotPasswordScreen(
+            state = ForgotPasswordState(
+                email = "elijah@example.com",
+                sent = true,
+            ),
+            onAction = {},
+            onBack = {},
+            onBackToSignIn = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ForgotPasswordScreenPreview_RateLimited() {
+    PreviewContent {
+        ForgotPasswordScreen(
+            state = ForgotPasswordState(
+                email = "elijah@example.com",
+                banner = ForgotPasswordState.Banner.RateLimited,
+            ),
+            onAction = {},
+            onBack = {},
+            onBackToSignIn = {},
         )
     }
 }

@@ -14,6 +14,7 @@ import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
@@ -248,6 +249,30 @@ class SupabaseAuthRepositoryImpl(
                     else -> ResendOutcome.Unknown(e)
                 }
                 logger.w(e) { "resendVerificationEmail: ${outcome::class.simpleName}" }
+                outcome
+            },
+        )
+    }
+
+    // Intentionally no mutex — reset-email doesn't mutate session state.
+    override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome {
+        logger.d { "sendPasswordResetEmail: requesting" }
+        return Catching {
+            gateway.resetPasswordForEmail(email)
+        }.fold(
+            onSuccess = {
+                logger.i { "sendPasswordResetEmail: Sent" }
+                SendResetOutcome.Sent
+            },
+            onFailure = { e ->
+                val outcome = when (e) {
+                    is RestException ->
+                        if (e.statusCode == 429) SendResetOutcome.RateLimited
+                        else SendResetOutcome.Unknown(e)
+                    is HttpRequestException -> SendResetOutcome.NetworkError(e)
+                    else -> SendResetOutcome.Unknown(e)
+                }
+                logger.w(e) { "sendPasswordResetEmail: ${outcome::class.simpleName}" }
                 outcome
             },
         )

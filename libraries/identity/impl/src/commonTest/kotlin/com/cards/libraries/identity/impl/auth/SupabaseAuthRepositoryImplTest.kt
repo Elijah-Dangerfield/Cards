@@ -430,6 +430,9 @@ internal class FakeSupabaseAuthGateway(
     override suspend fun resendVerificationEmail(email: String): Unit =
         error("resendVerificationEmail not stubbed for these tests")
 
+    override suspend fun resetPasswordForEmail(email: String): Unit =
+        error("resetPasswordForEmail not stubbed for these tests")
+
     override suspend fun signOut() {
         signOutCalls++
         onSignOut()

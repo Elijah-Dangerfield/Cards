@@ -15,6 +15,7 @@ import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.identity.impl.AvatarPackDto
@@ -498,6 +499,7 @@ class ProfileRepositoryImplTest : CoroutineTest() {
             error("unused")
         override suspend fun refreshSession(): RefreshOutcome = error("unused")
         override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
+        override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome = error("unused")
         override suspend fun signOut() = Unit
         override suspend fun deleteAccount(): DeleteAccountOutcome = error("unused")
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =

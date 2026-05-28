@@ -214,6 +214,19 @@
     <string name="auth_sign_up_claim_dialog_primary">Send link</string>
     <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
 
+    <!-- Auth — Forgot password screen. -->
+    <string name="auth_forgot_password_link">Forgot password?</string>
+    <string name="auth_forgot_password_title">Reset your password</string>
+    <string name="auth_forgot_password_subtitle">Enter your email and we'll send a link to set a new password.</string>
+    <string name="auth_forgot_password_submit_button">Send reset link</string>
+    <string name="auth_forgot_password_submit_button_progress">Sending…</string>
+    <string name="auth_forgot_password_sent_title">Check your inbox</string>
+    <string name="auth_forgot_password_sent_body">If %1$s is registered, we sent a link to reset your password.</string>
+    <string name="auth_forgot_password_back_to_sign_in_button">Back to sign in</string>
+    <string name="auth_forgot_password_banner_rate_limited">Too many resets in a row. Wait a minute and try again.</string>
+    <string name="auth_forgot_password_banner_network_error">Couldn't reach the server. Check your connection.</string>
+    <string name="auth_forgot_password_banner_generic_error">Something went wrong. Try again.</string>
+
     <!-- Auth — VerifyEmail screen. -->
     <string name="auth_verify_email_title">Check your email</string>
     <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then return here and we\'ll check with our server.</string>
