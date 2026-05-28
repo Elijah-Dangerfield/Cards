@@ -201,6 +201,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsFeltVeteranTitle_forReachLevel25() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_felt_veteran"))
+        post(inventory, catalog, defaultPolicy, "REACH_LEVEL_25") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_felt_veteran", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("title_felt_veteran", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun defaultPolicy_grantsBotWhispererTitle_forBotWhispererCapstone() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_bot_whisperer"))

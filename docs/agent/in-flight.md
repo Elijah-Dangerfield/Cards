@@ -1,5 +1,11 @@
 # In-flight
 
+## feat(catalog): pair REACH_LEVEL_25 with Felt Veteran title
+
+**Problem:** The level-milestone capstone `REACH_LEVEL_25` ("Felt veteran" EPIC) was the only EPIC achievement without a cosmetic complement — every other EPIC in the registry already grants a title / emote pack / card back at unlock time, so the level-25 reveal felt thin.
+**Approach:** Add an `unlock_only` `title_felt_veteran` product (server migration V35), wire `cosmeticRewardFor(REACH_LEVEL_25) → CosmeticReward("title_felt_veteran", "Felt Veteran title")` on the client mirror, `"REACH_LEVEL_25" → "title_felt_veteran"` in `ClientGrantableAchievements.Default`, and the display label in `titleForProductId`. The todo's recommendation floated "a card back rather than an emote pack" — I picked a title instead because the achievement name *is* "Felt veteran" and a title is one line in `titleForProductId` versus a new `CardBackStyle` enum value + `paletteFor` branch + `PlayingCardBack` renderer branch + draw layer for the card back path. Other level milestones (`REACH_LEVEL_5`, `REACH_LEVEL_10`) stay XP-only on purpose so the V35 capstone isn't diluted by a chain-of-three.
+**Reviewer notes:** Departed from the todo's "card back" recommendation in favor of a title — flag if you'd rather I revert and ship the card back path; not married to the direction. Rewrote the §A catalog-gating bullet in `docs/todo.md` to reflect the V35 pairing + my reasoning so the next worker has the context.
+
 ## feat(shop): jump to just-unlocked item from redeem snackbar
 
 **Problem:** After a cosmetic redeem the "Unlocked! X is yours." snackbar fires and the user has to navigate Profile → My Items themselves to actually equip the thing.

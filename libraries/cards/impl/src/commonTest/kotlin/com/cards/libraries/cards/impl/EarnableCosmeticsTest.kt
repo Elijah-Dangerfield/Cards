@@ -99,6 +99,13 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun reachLevel25_mapsToFeltVeteranTitle() {
+        val reward = cosmeticRewardFor(AchievementId.REACH_LEVEL_25)
+        assertEquals("title_felt_veteran", reward?.productId)
+        assertEquals("Felt Veteran title", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
@@ -107,6 +114,6 @@ class EarnableCosmeticsTest {
         assertNull(cosmeticRewardFor(AchievementId.HANDS_100))
         assertNull(cosmeticRewardFor(AchievementId.SHOW_ROYAL_FLUSH))
         assertNull(cosmeticRewardFor(AchievementId.TUTORIAL_COMPLETE))
-        assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_25))
+        assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_5))
     }
 }
