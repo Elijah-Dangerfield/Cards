@@ -78,6 +78,13 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun hands1000_mapsToGrinderEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.HANDS_1000)
+        assertEquals("emotes_grinder", reward?.productId)
+        assertEquals("Grinder emote pack", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
