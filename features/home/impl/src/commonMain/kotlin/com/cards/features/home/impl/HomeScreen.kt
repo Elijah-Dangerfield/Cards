@@ -200,6 +200,8 @@ private fun HomeScreenContent(
                 opponents = recentOpponents,
                 onAddFriend = { opponent -> onAddRecentOpponent(opponent.id) },
                 onSeeAll = onSeeAllRecentOpponents,
+                onStartFriendGame = onFriendGame,
+                onStartQuickMatch = onQuickMatch,
             )
 
             VerticalSpacerD1100()

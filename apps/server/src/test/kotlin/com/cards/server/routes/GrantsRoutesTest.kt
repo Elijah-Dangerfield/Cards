@@ -96,6 +96,58 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsEliminatorEmotePack_forBustDealt5() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("emotes_eliminator"))
+        post(inventory, catalog, defaultPolicy, "BUST_DEALT_5") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("emotes_eliminator", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("emotes_eliminator", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
+    fun defaultPolicy_grantsBallerEmotePack_forTripleUp() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("emotes_baller"))
+        post(inventory, catalog, defaultPolicy, "TRIPLE_UP") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("emotes_baller", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("emotes_baller", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
+    fun defaultPolicy_grantsIronStackEmotePack_forNoBust100() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("emotes_iron_stack"))
+        post(inventory, catalog, defaultPolicy, "NO_BUST_100") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("emotes_iron_stack", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("emotes_iron_stack", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
+    fun defaultPolicy_grantsConvincerEmotePack_forWinByFold10() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("emotes_convincer"))
+        post(inventory, catalog, defaultPolicy, "WIN_BY_FOLD_10") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("emotes_convincer", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("emotes_convincer", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun defaultPolicy_grantsBotWhispererTitle_forBotWhispererCapstone() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_bot_whisperer"))
@@ -115,6 +167,22 @@ class GrantsRoutesTest {
         post(inventory, catalog, policyWithServerWitnessed, "RANKED_TOP_FINISH") { resp ->
             assertEquals(HttpStatusCode.Forbidden, resp.status)
             assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
+    fun defaultPolicy_refusesMultiplayerBustAchievements_with403() = runTest {
+        // MP-mode achievements (FIRST_BUST_DEALT_MP / BUST_DEALT_5_MP) live in
+        // the default `serverWitnessed` set so a client posting them never
+        // self-grants — they will be granted server-side once Phase 4.2
+        // server-authoritative gameplay lands.
+        for (id in listOf("FIRST_BUST_DEALT_MP", "BUST_DEALT_5_MP")) {
+            val inventory = CapturingInventory()
+            val catalog = FakeCatalog.empty()
+            post(inventory, catalog, defaultPolicy, id) { resp ->
+                assertEquals(HttpStatusCode.Forbidden, resp.status, "id=$id")
+                assertTrue(inventory.earnedGrants.isEmpty(), "id=$id")
+            }
         }
     }
 

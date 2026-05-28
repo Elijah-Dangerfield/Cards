@@ -93,6 +93,7 @@ fun ChipCoinAmount(
     gap: Dp = 6.dp,
     coinSymbolTypography: TypographyResource = coinSymbolTypographyFor(coinSize),
     formatter: (Long) -> String = ::formatThousands,
+    animated: Boolean = false,
 ) {
     Row(
         modifier = modifier,
@@ -100,14 +101,23 @@ fun ChipCoinAmount(
     ) {
         ChipCoin(size = coinSize, textTypography = coinSymbolTypography)
         Spacer(modifier = Modifier.width(gap))
-        Text(
-            text = formatter(amount),
-            typography = typography,
-            color = color,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (animated) {
+            AnimatedNumberText(
+                value = amount,
+                typography = typography,
+                color = color,
+                formatter = formatter,
+            )
+        } else {
+            Text(
+                text = formatter(amount),
+                typography = typography,
+                color = color,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

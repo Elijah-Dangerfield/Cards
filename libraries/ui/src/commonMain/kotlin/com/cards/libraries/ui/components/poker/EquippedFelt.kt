@@ -139,3 +139,16 @@ fun titleForProductId(productId: String?): String? = when (productId) {
     "title_bot_whisperer" -> "Bot Whisperer"
     else -> null
 }
+
+/**
+ * Catalog productId → permanent badge emoji. Same shape as
+ * [titleForProductId] — single switchboard, null fallback so an unknown
+ * server-side badge id renders nothing instead of crashing.
+ *
+ * Badges live in the permanent seat slot (mirrored placement opposite
+ * the SB/BB chip). Empty catalog today; the first entry lands with
+ * the founding-member item.
+ */
+fun badgeEmojiForProductId(productId: String?): String? = badgeRegistry[productId]
+
+private val badgeRegistry: Map<String, String> = emptyMap()

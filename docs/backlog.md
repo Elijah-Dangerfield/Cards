@@ -393,3 +393,25 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 - Status quo is the right V1 trade. The cleanup item exists so we don't forget the layering smell.
 
 **Status:** Backlog. Pick up when the starter kit grows past a handful of items, when a second consumer of "create user's default X" lands (e.g. default chip wallet), or when `ProfileRepository` starts importing a third cross-domain repo.
+
+---
+
+## `DispatcherProvider.mainImmediate` — or collapse the call site to `dispatchers.main`
+
+**Idea:** [`DelegatingRouter.kt:307`](../libraries/navigation/impl/src/commonMain/kotlin/com/cards/libraries/navigation/impl/DelegatingRouter.kt) uses `withContext(Dispatchers.Main.immediate)` to flush a navigation continuation on the calling frame when already on the main thread. The rest of `:libraries:ui` has been swept to `DispatcherProvider`, but this call site is the only `.immediate` consumer and `DispatcherProvider` doesn't expose that variant today.
+
+**Two paths:**
+- Add `mainImmediate: CoroutineDispatcher` to `DispatcherProvider` (and the test provider — point it at the same `TestDispatcher`). Keeps the .immediate semantics, finishes the dispatcher-sweep story.
+- Collapse the call site to `dispatchers.main` and accept the loss of the immediate-dispatch semantics. Probably fine for navigation — the difference is one frame at most — but worth confirming the navigation flow doesn't rely on synchronous flush.
+
+**Status:** Backlog. Held off in the V1 dispatcher-sweep cycle because the call is the only `.immediate` user and adding a member to the provider is a wider design call than fit under that `refactor:`.
+
+---
+
+## Sweep remaining raw `Color.White.copy(alpha=…)` in poker visuals
+
+**Idea:** The DS-first sweep took FeatureCard off raw white. Three poker-artifact files still use it: [`AchievementMedallion.kt:298-300`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/achievement/AchievementMedallion.kt) (shimmer specular gradient), [`CardBackStyle.kt:50,58`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/CardBackStyle.kt) (card-back borders), and [`PlayingCard.kt:212,242`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/poker/PlayingCard.kt) (specular + pip line).
+
+These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 carves out to `PokerPalette`. Either declare a `PokerPalette.SpecularWhite` / `PokerPalette.CardBackBorder` token and route the callsites through it, or accept the carve-out as documented behaviour. Either is fine; both are better than the current "everyone half-believes the rule applies."
+
+**Status:** Backlog. Judgement call about whether these are surfaces or poker artifacts.

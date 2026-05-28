@@ -21,6 +21,7 @@ kotlin {
             implementation(projects.libraries.identity)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)
+            implementation(projects.libraries.resources)
 
             implementation(compose.runtime)
             implementation(compose.foundation)

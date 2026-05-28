@@ -1,11 +1,9 @@
 package com.dangerfield.cards.features.home.impl
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -14,8 +12,8 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
-import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -45,9 +43,7 @@ internal fun RecentAchievementsStrip(
             onClick = onSeeAll,
         )
         VerticalSpacerD500()
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-        ) {
+        EdgeToEdgeRow {
             items(items = items, key = { it.achievement.id.name }) { item ->
                 AchievementMedallion(
                     achievement = item.achievement,
