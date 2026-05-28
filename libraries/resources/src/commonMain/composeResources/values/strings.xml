@@ -292,6 +292,20 @@
     <string name="profile_notifications_empty_title">No notifications</string>
     <string name="profile_notifications_empty_subtitle">Heads-ups and announcements will show up here.</string>
 
+    <!-- Profile — Edit profile (name + avatar picker). -->
+    <string name="profile_edit_title">Edit profile</string>
+    <string name="profile_edit_subtitle">Other players see this on the table.</string>
+    <string name="profile_edit_display_name_label">Display name</string>
+    <string name="profile_edit_display_name_helper_range">%1$d–%2$d characters</string>
+    <string name="profile_edit_avatar_color_section">Avatar color</string>
+    <string name="profile_edit_avatar_section">Avatar</string>
+    <string name="profile_edit_save_button">Save</string>
+    <string name="profile_edit_save_button_progress">Saving…</string>
+    <string name="profile_edit_avatars_loading">Loading…</string>
+    <string name="profile_edit_avatars_load_error">Avatars couldn\'t load. You can still save your current avatar.</string>
+    <string name="profile_edit_pack_locked_prefix">🔒  %1$s</string>
+    <string name="profile_edit_pack_unlock_button">Get in shop</string>
+
     <!-- Profile — Claim account hero (anonymous → claimed flow). -->
     <string name="profile_claim_back_a11y">Back</string>
     <string name="profile_claim_title">Claim your account</string>

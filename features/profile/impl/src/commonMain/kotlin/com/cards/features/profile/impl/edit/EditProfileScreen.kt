@@ -35,6 +35,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_edit_avatar_color_section
+import cards.libraries.resources.generated.resources.profile_edit_avatar_section
+import cards.libraries.resources.generated.resources.profile_edit_avatars_load_error
+import cards.libraries.resources.generated.resources.profile_edit_avatars_loading
+import cards.libraries.resources.generated.resources.profile_edit_display_name_helper_range
+import cards.libraries.resources.generated.resources.profile_edit_display_name_label
+import cards.libraries.resources.generated.resources.profile_edit_pack_locked_prefix
+import cards.libraries.resources.generated.resources.profile_edit_pack_unlock_button
+import cards.libraries.resources.generated.resources.profile_edit_save_button
+import cards.libraries.resources.generated.resources.profile_edit_save_button_progress
+import cards.libraries.resources.generated.resources.profile_edit_subtitle
+import cards.libraries.resources.generated.resources.profile_edit_title
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -53,6 +66,7 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Edit-profile UI: display name field + emoji avatar grid + save button.
@@ -118,7 +132,7 @@ fun EditProfileScreen(
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
                 Text(
-                    text = "Edit profile",
+                    text = stringResource(Res.string.profile_edit_title),
                     typography = AppTheme.typography.Heading.H800,
                     color = AppTheme.colors.onSurfacePrimary,
                     textAlign = TextAlign.Center,
@@ -126,7 +140,7 @@ fun EditProfileScreen(
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
-                    text = "Other players see this on the table.",
+                    text = stringResource(Res.string.profile_edit_subtitle),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                     textAlign = TextAlign.Center,
@@ -143,13 +157,17 @@ fun EditProfileScreen(
                     isError = state.displayNameError != null,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onAction(EditProfileAction.Submit) }),
-                    label = { Text("Display name") },
+                    label = { Text(stringResource(Res.string.profile_edit_display_name_label)) },
                     modifier = Modifier.fillMaxWidth(),
+                )
+                val rangeHelper = stringResource(
+                    Res.string.profile_edit_display_name_helper_range,
+                    EditProfileState.MIN_NAME_LENGTH,
+                    EditProfileState.MAX_NAME_LENGTH,
                 )
                 val displayNameHelper = when {
                     state.displayNameError != null -> state.displayNameError
-                    !state.isNameValid && state.displayName.isNotEmpty() ->
-                        "${EditProfileState.MIN_NAME_LENGTH}–${EditProfileState.MAX_NAME_LENGTH} characters"
+                    !state.isNameValid && state.displayName.isNotEmpty() -> rangeHelper
                     else -> null
                 }
                 if (displayNameHelper != null) {
@@ -172,7 +190,7 @@ fun EditProfileScreen(
                 if (state.backgroundPalette.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(Dimension.D900))
                     Text(
-                        text = "Avatar color",
+                        text = stringResource(Res.string.profile_edit_avatar_color_section),
                         typography = AppTheme.typography.Heading.H500,
                         color = AppTheme.colors.onSurfacePrimary,
                     )
@@ -188,7 +206,7 @@ fun EditProfileScreen(
                 Spacer(modifier = Modifier.height(Dimension.D900))
 
                 Text(
-                    text = "Avatar",
+                    text = stringResource(Res.string.profile_edit_avatar_section),
                     typography = AppTheme.typography.Heading.H500,
                     color = AppTheme.colors.onSurfacePrimary,
                 )
@@ -249,7 +267,13 @@ private fun FloatingSaveBar(
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (isSubmitting) "Saving…" else "Save")
+            Text(
+                if (isSubmitting) {
+                    stringResource(Res.string.profile_edit_save_button_progress)
+                } else {
+                    stringResource(Res.string.profile_edit_save_button)
+                }
+            )
         }
     }
 }
@@ -301,7 +325,7 @@ private fun AvatarPicker(
 ) {
     if (isLoading && packs.isEmpty()) {
         Text(
-            text = "Loading…",
+            text = stringResource(Res.string.profile_edit_avatars_loading),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
@@ -312,7 +336,7 @@ private fun AvatarPicker(
 
     if (loadError) {
         Text(
-            text = "Avatars couldn't load. You can still save your current avatar.",
+            text = stringResource(Res.string.profile_edit_avatars_load_error),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.onSurfaceSecondary,
             modifier = Modifier.padding(bottom = Dimension.D400),
@@ -356,7 +380,11 @@ private fun PackHeader(
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
-            text = if (isLocked) "🔒  $name" else name,
+            text = if (isLocked) {
+                stringResource(Res.string.profile_edit_pack_locked_prefix, name)
+            } else {
+                name
+            },
             typography = AppTheme.typography.Label.L500,
             color = if (isLocked) AppTheme.colors.onSurfaceSecondary else AppTheme.colors.onSurfaceSecondary,
             modifier = Modifier.weight(1f),
@@ -367,7 +395,7 @@ private fun PackHeader(
                 style = ButtonStyle.Outlined,
                 size = ButtonSize.Small,
             ) {
-                Text("Get in shop")
+                Text(stringResource(Res.string.profile_edit_pack_unlock_button))
             }
         }
     }
