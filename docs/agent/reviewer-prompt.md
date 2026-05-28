@@ -28,6 +28,7 @@ For each in-flight block (and each commit since `origin/main`):
    - **DS drift** — `Color.White.copy(alpha=…)`, one-off `RoundedCornerShape(N.dp)`, raw `Color(0xFF…)` for semantic surfaces. Should be `AppTheme.colors.surface*`, `Radii.*.shape`. (`AGENTS.md` → Design system.)
    - `try { } catch` instead of `Catching { }`.
    - Direct `Dispatchers.{Main,IO,Default,Unconfined}` instead of `DispatcherProvider`.
+   - **Inline user-facing strings** — `Text("Hi")`, `placeholder = "Email"`, snackbar / dialog / error copy hardcoded at the callsite. Should be `stringResource(Res.string.foo)` from `:libraries:resources`. (`AGENTS.md` → Coding Guidelines.) Glyph-only typography (✓, —, emoji), preview-only sample data, and server-supplied error strings are fine.
    - Public screen-level composables in `:features:*:impl` missing `@Preview`.
    - Comments that shouldn't exist (project convention: none).
    - **Pre-launch noise** — defensive backfill logic or "existing users won't get X" caveats in migrations / commit bodies / in-flight notes. The app hasn't launched; there's no production population to migrate carefully. Tighten or strip those callouts and rewrite the migration to do the right thing for a fresh world. Drop this check the moment we ship.
