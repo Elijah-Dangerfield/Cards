@@ -1,11 +1,9 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
-import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import kotlinx.coroutines.test.runTest
-import java.util.UUID
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -311,24 +309,3 @@ class GameSessionTest {
     }
 }
 
-private class RecordingGameEventWriter : GameEventWriter {
-    private val rows = mutableListOf<Pair<UUID, GameEvent>>()
-    override suspend fun append(sessionId: UUID, events: List<GameEvent>) {
-        events.forEach { rows += sessionId to it }
-    }
-    fun appendedEvents(sessionId: UUID): List<GameEvent> =
-        rows.filter { it.first == sessionId }.map { it.second }
-}
-
-private class ExplodingGameEventWriter : GameEventWriter {
-    override suspend fun append(sessionId: UUID, events: List<GameEvent>) {
-        throw RuntimeException("DB is down")
-    }
-}
-
-private class FlippableGameEventWriter : GameEventWriter {
-    @Volatile var fail: Boolean = false
-    override suspend fun append(sessionId: UUID, events: List<GameEvent>) {
-        if (fail) throw RuntimeException("DB is down")
-    }
-}

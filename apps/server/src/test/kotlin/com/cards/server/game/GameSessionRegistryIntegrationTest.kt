@@ -13,6 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Drives a real hand through [InMemoryGameSessionRegistry] end-to-end:
@@ -131,4 +132,31 @@ class GameSessionRegistryIntegrationTest {
         assertEquals(2, session.state.value!!.handNumber)
         assertEquals(BettingRound.Preflop, session.state.value!!.street)
     }
+
+    @Test
+    fun registry_routesEventWriter_intoEverySessionItCreates() = runTest {
+        // Pins the registry's wiring: the injected GameEventWriter sees
+        // events from every session the registry births, tagged with
+        // that session's id. Without this pin, a future refactor could
+        // silently drop the writer parameter from `GameSession(...)` and
+        // the only signal would be empty rows in `game_events` once
+        // production runs — caught here at unit time instead.
+        val writer = RecordingGameEventWriter()
+        val registry = InMemoryGameSessionRegistry(writer)
+
+        registry.startHand("ROOM_A", listOf(alice, bob), settings)
+        registry.startHand("ROOM_B", listOf(alice, bob), settings)
+        val sessionA = registry.peek("ROOM_A")!!
+        val sessionB = registry.peek("ROOM_B")!!
+        assertTrue(sessionA.id != sessionB.id, "registry must mint a unique id per session")
+
+        val recordedA = writer.appendedEvents(sessionA.id)
+        val recordedB = writer.appendedEvents(sessionB.id)
+        assertTrue(recordedA.isNotEmpty(), "startHand on ROOM_A produced events")
+        assertTrue(recordedB.isNotEmpty(), "startHand on ROOM_B produced events")
+        // Events for ROOM_A and ROOM_B are disjoint — no cross-tagging.
+        assertEquals(recordedA, sessionA.events.replayCache.toList())
+        assertEquals(recordedB, sessionB.events.replayCache.toList())
+    }
 }
+
