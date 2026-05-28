@@ -21,6 +21,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_my_items_badge_earned
+import cards.libraries.resources.generated.resources.profile_my_items_badge_unlocked
+import cards.libraries.resources.generated.resources.profile_my_items_button_equip
+import cards.libraries.resources.generated.resources.profile_my_items_button_unequip
+import cards.libraries.resources.generated.resources.profile_my_items_empty_body
+import cards.libraries.resources.generated.resources.profile_my_items_empty_title
+import cards.libraries.resources.generated.resources.profile_my_items_personal_cosmetic_tag
+import cards.libraries.resources.generated.resources.profile_my_items_subtitle_empty
+import cards.libraries.resources.generated.resources.profile_my_items_subtitle_populated
+import cards.libraries.resources.generated.resources.profile_my_items_title
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
@@ -33,6 +44,7 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Renders the player's inventory as a single scrollable list. Each row
@@ -61,7 +73,7 @@ fun MyItemsScreen(
         containerColor = AppTheme.colors.background.color,
         topBar = {
             TopBar(
-                title = "My items",
+                title = stringResource(Res.string.profile_my_items_title),
                 onNavigateBack = onBack,
             )
         },
@@ -74,9 +86,12 @@ fun MyItemsScreen(
             Spacer(modifier = Modifier.height(Dimension.D300))
             Text(
                 text = if (state.ownedItems.isEmpty()) {
-                    "Pick up card backs, felts, and emotes in the shop."
+                    stringResource(Res.string.profile_my_items_subtitle_empty)
                 } else {
-                    "${state.ownedItems.size} unlocked — tap to equip."
+                    stringResource(
+                        Res.string.profile_my_items_subtitle_populated,
+                        state.ownedItems.size,
+                    )
                 },
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
@@ -161,8 +176,8 @@ private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
 @Composable
 private fun OwnershipBadge(source: AcquisitionSource) {
     val label = when (source) {
-        AcquisitionSource.Earned -> "Earned"
-        AcquisitionSource.Purchased -> "Unlocked"
+        AcquisitionSource.Earned -> stringResource(Res.string.profile_my_items_badge_earned)
+        AcquisitionSource.Purchased -> stringResource(Res.string.profile_my_items_badge_unlocked)
     }
     val textColor = when (source) {
         AcquisitionSource.Earned -> AppTheme.colors.accentSecondary
@@ -191,7 +206,7 @@ private fun EarnedTag() {
             .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
     ) {
         Text(
-            text = "Earned",
+            text = stringResource(Res.string.profile_my_items_badge_earned),
             typography = AppTheme.typography.Label.L300,
             color = AppTheme.colors.accentSecondary,
         )
@@ -212,7 +227,7 @@ private fun PersonalCosmeticTag() {
             .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
     ) {
         Text(
-            text = "Only you see this",
+            text = stringResource(Res.string.profile_my_items_personal_cosmetic_tag),
             typography = AppTheme.typography.Label.L300,
             color = AppTheme.colors.onSurfaceSecondary,
         )
@@ -229,7 +244,13 @@ private fun EquipToggleButton(isEquipped: Boolean, onClick: () -> Unit) {
         size = ButtonSize.Small,
         style = if (isEquipped) ButtonStyle.Outlined else ButtonStyle.Filled,
     ) {
-        Text(if (isEquipped) "Unequip" else "Equip")
+        Text(
+            if (isEquipped) {
+                stringResource(Res.string.profile_my_items_button_unequip)
+            } else {
+                stringResource(Res.string.profile_my_items_button_equip)
+            }
+        )
     }
 }
 
@@ -247,14 +268,13 @@ private fun EmptyState() {
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
         Text(
-            text = "No items yet",
+            text = stringResource(Res.string.profile_my_items_empty_title),
             typography = AppTheme.typography.Heading.H600,
             color = AppTheme.colors.onSurfacePrimary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
-            text = "Pick up card backs, felts, and emote packs from the shop. " +
-                "Once you own them, they'll show up here.",
+            text = stringResource(Res.string.profile_my_items_empty_body),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
         )

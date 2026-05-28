@@ -19,6 +19,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_notifications_empty_subtitle
+import cards.libraries.resources.generated.resources.profile_notifications_empty_title
+import cards.libraries.resources.generated.resources.profile_notifications_title
 import com.dangerfield.cards.libraries.cards.UserMessage
 import com.dangerfield.cards.libraries.cards.UserMessageKind
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
@@ -34,6 +38,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -83,7 +88,7 @@ internal fun NotificationsScreenContent(
     Screen(
         topBar = {
             TopBar(
-                title = "Notifications",
+                title = stringResource(Res.string.profile_notifications_title),
                 onNavigateBack = onBack,
                 scrollState = scrollState,
             )
@@ -138,14 +143,14 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.height(Dimension.D400))
             Text(
-                text = "No notifications",
+                text = stringResource(Res.string.profile_notifications_empty_title),
                 typography = AppTheme.typography.Heading.H600,
                 color = AppTheme.colors.text,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(Dimension.D200))
             Text(
-                text = "Heads-ups and announcements will show up here.",
+                text = stringResource(Res.string.profile_notifications_empty_subtitle),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
