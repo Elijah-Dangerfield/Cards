@@ -12,6 +12,13 @@
 **Approach:** Added `PokerPalette.ProgressionCyan` + `PokerPalette.ProgressionGreen` next to existing brand swatches (chip-gold, card-back-blue), routed `LevelPill`'s gradient + `RING_HUE` and `LevelProgressGradient` through them, dropped the apologetic block comment. Two callsites lifted off the literal in one sweep.
 **Reviewer notes:** Pixel-identical — both tokens are the exact same `Color(0xFF…)` values that were inline. Preview pins on `LevelPill` are the visual safety net.
 
+## refactor(lobby): migrate LobbyScreen copy to `:libraries:resources`
+
+**Problem:** `LobbyScreen.kt` carried ~20 inline user-facing strings (top-bar titles, idle hero, create + join CTAs, in-room code surface, member list, start/leave CTAs, connection-status banner, seat label) — the same per-callsite duplication the docs/todo §A strings sweep names as the V1 quality bar. The shop module is already migrated; lobby was the next clean Composable-only surface.
+**Approach:** Added the lobby string family (`lobby_topbar_*`, `lobby_idle_*`, `lobby_in_room_*`, `lobby_connection_*`) under existing naming convention `{surface}_{role}_{specifier}` and routed every Composable callsite through `stringResource(...)`. `LobbyScreen.kt` no longer carries any inline copy; `ConnectionStatusRow` resolves its label off the sealed `ConnectionStatus`. Added `implementation(projects.libraries.resources)` to `features/lobby/impl/build.gradle.kts`. Two "Room code" instances were intentionally split into `lobby_idle_code_field_label` + `lobby_in_room_code_label` so a future voice-pass can tune one without dragging the other.
+**Reviewer notes:** Existing lobby tests still pass; `:apps:compose:assembleDebug` clean. No `@Preview` was touched — they render through the same screen Composable so they get the migrated copy automatically.
+**Deferred:** `LobbyViewModel.kt`'s error-state strings (currently raw `String` written into `LobbyState.error`) need either a typed `ErrorReason` enum + screen-side `stringResource(...)`, or a `suspend getString(...)` resolution in the VM before the `String` lands in state. Both shapes are valid; picking one is a small judgement call I'm leaving for the reviewer / human to direct. Noted in the updated `docs/todo.md` strings-sweep entry under "Remaining work."
+
 ## feat(gameplay): add v1 GameEvent envelope for future persistence
 
 **Problem:** Once `game_events.event_jsonb` rows start landing (B0 first bullet), every row is forever — a future v2 reader must fork on a stable version discriminator without rewriting history. AGENTS.md / docs/decisions.md (2026-05-27 MP architecture revisit) call this out as the first prereq before any event-log persistence ships.
