@@ -79,6 +79,14 @@ class EmojiPackCatalogTest {
     }
 
     @Test
+    fun doublerPack_unlocksItsEmojis() {
+        val available = EmojiPackCatalog.availableEmojisFor(
+            ownedProductIds = setOf("emotes_doubler"),
+        )
+        assertEquals(listOf("🚀", "⏫", "🎯", "💰"), available)
+    }
+
+    @Test
     fun ownedMultiplePacks_appendInPackOrder_deduped() {
         val available = EmojiPackCatalog.availableEmojisFor(
             setOf("emotes_cute", "emotes_drama"),
