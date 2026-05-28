@@ -28,6 +28,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_emoji_tray_cooldown
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.icon.EmojiButton
@@ -41,6 +43,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import kotlin.time.Clock
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -170,7 +173,7 @@ private fun CooldownChip(remainingSeconds: Long) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "${remainingSeconds}s",
+                text = stringResource(Res.string.room_emoji_tray_cooldown, remainingSeconds),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,

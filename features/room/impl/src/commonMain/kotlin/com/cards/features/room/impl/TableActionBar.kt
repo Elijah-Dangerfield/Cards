@@ -23,6 +23,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.CompositionLocalProvider
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_quick_action_bet_button_with_amount
+import cards.libraries.resources.generated.resources.room_quick_action_bet_verb
+import cards.libraries.resources.generated.resources.room_quick_action_call_button
+import cards.libraries.resources.generated.resources.room_quick_action_check_button
+import cards.libraries.resources.generated.resources.room_quick_action_more_options_a11y
+import cards.libraries.resources.generated.resources.room_quick_action_raise_button_with_amount
+import cards.libraries.resources.generated.resources.room_quick_action_raise_hint_no_chips
+import cards.libraries.resources.generated.resources.room_quick_action_raise_verb
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -36,6 +45,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -94,7 +104,7 @@ internal fun QuickActionBar(
                     Box(modifier = Modifier.fillMaxWidth().height(Dimension.D800), contentAlignment = Alignment.Center) {
                         if (raiseHintVisible) {
                             Text(
-                                text = "Not enough chips to raise — try All In via ↑",
+                                text = stringResource(Res.string.room_quick_action_raise_hint_no_chips),
                                 typography = AppTheme.typography.Body.B400,
                                 color = AppTheme.colors.textSecondary,
                             )
@@ -117,8 +127,14 @@ internal fun QuickActionBar(
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         ) {
                             Text(
-                                text = if (legal.canCheck) "Check"
-                                else "Call ${formatCompactChips(legal.callAmount)}",
+                                text = if (legal.canCheck) {
+                                    stringResource(Res.string.room_quick_action_check_button)
+                                } else {
+                                    stringResource(
+                                        Res.string.room_quick_action_call_button,
+                                        formatCompactChips(legal.callAmount),
+                                    )
+                                },
                             )
                         }
                         ButtonPrimary(
@@ -138,9 +154,19 @@ internal fun QuickActionBar(
                         ) {
                             Text(
                                 text = when {
-                                    !legal.canRaise -> if (legal.isOpenBet) "Bet" else "Raise"
-                                    legal.isOpenBet -> "Bet ${formatCompactChips(legal.minRaiseTotal)}"
-                                    else -> "Raise ${formatCompactChips(legal.minRaiseTotal)}"
+                                    !legal.canRaise -> if (legal.isOpenBet) {
+                                        stringResource(Res.string.room_quick_action_bet_verb)
+                                    } else {
+                                        stringResource(Res.string.room_quick_action_raise_verb)
+                                    }
+                                    legal.isOpenBet -> stringResource(
+                                        Res.string.room_quick_action_bet_button_with_amount,
+                                        formatCompactChips(legal.minRaiseTotal),
+                                    )
+                                    else -> stringResource(
+                                        Res.string.room_quick_action_raise_button_with_amount,
+                                        formatCompactChips(legal.minRaiseTotal),
+                                    )
                                 },
                             )
                         }
@@ -150,7 +176,7 @@ internal fun QuickActionBar(
                         // chrome legible across every felt choice.
                         val feltAccent = LocalFeltAccentSurface.current
                         IconButton(
-                            icon = Icons.ArrowUp("More raise options"),
+                            icon = Icons.ArrowUp(stringResource(Res.string.room_quick_action_more_options_a11y)),
                             onClick = onExpandRaise,
                             backgroundColor = if (feltAccent != null) null else AppTheme.colors.surfaceSecondary,
                             backgroundOverride = feltAccent,

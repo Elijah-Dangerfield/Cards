@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_board_pot_pill_label
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -45,6 +47,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD600
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -179,7 +182,7 @@ private fun PotPill(amount: Long, onClick: () -> Unit) {
                 .background(PokerPalette.ChipGold),
         )
         Text(
-            text = "POT",
+            text = stringResource(Res.string.room_board_pot_pill_label),
             typography = AppTheme.typography.Label.L400,
             color = AppTheme.colors.onSurfaceSecondary,
         )
