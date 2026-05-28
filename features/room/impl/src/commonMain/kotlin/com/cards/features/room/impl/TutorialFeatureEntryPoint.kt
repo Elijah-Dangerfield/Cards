@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
@@ -15,6 +16,9 @@ import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -45,6 +49,7 @@ class TutorialFeatureEntryPoint(
         screen<TutorialRoute> {
             val viewModel: TutorialViewModel = viewModel { tutorialViewModelFactory() }
             val state by viewModel.state.collectAsStateWithLifecycle()
+            val scope = rememberCoroutineScope()
             TutorialPokerScreen(
                 state = state,
                 onIntent = viewModel::submit,
@@ -53,16 +58,16 @@ class TutorialFeatureEntryPoint(
                 onSkipBasics = viewModel::skipBasics,
                 onRestartBasics = viewModel::restartBasics,
                 // The Done button on the Ready screen routes here on
-                // first-time completion. Batch the two ops so the
-                // tutorial is popped underneath the dialog atomically;
-                // doing them sequentially would briefly show the home
-                // screen between pop and navigate. After this,
-                // dismissing the dialog lands the user back on home —
-                // the celebration is the final beat.
+                // first-time completion. Pop the tutorial first so the
+                // user lands on home, then delay before pushing the
+                // celebration dialog — the dialog reads as a beat on
+                // top of home instead of an instant overlay swap. See
+                // `DialogIntroDelay`.
                 onAchievementUnlocked = {
-                    router.batch {
-                        popBackTo(TutorialRoute(), inclusive = true)
-                        navigate(
+                    router.popBackTo(TutorialRoute(), inclusive = true)
+                    scope.launch {
+                        delay(DialogIntroDelay)
+                        router.navigate(
                             AchievementUnlockedRoute(
                                 achievementId = AchievementId.TUTORIAL_COMPLETE.name,
                             ),
