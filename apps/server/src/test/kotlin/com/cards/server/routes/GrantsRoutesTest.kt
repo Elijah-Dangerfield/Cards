@@ -12,6 +12,7 @@ import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.http.ClientContext
 import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
+import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import io.ktor.client.call.body
@@ -347,6 +348,7 @@ class GrantsRoutesTest {
         testApplication {
             application {
                 installSerialization()
+                installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing { grantsRoutes(inventory, catalog, policy) }
