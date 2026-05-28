@@ -38,7 +38,6 @@ import kotlin.time.ExperimentalTime
  *    entries; once real-PvP / league achievements ship server-side, they
  *    land in the `serverWitnessed` set and self-grant attempts get 403.
  *
-
  * Idempotent on `(userId, productId)` via
  * [InventoryRepository.recordEarnedGrant] — a duplicate POST returns the
  * existing row. Clients can safely re-fire grants after a sync failure or
