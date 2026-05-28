@@ -565,6 +565,12 @@
     <string name="room_seat_tenure_playing_since">Playing since %1$s %2$d</string>
     <string name="room_seat_tenure_playing_since_supporting">When your account joined.</string>
 
+    <!-- UI library — ShakeDialog (shake-to-send-feedback prompt shown on debug builds). -->
+    <string name="ui_shake_dialog_title">Send feedback?</string>
+    <string name="ui_shake_dialog_body">Shake any time to share a bug or idea.</string>
+    <string name="ui_shake_dialog_send_cta">Send</string>
+    <string name="ui_shake_dialog_cancel_cta">Cancel</string>
+
     <!-- Calendar — Month names (used wherever a friendly Month + Year string is built). -->
     <string name="month_january">January</string>
     <string name="month_february">February</string>

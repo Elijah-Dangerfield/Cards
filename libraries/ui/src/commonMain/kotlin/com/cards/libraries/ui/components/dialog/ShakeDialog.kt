@@ -7,6 +7,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_shake_dialog_body
+import cards.libraries.resources.generated.resources.ui_shake_dialog_cancel_cta
+import cards.libraries.resources.generated.resources.ui_shake_dialog_send_cta
+import cards.libraries.resources.generated.resources.ui_shake_dialog_title
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -15,6 +20,7 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -30,14 +36,14 @@ fun ShakeDialog(
         modifier = modifier,
         topContent = {
             Text(
-                text = "Send feedback?",
+                text = stringResource(Res.string.ui_shake_dialog_title),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
         },
         content = {
             Text(
-                text = "Shake any time to share a bug or idea.",
+                text = stringResource(Res.string.ui_shake_dialog_body),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -55,7 +61,7 @@ fun ShakeDialog(
                     size = ButtonSize.Medium,
                     type = ButtonType.Primary,
                 ) {
-                    Text("Send")
+                    Text(stringResource(Res.string.ui_shake_dialog_send_cta))
                 }
                 Spacer(modifier = Modifier.height(Dimension.D500))
                 Button(
@@ -64,7 +70,7 @@ fun ShakeDialog(
                     size = ButtonSize.Medium,
                     style = ButtonStyle.Text,
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(Res.string.ui_shake_dialog_cancel_cta))
                 }
             }
         },
