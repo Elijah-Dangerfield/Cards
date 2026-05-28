@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 
 /**
@@ -146,6 +147,8 @@ class GameSession internal constructor(
         }
         try {
             eventWriter.append(id, result.events)
+        } catch (t: CancellationException) {
+            throw t
         } catch (t: Throwable) {
             return@withLock IntentResult.Rejected(
                 "persistence failed: ${t.message ?: t::class.simpleName ?: "unknown"}",
@@ -249,6 +252,8 @@ class GameSession internal constructor(
         )
         try {
             eventWriter.append(id, result.events)
+        } catch (t: CancellationException) {
+            throw t
         } catch (t: Throwable) {
             return IntentResult.Rejected(
                 "persistence failed: ${t.message ?: t::class.simpleName ?: "unknown"}",
