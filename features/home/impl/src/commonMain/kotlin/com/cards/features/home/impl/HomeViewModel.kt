@@ -18,7 +18,9 @@ import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomRepository
+import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -137,6 +139,10 @@ class HomeViewModel(
                 .let { gate ->
                     val payload = gate.payload()!!
                     appCache.update { it.copy(hasSeenStarterWelcome = true) }
+                    // Beat between Home rendering and the welcome popping;
+                    // without it the dialog grabs focus before the user has
+                    // oriented on the new screen. See `DialogIntroDelay`.
+                    delay(DialogIntroDelay)
                     sendEvent(HomeEvent.OpenWelcomeDialog(payload))
                 }
         }
