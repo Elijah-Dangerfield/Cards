@@ -196,13 +196,13 @@ class EditProfileViewModel(
             UpdateProfileOutcome.DisplayNameTaken -> updateState {
                 it.copy(
                     isSubmitting = false,
-                    displayNameError = "That name is taken. Try another.",
+                    displayNameError = EditProfileDisplayNameError.Taken,
                 )
             }
             UpdateProfileOutcome.InvalidDisplayName -> updateState {
                 it.copy(
                     isSubmitting = false,
-                    displayNameError = "That name isn't allowed. Use letters and numbers.",
+                    displayNameError = EditProfileDisplayNameError.Invalid,
                 )
             }
             // Non-validation failures (NotSignedIn, NetworkError,
@@ -268,7 +268,7 @@ data class EditProfileState(
      * Cleared on the next edit of the field. Distinct from [error] so
      * the UI can place it at the field rather than as a generic banner.
      */
-    val displayNameError: String? = null,
+    val displayNameError: EditProfileDisplayNameError? = null,
 ) {
     /**
      * Display projection: every server pack, paired with whether the
@@ -326,6 +326,16 @@ data class AvatarPackDisplay(
 
 sealed interface EditProfileEvent {
     data object Saved : EditProfileEvent
+}
+
+/**
+ * Inline error surfaced under the display-name field. Typed so the VM
+ * doesn't hold raw user-facing copy — `EditProfileScreen.kt` resolves
+ * each variant through Compose Multiplatform resources at render time.
+ */
+sealed interface EditProfileDisplayNameError {
+    data object Taken : EditProfileDisplayNameError
+    data object Invalid : EditProfileDisplayNameError
 }
 
 sealed interface EditProfileAction {

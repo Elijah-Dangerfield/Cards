@@ -40,6 +40,8 @@ import cards.libraries.resources.generated.resources.profile_edit_avatar_color_s
 import cards.libraries.resources.generated.resources.profile_edit_avatar_section
 import cards.libraries.resources.generated.resources.profile_edit_avatars_load_error
 import cards.libraries.resources.generated.resources.profile_edit_avatars_loading
+import cards.libraries.resources.generated.resources.profile_edit_display_name_error_invalid
+import cards.libraries.resources.generated.resources.profile_edit_display_name_error_taken
 import cards.libraries.resources.generated.resources.profile_edit_display_name_helper_range
 import cards.libraries.resources.generated.resources.profile_edit_display_name_label
 import cards.libraries.resources.generated.resources.profile_edit_pack_locked_prefix
@@ -166,7 +168,7 @@ fun EditProfileScreen(
                     EditProfileState.MAX_NAME_LENGTH,
                 )
                 val displayNameHelper = when {
-                    state.displayNameError != null -> state.displayNameError
+                    state.displayNameError != null -> state.displayNameError.message()
                     !state.isNameValid && state.displayName.isNotEmpty() -> rangeHelper
                     else -> null
                 }
@@ -552,6 +554,14 @@ private fun ColorSwatch(
     )
 }
 
+@Composable
+private fun EditProfileDisplayNameError.message(): String = when (this) {
+    EditProfileDisplayNameError.Taken ->
+        stringResource(Res.string.profile_edit_display_name_error_taken)
+    EditProfileDisplayNameError.Invalid ->
+        stringResource(Res.string.profile_edit_display_name_error_invalid)
+}
+
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun EditProfileScreenPreview_Loaded() {
@@ -764,7 +774,7 @@ private fun EditProfileScreenPreview_DisplayNameTaken() {
                 allAvatarPacks = listOf(
                     AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
                 ),
-                displayNameError = "That name is taken. Try another.",
+                displayNameError = EditProfileDisplayNameError.Taken,
             ),
             onAction = {},
             onBack = {},

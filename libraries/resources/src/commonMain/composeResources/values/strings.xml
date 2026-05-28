@@ -385,6 +385,10 @@
     <string name="profile_edit_pack_locked_prefix">🔒  %1$s</string>
     <string name="profile_edit_pack_unlock_button">Get in shop</string>
 
+    <!-- Edit profile — inline display-name error states surfaced by the VM (sealed EditProfileDisplayNameError → resource). -->
+    <string name="profile_edit_display_name_error_taken">That name is taken. Try another.</string>
+    <string name="profile_edit_display_name_error_invalid">That name isn\'t allowed. Use letters and numbers.</string>
+
     <!-- Profile — Claim account hero (anonymous → claimed flow). -->
     <string name="profile_claim_back_a11y">Back</string>
     <string name="profile_claim_title">Claim your account</string>
