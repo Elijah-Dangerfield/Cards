@@ -1661,3 +1661,107 @@ does the right thing without leaking trigger logic into every consumer.
 catalog, achievements, profile) are tracked in
 [`developer-todo.md`](./developer-todo.md) — each needs a per-endpoint
 call before adoption.
+
+## 2026-05-27 — Multiplayer: event-sourced game state + persisted room membership
+
+**Decision:** Adopt the recommended target from
+[`multiplayer-architecture-eval.md`](./multiplayer-architecture-eval.md)
+in whole. The MP system's bones are right; what's missing is durability
+and replayability. The path forward, in order:
+
+1. **Event log primitives.** New `game_events(session_id, seq, occurred_at,
+   event_type, event_jsonb)` Flyway table. `GameEventOccurred` outbound
+   WS frame and the underlying `GameEvent` payload both gain a `seq:
+   Long`. Every persisted event envelope carries a `version: Int`
+   discriminator from row one — "schema evolution on events is forever."
+2. **Persist game state through the event log.** Each accepted action's
+   resulting events get written to `game_events` inside the per-session
+   mutex *before* the existing `MutableSharedFlow<GameEvent>` emit. The
+   in-memory `StateFlow<GameState>` becomes a derived view, not the
+   source of truth. Server restart no longer evaporates open hands.
+3. **Snapshot-on-hand-end compaction.** Companion
+   `game_state_snapshots(session_id, cursor_seq, state_jsonb,
+   captured_at)` table. After every `HandComplete` event the session
+   writes the materialized `GameState` JSON at the same cursor. Cold
+   start = load latest snapshot + replay events past its cursor.
+4. **WS reconnect protocol upgrade.** New `RequestEventsSince(cursor)`
+   inbound frame and `EventTail(events, currentSeq)` outbound frame.
+   Brief disconnects short-circuit the full-snapshot path; long
+   disconnects fall back to `Snapshot + tail`. Client tracks
+   `lastSeenSeq` per session in `ReconnectingRoomSocket.kt`.
+5. **Persisted room membership.** New `rooms` + `room_members` Flyway
+   tables; `InMemoryRoomService` becomes a hydrated cache. Membership
+   operations write through Postgres before responding. Room codes
+   survive restart.
+6. **Spectator = WS subscriber without a seat.** Auth check loosens for
+   spectator-eligible rooms (friend games stay closed; future public
+   rooms open). Existing per-viewer hole-card scrubbing already handles
+   it. Forfeit-then-spectator (decided 2026-05-27 — last-human-leaves
+   kills the room; mid-hand grace expiry emits `SeatForfeited` + the
+   user reconnects as a spectator) is the orphaned-room policy on top
+   of this.
+7. **Periodic invariant check.** Add a debug-only admin endpoint and a
+   CI test that replays a session's full event log and asserts the
+   snapshot at the highest matching cursor equals the replay — two
+   sources of truth need an invariant.
+
+Sequencing is **not strict** — phases can interleave once the event-log
+foundation is in place — but the natural durability path is
+(1) → (2) → (3). The remaining items unlock independently from there.
+The migration items are sliced into `docs/todo.md` §B (B0–B6) under
+the new architecture-revisit-landed heading.
+
+**Why:** The transport split (REST membership + WS game state) and
+server-authoritative gameplay model are correct in their bones. The
+single biggest fragility is in-memory-only state — server restart drops
+every active room mid-hand and caps every future feature (replay,
+spectator from cold start, scale-out, hand history). Event sourcing
+addresses durability *and* replayability with one model that's already
+half-built — `GameSession` already exposes a `SharedFlow<GameEvent>`
+distinct from `StateFlow<GameState>`. Making the event stream durable
+unlocks four future features (replay, spectator, history, scale-out
+path) without committing to any of them today.
+
+**Alternatives considered:**
+- **(A) Status quo, polished — persist `GameState` directly on every
+  mutation.** Floor, not ceiling. Fixes the worst fragility but doesn't
+  unlock replay/spectator/scale-out and writes the entire state on
+  every action. Defensible as a stepping stone; rejected because (B)
+  isn't materially more work and gives a much higher ceiling.
+- **(C) Move actions to REST, WS becomes pure notification channel.**
+  Aesthetic improvement at best — extra TLS round-trip per action, two
+  paths for the same conceptual operation, action ordering relative
+  to incoming state events becomes subtler. Nonce-deduped WS frames
+  already do the same job.
+- **(D) Managed realtime (Supabase Realtime / Liveblocks / Ably /
+  PartyKit / Convex) for the game itself.** Server-side enforcement
+  (turn order, min-raise, hidden hole cards) stays on Ktor regardless
+  — managed services would swap a working WS for a different working
+  WS plus a vendor. Supabase Realtime *is* the right fit for ambient
+  social channels later (lobby activity, friend presence broadcast,
+  "X started a game" toasts) where eventual consistency is fine and
+  no server validation is required — that's parked in §B6 with a
+  "re-pick alongside friend-graph" tag, not adopted now.
+- **(E) Sticky-routed multi-process, shared room registry.** Easy to
+  retrofit on top of (B). Park until single-machine load actually
+  shows. Real operational complexity that V1 / friend-game scale
+  doesn't justify.
+
+**Trade-offs accepted:**
+- **Event-log write latency** sits on the critical path. Postgres on
+  Fly is ~2–8ms typical, well inside poker's interaction budget, but
+  a Postgres degradation now blocks gameplay rather than just
+  persistence.
+- **Schema evolution is forever.** The `version: Int` discriminator
+  must ship in the very first row. Future v2 readers fork on it.
+- **Two sources of truth (snapshot table + event log) need
+  invariants.** The periodic consistency check (item 7) exists for
+  exactly this.
+- **Spectator support changes the auth surface.** Membership stops
+  being a binary "trusted recipient of personalized snapshot"; it
+  splits into viewer roles. Worth designing the WS auth check around
+  viewer-role rather than membership from B5 onward.
+
+**Status:** Decided 2026-05-27, migration sliced into `docs/todo.md` §B
+sub-items (B0–B6). Eval kept in [`multiplayer-architecture-eval.md`](./multiplayer-architecture-eval.md)
+as supporting context.
