@@ -9,6 +9,15 @@
   New user-facing strings always go here, not inline at the callsite —
   see `docs/todo.md` "Strings — centralize everything in
   :libraries:resources". Naming convention: `{surface}_{role}_{specifier}`.
+
+  Escaping: do NOT use Android-style backslash escapes on apostrophes
+  or double-quotes (the backslash-prefixed forms common in Android XML
+  resources). Compose Multiplatform Resources does standard XML parsing
+  and the Android extra-unescape pass isn't applied here — a backslash
+  before an apostrophe renders as a literal backslash on screen instead
+  of disappearing. Apostrophes and double-quotes are legal inside
+  `<string>...</string>` element text content without any escaping;
+  only `&` and `<` need entities (`&amp;`, `&lt;`).
 -->
 <resources>
     <!-- Shop — snackbar titles + messages fired from non-Composable contexts. -->
