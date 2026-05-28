@@ -377,4 +377,17 @@
     <string name="onboarding_how_card_league_title">Climb the league</string>
     <string name="onboarding_how_card_league_subtitle">Top 7 of 30 promote each week.</string>
     <string name="onboarding_how_continue_button">Take a seat</string>
+
+    <!-- Room — Leave-bots confirm dialog (back-press while a hand is in progress). -->
+    <string name="room_leave_bots_title">Leave the table?</string>
+    <string name="room_leave_bots_body">You\'ll lose progress on this hand. Your XP and chips are saved.</string>
+    <string name="room_leave_bots_stay_button">Stay</string>
+    <string name="room_leave_bots_leave_button">Leave</string>
+
+    <!-- Room — Swipe-fold confirm dialog (swipe-down to fold while in a hand). -->
+    <string name="room_swipe_fold_title">Fold this hand?</string>
+    <string name="room_swipe_fold_body">You\'ll forfeit the round and any chips already in the pot.</string>
+    <string name="room_swipe_fold_dont_show_again">Don\'t show this again</string>
+    <string name="room_swipe_fold_cancel_button">Cancel</string>
+    <string name="room_swipe_fold_confirm_button">Fold</string>
 </resources>

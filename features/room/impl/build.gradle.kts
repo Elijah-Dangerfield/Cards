@@ -18,6 +18,7 @@ kotlin {
             implementation(projects.libraries.identity)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.resources)
             implementation(projects.libraries.review)
             implementation(projects.libraries.ui)
             implementation(projects.libraries.navigation)

@@ -15,6 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_swipe_fold_body
+import cards.libraries.resources.generated.resources.room_swipe_fold_cancel_button
+import cards.libraries.resources.generated.resources.room_swipe_fold_confirm_button
+import cards.libraries.resources.generated.resources.room_swipe_fold_dont_show_again
+import cards.libraries.resources.generated.resources.room_swipe_fold_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
@@ -23,6 +29,7 @@ import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -43,13 +50,13 @@ internal fun SwipeFoldConfirmDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "Fold this hand?",
+                text = stringResource(Res.string.room_swipe_fold_title),
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.onSurfacePrimary,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "You'll forfeit the round and any chips already in the pot.",
+                text = stringResource(Res.string.room_swipe_fold_body),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.onSurfaceSecondary,
                 textAlign = TextAlign.Center,
@@ -67,7 +74,7 @@ internal fun SwipeFoldConfirmDialog(
                     onCheckedChange = { dontShowAgain = it },
                 )
                 Text(
-                    text = "Don't show this again",
+                    text = stringResource(Res.string.room_swipe_fold_dont_show_again),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                     modifier = Modifier.padding(start = 8.dp),
@@ -80,11 +87,11 @@ internal fun SwipeFoldConfirmDialog(
                 ButtonTertiary(
                     onClick = onCancel,
                     modifier = Modifier.weight(1f),
-                ) { Text(text = "Cancel") }
+                ) { Text(text = stringResource(Res.string.room_swipe_fold_cancel_button)) }
                 ButtonPrimary(
                     onClick = { onConfirmFold(dontShowAgain) },
                     modifier = Modifier.weight(1f),
-                ) { Text(text = "Fold") }
+                ) { Text(text = stringResource(Res.string.room_swipe_fold_confirm_button)) }
             }
         }
     }
