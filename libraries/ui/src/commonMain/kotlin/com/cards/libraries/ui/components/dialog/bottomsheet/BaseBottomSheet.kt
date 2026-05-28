@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetDefaults.DragHandle
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -98,40 +100,45 @@ fun BaseBottomSheet(
         else -> RoundedTopSheetShape
     }
 
-    ModalBottomSheet(
-        onDismissRequest = { state.dismiss() },
-        sheetState = state.materialSheetStateDelegate,
-        containerColor = backgroundColor.color,
-        sheetGesturesEnabled = sheetGesturesEnabled,
-        scrimColor = AppTheme.colors.backgroundOverlay.color,
-        shape = sheetShape,
-        properties = ModalBottomSheetProperties(
-            shouldDismissOnBackPress = shouldDismissOnBackPress,
-            shouldDismissOnClickOutside = shouldDismissOnClickOutside
-        ),
-        tonalElevation = 0.dp,
-        dragHandle = {
-            when (dragHandle) {
-                BottomSheetDragHandle.None -> Unit
-                BottomSheetDragHandle.Basic -> DragHandle(
-                    modifier = Modifier.fillMaxWidth(0.2f),
-                    color = contentColor.color,
-                )
-                is BottomSheetDragHandle.Custom -> dragHandle.render()
-                is BottomSheetDragHandle.Accessory -> TopAccessoryBubble(
-                    accessory = dragHandle.accessory,
-                    fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
-                    contentColor = contentColor,
+    // M3 wraps the drag-handle slot in a Modifier.clickable whose ripple resolves
+    // to MaterialTheme.colorScheme.primary (Red, by AppTheme tripwire design). Null
+    // out the ripple to suppress the long-press flash; the a11y click still works.
+    CompositionLocalProvider(LocalRippleConfiguration provides null) {
+        ModalBottomSheet(
+            onDismissRequest = { state.dismiss() },
+            sheetState = state.materialSheetStateDelegate,
+            containerColor = backgroundColor.color,
+            sheetGesturesEnabled = sheetGesturesEnabled,
+            scrimColor = AppTheme.colors.backgroundOverlay.color,
+            shape = sheetShape,
+            properties = ModalBottomSheetProperties(
+                shouldDismissOnBackPress = shouldDismissOnBackPress,
+                shouldDismissOnClickOutside = shouldDismissOnClickOutside
+            ),
+            tonalElevation = 0.dp,
+            dragHandle = {
+                when (dragHandle) {
+                    BottomSheetDragHandle.None -> Unit
+                    BottomSheetDragHandle.Basic -> DragHandle(
+                        modifier = Modifier.fillMaxWidth(0.2f),
+                        color = contentColor.color,
+                    )
+                    is BottomSheetDragHandle.Custom -> dragHandle.render()
+                    is BottomSheetDragHandle.Accessory -> TopAccessoryBubble(
+                        accessory = dragHandle.accessory,
+                        fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
+                        contentColor = contentColor,
+                    )
+                }
+            },
+        ) {
+            ProvideContentColor(contentColor) {
+                Column(
+                    modifier = modifier,
+                    horizontalAlignment = contentAlignment,
+                    content = content,
                 )
             }
-        },
-    ) {
-        ProvideContentColor(contentColor) {
-            Column(
-                modifier = modifier,
-                horizontalAlignment = contentAlignment,
-                content = content,
-            )
         }
     }
 }

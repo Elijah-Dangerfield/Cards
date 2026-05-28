@@ -28,6 +28,12 @@
 **Approach:** Added `LevelTest` covering the curve at known levels, the `<1` clamp on `xpToLevelUpFrom`, the level-from-XP boundaries (0, 99, 100, negative, beyond MAX_LEVEL), the three derived `LevelProgress` properties, plus a monotonicity sweep. New `commonTest.dependencies` block added to `:libraries:cards` (it had none) wired to `:libraries:flowroutines:testing` for source-set parity with the rest of the module graph; the tests themselves use plain `kotlin.test` because `Level.kt` is pure math.
 **Reviewer notes:** None.
 
+## fix(ui): kill red ripple on bottom-sheet drag handle
+
+**Problem:** Long-pressing the top of any bottom sheet flashed red. M3's `ModalBottomSheet` wraps its drag-handle slot in `Modifier.clickable` (for the a11y expand/collapse), whose default ripple resolves to `MaterialTheme.colorScheme.primary` — and `AppTheme.MaterialWrapper` deliberately paints every Material color `Color.Red` as a tripwire for un-DS'd widgets. The ripple was the tripwire firing legitimately.
+**Approach:** Wrapped the `ModalBottomSheet(...)` call inside `BaseBottomSheet` with `CompositionLocalProvider(LocalRippleConfiguration provides null)`. That disables the ripple specifically for the M3-internal clickable while leaving the a11y click intact. DS content inside the sheet does not use Material ripples, so scoping the override to this call site is a no-op for sheet content. Chose this over routing a custom DS ripple color through `RippleConfiguration` because the drag handle's affordance is gesture-first (drag), not click-first — visual feedback on press is decoration, not signal.
+**Reviewer notes:** Left a short justification comment on the `CompositionLocalProvider` line — without it, a future reader sees a null-out and can't tell whether it's a workaround or a stylistic choice. AGENTS.md says default to no comments; the "workaround for a specific bug" carve-out fits here.
+
 ## fix(auth): dismiss keyboard when submitting sign-in / sign-up forms
 
 **Problem:** Tapping the submit button or pressing the keyboard's "Go" action on the auth screens left the soft keyboard on screen, covering inline errors, loading state, and the claim-progress dialog.
