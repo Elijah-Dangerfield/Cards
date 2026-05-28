@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.dangerfield.cards.libraries.ui.components.PullToRefreshBox
@@ -368,7 +367,7 @@ private fun FeaturedPackHero(pack: Product.ChipPack, onClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(gradient)
-                .padding(horizontal = 22.dp, vertical = 22.dp),
+                .padding(horizontal = Dimension.D850, vertical = Dimension.D850),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HeroProductIcon(emoji = pack.iconEmoji)
@@ -407,12 +406,12 @@ private fun HeroProductIcon(emoji: String) {
     Box(
         modifier = Modifier
             .size(86.dp)
-            .clip(RoundedCornerShape(22.dp))
+            .clip(Radii.R850.shape)
             .background(AppTheme.colors.background.color.copy(alpha = 0.18f))
             .border(
                 width = 2.dp,
                 color = AppTheme.colors.onAccentPrimary.color.copy(alpha = 0.25f),
-                shape = RoundedCornerShape(22.dp),
+                shape = Radii.R850.shape,
             ),
         contentAlignment = Alignment.Center,
     ) {

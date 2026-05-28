@@ -45,6 +45,7 @@ object Radii {
     val R600 = Radius(CornerSize(DimensionResource.D600.dp))
     val R700 = Radius(CornerSize(DimensionResource.D700.dp))
     val R800 = Radius(CornerSize(DimensionResource.D800.dp))
+    val R850 = Radius(CornerSize(DimensionResource.D850.dp))
     val R900 = Radius(CornerSize(DimensionResource.D900.dp))
     val R1000 = Radius(CornerSize(DimensionResource.D1000.dp))
     val None = Radius(SquareCornerSize)
