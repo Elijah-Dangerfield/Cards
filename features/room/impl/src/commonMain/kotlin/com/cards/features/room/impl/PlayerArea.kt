@@ -30,6 +30,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_player_odds_dial_lose_label
+import cards.libraries.resources.generated.resources.room_player_odds_dial_no_value
+import cards.libraries.resources.generated.resources.room_player_odds_dial_tie_label
+import cards.libraries.resources.generated.resources.room_player_odds_dial_value
+import cards.libraries.resources.generated.resources.room_player_odds_dial_win_label
+import cards.libraries.resources.generated.resources.room_player_odds_flip_a11y
+import cards.libraries.resources.generated.resources.room_player_odds_heading
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -92,6 +100,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -768,7 +778,7 @@ private fun PlayerInfoTileBack(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "Odds",
+            text = stringResource(Res.string.room_player_odds_heading),
             typography = AppTheme.typography.Body.B400.Bold,
             color = AppTheme.colors.textSecondary,
             maxLines = 1,
@@ -780,12 +790,12 @@ private fun PlayerInfoTileBack(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OddsDial(
-                label = "Win",
+                label = Res.string.room_player_odds_dial_win_label,
                 percent = winOdds?.winPct,
                 tone = OddsDialTone.Win,
             )
             OddsDial(
-                label = "Lose",
+                label = Res.string.room_player_odds_dial_lose_label,
                 percent = winOdds?.losePct,
                 tone = OddsDialTone.Lose,
             )
@@ -793,7 +803,7 @@ private fun PlayerInfoTileBack(
         if (winOdds != null && winOdds.tiePct >= 2) {
             VerticalSpacerD100()
             Text(
-                text = "Tie ${winOdds.tiePct}%",
+                text = stringResource(Res.string.room_player_odds_dial_tie_label, winOdds.tiePct),
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.textSecondary,
                 maxLines = 1,
@@ -806,7 +816,7 @@ private enum class OddsDialTone { Win, Lose }
 
 @Composable
 private fun OddsDial(
-    label: String,
+    label: StringResource,
     percent: Int?,
     tone: OddsDialTone,
 ) {
@@ -829,7 +839,11 @@ private fun OddsDial(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (percent == null) "—" else "$displayPct%",
+                text = if (percent == null) {
+                    stringResource(Res.string.room_player_odds_dial_no_value)
+                } else {
+                    stringResource(Res.string.room_player_odds_dial_value, displayPct)
+                },
                 typography = AppTheme.typography.Body.B500.Bold,
                 color = accent,
                 maxLines = 1,
@@ -837,7 +851,7 @@ private fun OddsDial(
         }
         VerticalSpacerD100()
         Text(
-            text = label,
+            text = stringResource(label),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
             maxLines = 1,
@@ -864,7 +878,7 @@ private fun FlipAffordance(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            icon = Icons.Refresh("Flip to see win odds"),
+            icon = Icons.Refresh(stringResource(Res.string.room_player_odds_flip_a11y)),
             size = IconSize.Smallest,
             color = AppTheme.colors.textSecondary,
         )

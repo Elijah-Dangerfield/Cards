@@ -570,4 +570,29 @@
     <string name="room_player_profile_difficulty_casual_description">Forgiving table. Bots play loosely and rarely punish a thin call — a good place to find your footing.</string>
     <string name="room_player_profile_difficulty_standard_description">Balanced challenge. Bots punish loose play and exploit obvious tells — the default test of your read.</string>
     <string name="room_player_profile_difficulty_challenging_description">Sharp table. Bots pressure marginal hands and read your patterns — bring your A game.</string>
+
+    <!-- Room — BoardArea pot pill (small "POT" + amount label below community cards). -->
+    <string name="room_board_pot_pill_label">POT</string>
+
+    <!-- Room — EmojiTray cooldown text shown on the tray\'s trigger button between blasts. -->
+    <string name="room_emoji_tray_cooldown">%1$ds</string>
+
+    <!-- Room — Win/odds tile on the human seat (PlayerInfoTile back face). -->
+    <string name="room_player_odds_heading">Odds</string>
+    <string name="room_player_odds_dial_win_label">Win</string>
+    <string name="room_player_odds_dial_lose_label">Lose</string>
+    <string name="room_player_odds_dial_tie_label">Tie %1$d%%</string>
+    <string name="room_player_odds_dial_no_value">—</string>
+    <string name="room_player_odds_dial_value">%1$d%%</string>
+    <string name="room_player_odds_flip_a11y">Flip to see win odds</string>
+
+    <!-- Room — Bottom-of-table QuickActionBar (the Check/Call + Bet/Raise + more-options row on the human\'s turn). -->
+    <string name="room_quick_action_raise_hint_no_chips">Not enough chips to raise — try All In via ↑</string>
+    <string name="room_quick_action_check_button">Check</string>
+    <string name="room_quick_action_call_button">Call %1$s</string>
+    <string name="room_quick_action_bet_verb">Bet</string>
+    <string name="room_quick_action_raise_verb">Raise</string>
+    <string name="room_quick_action_bet_button_with_amount">Bet %1$s</string>
+    <string name="room_quick_action_raise_button_with_amount">Raise %1$s</string>
+    <string name="room_quick_action_more_options_a11y">More raise options</string>
 </resources>
