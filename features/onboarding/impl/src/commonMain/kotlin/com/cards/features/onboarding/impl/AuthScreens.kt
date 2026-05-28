@@ -38,6 +38,10 @@ import cards.libraries.resources.generated.resources.auth_forgot_password_submit
 import cards.libraries.resources.generated.resources.auth_forgot_password_submit_button_progress
 import cards.libraries.resources.generated.resources.auth_forgot_password_subtitle
 import cards.libraries.resources.generated.resources.auth_forgot_password_title
+import cards.libraries.resources.generated.resources.auth_sign_in_error_invalid_credentials
+import cards.libraries.resources.generated.resources.auth_sign_in_error_network
+import cards.libraries.resources.generated.resources.auth_sign_in_error_provider_not_enabled
+import cards.libraries.resources.generated.resources.auth_sign_in_error_unknown
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_apple
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_google
@@ -199,7 +203,7 @@ fun SignInScreen(
 
         state.error?.let {
             Spacer(modifier = Modifier.height(Dimension.D400))
-            ErrorText(it)
+            ErrorText(it.message())
         }
 
         Spacer(modifier = Modifier.height(Dimension.D300))
@@ -576,6 +580,14 @@ private fun ErrorText(text: String) {
 }
 
 @Composable
+private fun SignInError.message(): String = when (this) {
+    SignInError.InvalidCredentials -> stringResource(Res.string.auth_sign_in_error_invalid_credentials)
+    SignInError.NetworkError -> stringResource(Res.string.auth_sign_in_error_network)
+    SignInError.ProviderNotEnabled -> stringResource(Res.string.auth_sign_in_error_provider_not_enabled)
+    SignInError.Unknown -> stringResource(Res.string.auth_sign_in_error_unknown)
+}
+
+@Composable
 private fun BannerText(banner: VerifyEmailState.Banner) {
     val (resource, color) = bannerResource(banner)
     Text(
@@ -664,7 +676,7 @@ private fun SignInScreenPreview_Error() {
             state = SignInState(
                 email = "elijah@example.com",
                 password = "wrongpass",
-                error = "That email or password didn't match.",
+                error = SignInError.InvalidCredentials,
             ),
             onAction = {},
             onBack = {},

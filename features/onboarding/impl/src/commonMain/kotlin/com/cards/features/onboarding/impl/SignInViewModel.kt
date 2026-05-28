@@ -75,23 +75,23 @@ class SignInViewModel(
                 sendEvent(SignInEvent.NavigateToHome)
             }
             is SignInOutcome.InvalidCredentials -> updateState {
-                it.copy(isSubmitting = false, error = "Email or password is incorrect.")
+                it.copy(isSubmitting = false, error = SignInError.InvalidCredentials)
             }
             is SignInOutcome.EmailNotConfirmed -> {
                 updateState { it.copy(isSubmitting = false) }
                 sendEvent(SignInEvent.NavigateToVerifyEmail(outcome.email))
             }
             is SignInOutcome.NetworkError -> updateState {
-                it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+                it.copy(isSubmitting = false, error = SignInError.NetworkError)
             }
             is SignInOutcome.Cancelled -> updateState {
                 it.copy(isSubmitting = false)
             }
             is SignInOutcome.ProviderNotEnabled -> updateState {
-                it.copy(isSubmitting = false, error = "That sign-in option isn't available yet.")
+                it.copy(isSubmitting = false, error = SignInError.ProviderNotEnabled)
             }
             is SignInOutcome.Unknown -> updateState {
-                it.copy(isSubmitting = false, error = "Sign in failed. Please try again.")
+                it.copy(isSubmitting = false, error = SignInError.Unknown)
             }
         }
     }
@@ -101,7 +101,7 @@ data class SignInState(
     val email: String = "",
     val password: String = "",
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: SignInError? = null,
     val googleEnabled: Boolean = false,
     val appleEnabled: Boolean = false,
 ) {
@@ -119,6 +119,18 @@ data class SignInState(
 sealed interface SignInEvent {
     data object NavigateToHome : SignInEvent
     data class NavigateToVerifyEmail(val email: String) : SignInEvent
+}
+
+/**
+ * Inline error surfaced under the sign-in form. Typed so the VM doesn't
+ * hold raw user-facing copy — `AuthScreens.kt` resolves each variant
+ * through Compose Multiplatform resources at render time.
+ */
+sealed interface SignInError {
+    data object InvalidCredentials : SignInError
+    data object NetworkError : SignInError
+    data object ProviderNotEnabled : SignInError
+    data object Unknown : SignInError
 }
 
 sealed interface SignInAction {

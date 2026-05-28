@@ -88,6 +88,12 @@
     <string name="lobby_connection_reconnecting">Reconnecting (attempt %1$d)…</string>
     <string name="lobby_connection_connected">Connected</string>
 
+    <!-- Sign-in — inline error states surfaced by the VM (sealed SignInError → resource). -->
+    <string name="auth_sign_in_error_invalid_credentials">Email or password is incorrect.</string>
+    <string name="auth_sign_in_error_network">Couldn't reach the server. Check your connection.</string>
+    <string name="auth_sign_in_error_provider_not_enabled">That sign-in option isn't available yet.</string>
+    <string name="auth_sign_in_error_unknown">Sign in failed. Please try again.</string>
+
     <!-- Lobby — inline error states surfaced by the VM (sealed LobbyError → resource). -->
     <string name="lobby_error_create_not_signed_in">Sign in first to create a room.</string>
     <string name="lobby_error_create_network">Couldn't reach the server.</string>
