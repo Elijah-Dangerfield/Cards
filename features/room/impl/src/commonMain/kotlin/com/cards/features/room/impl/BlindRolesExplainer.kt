@@ -15,6 +15,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_blind_roles_big_blind_description
+import cards.libraries.resources.generated.resources.room_blind_roles_big_blind_label
+import cards.libraries.resources.generated.resources.room_blind_roles_big_blind_title
+import cards.libraries.resources.generated.resources.room_blind_roles_dealer_description
+import cards.libraries.resources.generated.resources.room_blind_roles_dealer_label
+import cards.libraries.resources.generated.resources.room_blind_roles_dealer_title
+import cards.libraries.resources.generated.resources.room_blind_roles_small_blind_description
+import cards.libraries.resources.generated.resources.room_blind_roles_small_blind_label
+import cards.libraries.resources.generated.resources.room_blind_roles_small_blind_title
+import cards.libraries.resources.generated.resources.room_blind_roles_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -23,6 +34,7 @@ import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD50
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -37,7 +49,7 @@ internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
         topAccessory = topAccessoryEmoji(emoji = "🎲"),
         title = {
             Text(
-                text = "Table positions",
+                text = stringResource(Res.string.room_blind_roles_title),
                 typography = AppTheme.typography.Heading.H800,
                 color = AppTheme.colors.onSurfacePrimary,
                 textAlign = TextAlign.Center,
@@ -46,22 +58,22 @@ internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
         itemSpacing = Dimension.D800,
     ) {
         RoleRow(
-            label = "D",
+            label = stringResource(Res.string.room_blind_roles_dealer_label),
             bg = PokerPalette.DealerWhite,
-            title = "Dealer",
-            description = "Action moves clockwise from the player left of the dealer. The dealer position rotates each hand.",
+            title = stringResource(Res.string.room_blind_roles_dealer_title),
+            description = stringResource(Res.string.room_blind_roles_dealer_description),
         )
         RoleRow(
-            label = "SB",
+            label = stringResource(Res.string.room_blind_roles_small_blind_label),
             bg = PokerPalette.ChipGold,
-            title = "Small blind",
-            description = "Forced half-bet, posted by the player immediately left of the dealer before any cards are dealt.",
+            title = stringResource(Res.string.room_blind_roles_small_blind_title),
+            description = stringResource(Res.string.room_blind_roles_small_blind_description),
         )
         RoleRow(
-            label = "BB",
+            label = stringResource(Res.string.room_blind_roles_big_blind_label),
             bg = PokerPalette.BlindRed,
-            title = "Big blind",
-            description = "Forced full bet, posted left of the small blind. The minimum opening bet for the hand.",
+            title = stringResource(Res.string.room_blind_roles_big_blind_title),
+            description = stringResource(Res.string.room_blind_roles_big_blind_description),
         )
     }
 }

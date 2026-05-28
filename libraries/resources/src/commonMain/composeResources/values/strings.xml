@@ -390,4 +390,29 @@
     <string name="room_swipe_fold_dont_show_again">Don\'t show this again</string>
     <string name="room_swipe_fold_cancel_button">Cancel</string>
     <string name="room_swipe_fold_confirm_button">Fold</string>
+
+    <!-- Room — Pot explainer (tap on the gold pot pill). -->
+    <string name="room_pot_explainer_title">The pot</string>
+    <string name="room_pot_explainer_body">Every bet and call this hand stacks into the pot. The player with the best hand at showdown wins it all.</string>
+
+    <!-- Room — Stack explainer (tap on the human\'s own chip stack on the bot table). -->
+    <string name="room_stack_explainer_title">You have %1$s chips</string>
+    <string name="room_stack_explainer_body">Use them to bet, call, and raise during a hand. Chips you put in go to the pot — the player with the best hand at showdown wins it.</string>
+    <string name="room_stack_explainer_practice_note">Go bust against bots and a fresh stack arrives next hand. Practice chips don\'t count for keeps.</string>
+
+    <!-- Room — Bet-pill explainer (tap on a player\'s gold bet pill). -->
+    <string name="room_bet_pill_explainer_title">%1$s put in %2$s</string>
+    <string name="room_bet_pill_explainer_body">That\'s how many chips they\'ve added to the pot on this betting round. It resets when the next card hits the board.</string>
+
+    <!-- Room — Blind-roles explainer (tap any of the D / SB / BB chips). -->
+    <string name="room_blind_roles_title">Table positions</string>
+    <string name="room_blind_roles_dealer_label">D</string>
+    <string name="room_blind_roles_dealer_title">Dealer</string>
+    <string name="room_blind_roles_dealer_description">Action moves clockwise from the player left of the dealer. The dealer position rotates each hand.</string>
+    <string name="room_blind_roles_small_blind_label">SB</string>
+    <string name="room_blind_roles_small_blind_title">Small blind</string>
+    <string name="room_blind_roles_small_blind_description">Forced half-bet, posted by the player immediately left of the dealer before any cards are dealt.</string>
+    <string name="room_blind_roles_big_blind_label">BB</string>
+    <string name="room_blind_roles_big_blind_title">Big blind</string>
+    <string name="room_blind_roles_big_blind_description">Forced full bet, posted left of the small blind. The minimum opening bet for the hand.</string>
 </resources>
