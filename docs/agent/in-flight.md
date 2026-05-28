@@ -2,6 +2,12 @@
 
 **Stashed WIP — handed back:** This cycle's worker-presweep captured 3 files from the human's tree that match the existing `feat(profile): surface "Member since {Month YYYY}"` block below (i.e. that block's *code* — the block was filed without the commit). Stash label: `worker-presweep-retry-20260528-125132`. The end-of-run `git stash pop` will restore the WIP to the tree; reviewer should treat as the human's in-flight delivery of that feat and commit/PR it.
 
+## fix(auth): make verify-email button read as a server check, not a self-assert
+
+**Problem:** The verify-email screen's primary CTA was "I confirmed, continue" — which reads as "the user is asserting they confirmed and the app trusts them." The system *does* server-verify (`refreshSession()` only proceeds when Supabase returns `email_confirmed_at`), but the wording makes the user think tapping the button bypasses confirmation when the underlying redirect (localhost) silently succeeded.
+**Approach:** Three small copy swaps in `strings.xml` — button "I confirmed, continue" → "Check verification"; progress label "Checking…" → "Checking with server…"; body sentence appended "and we'll check with our server" so the contract is explicit at first read. No model / VM changes (the data was already correct — only the language was misleading).
+**Reviewer notes:** Out of scope per the todo: the underlying Supabase dashboard redirect URL fix lives in `developer-todo.md`; the model is already correct.
+
 ## fix(ui): bump earned-badge text contrast to WCAG AA via accentEarned token
 
 **Problem:** OwnershipBadge ("Earned" variant) and EarnedTag rendered `accentSecondary` (Purple600 = #8E24AA) on `surfaceSecondary` (Gray800 = #2D2D2D) — measured ~2.0:1, below WCAG AA's 4.5:1 floor for body text.

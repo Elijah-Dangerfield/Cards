@@ -216,9 +216,9 @@
 
     <!-- Auth — VerifyEmail screen. -->
     <string name="auth_verify_email_title">Check your email</string>
-    <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then come back here.</string>
-    <string name="auth_verify_email_confirm_button">I confirmed, continue</string>
-    <string name="auth_verify_email_confirm_button_progress">Checking…</string>
+    <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then return here and we\'ll check with our server.</string>
+    <string name="auth_verify_email_confirm_button">Check verification</string>
+    <string name="auth_verify_email_confirm_button_progress">Checking with server…</string>
     <string name="auth_verify_email_resend_button">Resend email</string>
     <string name="auth_verify_email_resend_button_progress">Sending…</string>
     <string name="auth_verify_email_banner_still_pending">Email not yet confirmed. Tap the link in your inbox first.</string>
