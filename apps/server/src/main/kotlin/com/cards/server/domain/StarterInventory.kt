@@ -26,3 +26,26 @@ object StarterInventory {
         "avatars_starter",
     )
 }
+
+/**
+ * Catalog ids granted only to users in a bounded sign-up cohort — not on
+ * every fresh profile, so they're separate from [StarterInventory]. The
+ * application layer (`PostgresProfileRepository.findOrCreate`) compares
+ * a newly-inserted profile's `seq` against the per-id threshold and
+ * conditionally grants. See V26 for the catalog seed.
+ */
+object FoundingMemberCatalog {
+    /**
+     * Granted to the first [FOUNDING_MEMBER_THRESHOLD] users. Lives in
+     * [CosmeticSlot.Badge] on the client (`badge_` prefix routes through
+     * `cosmeticSlotFor`), renders via `badgeRegistry` in `EquippedFelt.kt`.
+     */
+    const val PRODUCT_ID: String = "badge_founding_member_1000"
+
+    /**
+     * Inclusive — `seq <= FOUNDING_MEMBER_THRESHOLD` qualifies. Tied to
+     * the productId in the name so a future "first 5,000" cosmetic adds
+     * a separate constant + id rather than mutating this one.
+     */
+    const val FOUNDING_MEMBER_THRESHOLD: Long = 1_000L
+}

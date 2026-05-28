@@ -27,6 +27,13 @@ object ProfilesTable : Table("profiles") {
     val avatarBackgroundColor = text("avatar_background_color").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
+    /**
+     * Monotonic per-profile sequence assigned at insert time by Postgres
+     * (see V26). Used by the application layer to recognise which users
+     * sit inside the founding-member window — the `BIGSERIAL` provides
+     * race-free ordering across concurrent first-contact inserts.
+     */
+    val seq = long("seq").uniqueIndex("profiles_seq_uq")
     override val primaryKey = PrimaryKey(userId)
 }
 
