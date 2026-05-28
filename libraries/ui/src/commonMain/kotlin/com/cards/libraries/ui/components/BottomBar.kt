@@ -51,6 +51,11 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD1600
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_bottom_bar_home_a11y
+import cards.libraries.resources.generated.resources.ui_bottom_bar_profile_a11y
+import cards.libraries.resources.generated.resources.ui_bottom_bar_shop_a11y
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -77,8 +82,18 @@ sealed class BottomBarItem(
             title = "Home",
             isSelected = isSelected,
             badgeAmount = badgeAmount,
-            selectedContent = { BottomBarTabIcon(Icons.Home.Filled("Home"), selected = true) },
-            unselectedContent = { BottomBarTabIcon(Icons.Home.Outlined("Home"), selected = false) },
+            selectedContent = {
+                BottomBarTabIcon(
+                    Icons.Home.Filled(stringResource(Res.string.ui_bottom_bar_home_a11y)),
+                    selected = true,
+                )
+            },
+            unselectedContent = {
+                BottomBarTabIcon(
+                    Icons.Home.Outlined(stringResource(Res.string.ui_bottom_bar_home_a11y)),
+                    selected = false,
+                )
+            },
         )
 
     data class Shop(
@@ -90,8 +105,18 @@ sealed class BottomBarItem(
         isSelected = isSelected,
         badgeAmount = badgeAmount,
         showsBadgeDot = showsBadgeDot,
-        selectedContent = { BottomBarTabIcon(Icons.Shop.Filled("Shop Tab"), selected = true) },
-        unselectedContent = { BottomBarTabIcon(Icons.Shop.Outlined("Shop Tab"), selected = false) },
+        selectedContent = {
+            BottomBarTabIcon(
+                Icons.Shop.Filled(stringResource(Res.string.ui_bottom_bar_shop_a11y)),
+                selected = true,
+            )
+        },
+        unselectedContent = {
+            BottomBarTabIcon(
+                Icons.Shop.Outlined(stringResource(Res.string.ui_bottom_bar_shop_a11y)),
+                selected = false,
+            )
+        },
     )
 
     data class Profile(
@@ -114,14 +139,20 @@ sealed class BottomBarItem(
             if (avatarDisplayName != null) {
                 ProfileAvatarTab(avatarDisplayName, avatarEmoji, avatarBackgroundColor, selected = true)
             } else {
-                BottomBarTabIcon(Icons.Person.Filled("Profile Tab"), selected = true)
+                BottomBarTabIcon(
+                    Icons.Person.Filled(stringResource(Res.string.ui_bottom_bar_profile_a11y)),
+                    selected = true,
+                )
             }
         },
         unselectedContent = {
             if (avatarDisplayName != null) {
                 ProfileAvatarTab(avatarDisplayName, avatarEmoji, avatarBackgroundColor, selected = false)
             } else {
-                BottomBarTabIcon(Icons.Person.Outlined("Profile Tab"), selected = false)
+                BottomBarTabIcon(
+                    Icons.Person.Outlined(stringResource(Res.string.ui_bottom_bar_profile_a11y)),
+                    selected = false,
+                )
             }
         },
     )

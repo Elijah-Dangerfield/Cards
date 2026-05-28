@@ -37,6 +37,9 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.color.ProvideContentColor
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.ui_close_a11y
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -191,7 +194,7 @@ private fun SnackbarBody(
             HorizontalSpacerD500()
             IconButton(
                 size = IconButton.Size.Small,
-                icon = Icons.X("Close"),
+                icon = Icons.X(stringResource(Res.string.ui_close_a11y)),
                 onClick = onDismiss,
             )
         }
