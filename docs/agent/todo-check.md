@@ -4,16 +4,21 @@ You run **once, immediately before** the 4 nightly workers. Your only job: recon
 
 You are **not** a worker. You don't pick features, write code, or refactor. You only edit `docs/todo.md` (and append to `docs/backlog.md` when noted below).
 
-**Working branch:** `dev`.
+**Working branch:** `agent`. Bot-only — the human never commits here.
 
 ## Start of run
 
 1. `git fetch origin`.
-2. `gh pr list --head dev --state open --json number,url`. **If a PR exists, exit immediately with no commits** — last night's work is still under review.
-3. Align `dev`:
-   - `origin/dev` missing or matches `origin/main` → `git checkout -B dev origin/main && git push -u origin dev`.
-   - `origin/dev` ahead, no PR, last commit < 6h → `git checkout dev && git pull --rebase origin dev`.
-   - `origin/dev` ahead, no PR, last commit ≥ 6h → stale; `git checkout dev && git reset --hard origin/main && git push --force-with-lease origin dev`.
+2. `gh pr list --head agent --state open --json number,url`. **If a PR exists, exit immediately with no commits** — last night's work is still under review.
+3. Align `agent` with the right base:
+   - **If `docs/agent/in-flight.md` exists on `origin/agent`** → a worker is already mid-cycle. Exit; you should have run before workers, not during.
+   - **If it doesn't** → safe to align. Reset to main so workers start clean:
+     ```
+     git checkout agent
+     git reset --hard origin/main
+     git push --force-with-lease origin agent
+     ```
+     Idempotent — no-op if `agent` is already at `main`.
 4. Read `docs/todo.md`. **Everything in this file is in scope** — there's no human-only carve-out section anymore. Human-only items live in `docs/developer-todo.md`, which you must never touch.
 
 ## What you check
@@ -71,7 +76,7 @@ Otherwise:
    - "Wire off-path for audio-muted flag" — flag added in <sha>, only on-path handled in AudioController.kt:47.
    ```
    If you can't cite evidence for a line, don't make the change.
-4. `git push origin dev`. If a hook fails, fix the root cause — no `--no-verify`.
+4. `git push origin agent`. If a hook fails, fix the root cause — no `--no-verify`.
 
 ## Hard rules
 

@@ -12,6 +12,7 @@ import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
@@ -328,6 +329,7 @@ class LobbyViewModelTest : CoroutineTest() {
             SignUpOutcome.VerificationRequired(email)
         override suspend fun refreshSession(): RefreshOutcome = RefreshOutcome.EmailConfirmed
         override suspend fun resendVerificationEmail(email: String): ResendOutcome = ResendOutcome.Sent
+        override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome = SendResetOutcome.Sent
         override suspend fun signOut() { /* no-op */ }
         override suspend fun deleteAccount(): DeleteAccountOutcome = DeleteAccountOutcome.Success
         override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome =

@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.CompletableDeferred
@@ -80,6 +81,7 @@ private class GatedSignOutAuthRepo(
     override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome = error("unused")
     override suspend fun refreshSession(): RefreshOutcome = error("unused")
     override suspend fun resendVerificationEmail(email: String): ResendOutcome = error("unused")
+    override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome = error("unused")
     override suspend fun deleteAccount(): DeleteAccountOutcome = error("unused")
     override suspend fun linkOAuthIdentity(provider: OAuthProvider): LinkIdentityOutcome = error("unused")
     override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome = error("unused")

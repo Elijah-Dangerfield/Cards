@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
+import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +33,7 @@ internal class FakeAuthRepository(
     val signUpOutcome: SignUpOutcome = SignUpOutcome.Unknown(RuntimeException("not stubbed")),
     val refreshOutcome: RefreshOutcome = RefreshOutcome.Unknown(RuntimeException("not stubbed")),
     val resendOutcome: ResendOutcome = ResendOutcome.Unknown(RuntimeException("not stubbed")),
+    val sendResetOutcome: SendResetOutcome = SendResetOutcome.Unknown(RuntimeException("not stubbed")),
     val oauthSignInOutcome: SignInOutcome = SignInOutcome.Unknown(RuntimeException("not stubbed")),
     val linkEmailOutcome: LinkEmailIdentityOutcome = LinkEmailIdentityOutcome.Unknown(RuntimeException("not stubbed")),
     initialAuthState: AuthState = AuthState.Unauthenticated(),
@@ -49,6 +51,10 @@ internal class FakeAuthRepository(
     var resendCalls: Int = 0
         private set
     var lastResendEmail: String? = null
+        private set
+    var sendResetCalls: Int = 0
+        private set
+    var lastSendResetEmail: String? = null
         private set
     var oauthSignInCalls: Int = 0
         private set
@@ -86,6 +92,12 @@ internal class FakeAuthRepository(
         resendCalls += 1
         lastResendEmail = email
         return resendOutcome
+    }
+
+    override suspend fun sendPasswordResetEmail(email: String): SendResetOutcome {
+        sendResetCalls += 1
+        lastSendResetEmail = email
+        return sendResetOutcome
     }
 
     override suspend fun signOut() { /* not used here */ }

@@ -38,6 +38,7 @@ interface Colors {
     val onAccentPrimary: ColorResource
     val accentSecondary: ColorResource
     val onAccentSecondary: ColorResource
+    val accentEarned: ColorResource
 
     /* Backgrounds */
     val shadow: ColorResource
@@ -81,6 +82,7 @@ val defaultColors = object : Colors {
     override val onAccentPrimary = ColorResource.White
     override val accentSecondary = ColorResource.Purple600
     override val onAccentSecondary = ColorResource.White
+    override val accentEarned = ColorResource.Purple100
 
     override val shadow = ColorResource.Black_A30
     override val textDisabled = ColorResource.Gray600

@@ -214,11 +214,24 @@
     <string name="auth_sign_up_claim_dialog_primary">Send link</string>
     <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
 
+    <!-- Auth — Forgot password screen. -->
+    <string name="auth_forgot_password_link">Forgot password?</string>
+    <string name="auth_forgot_password_title">Reset your password</string>
+    <string name="auth_forgot_password_subtitle">Enter your email and we'll send a link to set a new password.</string>
+    <string name="auth_forgot_password_submit_button">Send reset link</string>
+    <string name="auth_forgot_password_submit_button_progress">Sending…</string>
+    <string name="auth_forgot_password_sent_title">Check your inbox</string>
+    <string name="auth_forgot_password_sent_body">If %1$s is registered, we sent a link to reset your password.</string>
+    <string name="auth_forgot_password_back_to_sign_in_button">Back to sign in</string>
+    <string name="auth_forgot_password_banner_rate_limited">Too many resets in a row. Wait a minute and try again.</string>
+    <string name="auth_forgot_password_banner_network_error">Couldn't reach the server. Check your connection.</string>
+    <string name="auth_forgot_password_banner_generic_error">Something went wrong. Try again.</string>
+
     <!-- Auth — VerifyEmail screen. -->
     <string name="auth_verify_email_title">Check your email</string>
-    <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then come back here.</string>
-    <string name="auth_verify_email_confirm_button">I confirmed, continue</string>
-    <string name="auth_verify_email_confirm_button_progress">Checking…</string>
+    <string name="auth_verify_email_body">We sent a verification link to %1$s. Tap the link, then return here and we'll check with our server.</string>
+    <string name="auth_verify_email_confirm_button">Check verification</string>
+    <string name="auth_verify_email_confirm_button_progress">Checking with server…</string>
     <string name="auth_verify_email_resend_button">Resend email</string>
     <string name="auth_verify_email_resend_button_progress">Sending…</string>
     <string name="auth_verify_email_banner_still_pending">Email not yet confirmed. Tap the link in your inbox first.</string>
@@ -290,6 +303,7 @@
     <string name="profile_avatar_edit_a11y">Edit profile</string>
     <string name="profile_level_summary_level_xp">Level %1$d · %2$s XP</string>
     <string name="profile_level_summary_to_next_level">%1$s XP to level %2$d</string>
+    <string name="profile_header_member_since">Member since %1$s %2$d</string>
 
     <!-- Profile — Anonymous-only "claim your account" hero card. -->
     <string name="profile_claim_card_title">Claim your account</string>
@@ -503,6 +517,7 @@
     <string name="room_celebration_subtitle_multi">Stacked them in one hand.</string>
     <string name="room_celebration_continue_button">Continue</string>
     <string name="room_celebration_cosmetic_attribution">from the %1$s achievement</string>
+    <string name="room_celebration_tap_to_reveal">Tap to reveal</string>
 
     <!-- Room — Hand-rankings cheat sheet (tap the ? icon on the table). -->
     <string name="room_cheat_sheet_hand_number_pill">HAND #%1$d</string>
@@ -627,6 +642,9 @@
 
     <!-- Room — EmojiTray cooldown text shown on the tray's trigger button between blasts. -->
     <string name="room_emoji_tray_cooldown">%1$ds</string>
+    <!-- Room — EmojiTray empty-state popup (no emote pack owned). Receiving emotes works regardless; sending needs a pack. -->
+    <string name="room_emoji_tray_empty_caption">Buy emoji packs in the shop to send these</string>
+    <string name="room_emoji_tray_empty_shop_cta">Shop emote packs</string>
 
     <!-- Room — Win/odds tile on the human seat (PlayerInfoTile back face). -->
     <string name="room_player_odds_heading">Odds</string>
@@ -657,13 +675,8 @@
     <string name="tutorial_section_basics">Basics</string>
     <string name="tutorial_section_at_the_table">At the table</string>
 
-    <!-- Tutorial — step-counter pill format on tableau steps. -->
+    <!-- Tutorial — step-counter pill format, rendered above the gold headline on narration steps and as a top overlay on tableau steps. -->
     <string name="tutorial_step_counter">Step %1$d of %2$d · %3$s</string>
-
-    <!-- Tutorial — narration hero pill labels (replaces generic step counter on basics). -->
-    <string name="tutorial_hero_pot_label">Your goal</string>
-    <string name="tutorial_hero_handranks_label">Your hand</string>
-    <string name="tutorial_hero_actions_label">Your turn</string>
 
     <!-- Tutorial — narration step inline buttons. -->
     <string name="tutorial_narration_default_cta">Next</string>

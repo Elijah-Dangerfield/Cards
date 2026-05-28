@@ -28,6 +28,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.month_april
+import cards.libraries.resources.generated.resources.month_august
+import cards.libraries.resources.generated.resources.month_december
+import cards.libraries.resources.generated.resources.month_february
+import cards.libraries.resources.generated.resources.month_january
+import cards.libraries.resources.generated.resources.month_july
+import cards.libraries.resources.generated.resources.month_june
+import cards.libraries.resources.generated.resources.month_march
+import cards.libraries.resources.generated.resources.month_may
+import cards.libraries.resources.generated.resources.month_november
+import cards.libraries.resources.generated.resources.month_october
+import cards.libraries.resources.generated.resources.month_september
+import cards.libraries.resources.generated.resources.month_unknown
 import cards.libraries.resources.generated.resources.profile_about_privacy
 import cards.libraries.resources.generated.resources.profile_about_terms
 import cards.libraries.resources.generated.resources.profile_account_my_items_headline
@@ -57,6 +70,7 @@ import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedb
 import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_supporting
 import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_headline
 import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_supporting
+import cards.libraries.resources.generated.resources.profile_header_member_since
 import cards.libraries.resources.generated.resources.profile_level_summary_level_xp
 import cards.libraries.resources.generated.resources.profile_level_summary_to_next_level
 import cards.libraries.resources.generated.resources.profile_section_about
@@ -106,6 +120,8 @@ import com.dangerfield.cards.system.VerticalSpacerD1100
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -121,6 +137,7 @@ data class ProfileSettings(
     val appVersion: String,
     val unreadNotificationCount: Int = 0,
     val showQaMenu: Boolean = false,
+    val memberSince: kotlin.time.Instant? = null,
 )
 
 @Composable
@@ -543,12 +560,47 @@ private fun ProfileHeader(
             color = AppTheme.colors.text,
             textAlign = TextAlign.Center,
         )
+        settings.memberSince?.let { createdAt ->
+            VerticalSpacerD100()
+            Text(
+                text = formatMemberSince(createdAt),
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+        }
         VerticalSpacerD500()
         LevelSummary(
             progress = remember(settings.xp) { levelProgressFor(settings.xp) },
             modifier = Modifier.fillMaxWidth(),
         )
     }
+}
+
+@Composable
+private fun formatMemberSince(createdAt: kotlin.time.Instant): String {
+    val local = createdAt.toLocalDateTime(TimeZone.currentSystemDefault())
+    return stringResource(
+        Res.string.profile_header_member_since,
+        stringResource(monthResource(local.monthNumber)),
+        local.year,
+    )
+}
+
+private fun monthResource(monthNumber: Int): StringResource = when (monthNumber) {
+    1 -> Res.string.month_january
+    2 -> Res.string.month_february
+    3 -> Res.string.month_march
+    4 -> Res.string.month_april
+    5 -> Res.string.month_may
+    6 -> Res.string.month_june
+    7 -> Res.string.month_july
+    8 -> Res.string.month_august
+    9 -> Res.string.month_september
+    10 -> Res.string.month_october
+    11 -> Res.string.month_november
+    12 -> Res.string.month_december
+    else -> Res.string.month_unknown
 }
 
 /**
@@ -699,6 +751,7 @@ private fun ProfileScreenPreview_Claimed() {
                 turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                 appVersion = "0.1.0",
                 showQaMenu = false,
+                memberSince = kotlin.time.Instant.parse("2026-03-12T00:00:00Z"),
             ),
             onClaimAccount = {},
             onEditProfile = {},

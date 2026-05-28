@@ -1,9 +1,6 @@
 package com.dangerfield.cards.features.room.impl.tutorial
 
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.tutorial_hero_actions_label
-import cards.libraries.resources.generated.resources.tutorial_hero_handranks_label
-import cards.libraries.resources.generated.resources.tutorial_hero_pot_label
 import cards.libraries.resources.generated.resources.tutorial_section_at_the_table
 import cards.libraries.resources.generated.resources.tutorial_section_basics
 import com.dangerfield.cards.features.room.impl.PlayPokerState
@@ -70,35 +67,22 @@ internal enum class TutorialSection(val displayName: StringResource) {
 }
 
 /**
- * Hero illustration shown at the top of a narration step. Each variant
- * carries a [topBarLabel] used by the top-center pill on basics screens
- * ("Your goal", "Your hand", "Your turn"). The label is the user-facing
- * step name and replaces what would otherwise be a generic "Step 1 of 3"
- * pill.
+ * Hero illustration shown at the top of a narration step. The progress
+ * affordance ("Step 1 of 3 · Basics") lives on the inline
+ * `StepCounterPill` rendered above the gold headline — no per-hero
+ * label needed here.
  */
 internal sealed interface NarrationHero {
-    /** User-facing step name shown in the top-center pill on basics
-     *  screens. Should read in the second person and pair naturally
-     *  with the hero visual ("Your goal" + chip-pile coin counter,
-     *  etc.). */
-    val topBarLabel: StringResource
-
     /** "The pot" card visual: a coin counter ticking up. */
-    data object Pot : NarrationHero {
-        override val topBarLabel: StringResource = Res.string.tutorial_hero_pot_label
-    }
+    data object Pot : NarrationHero
 
     /** "Hand ranks" card visual: three example mini-cards from weakest
      *  to strongest, the strongest amber-accented. */
-    data object HandRanks : NarrationHero {
-        override val topBarLabel: StringResource = Res.string.tutorial_hero_handranks_label
-    }
+    data object HandRanks : NarrationHero
 
     /** "Three actions" card visual: Fold / Call / Raise as a small
      *  legend. */
-    data object Actions : NarrationHero {
-        override val topBarLabel: StringResource = Res.string.tutorial_hero_actions_label
-    }
+    data object Actions : NarrationHero
 }
 
 internal data class CoachMark(

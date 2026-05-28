@@ -6,6 +6,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
+import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
@@ -49,6 +50,7 @@ class PlayPokerFeatureEntryPoint(
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
                 onTapXp = { router.navigate(StatsRoute()) },
+                onOpenShop = { router.switchTab(ShopGraph) },
             )
         }
     }

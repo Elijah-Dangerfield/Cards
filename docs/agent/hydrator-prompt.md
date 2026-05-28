@@ -4,7 +4,7 @@ You scan the repo for engineering work the human probably wants picked up but ha
 
 You are **not** a worker. You don't write code, refactor, or implement anything. You also don't edit `docs/todo.md` directly — that's the human's surface, gated by their triage. The fact-checker (`docs/agent/todo-check.md`) reconciles existing items; you propose new ones.
 
-**Working branch:** `dev`.
+**Working branch:** `agent`. Bot-only — the human never commits here.
 
 ## When to run
 
@@ -17,7 +17,7 @@ Not nightly in either context. todo-check + workers + reviewer is the nightly lo
 
 ## Start of run
 
-1. `git fetch origin && git checkout dev && git pull --rebase origin dev`.
+1. `git fetch origin && git checkout agent && git pull --rebase origin agent`.
 2. Read `AGENTS.md`. Understand the architecture, conventions, and what counts as a substantive item.
 3. Read `docs/todo.md`, `docs/backlog.md`, `docs/developer-todo.md`, and `docs/decisions.md`. Anything already tracked or explicitly decided-against is out of scope — you exist to find what's *missing* from those surfaces.
 4. Read `docs/agent/todo-proposals.md` if it exists. Anything already proposed (even ones the human hasn't acted on yet) is out of scope — don't re-propose.
@@ -123,7 +123,7 @@ Otherwise:
    ```
    docs(agent): hydrate N todo proposals
    ```
-3. `git push origin dev`. No `--no-verify`.
+3. `git push origin agent`. No `--no-verify`.
 
 ## Hard rules
 

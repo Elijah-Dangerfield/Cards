@@ -95,7 +95,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 internal fun NarrationStep(
     step: TutorialStep,
+    section: TutorialSection,
     sectionStepIndex: Int,
+    sectionTotalSteps: Int,
     onAdvance: () -> Unit,
     onSkipBasics: () -> Unit,
     onBack: () -> Unit,
@@ -145,9 +147,6 @@ internal fun NarrationStep(
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // The StepCounterPill renders separately as a top-center
-                // overlay, so we don't need to reserve space here for it.
-                // Just leave headroom below the topbar.
                 VerticalSpacerD800()
                 Box(
                     modifier = Modifier
@@ -157,6 +156,12 @@ internal fun NarrationStep(
                 ) {
                     NarrationHeroBlock(hero = animatedStep.hero)
                 }
+                StepCounterPill(
+                    section = section,
+                    sectionStep = sectionStepIndex + 1,
+                    sectionTotal = sectionTotalSteps,
+                )
+                VerticalSpacerD400()
                 val titleRes = animatedStep.coach.title
                 if (titleRes != null) {
                     Text(
@@ -508,7 +513,9 @@ private fun NarrationStepPreview_Pot() {
     PreviewContent {
         NarrationStep(
             step = previewBasicsStep(NarrationHero.Pot),
+            section = TutorialSection.Basics,
             sectionStepIndex = 0,
+            sectionTotalSteps = 3,
             onAdvance = {},
             onSkipBasics = {},
             onBack = {},
@@ -522,7 +529,9 @@ private fun NarrationStepPreview_HandRanks() {
     PreviewContent {
         NarrationStep(
             step = previewBasicsStep(NarrationHero.HandRanks),
+            section = TutorialSection.Basics,
             sectionStepIndex = 1,
+            sectionTotalSteps = 3,
             onAdvance = {},
             onSkipBasics = {},
             onBack = {},
@@ -536,7 +545,9 @@ private fun NarrationStepPreview_Actions() {
     PreviewContent {
         NarrationStep(
             step = previewBasicsStep(NarrationHero.Actions),
+            section = TutorialSection.Basics,
             sectionStepIndex = 2,
+            sectionTotalSteps = 3,
             onAdvance = {},
             onSkipBasics = {},
             onBack = {},

@@ -746,6 +746,7 @@ private fun FlippablePlayerInfoTile(
                 PlayerInfoTileBack(
                     winOdds = winOdds,
                     onTapClose = { toggleFlipped(false) },
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
@@ -773,7 +774,7 @@ private fun PlayerInfoTileBack(
                 shape = Radii.R700.shape,
             )
             .clickable(onClick = onTapClose)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

@@ -70,6 +70,17 @@ interface AuthRepository {
     suspend fun resendVerificationEmail(email: String): ResendOutcome
 
     /**
+     * Trigger Supabase's password-reset email. The user clicks the link in
+     * their inbox, which lands them on the recovery deep-link target — that
+     * screen lives in a follow-up once the redirect URL is configured.
+     *
+     * Always returns [SendResetOutcome.Sent] for unknown emails too: Supabase
+     * doesn't differentiate at the API layer so the UI shouldn't either
+     * (account-enumeration mitigation).
+     */
+    suspend fun sendPasswordResetEmail(email: String): SendResetOutcome
+
+    /**
      * Tear down the current Supabase session. The next [current] call
      * will trigger a fresh anonymous sign-in.
      */

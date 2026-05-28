@@ -43,3 +43,16 @@ data class VerifyEmailRoute(val email: String) : Route(
     exit = AnimationType.SlideOutToLeft,
     popExit = AnimationType.SlideOutToRight,
 )
+
+/**
+ * "Forgot password" email-entry screen. Reachable from [SignInRoute]'s
+ * inline link. Submitting kicks off Supabase's password-reset email; the
+ * recovery deep-link target (where the user actually picks a new password)
+ * lives in a follow-up once the redirect URL is wired.
+ */
+@Serializable
+class ForgotPasswordRoute : Route(
+    enter = AnimationType.SlideInFromRight,
+    exit = AnimationType.SlideOutToLeft,
+    popExit = AnimationType.SlideOutToRight,
+)

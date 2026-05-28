@@ -22,6 +22,10 @@ kotlin {
             implementation(libs.kotlinx.datetime)
         }
 
+        commonTest.dependencies {
+            implementation(projects.libraries.flowroutines.testing)
+        }
+
         androidMain.dependencies {
             implementation(libs.androidx.lifecycle.process)
         }

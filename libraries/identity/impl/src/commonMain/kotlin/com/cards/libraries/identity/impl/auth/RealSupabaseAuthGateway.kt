@@ -82,6 +82,10 @@ class RealSupabaseAuthGateway(
         supabase.auth.resendEmail(OtpType.Email.SIGNUP, email = email)
     }
 
+    override suspend fun resetPasswordForEmail(email: String) {
+        supabase.auth.resetPasswordForEmail(email = email)
+    }
+
     override suspend fun signOut() {
         supabase.auth.signOut()
     }

@@ -180,7 +180,7 @@ private fun OwnershipBadge(source: AcquisitionSource) {
         AcquisitionSource.Purchased -> stringResource(Res.string.profile_my_items_badge_unlocked)
     }
     val textColor = when (source) {
-        AcquisitionSource.Earned -> AppTheme.colors.accentSecondary
+        AcquisitionSource.Earned -> AppTheme.colors.accentEarned
         AcquisitionSource.Purchased -> AppTheme.colors.onSurfaceSecondary
     }
     Box(
@@ -208,7 +208,7 @@ private fun EarnedTag() {
         Text(
             text = stringResource(Res.string.profile_my_items_badge_earned),
             typography = AppTheme.typography.Label.L300,
-            color = AppTheme.colors.accentSecondary,
+            color = AppTheme.colors.accentEarned,
         )
     }
 }

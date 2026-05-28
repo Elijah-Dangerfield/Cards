@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
@@ -19,9 +20,13 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.job
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -272,12 +277,101 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun onColdBoot_launchesSync() = runUnitTest {
+        val chipsDao = FakeChipsDao(seedBalance = 0L)
+        val walletDao = FakeWalletEventDao()
+        var hitCount = 0
+        val appScope = AppCoroutineScope(dispatchers)
+        val repo = buildRepoWithScope(chipsDao, walletDao, appScope) {
+            hitCount++
+            respondJson("""{"schemaVersion":1,"balance":555,"results":[]}""")
+        }
+
+        repo.onColdBoot(AppEvent.ColdBoot)
+        appScope.coroutineContext.job.children.toList().forEach { it.join() }
+
+        assertEquals(1, hitCount, "ColdBoot should fire one sync POST")
+        assertEquals(555L, chipsDao.getChips()?.balance)
+    }
+
+    @Test
+    fun onForeground_coldBoot_isNoOp_warmResume_syncs() = runUnitTest {
+        val chipsDao = FakeChipsDao(seedBalance = 0L)
+        val walletDao = FakeWalletEventDao()
+        var hitCount = 0
+        val appScope = AppCoroutineScope(dispatchers)
+        val repo = buildRepoWithScope(chipsDao, walletDao, appScope) {
+            hitCount++
+            respondJson("""{"schemaVersion":1,"balance":42,"results":[]}""")
+        }
+
+        // ColdBoot-flagged foreground defers to onColdBoot — this hook
+        // returns synchronously without launching anything, so there's
+        // no scope work to join.
+        repo.onForeground(AppEvent.OnForeground(isColdBoot = true))
+        assertEquals(0, hitCount, "ColdBoot-flagged foreground must not POST")
+        assertTrue(
+            appScope.coroutineContext.job.children.toList().isEmpty(),
+            "no coroutine should have been launched",
+        )
+
+        repo.onForeground(AppEvent.OnForeground(isColdBoot = false))
+        appScope.coroutineContext.job.children.toList().forEach { it.join() }
+        assertEquals(1, hitCount, "Warm-resume foreground should fire a sync POST")
+    }
+
+    @Test
+    fun concurrentSync_serializesThroughMutex_noOverlappingPosts() = runUnitTest {
+        // Two parallel sync() callers must not have overlapping POSTs in
+        // flight — the syncMutex serializes them. Without the mutex, the
+        // suspending delay in the handler would let the second caller's
+        // begin land between the first's begin and end, producing the
+        // interleaved log start-1, start-2, end-1, end-2.
+        val chipsDao = FakeChipsDao(seedBalance = 0L)
+        val walletDao = FakeWalletEventDao()
+        val log = mutableListOf<String>()
+        var seq = 0
+        val repo = buildRepo(chipsDao, walletDao) {
+            val n = ++seq
+            log += "start-$n"
+            delay(50)
+            log += "end-$n"
+            respondJson("""{"schemaVersion":1,"balance":0,"results":[]}""")
+        }
+
+        val results = listOf(
+            async { repo.sync() },
+            async { repo.sync() },
+        ).awaitAll()
+
+        assertTrue(results.all { it.isSuccess })
+        assertEquals(2, seq, "both calls reach the handler")
+        assertEquals(
+            listOf("start-1", "end-1", "start-2", "end-2"),
+            log,
+            "second sync must wait for the first to finish — no overlapping POSTs",
+        )
+    }
+
     // ---------- Scaffolding ----------
 
     private fun buildRepo(
         chipsDao: FakeChipsDao,
         walletDao: FakeWalletEventDao,
-        handler: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+    ): ChipsRepositoryImpl = buildRepoWithScope(
+        chipsDao = chipsDao,
+        walletDao = walletDao,
+        appScope = AppCoroutineScope(dispatchers),
+        handler = handler,
+    )
+
+    private fun buildRepoWithScope(
+        chipsDao: FakeChipsDao,
+        walletDao: FakeWalletEventDao,
+        appScope: AppCoroutineScope,
+        handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): ChipsRepositoryImpl {
         val mockEngine = MockEngine(handler)
         val client = HttpClient(mockEngine) {
@@ -304,7 +398,7 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             chipsDao = chipsDao,
             walletEventDao = walletDao,
             networkClient = networkClient,
-            appScope = AppCoroutineScope(dispatchers),
+            appScope = appScope,
             clock = FixedClock,
         )
     }

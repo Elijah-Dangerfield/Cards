@@ -139,6 +139,7 @@ class ProfileFeatureEntryPoint(
                     appVersion = "0.1.0",
                     unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
+                    memberSince = authenticated?.createdAt,
                 ),
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },

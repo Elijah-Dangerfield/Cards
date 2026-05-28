@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.runtime.getValue
@@ -139,7 +138,9 @@ internal fun TutorialPokerScreen(
         if (tableau == null) {
             NarrationStep(
                 step = state.step,
+                section = state.section,
                 sectionStepIndex = state.sectionStepIndex,
+                sectionTotalSteps = state.sectionTotalSteps,
                 onAdvance = onAdvance,
                 onSkipBasics = onSkipBasics,
                 onBack = onBack,
@@ -153,22 +154,16 @@ internal fun TutorialPokerScreen(
                 onAdvance = onAdvance,
                 onExit = { leaveDialogOpen = true },
             )
+            StepCounterPill(
+                section = state.section,
+                sectionStep = state.sectionStepIndex + 1,
+                sectionTotal = state.sectionTotalSteps,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                    .padding(top = 14.dp),
+            )
         }
-        StepCounterPill(
-            section = state.section,
-            sectionStep = state.sectionStepIndex + 1,
-            sectionTotal = state.sectionTotalSteps,
-            // On basics, the pill text is the hero's user-facing name
-            // ("Your goal", "Your hand", "Your turn") rather than a
-            // generic counter. The 3-of-3 progress information moves
-            // to the dot row underneath. Tableau steps don't have
-            // per-step names, so they keep the existing counter format.
-            customLabelRes = (state.step.hero as? NarrationHero)?.topBarLabel,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                .padding(top = 14.dp),
-        )
     }
 
     if (leaveDialogOpen) {
@@ -356,91 +351,37 @@ private fun CoachMarkBanner(
 }
 
 /**
- * Pinned-top-center step pill rendered above both narration and
- * tableau steps. Lives in the topbar's empty middle gap rather than
- * being structurally inside any topbar, keeps the pill consistent
- * across step types and out of the back-button's way.
- *
- * Two modes:
- * - [customLabel] non-null: the pill reads as a user-facing step name
- *   ("Your goal", "Your hand", "Your turn") and a row of dots
- *   underneath shows progress through the section. Used on basics.
- * - [customLabel] null: the pill reads as a generic
- *   "Step X of Y · Section" counter, no dots. Used on tableau steps
- *   where individual steps don't carry their own names.
+ * "Step X of Y · Section" pill. The single source of truth for the
+ * tutorial's progress affordance. Tableau steps render it as a pinned
+ * top-center overlay (the only chrome the play-screen surface leaves
+ * room for); narration steps render it inline above the gold headline
+ * via [NarrationStep] so it sits in the same eye-line as the section's
+ * content instead of competing with the status bar / back button.
  */
 @Composable
-private fun StepCounterPill(
+internal fun StepCounterPill(
     section: TutorialSection,
     sectionStep: Int,
     sectionTotal: Int,
-    customLabelRes: StringResource?,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        modifier = modifier
+            .clip(Radii.Round.shape)
+            .background(AppTheme.colors.surfaceSecondary.color)
+            .border(1.dp, AppTheme.colors.border.color, Radii.Round.shape)
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
-        Box(
-            modifier = Modifier
-                .clip(Radii.Round.shape)
-                .background(AppTheme.colors.surfaceSecondary.color)
-                .border(1.dp, AppTheme.colors.border.color, Radii.Round.shape)
-                .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
-        ) {
-            Text(
-                text = if (customLabelRes != null) {
-                    stringResource(customLabelRes)
-                } else {
-                    stringResource(
-                        Res.string.tutorial_step_counter,
-                        sectionStep,
-                        sectionTotal,
-                        stringResource(section.displayName),
-                    )
-                },
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
-            )
-        }
-        if (customLabelRes != null) {
-            VerticalSpacerD200()
-            ProgressDots(
-                total = sectionTotal,
-                current = sectionStep,
-            )
-        }
-    }
-}
-
-/**
- * Three-dot-style progress indicator. Filled dot for the current
- * step, dim dots for the others. Renders inline in the top-pill
- * column for basics screens.
- */
-@Composable
-private fun ProgressDots(
-    total: Int,
-    current: Int,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        repeat(total) { i ->
-            val isCurrent = i == current - 1
-            Box(
-                modifier = Modifier
-                    .size(if (isCurrent) 8.dp else 6.dp)
-                    .clip(Radii.Round.shape)
-                    .background(
-                        if (isCurrent) AppTheme.colors.text.color
-                        else AppTheme.colors.textSecondary.color.copy(alpha = 0.4f),
-                    ),
-            )
-        }
+        Text(
+            text = stringResource(
+                Res.string.tutorial_step_counter,
+                sectionStep,
+                sectionTotal,
+                stringResource(section.displayName),
+            ),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.textSecondary,
+        )
     }
 }
 

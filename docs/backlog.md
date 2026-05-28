@@ -415,3 +415,19 @@ This is a real product call — the 10K-on-first-contact is part of the "Card Ha
 These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 carves out to `PokerPalette`. Either declare a `PokerPalette.SpecularWhite` / `PokerPalette.CardBackBorder` token and route the callsites through it, or accept the carve-out as documented behaviour. Either is fine; both are better than the current "everyone half-believes the rule applies."
 
 **Status:** Backlog. Judgement call about whether these are surfaces or poker artifacts.
+
+---
+
+## Auth — password-reset recovery deep-link landing screen (`ResetPasswordScreen`)
+
+**Idea:** The forgot-password send-email flow shipped via [`ForgotPasswordRoute`](../features/onboarding/src/commonMain/kotlin/com/cards/features/onboarding/AuthRoutes.kt) wires Supabase's `resetPasswordForEmail` end-to-end, but the link Supabase sends in the recovery email lands on the redirect URL configured on the Supabase dashboard — currently localhost, same hole the verify-email link sits in. Once the redirect URL is configured (tracked under `docs/developer-todo.md` "Supabase dashboard — production redirect URLs"), build a `ResetPasswordScreen` that:
+
+- reads the access token from the deep-link URL fragment (the magic-link redirect sets `#access_token=…&refresh_token=…&type=recovery`),
+- exchanges it for a Supabase session via the auth gateway,
+- lets the user pick a new password (mirror `SignUpScreen`'s password + confirm fields),
+- calls `supabase.auth.updateUser { this.password = ... }` to set the new password,
+- on success, navigates to home (mark `hasUserOnboarded = true` if not already).
+
+**Hint:** the existing `LinkEmailIdentityOutcome` mapping shape is the model — add `UpdatePasswordOutcome` (`Success` / `WeakPassword` / `SessionExpired` / `NetworkError` / `Unknown`) and a `AuthRepository.updatePassword(newPassword)` method. The screen lives in `:features:onboarding:impl` alongside the existing `ForgotPasswordScreen` and routes from a new `ResetPasswordRoute(token: String)` registered on `OnboardingFeatureEntryPoint`.
+
+**Status:** Backlog — gated on the dashboard redirect-URL entry, not on engineering.

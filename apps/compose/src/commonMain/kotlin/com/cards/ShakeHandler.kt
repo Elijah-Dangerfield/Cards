@@ -1,10 +1,10 @@
 package com.dangerfield.cards
 
 import com.dangerfield.cards.libraries.core.ShakeDetector
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.ShakeDialogRoute
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
@@ -16,8 +16,9 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class ShakeHandler(
     private val shakeDetector: ShakeDetector,
     private val router: Router,
+    dispatchers: DispatcherProvider,
 ) {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val scope = CoroutineScope(SupervisorJob() + dispatchers.main)
     private var isShowingDialog = false
 
     fun start() {
