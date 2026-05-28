@@ -1,7 +1,13 @@
 package com.dangerfield.cards.features.room.impl
 
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_player_profile_style_balanced_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_loose_aggressive_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_loose_passive_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_maniac_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_tight_aggressive_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_tight_passive_label
 import com.dangerfield.cards.libraries.bots.BotPersonality
-import com.dangerfield.cards.libraries.ui.components.RadarAxis
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -9,27 +15,42 @@ class BotPlayingStyleTest {
 
     @Test
     fun janeIsTightPassive() {
-        assertEquals("Tight passive", playingStyleFor(BotPersonality.Jane).label)
+        assertEquals(
+            Res.string.room_player_profile_style_tight_passive_label,
+            playingStyleFor(BotPersonality.Jane).label,
+        )
     }
 
     @Test
     fun davidIsLooseAggressive() {
-        assertEquals("Loose aggressive", playingStyleFor(BotPersonality.David).label)
+        assertEquals(
+            Res.string.room_player_profile_style_loose_aggressive_label,
+            playingStyleFor(BotPersonality.David).label,
+        )
     }
 
     @Test
     fun ginaIsTightAggressive() {
-        assertEquals("Tight aggressive", playingStyleFor(BotPersonality.Gina).label)
+        assertEquals(
+            Res.string.room_player_profile_style_tight_aggressive_label,
+            playingStyleFor(BotPersonality.Gina).label,
+        )
     }
 
     @Test
     fun steveIsLoosePassive() {
-        assertEquals("Loose passive", playingStyleFor(BotPersonality.Steve).label)
+        assertEquals(
+            Res.string.room_player_profile_style_loose_passive_label,
+            playingStyleFor(BotPersonality.Steve).label,
+        )
     }
 
     @Test
     fun mikeIsManiac() {
-        assertEquals("Maniac", playingStyleFor(BotPersonality.Mike).label)
+        assertEquals(
+            Res.string.room_player_profile_style_maniac_label,
+            playingStyleFor(BotPersonality.Mike).label,
+        )
     }
 
     @Test
@@ -42,15 +63,21 @@ class BotPlayingStyleTest {
             avatarKey = "avatar_balanced",
             emoji = "🤖",
         )
-        assertEquals("Balanced", playingStyleFor(balanced).label)
+        assertEquals(
+            Res.string.room_player_profile_style_balanced_label,
+            playingStyleFor(balanced).label,
+        )
     }
 
     @Test
-    fun descriptionsAreNonBlank() {
-        for (p in BotPersonality.Roster) {
-            val style = playingStyleFor(p)
-            assertEquals(style.description, style.description.trim())
-            check(style.description.isNotBlank()) { "Description was blank for ${p.name}" }
+    fun descriptionResourceIsDistinctPerArchetype() {
+        val descriptions = BotPersonality.Roster
+            .map { playingStyleFor(it).description }
+            .toSet()
+        // Roster of 5 bots covers 4 distinct archetypes (no Balanced bot in
+        // the shipping roster), so 4 unique description keys is the floor.
+        check(descriptions.size >= 4) {
+            "Expected at least 4 distinct description keys, got ${descriptions.size}"
         }
     }
 
@@ -62,16 +89,12 @@ class BotPlayingStyleTest {
 
     @Test
     fun radarAxes_normaliseBluffRateToFullScale() {
-        // BotPersonality bluffRate caps at 0.4 by contract; the radar
-        // rescales to 0..1 so the bluff axis uses the full ring.
         val mikeAxes = radarAxesFor(BotPersonality.Mike)
         val mikeBluff = mikeAxes.single { it.label == "Bluff" }.value
-        // Mike's bluffRate=0.30 → 0.30/0.40 = 0.75.
         assertEquals(0.75f, mikeBluff, 0.001f)
 
         val janeAxes = radarAxesFor(BotPersonality.Jane)
         val janeBluff = janeAxes.single { it.label == "Bluff" }.value
-        // Jane's bluffRate=0.04 → 0.04/0.40 = 0.10.
         assertEquals(0.10f, janeBluff, 0.001f)
     }
 
@@ -87,8 +110,6 @@ class BotPlayingStyleTest {
 
     @Test
     fun radarAxes_eachRosterBotProducesUniqueShape() {
-        // Tightness, aggression, and rescaled bluff vary per bot, so the
-        // ordered (tight, aggro, bluff, patient) tuple should be unique.
         val tuples = BotPersonality.Roster.map { p ->
             radarAxesFor(p).map { it.value }
         }

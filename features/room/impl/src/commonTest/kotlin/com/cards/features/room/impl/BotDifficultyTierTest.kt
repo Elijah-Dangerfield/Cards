@@ -14,7 +14,6 @@ class BotDifficultyTierTest {
             val tier = difficultyTierFor(difficulty.name)
             assertNotNull(tier, "Missing tier blurb for ${difficulty.name}")
             assertEquals(difficulty.name, tier.label)
-            check(tier.description.isNotBlank()) { "Blank description for ${difficulty.name}" }
         }
     }
 

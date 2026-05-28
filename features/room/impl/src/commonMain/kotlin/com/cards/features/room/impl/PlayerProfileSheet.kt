@@ -11,6 +11,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_player_profile_difficulty_section_title
+import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_headline
+import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_supporting_muted
+import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_supporting_unmuted
+import cards.libraries.resources.generated.resources.room_player_profile_playing_style_heading
+import cards.libraries.resources.generated.resources.room_player_profile_settings_section_title
+import cards.libraries.resources.generated.resources.room_player_profile_tenure_section_title
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
@@ -30,6 +38,7 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -85,7 +94,7 @@ internal fun PlayerProfileSheet(
         }
         tenureRows(seat).takeIf { it.isNotEmpty() }?.let { rows ->
             ListSection(
-                title = "At this table",
+                title = stringResource(Res.string.room_player_profile_tenure_section_title),
                 items = rows,
             )
             VerticalSpacerD500()
@@ -93,11 +102,11 @@ internal fun PlayerProfileSheet(
         if (seat.isBot) {
             botDifficultyLabel?.let { difficultyTierFor(it) }?.let { tier ->
                 ListSection(
-                    title = "Difficulty",
+                    title = stringResource(Res.string.room_player_profile_difficulty_section_title),
                     items = listOf(
                         ListSectionItem(
                             headlineText = tier.label,
-                            supportingText = tier.description,
+                            supportingText = stringResource(tier.description),
                             accessory = ListItemAccessory.None,
                         ),
                     ),
@@ -106,14 +115,14 @@ internal fun PlayerProfileSheet(
             }
         }
         ListSection(
-            title = "Settings",
+            title = stringResource(Res.string.room_player_profile_settings_section_title),
             items = listOf(
                 ListSectionItem(
-                    headlineText = "Mute emoji",
+                    headlineText = stringResource(Res.string.room_player_profile_mute_emoji_headline),
                     supportingText = if (isMuted) {
-                        "You won't see their table blasts."
+                        stringResource(Res.string.room_player_profile_mute_emoji_supporting_muted)
                     } else {
-                        "Their blasts will show on your screen."
+                        stringResource(Res.string.room_player_profile_mute_emoji_supporting_unmuted)
                     },
                     accessory = ListItemAccessory.Switch(
                         checked = isMuted,
@@ -130,7 +139,7 @@ private fun PlayingStyleBlock(personality: BotPersonality) {
     val style = playingStyleFor(personality)
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "Playing style",
+            text = stringResource(Res.string.room_player_profile_playing_style_heading),
             typography = AppTheme.typography.Heading.H700,
             color = AppTheme.colors.onSurfacePrimary,
         )
@@ -145,13 +154,13 @@ private fun PlayingStyleBlock(personality: BotPersonality) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = style.label,
+                        text = stringResource(style.label),
                         typography = AppTheme.typography.Body.B600,
                         color = AppTheme.colors.onSurfacePrimary,
                     )
                     VerticalSpacerD200()
                     Text(
-                        text = style.description,
+                        text = stringResource(style.description),
                         typography = AppTheme.typography.Body.B500,
                         color = AppTheme.colors.onSurfaceSecondary,
                     )

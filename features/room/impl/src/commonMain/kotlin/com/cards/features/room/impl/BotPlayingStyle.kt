@@ -1,7 +1,21 @@
 package com.dangerfield.cards.features.room.impl
 
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_player_profile_style_balanced_description
+import cards.libraries.resources.generated.resources.room_player_profile_style_balanced_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_loose_aggressive_description
+import cards.libraries.resources.generated.resources.room_player_profile_style_loose_aggressive_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_loose_passive_description
+import cards.libraries.resources.generated.resources.room_player_profile_style_loose_passive_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_maniac_description
+import cards.libraries.resources.generated.resources.room_player_profile_style_maniac_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_tight_aggressive_description
+import cards.libraries.resources.generated.resources.room_player_profile_style_tight_aggressive_label
+import cards.libraries.resources.generated.resources.room_player_profile_style_tight_passive_description
+import cards.libraries.resources.generated.resources.room_player_profile_style_tight_passive_label
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.ui.components.RadarAxis
+import org.jetbrains.compose.resources.StringResource
 
 /**
  * Derived archetype + one-line description for a bot personality. The
@@ -15,8 +29,8 @@ import com.dangerfield.cards.libraries.ui.components.RadarAxis
  * out of an archetype label across slightly different parameter tunes.
  */
 internal data class BotPlayingStyle(
-    val label: String,
-    val description: String,
+    val label: StringResource,
+    val description: StringResource,
 )
 
 internal fun playingStyleFor(personality: BotPersonality): BotPlayingStyle {
@@ -28,28 +42,28 @@ internal fun playingStyleFor(personality: BotPersonality): BotPlayingStyle {
 
     return when {
         maniac -> BotPlayingStyle(
-            label = "Maniac",
-            description = "Plays nearly every hand and bets big. Bluffs often — hard to fold to, but hard to trust.",
+            label = Res.string.room_player_profile_style_maniac_label,
+            description = Res.string.room_player_profile_style_maniac_description,
         )
         loose && aggressive -> BotPlayingStyle(
-            label = "Loose aggressive",
-            description = "Plays a wide range and bets confidently. Pushes hard when they sense weakness.",
+            label = Res.string.room_player_profile_style_loose_aggressive_label,
+            description = Res.string.room_player_profile_style_loose_aggressive_description,
         )
         tight && aggressive -> BotPlayingStyle(
-            label = "Tight aggressive",
-            description = "Patient, but when chips go in, expect a real hand.",
+            label = Res.string.room_player_profile_style_tight_aggressive_label,
+            description = Res.string.room_player_profile_style_tight_aggressive_description,
         )
         tight && passive -> BotPlayingStyle(
-            label = "Tight passive",
-            description = "Folds often, rarely raises. A big bet from this seat usually means the goods.",
+            label = Res.string.room_player_profile_style_tight_passive_label,
+            description = Res.string.room_player_profile_style_tight_passive_description,
         )
         loose && passive -> BotPlayingStyle(
-            label = "Loose passive",
-            description = "Calls a lot, rarely raises. Hard to push off marginal hands — value bet, don't bluff.",
+            label = Res.string.room_player_profile_style_loose_passive_label,
+            description = Res.string.room_player_profile_style_loose_passive_description,
         )
         else -> BotPlayingStyle(
-            label = "Balanced",
-            description = "Mixes it up. No single tendency to exploit — read each hand.",
+            label = Res.string.room_player_profile_style_balanced_label,
+            description = Res.string.room_player_profile_style_balanced_description,
         )
     }
 }

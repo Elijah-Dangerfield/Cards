@@ -45,6 +45,7 @@ kotlin {
             implementation(projects.libraries.game)
             implementation(projects.libraries.gameplay)
             implementation(projects.libraries.identity)
+            implementation(projects.libraries.resources)
             implementation(projects.libraries.review)
             implementation(projects.libraries.storage)
             implementation(projects.libraries.flowroutines)
