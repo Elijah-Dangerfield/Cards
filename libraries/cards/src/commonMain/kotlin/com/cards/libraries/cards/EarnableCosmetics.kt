@@ -106,5 +106,9 @@ fun cosmeticRewardFor(id: AchievementId): CosmeticReward? = when (id) {
         productId = "emotes_tamer",
         label = "Tamer emote pack",
     )
+    AchievementId.SHOW_ROYAL_FLUSH -> CosmeticReward(
+        productId = "title_royalty",
+        label = "Royalty title",
+    )
     else -> null
 }
