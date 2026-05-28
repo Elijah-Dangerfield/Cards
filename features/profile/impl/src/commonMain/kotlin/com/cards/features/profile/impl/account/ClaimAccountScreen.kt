@@ -20,6 +20,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.auth_claim_error_already_on_another_account
+import cards.libraries.resources.generated.resources.auth_claim_error_email_already_registered
+import cards.libraries.resources.generated.resources.auth_claim_error_invalid_email
+import cards.libraries.resources.generated.resources.auth_claim_error_network
+import cards.libraries.resources.generated.resources.auth_claim_error_not_signed_in
+import cards.libraries.resources.generated.resources.auth_claim_error_passwords_dont_match
+import cards.libraries.resources.generated.resources.auth_claim_error_provider_not_enabled
+import cards.libraries.resources.generated.resources.auth_claim_error_switch_failed
+import cards.libraries.resources.generated.resources.auth_claim_error_unknown
+import cards.libraries.resources.generated.resources.auth_claim_error_weak_password
 import cards.libraries.resources.generated.resources.auth_field_email_label
 import cards.libraries.resources.generated.resources.auth_field_password_label
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
@@ -154,7 +164,7 @@ fun ClaimAccountScreen(
                 state.error?.let {
                     Spacer(modifier = Modifier.height(Dimension.D400))
                     Text(
-                        text = it,
+                        text = it.message(),
                         typography = AppTheme.typography.Body.B500,
                         color = AppTheme.colors.danger,
                     )
@@ -320,6 +330,30 @@ private fun ProviderButton(
     }
 }
 
+@Composable
+private fun ClaimAccountError.message(): String = when (this) {
+    ClaimAccountError.PasswordsDontMatch ->
+        stringResource(Res.string.auth_claim_error_passwords_dont_match)
+    ClaimAccountError.AlreadyOnAnotherAccount ->
+        stringResource(Res.string.auth_claim_error_already_on_another_account)
+    ClaimAccountError.NotSignedIn ->
+        stringResource(Res.string.auth_claim_error_not_signed_in)
+    is ClaimAccountError.ProviderNotEnabled ->
+        stringResource(Res.string.auth_claim_error_provider_not_enabled, provider.label)
+    ClaimAccountError.NetworkError ->
+        stringResource(Res.string.auth_claim_error_network)
+    ClaimAccountError.Unknown ->
+        stringResource(Res.string.auth_claim_error_unknown)
+    ClaimAccountError.SwitchFailed ->
+        stringResource(Res.string.auth_claim_error_switch_failed)
+    ClaimAccountError.EmailAlreadyRegistered ->
+        stringResource(Res.string.auth_claim_error_email_already_registered)
+    is ClaimAccountError.WeakPassword ->
+        stringResource(Res.string.auth_claim_error_weak_password, minLength)
+    ClaimAccountError.InvalidEmail ->
+        stringResource(Res.string.auth_claim_error_invalid_email)
+}
+
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun ClaimAccountScreenPreview_EmailOnly() {
@@ -404,7 +438,7 @@ private fun ClaimAccountScreenPreview_Conflict() {
                 googleEnabled = true,
                 appleEnabled = true,
                 conflictingProvider = OAuthProvider.Google,
-                error = "That Google account is already linked to another player.",
+                error = ClaimAccountError.AlreadyOnAnotherAccount,
             ),
             onAction = {},
             onBack = {},

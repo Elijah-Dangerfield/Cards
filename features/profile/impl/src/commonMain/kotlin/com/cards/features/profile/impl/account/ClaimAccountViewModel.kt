@@ -69,7 +69,7 @@ class ClaimAccountViewModel(
                 val current = state
                 if (!current.canSubmit) return@run
                 if (current.password != current.confirmPassword) {
-                    updateState { it.copy(error = "Passwords don't match.") }
+                    updateState { it.copy(error = ClaimAccountError.PasswordsDontMatch) }
                     return@run
                 }
                 updateState { it.copy(awaitingClaimConfirm = true, error = null) }
@@ -99,12 +99,11 @@ class ClaimAccountViewModel(
                         it.copy(
                             isSubmitting = false,
                             conflictingProvider = action.provider,
-                            error = "That account is already in use. You can switch to it, " +
-                                "but your current guest progress (chips, XP, achievements) won't carry over.",
+                            error = ClaimAccountError.AlreadyOnAnotherAccount,
                         )
                     }
                     is LinkIdentityOutcome.NotSignedIn -> updateState {
-                        it.copy(isSubmitting = false, error = "Sign in first, then claim your account.")
+                        it.copy(isSubmitting = false, error = ClaimAccountError.NotSignedIn)
                     }
                     is LinkIdentityOutcome.Cancelled -> updateState {
                         it.copy(isSubmitting = false)
@@ -112,14 +111,14 @@ class ClaimAccountViewModel(
                     is LinkIdentityOutcome.ProviderNotEnabled -> updateState {
                         it.copy(
                             isSubmitting = false,
-                            error = "${action.provider.label} sign-in isn't available yet. Please try again later.",
+                            error = ClaimAccountError.ProviderNotEnabled(action.provider),
                         )
                     }
                     is LinkIdentityOutcome.NetworkError -> updateState {
-                        it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+                        it.copy(isSubmitting = false, error = ClaimAccountError.NetworkError)
                     }
                     is LinkIdentityOutcome.Unknown -> updateState {
-                        it.copy(isSubmitting = false, error = "Couldn't claim your account. Please try again.")
+                        it.copy(isSubmitting = false, error = ClaimAccountError.Unknown)
                     }
                 }
             }
@@ -133,7 +132,7 @@ class ClaimAccountViewModel(
                         sendEvent(ClaimAccountEvent.SwitchedAccounts)
                     }
                     is SignInOutcome.NetworkError -> updateState {
-                        it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+                        it.copy(isSubmitting = false, error = ClaimAccountError.NetworkError)
                     }
                     is SignInOutcome.Cancelled -> updateState {
                         it.copy(isSubmitting = false)
@@ -141,14 +140,14 @@ class ClaimAccountViewModel(
                     is SignInOutcome.ProviderNotEnabled -> updateState {
                         it.copy(
                             isSubmitting = false,
-                            error = "${provider.label} sign-in isn't available yet.",
+                            error = ClaimAccountError.ProviderNotEnabled(provider),
                         )
                     }
                     is SignInOutcome.InvalidCredentials,
                     is SignInOutcome.EmailNotConfirmed,
                     is SignInOutcome.Unknown,
                         -> updateState {
-                        it.copy(isSubmitting = false, error = "Couldn't sign in. Please try again.")
+                        it.copy(isSubmitting = false, error = ClaimAccountError.SwitchFailed)
                     }
                 }
             }
@@ -162,21 +161,24 @@ class ClaimAccountViewModel(
                 sendEvent(ClaimAccountEvent.NavigateToVerifyEmail(outcome.email))
             }
             is LinkEmailIdentityOutcome.EmailAlreadyRegistered -> updateState {
-                it.copy(isSubmitting = false, error = "That email is already in use. Try signing in instead.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.EmailAlreadyRegistered)
             }
             is LinkEmailIdentityOutcome.WeakPassword -> updateState {
-                it.copy(isSubmitting = false, error = "Pick a stronger password (at least ${ClaimAccountState.MIN_PASSWORD_LENGTH} characters).")
+                it.copy(
+                    isSubmitting = false,
+                    error = ClaimAccountError.WeakPassword(ClaimAccountState.MIN_PASSWORD_LENGTH),
+                )
             }
             is LinkEmailIdentityOutcome.InvalidEmail -> updateState {
-                it.copy(isSubmitting = false, error = "That email doesn't look right.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.InvalidEmail)
             }
             LinkEmailIdentityOutcome.NotAnonymous,
             LinkEmailIdentityOutcome.NotSignedIn -> handleSignUpFallback(email, password)
             is LinkEmailIdentityOutcome.NetworkError -> updateState {
-                it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.NetworkError)
             }
             is LinkEmailIdentityOutcome.Unknown -> updateState {
-                it.copy(isSubmitting = false, error = "Couldn't claim your account. Please try again.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.Unknown)
             }
         }
     }
@@ -188,19 +190,22 @@ class ClaimAccountViewModel(
                 sendEvent(ClaimAccountEvent.NavigateToVerifyEmail(outcome.email))
             }
             is SignUpOutcome.EmailAlreadyRegistered -> updateState {
-                it.copy(isSubmitting = false, error = "That email is already in use. Try signing in instead.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.EmailAlreadyRegistered)
             }
             is SignUpOutcome.WeakPassword -> updateState {
-                it.copy(isSubmitting = false, error = "Pick a stronger password (at least ${ClaimAccountState.MIN_PASSWORD_LENGTH} characters).")
+                it.copy(
+                    isSubmitting = false,
+                    error = ClaimAccountError.WeakPassword(ClaimAccountState.MIN_PASSWORD_LENGTH),
+                )
             }
             is SignUpOutcome.InvalidEmail -> updateState {
-                it.copy(isSubmitting = false, error = "That email doesn't look right.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.InvalidEmail)
             }
             is SignUpOutcome.NetworkError -> updateState {
-                it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.NetworkError)
             }
             is SignUpOutcome.Unknown -> updateState {
-                it.copy(isSubmitting = false, error = "Couldn't claim your account. Please try again.")
+                it.copy(isSubmitting = false, error = ClaimAccountError.Unknown)
             }
         }
     }
@@ -219,7 +224,7 @@ data class ClaimAccountState(
     val password: String = "",
     val confirmPassword: String = "",
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: ClaimAccountError? = null,
     /** Set when the user attempted to link an identity already used by another account. */
     val conflictingProvider: OAuthProvider? = null,
     /** True while the constructive claim-confirm dialog is up; the actual
@@ -249,6 +254,36 @@ sealed interface ClaimAccountEvent {
     data object SwitchedAccounts : ClaimAccountEvent
     /** Email link kicked off — guest stays signed in until they tap the link. */
     data class NavigateToVerifyEmail(val email: String) : ClaimAccountEvent
+}
+
+/**
+ * Inline error surfaced under the claim form. Typed so the VM doesn't
+ * hold raw user-facing copy — `ClaimAccountScreen.kt` resolves each
+ * variant through Compose Multiplatform resources at render time.
+ * `ProviderNotEnabled` and `WeakPassword` carry their format args so the
+ * resource format params stay typed end-to-end.
+ */
+sealed interface ClaimAccountError {
+    /** Local guard — confirm-password field doesn't match. */
+    data object PasswordsDontMatch : ClaimAccountError
+    /** OAuth link rejected because the provider is already on another account. */
+    data object AlreadyOnAnotherAccount : ClaimAccountError
+    /** OAuth link requires a signed-in session. */
+    data object NotSignedIn : ClaimAccountError
+    /** OAuth provider isn't enabled in Supabase dashboard yet. */
+    data class ProviderNotEnabled(val provider: OAuthProvider) : ClaimAccountError
+    /** Network unreachable (any path). */
+    data object NetworkError : ClaimAccountError
+    /** Generic claim-failure (OAuth link or email link). */
+    data object Unknown : ClaimAccountError
+    /** Switch-to-existing OAuth account failed (non-network, non-cancel branches). */
+    data object SwitchFailed : ClaimAccountError
+    /** Email-claim path: email already in use. */
+    data object EmailAlreadyRegistered : ClaimAccountError
+    /** Email-claim path: server rejected the password as too weak. */
+    data class WeakPassword(val minLength: Int) : ClaimAccountError
+    /** Email-claim path: server rejected the email shape. */
+    data object InvalidEmail : ClaimAccountError
 }
 
 sealed interface ClaimAccountAction {
