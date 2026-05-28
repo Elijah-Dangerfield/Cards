@@ -741,4 +741,12 @@
     <string name="ui_achievement_medallion_earned_back">Earned · %1$s</string>
     <string name="ui_achievement_medallion_how_to_earn">How to earn</string>
     <string name="ui_achievement_medallion_unlocks">Unlocks · %1$s</string>
+
+    <!-- UI library — Relative-time labels rendered next to an achievement\'s earned-at timestamp. -->
+    <string name="ui_earned_ago_today">today</string>
+    <string name="ui_earned_ago_yesterday">yesterday</string>
+    <string name="ui_earned_ago_days">%1$dd ago</string>
+    <string name="ui_earned_ago_weeks">%1$dw ago</string>
+    <string name="ui_earned_ago_months">%1$dmo ago</string>
+    <string name="ui_earned_ago_years">%1$dy ago</string>
 </resources>

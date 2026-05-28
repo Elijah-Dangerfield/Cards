@@ -217,7 +217,12 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
         ) {
             Text(
                 text = earnedAtEpochMs
-                    ?.let { stringResource(Res.string.ui_achievement_medallion_earned_back, formatEarnedAgo(it)) }
+                    ?.let {
+                        stringResource(
+                            Res.string.ui_achievement_medallion_earned_back,
+                            earnedAgo(it, kotlin.time.Clock.System.now().toEpochMilliseconds()).label(),
+                        )
+                    }
                     ?: stringResource(Res.string.ui_achievement_medallion_how_to_earn),
                 typography = AppTheme.typography.Label.L400,
                 color = AppTheme.colors.textSecondary,
@@ -257,30 +262,6 @@ private fun rewardLabel(achievement: Achievement): String = buildString {
     append("+${achievement.xpReward} XP")
     if (achievement.chipReward > 0L) append(" · +${formatThousands(achievement.chipReward)} chips")
 }
-
-private const val DayMs: Long = 24L * 60L * 60L * 1000L
-
-/**
- * Formats an absolute earned-at timestamp as a relative-to-now string
- * ("today", "3d ago", "2w ago", "1y ago"). Public because the test
- * suite (and any other caller that wants the same "ago" rendering)
- * needs to drive it with a fixed `nowEpochMs` for deterministic
- * assertions.
- */
-fun formatEarnedAgo(earnedAtEpochMs: Long, nowEpochMs: Long): String {
-    val days = ((nowEpochMs - earnedAtEpochMs).coerceAtLeast(0L)) / DayMs
-    return when {
-        days == 0L -> "today"
-        days == 1L -> "yesterday"
-        days < 7L -> "${days}d ago"
-        days < 30L -> "${days / 7L}w ago"
-        days < 365L -> "${days / 30L}mo ago"
-        else -> "${days / 365L}y ago"
-    }
-}
-
-private fun formatEarnedAgo(earnedAtEpochMs: Long): String =
-    formatEarnedAgo(earnedAtEpochMs, kotlin.time.Clock.System.now().toEpochMilliseconds())
 
 @Composable
 private fun ShimmerOverlay() {
