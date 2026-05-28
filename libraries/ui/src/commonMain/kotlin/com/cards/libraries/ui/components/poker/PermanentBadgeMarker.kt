@@ -14,6 +14,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -33,7 +34,7 @@ fun PermanentBadgeMarker(
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .size(22.dp)
+                .size(Dimension.D850)
                 .clip(CircleShape)
                 .background(AppTheme.colors.surfaceSecondary.color)
                 .border(

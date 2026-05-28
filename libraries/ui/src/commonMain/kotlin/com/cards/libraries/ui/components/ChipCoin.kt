@@ -22,6 +22,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.typography.TypographyResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -129,10 +130,10 @@ fun ChipCoinAmount(
  */
 @Composable
 private fun coinSymbolTypographyFor(size: Dp): TypographyResource = when {
-    size <= 16.dp -> AppTheme.typography.Body.B400
-    size <= 22.dp -> AppTheme.typography.Body.B400
-    size <= 32.dp -> AppTheme.typography.Body.B600
-    size <= 48.dp -> AppTheme.typography.Heading.H700
+    size <= Dimension.D700 -> AppTheme.typography.Body.B400
+    size <= Dimension.D850 -> AppTheme.typography.Body.B400
+    size <= Dimension.D1050 -> AppTheme.typography.Body.B600
+    size <= Dimension.D1300 -> AppTheme.typography.Heading.H700
     else -> AppTheme.typography.Heading.H800
 }
 
