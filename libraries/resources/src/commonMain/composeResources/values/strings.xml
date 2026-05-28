@@ -99,6 +99,16 @@
     <string name="onboarding_identity_continue_button">Continue</string>
     <string name="onboarding_identity_continue_button_progress">Saving…</string>
 
+    <!-- Home — "coming soon" sheet copy for unbuilt CTAs (Quick Match, Friends, requests, recently-played). -->
+    <string name="home_coming_soon_quick_match_title">Quick Match</string>
+    <string name="home_coming_soon_quick_match_body">Public matchmaking ships once we have enough humans playing to keep wait times short. Until then, grab a Friend Game or a Practice table.</string>
+    <string name="home_coming_soon_friends_title">Friends</string>
+    <string name="home_coming_soon_friends_body">Adding friends, online presence, and the requests inbox all land together. Friends grow from the felt — anyone you face will surface in \'Recently played with\' below, ready to add the moment the graph ships.</string>
+    <string name="home_coming_soon_friend_requests_title">Friend requests</string>
+    <string name="home_coming_soon_friend_requests_body">Sending friend requests ships with the friend graph. We hang onto who you\'ve played with so you can opt in the moment that lands.</string>
+    <string name="home_coming_soon_recently_played_title">Recently played with</string>
+    <string name="home_coming_soon_recently_played_body">The full history of humans you\'ve played comes with Quick Match + Friend Games. For now we\'re showing the most recent at the table.</string>
+
     <!-- Onboarding — HowItWorks step (final explainer). -->
     <string name="onboarding_how_eyebrow">LAST THING</string>
     <string name="onboarding_how_title">How Cards works.</string>

@@ -24,6 +24,7 @@ kotlin {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.rooms)
+            implementation(projects.libraries.resources)
 
             // Compose dependencies (navigation and lifecycle provided by cards.feature plugin)
             implementation(compose.runtime)
