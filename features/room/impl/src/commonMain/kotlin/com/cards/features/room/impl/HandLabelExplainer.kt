@@ -2,11 +2,26 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.room_hand_label_body_default
+import cards.libraries.resources.generated.resources.room_hand_label_body_flush
+import cards.libraries.resources.generated.resources.room_hand_label_body_four_of_a_kind
+import cards.libraries.resources.generated.resources.room_hand_label_body_full_house
+import cards.libraries.resources.generated.resources.room_hand_label_body_high_card
+import cards.libraries.resources.generated.resources.room_hand_label_body_pair
+import cards.libraries.resources.generated.resources.room_hand_label_body_pocket_pair
+import cards.libraries.resources.generated.resources.room_hand_label_body_royal_flush
+import cards.libraries.resources.generated.resources.room_hand_label_body_straight
+import cards.libraries.resources.generated.resources.room_hand_label_body_straight_flush
+import cards.libraries.resources.generated.resources.room_hand_label_body_three_of_a_kind
+import cards.libraries.resources.generated.resources.room_hand_label_body_two_pair
+import cards.libraries.resources.generated.resources.room_hand_label_cheat_sheet_hint
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -26,13 +41,13 @@ internal fun HandLabelExplainer(
         topAccessory = topAccessoryEmoji(emoji = "🃏"),
     ) {
         Text(
-            text = explainerFor(label),
+            text = stringResource(explainerResourceFor(label)),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "Tap the ? icon up top for the full ranking list with examples.",
+            text = stringResource(Res.string.room_hand_label_cheat_sheet_hint),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
@@ -45,34 +60,19 @@ internal fun HandLabelExplainer(
  * may suffix with details like "Pocket pair", "High card · Ace") so the
  * matching is generous.
  */
-private fun explainerFor(label: String): String {
-    val l = label.lowercase()
-    return when {
-        l.startsWith("royal flush") ->
-            "Ten through Ace, all the same suit. The strongest hand in poker."
-        l.startsWith("straight flush") ->
-            "Five cards in a row, all the same suit. Above four of a kind."
-        l.startsWith("four of a kind") ->
-            "Four cards of the same rank. Beats every hand except a straight flush or royal flush."
-        l.startsWith("full house") ->
-            "Three of a kind plus a pair. Beats a flush."
-        l.startsWith("flush") ->
-            "Five cards of the same suit, in any order. Beats a straight."
-        l.startsWith("straight") ->
-            "Five cards in a row, mixed suits. Beats three of a kind."
-        l.startsWith("three of a kind") ->
-            "Three cards of the same rank. Beats two pair."
-        l.startsWith("two pair") ->
-            "Two pairs of different ranks. Beats a single pair."
-        l.startsWith("pocket pair") ->
-            "Your two hole cards are the same rank — already a pair before any community cards. Strong starting hand."
-        l.startsWith("pair") ->
-            "Two cards of the same rank. Beats a high card."
-        l.startsWith("high card") ->
-            "No combinations — the highest single card wins. The weakest hand category."
-        else ->
-            "Your current hand, based on your hole cards and what's on the board."
-    }
+private fun explainerResourceFor(label: String) = when {
+    label.startsWith("royal flush", ignoreCase = true) -> Res.string.room_hand_label_body_royal_flush
+    label.startsWith("straight flush", ignoreCase = true) -> Res.string.room_hand_label_body_straight_flush
+    label.startsWith("four of a kind", ignoreCase = true) -> Res.string.room_hand_label_body_four_of_a_kind
+    label.startsWith("full house", ignoreCase = true) -> Res.string.room_hand_label_body_full_house
+    label.startsWith("flush", ignoreCase = true) -> Res.string.room_hand_label_body_flush
+    label.startsWith("straight", ignoreCase = true) -> Res.string.room_hand_label_body_straight
+    label.startsWith("three of a kind", ignoreCase = true) -> Res.string.room_hand_label_body_three_of_a_kind
+    label.startsWith("two pair", ignoreCase = true) -> Res.string.room_hand_label_body_two_pair
+    label.startsWith("pocket pair", ignoreCase = true) -> Res.string.room_hand_label_body_pocket_pair
+    label.startsWith("pair", ignoreCase = true) -> Res.string.room_hand_label_body_pair
+    label.startsWith("high card", ignoreCase = true) -> Res.string.room_hand_label_body_high_card
+    else -> Res.string.room_hand_label_body_default
 }
 
 @Preview
