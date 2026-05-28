@@ -542,4 +542,32 @@
     <string name="room_cheat_sheet_street_explainer_river">Fifth and final community card. One last round of betting, then any remaining players show their cards.</string>
     <string name="room_cheat_sheet_street_explainer_showdown">All remaining players reveal their hands. Best 5-card hand using any combination of hole and community cards wins the pot.</string>
     <string name="room_cheat_sheet_street_explainer_complete">Hand finished — chips are being awarded. Tap \"Next hand\" to play again.</string>
+
+    <!-- Room — Tap-an-opponent profile sheet (per-seat playing style + difficulty + settings). -->
+    <string name="room_player_profile_playing_style_heading">Playing style</string>
+    <string name="room_player_profile_tenure_section_title">At this table</string>
+    <string name="room_player_profile_difficulty_section_title">Difficulty</string>
+    <string name="room_player_profile_settings_section_title">Settings</string>
+    <string name="room_player_profile_mute_emoji_headline">Mute emoji</string>
+    <string name="room_player_profile_mute_emoji_supporting_muted">You won\'t see their table blasts.</string>
+    <string name="room_player_profile_mute_emoji_supporting_unmuted">Their blasts will show on your screen.</string>
+
+    <!-- Room — Bot playing-style archetypes (derived label + description per personality). -->
+    <string name="room_player_profile_style_maniac_label">Maniac</string>
+    <string name="room_player_profile_style_maniac_description">Plays nearly every hand and bets big. Bluffs often — hard to fold to, but hard to trust.</string>
+    <string name="room_player_profile_style_loose_aggressive_label">Loose aggressive</string>
+    <string name="room_player_profile_style_loose_aggressive_description">Plays a wide range and bets confidently. Pushes hard when they sense weakness.</string>
+    <string name="room_player_profile_style_tight_aggressive_label">Tight aggressive</string>
+    <string name="room_player_profile_style_tight_aggressive_description">Patient, but when chips go in, expect a real hand.</string>
+    <string name="room_player_profile_style_tight_passive_label">Tight passive</string>
+    <string name="room_player_profile_style_tight_passive_description">Folds often, rarely raises. A big bet from this seat usually means the goods.</string>
+    <string name="room_player_profile_style_loose_passive_label">Loose passive</string>
+    <string name="room_player_profile_style_loose_passive_description">Calls a lot, rarely raises. Hard to push off marginal hands — value bet, don\'t bluff.</string>
+    <string name="room_player_profile_style_balanced_label">Balanced</string>
+    <string name="room_player_profile_style_balanced_description">Mixes it up. No single tendency to exploit — read each hand.</string>
+
+    <!-- Room — Bot difficulty-tier descriptions (label stays as wire-key from SoloBotsPokerSessionFactory). -->
+    <string name="room_player_profile_difficulty_casual_description">Forgiving table. Bots play loosely and rarely punish a thin call — a good place to find your footing.</string>
+    <string name="room_player_profile_difficulty_standard_description">Balanced challenge. Bots punish loose play and exploit obvious tells — the default test of your read.</string>
+    <string name="room_player_profile_difficulty_challenging_description">Sharp table. Bots pressure marginal hands and read your patterns — bring your A game.</string>
 </resources>
