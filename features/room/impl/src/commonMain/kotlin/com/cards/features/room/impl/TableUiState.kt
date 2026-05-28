@@ -127,19 +127,24 @@ sealed interface TableUiState {
 
         /**
          * Compose the small badge that renders below an avatar on the play
-         * screen — "Lvl 14" for the local human, "Bot · Standard" (or just
-         * "Bot" when difficulty is unknown) for bots, null for empty seats
-         * and remote humans whose level we don't yet have a source for.
+         * screen — `SeatBadge.Level(14)` for the local human,
+         * `SeatBadge.BotWithDifficulty("Standard")` (or `SeatBadge.BotPlain`
+         * when difficulty is unknown) for bots, `null` for empty seats and
+         * remote humans whose level we don't yet have a source for.
+         *
+         * Returns a sealed shape so the renderer can resolve via
+         * `stringResource(...)` without re-deriving the formatting; mirrors
+         * the [BotPlayingStyle] / [TenureHeadline] pattern.
          */
-        private fun badgeFor(
+        internal fun badgeFor(
             seat: Seat,
             isHuman: Boolean,
             humanLevel: Int?,
             botDifficultyLabel: String?,
-        ): String? = when {
+        ): SeatBadge? = when {
             seat.playerId == null -> null
-            isHuman -> humanLevel?.let { "Lvl $it" }
-            seat.isBot -> botDifficultyLabel?.let { "Bot · $it" } ?: "Bot"
+            isHuman -> humanLevel?.let { SeatBadge.Level(it) }
+            seat.isBot -> botDifficultyLabel?.let { SeatBadge.BotWithDifficulty(it) } ?: SeatBadge.BotPlain
             else -> null // remote human in MP — level plumbing arrives later
         }
 
@@ -191,11 +196,12 @@ data class SeatView(
     val isBigBlind: Boolean,
     /**
      * Tiny pill rendered below the avatar on the play screen — e.g.
-     * "Lvl 14" for the local human, "Bot · Standard" for bots. Null
-     * means the seat doesn't have a label to show (empty seat, remote
-     * human pre-level-plumbing). See [TableUiState.Companion.badgeFor].
+     * `Level(14)` for the local human, `BotWithDifficulty("Standard")` for
+     * bots. Null means the seat doesn't have a label to show (empty seat,
+     * remote human pre-level-plumbing). Renderer resolves to a string via
+     * [SeatBadge.label]. See [TableUiState.Companion.badgeFor].
      */
-    val seatBadge: String? = null,
+    val seatBadge: SeatBadge? = null,
     /**
      * Bot personality for this seat — `null` for the human seat and any
      * non-bot seat. Tap-an-opponent surfaces use it to render an archetype
@@ -235,7 +241,7 @@ data class SeatView(
             isBigBlind: Boolean,
             street: BettingRound,
             humanProfile: Profile.Authenticated? = null,
-            seatBadge: String? = null,
+            seatBadge: SeatBadge? = null,
             handsAtTable: Int = 0,
         ): SeatView {
             val visibleHole = when {
@@ -352,6 +358,20 @@ data class HandResultView(
     val winners: List<HandWinner>,
     val board: List<Card>,
 )
+
+/**
+ * Sealed shape for the badge rendered below an avatar — kept as a typed
+ * variant rather than a pre-formatted `String` so the renderer can resolve
+ * via `stringResource(...)` and the static factory ([TableUiState.fromGameState])
+ * stays non-Composable. Difficulty label on [BotWithDifficulty] is a
+ * wire-key from `SoloBotsPokerSessionFactory.difficultyName` and stays
+ * inline (same call as the home `OptionPillRow` deferral).
+ */
+sealed class SeatBadge {
+    data class Level(val level: Int) : SeatBadge()
+    data class BotWithDifficulty(val difficulty: String) : SeatBadge()
+    data object BotPlain : SeatBadge()
+}
 
 private fun previewHandLabel(holeCards: List<Card>, community: List<Card>): String? {
     if (holeCards.size != 2) return null

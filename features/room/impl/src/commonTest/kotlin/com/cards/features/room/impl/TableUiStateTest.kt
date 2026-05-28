@@ -68,6 +68,85 @@ class TableUiStateTest {
     }
 
     @Test
+    fun badgeFor_humanWithKnownLevel_isLevelBadge() {
+        val seat = seat(index = 0, stack = 1_000, participation = HandParticipation.InHand)
+        val badge = TableUiState.badgeFor(
+            seat = seat,
+            isHuman = true,
+            humanLevel = 14,
+            botDifficultyLabel = null,
+        )
+        assertEquals(SeatBadge.Level(14), badge)
+    }
+
+    @Test
+    fun badgeFor_humanWithoutLevel_isNull() {
+        val seat = seat(index = 0, stack = 1_000, participation = HandParticipation.InHand)
+        val badge = TableUiState.badgeFor(
+            seat = seat,
+            isHuman = true,
+            humanLevel = null,
+            botDifficultyLabel = "Standard",
+        )
+        assertEquals(null, badge)
+    }
+
+    @Test
+    fun badgeFor_botWithDifficulty_isBotWithDifficulty() {
+        val seat = botSeat(index = 1)
+        val badge = TableUiState.badgeFor(
+            seat = seat,
+            isHuman = false,
+            humanLevel = null,
+            botDifficultyLabel = "Challenging",
+        )
+        assertEquals(SeatBadge.BotWithDifficulty("Challenging"), badge)
+    }
+
+    @Test
+    fun badgeFor_botWithoutDifficulty_isBotPlain() {
+        val seat = botSeat(index = 2)
+        val badge = TableUiState.badgeFor(
+            seat = seat,
+            isHuman = false,
+            humanLevel = null,
+            botDifficultyLabel = null,
+        )
+        assertEquals(SeatBadge.BotPlain, badge)
+    }
+
+    @Test
+    fun badgeFor_emptySeat_isNull() {
+        val empty = seat(
+            index = 1,
+            stack = 0,
+            participation = HandParticipation.NotDealt,
+            empty = true,
+        )
+        val badge = TableUiState.badgeFor(
+            seat = empty,
+            isHuman = false,
+            humanLevel = 14,
+            botDifficultyLabel = "Standard",
+        )
+        assertEquals(null, badge)
+    }
+
+    @Test
+    fun badgeFor_remoteHumanInMp_isNull() {
+        // Non-bot, non-local-human seat — MP plumbing for a remote human's
+        // level isn't wired yet, so the badge collapses to null.
+        val remoteHuman = seat(index = 1, stack = 1_000, participation = HandParticipation.InHand)
+        val badge = TableUiState.badgeFor(
+            seat = remoteHuman,
+            isHuman = false,
+            humanLevel = 30,
+            botDifficultyLabel = "Standard",
+        )
+        assertEquals(null, badge)
+    }
+
+    @Test
     fun emptySeat_isNotBusted() {
         val table = activeFromSeats(
             street = BettingRound.Complete,
@@ -92,6 +171,16 @@ class TableUiStateTest {
         stack = stack,
         seatStatus = if (empty) SeatStatus.Empty else SeatStatus.Active,
         handParticipation = participation,
+    )
+
+    private fun botSeat(index: Int): Seat = Seat(
+        index = index,
+        playerId = "bot-$index",
+        displayName = "Bot$index",
+        stack = 1_000,
+        seatStatus = SeatStatus.Active,
+        handParticipation = HandParticipation.InHand,
+        isBot = true,
     )
 
     private fun activeFromSeats(

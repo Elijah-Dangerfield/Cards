@@ -19,6 +19,9 @@ import cards.libraries.resources.generated.resources.room_player_profile_mute_em
 import cards.libraries.resources.generated.resources.room_player_profile_playing_style_heading
 import cards.libraries.resources.generated.resources.room_player_profile_settings_section_title
 import cards.libraries.resources.generated.resources.room_player_profile_tenure_section_title
+import cards.libraries.resources.generated.resources.room_seat_badge_bot_plain
+import cards.libraries.resources.generated.resources.room_seat_badge_bot_with_difficulty
+import cards.libraries.resources.generated.resources.room_seat_badge_level
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
@@ -79,7 +82,7 @@ internal fun PlayerProfileSheet(
             seat.seatBadge?.let { badge ->
                 VerticalSpacerD200()
                 Text(
-                    text = badge,
+                    text = badge.label(),
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.onSurfaceSecondary,
                     textAlign = TextAlign.Center,
@@ -135,6 +138,16 @@ internal fun PlayerProfileSheet(
 }
 
 @Composable
+internal fun SeatBadge.label(): String = when (this) {
+    is SeatBadge.Level -> stringResource(Res.string.room_seat_badge_level, level)
+    is SeatBadge.BotWithDifficulty -> stringResource(
+        Res.string.room_seat_badge_bot_with_difficulty,
+        difficulty,
+    )
+    SeatBadge.BotPlain -> stringResource(Res.string.room_seat_badge_bot_plain)
+}
+
+@Composable
 private fun PlayingStyleBlock(personality: BotPersonality) {
     val style = playingStyleFor(personality)
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -183,7 +196,7 @@ private fun PlayerProfileSheetPreview_BotUnmuted_TightPassive() {
         PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 1, name = "Jane")
                 .copy(
-                    seatBadge = "Bot · Standard",
+                    seatBadge = SeatBadge.BotWithDifficulty("Standard"),
                     personality = com.dangerfield.cards.libraries.bots.BotPersonality.Jane,
                     handsAtTable = 47,
                 ),
@@ -202,7 +215,7 @@ private fun PlayerProfileSheetPreview_BotMuted_Maniac() {
         PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 2, name = "Mike")
                 .copy(
-                    seatBadge = "Bot · Challenging",
+                    seatBadge = SeatBadge.BotWithDifficulty("Challenging"),
                     personality = com.dangerfield.cards.libraries.bots.BotPersonality.Mike,
                 ),
             isMuted = true,
@@ -220,7 +233,7 @@ private fun PlayerProfileSheetPreview_Bot_LooseAggressive() {
         PlayerProfileSheet(
             seat = PreviewSamples.botSeat(index = 3, name = "David")
                 .copy(
-                    seatBadge = "Bot · Casual",
+                    seatBadge = SeatBadge.BotWithDifficulty("Casual"),
                     personality = com.dangerfield.cards.libraries.bots.BotPersonality.David,
                 ),
             isMuted = false,
