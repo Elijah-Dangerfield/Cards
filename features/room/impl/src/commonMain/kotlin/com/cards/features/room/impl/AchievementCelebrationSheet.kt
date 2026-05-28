@@ -5,10 +5,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_achievement_cosmetic_label
 import cards.libraries.resources.generated.resources.room_achievement_reward_xp
@@ -33,6 +36,7 @@ import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -152,11 +156,18 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int) {
                 .padding(horizontal = Dimension.D700, vertical = Dimension.D700),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = achievement.icon,
-                typography = AppTheme.typography.Display.D1200,
-                color = AppTheme.colors.text,
-            )
+            // Mystery-card → shake → burst → medallion slam-in sequence.
+            // Sits inside the per-card AnimatedVisibility above so the
+            // card chrome fades in first and the reveal animation runs
+            // against a solid surface. Sized at 140dp so multi-unlock
+            // stacks stay scrollable while still giving each medallion
+            // a satisfying footprint. Built-in haptics on each shake
+            // peak + burst + medallion land — the sheet inherits the
+            // Duolingo-style tactile beat the dialog already used for
+            // tutorial completion.
+            Box(modifier = Modifier.size(REVEAL_SIZE)) {
+                AchievementUnlockReveal(achievement = achievement)
+            }
             VerticalSpacerD400()
             Text(
                 text = achievement.name,
@@ -217,6 +228,8 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int) {
         }
     }
 }
+
+private val REVEAL_SIZE = 140.dp
 
 private fun rarityAccent(rarity: AchievementRarity): androidx.compose.ui.graphics.Color = when (rarity) {
     AchievementRarity.COMMON -> PokerPalette.ChipGold.copy(alpha = 0.12f)
