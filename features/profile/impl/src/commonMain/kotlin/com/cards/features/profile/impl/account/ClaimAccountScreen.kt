@@ -9,16 +9,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.auth_field_email_label
+import cards.libraries.resources.generated.resources.auth_field_password_label
+import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_description
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_primary
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_secondary
+import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_title
+import cards.libraries.resources.generated.resources.auth_sign_up_confirm_password_label
+import cards.libraries.resources.generated.resources.auth_sign_up_password_helper
+import cards.libraries.resources.generated.resources.auth_sign_up_password_mismatch_helper
+import cards.libraries.resources.generated.resources.auth_sign_up_submit_button
+import cards.libraries.resources.generated.resources.auth_sign_up_submit_button_progress
 import cards.libraries.resources.generated.resources.profile_claim_back_a11y
-import cards.libraries.resources.generated.resources.profile_claim_coming_soon
 import cards.libraries.resources.generated.resources.profile_claim_conflict_switch_button
 import cards.libraries.resources.generated.resources.profile_claim_provider_apple
-import cards.libraries.resources.generated.resources.profile_claim_provider_email
 import cards.libraries.resources.generated.resources.profile_claim_provider_google
 import cards.libraries.resources.generated.resources.profile_claim_subtitle
 import cards.libraries.resources.generated.resources.profile_claim_title
@@ -27,30 +43,38 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Renders the claim-account CTAs. When the underlying OAuth providers
- * haven't been enabled yet in the Supabase dashboard the screen is honest:
- * shows a "coming soon" message instead of buttons that throw on tap.
+ * Combined claim-account screen — email/password form at the top, OAuth
+ * (Google/Apple) buttons below an "or" divider. Replaces the earlier
+ * three-button menu + separate email screen with a single canvas.
  *
- * The conflicting-provider state (Supabase says "this OAuth identity is
- * already on a different account") shows a destructive-style confirm path
- * — explicit, not implicit, per the locked V1 decision that we don't
- * auto-merge anonymous progress.
+ * Provider gating still hides OAuth buttons until their Supabase
+ * dashboard credentials exist (`IdentityFeatureConfig`); the email form
+ * is the always-available path. The conflicting-OAuth-identity state
+ * shows the same destructive-style confirm button as before — per the
+ * 2026-05-18 Identity pivot decision we don't auto-merge anonymous
+ * progress.
  */
 @Composable
 fun ClaimAccountScreen(
     state: ClaimAccountState,
     onAction: (ClaimAccountAction) -> Unit,
     onBack: () -> Unit,
-    onContinueWithEmail: () -> Unit,
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val submit = {
+        keyboardController?.hide()
+        onAction(ClaimAccountAction.Submit)
+    }
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
@@ -59,7 +83,10 @@ fun ClaimAccountScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .screenContentPadding(paddingValues = padding),
+                .screenContentPadding(
+                    paddingValues = padding,
+                    includeImePadding = true,
+                ),
             verticalArrangement = Arrangement.Top,
         ) {
                 Spacer(modifier = Modifier.height(Dimension.D200))
@@ -71,8 +98,6 @@ fun ClaimAccountScreen(
                 )
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
-                // Hero — frames the "save your stuff" promise visually
-                // before the user reads any copy.
                 Text(
                     text = "🔐",
                     typography = AppTheme.typography.Display.D800,
@@ -93,40 +118,92 @@ fun ClaimAccountScreen(
 
                 Spacer(modifier = Modifier.height(Dimension.D900))
 
-                if (state.googleEnabled) {
-                    ProviderButton(
-                        label = stringResource(Res.string.profile_claim_provider_google),
-                        enabled = !state.isSubmitting,
-                        onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google)) },
-                    )
-                    Spacer(modifier = Modifier.height(Dimension.D400))
-                }
-                if (state.appleEnabled) {
-                    ProviderButton(
-                        label = stringResource(Res.string.profile_claim_provider_apple),
-                        enabled = !state.isSubmitting,
-                        onClick = { onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Apple)) },
-                    )
-                    Spacer(modifier = Modifier.height(Dimension.D400))
-                }
-                ProviderButton(
-                    label = stringResource(Res.string.profile_claim_provider_email),
+                EmailField(
+                    value = state.email,
                     enabled = !state.isSubmitting,
-                    onClick = onContinueWithEmail,
-                    style = if (state.anyProviderEnabled) ButtonStyle.Outlined else ButtonStyle.Filled,
+                    onChange = { onAction(ClaimAccountAction.EmailChanged(it)) },
                 )
-                if (!state.anyProviderEnabled) {
-                    Spacer(modifier = Modifier.height(Dimension.D400))
-                    ComingSoonNotice()
-                }
+                Spacer(modifier = Modifier.height(Dimension.D500))
+                PasswordField(
+                    value = state.password,
+                    enabled = !state.isSubmitting,
+                    onChange = { onAction(ClaimAccountAction.PasswordChanged(it)) },
+                    imeAction = ImeAction.Next,
+                    onSubmitImeAction = submit,
+                    helper = stringResource(
+                        Res.string.auth_sign_up_password_helper,
+                        ClaimAccountState.MIN_PASSWORD_LENGTH,
+                    ),
+                )
+                Spacer(modifier = Modifier.height(Dimension.D500))
+                PasswordField(
+                    value = state.confirmPassword,
+                    enabled = !state.isSubmitting,
+                    onChange = { onAction(ClaimAccountAction.ConfirmPasswordChanged(it)) },
+                    imeAction = ImeAction.Go,
+                    onSubmitImeAction = submit,
+                    label = stringResource(Res.string.auth_sign_up_confirm_password_label),
+                    helper = if (state.passwordMismatch) {
+                        stringResource(Res.string.auth_sign_up_password_mismatch_helper)
+                    } else {
+                        null
+                    },
+                    isError = state.passwordMismatch,
+                )
 
                 state.error?.let {
-                    Spacer(modifier = Modifier.height(Dimension.D600))
+                    Spacer(modifier = Modifier.height(Dimension.D400))
                     Text(
                         text = it,
                         typography = AppTheme.typography.Body.B500,
                         color = AppTheme.colors.danger,
                     )
+                }
+
+                Spacer(modifier = Modifier.height(Dimension.D600))
+
+                Button(
+                    onClick = submit,
+                    enabled = state.canSubmit,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        stringResource(
+                            if (state.isSubmitting) Res.string.auth_sign_up_submit_button_progress
+                            else Res.string.auth_sign_up_submit_button,
+                        ),
+                    )
+                }
+
+                if (state.anyProviderEnabled) {
+                    Spacer(modifier = Modifier.height(Dimension.D700))
+                    Text(
+                        text = stringResource(Res.string.auth_sign_in_oauth_divider),
+                        typography = AppTheme.typography.Body.B400,
+                        color = AppTheme.colors.onSurfaceSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(Dimension.D500))
+                    if (state.googleEnabled) {
+                        ProviderButton(
+                            label = stringResource(Res.string.profile_claim_provider_google),
+                            enabled = !state.isSubmitting,
+                            onClick = {
+                                onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Google))
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(Dimension.D400))
+                    }
+                    if (state.appleEnabled) {
+                        ProviderButton(
+                            label = stringResource(Res.string.profile_claim_provider_apple),
+                            enabled = !state.isSubmitting,
+                            onClick = {
+                                onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Apple))
+                            },
+                        )
+                    }
                 }
 
                 state.conflictingProvider?.let { provider ->
@@ -148,6 +225,83 @@ fun ClaimAccountScreen(
             Spacer(modifier = Modifier.height(Dimension.D800))
         }
     }
+
+    if (state.awaitingClaimConfirm) {
+        Dialog(
+            title = stringResource(
+                Res.string.auth_sign_up_claim_dialog_title,
+                state.email.trim(),
+            ),
+            description = stringResource(Res.string.auth_sign_up_claim_dialog_description),
+            primaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_primary),
+            secondaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_secondary),
+            onPrimaryButtonClicked = { onAction(ClaimAccountAction.ConfirmClaim) },
+            onSecondaryButtonClicked = { onAction(ClaimAccountAction.DismissClaimConfirm) },
+            onDismissRequest = { onAction(ClaimAccountAction.DismissClaimConfirm) },
+        )
+    }
+}
+
+@Composable
+private fun EmailField(
+    value: String,
+    enabled: Boolean,
+    onChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        enabled = enabled,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Email,
+            imeAction = ImeAction.Next,
+        ),
+        keyboardActions = KeyboardActions(),
+        label = { Text(stringResource(Res.string.auth_field_email_label)) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun PasswordField(
+    value: String,
+    enabled: Boolean,
+    onChange: (String) -> Unit,
+    imeAction: ImeAction,
+    onSubmitImeAction: () -> Unit,
+    label: String = stringResource(Res.string.auth_field_password_label),
+    helper: String? = null,
+    isError: Boolean = false,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            enabled = enabled,
+            singleLine = true,
+            isError = isError,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = imeAction,
+            ),
+            keyboardActions = KeyboardActions(
+                onGo = { onSubmitImeAction() },
+                onNext = { onSubmitImeAction() },
+            ),
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        helper?.let {
+            Spacer(modifier = Modifier.height(Dimension.D200))
+            Text(
+                text = it,
+                typography = AppTheme.typography.Body.B400,
+                color = if (isError) AppTheme.colors.danger else AppTheme.colors.onSurfaceSecondary,
+            )
+        }
+    }
 }
 
 @Composable
@@ -155,12 +309,11 @@ private fun ProviderButton(
     label: String,
     enabled: Boolean,
     onClick: () -> Unit,
-    style: ButtonStyle = ButtonStyle.Filled,
 ) {
     Button(
         onClick = onClick,
         enabled = enabled,
-        style = style,
+        style = ButtonStyle.Outlined,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(label)
@@ -169,21 +322,56 @@ private fun ProviderButton(
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun ClaimAccountScreenPreview_ComingSoon() {
+private fun ClaimAccountScreenPreview_EmailOnly() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
-        ClaimAccountScreen(state = ClaimAccountState(), onAction = {}, onBack = {}, onContinueWithEmail = {})
+        ClaimAccountScreen(state = ClaimAccountState(), onAction = {}, onBack = {})
     }
 }
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun ClaimAccountScreenPreview_BothEnabled() {
+private fun ClaimAccountScreenPreview_BothProvidersEnabled() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         ClaimAccountScreen(
             state = ClaimAccountState(googleEnabled = true, appleEnabled = true),
             onAction = {},
             onBack = {},
-            onContinueWithEmail = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ClaimAccountScreenPreview_Filled() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ClaimAccountScreen(
+            state = ClaimAccountState(
+                googleEnabled = true,
+                appleEnabled = true,
+                email = "you@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22ish",
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ClaimAccountScreenPreview_PasswordMismatch() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ClaimAccountScreen(
+            state = ClaimAccountState(
+                googleEnabled = true,
+                appleEnabled = true,
+                email = "you@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22is",
+            ),
+            onAction = {},
+            onBack = {},
         )
     }
 }
@@ -196,11 +384,13 @@ private fun ClaimAccountScreenPreview_Submitting() {
             state = ClaimAccountState(
                 googleEnabled = true,
                 appleEnabled = true,
+                email = "you@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22ish",
                 isSubmitting = true,
             ),
             onAction = {},
             onBack = {},
-            onContinueWithEmail = {},
         )
     }
 }
@@ -218,18 +408,25 @@ private fun ClaimAccountScreenPreview_Conflict() {
             ),
             onAction = {},
             onBack = {},
-            onContinueWithEmail = {},
         )
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun ComingSoonNotice() {
-    Text(
-        text = stringResource(Res.string.profile_claim_coming_soon),
-        typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.onSurfaceSecondary,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
+private fun ClaimAccountScreenPreview_AwaitingConfirm() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        ClaimAccountScreen(
+            state = ClaimAccountState(
+                googleEnabled = true,
+                appleEnabled = true,
+                email = "you@example.com",
+                password = "hunter22ish",
+                confirmPassword = "hunter22ish",
+                awaitingClaimConfirm = true,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
 }

@@ -2,9 +2,11 @@ package com.dangerfield.cards.features.profile.impl.account
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -283,6 +285,207 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         val s = vm.state
         assertNull(s.error)
         assertNull(s.conflictingProvider, "DismissError must also drop the stashed conflict")
+    }
+
+    // ---------- email / password path ----------
+
+    @Test
+    fun emailSubmit_belowMinimum_doesNotShowConfirm() = runUnitTest {
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("you@example.com"),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("short"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("short"))
+
+        vm.takeAction(ClaimAccountAction.Submit)
+        assertEquals(false, vm.state.awaitingClaimConfirm)
+        assertEquals(0, identity.linkEmailCalls, "Below MIN_PASSWORD_LENGTH must short-circuit before any repo call")
+    }
+
+    @Test
+    fun emailSubmit_passwordMismatch_isDetectedAndBlocksSubmit() = runUnitTest {
+        val identity = FakeAuthRepository()
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22is"))
+
+        assertEquals(true, vm.state.passwordMismatch)
+        assertEquals(false, vm.state.canSubmit, "canSubmit must be false when passwords don't match")
+        vm.takeAction(ClaimAccountAction.Submit)
+        assertEquals(0, identity.linkEmailCalls)
+    }
+
+    @Test
+    fun emailSubmit_showsConfirmDialog_doesNotFireLinkUntilConfirmed() = runUnitTest {
+        // The whole point of the confirm dialog: catch typos before the
+        // chips/XP are permanently bound to a wrong email.
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("you@example.com"),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+
+        assertEquals(true, vm.state.awaitingClaimConfirm)
+        assertEquals(0, identity.linkEmailCalls, "Submit must not fire linkEmailIdentity until the user confirms")
+    }
+
+    @Test
+    fun emailSubmit_dismissConfirm_clearsDialog_doesNotFireLink() = runUnitTest {
+        val identity = FakeAuthRepository()
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+        vm.takeAction(ClaimAccountAction.DismissClaimConfirm)
+
+        assertEquals(false, vm.state.awaitingClaimConfirm)
+        assertEquals(0, identity.linkEmailCalls)
+    }
+
+    @Test
+    fun emailClaim_verificationRequired_emitsNavigateToVerifyEmail() = runUnitTest {
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("you@example.com"),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+        vm.takeAction(ClaimAccountAction.ConfirmClaim)
+
+        vm.eventFlow.test {
+            val event = awaitItem()
+            assertIs<ClaimAccountEvent.NavigateToVerifyEmail>(event)
+            assertEquals("you@example.com", event.email)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, identity.linkEmailCalls)
+        assertEquals("you@example.com" to "hunter22ish", identity.lastLinkEmail)
+        assertEquals(false, vm.state.isSubmitting)
+    }
+
+    @Test
+    fun emailClaim_emailAlreadyRegistered_surfacesSignInHint() = runUnitTest {
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.EmailAlreadyRegistered,
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("taken@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+        vm.takeAction(ClaimAccountAction.ConfirmClaim)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertTrue(
+                last.error!!.contains("already in use", ignoreCase = true) ||
+                    last.error!!.contains("sign", ignoreCase = true),
+                "expected an 'already in use / sign in' hint, got: ${last.error}",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun emailClaim_weakPassword_surfacesStrongerPasswordHint() = runUnitTest {
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.WeakPassword,
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+        vm.takeAction(ClaimAccountAction.ConfirmClaim)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertTrue(
+                last.error!!.contains("stronger password", ignoreCase = true),
+                "expected a stronger-password hint, got: ${last.error}",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun emailClaim_invalidEmail_surfacesEmailHint() = runUnitTest {
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.InvalidEmail,
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+        vm.takeAction(ClaimAccountAction.ConfirmClaim)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertTrue(
+                last.error!!.contains("email", ignoreCase = true),
+                "expected an invalid-email hint, got: ${last.error}",
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun emailClaim_notAnonymous_fallsBackToSignUp() = runUnitTest {
+        // If the session is no longer anonymous, linkEmailIdentity refuses.
+        // The VM falls back to signUpWithEmail rather than dead-ending the user.
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.NotAnonymous,
+            signUpOutcome = SignUpOutcome.VerificationRequired("you@example.com"),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+        vm.takeAction(ClaimAccountAction.ConfirmClaim)
+
+        vm.eventFlow.test {
+            assertIs<ClaimAccountEvent.NavigateToVerifyEmail>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, identity.linkEmailCalls)
+        assertEquals(1, identity.signUpCalls)
+    }
+
+    @Test
+    fun emailClaim_networkError_surfacesNetworkMessage() = runUnitTest {
+        val identity = FakeAuthRepository(
+            linkEmailOutcome = LinkEmailIdentityOutcome.NetworkError(RuntimeException("offline")),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
+        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
+        vm.takeAction(ClaimAccountAction.Submit)
+        vm.takeAction(ClaimAccountAction.ConfirmClaim)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertTrue(
+                last.error!!.contains("reach", ignoreCase = true) ||
+                    last.error!!.contains("connection", ignoreCase = true),
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     // ---------- scaffolding ----------
