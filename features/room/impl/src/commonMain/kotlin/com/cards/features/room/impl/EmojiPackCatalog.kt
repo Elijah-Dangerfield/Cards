@@ -32,6 +32,7 @@ internal object EmojiPackCatalog {
         "emotes_baller" to listOf("💸", "💎", "🤑", "📈"),
         "emotes_iron_stack" to listOf("🛡️", "🧱", "🗿", "🦾"),
         "emotes_convincer" to listOf("🪄", "🎩", "😏", "🤫"),
+        "emotes_disciplined" to listOf("🧘", "🦉", "👁️", "🪞"),
     )
 
     /**
