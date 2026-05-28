@@ -628,6 +628,9 @@
 
     <!-- Room — EmojiTray cooldown text shown on the tray's trigger button between blasts. -->
     <string name="room_emoji_tray_cooldown">%1$ds</string>
+    <!-- Room — EmojiTray empty-state popup (no emote pack owned). Receiving emotes works regardless; sending needs a pack. -->
+    <string name="room_emoji_tray_empty_caption">Buy emoji packs in the shop to send these</string>
+    <string name="room_emoji_tray_empty_shop_cta">Shop emote packs</string>
 
     <!-- Room — Win/odds tile on the human seat (PlayerInfoTile back face). -->
     <string name="room_player_odds_heading">Odds</string>

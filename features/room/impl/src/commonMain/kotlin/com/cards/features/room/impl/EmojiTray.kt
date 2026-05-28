@@ -10,7 +10,9 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -22,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -30,8 +33,12 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_emoji_tray_cooldown
+import cards.libraries.resources.generated.resources.room_emoji_tray_empty_caption
+import cards.libraries.resources.generated.resources.room_emoji_tray_empty_shop_cta
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Surface
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.icon.EmojiButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.iconSize
@@ -41,6 +48,8 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.VerticalSpacerD300
+import com.dangerfield.cards.system.VerticalSpacerD200
 import kotlin.time.Clock
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
@@ -50,8 +59,11 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Compact emoji-blast button suitable for the TopBar. Renders a DS
  * [EmojiButton] (sibling of [IconButton], same Size scale + shape) so
  * the cluster reads as one set of controls. Tap opens a popup containing
- * the [EmojiPickerRow]. Hidden entirely when [emojis] is empty (default
- * users without any `emotes_*` pack), so the chrome stays clean.
+ * either [EmojiPickerRow] (user owns ≥1 `emotes_*` pack) or
+ * [EmptyEmojiPopup] (user owns none; greyed-out preview + shop CTA).
+ * The trigger always renders so the affordance is visible — receiving
+ * emotes still works without ownership, and the empty-state popup
+ * surfaces the path to start sending them.
  *
  * Cooldown: while [cooldownEndsAtEpochMs] is in the future, the button
  * is replaced by a same-sized non-tappable surface showing remaining
@@ -70,9 +82,10 @@ internal fun TopBarEmojiButton(
     emojis: List<String>,
     cooldownEndsAtEpochMs: Long,
     onBlast: (String) -> Unit,
+    onOpenShop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (emojis.isEmpty()) return
+    val ownsAnyPack = emojis.isNotEmpty()
     var expanded by remember { mutableStateOf(false) }
 
     val now = rememberSecondTicker(active = cooldownEndsAtEpochMs > 0L)
@@ -145,13 +158,22 @@ internal fun TopBarEmojiButton(
                         transformOrigin = TrayTransformOrigin,
                     ) + fadeOut(animationSpec = tween(durationMillis = 120)),
                 ) {
-                    EmojiPickerRow(
-                        emojis = emojis,
-                        onPick = { emoji ->
-                            onBlast(emoji)
-                            expanded = false
-                        },
-                    )
+                    if (ownsAnyPack) {
+                        EmojiPickerRow(
+                            emojis = emojis,
+                            onPick = { emoji ->
+                                onBlast(emoji)
+                                expanded = false
+                            },
+                        )
+                    } else {
+                        EmptyEmojiPopup(
+                            onShopClick = {
+                                expanded = false
+                                onOpenShop()
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -179,6 +201,71 @@ private fun CooldownChip(remainingSeconds: Long) {
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
             )
+        }
+    }
+}
+
+/**
+ * Empty-state popup shown when the user owns no `emotes_*` pack. A
+ * row of greyed-out preview glyphs sells the affordance, a caption
+ * sets the expectation, and a primary CTA routes to the shop. The
+ * popup uses the same surface chrome as [EmojiPickerRow] so the
+ * shape continuity reads as "this is the same tray, just empty for
+ * you right now."
+ */
+@Composable
+private fun EmptyEmojiPopup(
+    onShopClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val feltAccent = LocalFeltAccentSurface.current
+    Surface(
+        modifier = modifier,
+        color = if (feltAccent != null) null else AppTheme.colors.surfaceSecondary,
+        colorOverride = feltAccent,
+        contentColor = AppTheme.colors.text,
+        radius = Radii.Card,
+        contentPadding = PaddingValues(
+            horizontal = Dimension.D400,
+            vertical = Dimension.D400,
+        ),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Greyed-out preview row at the picker's normal CellSize so
+            // the shape matches the live tray. Static row instead of
+            // LazyRow — the preview list is fixed at 4 items, no need to
+            // pay for lazy layout. EmojiButtons are `enabled = false` so
+            // they don't surface ripple / role=Button to a11y; the alpha
+            // sells the "you don't own these yet" affordance.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Dimension.D100),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.alpha(0.4f),
+            ) {
+                EmojiPackCatalog.SamplePreview.forEach { emoji ->
+                    EmojiButton(
+                        emoji = emoji,
+                        size = CellSize,
+                        backgroundColor = null,
+                        enabled = false,
+                        onClick = {},
+                    )
+                }
+            }
+            VerticalSpacerD300()
+            Text(
+                text = stringResource(Res.string.room_emoji_tray_empty_caption),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD200()
+            ButtonPrimary(
+                onClick = onShopClick,
+                size = ButtonSize.Small,
+            ) {
+                Text(text = stringResource(Res.string.room_emoji_tray_empty_shop_cta))
+            }
         }
     }
 }
@@ -257,6 +344,7 @@ private fun TopBarEmojiButtonPreview_Idle() {
             emojis = PreviewEmojis,
             cooldownEndsAtEpochMs = 0L,
             onBlast = {},
+            onOpenShop = {},
         )
     }
 }
@@ -269,6 +357,20 @@ private fun TopBarEmojiButtonPreview_Cooldown() {
             emojis = PreviewEmojis,
             cooldownEndsAtEpochMs = Clock.System.now().toEpochMilliseconds() + 5_000L,
             onBlast = {},
+            onOpenShop = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun TopBarEmojiButtonPreview_EmptyState() {
+    PreviewContent {
+        TopBarEmojiButton(
+            emojis = emptyList(),
+            cooldownEndsAtEpochMs = 0L,
+            onBlast = {},
+            onOpenShop = {},
         )
     }
 }
@@ -278,5 +380,13 @@ private fun TopBarEmojiButtonPreview_Cooldown() {
 private fun EmojiPickerRowPreview() {
     PreviewContent {
         EmojiPickerRow(emojis = PreviewEmojis, onPick = {})
+    }
+}
+
+@Preview
+@Composable
+private fun EmptyEmojiPopupPreview() {
+    PreviewContent {
+        EmptyEmojiPopup(onShopClick = {})
     }
 }

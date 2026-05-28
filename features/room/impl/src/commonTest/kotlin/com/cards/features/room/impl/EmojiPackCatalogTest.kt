@@ -8,10 +8,35 @@ class EmojiPackCatalogTest {
 
     @Test
     fun noOwnedPacks_returnsEmpty() {
-        // Emoji blasts are a paid surface — no pack, no emojis. Caller
-        // is expected to hide the tray entirely when this list is empty.
+        // Emoji blasts are a paid surface — no pack, no emojis. The tray's
+        // empty-state popup (greyed-out preview + shop CTA) renders
+        // [EmojiPackCatalog.SamplePreview] when this list is empty.
         val available = EmojiPackCatalog.availableEmojisFor(ownedProductIds = emptySet())
         assertTrue(available.isEmpty())
+    }
+
+    @Test
+    fun samplePreview_isFourGlyphsFromShippingPacks() {
+        // The empty-state popup needs a non-empty, fixed-length preview
+        // so its layout is stable. Each glyph must be one we actually
+        // ship (otherwise the user buys a pack and discovers a different
+        // emoji set than the teaser implied).
+        val preview = EmojiPackCatalog.SamplePreview
+        assertEquals(4, preview.size)
+        val allShippingEmojis = EmojiPackCatalog
+            .availableEmojisFor(setOf(
+                "emotes_drama", "emotes_cute", "emotes_fierce", "emotes_royal",
+                "emotes_eliminator", "emotes_baller", "emotes_iron_stack",
+                "emotes_convincer", "emotes_disciplined", "emotes_grinder",
+                "emotes_doubler", "emotes_tactician",
+            ))
+            .toSet()
+        preview.forEach { glyph ->
+            assertTrue(
+                glyph in allShippingEmojis,
+                "Preview glyph $glyph is not shipped by any pack",
+            )
+        }
     }
 
     @Test

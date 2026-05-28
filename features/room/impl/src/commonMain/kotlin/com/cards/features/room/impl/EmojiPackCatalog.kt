@@ -42,8 +42,9 @@ internal object EmojiPackCatalog {
      * Available blast pool given the user's owned inventory IDs. Pack-
      * unlocked emojis in pack-key order, deduped. Order is stable so the
      * tray doesn't shuffle when a new pack is acquired mid-session. Empty
-     * when the user owns no emote packs — callers should hide the tray
-     * UI entirely in that case rather than rendering an empty picker.
+     * when the user owns no emote packs — the tray's empty-state row
+     * (greyed-out preview + "shop emoji packs" CTA) renders [SamplePreview]
+     * instead.
      */
     fun availableEmojisFor(ownedProductIds: Set<String>): List<String> {
         val result = LinkedHashSet<String>(16)
@@ -52,4 +53,13 @@ internal object EmojiPackCatalog {
         }
         return result.toList()
     }
+
+    /**
+     * Curated four-emoji sample rendered greyed-out in the empty-state
+     * popup when the user owns no `emotes_*` pack. Each glyph is the
+     * first emoji of a distinct shipping pack (drama / cute / fierce /
+     * royal) so the user gets a sense of the visual range without us
+     * privileging one pack's full set.
+     */
+    val SamplePreview: List<String> = listOf("💃", "🥺", "😤", "👑")
 }
