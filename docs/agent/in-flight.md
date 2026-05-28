@@ -4,6 +4,12 @@
 **Approach:** Added `dispatchers: DispatcherProvider` to the `@Inject` constructor and routed the scope through `dispatchers.main`. `apps:compose` already depends on `:libraries:flowroutines`.
 **Reviewer notes:** No new test — the todo entry explicitly noted this dispatcher swap doesn't change observable behavior and no test sibling exists.
 
+## test(tutorial): pin TutorialViewModel state machine
+
+**Problem:** `TutorialViewModel` drove the entire onboarding flow (`advance` / `goBack` / `skipBasics` / `restartBasics` / `submit`) plus the `wasFirstCompletion` race against `recordTutorialComplete()`, but had no test sibling — every other feature VM does.
+**Approach:** New `TutorialViewModelTest` extending `CoroutineTest`. Local `TutorialAchievementsFake` (configurable `tutorialEarned` + `throwOnRecord`) so the three completion outcomes (first-time / replay / grant-failure → fallback to `true`) are individually pin-able; a local `TutorialAppCacheFake` keeps the test isolated from `Fakes.kt`. The script-walk tests don't hardcode step indices — they read `TutorialScript.steps` for the first basics / non-basics / advance-gated step so the test survives script edits. Used `UnconfinedTestDispatcher` (the `CoroutineTest` default) so `viewModelScope.launch` in `recordCompletion()` drains inline without `advanceUntilIdle`.
+**Reviewer notes:** None.
+
 ## test(server): pin /v1/avatars route contract
 
 **Problem:** `avatarRoutes()` is the unauthenticated endpoint the avatar picker hits before the Supabase JWT lands, but it had no route test — the "anon ok / full registry / palette / Cache-Control / unlock id presence" contract was unverified despite sibling routes (Equipment, Wallet, Inventory, Me) all having one.
