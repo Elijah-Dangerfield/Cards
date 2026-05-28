@@ -1,3 +1,5 @@
+**Stashed WIP:** During this cycle a stray modification appeared on `ChipsRepositoryImplSyncTest.kt` from an unknown source — git status was clean when I started, no commit added these methods, the listed prior stashes don't contain this file, and nothing I ran would write to a test file. The diff adds `onColdBoot_launchesSync` and `onForeground_coldBoot_isNoOp_warmResume_syncs` — exactly the ChipsRepositoryImpl AppEvent-lifecycle path that the `[P2]` todo asks for. I left it as `stash@{0}: worker-postsweep-chips-lifecycle-tests-mystery-20260528-124013` so it isn't lost. If the human or another agent meant to ship this, the stash holds the work; otherwise drop it. The matching `[P2]` todo entry is still in `docs/todo.md` since I didn't commit anything against it.
+
 ## refactor(shake): route ShakeHandler through DispatcherProvider.main
 
 **Problem:** `ShakeHandler` constructed its `CoroutineScope` with raw `Dispatchers.Main`, violating the repo's dispatcher-injection rule (production code consumes `DispatcherProvider.*` so tests can swap a `TestDispatcher`).
