@@ -1,5 +1,13 @@
 **Stashed WIP — resolved:** A prior worker stashed mid-flight test edits to `ChipsRepositoryImplSyncTest.kt` as `stash@{0}: worker-postsweep-chips-lifecycle-tests-mystery-20260528-124013` (note in the previous in-flight version). Those edits were my work-in-progress on the ChipsRepository lifecycle-path todo from a concurrent run; the proper, working version ships in the `test(chips)` block below. The stash is superseded — reviewer can `git stash drop stash@{0}` after confirming the new tests cover the same surface (`onColdBoot` triggers sync; `onForeground(isColdBoot=true)` no-ops; `syncMutex` serializes).
 
+**Stashed WIP — handed back:** This cycle's worker-presweep captured 3 files from the human's tree that match the existing `feat(profile): surface "Member since {Month YYYY}"` block below (i.e. that block's *code* — the block was filed without the commit). Stash label: `worker-presweep-retry-20260528-125132`. The end-of-run `git stash pop` will restore the WIP to the tree; reviewer should treat as the human's in-flight delivery of that feat and commit/PR it.
+
+## fix(ui): bump earned-badge text contrast to WCAG AA via accentEarned token
+
+**Problem:** OwnershipBadge ("Earned" variant) and EarnedTag rendered `accentSecondary` (Purple600 = #8E24AA) on `surfaceSecondary` (Gray800 = #2D2D2D) — measured ~2.0:1, below WCAG AA's 4.5:1 floor for body text.
+**Approach:** Extended the `Colors` interface with a new semantic token `accentEarned` (defaulted to `Purple100` = #E1BEE7) and routed both badge text colors through it. Picked (a) "brighten the purple" over (b) "drop to status.okay" because the earned-vs-purchased visual distinction in OwnershipBadge relies on the purple cue, and (c) "lighten background" would have shipped a `surfaceTertiary` pill that visually competes with neighboring `LastActionPill` chrome. Purple100 on Gray800 measures ~8.5:1, comfortably AA. Picked a semantic token over a raw `ColorResource.Purple100` because the DS already deprecates direct ColorResource use (compiler warning fires on every callsite).
+**Reviewer notes:** Token is currently single-callsite; if no other surface needs an "earned" affordance it could collapse back to `accentSecondary` once the palette gets reshuffled. Out of scope here: auditing every other accent-on-surface combo for contrast (the todo entry called that out as a separate pass).
+
 ## feat(profile): surface "Member since {Month YYYY}" on ProfileHeader
 
 **Problem:** Spec §6.2 lists "Member-since date" as a profile field, and `Profile.Authenticated.createdAt: Instant` already carries it, but `ProfileHeader` rendered avatar + name + LevelSummary with no member-since affordance.
