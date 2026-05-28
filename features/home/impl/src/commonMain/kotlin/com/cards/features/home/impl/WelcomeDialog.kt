@@ -21,6 +21,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_welcome_dialog_chip_use_line
+import cards.libraries.resources.generated.resources.home_welcome_dialog_daily_grant_line
+import cards.libraries.resources.generated.resources.home_welcome_dialog_gift_line
+import cards.libraries.resources.generated.resources.home_welcome_dialog_greeting
+import cards.libraries.resources.generated.resources.home_welcome_dialog_primary_cta
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
@@ -35,6 +41,7 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * One-shot starter-grant intro shown the first time a new account lands
@@ -88,7 +95,7 @@ internal fun WelcomeDialog(
             verticalArrangement = Arrangement.Top,
         ) {
             Text(
-                text = "Welcome,",
+                text = stringResource(Res.string.home_welcome_dialog_greeting),
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.text,
                 textAlign = TextAlign.Center,
@@ -112,7 +119,7 @@ internal fun WelcomeDialog(
             }
             Spacer(Modifier.height(Dimension.D1000))
             Text(
-                text = "Here's a little gift from us to start with.",
+                text = stringResource(Res.string.home_welcome_dialog_gift_line),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.text,
                 textAlign = TextAlign.Center,
@@ -120,7 +127,7 @@ internal fun WelcomeDialog(
 
             Spacer(Modifier.height(Dimension.D200))
             Text(
-                text = "Use these to play against other players and buy upgrades.",
+                text = stringResource(Res.string.home_welcome_dialog_chip_use_line),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.text,
                 textAlign = TextAlign.Center,
@@ -132,7 +139,7 @@ internal fun WelcomeDialog(
             // contact post-signup-day with no in-app dialog, so this is
             // the *only* place the user learns the daily +500 is a thing.
             Text(
-                text = "Open the app every day this week — we'll add another 500 chips, on us.",
+                text = stringResource(Res.string.home_welcome_dialog_daily_grant_line),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
@@ -144,7 +151,7 @@ internal fun WelcomeDialog(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(text = "Let's play")
+                Text(text = stringResource(Res.string.home_welcome_dialog_primary_cta))
             }
         }
     }

@@ -140,6 +140,42 @@
     <string name="home_coming_soon_recently_played_title">Recently played with</string>
     <string name="home_coming_soon_recently_played_body">The full history of humans you\'ve played comes with Quick Match + Friend Games. For now we\'re showing the most recent at the table.</string>
 
+    <!-- Home — "ongoing game" rejoin/forfeit banner. -->
+    <string name="home_active_room_title">You have an ongoing game</string>
+    <string name="home_active_room_subtitle">Room %1$s is still holding your seat.</string>
+    <string name="home_active_room_forfeit_button">Forfeit</string>
+    <string name="home_active_room_rejoin_button">Rejoin</string>
+    <string name="home_active_room_forfeit_dialog_title">Leave room %1$s?</string>
+    <string name="home_active_room_forfeit_dialog_body">Your seat will be released and any stack at the table goes back to your wallet.</string>
+    <string name="home_active_room_forfeit_dialog_primary">Forfeit</string>
+    <string name="home_active_room_forfeit_dialog_secondary">Stay</string>
+
+    <!-- Home — Tutorial banner (one-tap entry to the tutorial flow). -->
+    <string name="home_tutorial_banner_title">New here? Learn the basics</string>
+    <string name="home_tutorial_banner_subtitle">2-minute tutorial · hands, betting, suits</string>
+    <string name="home_tutorial_banner_start_button">Start</string>
+    <string name="home_tutorial_banner_dismiss_a11y">Dismiss tutorial banner</string>
+
+    <!-- Home — Welcome dialog (one-shot starter-grant intro on first launch). -->
+    <string name="home_welcome_dialog_greeting">Welcome,</string>
+    <string name="home_welcome_dialog_gift_line">Here\'s a little gift from us to start with.</string>
+    <string name="home_welcome_dialog_chip_use_line">Use these to play against other players and buy upgrades.</string>
+    <string name="home_welcome_dialog_daily_grant_line">Open the app every day this week — we\'ll add another 500 chips, on us.</string>
+    <string name="home_welcome_dialog_primary_cta">Let\'s play</string>
+
+    <!-- Home — Practice (bot-table) setup dialog. -->
+    <string name="home_bot_setup_title">Practice table</string>
+    <string name="home_bot_setup_subtitle_heads_up">Heads-up against one %1$s bot. Fast and aggressive — you\'re always in the action.</string>
+    <string name="home_bot_setup_subtitle_four">Four-handed %1$s table. Balanced pace, room to play position.</string>
+    <string name="home_bot_setup_subtitle_six">Full ring with five %1$s bots. Slower, more strategic — fold more, pick spots.</string>
+    <string name="home_bot_setup_subtitle_other">%1$s table with %2$d bots.</string>
+    <string name="home_bot_setup_difficulty_label">Difficulty</string>
+    <string name="home_bot_setup_seats_label">Seats</string>
+    <string name="home_bot_setup_seat_summary_heads_up">%1$d bots, you, heads-up</string>
+    <string name="home_bot_setup_seat_summary_other">%1$d bots, you, %2$d seats</string>
+    <string name="home_bot_setup_balance_disclaimer">Bot tables don\'t move your chip balance.</string>
+    <string name="home_bot_setup_start_button">Start</string>
+
     <!-- Auth — shared back affordance + field labels used by every screen. -->
     <string name="auth_back_button">← Back</string>
     <string name="auth_field_email_label">Email</string>

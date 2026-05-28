@@ -13,6 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.home_tutorial_banner_dismiss_a11y
+import cards.libraries.resources.generated.resources.home_tutorial_banner_start_button
+import cards.libraries.resources.generated.resources.home_tutorial_banner_subtitle
+import cards.libraries.resources.generated.resources.home_tutorial_banner_title
 import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.bounceClick
@@ -29,6 +34,7 @@ import com.dangerfield.cards.system.HorizontalSpacerD200
 import com.dangerfield.cards.system.HorizontalSpacerD500
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -57,13 +63,13 @@ internal fun TutorialBanner(
         HorizontalSpacerD500()
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "New here? Learn the basics",
+                text = stringResource(Res.string.home_tutorial_banner_title),
                 typography = AppTheme.typography.Body.B700.SemiBold,
                 color = AppTheme.colors.text,
             )
             VerticalSpacerD100()
             Text(
-                text = "2-minute tutorial · hands, betting, suits",
+                text = stringResource(Res.string.home_tutorial_banner_subtitle),
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.textSecondary,
             )
@@ -73,11 +79,11 @@ internal fun TutorialBanner(
             onClick = onStart,
             size = ButtonSize.Small,
         ) {
-            Text("Start")
+            Text(stringResource(Res.string.home_tutorial_banner_start_button))
         }
         HorizontalSpacerD200()
         IconButton(
-            icon = Icons.X("Dismiss tutorial banner"),
+            icon = Icons.X(stringResource(Res.string.home_tutorial_banner_dismiss_a11y)),
             onClick = onDismiss,
             size = IconButton.Size.Small,
             backgroundColor = null,
