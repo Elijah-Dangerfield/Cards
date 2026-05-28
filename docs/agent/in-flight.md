@@ -4,6 +4,12 @@
 **Approach:** Added `dispatchers: DispatcherProvider` to the `@Inject` constructor and routed the scope through `dispatchers.main`. `apps:compose` already depends on `:libraries:flowroutines`.
 **Reviewer notes:** No new test — the todo entry explicitly noted this dispatcher swap doesn't change observable behavior and no test sibling exists.
 
+## test(server): pin /v1/avatars route contract
+
+**Problem:** `avatarRoutes()` is the unauthenticated endpoint the avatar picker hits before the Supabase JWT lands, but it had no route test — the "anon ok / full registry / palette / Cache-Control / unlock id presence" contract was unverified despite sibling routes (Equipment, Wallet, Inventory, Me) all having one.
+**Approach:** New `AvatarRoutesTest` using Ktor `testApplication` against the route in isolation (no auth plugin installed since the endpoint is intentionally anon). Five tests pin: 200 without auth, pack count + ordering matches `AvatarPacks.all`, `backgroundPalette == AvatarPalette.values`, `Cache-Control: public, max-age=60`, premium packs carry `unlockProductId` while starter is null.
+**Reviewer notes:** None.
+
 ## fix(room): pin emote-tray trigger to a square footprint
 
 **Problem:** The emote-tray trigger on the play-poker screen rendered as an ellipse instead of a perfect circle — `EmojiButton` uses `defaultMinSize` on its inner Box and emoji glyphs measure wider than tall, so the Surface grew horizontally even though `Radii.IconButton` (= `Radii.Round`, `percent=50`) wants a 1:1 aspect ratio to read as a circle.
