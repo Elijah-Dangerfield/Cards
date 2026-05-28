@@ -154,3 +154,26 @@ object UserMessagesTable : Table("user_messages") {
     val ackedAt = timestamp("acked_at").nullable()
     override val primaryKey = PrimaryKey(id)
 }
+
+/**
+ * Durable event log for the multiplayer event-sourced state machine
+ * (docs/todo.md §B0 / docs/decisions.md 2026-05-27 MP architecture
+ * revisit). See `V31__game_events.sql` — V31 only provisions the
+ * surface; the producer that actually appends rows lands with the next
+ * B0 sub-item.
+ *
+ * `event_jsonb` is the kotlinx-side `GameEventEnvelope(v, type,
+ * payload)` (libraries/gameplay) — the `v` field is the envelope
+ * version discriminator a future v2 reader forks on. `event_type`
+ * mirrors the kotlinx `@SerialName` for cheap SQL filtering without
+ * unmarshalling JSONB. Exposed surfaces JSONB as text and parses with
+ * kotlinx-serialization (same trick as `products.title_by_locale`).
+ */
+object GameEventsTable : Table("game_events") {
+    val sessionId = uuid("session_id")
+    val seq = long("seq")
+    val occurredAt = timestamp("occurred_at")
+    val eventType = text("event_type")
+    val eventJsonb = text("event_jsonb")
+    override val primaryKey = PrimaryKey(sessionId, seq)
+}
