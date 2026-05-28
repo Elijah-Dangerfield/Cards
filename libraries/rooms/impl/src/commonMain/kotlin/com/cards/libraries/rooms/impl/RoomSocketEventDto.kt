@@ -56,7 +56,10 @@ internal sealed interface RoomSocketEventDto {
 
     @Serializable
     @SerialName("game_event")
-    data class GameEventOccurred(val event: GameEvent) : RoomSocketEventDto
+    data class GameEventOccurred(
+        val seq: Long,
+        val event: GameEvent,
+    ) : RoomSocketEventDto
 
     @Serializable
     @SerialName("intent_ack")

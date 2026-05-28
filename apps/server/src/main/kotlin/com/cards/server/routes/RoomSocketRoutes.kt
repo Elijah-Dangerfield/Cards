@@ -176,8 +176,11 @@ fun Route.roomSocketRoutes(
                                             state.scrubbedFor(viewerSeat),
                                         )
                                     },
-                                session.events.map {
-                                    RoomSocketEventDto.GameEventOccurred(it)
+                                session.events.map { event ->
+                                    RoomSocketEventDto.GameEventOccurred(
+                                        seq = event.sequence,
+                                        event = event,
+                                    )
                                 },
                             )
                         }
