@@ -4,10 +4,13 @@ import com.dangerfield.cards.server.domain.ClientGrantableAchievements
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.http.clientContext
+import com.dangerfield.cards.server.plugins.ACHIEVEMENT_GRANT_LIMIT
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.ratelimit.RateLimitName
+import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
@@ -35,10 +38,16 @@ import kotlin.time.ExperimentalTime
  *    entries; once real-PvP / league achievements ship server-side, they
  *    land in the `serverWitnessed` set and self-grant attempts get 403.
  *
+
  * Idempotent on `(userId, productId)` via
  * [InventoryRepository.recordEarnedGrant] — a duplicate POST returns the
  * existing row. Clients can safely re-fire grants after a sync failure or
  * cold-boot replay without double-granting.
+ *
+ * Rate-limited via [ACHIEVEMENT_GRANT_LIMIT] (per-IP). Real clients fire
+ * each (user, achievement) once for life — the bucket exists to cap a
+ * scripted client from flooding the grants table or our inventory write
+ * path, not to throttle legitimate play.
  */
 @OptIn(ExperimentalTime::class)
 fun Route.grantsRoutes(
@@ -48,45 +57,47 @@ fun Route.grantsRoutes(
     clock: Clock = Clock.System,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
-        post("/v1/me/grants/achievement/{achievementId}") {
-            val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
-            val achievementId = call.parameters["achievementId"]
-                ?.takeIf { it.isNotBlank() }
-                ?: return@post call.respond(
-                    HttpStatusCode.BadRequest,
-                    grantsProblem(
-                        "invalid_achievement_id",
-                        "Achievement id must be non-empty.",
-                    ),
-                )
-            when (val resolution = policy.resolve(achievementId)) {
-                ClientGrantableAchievements.Resolution.Unknown ->
-                    call.respond(HttpStatusCode.NoContent)
-                ClientGrantableAchievements.Resolution.ServerWitnessed ->
-                    call.respond(
-                        HttpStatusCode.Forbidden,
+        rateLimit(RateLimitName(ACHIEVEMENT_GRANT_LIMIT)) {
+            post("/v1/me/grants/achievement/{achievementId}") {
+                val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                val achievementId = call.parameters["achievementId"]
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return@post call.respond(
+                        HttpStatusCode.BadRequest,
                         grantsProblem(
-                            "server_witnessed_achievement",
-                            "Achievement '$achievementId' is granted server-side; clients can't self-grant it.",
+                            "invalid_achievement_id",
+                            "Achievement id must be non-empty.",
                         ),
                     )
-                is ClientGrantableAchievements.Resolution.Grant -> {
-                    val product = catalog.readById(resolution.productId, call.clientContext())
-                        ?: return@post call.respond(HttpStatusCode.NoContent)
-                    val granted = inventory.recordEarnedGrant(
-                        userId = userId,
-                        productId = product.id,
-                        grantedAt = clock.now(),
-                    )
-                    call.respond(
-                        HttpStatusCode.OK,
-                        OwnedItemDto(
-                            productId = granted.productId,
-                            costChipsAtPurchase = granted.costChipsAtPurchase,
-                            purchasedAtEpochMs = granted.purchasedAt.toEpochMilliseconds(),
-                            acquisitionSource = granted.acquisitionSource.wire,
-                        ),
-                    )
+                when (val resolution = policy.resolve(achievementId)) {
+                    ClientGrantableAchievements.Resolution.Unknown ->
+                        call.respond(HttpStatusCode.NoContent)
+                    ClientGrantableAchievements.Resolution.ServerWitnessed ->
+                        call.respond(
+                            HttpStatusCode.Forbidden,
+                            grantsProblem(
+                                "server_witnessed_achievement",
+                                "Achievement '$achievementId' is granted server-side; clients can't self-grant it.",
+                            ),
+                        )
+                    is ClientGrantableAchievements.Resolution.Grant -> {
+                        val product = catalog.readById(resolution.productId, call.clientContext())
+                            ?: return@post call.respond(HttpStatusCode.NoContent)
+                        val granted = inventory.recordEarnedGrant(
+                            userId = userId,
+                            productId = product.id,
+                            grantedAt = clock.now(),
+                        )
+                        call.respond(
+                            HttpStatusCode.OK,
+                            OwnedItemDto(
+                                productId = granted.productId,
+                                costChipsAtPurchase = granted.costChipsAtPurchase,
+                                purchasedAtEpochMs = granted.purchasedAt.toEpochMilliseconds(),
+                                acquisitionSource = granted.acquisitionSource.wire,
+                            ),
+                        )
+                    }
                 }
             }
         }

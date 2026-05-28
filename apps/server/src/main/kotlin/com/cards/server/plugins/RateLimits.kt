@@ -29,6 +29,7 @@ import kotlin.time.Duration.Companion.minutes
 const val DELETE_ACCOUNT_LIMIT = "delete-account"
 const val PROFILE_WRITE_LIMIT = "profile-write"
 const val WALLET_WRITE_LIMIT = "wallet-write"
+const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
 
 fun Application.installRateLimits() {
     install(RateLimit) {
@@ -55,6 +56,20 @@ fun Application.installRateLimits() {
             // 30/hour gives the user plenty of retries while making
             // name-squatting bots expensive.
             rateLimiter(limit = 30, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(ACHIEVEMENT_GRANT_LIMIT)) {
+            // POST /v1/me/grants/achievement/{id} fires from the client when a
+            // bot-mode achievement criterion lights up at hand-end. Real
+            // clients hit it once per (user, achievement) for life — most
+            // accounts fire it zero times most hours, a new user clearing
+            // volume/showdown/quality achievements in their first session
+            // might burst 8-12 grants in an hour. 120/hour/IP keeps a 10x
+            // ceiling over that natural high-water mark and a shared NAT
+            // with two heavy users still fits comfortably, while a scripted
+            // flood gets capped at 2/minute sustained.
+            rateLimiter(limit = 120, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
 
