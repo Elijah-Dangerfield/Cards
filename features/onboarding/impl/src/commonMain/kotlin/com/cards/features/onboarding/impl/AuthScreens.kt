@@ -75,6 +75,7 @@ import cards.libraries.resources.generated.resources.auth_verify_email_banner_re
 import cards.libraries.resources.generated.resources.auth_verify_email_banner_resend_sent
 import cards.libraries.resources.generated.resources.auth_verify_email_banner_still_pending
 import cards.libraries.resources.generated.resources.auth_verify_email_body
+import cards.libraries.resources.generated.resources.auth_verify_email_body_no_email
 import cards.libraries.resources.generated.resources.auth_verify_email_confirm_button
 import cards.libraries.resources.generated.resources.auth_verify_email_confirm_button_progress
 import cards.libraries.resources.generated.resources.auth_verify_email_resend_button
@@ -467,7 +468,11 @@ fun VerifyEmailScreen(
         Spacer(modifier = Modifier.height(Dimension.D400))
 
         Text(
-            text = stringResource(Res.string.auth_verify_email_body, state.email),
+            text = if (state.email.isEmpty()) {
+                stringResource(Res.string.auth_verify_email_body_no_email)
+            } else {
+                stringResource(Res.string.auth_verify_email_body, state.email)
+            },
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
@@ -499,7 +504,7 @@ fun VerifyEmailScreen(
         Button(
             onClick = { onAction(VerifyEmailAction.Resend) },
             style = ButtonStyle.Text,
-            enabled = !state.isResending && !state.isRefreshing,
+            enabled = !state.isResending && !state.isRefreshing && state.email.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(

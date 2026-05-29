@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.onboarding.impl
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import me.tatarka.inject.annotations.Assisted
@@ -28,20 +29,41 @@ import me.tatarka.inject.annotations.Inject
  *    diagnostic feedback.
  *
  * No auto-polling beyond resume — battery + design choice.
+ *
+ * The constructor [email] arg is nullable to support the cold-launch
+ * deep-link path (`cards://auth/confirmed`) where the URL doesn't carry
+ * the address. When null, the VM resolves it from the active Supabase
+ * session via [VerifyEmailAction.ResolveEmailFromSession]; until that
+ * lands, the screen reads from [VerifyEmailState.email] which is the
+ * provided value or empty string.
  */
 @Inject
 class VerifyEmailViewModel(
     private val authRepository: AuthRepository,
     private val appCache: AppCache,
-    @Assisted private val email: String,
+    @Assisted private val email: String?,
 ) : SEAViewModel<VerifyEmailState, VerifyEmailEvent, VerifyEmailAction>(
-    initialStateArg = VerifyEmailState(email = email),
+    initialStateArg = VerifyEmailState(email = email.orEmpty()),
 ) {
+
+    init {
+        if (email.isNullOrEmpty()) {
+            takeAction(VerifyEmailAction.ResolveEmailFromSession)
+        }
+    }
 
     override suspend fun handleAction(action: VerifyEmailAction) {
         when (action) {
             is VerifyEmailAction.DismissBanner -> action.updateState {
                 it.copy(banner = null)
+            }
+
+            is VerifyEmailAction.ResolveEmailFromSession -> action.run {
+                val authState = authRepository.current()
+                val resolved = (authState as? AuthState.Authenticated)?.email
+                if (!resolved.isNullOrEmpty()) {
+                    updateState { it.copy(email = resolved) }
+                }
             }
 
             is VerifyEmailAction.IClickedTheLink -> action.run {
@@ -94,8 +116,10 @@ class VerifyEmailViewModel(
             }
 
             is VerifyEmailAction.Resend -> action.run {
+                val target = state.email
+                if (target.isEmpty()) return@run
                 updateState { it.copy(isResending = true, banner = null) }
-                val outcome = authRepository.resendVerificationEmail(email)
+                val outcome = authRepository.resendVerificationEmail(target)
                 val banner = when (outcome) {
                     is ResendOutcome.Sent -> VerifyEmailState.Banner.ResendSent
                     is ResendOutcome.RateLimited -> VerifyEmailState.Banner.ResendRateLimited
@@ -133,4 +157,5 @@ sealed interface VerifyEmailAction {
     data object Resend : VerifyEmailAction
     data object DismissBanner : VerifyEmailAction
     data object AppResumed : VerifyEmailAction
+    data object ResolveEmailFromSession : VerifyEmailAction
 }

@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.onboarding.impl
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.navDeepLink
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.onboarding.ForgotPasswordRoute
@@ -27,7 +28,7 @@ class OnboardingFeatureEntryPoint(
     private val onboardingViewModelFactory: () -> OnboardingViewModel,
     private val signInViewModelFactory: () -> SignInViewModel,
     private val signUpViewModelFactory: () -> SignUpViewModel,
-    private val verifyEmailViewModelFactory: (email: String) -> VerifyEmailViewModel,
+    private val verifyEmailViewModelFactory: (email: String?) -> VerifyEmailViewModel,
     private val forgotPasswordViewModelFactory: () -> ForgotPasswordViewModel,
 ) : FeatureEntryPoint {
 
@@ -105,7 +106,11 @@ class OnboardingFeatureEntryPoint(
             )
         }
 
-        screen<VerifyEmailRoute> { backStackEntry ->
+        screen<VerifyEmailRoute>(
+            deepLinks = listOf(
+                navDeepLink<VerifyEmailRoute>(basePath = "cards://auth/confirmed"),
+            ),
+        ) { backStackEntry ->
             val route = backStackEntry.toRoute<VerifyEmailRoute>()
             val viewModel: VerifyEmailViewModel = viewModel { verifyEmailViewModelFactory(route.email) }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value

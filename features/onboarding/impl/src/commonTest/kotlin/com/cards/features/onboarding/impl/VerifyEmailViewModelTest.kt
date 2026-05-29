@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.onboarding.impl
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import kotlin.test.Test
@@ -186,6 +187,82 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun init_emailNull_resolvesFromSession_andUpdatesState() = runUnitTest {
+        // Cold-launch deep-link path: cards://auth/confirmed lands without
+        // an email arg. VM must pick the address up from the current
+        // Supabase session so the screen + Resend can use it.
+        val sessionEmail = "session@example.com"
+        val identity = FakeAuthRepository(
+            initialAuthState = AuthState.Authenticated(
+                userId = "user-1",
+                isAnonymous = false,
+                email = sessionEmail,
+            ),
+        )
+        val vm = buildVm(identity = identity, email = null)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.email.isEmpty()) last = awaitItem()
+            assertEquals(sessionEmail, last.email)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun init_emailNull_sessionEmailMissing_keepsEmptyEmail() = runUnitTest {
+        // Authenticated session without an email (anonymous-only) leaves
+        // the field empty so the screen renders the no-email body string;
+        // Resend stays disabled at the UI layer.
+        val identity = FakeAuthRepository(
+            initialAuthState = AuthState.Authenticated(
+                userId = "anon-1",
+                isAnonymous = true,
+                email = null,
+            ),
+        )
+        val vm = buildVm(identity = identity, email = null)
+
+        // Drive the resolve action through the action loop.
+        vm.takeAction(VerifyEmailAction.DismissBanner)
+        assertEquals("", vm.stateFlow.value.email)
+    }
+
+    @Test
+    fun init_emailProvided_doesNotConsultSession() = runUnitTest {
+        // The same-device flow hands the email in via the route; the VM
+        // must not stomp it with a session read.
+        val identity = FakeAuthRepository(
+            initialAuthState = AuthState.Authenticated(
+                userId = "user-1",
+                isAnonymous = false,
+                email = "session@example.com",
+            ),
+        )
+        val vm = buildVm(identity = identity, email = "route@example.com")
+
+        // Force the action loop to drain so any spurious init action would land.
+        vm.takeAction(VerifyEmailAction.DismissBanner)
+        assertEquals("route@example.com", vm.stateFlow.value.email)
+    }
+
+    @Test
+    fun resend_emptyEmail_noOp_doesNotCallRepo() = runUnitTest {
+        // Resend without a resolved email must not fire a no-target request.
+        val identity = FakeAuthRepository(
+            initialAuthState = AuthState.Unauthenticated(),
+            resendOutcome = ResendOutcome.Sent,
+        )
+        val vm = buildVm(identity = identity, email = null)
+        vm.takeAction(VerifyEmailAction.Resend)
+
+        // Drain action queue.
+        vm.takeAction(VerifyEmailAction.DismissBanner)
+        assertEquals(0, identity.resendCalls)
+        assertEquals(null, vm.stateFlow.value.banner)
+    }
+
+    @Test
     fun dismissBanner_clearsBanner() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending),
@@ -209,9 +286,10 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     private fun buildVm(
         identity: FakeAuthRepository = FakeAuthRepository(),
         appCache: FakeAppCache = FakeAppCache(),
+        email: String? = sampleEmail,
     ): VerifyEmailViewModel = VerifyEmailViewModel(
         authRepository = identity,
         appCache = appCache,
-        email = sampleEmail,
+        email = email,
     )
 }

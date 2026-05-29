@@ -29,16 +29,19 @@ class SignUpRoute : Route(
 )
 
 /**
- * "Check your email" screen. Reachable after [SignUpRoute] submission.
- * The user clicks the link in their inbox, then taps "I confirmed" here;
- * we refresh the session and check if `email_confirmed_at` is set.
+ * "Check your email" screen. Reachable after [SignUpRoute] submission and
+ * via the `cards://auth/confirmed` deep-link bounced back from the
+ * verification email.
  *
- * Email is in the route so the screen can show it and so it survives
- * process death (the screen still works after the user gets distracted
- * tapping the email link).
+ * Email is nullable so the deep-link mapping can land here without the
+ * URL having to carry the address (the cold-launch case where the user
+ * killed the app before tapping the link in their inbox). The VM resolves
+ * the missing email from the active Supabase session on init; the
+ * screen falls back to a generic body string while the resolve is in
+ * flight or if no email is on the session at all.
  */
 @Serializable
-data class VerifyEmailRoute(val email: String) : Route(
+data class VerifyEmailRoute(val email: String? = null) : Route(
     enter = AnimationType.SlideInFromRight,
     exit = AnimationType.SlideOutToLeft,
     popExit = AnimationType.SlideOutToRight,
