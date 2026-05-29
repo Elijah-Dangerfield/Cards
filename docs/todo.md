@@ -43,8 +43,6 @@ The earnable catalog should bias toward axes that *can't* be paid for: usage vol
 
 - `[P1]` **Audit achievement difficulty — retire or raise the bar on trivially-easy entries.** Survey the registry; flag any "show X at showdown" where X is below RARE rarity, "win any pot > N", etc. — these reward RNG, not effort. The four single-showdown title earnables (`royalty` / `suited_run` / `full_boat` / `quartet`) are explicit candidates: either retire the title pairing (keep XP only) or raise the criterion (e.g. "show 3× royal flush"). Pair the call with [Catalog gating audit] above.
 
-- `[P1]` **Add MP-only achievement variants to bring MP up to feature parity with BOTS.** Today's mode split is ~16 BOTS-eligible, ~8 EITHER, ~2 MULTIPLAYER-only — MP is underweight for a brand that centers competitive multiplayer. Dupe the harder bot achievements as MP variants ("Win by fold ×10 (MP)", "Beat a human heads-up ×5", "Showdown win against ≥2 humans"). MP grants are server-witnessed via [`ClientGrantableAchievements.serverWitnessed`](../apps/server/src/main/kotlin/com/cards/server/domain/ClientGrantableAchievements.kt), so MP variants carry a stronger status signal than the bot originals. **Out of scope:** the MP gameplay itself — variants only need to register in the catalog + server gate; the surface lights up as MP hands play through.
-
 - `[P2]` **League-tier rewards (blocked on league mechanic).** One earn-only cosmetic per league tier granted at season end. Genuinely blocked — re-pick once leagues land.
 
 ### Screen / chrome consistency
