@@ -7,10 +7,13 @@ import com.dangerfield.cards.server.game.GameSession
 import com.dangerfield.cards.server.game.SeatOccupant
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender
+import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.BeforeClass
+import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 import kotlin.test.Test
@@ -34,6 +37,7 @@ class TelemetryTest {
     @Before
     fun resetExporter() {
         exporter.reset()
+        logExporter.reset()
     }
 
     @Test
@@ -111,6 +115,26 @@ class TelemetryTest {
     }
 
     @Test
+    fun logger_inSpanContext_attachesTraceIdToLogRecord() = runTest {
+        withSpan("log_test") {
+            LoggerFactory.getLogger(TelemetryTest::class.java)
+                .info("hello from inside a span")
+        }
+        flushLogs()
+        flushSpans()
+
+        val span = exporter.finishedSpanItems.single { it.name == "log_test" }
+        val record = logExporter.finishedLogRecordItems
+            .firstOrNull { it.bodyValue?.asString() == "hello from inside a span" }
+        assertNotNull(record, "expected the log record to flow through the OTel appender")
+        assertEquals(
+            span.spanContext.traceId,
+            record.spanContext.traceId,
+            "log record should carry the active span's trace_id for trace↔log correlation",
+        )
+    }
+
+    @Test
     fun gameSession_applyIntent_emitsEngineApplyIntentSpanWithIntentAttrs() = runTest {
         val session = GameSession(random = Random(seed = 42))
         val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
@@ -137,8 +161,13 @@ class TelemetryTest {
         sdk.sdkTracerProvider.forceFlush().join(1, TimeUnit.SECONDS)
     }
 
+    private fun flushLogs() {
+        sdk.sdkLoggerProvider.forceFlush().join(1, TimeUnit.SECONDS)
+    }
+
     companion object {
         private val exporter = InMemorySpanExporter.create()
+        private val logExporter = InMemoryLogRecordExporter.create()
         private val sdk = buildOpenTelemetrySdk(
             ObservabilityConfig(
                 otlpEndpoint = null,
@@ -148,6 +177,7 @@ class TelemetryTest {
                 release = null,
             ),
             spanExporter = exporter,
+            logRecordExporter = logExporter,
         )
 
         @BeforeClass
@@ -162,6 +192,12 @@ class TelemetryTest {
             // this scenario; reflection bypasses the access check.
             resetGlobalOpenTelemetry()
             GlobalOpenTelemetry.set(sdk)
+            // Logback already has the `OpenTelemetryAppender` registered
+            // (logback.xml on the test classpath), but it buffers
+            // records until install() points it at a live SDK. Wire it
+            // here so log records emitted during tests flow into
+            // `logExporter`.
+            OpenTelemetryAppender.install(sdk)
         }
 
         private fun resetGlobalOpenTelemetry() {
