@@ -35,7 +35,6 @@ class DatabaseSchemaTest : DatabaseTest() {
             assertEquals(0, WalletsTable.selectAll().count())
             assertEquals(0, WalletEventsTable.selectAll().count())
             assertEquals(0, UserMessagesTable.selectAll().count())
-            assertEquals(0, GameEventsTable.selectAll().count())
         }
     }
 

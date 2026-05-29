@@ -274,9 +274,7 @@ class RoomSocketRoutesTest {
                 routing {
                     roomSocketRoutes(
                         rooms = rooms,
-                        gameSessions = com.dangerfield.cards.server.game.InMemoryGameSessionRegistry(
-                            com.dangerfield.cards.server.game.GameEventWriter.NoOp,
-                        ),
+                        gameSessions = com.dangerfield.cards.server.game.InMemoryGameSessionRegistry(),
                         reaperGrace = reaperGrace,
                     )
                 }
