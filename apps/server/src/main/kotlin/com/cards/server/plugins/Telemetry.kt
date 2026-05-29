@@ -160,15 +160,27 @@ private fun defaultLogRecordExporter(config: ObservabilityConfig): LogRecordExpo
  * Parses an `OTEL_EXPORTER_OTLP_HEADERS`-shaped string (`Key=Value,Key=Value`)
  * and forwards each entry to [add]. Lifted out so trace + log exporter
  * builders share one parser instead of drifting apart.
+ *
+ * Values are percent-decoded per the OTel env-var spec — vendors (Grafana
+ * Cloud included) hand you headers like `Authorization=Basic%20<base64>`
+ * with the space URL-encoded. Without decoding, the outgoing header is
+ * literally `Basic%20<base64>` and the gateway rejects every request.
  */
-private inline fun applyOtlpHeaders(raw: String?, add: (String, String) -> Unit) {
-    raw?.takeUnless { it.isBlank() }
-        ?.split(',')
-        ?.forEach { pair ->
-            val eq = pair.indexOf('=')
-            if (eq > 0) {
-                add(pair.substring(0, eq).trim(), pair.substring(eq + 1).trim())
-            }
-        }
+private fun applyOtlpHeaders(raw: String?, add: (String, String) -> Unit) {
+    parseOtlpHeaders(raw).forEach { (name, value) -> add(name, value) }
 }
+
+internal fun parseOtlpHeaders(raw: String?): List<Pair<String, String>> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return raw.split(',').mapNotNull { pair ->
+        val eq = pair.indexOf('=')
+        if (eq <= 0) return@mapNotNull null
+        val name = pair.substring(0, eq).trim()
+        val value = pair.substring(eq + 1).trim().percentDecode()
+        name to value
+    }
+}
+
+private fun String.percentDecode(): String =
+    java.net.URLDecoder.decode(this, Charsets.UTF_8)
 

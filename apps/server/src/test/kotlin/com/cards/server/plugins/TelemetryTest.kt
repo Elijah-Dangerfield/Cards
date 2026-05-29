@@ -307,4 +307,30 @@ class TelemetryTest {
             method.invoke(null)
         }
     }
+
+    @Test
+    fun parseOtlpHeaders_percentDecodesEachValue() {
+        // Grafana Cloud hands the auth header as `Basic%20<base64>`. The
+        // SDK consumer needs the literal-space form, so the parser must
+        // URL-decode values. Skipping that decode means every request
+        // ships with header `Basic%20…` and the gateway 401s.
+        val parsed = parseOtlpHeaders("Authorization=Basic%20abc%3D%3D,X-Other=hello%20world")
+
+        assertEquals(
+            listOf(
+                "Authorization" to "Basic abc==",
+                "X-Other" to "hello world",
+            ),
+            parsed,
+        )
+    }
+
+    @Test
+    fun parseOtlpHeaders_handlesEmptyAndMalformedInputs() {
+        assertEquals(emptyList(), parseOtlpHeaders(null))
+        assertEquals(emptyList(), parseOtlpHeaders(""))
+        assertEquals(emptyList(), parseOtlpHeaders("   "))
+        // No `=` → dropped, not crashed.
+        assertEquals(emptyList(), parseOtlpHeaders("nothingHere"))
+    }
 }
