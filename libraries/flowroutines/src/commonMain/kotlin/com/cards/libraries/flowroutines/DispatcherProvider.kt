@@ -16,6 +16,15 @@ interface DispatcherProvider {
 
     val main: CoroutineDispatcher
 
+    /**
+     * Main dispatcher in `immediate` mode — runs synchronously if the caller
+     * is already on the main thread, otherwise posts. Use this when a hop
+     * onto Main shouldn't burn a frame (lifecycle-aware flow collection,
+     * nav-graph attachment, anything that needs to land before the next
+     * frame fires).
+     */
+    val mainImmediate: CoroutineDispatcher
+
     val default: CoroutineDispatcher
 
     val unconfined: CoroutineDispatcher
@@ -29,6 +38,9 @@ class DefaultDispatcherProvider @Inject constructor() : DispatcherProvider {
 
     override val main: CoroutineDispatcher
         get() = Dispatchers.Main
+
+    override val mainImmediate: CoroutineDispatcher
+        get() = Dispatchers.Main.immediate
 
     override val default: CoroutineDispatcher
         get() = Dispatchers.Default

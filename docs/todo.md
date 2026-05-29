@@ -143,10 +143,6 @@ Quality issues flagged across the codebase. None are blockers; they compound.
 
 These are surfaces where a regression would silently corrupt user-visible state (wallets, XP, levels, onboarding) and the sibling pattern in the same module already has tests — so the gap is unambiguous.
 
-### Dispatcher hygiene
-
-- `[P2]` **Route `DelegatingRouter`'s `Dispatchers.Main.immediate` through `DispatcherProvider`.** [`DelegatingRouter.kt:307`](../libraries/navigation/impl/src/commonMain/kotlin/com/cards/libraries/navigation/impl/DelegatingRouter.kt) calls `withContext(Dispatchers.Main.immediate)` directly inside `awaitGraphAttachment()`. It's the only production-code direct `Dispatchers.{Main,IO,Default,Unconfined}` reference outside `:libraries:flowroutines` (the abstraction's own home). AGENTS.md → "Never reach for `Dispatchers.{Main,IO,Default,Unconfined}` directly in production code." **Acceptance:** add `mainImmediate: CoroutineDispatcher` to `DispatcherProvider` (and matching `Dispatchers.Main.immediate` impl in `DefaultDispatcherProvider`, `testDispatcher` impl in `TestDispatcherProvider`); inject `DispatcherProvider` into `DelegatingRouter`; replace the direct ref with `dispatchers.mainImmediate`. **Out of scope:** the `Dispatchers.Main.immediate` callsites inside `Compose.kt` itself — they're top-level extensions in the abstraction module and converting them invasively would mean threading a `DispatcherProvider` parameter through every callsite.
-
 ### Module sprawl: `libraries/cards`, `gameplay`, `game`
 
 - `[P2]` **Audit and split `libraries/cards`.** Originally the "highly shared" dumping ground; now too big and overlaps with `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). Audit what's *truly* cross-feature primitive vs what landed there for lack of a better home. Likely splits: progression (XP / achievements / ranks) into `libraries/progression` or stays — but if it stays, cosmetics + chips + identity etc. need their own homes. Capture as a deliberate refactor pass. Do not entangle with feature work.
