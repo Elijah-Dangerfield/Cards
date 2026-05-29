@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.runtime.getValue
@@ -310,7 +309,7 @@ private fun CoachMarkBanner(
                 .align(Alignment.CenterHorizontally)
                 .width(36.dp)
                 .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
+                .clip(Radii.Round.shape)
                 .background(AppTheme.colors.borderSecondary.color),
         )
         VerticalSpacerD200()
