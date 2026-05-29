@@ -112,7 +112,15 @@ class GameSession internal constructor(
         occupants: List<SeatOccupant>,
         settings: RoomSettings,
     ): IntentResult = mutex.withLock {
-        startHandLocked(occupants, settings)
+        withSpan(
+            name = "start_hand",
+            configure = {
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.OccupantsCount, occupants.size.toLong())
+            },
+        ) {
+            startHandLocked(occupants, settings)
+        }
     }
 
     /**
@@ -136,15 +144,6 @@ class GameSession internal constructor(
             ?: return@withLock IntentResult.Rejected("no active hand")
         if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
 
-        val seat = current.seats.firstOrNull { it.playerId == actorUserId }
-            ?: return@withLock IntentResult.Rejected("not seated in this room")
-        if (current.actingSeatIndex != seat.index) {
-            return@withLock IntentResult.Rejected("not your turn")
-        }
-        if (intent.seatIndex != seat.index) {
-            return@withLock IntentResult.Rejected("intent seat does not match caller")
-        }
-
         // Stamp session-scoped attributes on whatever span is current —
         // this is the outer `submit_intent` span when the caller is the
         // WS route, or no-op when the SDK isn't configured. Cheap either
@@ -152,6 +151,28 @@ class GameSession internal constructor(
         Span.current().apply {
             setAttribute(SpanAttrs.SessionId, id.toString())
             setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+        }
+
+        val validation = withSpan(
+            name = "validate_intent",
+            configure = {
+                setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            val seat = current.seats.firstOrNull { it.playerId == actorUserId }
+                ?: return@withSpan IntentValidation.Rejected("not seated in this room")
+            if (current.actingSeatIndex != seat.index) {
+                return@withSpan IntentValidation.Rejected("not your turn")
+            }
+            if (intent.seatIndex != seat.index) {
+                return@withSpan IntentValidation.Rejected("intent seat does not match caller")
+            }
+            IntentValidation.Ok
+        }
+        if (validation is IntentValidation.Rejected) {
+            return@withLock IntentResult.Rejected(validation.reason)
         }
 
         val resolved: EngineResolution = withSpan(
@@ -171,13 +192,41 @@ class GameSession internal constructor(
         when (resolved) {
             is EngineResolution.Rejected -> return@withLock IntentResult.Rejected(resolved.reason)
             is EngineResolution.Resolved -> {
-                _state.value = resolved.result.state
-                onStateChange(resolved.result.state)
-                resolved.result.events.forEach { _events.tryEmit(it) }
-                recordNonce(clientNonce)
+                // The state-mutate span covers the durable side-effects:
+                // emit the new state, persist via `onStateChange` (which
+                // hits the snapshot store — the meaningful I/O latency on
+                // this path), fan events, record the nonce. Wrapping
+                // these in their own span lets Tempo show "persist
+                // latency" as a child of the parent submit_intent root
+                // instead of folding into engine.apply_intent's wall
+                // time, which would be misleading.
+                withSpan(
+                    name = "state_mutate",
+                    configure = {
+                        setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
+                        setAttribute(SpanAttrs.SessionId, id.toString())
+                        setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+                    },
+                ) {
+                    _state.value = resolved.result.state
+                    onStateChange(resolved.result.state)
+                    resolved.result.events.forEach { _events.tryEmit(it) }
+                    recordNonce(clientNonce)
+                }
                 return@withLock IntentResult.Accepted
             }
         }
+    }
+
+    /**
+     * Result of the validate_intent span. Lifted into a sealed type so
+     * the span body can return the early-reject reason without `throw`
+     * (cancellation-shaped exceptions would mark the span as ERROR; a
+     * validation rejection is expected control flow, not a fault).
+     */
+    private sealed interface IntentValidation {
+        data object Ok : IntentValidation
+        data class Rejected(val reason: String) : IntentValidation
     }
 
     /**
@@ -242,7 +291,15 @@ class GameSession internal constructor(
         }
 
         recordNonce(clientNonce)
-        startHandLocked(occupants, settings)
+        withSpan(
+            name = "request_next_hand",
+            configure = {
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            startHandLocked(occupants, settings)
+        }
     }
 
     private suspend fun startHandLocked(

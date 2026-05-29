@@ -41,6 +41,7 @@ internal object SpanAttrs {
     val ClientNonce: AttributeKey<String> = AttributeKey.stringKey("client.nonce")
     val Accepted: AttributeKey<Boolean> = AttributeKey.booleanKey("intent.accepted")
     val RejectionReason: AttributeKey<String> = AttributeKey.stringKey("intent.rejection_reason")
+    val OccupantsCount: AttributeKey<Long> = AttributeKey.longKey("occupants.count")
 }
 
 /**

@@ -157,6 +157,107 @@ class TelemetryTest {
         assertTrue(engineSpan.attributes.get(SpanAttrs.SessionId)?.isNotBlank() == true)
     }
 
+    @Test
+    fun gameSession_applyIntent_emitsValidateAndStateMutateSubSpans_onHappyPath() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+        session.startHand(listOf(alice, bob), RoomSettings.Default)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+
+        session.applyIntent(
+            actorUserId = actor.playerId!!,
+            intent = PlayerIntent.Fold(seatIndex = acting),
+            clientNonce = "validate-and-mutate",
+        )
+        flushSpans()
+
+        val validate = exporter.finishedSpanItems.firstOrNull { it.name == "validate_intent" }
+        val mutate = exporter.finishedSpanItems.firstOrNull { it.name == "state_mutate" }
+        assertNotNull(validate, "expected a validate_intent span; got ${exporter.finishedSpanItems.map { it.name }}")
+        assertNotNull(mutate, "expected a state_mutate span; got ${exporter.finishedSpanItems.map { it.name }}")
+        assertEquals("Fold", validate.attributes.get(SpanAttrs.IntentType))
+        assertEquals("Fold", mutate.attributes.get(SpanAttrs.IntentType))
+        assertEquals(1L, validate.attributes.get(SpanAttrs.HandNumber))
+        assertEquals(1L, mutate.attributes.get(SpanAttrs.HandNumber))
+    }
+
+    @Test
+    fun gameSession_startHand_emitsStartHandSpan() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+
+        session.startHand(listOf(alice, bob), RoomSettings.Default)
+        flushSpans()
+
+        val span = exporter.finishedSpanItems.firstOrNull { it.name == "start_hand" }
+        assertNotNull(span, "expected a start_hand span; got ${exporter.finishedSpanItems.map { it.name }}")
+        assertEquals(2L, span.attributes.get(SpanAttrs.OccupantsCount))
+        assertTrue(span.attributes.get(SpanAttrs.SessionId)?.isNotBlank() == true)
+    }
+
+    @Test
+    fun gameSession_requestNextHand_emitsRequestNextHandSpan() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+        session.startHand(listOf(alice, bob), RoomSettings.Default)
+        // Drive the hand to completion so requestNextHand is accepted.
+        // Fold-around in heads-up = winner-by-default → BettingRound.Complete.
+        while (session.state.value!!.street != com.dangerfield.cards.libraries.gameplay.BettingRound.Complete) {
+            val current = session.state.value!!
+            val acting = current.actingSeatIndex ?: break
+            val actor = current.seats.first { it.index == acting }
+            session.applyIntent(
+                actorUserId = actor.playerId!!,
+                intent = PlayerIntent.Fold(seatIndex = acting),
+                clientNonce = "step-$acting",
+            )
+        }
+        exporter.reset()
+
+        session.requestNextHand(actorUserId = "alice", clientNonce = "next-1")
+        flushSpans()
+
+        val nextHand = exporter.finishedSpanItems.firstOrNull { it.name == "request_next_hand" }
+        assertNotNull(nextHand, "expected a request_next_hand span; got ${exporter.finishedSpanItems.map { it.name }}")
+        // The previous hand's number, since hand_number is read before
+        // the engine bumps it inside startHandLocked.
+        assertEquals(1L, nextHand.attributes.get(SpanAttrs.HandNumber))
+        assertTrue(nextHand.attributes.get(SpanAttrs.SessionId)?.isNotBlank() == true)
+    }
+
+    @Test
+    fun gameSession_applyIntent_skipsStateMutateSpan_whenValidationRejects() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+        session.startHand(listOf(alice, bob), RoomSettings.Default)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val nonActing = if (acting == 0) 1 else 0
+        val nonActor = session.state.value!!.seats.first { it.index == nonActing }
+
+        // Not-your-turn rejection — validate_intent fires but the engine
+        // span + state_mutate must not.
+        session.applyIntent(
+            actorUserId = nonActor.playerId!!,
+            intent = PlayerIntent.Fold(seatIndex = nonActing),
+            clientNonce = "wrong-turn",
+        )
+        flushSpans()
+
+        assertNotNull(
+            exporter.finishedSpanItems.firstOrNull { it.name == "validate_intent" },
+            "validation span must fire even on reject",
+        )
+        assertTrue(
+            exporter.finishedSpanItems.none { it.name == "state_mutate" },
+            "state_mutate must not fire on a validation reject; got ${exporter.finishedSpanItems.map { it.name }}",
+        )
+    }
+
     private fun flushSpans() {
         sdk.sdkTracerProvider.forceFlush().join(1, TimeUnit.SECONDS)
     }

@@ -177,3 +177,38 @@ Two design alternatives I considered but rejected: a `kotlinx.atomicfu` ref for 
 - §A P1 L1 cleanup task — rewrote the todo entry to describe what's left: the SQL + Kotlin verifier + the `appScope.launch` from the /me handler keyed on `touchInstallId`'s non-null prior return.
 - §A P1 Loss-disclosure UX — kept in the rewritten todo entry, still gated on designer + product confirmation per the original wording.
 - The dormant `DefaultOrphanAnonymousSweep` stays in tree per the todo's instruction; the L1 task uses a different shape (per-request, prior-value-driven) so it can't reuse the sweep's TTL-based machinery.
+
+## feat(server): split validate_intent / state_mutate spans + start_hand parity
+
+**Problem:** §C P1 — the previous OTel commit shipped an outer `submit_intent` span and a single inner `engine.apply_intent`, with the deferred note "validate_intent + state_mutate are nanosecond ops, broadcast/ws-send need context handoff." On a second look the previous worker's "nanosecond" framing only applies to `validate_intent` (purely in-memory checks); `state_mutate` actually wraps `onStateChange`, which under the §B0 design now performs a Postgres UPSERT into `room_sessions`. That's real I/O latency that should sit in its own span so a slow snapshot store doesn't get attributed to `engine.apply_intent`'s wall time. Same logic for `start_hand` / `request_next_hand` — both go through `startHandLocked` → `onStateChange`, so their persist cost is also worth tracking. Parity spans on those two paths were explicitly listed as park in the prior commit's todo edit, but reading the call sites they're the same shape as the SubmitIntent root span and equally cheap to add.
+
+**Approach:** Wrapped `GameSession.applyIntent`'s three phases in their own spans:
+- `validate_intent` — the actor / seat / turn / intent-seat gate. Lifted the inline early-return rejects into a sealed `IntentValidation { Ok | Rejected(reason) }` so the span body can return the rejection through control flow rather than `throw`. Throwing would mark the span as ERROR, but validation rejection is expected — the wrong-seat / wrong-turn cases are routine, not faults.
+- `engine.apply_intent` — kept as-is, same shape as before.
+- `state_mutate` — the `_state.value = …`, `onStateChange(…)`, `events.tryEmit(…)`, `recordNonce(…)` block. The `onStateChange` callback is the snapshot persist (the meaningful I/O leg) so this is the span where the latency lives.
+
+All three carry `intent.type` / `session.id` / `hand.number` for filterability. Same attrs the existing `engine.apply_intent` span uses, so a Tempo filter on `intent.type=Bet AND session.id=X` consistently surfaces all four spans together.
+
+Parity spans on the other two mutating paths:
+- `start_hand` — wraps `startHandLocked` inside `startHand`. Carries `session.id` + `occupants.count` (new `SpanAttrs.OccupantsCount` = `occupants.count`). The first hand of a session has no `hand.number` to stamp (the engine bumps it inside), so we skip that attribute on this span specifically.
+- `request_next_hand` — wraps the inner `startHandLocked` after the seated / chip-count / nonce gates pass. Carries `session.id` + the *prior* `hand.number` (the one this transition is leaving). Engine then bumps inside.
+
+Tests: extended `TelemetryTest` with four new cases:
+1. `gameSession_applyIntent_emitsValidateAndStateMutateSubSpans_onHappyPath` — fold-on-actor produces both spans with the matching `Fold` / `hand.number=1` attrs.
+2. `gameSession_applyIntent_skipsStateMutateSpan_whenValidationRejects` — wrong-seat → `validate_intent` fires but `state_mutate` doesn't (the rejection short-circuits the engine + mutate phases).
+3. `gameSession_startHand_emitsStartHandSpan` — start a fresh hand, span name + `occupants.count=2` + non-blank `session.id`.
+4. `gameSession_requestNextHand_emitsRequestNextHandSpan` — drive a heads-up hand to fold-around `BettingRound.Complete`, reset the exporter, request next hand, assert the span. Walks through the engine via real fold actions so the precondition surfaces match production. `hand.number=1` is the value held just before the next-hand transition.
+
+All 343 server tests pass. The §C remaining work (broadcast + ws-send) stays parked — that one needs the context handoff through the publisher loop which is genuinely the larger piece.
+
+**Reviewer notes:** Three calls worth scrutiny:
+
+1. **`validate_intent` as a span at all.** The previous worker explicitly flagged this as "nanosecond, no signal." Disagree: even if the *latency* is zero, the span's existence is the data point — Tempo can show "intent rejected at the validate phase" vs. "intent rejected at the engine phase" (illegal-bet-size etc.) just by looking at which span carries the error status. That's load-bearing for the kind of post-incident "why was this fold rejected" debugging the trace tree is meant to enable. If you'd rather still keep it out (span overhead under the per-session mutex is real), the revert is trivial: pull the `withSpan` wrap, restore the inline early-returns. The `IntentValidation` sealed type stays useful regardless.
+
+2. **`state_mutate` runs inside the mutex.** The span wraps the durable-state phase and that phase has to stay under the lock so concurrent intents observe consistent state. Adding a span inside the lock is cheap (no allocations on the span hot path, attribute reads are O(1)) but does inflate the locked region by the few microseconds the SDK takes per span. Considered moving the span outside the lock by extracting the state-mutate phase into a `data class StateMutateResult` returned from inside the lock and then `withSpan { … }` outside — too clever for the gain. The current shape is the boring choice; if profiling ever shows the span overhead matters, we revisit.
+
+3. **`start_hand` / `request_next_hand` parity spans — previously parked, now shipped.** Reasoning: the parking note assumed parity was cheap-but-pointless instrumentation. Reading the call sites again, `startHandLocked` does the same `onStateChange` persist as `applyIntent`'s state-mutate phase, so the parity buys you snapshot-write latency on the hand-transition paths too. The cost is two `withSpan` calls per hand boundary, which is roughly nothing. Easy revert; just delete the two `withSpan` wraps.
+
+The OTel parity-on-broadcast remains parked — it's the one piece that genuinely needs design work (publisher-flow context propagation). The todo entry was rewritten to point at the specific code path and the candidate shape (a `Flow<Pair<T, Context>>` carrier).
+
+**Deferred:** §C P1 broadcast + ws-send spans — kept in the rewritten todo entry, with the publisher-loop context-prop challenge called out as the design question for the next picker.
