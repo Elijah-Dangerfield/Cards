@@ -11,13 +11,10 @@
 -- the previous owner of this install signed out and a new anon now owns
 -- the device, leaving the prior row orphaned.
 --
--- Nullable: backfill-safe for any profile that existed before the column
--- landed (NULL means "not tagged yet"; the next /v1/me from a client that
--- sends the header overwrites). Once V1 ships, every profile gets tagged
--- on its first authenticated request, so steady-state is non-null.
---
--- Partial index: cleanup queries always read `WHERE install_id = ?`, so
--- indexing NULL entries would waste space on rows that can't match.
+-- Nullable: the value is populated on first /v1/me from a header-aware
+-- client, so any row created before that handshake reads NULL. Partial
+-- index because cleanup queries always read `WHERE install_id = ?` —
+-- indexing the NULL rows would waste space on entries that can't match.
 
 ALTER TABLE profiles
     ADD COLUMN install_id UUID NULL;
