@@ -195,7 +195,7 @@ class PostgresProfileRepository(
     }
 
     /**
-     * The seq column is `BIGSERIAL` (V26) — Postgres assigned a value
+     * The seq column is `BIGSERIAL` (V43) — Postgres assigned a value
      * at insert time. We read it back rather than threading it through
      * [tryInsert]'s return so the existing display-name-collision retry
      * loop stays focused on its own concern.

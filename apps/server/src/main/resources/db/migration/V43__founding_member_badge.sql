@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- V26: Founding-member badge — seed the unlock-only cosmetic + add a
+-- V43: Founding-member badge — seed the unlock-only cosmetic + add a
 -- monotonic `seq` to profiles so the application layer can recognise
 -- which users sit inside the founding window.
 --
@@ -39,9 +39,10 @@
 --    `cost_chips = 0` because the `chip_offer` kind constraint
 --    requires a non-null cost; the unlock_only flag is what actually
 --    keeps it off the shelf.
---    Sort order 760 sits below the existing earned titles (730-750)
---    so any future admin toggle to make it purchasable would land it
---    in the right shelf neighborhood.
+--    Sort order 790 sits after the unlock-only title cluster
+--    (`title_felt_veteran` 760, `title_royalty` 770, `title_suited_run`
+--    780) so any future admin toggle to make it purchasable would
+--    land it in the right shelf neighborhood as the next slot.
 --
 -- Client wiring lands in the same commit:
 --   * `badgeRegistry` in `libraries/ui/.../EquippedFelt.kt` gains
@@ -61,7 +62,7 @@ INSERT INTO products (
     title_by_locale, subtitle_by_locale, description_by_locale,
     grants_key, cost_chips, unlock_level, is_equippable, unlock_only
 ) VALUES (
-    'badge_founding_member_1000', 'chip_offer', 760, '🏛', FALSE, NULL,
+    'badge_founding_member_1000', 'chip_offer', 790, '🏛', FALSE, NULL,
     '{"en":"Founding Member","es":"Miembro fundador"}'::jsonb,
     '{"en":"Badge · founding","es":"Insignia · fundador"}'::jsonb,
     '{"en":"Granted to the first 1,000 players to find a seat. Equip from your items — it shows at your seat at the table.","es":"Concedida a los primeros 1.000 jugadores. Equípala desde tus objetos — aparece en tu asiento de la mesa."}'::jsonb,

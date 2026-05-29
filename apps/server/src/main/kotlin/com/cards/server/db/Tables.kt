@@ -29,7 +29,7 @@ object ProfilesTable : Table("profiles") {
     val updatedAt = timestamp("updated_at")
     /**
      * Monotonic per-profile sequence assigned at insert time by Postgres
-     * (see V26). Used by the application layer to recognise which users
+     * (see V43). Used by the application layer to recognise which users
      * sit inside the founding-member window — the `BIGSERIAL` provides
      * race-free ordering across concurrent first-contact inserts.
      */

@@ -151,7 +151,7 @@ fun titleForProductId(productId: String?): String? = when (productId) {
  * Badges live in the permanent seat slot (mirrored placement opposite
  * the SB/BB chip). Granted server-side during profile creation when the
  * user falls inside the matching cohort window — see
- * `apps/server/.../V26__founding_member_badge.sql` for the catalog
+ * `apps/server/.../V43__founding_member_badge.sql` for the catalog
  * entry and `PostgresProfileRepository.grantFoundingMemberBadge` for
  * the issuance pathway.
  */

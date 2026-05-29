@@ -32,7 +32,7 @@ object StarterInventory {
  * every fresh profile, so they're separate from [StarterInventory]. The
  * application layer (`PostgresProfileRepository.findOrCreate`) compares
  * a newly-inserted profile's `seq` against the per-id threshold and
- * conditionally grants. See V26 for the catalog seed.
+ * conditionally grants. See V43 for the catalog seed.
  */
 object FoundingMemberCatalog {
     /**
