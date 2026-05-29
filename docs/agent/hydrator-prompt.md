@@ -17,11 +17,21 @@ Not nightly in either context. todo-check + workers + reviewer is the nightly lo
 
 ## Start of run
 
-1. `git fetch origin && git checkout agent && git pull --rebase origin agent`.
-2. Read `AGENTS.md`. Understand the architecture, conventions, and what counts as a substantive item.
-3. Read `docs/todo.md`, `docs/backlog.md`, `docs/developer-todo.md`, and `docs/decisions.md`. Anything already tracked or explicitly decided-against is out of scope — you exist to find what's *missing* from those surfaces.
-4. Read `docs/agent/todo-proposals.md` if it exists. Anything already proposed (even ones the human hasn't acted on yet) is out of scope — don't re-propose.
-5. Skim `docs/product/product-spec.md` so you can spot spec ↔ code gaps in Lane C.
+1. `git fetch origin`.
+2. `gh pr list --head agent --state open --json number,url`. If a PR exists, that's fine — your proposal commit stacks on top of whatever's already in it. Don't open a new PR.
+3. Align `agent` with the right base:
+   - **If `docs/agent/in-flight.md` exists on `origin/agent`** → a worker is mid-cycle (worker-invoked path, or the standalone run overlaps a live cycle). Just stack on top: `git checkout agent && git pull --rebase origin agent`.
+   - **If it doesn't** → last cycle's PR merged (or no cycle has started yet). Reset agent fresh to main so your proposal lands on a clean base, not on top of stale squash-merged commits that would otherwise end up in the next PR:
+     ```
+     git checkout agent
+     git reset --hard origin/main
+     git push --force-with-lease origin agent
+     ```
+     This is the only force-push you ever do, and it only fires when agent and main should match anyway. Idempotent — no-op if agent is already at main.
+4. Read `AGENTS.md`. Understand the architecture, conventions, and what counts as a substantive item.
+5. Read `docs/todo.md`, `docs/backlog.md`, `docs/developer-todo.md`, and `docs/decisions.md`. Anything already tracked or explicitly decided-against is out of scope — you exist to find what's *missing* from those surfaces.
+6. Read `docs/agent/todo-proposals.md` if it exists. Anything already proposed (even ones the human hasn't acted on yet) is out of scope — don't re-propose.
+7. Skim `docs/product/product-spec.md` so you can spot spec ↔ code gaps in Lane C.
 
 ## What you propose
 
@@ -128,7 +138,8 @@ Otherwise:
 ## Hard rules
 
 - **Never** edit code, tests, `docs/todo.md`, `docs/developer-todo.md`, `docs/backlog.md`, `docs/decisions.md`, or `docs/agent/in-flight.md`. Only `docs/agent/todo-proposals.md`.
-- **Never** commit to `main`, open a PR, or rewrite history.
+- **Never** commit to `main` or open a PR.
+- **Never** rewrite history (`rebase -i`, `--amend`). The only force-push you ever do is the start-of-run reset in step 3, and only when the in-flight log is absent.
 - **Never** propose without concrete evidence cited in the block.
 - **Never** propose anything already tracked in `docs/todo.md`, `docs/backlog.md`, `docs/developer-todo.md`, or a prior `docs/agent/todo-proposals.md` block — open or struck-through.
 - **Never** propose something that needs design judgment to phrase. That's backlog material; you don't write backlog.
