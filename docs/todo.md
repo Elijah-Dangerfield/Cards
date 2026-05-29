@@ -150,7 +150,7 @@ These are surfaces where a regression would silently corrupt user-visible state 
 
 ### Strings enforcement
 
-- `[P2]` **Decide on a strings-enforcement mechanism + wire it up.** [AGENTS.md §strings](../AGENTS.md) (line 389) already says user-facing strings live in `:libraries:resources`. The rule regresses periodically. Investigate the options — Detekt custom rule, a pre-commit grep hook, a pre-push CI check, or a Gradle plugin that fails the build on raw `Text("…")` in `commonMain` outside `:libraries:resources` — pick one, wire it, document it. Worker investigates + recommends; the recommendation lands as a hydrator proposal for human review before implementation.
+(2026-05-29: investigation + recommendation landed in `docs/agent/todo-proposals.md`. Waiting on human triage before the wiring item re-lands here.)
 
 ---
 
