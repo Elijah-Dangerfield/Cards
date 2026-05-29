@@ -91,9 +91,19 @@ internal fun PlayerProfileSheet(
             }
         },
     ) {
-        seat.personality?.let { personality ->
-            PlayingStyleBlock(personality = personality)
-            VerticalSpacerD500()
+        // Heat-map / radar chart is bot-only today: bots ship a deterministic
+        // [BotPersonality]; humans have `personality == null` and therefore
+        // can't render one. When MP human opponents gain a derived style
+        // (raise/call/fold tendencies from public history), the render gate
+        // here must additionally require ownership of `tool_opponent_style`
+        // (the Opponent Style Reader utility in the shop). The product copy
+        // already calls out that bot heat-maps are free via seat-tap; humans
+        // are the paid path.
+        if (seat.isBot) {
+            seat.personality?.let { personality ->
+                PlayingStyleBlock(personality = personality)
+                VerticalSpacerD500()
+            }
         }
         tenureRows(seat).takeIf { it.isNotEmpty() }?.let { rows ->
             ListSection(

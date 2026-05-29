@@ -45,6 +45,7 @@ import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
@@ -88,6 +89,7 @@ class ProfileFeatureEntryPoint(
     private val profileRepository: ProfileRepository,
     private val appCache: AppCache,
     private val userMessageRepository: UserMessageRepository,
+    private val inventoryRepository: InventoryRepository,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -105,6 +107,14 @@ class ProfileFeatureEntryPoint(
             val authenticated = profile as? Profile.Authenticated
             val isAnon = authenticated?.isAnonymous ?: true
             val appData by appCache.updates.collectAsState(initial = AppData())
+            // Founding-member badge is server-granted at profile creation
+            // (`PostgresProfileRepository.grantFoundingMemberBadge`) when the
+            // user lands inside the first-1k window. Ownership of the badge
+            // product is the canonical client signal — equipping it is a
+            // separate concern (seat-badge slot).
+            val inventory by inventoryRepository.observeInventory()
+                .collectAsStateWithLifecycle(initialValue = emptyList())
+            val isFoundingMember = inventory.any { it.productId == FOUNDING_MEMBER_PRODUCT_ID }
             val scope = rememberCoroutineScope()
             val scrollState = rememberScrollState()
             router.OnTabReselected(ProfileRoute()) {
@@ -140,6 +150,7 @@ class ProfileFeatureEntryPoint(
                     unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
                     memberSince = authenticated?.createdAt,
+                    isFoundingMember = isFoundingMember,
                 ),
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },
@@ -303,5 +314,9 @@ class ProfileFeatureEntryPoint(
         // into `pages/` and pointing DNS at GH Pages; these constants are the single update.
         const val PRIVACY_POLICY_URL = "https://elijah-dangerfield.github.io/Cards/privacy.html"
         const val TERMS_OF_SERVICE_URL = "https://elijah-dangerfield.github.io/Cards/terms.html"
+        // Mirrors `FoundingMemberCatalog.PRODUCT_ID` server-side
+        // (`apps/server/.../StarterInventory.kt`). Granted by the server at
+        // profile-create time when `seq <= 1000`.
+        const val FOUNDING_MEMBER_PRODUCT_ID = "badge_founding_member_1000"
     }
 }

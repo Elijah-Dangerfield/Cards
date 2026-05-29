@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -70,6 +71,7 @@ import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedb
 import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_supporting
 import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_headline
 import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_supporting
+import cards.libraries.resources.generated.resources.profile_header_founding_member_chip
 import cards.libraries.resources.generated.resources.profile_header_member_since
 import cards.libraries.resources.generated.resources.profile_level_summary_level_xp
 import cards.libraries.resources.generated.resources.profile_level_summary_to_next_level
@@ -116,6 +118,7 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
+import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD1100
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
@@ -138,6 +141,7 @@ data class ProfileSettings(
     val unreadNotificationCount: Int = 0,
     val showQaMenu: Boolean = false,
     val memberSince: kotlin.time.Instant? = null,
+    val isFoundingMember: Boolean = false,
 )
 
 @Composable
@@ -185,13 +189,17 @@ fun ProfileScreen(
                 items = listOf(
                     ListSectionItem(
                         headlineText = stringResource(Res.string.profile_account_notifications_headline),
-                        supportingText = if (settings.unreadNotificationCount > 0) {
-                            stringResource(
+                        supportingText = stringResource(Res.string.profile_account_notifications_supporting_default),
+                        accessory = if (settings.unreadNotificationCount > 0) {
+                            val chipText = stringResource(
                                 Res.string.profile_account_notifications_supporting_unread,
                                 settings.unreadNotificationCount,
                             )
+                            ListItemAccessory.Custom {
+                                UnreadNotificationsChip(text = chipText)
+                            }
                         } else {
-                            stringResource(Res.string.profile_account_notifications_supporting_default)
+                            ListItemAccessory.Chevron
                         },
                         onClick = onOpenNotifications,
                     ),
@@ -334,6 +342,45 @@ fun ProfileScreen(
                 onSignOut()
             },
             onDismiss = { showSignOutDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun UnreadNotificationsChip(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(Radii.Round.shape)
+            .background(AppTheme.colors.accentPrimary.color)
+            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            typography = AppTheme.typography.Caption.C200.SemiBold,
+            color = AppTheme.colors.onAccentPrimary,
+        )
+    }
+}
+
+@Composable
+private fun FoundingMemberChip() {
+    Row(
+        modifier = Modifier
+            .clip(Radii.Round.shape)
+            .background(AppTheme.colors.accentSecondary.color)
+            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Dimension.D100),
+    ) {
+        Text(
+            text = "🏛",
+            typography = AppTheme.typography.Caption.C200,
+        )
+        Text(
+            text = stringResource(Res.string.profile_header_founding_member_chip),
+            typography = AppTheme.typography.Caption.C200.SemiBold,
+            color = AppTheme.colors.onAccentSecondary,
         )
     }
 }
@@ -530,6 +577,10 @@ private fun ProfileHeader(
                 // states; the null fallback covers the bootstrap window.
                 emoji = settings.avatarEmoji,
                 backgroundColorHex = settings.avatarBackgroundColor,
+                // Header rebuilds its profile flow on every navigation;
+                // the brief placeholder → emoji hand-off would otherwise
+                // replay the entrance scale on every visit.
+                animationsEnabled = false,
             )
             // Border matches the page background so the badge reads as
             // lifted off the avatar disc rather than embedded in it.
@@ -568,6 +619,10 @@ private fun ProfileHeader(
                 color = AppTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
             )
+        }
+        if (settings.isFoundingMember) {
+            VerticalSpacerD200()
+            FoundingMemberChip()
         }
         VerticalSpacerD500()
         LevelSummary(
@@ -752,6 +807,7 @@ private fun ProfileScreenPreview_Claimed() {
                 appVersion = "0.1.0",
                 showQaMenu = false,
                 memberSince = kotlin.time.Instant.parse("2026-03-12T00:00:00Z"),
+                isFoundingMember = true,
             ),
             onClaimAccount = {},
             onEditProfile = {},

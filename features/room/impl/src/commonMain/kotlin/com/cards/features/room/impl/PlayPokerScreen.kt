@@ -77,12 +77,6 @@ fun PlayPokerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onTapXp: () -> Unit = {},
-    /** Fired when the user taps the "shop emote packs" CTA inside the
-     *  emoji-tray empty-state popup (user owns no `emotes_*` pack). The
-     *  entry point switches the bottom-bar to the Shop tab. Defaults to
-     *  no-op so the tutorial wrapper can reuse this screen without
-     *  ferrying a callback that doesn't apply there. */
-    onOpenShop: () -> Unit = {},
     /** Hides the centered Level pill in the top bar. The tutorial sets
      *  this false so its own step-counter pill can occupy the centered
      *  slot without colliding. */
@@ -212,7 +206,6 @@ fun PlayPokerScreen(
                     onBlastEmoji = { emoji ->
                         onAction(PlayPokerAction.BlastEmoji(emoji))
                     },
-                    onOpenShop = onOpenShop,
                 )
 
                 if (active == null) {
@@ -478,7 +471,6 @@ private fun TopBar(
     availableEmojis: List<String> = emptyList(),
     emojiCooldownEndsAtEpochMs: Long = 0L,
     onBlastEmoji: ((String) -> Unit)? = null,
-    onOpenShop: () -> Unit = {},
 ) {
     // Minimal top bar — navigation, level + ring, info. The level pill
     // ticks up live as the player earns XP, and the gradient ring fills
@@ -486,7 +478,8 @@ private fun TopBar(
     // lose a hand. Emoji blast lives here alongside the cheat sheet
     // (right-side action cluster) — the trigger always renders so the
     // affordance is visible; the tray itself swaps to an empty-state
-    // popup with a shop CTA for users who don't own any pack yet.
+    // popup (greyed preview + caption) when the user owns no pack — no
+    // in-game shop navigation, which would forfeit the seat.
     //
     // The pill is overlay-positioned at true screen-center via Box
     // alignment rather than placed inline in a SpaceBetween Row.
@@ -520,7 +513,6 @@ private fun TopBar(
                     emojis = availableEmojis,
                     cooldownEndsAtEpochMs = emojiCooldownEndsAtEpochMs,
                     onBlast = onBlastEmoji,
-                    onOpenShop = onOpenShop,
                 )
                 HorizontalSpacerD200()
             }

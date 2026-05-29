@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -15,10 +16,12 @@ import com.dangerfield.cards.system.Dimension
 
 /**
  * Horizontal `LazyRow` that breaks out of its parent's screen-edge padding
- * and re-applies the same padding as its own `contentPadding`. The visual
- * outcome: the first item still aligns with the surrounding page content,
- * but items can clip past the screen edge so the "scroll for more"
- * affordance is obvious.
+ * so items can scroll fully past the right edge of the screen. The visual
+ * outcome:
+ *  - First item aligns with surrounding page content (start inset = D500).
+ *  - End inset is 0 — items scroll edge-to-edge to the literal screen edge,
+ *    so the "scroll for more" affordance reads as a bleed, not a clipped
+ *    item floating in margin.
  *
  * Use this anywhere a `LazyRow` lives inside a screen whose outer column
  * already applies the standard `screenContentPadding`. If a screen uses
@@ -35,7 +38,10 @@ fun EdgeToEdgeRow(
     LazyRow(
         modifier = modifier.escapeHorizontalScreenPadding(),
         state = state,
-        contentPadding = screenHorizontalInsets,
+        contentPadding = PaddingValues(
+            start = screenHorizontalInsets.calculateLeftPadding(LayoutDirection.Ltr),
+            end = Dimension.D0,
+        ),
         horizontalArrangement = Arrangement.spacedBy(horizontalSpacing),
         content = content,
     )

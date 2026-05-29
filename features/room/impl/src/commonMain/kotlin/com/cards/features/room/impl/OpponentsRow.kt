@@ -211,6 +211,7 @@ private fun ScrollingOpponentsRow(
                     onBlindClick = onBlindClick,
                     onBetPillClick = onBetPillClick,
                     onLastActionClick = onLastActionClick,
+                    onAvatarTap = { onAvatarTap(seat) },
                 )
             }
         }

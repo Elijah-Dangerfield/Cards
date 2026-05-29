@@ -360,6 +360,7 @@
     <string name="profile_level_summary_level_xp">Level %1$d · %2$s XP</string>
     <string name="profile_level_summary_to_next_level">%1$s XP to level %2$d</string>
     <string name="profile_header_member_since">Member since %1$s %2$d</string>
+    <string name="profile_header_founding_member_chip">Founding member</string>
 
     <!-- Profile — Anonymous-only "claim your account" hero card. -->
     <string name="profile_claim_card_title">Claim your account</string>
@@ -710,15 +711,14 @@
     <string name="room_emoji_tray_cooldown">%1$ds</string>
     <!-- Room — EmojiTray empty-state popup (no emote pack owned). Receiving emotes works regardless; sending needs a pack. -->
     <string name="room_emoji_tray_empty_caption">Buy emoji packs in the shop to send these</string>
-    <string name="room_emoji_tray_empty_shop_cta">Shop emote packs</string>
 
     <!-- Room — Win/odds tile on the human seat (PlayerInfoTile back face). -->
     <string name="room_player_odds_heading">Odds</string>
     <string name="room_player_odds_dial_win_label">Win</string>
     <string name="room_player_odds_dial_lose_label">Lose</string>
-    <string name="room_player_odds_dial_tie_label">Tie %1$d%%</string>
+    <string name="room_player_odds_dial_tie_label">Tie %1$d%</string>
     <string name="room_player_odds_dial_no_value">—</string>
-    <string name="room_player_odds_dial_value">%1$d%%</string>
+    <string name="room_player_odds_dial_value">%1$d%</string>
     <string name="room_player_odds_flip_a11y">Flip to see win odds</string>
 
     <!-- Room — Bottom-of-table QuickActionBar (the Check/Call + Bet/Raise + more-options row on the human's turn). -->
