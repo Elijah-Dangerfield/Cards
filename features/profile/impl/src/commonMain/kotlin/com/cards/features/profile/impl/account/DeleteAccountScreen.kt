@@ -25,6 +25,10 @@ import cards.libraries.resources.generated.resources.profile_delete_bullet_oauth
 import cards.libraries.resources.generated.resources.profile_delete_bullet_progress
 import cards.libraries.resources.generated.resources.profile_delete_cancel_button
 import cards.libraries.resources.generated.resources.profile_delete_confirm_input_label
+import cards.libraries.resources.generated.resources.profile_delete_error_anonymous_not_allowed
+import cards.libraries.resources.generated.resources.profile_delete_error_network
+import cards.libraries.resources.generated.resources.profile_delete_error_not_configured
+import cards.libraries.resources.generated.resources.profile_delete_error_unknown
 import cards.libraries.resources.generated.resources.profile_delete_section_title
 import cards.libraries.resources.generated.resources.profile_delete_submit_button
 import cards.libraries.resources.generated.resources.profile_delete_submit_button_progress
@@ -133,10 +137,10 @@ fun DeleteAccountScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                state.error?.let {
+                state.error?.let { err ->
                     Spacer(modifier = Modifier.height(Dimension.D400))
                     Text(
-                        text = it,
+                        text = err.message(),
                         typography = AppTheme.typography.Body.B500,
                         color = AppTheme.colors.danger,
                     )
@@ -201,7 +205,7 @@ private fun DeleteAccountScreenPreview_Error() {
         DeleteAccountScreen(
             state = DeleteAccountState(
                 confirmationInput = "delete",
-                error = "Couldn't reach the server. Check your connection.",
+                error = DeleteAccountError.NetworkError,
             ),
             onAction = {},
             onBack = {},
@@ -232,4 +236,16 @@ private fun BulletItem(text: String) {
         color = AppTheme.colors.onSurfaceSecondary,
         modifier = Modifier.padding(vertical = 2.dp),
     )
+}
+
+@Composable
+private fun DeleteAccountError.message(): String = when (this) {
+    DeleteAccountError.NotConfigured ->
+        stringResource(Res.string.profile_delete_error_not_configured)
+    DeleteAccountError.AnonymousNotAllowed ->
+        stringResource(Res.string.profile_delete_error_anonymous_not_allowed)
+    DeleteAccountError.NetworkError ->
+        stringResource(Res.string.profile_delete_error_network)
+    DeleteAccountError.Unknown ->
+        stringResource(Res.string.profile_delete_error_unknown)
 }

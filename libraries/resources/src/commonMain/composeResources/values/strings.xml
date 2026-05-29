@@ -410,6 +410,10 @@
     <string name="profile_delete_submit_button">Delete my account</string>
     <string name="profile_delete_submit_button_progress">Deleting…</string>
     <string name="profile_delete_cancel_button">Cancel</string>
+    <string name="profile_delete_error_not_configured">Account deletion isn't available right now. Please try again later or contact support.</string>
+    <string name="profile_delete_error_anonymous_not_allowed">Anonymous accounts can't be deleted. Sign out instead, or claim your account first.</string>
+    <string name="profile_delete_error_network">Couldn't reach the server. Check your connection and try again.</string>
+    <string name="profile_delete_error_unknown">Something went wrong. Please try again.</string>
 
     <!-- Profile — Send feedback form. -->
     <string name="profile_feedback_title">Share Your Feedback</string>
