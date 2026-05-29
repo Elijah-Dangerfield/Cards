@@ -26,12 +26,19 @@ data class ClientHeaders(
     val acceptLanguage: String,
     /** ISO 3166-1 alpha-2, or `null` if unknown — server may geo-IP fallback. */
     val countryCode: String?,
+    /**
+     * Canonical UUID string for this app install, or `null` if the
+     * install-id provider hasn't hydrated yet on this boot. See
+     * [InstallIdProvider].
+     */
+    val installId: String?,
 ) {
     companion object {
         const val HEADER_PLATFORM: String = "X-Platform"
         const val HEADER_APP_VERSION: String = "X-App-Version"
         const val HEADER_BUILD_NUMBER: String = "X-Build-Number"
         const val HEADER_COUNTRY_CODE: String = "X-Country-Code"
+        const val HEADER_INSTALL_ID: String = "X-Install-Id"
         // Accept-Language is a standard header — use io.ktor.http.HttpHeaders.AcceptLanguage.
     }
 }

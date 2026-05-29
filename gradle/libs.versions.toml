@@ -42,6 +42,10 @@ flyway = "10.20.0"
 testcontainers = "1.20.4"
 auth0Jwt = "4.4.0"
 auth0JwksRsa = "0.22.1"
+opentelemetry = "1.45.0"
+# Instrumentation modules track a separate alpha train aligned with the
+# stable SDK release (`<sdk>-alpha`).
+opentelemetryInstrumentation = "2.11.0-alpha"
 
 [libraries]
 anvil-compiler = { module = "software.amazon.lastmile.kotlin.inject.anvil:compiler", version.ref = "kotlinInjectAnvil" }
@@ -86,6 +90,19 @@ flyway-postgres = { module = "org.flywaydb:flyway-database-postgresql", version.
 testcontainers-postgres = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 auth0-jwt = { module = "com.auth0:java-jwt", version.ref = "auth0Jwt" }
 auth0-jwksRsa = { module = "com.auth0:jwks-rsa", version.ref = "auth0JwksRsa" }
+
+# OpenTelemetry — traces + logs SDK + OTLP/stdout exporters. The
+# Logback bridge ships on the alpha instrumentation train but the SDK
+# itself is stable.
+opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api", version.ref = "opentelemetry" }
+opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk", version.ref = "opentelemetry" }
+opentelemetry-sdk-logs = { module = "io.opentelemetry:opentelemetry-sdk-logs", version.ref = "opentelemetry" }
+opentelemetry-exporter-otlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp", version.ref = "opentelemetry" }
+opentelemetry-exporter-logging = { module = "io.opentelemetry:opentelemetry-exporter-logging", version.ref = "opentelemetry" }
+opentelemetry-exporter-logging-otlp = { module = "io.opentelemetry:opentelemetry-exporter-logging-otlp", version.ref = "opentelemetry" }
+opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing", version.ref = "opentelemetry" }
+opentelemetry-extension-kotlin = { module = "io.opentelemetry:opentelemetry-extension-kotlin", version.ref = "opentelemetry" }
+opentelemetry-logback-appender = { module = "io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0", version.ref = "opentelemetryInstrumentation" }
 ktor-serverAuth = { module = "io.ktor:ktor-server-auth-jvm", version.ref = "ktor" }
 ktor-serverAuthJwt = { module = "io.ktor:ktor-server-auth-jwt-jvm", version.ref = "ktor" }
 ktor-serverContentNegotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }

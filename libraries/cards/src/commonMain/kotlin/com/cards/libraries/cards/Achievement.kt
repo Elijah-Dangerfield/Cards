@@ -96,6 +96,17 @@ enum class AchievementId {
     FIRST_BUST_DEALT_MP,
     BUST_DEALT_5_MP,
 
+    // MP-mode siblings of harder bot-friendly achievements. Counters stay
+    // at 0 until Phase 4.2 server-authoritative gameplay lands; until then
+    // the client can't witness which hands were multiplayer and the grant
+    // endpoint refuses MP ids posted from clients (see
+    // `ClientGrantableAchievements.Default.serverWitnessed`).
+    HANDS_100_MP,
+    WIN_BY_FOLD_10_MP,
+    DOUBLE_UP_MP,
+    TRIPLE_UP_MP,
+    POT_5000_MP,
+
     // Level milestones
     REACH_LEVEL_5,
     REACH_LEVEL_10,

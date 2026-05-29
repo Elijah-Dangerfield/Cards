@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Logback config for the server. Two appenders:
+      - STDOUT — the existing human-readable line format Fly captures
+        via stdout. Untouched so `flyctl logs` still reads naturally.
+      - OPEN_TELEMETRY — bridges every log record through the OTel logs
+        SDK so records ship to the configured OTLP endpoint (or to
+        SystemOutLogRecordExporter in dev) with the active span's
+        trace_id auto-attached. Buffers internally until
+        `OpenTelemetryAppender.install(sdk)` wires it to the live SDK
+        at boot — see plugins/Telemetry.kt.
+
+    Levels match logback's default: INFO floor, DEBUG/TRACE off unless
+    tuned per-logger via a future override file. Ktor's noisy
+    `io.netty` package is pinned at WARN so it doesn't drown signal.
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="OPEN_TELEMETRY"
+              class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+        <captureExperimentalAttributes>false</captureExperimentalAttributes>
+        <captureCodeAttributes>true</captureCodeAttributes>
+        <captureMarkerAttribute>true</captureMarkerAttribute>
+        <captureKeyValuePairAttributes>true</captureKeyValuePairAttributes>
+    </appender>
+
+    <logger name="io.netty" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="OPEN_TELEMETRY"/>
+    </root>
+</configuration>

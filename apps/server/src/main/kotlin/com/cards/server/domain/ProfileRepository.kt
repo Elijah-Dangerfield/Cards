@@ -49,6 +49,22 @@ interface ProfileRepository {
      * row; this method only owns OUR table.
      */
     suspend fun delete(userId: UserId)
+
+    /**
+     * Tag the profile with the caller's [installId]. Compare-and-skip:
+     * a write only fires if the stored value differs from [installId], so
+     * the common case (same install hitting /v1/me repeatedly) is a single
+     * SELECT.
+     *
+     * Returns the prior value that was overwritten (or `null` if the
+     * column was unset or already matched). A non-null, non-equal prior
+     * value is the L1 cleanup cue — the previous owner of this install
+     * left an orphan row (see docs/recovery-and-orphaned-accounts.md).
+     *
+     * No-op when the profile doesn't exist (the route layer always calls
+     * after `findOrCreate`, so this is defensive only).
+     */
+    suspend fun touchInstallId(userId: UserId, installId: java.util.UUID): java.util.UUID?
 }
 
 sealed interface UpdateProfileOutcome {

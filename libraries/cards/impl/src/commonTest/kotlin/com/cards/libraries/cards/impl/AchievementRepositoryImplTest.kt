@@ -6,6 +6,11 @@ import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.BOT_WHISPERER_BOTS_BEATEN
 import com.dangerfield.cards.libraries.cards.BUSTS_DEALT_MP
+import com.dangerfield.cards.libraries.cards.DOUBLED_UP_MP
+import com.dangerfield.cards.libraries.cards.HANDS_PLAYED_MP
+import com.dangerfield.cards.libraries.cards.MAX_POT_BB_RATIO_MP
+import com.dangerfield.cards.libraries.cards.TRIPLED_UP_MP
+import com.dangerfield.cards.libraries.cards.WIN_BY_FOLD_MP
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.InventoryItem
@@ -340,6 +345,66 @@ class AchievementRepositoryImplTest : CoroutineTest() {
             earned.any { it.achievement.id == AchievementId.BEAT_JANE_10 },
             "bots-mode achievement cannot unlock from a multiplayer hand",
         )
+    }
+
+    @Test
+    fun newMpVariants_fireInMultiplayerHand_whenCounterMeetsTarget() = runUnitTest {
+        // One MP-only registry entry per new sibling — each one only fires
+        // when its custom counter reaches the threshold AND the hand was
+        // a multiplayer hand. Counter values are server-driven once Phase
+        // 4.2 lands; here we plant them directly to pin the registry
+        // wiring (mode-gate + counter + custom key) end to end.
+        val cases = listOf(
+            AchievementId.HANDS_100_MP to (HANDS_PLAYED_MP to 100),
+            AchievementId.WIN_BY_FOLD_10_MP to (WIN_BY_FOLD_MP to 10),
+            AchievementId.DOUBLE_UP_MP to (DOUBLED_UP_MP to 1),
+            AchievementId.TRIPLE_UP_MP to (TRIPLED_UP_MP to 1),
+            AchievementId.POT_5000_MP to (MAX_POT_BB_RATIO_MP to 25),
+        )
+        for ((id, counter) in cases) {
+            val (key, value) = counter
+            val deps = Deps().also { it.preEarnAllExcept(id) }
+            deps.dao.counters[key] = value
+            val repo = deps.build()
+
+            val earned = repo.recordHand(
+                summary = summary(bigBlind = 10, mode = XpMode.MULTIPLAYER),
+                context = context(bigBlind = 10),
+            )
+
+            assertTrue(
+                earned.any { it.achievement.id == id },
+                "MP variant $id should unlock when its custom counter ($key=$value) " +
+                    "meets target on a multiplayer hand",
+            )
+        }
+    }
+
+    @Test
+    fun newMpVariants_doNotFireInBotsHand_evenIfCounterMet() = runUnitTest {
+        val cases = listOf(
+            AchievementId.HANDS_100_MP to (HANDS_PLAYED_MP to 100),
+            AchievementId.WIN_BY_FOLD_10_MP to (WIN_BY_FOLD_MP to 10),
+            AchievementId.DOUBLE_UP_MP to (DOUBLED_UP_MP to 1),
+            AchievementId.TRIPLE_UP_MP to (TRIPLED_UP_MP to 1),
+            AchievementId.POT_5000_MP to (MAX_POT_BB_RATIO_MP to 25),
+        )
+        for ((id, counter) in cases) {
+            val (key, value) = counter
+            val deps = Deps().also { it.preEarnAllExcept(id) }
+            deps.dao.counters[key] = value
+            val repo = deps.build()
+
+            val earned = repo.recordHand(
+                summary = summary(bigBlind = 10, mode = XpMode.BOTS),
+                context = context(bigBlind = 10),
+            )
+
+            assertFalse(
+                earned.any { it.achievement.id == id },
+                "MP variant $id must not unlock from a bots-mode hand even if its counter is satisfied",
+            )
+        }
     }
 
     // ---------- Test scaffolding ----------

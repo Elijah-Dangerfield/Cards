@@ -63,10 +63,6 @@ class ClientGrantableAchievements(
                 "BEAT_GINA_10" to "emotes_outsmarter",
                 "BEAT_STEVE_10" to "emotes_marathoner",
                 "BEAT_MIKE_10" to "emotes_tamer",
-                "SHOW_ROYAL_FLUSH" to "title_royalty",
-                "SHOW_STRAIGHT_FLUSH" to "title_suited_run",
-                "SHOW_FULL_HOUSE" to "title_full_boat",
-                "SHOW_FOUR_OF_KIND" to "title_quartet",
             ),
             // Multiplayer-mode achievements live here so the client grant
             // route returns 403, not 204. Once Phase 4.2 server-authoritative
@@ -76,6 +72,11 @@ class ClientGrantableAchievements(
             serverWitnessed = setOf(
                 "FIRST_BUST_DEALT_MP",
                 "BUST_DEALT_5_MP",
+                "HANDS_100_MP",
+                "WIN_BY_FOLD_10_MP",
+                "DOUBLE_UP_MP",
+                "TRIPLE_UP_MP",
+                "POT_5000_MP",
             ),
         )
     }

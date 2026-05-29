@@ -131,7 +131,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.FullHouse),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
-        chipReward = 250L,
     ),
     Achievement(
         id = AchievementId.SHOW_FOUR_OF_KIND,
@@ -141,7 +140,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.FourOfAKind),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
-        chipReward = 500L,
     ),
     Achievement(
         id = AchievementId.SHOW_STRAIGHT_FLUSH,
@@ -151,7 +149,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.LEGENDARY,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.StraightFlush),
         xpReward = AchievementRarity.LEGENDARY.defaultXpReward,
-        chipReward = 2_000L,
         isMystery = true,
     ),
     Achievement(
@@ -162,7 +159,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.LEGENDARY,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.RoyalFlush),
         xpReward = AchievementRarity.LEGENDARY.defaultXpReward,
-        chipReward = 5_000L,
         isMystery = true,
     ),
 
@@ -428,6 +424,65 @@ val AllAchievements: List<Achievement> = listOf(
         mode = AchievementMode.MULTIPLAYER,
     ),
 
+    // MP-only siblings of the harder bot-friendly achievements. Counters
+    // are server-driven (stay at 0 until Phase 4.2 wires resolution
+    // server-side); the achievements carry a stronger status signal than
+    // the bot originals because they can only fire when the server has
+    // witnessed a real multiplayer hand.
+    Achievement(
+        id = AchievementId.HANDS_100_MP,
+        name = "Regular at the table",
+        description = "Finish 100 hands against real players.",
+        icon = "🪙",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = HANDS_PLAYED_MP, target = 100),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+    Achievement(
+        id = AchievementId.WIN_BY_FOLD_10_MP,
+        name = "Pressure cooker",
+        description = "Win 10 multiplayer pots without reaching showdown.",
+        icon = "🪄",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = WIN_BY_FOLD_MP, target = 10),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+    Achievement(
+        id = AchievementId.DOUBLE_UP_MP,
+        name = "Doubled up the hard way",
+        description = "Finish a multiplayer hand with 2× the chips you started it with.",
+        icon = "📊",
+        rarity = AchievementRarity.RARE,
+        criterion = Criterion.Custom(key = DOUBLED_UP_MP, target = 1),
+        xpReward = AchievementRarity.RARE.defaultXpReward,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+    Achievement(
+        id = AchievementId.TRIPLE_UP_MP,
+        name = "Tripled up the hard way",
+        description = "Finish a multiplayer hand with 3× the chips you started it with.",
+        icon = "💹",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = TRIPLED_UP_MP, target = 1),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 500L,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+    Achievement(
+        id = AchievementId.POT_5000_MP,
+        name = "Whale among whales",
+        description = "Be at a multiplayer table for a pot of 25 big blinds or more.",
+        icon = "🐋",
+        rarity = AchievementRarity.EPIC,
+        criterion = Criterion.Custom(key = MAX_POT_BB_RATIO_MP, target = 25),
+        xpReward = AchievementRarity.EPIC.defaultXpReward,
+        chipReward = 1_000L,
+        isMystery = true,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+
     // Level milestones
     Achievement(
         id = AchievementId.REACH_LEVEL_5,
@@ -515,6 +570,20 @@ const val BUSTS_DEALT: String = "busts_dealt"
  * every other custom-counter key.
  */
 const val BUSTS_DEALT_MP: String = "busts_dealt_mp"
+
+/**
+ * MP-only counters for the [AchievementId.HANDS_100_MP] / [AchievementId.WIN_BY_FOLD_10_MP]
+ * / [AchievementId.DOUBLE_UP_MP] / [AchievementId.TRIPLE_UP_MP] / [AchievementId.POT_5000_MP]
+ * variants. Same shape as [BUSTS_DEALT_MP] — all five sit at 0 client-side
+ * until Phase 4.2 server-authoritative gameplay starts granting them; the
+ * client never increments these and the grant route refuses any MP id POSTed
+ * from a client (`ClientGrantableAchievements.Default.serverWitnessed`).
+ */
+const val HANDS_PLAYED_MP: String = "hands_played_mp"
+const val WIN_BY_FOLD_MP: String = "win_by_fold_mp"
+const val DOUBLED_UP_MP: String = "doubled_up_mp"
+const val TRIPLED_UP_MP: String = "tripled_up_mp"
+const val MAX_POT_BB_RATIO_MP: String = "max_pot_bb_ratio_mp"
 
 /** Max pot (absolute chip total) the human has been a part of. Sticky high-water
  *  mark. Used by tier-tolerant POT_500 / POT_1000. */

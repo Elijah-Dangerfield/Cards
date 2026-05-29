@@ -317,5 +317,7 @@ class RoomRoutesTest {
         ): UpdateProfileOutcome = error("not used in this test")
 
         override suspend fun delete(userId: UserId) { /* no-op for route tests */ }
+
+        override suspend fun touchInstallId(userId: UserId, installId: java.util.UUID): java.util.UUID? = null
     }
 }

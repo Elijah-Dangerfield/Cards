@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.Room
@@ -9,8 +10,11 @@ import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
 import com.dangerfield.cards.server.game.SeatOccupant
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
+import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.userId
+import com.dangerfield.cards.server.plugins.withSpan
 import io.ktor.server.auth.authenticate
+import io.opentelemetry.api.trace.Span
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.application
 import io.ktor.server.websocket.WebSocketServerSession
@@ -113,6 +117,22 @@ fun Route.roomSocketRoutes(
             )
 
             rooms.markConnected(code, userId, connected = true)
+
+            // Hydrate from the durable snapshot before the game publisher
+            // subscribes. Without this, a client reconnecting after a
+            // server restart sees the lobby snapshot but no game-state
+            // frames until *someone* submits an intent — applyIntent /
+            // requestNextHand both route through findOrHydrate, so the
+            // first action would rehydrate, but a player who reconnects
+            // mid-hand and just wants to watch their turn play out would
+            // be staring at an empty table. Best-effort: a snapshot DB
+            // failure logs but doesn't block the lobby socket from
+            // working — the next intent will retry.
+            Catching { gameSessions.findOrHydrate(code) }
+                .onFailure {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Snapshot hydrate failed for room=$code user=$userId", it)
+                }
 
             // The room-flow collector runs in a child coroutine so we
             // can independently watch [incoming] for the close signal.
@@ -269,12 +289,23 @@ private suspend fun handleClientFrame(
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
         is RoomClientFrame.StartHand -> handleStartHand(code, userId, rooms, gameSessions)
-        is RoomClientFrame.SubmitIntent -> gameSessions.applyIntent(
-            code = code,
-            actorUserId = userId.value.toString(),
-            intent = frame.intent,
-            clientNonce = frame.clientNonce,
-        )
+        is RoomClientFrame.SubmitIntent -> withSpan(
+            name = "submit_intent",
+            configure = {
+                setAttribute(SpanAttrs.FrameType, "submit_intent")
+                setAttribute(SpanAttrs.RoomCode, code)
+                setAttribute(SpanAttrs.UserId, userId.value.toString())
+                setAttribute(SpanAttrs.ClientNonce, frame.clientNonce)
+                setAttribute(SpanAttrs.IntentType, frame.intent::class.simpleName ?: "Unknown")
+            },
+        ) {
+            gameSessions.applyIntent(
+                code = code,
+                actorUserId = userId.value.toString(),
+                intent = frame.intent,
+                clientNonce = frame.clientNonce,
+            ).also { recordIntentOutcome(it) }
+        }
         is RoomClientFrame.RequestNextHand -> gameSessions.requestNextHand(
             code = code,
             actorUserId = userId.value.toString(),
@@ -286,6 +317,20 @@ private suspend fun handleClientFrame(
         accepted = result is IntentResult.Accepted,
         error = (result as? IntentResult.Rejected)?.reason,
     )
+}
+
+/**
+ * Stamps the active span (the `submit_intent` root started above) with
+ * the outcome of the registry call. Decoupled from the result encoding
+ * so attribute names stay consistent regardless of how IntentAck
+ * evolves.
+ */
+private fun recordIntentOutcome(result: IntentResult) {
+    val span = Span.current()
+    span.setAttribute(SpanAttrs.Accepted, result is IntentResult.Accepted)
+    if (result is IntentResult.Rejected) {
+        span.setAttribute(SpanAttrs.RejectionReason, result.reason)
+    }
 }
 
 /**

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.auth_back_button
 import cards.libraries.resources.generated.resources.auth_field_email_label
@@ -74,6 +75,7 @@ import cards.libraries.resources.generated.resources.auth_verify_email_banner_re
 import cards.libraries.resources.generated.resources.auth_verify_email_banner_resend_sent
 import cards.libraries.resources.generated.resources.auth_verify_email_banner_still_pending
 import cards.libraries.resources.generated.resources.auth_verify_email_body
+import cards.libraries.resources.generated.resources.auth_verify_email_body_no_email
 import cards.libraries.resources.generated.resources.auth_verify_email_confirm_button
 import cards.libraries.resources.generated.resources.auth_verify_email_confirm_button_progress
 import cards.libraries.resources.generated.resources.auth_verify_email_resend_button
@@ -443,6 +445,10 @@ fun VerifyEmailScreen(
     onAction: (VerifyEmailAction) -> Unit,
     onBack: () -> Unit,
 ) {
+    LifecycleResumeEffect(Unit) {
+        onAction(VerifyEmailAction.AppResumed)
+        onPauseOrDispose { }
+    }
     AuthShell(onBack = onBack) {
         Text(
             text = "📧",
@@ -462,7 +468,11 @@ fun VerifyEmailScreen(
         Spacer(modifier = Modifier.height(Dimension.D400))
 
         Text(
-            text = stringResource(Res.string.auth_verify_email_body, state.email),
+            text = if (state.email.isEmpty()) {
+                stringResource(Res.string.auth_verify_email_body_no_email)
+            } else {
+                stringResource(Res.string.auth_verify_email_body, state.email)
+            },
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.onSurfaceSecondary,
             textAlign = TextAlign.Center,
@@ -494,7 +504,7 @@ fun VerifyEmailScreen(
         Button(
             onClick = { onAction(VerifyEmailAction.Resend) },
             style = ButtonStyle.Text,
-            enabled = !state.isResending && !state.isRefreshing,
+            enabled = !state.isResending && !state.isRefreshing && state.email.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(

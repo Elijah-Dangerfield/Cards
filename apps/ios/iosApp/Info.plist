@@ -37,27 +37,26 @@
 		</dict>
 	</dict>
 	<!--
-	  Deep links. Uncomment + customize to receive them.
-
-	  Custom scheme (cards://...):
-
-	  <key>CFBundleURLTypes</key>
-	  <array>
-	      <dict>
-	          <key>CFBundleURLName</key>
-	          <string>com.dangerfield.cards</string>
-	          <key>CFBundleURLSchemes</key>
-	          <array>
-	              <string>cards</string>
-	          </array>
-	      </dict>
-	  </array>
+	  Custom-scheme deep links. Today's only consumer is
+	  `cards://auth/confirmed` (Supabase verify-email redirect). New routes
+	  add themselves via `deepLinks =` on `screen<Route>` in the relevant
+	  FeatureEntryPoint; .onOpenURL in iOSApp.swift forwards into the
+	  DeepLinkBridge regardless of which path the URL targets.
 
 	  Universal Links (https://...) require an `Associated Domains`
-	  entitlement (`applinks:example.com`) plus an
-	  apple-app-site-association file at https://example.com/.well-known/.
-
-	  Either way, .onOpenURL in iOSApp.swift forwards to DeepLinkBridge.
+	  entitlement (`applinks:example.com`) plus an apple-app-site-association
+	  file at https://example.com/.well-known/.
 	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.dangerfield.cards</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>cards</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

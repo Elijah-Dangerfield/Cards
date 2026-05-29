@@ -126,6 +126,18 @@ data class AppData(
      * sees the dot until they land on Shop for the first time.
      */
     val shopSeenProductIds: Set<String> = emptySet(),
+
+    /**
+     * Per-install identifier generated on first launch and sent as the
+     * `X-Install-Id` header on every authenticated request. Null until
+     * the install-id provider seeds it (one-shot, persistent). Used by
+     * the server for L1 orphan-account cleanup — see
+     * docs/recovery-and-orphaned-accounts.md.
+     *
+     * Stored as a string (UUID canonical form) so the JSON serializer
+     * doesn't need a Uuid-aware adapter on every cache read.
+     */
+    val installId: String? = null,
 )
 
 /**

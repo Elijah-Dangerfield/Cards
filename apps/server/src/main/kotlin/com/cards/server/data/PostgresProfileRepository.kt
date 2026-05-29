@@ -79,6 +79,22 @@ class PostgresProfileRepository(
         }
     }
 
+    override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? =
+        database.transaction {
+            val priorInstallId = ProfilesTable
+                .selectAll()
+                .where { ProfilesTable.userId eq userId.value }
+                .singleOrNull()
+                ?.get(ProfilesTable.installId)
+
+            if (priorInstallId == installId) return@transaction null
+
+            val updated = ProfilesTable.update({ ProfilesTable.userId eq userId.value }) { stmt ->
+                stmt[ProfilesTable.installId] = installId
+            }
+            if (updated == 0) null else priorInstallId
+        }
+
     override suspend fun update(
         userId: UserId,
         displayName: String?,

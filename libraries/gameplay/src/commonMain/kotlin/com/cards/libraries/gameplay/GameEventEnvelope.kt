@@ -8,18 +8,25 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 
 /**
- * On-disk envelope for a persisted [GameEvent].
+ * Versioned on-disk envelope for a persisted [GameEvent].
  *
- * The persisted row in `game_events.event_jsonb` always carries this
- * three-field shape:
+ * **Currently unused.** The original `game_events` durable log this
+ * carried was dropped in V47 when multiplayer flipped to snapshot-only
+ * state (see `docs/decisions.md` "2026-05-29 — Multiplayer: snapshot-
+ * only state"). Kept in tree because the parked B5 "rolling event tail"
+ * surface — a small replay buffer behind reconnects — would re-use this
+ * exact shape, and the v1-pinning test (`GameEventEnvelopeTest`) is the
+ * load-bearing safety net for any future on-disk event format.
+ *
+ * Shape:
  *
  * ```json
  * { "v": 1, "type": "HandStarted", "payload": { … event fields … } }
  * ```
  *
- * Why: schema evolution on events is forever. A v2 reader needs to
- * fork on [version] without rewriting every historical row — the
- * outer envelope gives that fork point, isolated from the payload's
+ * Why this shape: schema evolution on events is forever. A v2 reader
+ * needs to fork on [version] without rewriting every historical row —
+ * the outer envelope gives that fork point, isolated from the payload's
  * internal shape. [type] is the stable discriminator the v1 reader
  * dispatches on (matches each [GameEvent] subclass's `@SerialName`);
  * [payload] is the kotlinx-serialized event body, the same shape the
@@ -27,7 +34,8 @@ import kotlinx.serialization.json.jsonObject
  *
  * Wire / WS frames continue to use the bare kotlinx polymorphic JSON
  * (`{ "type": "...", ... }`) — the envelope is a persistence concern,
- * not a transport one.
+ * not a transport one. Delete this file (and its test) if B5 is
+ * permanently ruled out.
  */
 @Serializable
 data class GameEventEnvelope(

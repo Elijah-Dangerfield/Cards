@@ -108,6 +108,7 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         headers.append(ClientHeaders.HEADER_APP_VERSION, h.appVersion)
         headers.append(ClientHeaders.HEADER_BUILD_NUMBER, h.buildNumber)
         h.countryCode?.let { headers.append(ClientHeaders.HEADER_COUNTRY_CODE, it) }
+        h.installId?.let { headers.append(ClientHeaders.HEADER_INSTALL_ID, it) }
     }
     if (BuildInfo.isDebug) {
         // Debug-only by design: bodies are valuable for debugging but

@@ -227,54 +227,21 @@ class GrantsRoutesTest {
     }
 
     @Test
-    fun defaultPolicy_grantsRoyaltyTitle_forShowRoyalFlush() = runTest {
-        val inventory = CapturingInventory()
-        val catalog = FakeCatalog.with(stubProduct("title_royalty"))
-        post(inventory, catalog, defaultPolicy, "SHOW_ROYAL_FLUSH") { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<OwnedItemDto>()
-            assertEquals("title_royalty", body.productId)
-            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
-            assertEquals("title_royalty", inventory.earnedGrants.single().productId)
-        }
-    }
-
-    @Test
-    fun defaultPolicy_grantsSuitedRunTitle_forShowStraightFlush() = runTest {
-        val inventory = CapturingInventory()
-        val catalog = FakeCatalog.with(stubProduct("title_suited_run"))
-        post(inventory, catalog, defaultPolicy, "SHOW_STRAIGHT_FLUSH") { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<OwnedItemDto>()
-            assertEquals("title_suited_run", body.productId)
-            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
-            assertEquals("title_suited_run", inventory.earnedGrants.single().productId)
-        }
-    }
-
-    @Test
-    fun defaultPolicy_grantsFullBoatTitle_forShowFullHouse() = runTest {
-        val inventory = CapturingInventory()
-        val catalog = FakeCatalog.with(stubProduct("title_full_boat"))
-        post(inventory, catalog, defaultPolicy, "SHOW_FULL_HOUSE") { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<OwnedItemDto>()
-            assertEquals("title_full_boat", body.productId)
-            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
-            assertEquals("title_full_boat", inventory.earnedGrants.single().productId)
-        }
-    }
-
-    @Test
-    fun defaultPolicy_grantsQuartetTitle_forShowFourOfKind() = runTest {
-        val inventory = CapturingInventory()
-        val catalog = FakeCatalog.with(stubProduct("title_quartet"))
-        post(inventory, catalog, defaultPolicy, "SHOW_FOUR_OF_KIND") { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            val body = resp.body<OwnedItemDto>()
-            assertEquals("title_quartet", body.productId)
-            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
-            assertEquals("title_quartet", inventory.earnedGrants.single().productId)
+    fun defaultPolicy_singleShowdownTitleIds_returnNoContent_afterRngRetire() = runTest {
+        // The four "show X at showdown" achievements used to grant a
+        // title cosmetic. §A achievement-difficulty audit retired the
+        // pairings — they're now neither client-grantable nor
+        // server-witnessed, so the policy resolves to Unknown and the
+        // route degrades to 204. Pin the 204 so a future copy-paste
+        // doesn't quietly re-add the pairing.
+        val retiredIds = listOf("SHOW_ROYAL_FLUSH", "SHOW_STRAIGHT_FLUSH", "SHOW_FULL_HOUSE", "SHOW_FOUR_OF_KIND")
+        for (id in retiredIds) {
+            val inventory = CapturingInventory()
+            val catalog = FakeCatalog.empty()
+            post(inventory, catalog, defaultPolicy, id) { resp ->
+                assertEquals(HttpStatusCode.NoContent, resp.status, "id=$id")
+                assertTrue(inventory.earnedGrants.isEmpty(), "id=$id")
+            }
         }
     }
 
@@ -311,12 +278,23 @@ class GrantsRoutesTest {
     }
 
     @Test
-    fun defaultPolicy_refusesMultiplayerBustAchievements_with403() = runTest {
-        // MP-mode achievements (FIRST_BUST_DEALT_MP / BUST_DEALT_5_MP) live in
-        // the default `serverWitnessed` set so a client posting them never
-        // self-grants — they will be granted server-side once Phase 4.2
-        // server-authoritative gameplay lands.
-        for (id in listOf("FIRST_BUST_DEALT_MP", "BUST_DEALT_5_MP")) {
+    fun defaultPolicy_refusesEveryMultiplayerAchievement_with403() = runTest {
+        // Every MP-mode achievement registered with the client (see
+        // libraries/cards `AchievementMode.MULTIPLAYER`) must sit in the
+        // default `serverWitnessed` set so a client POSTing the id never
+        // self-grants. The Phase 4.2 server-authoritative gameplay path
+        // grants these directly; the 403 keeps a malicious client from
+        // racing ahead via the existing POST endpoint.
+        val mpIds = listOf(
+            "FIRST_BUST_DEALT_MP",
+            "BUST_DEALT_5_MP",
+            "HANDS_100_MP",
+            "WIN_BY_FOLD_10_MP",
+            "DOUBLE_UP_MP",
+            "TRIPLE_UP_MP",
+            "POT_5000_MP",
+        )
+        for (id in mpIds) {
             val inventory = CapturingInventory()
             val catalog = FakeCatalog.empty()
             post(inventory, catalog, defaultPolicy, id) { resp ->

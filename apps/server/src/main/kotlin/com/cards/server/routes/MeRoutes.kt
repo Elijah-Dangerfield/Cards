@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
@@ -26,6 +27,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import org.slf4j.LoggerFactory
+import java.util.UUID
 
 /**
  * `GET /v1/me`              — returns the currently-authenticated user's profile,
@@ -71,6 +73,14 @@ fun Route.meRoutes(
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val profile = repository.findOrCreate(userId)
+            // Tag the profile with the caller's install_id (header). The
+            // L1 orphan-cleanup task — once it lands — consults this column
+            // to find prior anon rows that share the same install_id.
+            // Malformed headers are silently dropped; clients on builds
+            // older than V49 send no header and skip the tag entirely.
+            call.request.headers[INSTALL_ID_HEADER]
+                ?.let { parseUuidOrNull(it) }
+                ?.let { repository.touchInstallId(userId, it) }
             call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
         }
 
@@ -209,6 +219,21 @@ fun Route.meRoutes(
 }
 
 private val NAME_LENGTH = 1..32
+
+/**
+ * Per-install identifier set by the client on every authenticated request
+ * (see `ClientHeaders.HEADER_INSTALL_ID` in :libraries:networking). Used by
+ * the L1 orphan-cleanup design — see docs/recovery-and-orphaned-accounts.md.
+ */
+internal const val INSTALL_ID_HEADER: String = "X-Install-Id"
+
+/**
+ * Parse [raw] as a UUID, or null if it doesn't conform. We swallow the
+ * malformed case rather than 400-ing because the header is opaque metadata
+ * — the request itself is independent of whether we can record it.
+ */
+private fun parseUuidOrNull(raw: String): UUID? =
+    Catching { UUID.fromString(raw) }.getOrNull()
 
 private fun problem(code: String, message: String): Map<String, Map<String, String>> =
     mapOf("error" to mapOf("code" to code, "message" to message))

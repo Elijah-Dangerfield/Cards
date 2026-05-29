@@ -34,6 +34,13 @@ object ProfilesTable : Table("profiles") {
      * race-free ordering across concurrent first-contact inserts.
      */
     val seq = long("seq").uniqueIndex("profiles_seq_uq")
+    /**
+     * Client-generated UUID per app installation (V49). Tagged on every
+     * `/v1/me` request from the `X-Install-Id` header. Nullable for legacy
+     * rows that existed before V49 landed; steady-state non-null for any
+     * profile that's seen one authed `/v1/me` from a current client.
+     */
+    val installId = uuid("install_id").nullable()
     override val primaryKey = PrimaryKey(userId)
 }
 
@@ -134,6 +141,20 @@ object WalletEventsTable : Table("wallet_events") {
 }
 
 /**
+ * Snapshot of the live `GameSession` state for a room. One row per active
+ * session, overwritten on every state mutation inside the per-session
+ * mutex. Hydrated on registry lookup when in-memory has no entry for the
+ * code (server restart path). See `V48__room_sessions.sql`.
+ */
+object RoomSessionsTable : Table("room_sessions") {
+    val sessionId = uuid("session_id")
+    val roomCode = text("room_code").uniqueIndex("room_sessions_room_code_uq")
+    val stateJsonb = jsonb("state_jsonb")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(sessionId)
+}
+
+/**
  * Per-user in-app messages. Authored by admins, delivered as either a
  * dialog (modal pop on foreground) or an inbox row (passive entry in
  * the Notifications screen). Acked exactly once; expiry filters out
@@ -155,27 +176,3 @@ object UserMessagesTable : Table("user_messages") {
     override val primaryKey = PrimaryKey(id)
 }
 
-/**
- * Durable event log for the multiplayer event-sourced state machine
- * (docs/todo.md §B0 / docs/decisions.md 2026-05-27 MP architecture
- * revisit). See `V31__game_events.sql` — V31 only provisions the
- * surface; the producer that actually appends rows lands with the next
- * B0 sub-item.
- *
- * `event_jsonb` is the kotlinx-side `GameEventEnvelope(v, type,
- * payload)` (libraries/gameplay) — the `v` field is the envelope
- * version discriminator a future v2 reader forks on. `event_type`
- * mirrors the kotlinx `@SerialName` for cheap SQL filtering without
- * unmarshalling JSONB. The Exposed column type wraps the JSONB value
- * as a `PGobject(type="jsonb")` on write (text→jsonb has no implicit
- * cast in Postgres) and exchanges it as `String` on read — callers
- * (de)serialize at the application layer via kotlinx-serialization.
- */
-object GameEventsTable : Table("game_events") {
-    val sessionId = uuid("session_id")
-    val seq = long("seq")
-    val occurredAt = timestamp("occurred_at")
-    val eventType = text("event_type")
-    val eventJsonb = jsonb("event_jsonb")
-    override val primaryKey = PrimaryKey(sessionId, seq)
-}

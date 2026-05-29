@@ -10,6 +10,9 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import com.dangerfield.cards.server.plugins.SpanAttrs
+import com.dangerfield.cards.server.plugins.withSpan
+import io.opentelemetry.api.trace.Span
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -19,7 +22,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 
 /**
@@ -57,19 +59,22 @@ import kotlin.random.Random
 class GameSession internal constructor(
     private val random: Random = Random.Default,
     /**
-     * Stable identity for this session's row family in `game_events`.
-     * Stamped at construction so the registry's `code → session` map
-     * can stay string-keyed today while every persisted event carries
-     * the UUID the future event-sourced replay path (B1+) reads back.
+     * Stable identity for this session. Stamped at construction so the
+     * registry's `code → session` map can stay string-keyed today while
+     * the B0 `room_sessions` snapshot table keys rows by a stable UUID.
      */
     val id: UUID = UUID.randomUUID(),
     /**
-     * Durable log surface. Writes inside the mutex, before any
-     * in-memory mutation or `_events` broadcast — see [applyIntent].
-     * Defaults to [GameEventWriter.NoOp] so engine-focused unit tests
-     * stay terse.
+     * Called inside the per-session mutex after every state mutation
+     * (start hand, apply intent, request next hand, hydrate). The
+     * registry wires this to the snapshot store so durable state stays
+     * in step with the in-memory cache. Suspends with the mutex held —
+     * the snapshot write must complete (or fail loudly) before the
+     * mutation returns, so a concurrent intent can't observe out-of-
+     * order durable state. Defaults to no-op for tests / unit code that
+     * doesn't need persistence.
      */
-    private val eventWriter: GameEventWriter = GameEventWriter.NoOp,
+    private val onStateChange: suspend (GameState) -> Unit = {},
 ) {
     private val mutex = Mutex()
 
@@ -107,7 +112,15 @@ class GameSession internal constructor(
         occupants: List<SeatOccupant>,
         settings: RoomSettings,
     ): IntentResult = mutex.withLock {
-        startHandLocked(occupants, settings)
+        withSpan(
+            name = "start_hand",
+            configure = {
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.OccupantsCount, occupants.size.toLong())
+            },
+        ) {
+            startHandLocked(occupants, settings)
+        }
     }
 
     /**
@@ -131,33 +144,113 @@ class GameSession internal constructor(
             ?: return@withLock IntentResult.Rejected("no active hand")
         if (clientNonce in processedNonces) return@withLock IntentResult.Accepted
 
-        val seat = current.seats.firstOrNull { it.playerId == actorUserId }
-            ?: return@withLock IntentResult.Rejected("not seated in this room")
-        if (current.actingSeatIndex != seat.index) {
-            return@withLock IntentResult.Rejected("not your turn")
-        }
-        if (intent.seatIndex != seat.index) {
-            return@withLock IntentResult.Rejected("intent seat does not match caller")
+        // Stamp session-scoped attributes on whatever span is current —
+        // this is the outer `submit_intent` span when the caller is the
+        // WS route, or no-op when the SDK isn't configured. Cheap either
+        // way; keeps session.id + hand.number visible at the trace root.
+        Span.current().apply {
+            setAttribute(SpanAttrs.SessionId, id.toString())
+            setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
         }
 
-        val result = try {
-            GameEngine.applyIntent(current, intent)
-        } catch (e: IllegalArgumentException) {
-            return@withLock IntentResult.Rejected(e.message ?: "illegal intent")
+        val validation = withSpan(
+            name = "validate_intent",
+            configure = {
+                setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            val seat = current.seats.firstOrNull { it.playerId == actorUserId }
+                ?: return@withSpan IntentValidation.Rejected("not seated in this room")
+            if (current.actingSeatIndex != seat.index) {
+                return@withSpan IntentValidation.Rejected("not your turn")
+            }
+            if (intent.seatIndex != seat.index) {
+                return@withSpan IntentValidation.Rejected("intent seat does not match caller")
+            }
+            IntentValidation.Ok
         }
-        try {
-            eventWriter.append(id, result.events)
-        } catch (t: CancellationException) {
-            throw t
-        } catch (t: Throwable) {
-            return@withLock IntentResult.Rejected(
-                "persistence failed: ${t.message ?: t::class.simpleName ?: "unknown"}",
-            )
+        if (validation is IntentValidation.Rejected) {
+            return@withLock IntentResult.Rejected(validation.reason)
         }
-        _state.value = result.state
-        result.events.forEach { _events.tryEmit(it) }
-        recordNonce(clientNonce)
-        IntentResult.Accepted
+
+        val resolved: EngineResolution = withSpan(
+            name = "engine.apply_intent",
+            configure = {
+                setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            try {
+                EngineResolution.Resolved(GameEngine.applyIntent(current, intent))
+            } catch (e: IllegalArgumentException) {
+                EngineResolution.Rejected(e.message ?: "illegal intent")
+            }
+        }
+        when (resolved) {
+            is EngineResolution.Rejected -> return@withLock IntentResult.Rejected(resolved.reason)
+            is EngineResolution.Resolved -> {
+                // The state-mutate span covers the durable side-effects:
+                // emit the new state, persist via `onStateChange` (which
+                // hits the snapshot store — the meaningful I/O latency on
+                // this path), fan events, record the nonce. Wrapping
+                // these in their own span lets Tempo show "persist
+                // latency" as a child of the parent submit_intent root
+                // instead of folding into engine.apply_intent's wall
+                // time, which would be misleading.
+                withSpan(
+                    name = "state_mutate",
+                    configure = {
+                        setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
+                        setAttribute(SpanAttrs.SessionId, id.toString())
+                        setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+                    },
+                ) {
+                    _state.value = resolved.result.state
+                    onStateChange(resolved.result.state)
+                    resolved.result.events.forEach { _events.tryEmit(it) }
+                    recordNonce(clientNonce)
+                }
+                return@withLock IntentResult.Accepted
+            }
+        }
+    }
+
+    /**
+     * Result of the validate_intent span. Lifted into a sealed type so
+     * the span body can return the early-reject reason without `throw`
+     * (cancellation-shaped exceptions would mark the span as ERROR; a
+     * validation rejection is expected control flow, not a fault).
+     */
+    private sealed interface IntentValidation {
+        data object Ok : IntentValidation
+        data class Rejected(val reason: String) : IntentValidation
+    }
+
+    /**
+     * Internal carrier for the `engine.apply_intent` span's return value
+     * — Kotlin's exception-based rejection signal doesn't compose with
+     * the [withSpan] return-value flow, so we lift the dichotomy into a
+     * sealed type.
+     */
+    private sealed interface EngineResolution {
+        data class Resolved(val result: com.dangerfield.cards.libraries.gameplay.StepResult) : EngineResolution
+        data class Rejected(val reason: String) : EngineResolution
+    }
+
+    /**
+     * Restart-time loader. Pushes a previously-persisted [GameState]
+     * into the session without re-running the engine. Intended only for
+     * the registry's hydration path — application code that wants a
+     * mutation goes through [startHand] / [applyIntent] / [requestNextHand].
+     * No `onStateChange` callback fires here: the snapshot is already
+     * durable, and re-writing it the moment we read it would be
+     * pointless I/O.
+     */
+    suspend fun hydrate(state: GameState) = mutex.withLock {
+        _state.value = state
     }
 
     /**
@@ -198,7 +291,15 @@ class GameSession internal constructor(
         }
 
         recordNonce(clientNonce)
-        startHandLocked(occupants, settings)
+        withSpan(
+            name = "request_next_hand",
+            configure = {
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            startHandLocked(occupants, settings)
+        }
     }
 
     private suspend fun startHandLocked(
@@ -250,16 +351,8 @@ class GameSession internal constructor(
             buttonSeatIndex = newButton,
             deck = deck,
         )
-        try {
-            eventWriter.append(id, result.events)
-        } catch (t: CancellationException) {
-            throw t
-        } catch (t: Throwable) {
-            return IntentResult.Rejected(
-                "persistence failed: ${t.message ?: t::class.simpleName ?: "unknown"}",
-            )
-        }
         _state.value = result.state
+        onStateChange(result.state)
         result.events.forEach { _events.tryEmit(it) }
         return IntentResult.Accepted
     }
