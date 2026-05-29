@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.SweepResult
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.plugins.ServerMetrics
 import kotlinx.coroutines.CancellationException
 import me.tatarka.inject.annotations.Inject
 import org.slf4j.LoggerFactory
@@ -40,6 +41,7 @@ class DefaultOrphanAnonymousSweep(
     override suspend fun run(maxInactiveAge: Duration): SweepResult {
         val threshold = clock.now() - maxInactiveAge
         val candidates = adminClient.listAnonymousUsersOlderThan(threshold)
+        val ttlDays = maxInactiveAge.inWholeDays
 
         // listAnonymousUsersOlderThan returns empty when service-role isn't
         // set, but we can't tell that from the result alone. Probe with a
@@ -50,8 +52,10 @@ class DefaultOrphanAnonymousSweep(
                 logger.warn("Anonymous sweep skipped: SUPABASE_SERVICE_ROLE_KEY is not set")
                 return SweepResult(candidatesFound = 0, deleted = 0, failedToDelete = 0, notConfigured = true)
             }
+            ServerMetrics.recordAnonOrphanCandidates(count = 0L, ttlDays = ttlDays)
             return SweepResult(candidatesFound = 0, deleted = 0, failedToDelete = 0, notConfigured = false)
         }
+        ServerMetrics.recordAnonOrphanCandidates(count = candidates.size.toLong(), ttlDays = ttlDays)
 
         var deleted = 0
         var failed = 0

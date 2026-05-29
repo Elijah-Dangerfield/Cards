@@ -9,6 +9,7 @@ import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender
 import io.opentelemetry.sdk.testing.exporter.InMemoryLogRecordExporter
+import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -38,6 +39,14 @@ class TelemetryTest {
     fun resetExporter() {
         exporter.reset()
         logExporter.reset()
+    }
+
+    @org.junit.After
+    fun resetMetrics() {
+        // Each metric test re-registers the gauge with a known value;
+        // tear down so the next test starts from a clean slate. Other
+        // tests don't touch ServerMetrics so this is a no-op for them.
+        ServerMetrics.reset()
     }
 
     @Test
@@ -269,6 +278,7 @@ class TelemetryTest {
     companion object {
         private val exporter = InMemorySpanExporter.create()
         private val logExporter = InMemoryLogRecordExporter.create()
+        private val metricReader = InMemoryMetricReader.create()
         private val sdk = buildOpenTelemetrySdk(
             ObservabilityConfig(
                 otlpEndpoint = null,
@@ -279,6 +289,7 @@ class TelemetryTest {
             ),
             spanExporter = exporter,
             logRecordExporter = logExporter,
+            metricReader = metricReader,
         )
 
         @BeforeClass
@@ -306,6 +317,58 @@ class TelemetryTest {
             method.isAccessible = true
             method.invoke(null)
         }
+    }
+
+    @Test
+    fun serverMetrics_anonOrphansGauge_emitsRecordedValueWithTtlAttribute() {
+        ServerMetrics.register()
+        ServerMetrics.recordAnonOrphanCandidates(count = 17L, ttlDays = 30L)
+
+        val metrics = metricReader.collectAllMetrics()
+        val gauge = metrics.firstOrNull { it.name == "cards.anon_orphans.over_ttl" }
+        assertNotNull(gauge, "expected cards.anon_orphans.over_ttl gauge; got ${metrics.map { it.name }}")
+        val point = gauge.longGaugeData.points.single()
+        assertEquals(17L, point.value)
+        assertEquals(30L, point.attributes.get(MetricAttrs.OrphanSweepTtlDays))
+    }
+
+    @Test
+    fun serverMetrics_anonOrphansGauge_silentBeforeFirstRecord() {
+        ServerMetrics.register()
+        // No recordAnonOrphanCandidates call → callback should skip
+        // emission so a freshly-booted server doesn't report a fake "0
+        // orphans" sample before the first sweep runs.
+        val metrics = metricReader.collectAllMetrics()
+        val gauge = metrics.firstOrNull { it.name == "cards.anon_orphans.over_ttl" }
+        assertTrue(
+            gauge == null || gauge.longGaugeData.points.isEmpty(),
+            "expected no measurements before the first sweep run; got ${gauge?.longGaugeData?.points}",
+        )
+    }
+
+    @Test
+    fun serverMetrics_anonOrphansGauge_reflectsLatestRecordedValue() {
+        ServerMetrics.register()
+        ServerMetrics.recordAnonOrphanCandidates(count = 5L, ttlDays = 30L)
+        ServerMetrics.recordAnonOrphanCandidates(count = 12L, ttlDays = 30L)
+
+        val metrics = metricReader.collectAllMetrics()
+        val gauge = metrics.first { it.name == "cards.anon_orphans.over_ttl" }
+        val point = gauge.longGaugeData.points.single()
+        assertEquals(12L, point.value)
+    }
+
+    @Test
+    fun serverMetrics_register_isIdempotent_doesNotDoubleCount() {
+        ServerMetrics.register()
+        ServerMetrics.register()
+        ServerMetrics.recordAnonOrphanCandidates(count = 4L, ttlDays = 30L)
+
+        val metrics = metricReader.collectAllMetrics()
+        val gauge = metrics.first { it.name == "cards.anon_orphans.over_ttl" }
+        // Exactly one point — a double-register would have produced two.
+        val point = gauge.longGaugeData.points.single()
+        assertEquals(4L, point.value)
     }
 
     @Test
