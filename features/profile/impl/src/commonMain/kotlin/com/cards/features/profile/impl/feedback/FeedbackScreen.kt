@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_feedback_char_counter
+import cards.libraries.resources.generated.resources.profile_feedback_error_message_required
 import cards.libraries.resources.generated.resources.profile_feedback_field_email_label
 import cards.libraries.resources.generated.resources.profile_feedback_field_email_placeholder
 import cards.libraries.resources.generated.resources.profile_feedback_field_message_label
@@ -150,10 +151,10 @@ fun FeedbackScreen(
                 )
             }
 
-            state.errorMessage?.let {
+            state.errorMessage?.let { err ->
                 VerticalSpacerD500()
                 Text(
-                    text = it,
+                    text = err.message(),
                     color = AppTheme.colors.danger,
                     textAlign = TextAlign.Start
                 )
@@ -229,8 +230,8 @@ private fun FeedbackScreenPreview_Error() {
     PreviewContent {
         FeedbackScreen(
             state = FeedbackState(
-                message = "Stuck on the lobby screen after rejoining.",
-                errorMessage = "Couldn't send feedback — check your connection and try again.",
+                message = "",
+                errorMessage = FeedbackError.MessageRequired,
             ),
             onAction = {},
         )
@@ -248,4 +249,10 @@ private fun FeedbackScreenPreview_CharLimitReached() {
             onAction = {},
         )
     }
+}
+
+@Composable
+private fun FeedbackError.message(): String = when (this) {
+    FeedbackError.MessageRequired ->
+        stringResource(Res.string.profile_feedback_error_message_required)
 }

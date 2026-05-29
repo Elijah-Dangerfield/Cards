@@ -21,6 +21,7 @@ import cards.libraries.resources.generated.resources.profile_bug_char_counter
 import cards.libraries.resources.generated.resources.profile_bug_context_error_code_label
 import cards.libraries.resources.generated.resources.profile_bug_context_report_id_label
 import cards.libraries.resources.generated.resources.profile_bug_context_section_title
+import cards.libraries.resources.generated.resources.profile_bug_error_message_required
 import cards.libraries.resources.generated.resources.profile_bug_field_email_label
 import cards.libraries.resources.generated.resources.profile_bug_field_email_placeholder
 import cards.libraries.resources.generated.resources.profile_bug_field_message_label
@@ -183,10 +184,10 @@ fun BugReportScreen(
                 )
             }
 
-            state.errorMessage?.let {
+            state.errorMessage?.let { err ->
                 VerticalSpacerD500()
                 Text(
-                    text = it,
+                    text = err.message(),
                     color = AppTheme.colors.danger,
                     textAlign = TextAlign.Start
                 )
@@ -267,10 +268,16 @@ private fun BugReportScreenPreview_Error() {
     PreviewContent {
         BugReportScreen(
             state = BugReportState(
-                message = "App crashed on launch.",
-                errorMessage = "We couldn't send your report. Check your connection and try again.",
+                message = "",
+                errorMessage = BugReportError.MessageRequired,
             ),
             onAction = {},
         )
     }
+}
+
+@Composable
+private fun BugReportError.message(): String = when (this) {
+    BugReportError.MessageRequired ->
+        stringResource(Res.string.profile_bug_error_message_required)
 }

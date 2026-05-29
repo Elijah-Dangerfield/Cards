@@ -54,6 +54,32 @@ class BugReportViewModelTest : CoroutineTest() {
         assertEquals("boom", vm.state.contextMessage)
     }
 
+    @Test
+    fun submit_blankMessage_surfacesMessageRequiredError_andSkipsRepoCall() = runUnitTest {
+        val repository = ControllableFeedbackRepository(CompletableDeferred())
+        val vm = buildVm(
+            profile = StubProfile(authenticatedWith(email = "alice@example.com")),
+            repository = repository,
+        )
+        runCurrent()
+
+        vm.takeAction(BugReportAction.Submit)
+
+        assertEquals(BugReportError.MessageRequired, vm.state.errorMessage)
+        assertEquals(0, repository.submitStarted, "blank message must short-circuit before any submit")
+    }
+
+    @Test
+    fun messageChanged_clearsExistingError() = runUnitTest {
+        val vm = buildVm(profile = StubProfile(authenticatedWith(email = "alice@example.com")))
+        runCurrent()
+        vm.takeAction(BugReportAction.Submit)
+        assertEquals(BugReportError.MessageRequired, vm.state.errorMessage)
+
+        vm.takeAction(BugReportAction.MessageChanged("typing fixes it"))
+        assertEquals(null, vm.state.errorMessage)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun submit_serverCallSurvivesViewModelTeardown() = runUnitTest {

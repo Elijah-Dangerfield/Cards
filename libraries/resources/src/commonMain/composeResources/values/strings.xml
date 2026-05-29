@@ -425,6 +425,8 @@
     <string name="profile_feedback_char_counter">%1$d/%2$d</string>
     <string name="profile_feedback_submit_button">Send</string>
     <string name="profile_feedback_submit_button_progress">Sending…</string>
+    <string name="profile_feedback_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_feedback_snackbar_thanks">Got it. Thank you!</string>
 
     <!-- Profile — Report a bug form. -->
     <string name="profile_bug_title">Report a Bug</string>
@@ -439,6 +441,8 @@
     <string name="profile_bug_char_counter">%1$d/%2$d</string>
     <string name="profile_bug_submit_button">Send</string>
     <string name="profile_bug_submit_button_progress">Sending…</string>
+    <string name="profile_bug_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_bug_snackbar_thanks">Thanks for reporting this!</string>
 
     <!-- Profile — My items inventory screen. -->
     <string name="profile_my_items_title">My items</string>
