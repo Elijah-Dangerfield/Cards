@@ -67,12 +67,12 @@ fun StatsExplainersSheet(
 private fun HowToEarnCard() {
     SheetInfoCard {
         SheetBullet("Finishing a hand — every hand counts, even quick folds")
-        SheetBullet("Chips you put in the pot — playing more invested hands earns more")
+        SheetBullet("Chips you put in the pot — invested hands earn more")
         SheetBullet("Reaching showdown — bonus for sticking around to the end")
         SheetBullet("Stronger hands at showdown — bigger reveals, bigger reward")
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Bots count at half the rate of multiplayer. XP never depends on whether you win or lose the hand — just on how engaged you were.",
+            text = "Bot hands earn at half the rate of multiplayer. XP never depends on whether you win or lose — just on how engaged the hand was.",
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
             textAlign = TextAlign.Start,
@@ -84,13 +84,17 @@ private fun HowToEarnCard() {
 private fun WhatXpDoesCard() {
     SheetInfoCard {
         Text(
-            text = "XP is your lifetime engagement score. It never goes down. Every session adds to it whether you stack chips or bust out.",
+            text = "XP is your lifetime engagement score — it never goes down. Every session adds to it whether you stack chips or bust out.",
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
         )
         Spacer(modifier = Modifier.height(8.dp))
+        SheetBullet("Unlocks shop items as you climb — titles, emote packs, table felts, utilities, and more")
+        SheetBullet("Earns achievement medallions for milestones — find them in your items")
+        SheetBullet("Drives your level pill and seat-level badge across the app")
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Future updates will unlock cosmetics, table titles, and achievement badges as your XP climbs. Multiplayer earns 2× when it ships.",
+            text = "Multiplayer hands will earn 2× when it ships.",
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.textSecondary,
         )
@@ -132,7 +136,7 @@ private fun SheetBullet(text: String) {
 private fun SheetSectionTitle(text: String) {
     Text(
         text = text,
-        typography = AppTheme.typography.Body.B500,
+        typography = AppTheme.typography.Body.B600.SemiBold,
         color = AppTheme.colors.text,
     )
 }

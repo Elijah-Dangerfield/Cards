@@ -55,6 +55,15 @@ fun AvatarCircle(
      * surface routes through [resolveAvatarBackground].
      */
     backgroundColorHex: String? = null,
+    /**
+     * Set to `false` on surfaces that re-mount with a brief placeholder
+     * → emoji hand-off (e.g. the profile-screen header, which rebuilds
+     * its flow on every navigation). The internal fadeIn+scaleIn would
+     * otherwise replay on every visit and read as a fresh entrance.
+     * Picker-style surfaces (edit-profile hero, picker grid) leave this
+     * `true` so swaps remain responsive.
+     */
+    animationsEnabled: Boolean = true,
 ) {
     val bg = resolveAvatarBackground(backgroundColorHex)
     val initial = name.firstOrNull()?.uppercase() ?: "?"
@@ -71,19 +80,24 @@ fun AvatarCircle(
             .background(bg),
         contentAlignment = Alignment.Center,
     ) {
+        if (!animationsEnabled) {
+            Text(
+                text = content.text,
+                typography = if (content.isEmoji) emojiTypography else typography,
+                color = AppTheme.colors.text,
+            )
+            return@Box
+        }
+
         // Animate emoji/initial changes so picker selections feel responsive
         // (fade + slight scale-in on new, fade out on old). Matches the hero
-        // preview in edit-profile — every avatar surface routes through here
-        // so the transition is consistent app-wide.
+        // preview in edit-profile.
         //
-        // Gate: only animate AFTER the first real emoji has rendered. The
-        // previous `hasComposed` gate (flip-after-first-composition) still
-        // let the entrance fire when the profile tab mounted with the
-        // initial-fallback then resolved a frame later to the user's emoji —
-        // every tab visit twitched. Keying the gate on `content.isEmoji`
-        // instead suppresses that placeholder → real-data hand-off, while
-        // EditProfile (which mounts with the user's current emoji already
-        // resolved) still animates every picker swap.
+        // Gate: only animate AFTER the first real emoji has rendered, so the
+        // initial placeholder → emoji hand-off doesn't twitch. Surfaces that
+        // re-mount on every visit (profile header) opt out via
+        // [animationsEnabled] because the LaunchedEffect/state gate races
+        // with the synchronous emission of cached profile data.
         var hasShownAnEmoji by remember { mutableStateOf(false) }
         LaunchedEffect(content.isEmoji) {
             if (content.isEmoji) hasShownAnEmoji = true

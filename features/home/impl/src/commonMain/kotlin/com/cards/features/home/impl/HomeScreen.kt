@@ -1,9 +1,8 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
@@ -60,6 +59,18 @@ fun HomeScreen(
     scrollState: ScrollState = rememberScrollState(),
 ) {
     val state by viewModel.stateFlow.collectAsStateWithLifecycle()
+    // [recent-achievements-delay] One line per recomposition of HomeScreen
+    // — pin whether the VM state actually carries achievements at the
+    // moment Compose pulls it. If `vm=<hash>` stays constant across tab
+    // switches and `items` is non-empty immediately on return, the delay
+    // is *somewhere downstream of this read* (animation, layout, etc).
+    // If `items=0` for the first few frames, the VM state was reset.
+    com.dangerfield.cards.libraries.core.logging.KLog
+        .withTag("HomeScreen")
+        .i {
+            "[recent-achievements-delay] compose — vm=${viewModel.hashCode()} " +
+                "items=${state.recentAchievements.size}"
+        }
     HomeScreenContent(
         levelProgress = state.levelProgress,
         // Nullable on purpose: null = "local DB hasn't emitted yet"
@@ -142,8 +153,10 @@ private fun HomeScreenContent(
 
             AnimatedVisibility(
                 visible = showTutorialBanner,
-                enter = expandVertically(animationSpec = tween(240)) +
-                    fadeIn(animationSpec = tween(180)),
+                // Enter snaps — every revisit to home would otherwise
+                // replay the expand+fade and read as a fresh "new here"
+                // appearance. Only the dismissal animates.
+                enter = EnterTransition.None,
                 exit = shrinkVertically(animationSpec = tween(220)) +
                     fadeOut(animationSpec = tween(140)),
             ) {

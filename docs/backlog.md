@@ -211,7 +211,15 @@ Blocker on doing it now: should land alongside the `popExit = enter.reversal()` 
 
 **The exploit (raised 2026-05-23):** Today a user can uninstall + reinstall to mint a new anonymous Supabase user → server `WalletRepository.findOrCreate` grants a fresh 10K starter. Repeat indefinitely. Nothing in the chain checks "is this a device we've already paid out."
 
-**What the spec says — already V1-scope, just not built.** [product-spec.md §6.1 "Anti-farming on the starter grant"](./product/product-spec.md#anti-farming-on-the-starter-grant) and [v1-mvp.md line 48](./product/v1-mvp.md) both call for one-starter-per-device-fingerprint. So this isn't a new idea; it's a tracked gap from spec to implementation.
+**What the spec says — already V1-scope, just not built.** [product-spec.md §6.1 "Anti-farming on the starter grant"](./product/product-spec.md#anti-farming-on-the-starter-grant) calls for one-starter-per-device-fingerprint. So this isn't a new idea; it's a tracked gap from spec to implementation.
+
+**Update 2026-05-29 — scope-cut for V1, full design preserved here:** This gate is **not** shipping in V1. Per [decisions.md 2026-05-29 — V1 scope: install_id only](./decisions.md), the V1 wallet starter mints unconditionally on every fresh anon — the exploit stays open at the wallet layer, and the disincentive is purely intrinsic (farmer loses their old account + all its progress every loop). When this becomes a real complaint / revenue concern, two upgrade paths are pre-designed:
+
+- **Option B (~3 days):** add `identifierForVendor` (iOS) / `Settings.Secure.ANDROID_ID` (Android) to the request; gate `WalletRepository.findOrCreate` with `WHERE platform_device_id = X AND starter_granted = TRUE`. Closes the casual same-device reinstall vector. Doesn't survive factory reset or new-device migration, which is fine — those are different humans most of the time. Two one-line platform reads, no KMP keychain work. Also unlocks same-device revival on reinstall as a bonus (covered separately in [`recovery-and-orphaned-accounts.md`](./recovery-and-orphaned-accounts.md)).
+
+- **Option C (~1–2 weeks):** add a `recovery_id` column on `profiles`, generated client-side and persisted via iCloud Keychain (`kSecAttrSynchronizable=true`) + Android Block Store. Survives reinstall *and* device migration (rides the user's platform account, not hardware). Anti-farm gate becomes `WHERE recovery_id = X AND starter_granted = TRUE` — same human across all their devices gets one starter. Detailed design at [`recovery-and-orphaned-accounts.md`](./recovery-and-orphaned-accounts.md); the full pre-scope-cut design (Welcome-back screen, splash boot tree, recovery endpoint) is preserved in git at `13b84b37` for when this is on the table.
+
+Direction A and B below predate the scope-cut and remain as alternative implementation sketches if either Option above is ever picked up.
 
 **Existing scaffolding worth knowing about:**
 - `AppIntegrityVerifier` interface exists in `apps/server/.../domain/AppIntegrityVerifier.kt` but binds only to `NoOpAppIntegrityVerifier` — every request passes. KDoc says "enforce before first invited-real-users release."

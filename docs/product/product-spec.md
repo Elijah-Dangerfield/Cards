@@ -5,7 +5,6 @@
 Cards is a gamified social poker app for the 18–34 player who plays poker for fun, not income. V1 ships as No-Limit Texas Hold'em; V2+ adds other card games. Brand center is competitive multiplayer with weekly leagues; solo / bot play is a first-class supported mode.
 
 **Companion docs:**
-- [v1-mvp.md](./v1-mvp.md) — V1 launch scope
 - [decisions.md](../decisions.md) — engineering decision log
 - [Appendix C](#appendix-c--removed-mechanics) — design decisions we considered and rejected
 
@@ -511,19 +510,19 @@ Each tier is one fixed (blind, buy-in) pair. Buy-in is 100× big blind (standard
 ### 5.5 Table-side social
 
 **Emoji blasts (V1):**
-- Pool of ~12 base (🔥 🎉 😱 🤡 💀 👀 🥶 🤯 💸 🙏 😎 🥲)
 - One-tap from bottom tray
 - Full-screen ~1.5s animation
 - 8-second cooldown per user
 - "Mute this player's emoji" available from tap-avatar surface
-- Additional themed packs unlockable via shop
+- Themed packs unlockable via shop (no base / freebie pool — every emoji ships inside a pack a player owns or earns)
 
-**Reactive emoji (auto-fired by the game, V1):**
+**Reactive emoji (auto-fired by the game, V1.2):**
 - 🤯 on a >50BB pot
 - 🥶 on a 2-outer river beat
 - 🎉 on first hand-win of session
 - 💀 on bust
 - Toggleable in settings
+- Deferred to V1.2 alongside the rest of the Phase 10 polish layer.
 
 **Ephemeral in-game chat (V1.x, *not* V1):**
 
@@ -562,39 +561,34 @@ Per [decisions.md 2026-05-14](../decisions.md). Users can play **everything** �
 
 Anonymous identity is **server-side**, keyed to a UUID generated at first launch. On uninstall, the local UUID is wiped (iOS wipes app data on uninstall; Android usually does). So "stored UUID" alone doesn't survive a reinstall — we need additional signals to recover the account.
 
-#### Best-effort account revival on reinstall
+#### No account revival on reinstall (V1)
 
-We make every reasonable attempt to recover an anonymous user's state when they come back. Signal hierarchy, in order of preference:
+**Decision 2026-05-29 — see [decisions.md](../decisions.md):** V1 ships without an anonymous-account revival mechanism. Earlier drafts of this section described a fingerprint + platform-keychain recovery flow; that work was scope-cut to defer the KMP keychain infrastructure to V1.x. Pre-cut design preserved in git at `13b84b37`; upgrade paths preserved in [backlog.md](../backlog.md) (Option B = `identifierForVendor` / `ANDROID_ID` for same-device-reinstall revival; Option C = recovery_id via iCloud Keychain + Block Store for cross-device).
 
-1. **App-stored UUID** — survives app updates and OS upgrades, *not* uninstall. Primary mechanism for continuity, not recovery.
-2. **Server-side device fingerprint** — the primary mechanism for *recovery* on reinstall. On every launch, the app reports a fingerprint (device class, OS version, locale, network indicators); the server checks for a matching anonymous account from the last 6 months. Match = offer to restore. Same mechanism powers anti-farming on the starter grant (§4.1) — one unified system.
-3. **Platform-level backup** — iCloud Keychain (iOS), Block Store (Android). We write the anonymous account credential to platform backup on first launch and on every claim-prompt dismissal, so even users who refuse to sign in get cross-device protection *if they have platform backup enabled*. Restores automatically across device migration.
-4. **Sign in with Apple / Google** — the only mechanism that works in 100% of cases. The case we make to anonymous users at claim-prompt moments (§5.11 voice-and-copy): *"this is the durable way; the others are best-effort."*
+**Behavioral V1 reality for anonymous users:**
 
-**Recovery flow on reinstall:**
+- **Uninstall = account lost.** App-stored UUID is wiped; no other signal recovers the account.
+- **Device switch = fresh start.** No mechanism carries the account across.
+- **Claim (Apple / Google / email) is the only durable identity path.** If a user wants their account to survive a reinstall or device switch, claim is the answer.
 
-1. App launches with no local UUID
-2. Reports fingerprint to server, checks platform keychain in parallel
-3. If either matches an account in the last 6 months → *"Welcome back. We found your account: `QuietAce72` · Level 12 · 8,200 chips."* `[Continue] [Start fresh]`
-4. If neither matches → treat as new user, auto-identity + starter chips (subject to fingerprint anti-farming check)
+**The loss-disclosure UX surfaces this clearly** — see [recovery-and-orphaned-accounts.md "Loss-disclosure UX"](../recovery-and-orphaned-accounts.md) — so users know to claim *before* they uninstall, not after. These disclosures fire at moments where the consequence is concrete (shop pre-purchase, stats banner once progress accumulates), distinct from the proactive claim prompts rejected by the [2026-05-20 decision](../decisions.md).
 
-**What this gets us:** the realistic outcome for the common case (anonymous user uninstalls, reinstalls weeks later on the same device) is **near-certain recovery** via fingerprint. Device-switch is recovered if platform backup is enabled. Only true wipe-and-no-backup loses state — and that's the case where we'd been prompting them to claim all along.
+**Loss vectors fully accepted in V1:**
+- Any uninstall, on any device, for any reason
+- Any device switch, even with iCloud / Google account backup enabled
+- The starter-farm exploit (uninstall + reinstall mints a fresh 10K — the disincentive is intrinsic: the farmer loses their old account's full progress every loop)
 
-**Loss vectors that remain:**
-- True device wipe with no platform backup enabled
-- Device switch with no platform backup enabled
-- User explicitly chooses "Start fresh" on the welcome-back prompt
-- More than 6 months between sessions (recovery window expires)
-
-The risk we accept: a small percentage of anonymous users will lose progress in edge cases. The mitigation is smart prompting toward claim (§5.11) at moments where their stake is meaningful, not forcing claim up front.
+**Revisit trigger:** ship V1, watch for the orphan-account-count metric (filed in [todo.md §C Observability](../todo.md)) and anon-revival support complaints. If either grows, Option B is the cheap first step.
 
 #### Privacy & transparency
 
-Device fingerprinting is privacy-sensitive. We use only the minimum signals necessary for account recovery and anti-farming (device class, OS version, language, region, network indicators) — **not** user identifiers, advertising IDs, or persistent hardware IDs that would survive a factory reset. Data is used solely for account-matching, never sold, never shared with third parties. Surfaced in the privacy section of settings (§5.12 voice-and-copy).
+V1 collects no device fingerprint, no advertising ID, no persistent hardware ID. The only per-installation identifier we generate is an `install_id` (random UUID, app-local only, regenerated on reinstall) used for server-side orphan cleanup and telemetry tagging. If Option B or C ever lands per [backlog.md](../backlog.md), this section gets revisited alongside the privacy implications of the new identifier.
 
 #### Claim is opt-in (no proactive prompts)
 
-We don't ask anonymous users to claim. The original case for prompting was anti-farming on the starter grant, but that's handled by device fingerprinting (above) — claim adds nothing to it. The other benefits of claim (durability, friends, leaderboards, public-room hosting) are real but mostly *for the user*, not for us, and the device-fingerprint + platform-keychain recovery path already covers the common case for durability. Pushing users to claim would be begging for something they don't need to do today, in service of a metric that isn't load-bearing — exactly the anti-pattern §10 brand checks reject.
+We don't ask anonymous users to claim. The other benefits of claim (durability, friends, leaderboards, public-room hosting) are real but mostly *for the user*, not for us. Pushing users to claim would be begging in service of a metric that isn't load-bearing — exactly the anti-pattern §10 brand checks reject.
+
+**Distinct from loss-disclosure UX:** the [V1 no-revival decision](../decisions.md) means *uninstall = account lost* for anon users, so the system surfaces that consequence at moments where it's about to matter (shop pre-purchase, stats banner once progress accumulates). That's *consequence disclosure*, not a proactive claim prompt — different shape, different intent. Details in [recovery-and-orphaned-accounts.md](../recovery-and-orphaned-accounts.md).
 
 **Where claim still surfaces — passively, inline:**
 
@@ -756,7 +750,7 @@ Phases 1 (game engine) and 2 (defensive infra) are done. V1 progression UX is sh
 | --- | --- | --- | --- |
 | **3** | Auth & server persistence | Anonymous-by-default Supabase sign-in, Apple/Google claim, account deletion, server-side XP/chip persistence | ✅ |
 | **4** | Multiplayer foundation | Server-authoritative dealer, Friend Games (room codes + deep links + bot fill + reconnect) | ✅ |
-| **5** | Public rooms + table-side social + moderation | **Public rooms + Quick Match + Browse + stake tiers.** Emoji blasts + reactive emoji, tap-avatar preview. Block / report + manual human review (no auto-bans). Chat deferred to V1.x. | ✅ |
+| **5** | Public rooms + table-side social + moderation | **Public rooms + Quick Match + Browse + stake tiers.** Emoji blasts (user-fired), tap-avatar preview. Block / report + manual human review (no auto-bans). Chat deferred to V1.x; reactive auto-fired emoji deferred to V1.2 (Phase 10). | ✅ |
 | **6** | Notifications | Event-driven push notifications (league / friend / battle pass / Rare+ achievement) | ✅ |
 | **7** | Weekly leagues | 10 tiers, 30-player cohorts, top-7/mid-18/bottom-5, Monday reset, Royal Flush Tournament | V1.1 |
 | **8** | Shop + chip IAP | Catalog by category, three chip packs, common cosmetics; earned cosmetics live in My Items (§4.2), not the shop | ✅ |
