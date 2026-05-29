@@ -13,10 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.system.color.RankBadgeGradient
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 
@@ -38,11 +37,7 @@ fun RankBadge(
             modifier = Modifier
                 .size(20.dp)
                 .clip(CircleShape)
-                .background(
-                    Brush.linearGradient(
-                        listOf(Color(0xFF8E7CC3), Color(0xFFE07AB1)),
-                    ),
-                ),
+                .background(RankBadgeGradient),
             contentAlignment = Alignment.Center,
         ) {
             Text(

@@ -72,4 +72,13 @@ object PokerPalette {
      *  the gold disc, not pure black so it reads as warm-on-metal rather
      *  than ink-on-coin. */
     val CoinGlyph: Color = Color(0xFF3D2A0A)
+
+    /** Rank-badge purple — cool end of the rank disc's linear gradient. Paired
+     *  with [RankBadgePink] to give the multiplayer Elo badge its signature
+     *  two-tone identity. */
+    val RankBadgePurple: Color = Color(0xFF8E7CC3)
+
+    /** Rank-badge pink — warm end of the rank disc's linear gradient. Pairs
+     *  with [RankBadgePurple]. */
+    val RankBadgePink: Color = Color(0xFFE07AB1)
 }
