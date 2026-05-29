@@ -131,7 +131,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.FullHouse),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
-        chipReward = 250L,
     ),
     Achievement(
         id = AchievementId.SHOW_FOUR_OF_KIND,
@@ -141,7 +140,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.EPIC,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.FourOfAKind),
         xpReward = AchievementRarity.EPIC.defaultXpReward,
-        chipReward = 500L,
     ),
     Achievement(
         id = AchievementId.SHOW_STRAIGHT_FLUSH,
@@ -151,7 +149,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.LEGENDARY,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.StraightFlush),
         xpReward = AchievementRarity.LEGENDARY.defaultXpReward,
-        chipReward = 2_000L,
         isMystery = true,
     ),
     Achievement(
@@ -162,7 +159,6 @@ val AllAchievements: List<Achievement> = listOf(
         rarity = AchievementRarity.LEGENDARY,
         criterion = Criterion.ShowAtLeast(HandCategoryGrade.RoyalFlush),
         xpReward = AchievementRarity.LEGENDARY.defaultXpReward,
-        chipReward = 5_000L,
         isMystery = true,
     ),
 

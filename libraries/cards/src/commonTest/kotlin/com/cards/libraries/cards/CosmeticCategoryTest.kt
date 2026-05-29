@@ -38,7 +38,7 @@ class CosmeticCategoryTest {
     fun cosmeticSlotFor_titlePrefix_isTitle() {
         assertEquals(CosmeticSlot.Title, cosmeticSlotFor("title_pot_magnet"))
         assertEquals(CosmeticSlot.Title, cosmeticSlotFor("title_felt_veteran"))
-        assertEquals(CosmeticSlot.Title, cosmeticSlotFor("title_quartet"))
+        assertEquals(CosmeticSlot.Title, cosmeticSlotFor("title_bot_whisperer"))
     }
 
     @Test
@@ -99,7 +99,7 @@ class CosmeticCategoryTest {
     @Test
     fun isPersonalCosmetic_title_isPublic() {
         assertEquals(false, isPersonalCosmetic("title_pot_magnet"))
-        assertEquals(false, isPersonalCosmetic("title_quartet"))
+        assertEquals(false, isPersonalCosmetic("title_bot_whisperer"))
     }
 
     @Test

@@ -41,7 +41,7 @@ The earnable catalog should bias toward axes that *can't* be paid for: usage vol
   - **Buy-only** — chip-pack cosmetics, store-rotation skins, the usual shop catalog.
   Tag every `EarnableCosmetics` entry with its tier so the shop / inventory surfaces can render the right badge. **Out of scope:** building the heat-map / odds-display widgets themselves (separate items once the catalog axis lands).
 
-- `[P1]` **Audit achievement difficulty — retire or raise the bar on trivially-easy entries.** Survey the registry; flag any "show X at showdown" where X is below RARE rarity, "win any pot > N", etc. — these reward RNG, not effort. The four single-showdown title earnables (`royalty` / `suited_run` / `full_boat` / `quartet`) are explicit candidates: either retire the title pairing (keep XP only) or raise the criterion (e.g. "show 3× royal flush"). Pair the call with [Catalog gating audit] above.
+- `[P1]` **Audit achievement difficulty — remaining sweep after the RNG title retire.** The four single-showdown title earnables (`royalty` / `suited_run` / `full_boat` / `quartet`) shipped retired on 2026-05-29: cosmetic pairing dropped, chip rewards stripped, XP-at-rarity intact. **Remaining:** sweep the rest of the registry for other "show X at showdown" or "win any pot > N" entries that reward RNG rather than effort, and decide retire vs. raise the bar per the same pattern. Pair the call with [Catalog gating audit] above.
 
 - `[P2]` **League-tier rewards (blocked on league mechanic).** One earn-only cosmetic per league tier granted at season end. Genuinely blocked — re-pick once leagues land.
 

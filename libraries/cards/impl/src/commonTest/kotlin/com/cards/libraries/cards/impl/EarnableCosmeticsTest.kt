@@ -141,34 +141,6 @@ class EarnableCosmeticsTest {
     }
 
     @Test
-    fun showRoyalFlush_mapsToRoyaltyTitle() {
-        val reward = cosmeticRewardFor(AchievementId.SHOW_ROYAL_FLUSH)
-        assertEquals("title_royalty", reward?.productId)
-        assertEquals("Royalty title", reward?.label)
-    }
-
-    @Test
-    fun showStraightFlush_mapsToSuitedRunTitle() {
-        val reward = cosmeticRewardFor(AchievementId.SHOW_STRAIGHT_FLUSH)
-        assertEquals("title_suited_run", reward?.productId)
-        assertEquals("Suited Run title", reward?.label)
-    }
-
-    @Test
-    fun showFullHouse_mapsToFullBoatTitle() {
-        val reward = cosmeticRewardFor(AchievementId.SHOW_FULL_HOUSE)
-        assertEquals("title_full_boat", reward?.productId)
-        assertEquals("Full Boat title", reward?.label)
-    }
-
-    @Test
-    fun showFourOfKind_mapsToQuartetTitle() {
-        val reward = cosmeticRewardFor(AchievementId.SHOW_FOUR_OF_KIND)
-        assertEquals("title_quartet", reward?.productId)
-        assertEquals("Quartet title", reward?.label)
-    }
-
-    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
@@ -178,5 +150,20 @@ class EarnableCosmeticsTest {
         assertNull(cosmeticRewardFor(AchievementId.SHOW_FLUSH))
         assertNull(cosmeticRewardFor(AchievementId.TUTORIAL_COMPLETE))
         assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_5))
+    }
+
+    @Test
+    fun singleShowdownTitleEarnables_returnNull_afterRngRetire() {
+        // The four "show X at showdown" achievements used to drop a title
+        // cosmetic. Per the §A achievement-difficulty audit, single-
+        // showdown RNG isn't a status signal worth pinning a cosmetic on,
+        // so the title pairings were retired (XP/chip rewards stay on the
+        // achievement itself, and `cosmeticRewardFor` falls through to
+        // null). Pin the null so a future copy-paste doesn't reintroduce
+        // a title for the same achievement id.
+        assertNull(cosmeticRewardFor(AchievementId.SHOW_ROYAL_FLUSH))
+        assertNull(cosmeticRewardFor(AchievementId.SHOW_STRAIGHT_FLUSH))
+        assertNull(cosmeticRewardFor(AchievementId.SHOW_FULL_HOUSE))
+        assertNull(cosmeticRewardFor(AchievementId.SHOW_FOUR_OF_KIND))
     }
 }
