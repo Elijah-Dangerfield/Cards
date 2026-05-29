@@ -81,4 +81,12 @@ object PokerPalette {
     /** Rank-badge pink — warm end of the rank disc's linear gradient. Pairs
      *  with [RankBadgePurple]. */
     val RankBadgePink: Color = Color(0xFFE07AB1)
+
+    /** Card-felt green — muted dark green tied to the poker-felt iconography.
+     *  Used as the tile background behind a 🎴 card emoji on the onboarding
+     *  "How it works" card. Distinct from the equipped-felt colors in
+     *  [com.dangerfield.cards.libraries.ui.components.poker.feltSurfaceColor]
+     *  (those are per-user equipped table themes); this one is a fixed
+     *  brand swatch representing the felt as an *icon*. */
+    val FeltGreen: Color = Color(0xFF3F5B45)
 }
