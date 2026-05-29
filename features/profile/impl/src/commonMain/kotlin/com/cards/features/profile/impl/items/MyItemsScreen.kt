@@ -44,6 +44,7 @@ import cards.libraries.resources.generated.resources.profile_my_items_subtitle_e
 import cards.libraries.resources.generated.resources.profile_my_items_subtitle_populated
 import cards.libraries.resources.generated.resources.profile_my_items_title
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
+import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -201,7 +202,7 @@ private fun OwnedItemRow(
                 )
                 if (item.isEquippable && item.acquisitionSource == AcquisitionSource.Earned) {
                     Spacer(modifier = Modifier.size(Dimension.D200))
-                    EarnedTag()
+                    EarnedTag(tier = item.tier)
                 }
                 if (isPersonalCosmetic(item.productId)) {
                     Spacer(modifier = Modifier.size(Dimension.D200))
@@ -250,8 +251,30 @@ private fun OwnershipBadge(source: AcquisitionSource) {
     }
 }
 
+/**
+ * Earned-via-achievement pin. Two visual variants, selected by [tier]:
+ *
+ *  - [CosmeticTier.EARN_ONLY] / `null` → plain "Earned" label. The
+ *    cosmetic has no buy path (or isn't in the [EarnableCosmetics] map at
+ *    all), so the badge alone is the provenance signal. V1 catalog is
+ *    fully `EARN_ONLY`; this is what every earned row renders today.
+ *  - [CosmeticTier.EARN_OR_BUY] → trophy-prefixed badge. The same
+ *    product is also for sale, so the badge reinforces that this
+ *    *instance* came from an achievement rather than the shop. Activates
+ *    once the first `EARN_OR_BUY` seed entry lands (the heat-map widget
+ *    + W/L odds display per `docs/todo.md` §A "Catalog gating") —
+ *    forward-compat scaffold today.
+ */
 @Composable
-private fun EarnedTag() {
+private fun EarnedTag(tier: CosmeticTier?) {
+    val label = if (tier == CosmeticTier.EARN_OR_BUY) {
+        // Trophy glyph prefix is a typographic affordance, not localized
+        // copy — same shape as the existing PersonalCosmetic "Only you"
+        // tag treatment.
+        "🏆 " + stringResource(Res.string.profile_my_items_badge_earned)
+    } else {
+        stringResource(Res.string.profile_my_items_badge_earned)
+    }
     Box(
         modifier = Modifier
             .clip(Radii.R400.shape)
@@ -259,7 +282,7 @@ private fun EarnedTag() {
             .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
     ) {
         Text(
-            text = stringResource(Res.string.profile_my_items_badge_earned),
+            text = label,
             typography = AppTheme.typography.Label.L300,
             color = AppTheme.colors.accentEarned,
         )
@@ -412,6 +435,21 @@ private fun OwnedItemRowPreview_Earned() {
                     isEquipped = false,
                     isEquippable = true,
                     acquisitionSource = AcquisitionSource.Earned,
+                    tier = CosmeticTier.EARN_ONLY,
+                ),
+                onToggle = {},
+            )
+            OwnedItemRow(
+                item = OwnedItem(
+                    productId = "title_pot_magnet",
+                    title = "Pot Magnet title",
+                    subtitle = "Title — also for sale this season",
+                    description = "Same product as the shop tile; this instance came from the POT_5000 achievement.",
+                    iconEmoji = "🏆",
+                    isEquipped = false,
+                    isEquippable = true,
+                    acquisitionSource = AcquisitionSource.Earned,
+                    tier = CosmeticTier.EARN_OR_BUY,
                 ),
                 onToggle = {},
             )
@@ -425,6 +463,7 @@ private fun OwnedItemRowPreview_Earned() {
                     isEquipped = false,
                     isEquippable = false,
                     acquisitionSource = AcquisitionSource.Earned,
+                    tier = CosmeticTier.EARN_ONLY,
                 ),
                 onToggle = {},
             )

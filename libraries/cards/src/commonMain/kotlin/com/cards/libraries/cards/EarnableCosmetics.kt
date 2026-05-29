@@ -161,3 +161,29 @@ fun cosmeticRewardFor(id: AchievementId): CosmeticReward? = when (id) {
     )
     else -> null
 }
+
+/**
+ * Inverse of [cosmeticRewardFor]: returns the [CosmeticTier] for an
+ * arbitrary [productId], or `null` when the product doesn't appear in
+ * the achievement-grant map at all (i.e. it's a `BUY_ONLY` shop product).
+ *
+ * Cached on first call so the inventory + shop render paths don't pay
+ * a per-row enum-scan; the underlying mapping is small and immutable.
+ *
+ * Render usage:
+ *  - `EARN_ONLY` → never visible in the shop catalog server-side
+ *    (`unlock_only = TRUE`); in inventory, the "Earned" pin always
+ *    applies because there's no buy path.
+ *  - `EARN_OR_BUY` → visible in both. Inventory rows distinguish the
+ *    earn-grant variant from a chip-bought duplicate with a richer
+ *    achievement badge.
+ *  - `null` → BUY_ONLY product; no provenance badge.
+ */
+fun tierForProductId(productId: String): CosmeticTier? =
+    productIdToTier[productId]
+
+private val productIdToTier: Map<String, CosmeticTier> by lazy {
+    AchievementId.entries
+        .mapNotNull { id -> cosmeticRewardFor(id)?.let { it.productId to it.tier } }
+        .toMap()
+}

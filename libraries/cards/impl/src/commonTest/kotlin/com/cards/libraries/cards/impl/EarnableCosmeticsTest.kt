@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
+import com.dangerfield.cards.libraries.cards.tierForProductId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -186,6 +187,42 @@ class EarnableCosmeticsTest {
                 CosmeticTier.EARN_ONLY,
                 cosmeticRewardFor(id)?.tier,
                 "Expected $id to be tagged EARN_ONLY",
+            )
+        }
+    }
+
+    @Test
+    fun tierForProductId_returnsTierForKnownProduct() {
+        // Each productId is the inverse of the achievement → reward map;
+        // spot-check the same shape on each of the 18 V1 entries.
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("title_pot_magnet"))
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("cardback_comeback_kid"))
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("emotes_grinder"))
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("title_felt_veteran"))
+    }
+
+    @Test
+    fun tierForProductId_returnsNullForUnknownProduct() {
+        // Shop-only products (chip packs, BUY_ONLY cosmetics) have no
+        // achievement-grant mapping and should fall through to null so
+        // the render layer reads them as "no provenance badge".
+        assertNull(tierForProductId("chips_1000"))
+        assertNull(tierForProductId("totally_made_up"))
+        assertNull(tierForProductId(""))
+    }
+
+    @Test
+    fun tierForProductId_mirrorsCosmeticRewardForEveryAchievement() {
+        // For every (achievementId, reward) pair, looking up the
+        // productId should return the exact same tier. Guards against
+        // drift between the forward map (used by unlock callouts) and
+        // the inverse lookup (used by inventory / shop badges).
+        AchievementId.entries.forEach { id ->
+            val reward = cosmeticRewardFor(id) ?: return@forEach
+            assertEquals(
+                reward.tier,
+                tierForProductId(reward.productId),
+                "tierForProductId(${reward.productId}) must match cosmeticRewardFor($id).tier",
             )
         }
     }
