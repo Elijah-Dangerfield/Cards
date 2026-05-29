@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.AchievementId
+import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -150,6 +151,43 @@ class EarnableCosmeticsTest {
         assertNull(cosmeticRewardFor(AchievementId.SHOW_FLUSH))
         assertNull(cosmeticRewardFor(AchievementId.TUTORIAL_COMPLETE))
         assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_5))
+    }
+
+    @Test
+    fun everyMappedCosmetic_isTaggedEarnOnly_inV1() {
+        // V1 catalog ships every earnable cosmetic as `unlock_only = TRUE`
+        // server-side (V17 / V20 / V27-V34 migrations), so the matching
+        // client-side tier must read EARN_ONLY across the board. Flipping
+        // a row to `unlock_only = FALSE` (i.e. adding the earn-or-buy
+        // axis) needs a matching tier flip here — pinning every id keeps
+        // the two sides from drifting silently.
+        val earnOnlyIds = listOf(
+            AchievementId.POT_5000,
+            AchievementId.COMEBACK_FROM_5BB,
+            AchievementId.DONT_CALL_IT_COMEBACK,
+            AchievementId.BOT_WHISPERER,
+            AchievementId.BUST_DEALT_5,
+            AchievementId.TRIPLE_UP,
+            AchievementId.NO_BUST_100,
+            AchievementId.WIN_BY_FOLD_10,
+            AchievementId.GOOD_FOLD_25,
+            AchievementId.HANDS_1000,
+            AchievementId.DOUBLE_UP,
+            AchievementId.CHALLENGING_10_WINS,
+            AchievementId.REACH_LEVEL_25,
+            AchievementId.BEAT_JANE_10,
+            AchievementId.BEAT_DAVID_10,
+            AchievementId.BEAT_GINA_10,
+            AchievementId.BEAT_STEVE_10,
+            AchievementId.BEAT_MIKE_10,
+        )
+        earnOnlyIds.forEach { id ->
+            assertEquals(
+                CosmeticTier.EARN_ONLY,
+                cosmeticRewardFor(id)?.tier,
+                "Expected $id to be tagged EARN_ONLY",
+            )
+        }
     }
 
     @Test
