@@ -2,13 +2,12 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_bet_pill_explainer_body
 import cards.libraries.resources.generated.resources.room_bet_pill_explainer_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryChipBubble
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.resources.stringResource
@@ -27,16 +26,9 @@ internal fun BetPillExplainer(
     onDismiss: () -> Unit,
 ) {
     Dialog(
+        title = stringResource(Res.string.room_bet_pill_explainer_title, seatName, amount.toString()),
         onDismissRequest = onDismiss,
-        title = {
-            ChipCoin(size = 40.dp, textTypography = AppTheme.typography.Heading.H600)
-            Text(
-                text = stringResource(Res.string.room_bet_pill_explainer_title, seatName, amount.toString()),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
-                textAlign = TextAlign.Center,
-            )
-        },
+        topAccessory = topAccessoryChipBubble(),
     ) {
         Text(
             text = stringResource(Res.string.room_bet_pill_explainer_body),

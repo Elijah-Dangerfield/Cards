@@ -39,8 +39,6 @@ The earnable catalog should bias toward axes that *can't* be paid for: usage vol
 
 ### Screen / chrome consistency
 
-- `[P2]` **Consider a `ChipCoinDialogTitle` primitive — the three dialog explainers repeat the same shape.** Audit (2026-05-29) found that the chip-rendering DS adoption is actually high — `ChipCoin` + `ChipCoinAmount` are widely used. The remaining repeats are: [`StackExplainer.kt:24`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/StackExplainer.kt) (`ChipCoin(56dp)` + heading text in a `Dialog` title slot), [`PotExplainer.kt:24`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PotExplainer.kt) (same), [`BetPillExplainer.kt:28`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/BetPillExplainer.kt) (40dp coin + heading). A `ChipCoinDialogTitle(text, coinSize, headingTypography)` primitive would consolidate the three. **Worth deferring** until the dialog primitive itself grows a `coinIcon` slot (sibling to `dialogEmoji("🎉")` per AGENTS.md), since adding it as a feature-side helper duplicates the bubble pattern. **Out of scope:** non-chip DS-promotion candidates (see the sweep item below); ShopScreen's two ad-hoc inline pills (already migrated to `ChipCoinAmount` 2026-05-29); `WelcomeDialog`'s `ChipCoin` direct call (kept — the custom tween reveal is intentional and isn't a `ChipCoinAmount` shape).
-
 - `[P2]` **Sweep features for other DS-promotion candidates.** Chip rendering is the obvious one; survey the rest. Likely candidates: pill-shaped status badges, the "section header with see-all" pattern, the achievement-tile shape, hand-result rows. One-by-one promote what you find, thorough previews on each.
 
 ### Auth & account onboarding
