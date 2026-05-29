@@ -14,6 +14,7 @@ import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.userId
 import com.dangerfield.cards.server.plugins.withSpan
 import io.ktor.server.auth.authenticate
+import io.opentelemetry.api.trace.Span
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.application
 import io.ktor.server.websocket.WebSocketServerSession
@@ -325,7 +326,7 @@ private suspend fun handleClientFrame(
  * evolves.
  */
 private fun recordIntentOutcome(result: IntentResult) {
-    val span = io.opentelemetry.api.trace.Span.current()
+    val span = Span.current()
     span.setAttribute(SpanAttrs.Accepted, result is IntentResult.Accepted)
     if (result is IntentResult.Rejected) {
         span.setAttribute(SpanAttrs.RejectionReason, result.reason)
