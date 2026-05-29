@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.shop.impl
 
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.shop_also_earnable_hint
 import cards.libraries.resources.generated.resources.shop_empty_subtitle
 import cards.libraries.resources.generated.resources.shop_empty_title
 import cards.libraries.resources.generated.resources.shop_error_retry
@@ -43,9 +44,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
+import com.dangerfield.cards.libraries.cards.tierForProductId
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.StoreSku
@@ -236,6 +239,7 @@ private fun CatalogContent(
                 ChipOfferCard(
                     offer = offer,
                     cardState = state.classify(offer),
+                    tier = tierForProductId(offer.id),
                     timeAnchor = state.timeAnchor,
                     onExpired = { onAction(ShopAction.Refresh(force = true)) },
                     onClick = { onProductTap(offer.id) },
@@ -548,6 +552,7 @@ private fun ChipPackCard(
 private fun ChipOfferCard(
     offer: Product.ChipOffer,
     cardState: ChipOfferCardState,
+    tier: CosmeticTier?,
     timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
     onExpired: () -> Unit,
     onClick: () -> Unit,
@@ -634,6 +639,16 @@ private fun ChipOfferCard(
                         text = stringResource(Res.string.shop_personal_cosmetic_hint),
                         typography = AppTheme.typography.Label.L300,
                         color = AppTheme.colors.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.alpha(dimmableAlpha),
+                    )
+                }
+                if (tier == CosmeticTier.EARN_OR_BUY) {
+                    VerticalSpacerD100()
+                    Text(
+                        text = "🏆 " + stringResource(Res.string.shop_also_earnable_hint),
+                        typography = AppTheme.typography.Label.L300,
+                        color = AppTheme.colors.accentEarned,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.alpha(dimmableAlpha),
                     )
@@ -997,6 +1012,31 @@ private fun ShopScreenPreview_MixedOwnedAndDisabled() {
             onProductTap = {},
             onIdeaTap = {},
         )
+    }
+}
+
+@Preview
+@Composable
+private fun ChipOfferCardPreview_EarnOrBuyTier() {
+    PreviewContent {
+        Box(modifier = Modifier.padding(16.dp)) {
+            ChipOfferCard(
+                offer = Product.ChipOffer(
+                    id = "tool_win_odds",
+                    title = "Win Odds Display",
+                    subtitle = "Utility",
+                    iconEmoji = "📊",
+                    costChips = 10_000,
+                    grantsKey = "tool.win_odds",
+                    unlockLevel = 1,
+                ),
+                cardState = ChipOfferCardState.Available(costChips = 10_000),
+                tier = CosmeticTier.EARN_OR_BUY,
+                timeAnchor = null,
+                onExpired = {},
+                onClick = {},
+            )
+        }
     }
 }
 

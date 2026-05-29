@@ -35,8 +35,6 @@ These are bugs / polish items found playing the app or scanning the code. Cheap 
 
 The earnable catalog should bias toward axes that *can't* be paid for: usage volume (1000 hands, N sessions), skill ratios (W:L over N hands, fold-to-win rate), and competitive placement (league tier, tournament finishes). RNG-based triggers ("show a rare hand at showdown") aren't a status signal — the deck loved you once. Current `EarnableCosmetics` pairings skew RNG-heavy and need a pass.
 
-- `[P1]` **Render the catalog-axis tier badge on the shop product card.** Tagging shipped 2026-05-29; inventory side lit up 2026-05-29 (`OwnedItem.tier` threaded through via `tierForProductId`, `EarnedTag` dispatches a richer trophy-prefixed variant for `EARN_OR_BUY` rows). Remaining work: shop product cards (`features/shop/impl/.../ShopScreen.kt` — `ChipOfferCard()` is the seam) should read `tierForProductId(product.id)` and render an "Also earnable" affordance on `EARN_OR_BUY` tiles so a buyer sees that the same item is reachable through achievements. V1 has zero `EARN_OR_BUY` entries, so this lands as forward-compat scaffolding — verifiable via preview + a unit test on the lookup, no shop catalog change. Seed entries that flip to `EARN_OR_BUY` (the player heat-map widget on MP-only earn + the win/loss-odds ratio display on harder earn, priced to bias purchase) wait on the heat-map / odds widgets themselves — separate items.
-
 - `[P2]` **League-tier rewards (blocked on league mechanic).** One earn-only cosmetic per league tier granted at season end. Genuinely blocked — re-pick once leagues land.
 
 ### Screen / chrome consistency
