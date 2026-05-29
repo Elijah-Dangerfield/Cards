@@ -130,6 +130,62 @@ class VerifyEmailViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun appResumed_emailConfirmed_marksOnboarded_andNavigates() = runUnitTest {
+        val cache = FakeAppCache()
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.EmailConfirmed)
+        val vm = buildVm(identity = identity, appCache = cache)
+        vm.takeAction(VerifyEmailAction.AppResumed)
+
+        vm.eventFlow.test {
+            assertIs<VerifyEmailEvent.NavigateToHome>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(true, cache.get().hasUserOnboarded)
+        assertEquals(1, identity.refreshCalls)
+    }
+
+    @Test
+    fun appResumed_stillPending_isSilent_noBannerOrEvent() = runUnitTest {
+        // Resume-driven refresh must not flash a banner — the user may have
+        // backgrounded for unrelated reasons and we don't want a visual
+        // every time they return to the app. Manual button still surfaces
+        // the StillPending banner for diagnostic feedback.
+        val cache = FakeAppCache()
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending)
+        val vm = buildVm(identity = identity, appCache = cache)
+        vm.takeAction(VerifyEmailAction.AppResumed)
+
+        assertEquals(1, identity.refreshCalls)
+        assertEquals(null, vm.stateFlow.value.banner)
+        assertEquals(false, vm.stateFlow.value.isRefreshing)
+        assertEquals(false, cache.get().hasUserOnboarded)
+    }
+
+    @Test
+    fun appResumed_networkError_isSilent_noBannerOrEvent() = runUnitTest {
+        val identity = FakeAuthRepository(
+            refreshOutcome = RefreshOutcome.NetworkError(RuntimeException("offline")),
+        )
+        val vm = buildVm(identity = identity)
+        vm.takeAction(VerifyEmailAction.AppResumed)
+
+        assertEquals(1, identity.refreshCalls)
+        assertEquals(null, vm.stateFlow.value.banner)
+    }
+
+    @Test
+    fun appResumed_sessionExpired_emitsNavigateBackToSignIn() = runUnitTest {
+        val identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.SessionExpired)
+        val vm = buildVm(identity = identity)
+        vm.takeAction(VerifyEmailAction.AppResumed)
+
+        vm.eventFlow.test {
+            assertIs<VerifyEmailEvent.NavigateBackToSignIn>(awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun dismissBanner_clearsBanner() = runUnitTest {
         val vm = buildVm(
             identity = FakeAuthRepository(refreshOutcome = RefreshOutcome.StillPending),

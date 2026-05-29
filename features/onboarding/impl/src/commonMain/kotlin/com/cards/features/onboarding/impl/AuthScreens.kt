@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -443,6 +444,10 @@ fun VerifyEmailScreen(
     onAction: (VerifyEmailAction) -> Unit,
     onBack: () -> Unit,
 ) {
+    LifecycleResumeEffect(Unit) {
+        onAction(VerifyEmailAction.AppResumed)
+        onPauseOrDispose { }
+    }
     AuthShell(onBack = onBack) {
         Text(
             text = "📧",

@@ -13,15 +13,21 @@ import me.tatarka.inject.annotations.Inject
  * sent them a verification link. We sit on this screen until they
  * confirm.
  *
- * Two user actions matter:
- *  - **I clicked the link** → call `refreshSession()` and check whether
- *    `email_confirmed_at` is now set. If yes, mark onboarded and go to
- *    home. If no, show "still pending" inline.
- *  - **Resend** → call `resendVerificationEmail()`; surface rate-limit
+ * Three triggers refresh the session:
+ *  - **I clicked the link** → user-initiated. On `StillPending` we surface
+ *    a banner so the user knows we tried and they should re-check the
+ *    inbox.
+ *  - **Resend** → re-send the verification email; surface rate-limit
  *    errors so the user knows to wait.
+ *  - **Foreground resume** → silently retry whenever the screen is
+ *    re-resumed. Fires on every return-to-app, including the
+ *    same-device `cards://auth/confirmed` deep-link bounce after the
+ *    user taps the verification link in their browser. Silent because a
+ *    user who switched apps for unrelated reasons shouldn't see a banner
+ *    flash on return; the manual button is the explicit surface for
+ *    diagnostic feedback.
  *
- * No auto-polling for V1 (battery + design choice). The manual button is
- * a clear contract.
+ * No auto-polling beyond resume — battery + design choice.
  */
 @Inject
 class VerifyEmailViewModel(
@@ -72,6 +78,21 @@ class VerifyEmailViewModel(
                 }
             }
 
+            is VerifyEmailAction.AppResumed -> action.run {
+                when (authRepository.refreshSession()) {
+                    is RefreshOutcome.EmailConfirmed -> {
+                        appCache.update { it.copy(hasUserOnboarded = true) }
+                        sendEvent(VerifyEmailEvent.NavigateToHome)
+                    }
+                    is RefreshOutcome.SessionExpired ->
+                        sendEvent(VerifyEmailEvent.NavigateBackToSignIn)
+                    is RefreshOutcome.StillPending,
+                    is RefreshOutcome.NetworkError,
+                    is RefreshOutcome.Unknown,
+                    -> Unit
+                }
+            }
+
             is VerifyEmailAction.Resend -> action.run {
                 updateState { it.copy(isResending = true, banner = null) }
                 val outcome = authRepository.resendVerificationEmail(email)
@@ -111,4 +132,5 @@ sealed interface VerifyEmailAction {
     data object IClickedTheLink : VerifyEmailAction
     data object Resend : VerifyEmailAction
     data object DismissBanner : VerifyEmailAction
+    data object AppResumed : VerifyEmailAction
 }

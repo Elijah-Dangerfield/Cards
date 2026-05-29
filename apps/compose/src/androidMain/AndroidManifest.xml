@@ -37,27 +37,23 @@
             </intent-filter>
 
             <!--
-              Deep links. Uncomment + customize when you're ready to receive them.
-              Compose NavHost reads `Activity.intent.data` automatically when one
-              of these filters matches; per-route mapping happens via the
-              `deepLinks` parameter on `screen<Route>` in your FeatureEntryPoint.
+              Custom-scheme deep links. Today's only consumer is
+              `cards://auth/confirmed` (Supabase verify-email redirect).
+              Per-route mapping happens via the `deepLinks` parameter on
+              `screen<Route>` in the relevant FeatureEntryPoint; Compose
+              NavHost reads `Activity.intent.data` automatically when a
+              filter here matches.
 
-              Custom scheme:
-              <intent-filter android:autoVerify="false">
-                  <action android:name="android.intent.action.VIEW" />
-                  <category android:name="android.intent.category.DEFAULT" />
-                  <category android:name="android.intent.category.BROWSABLE" />
-                  <data android:scheme="cards" />
-              </intent-filter>
-
-              App Links (https://, requires assetlinks.json on the host):
-              <intent-filter android:autoVerify="true">
-                  <action android:name="android.intent.action.VIEW" />
-                  <category android:name="android.intent.category.DEFAULT" />
-                  <category android:name="android.intent.category.BROWSABLE" />
-                  <data android:scheme="https" android:host="example.com" />
-              </intent-filter>
+              When adding App Links (https://, requires assetlinks.json on
+              the host) sit them alongside this filter as a separate
+              <intent-filter android:autoVerify="true"> block.
             -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cards" />
+            </intent-filter>
         </activity>
 
         <provider
