@@ -410,6 +410,10 @@
     <string name="profile_delete_submit_button">Delete my account</string>
     <string name="profile_delete_submit_button_progress">Deleting…</string>
     <string name="profile_delete_cancel_button">Cancel</string>
+    <string name="profile_delete_error_not_configured">Account deletion isn't available right now. Please try again later or contact support.</string>
+    <string name="profile_delete_error_anonymous_not_allowed">Anonymous accounts can't be deleted. Sign out instead, or claim your account first.</string>
+    <string name="profile_delete_error_network">Couldn't reach the server. Check your connection and try again.</string>
+    <string name="profile_delete_error_unknown">Something went wrong. Please try again.</string>
 
     <!-- Profile — Send feedback form. -->
     <string name="profile_feedback_title">Share Your Feedback</string>
@@ -421,6 +425,8 @@
     <string name="profile_feedback_char_counter">%1$d/%2$d</string>
     <string name="profile_feedback_submit_button">Send</string>
     <string name="profile_feedback_submit_button_progress">Sending…</string>
+    <string name="profile_feedback_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_feedback_snackbar_thanks">Got it. Thank you!</string>
 
     <!-- Profile — Report a bug form. -->
     <string name="profile_bug_title">Report a Bug</string>
@@ -435,6 +441,8 @@
     <string name="profile_bug_char_counter">%1$d/%2$d</string>
     <string name="profile_bug_submit_button">Send</string>
     <string name="profile_bug_submit_button_progress">Sending…</string>
+    <string name="profile_bug_error_message_required">Add a quick note before sending.</string>
+    <string name="profile_bug_snackbar_thanks">Thanks for reporting this!</string>
 
     <!-- Profile — My items inventory screen. -->
     <string name="profile_my_items_title">My items</string>

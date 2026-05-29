@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.domain.UserMessage
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
@@ -59,7 +60,7 @@ fun Route.messageRoutes(
             val now = clock.now()
 
             val parsedIds = body.ackedIds.mapNotNull { raw ->
-                runCatching { UUID.fromString(raw) }.getOrNull()
+                Catching { UUID.fromString(raw) }.getOrNull()
             }
             // Silently drop malformed UUIDs — the client may include
             // legacy ids it can't migrate; rejecting the whole batch

@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.profile.impl.feedback
 
 import androidx.lifecycle.viewModelScope
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_feedback_snackbar_thanks
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -12,6 +14,7 @@ import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.compose.resources.getString
 import kotlin.time.Duration.Companion.seconds
 
 @Inject
@@ -59,7 +62,7 @@ class FeedbackViewModel(
     private suspend fun FeedbackAction.submitFeedback() {
         val current = state
         if (current.message.isBlank()) {
-            updateState { it.copy(errorMessage = "Add a quick note before sending.") }
+            updateState { it.copy(errorMessage = FeedbackError.MessageRequired) }
             return
         }
         updateState { it.copy(isSubmitting = true, errorMessage = null) }
@@ -72,7 +75,10 @@ class FeedbackViewModel(
         }.await().eitherWay {
             appCache.update { it.copy(feedbacksGiven = it.feedbacksGiven + 1) }
             updateState { it.copy(isSubmitting = false) }
-            showSnackBar(message = "Got it. Thank you!", delayBy = 1.seconds)
+            showSnackBar(
+                message = getString(Res.string.profile_feedback_snackbar_thanks),
+                delayBy = 1.seconds,
+            )
             router.goBack()
         }
     }
@@ -82,8 +88,12 @@ data class FeedbackState(
     val message: String = "",
     val email: String = "",
     val isSubmitting: Boolean = false,
-    val errorMessage: String? = null,
+    val errorMessage: FeedbackError? = null,
 )
+
+sealed interface FeedbackError {
+    data object MessageRequired : FeedbackError
+}
 
 sealed interface FeedbackAction {
     data object Back : FeedbackAction

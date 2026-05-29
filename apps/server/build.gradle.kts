@@ -87,6 +87,10 @@ dependencies {
     // libraries/{gameplay,bots}/build.gradle.kts for the jvm() target.
     implementation(projects.libraries.gameplay)
     implementation(projects.libraries.bots)
+    // `Catching {}` from :libraries:core — AGENTS.md mandates Catching over
+    // runCatching across the repo. Pulled in transitively via gameplay/bots
+    // today, but a direct dep is the honest declaration.
+    implementation(projects.libraries.core)
 
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlin.testJunit)

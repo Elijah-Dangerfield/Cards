@@ -17,6 +17,7 @@ import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.shouldNotBeCaught
 import com.dangerfield.cards.libraries.core.throwIfDebug
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.observeWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
@@ -31,7 +32,6 @@ import kotlin.reflect.KClass
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
@@ -54,6 +54,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class DelegatingRouter(
     private val appScope: AppCoroutineScope,
     private val webLinkLauncher: WebLinkLauncher,
+    private val dispatchers: DispatcherProvider,
 ) : Router {
 
     private val logger = KLog.withTag("DelegatingRouter")
@@ -304,7 +305,7 @@ class DelegatingRouter(
         this::class.simpleName ?: this::class.qualifiedName ?: toString()
 
     private suspend fun NavHostController.awaitGraphAttachment() {
-        withContext(Dispatchers.Main.immediate) {
+        withContext(dispatchers.mainImmediate) {
             currentBackStackEntryFlow.first()
             delay(100)
         }

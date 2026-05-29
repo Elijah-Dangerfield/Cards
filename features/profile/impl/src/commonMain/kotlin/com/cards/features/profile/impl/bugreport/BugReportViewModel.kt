@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.profile.impl.bugreport
 
 import androidx.lifecycle.viewModelScope
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_bug_snackbar_thanks
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackRepository
 import com.dangerfield.cards.libraries.core.eitherWay
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
@@ -14,6 +16,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
+import org.jetbrains.compose.resources.getString
 import kotlin.time.Duration.Companion.seconds
 
 @Inject
@@ -65,7 +68,7 @@ class BugReportViewModel(
     private suspend fun BugReportAction.submitBugReport() {
         val current = state
         if (current.message.isBlank()) {
-            updateState { it.copy(errorMessage = "Add a quick note before sending.") }
+            updateState { it.copy(errorMessage = BugReportError.MessageRequired) }
             return
         }
         updateState { it.copy(isSubmitting = true, errorMessage = null) }
@@ -80,7 +83,10 @@ class BugReportViewModel(
         }.await().eitherWay {
             appCache.update { it.copy(bugsReported = it.bugsReported + 1) }
             updateState { it.copy(isSubmitting = false) }
-            showSnackBar(message = "Thanks for reporting this!", delayBy = 1.seconds)
+            showSnackBar(
+                message = getString(Res.string.profile_bug_snackbar_thanks),
+                delayBy = 1.seconds,
+            )
             router.goBack()
         }
     }
@@ -90,13 +96,17 @@ data class BugReportState(
     val message: String = "",
     val email: String = "",
     val isSubmitting: Boolean = false,
-    val errorMessage: String? = null,
+    val errorMessage: BugReportError? = null,
     val logId: String? = null,
     val errorCode: Int? = null,
     val contextMessage: String? = null,
 ) {
     val hasContext: Boolean
         get() = !contextMessage.isNullOrBlank() || !logId.isNullOrBlank() || errorCode != null
+}
+
+sealed interface BugReportError {
+    data object MessageRequired : BugReportError
 }
 
 sealed interface BugReportAction {

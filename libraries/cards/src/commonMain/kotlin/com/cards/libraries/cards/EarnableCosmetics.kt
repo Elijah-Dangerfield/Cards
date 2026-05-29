@@ -114,5 +114,13 @@ fun cosmeticRewardFor(id: AchievementId): CosmeticReward? = when (id) {
         productId = "title_suited_run",
         label = "Suited Run title",
     )
+    AchievementId.SHOW_FULL_HOUSE -> CosmeticReward(
+        productId = "title_full_boat",
+        label = "Full Boat title",
+    )
+    AchievementId.SHOW_FOUR_OF_KIND -> CosmeticReward(
+        productId = "title_quartet",
+        label = "Quartet title",
+    )
     else -> null
 }

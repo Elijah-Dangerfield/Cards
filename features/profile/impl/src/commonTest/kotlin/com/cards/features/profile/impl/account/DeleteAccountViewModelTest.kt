@@ -25,9 +25,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
  * Pins [DeleteAccountViewModel]'s outcome → state mapping.
@@ -117,7 +115,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun submit_anonymousNotAllowed_surfacesAnonMessage_andKeepsOnboardingFlag() = runUnitTest {
+    fun submit_anonymousNotAllowed_surfacesAnonError_andKeepsOnboardingFlag() = runUnitTest {
         // The UI gate should keep anon users out of the Delete screen
         // entirely, but a deep-link / future regression could land them
         // here. The outcome must render a real message, not silently
@@ -134,10 +132,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
             assertEquals(false, last.isSubmitting)
-            assertTrue(
-                last.error!!.contains("anonymous", ignoreCase = true),
-                "expected an anonymous-shaped error, got: ${last.error}",
-            )
+            assertEquals(DeleteAccountError.AnonymousNotAllowed, last.error)
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(
@@ -147,7 +142,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun submit_notConfigured_surfacesNotAvailable_andKeepsOnboardingFlag() = runUnitTest {
+    fun submit_notConfigured_surfacesNotConfiguredError_andKeepsOnboardingFlag() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
         val vm = buildVm(
             auth = FakeAuthRepository(deleteOutcome = DeleteAccountOutcome.NotConfigured),
@@ -160,11 +155,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
             assertEquals(false, last.isSubmitting, "isSubmitting clears on failure")
-            assertTrue(
-                last.error!!.contains("isn't available", ignoreCase = true) ||
-                    last.error!!.contains("not available", ignoreCase = true),
-                "expected a configuration-shaped error, got: ${last.error}",
-            )
+            assertEquals(DeleteAccountError.NotConfigured, last.error)
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(
@@ -174,7 +165,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun submit_networkError_surfacesNetworkMessage() = runUnitTest {
+    fun submit_networkError_surfacesNetworkError() = runUnitTest {
         val vm = buildVm(
             auth = FakeAuthRepository(
                 deleteOutcome = DeleteAccountOutcome.NetworkError(RuntimeException("offline")),
@@ -186,18 +177,14 @@ class DeleteAccountViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(
-                last.error!!.contains("reach", ignoreCase = true) ||
-                    last.error!!.contains("connection", ignoreCase = true),
-                "expected a network-shaped error, got: ${last.error}",
-            )
+            assertEquals(DeleteAccountError.NetworkError, last.error)
             assertEquals(false, last.isSubmitting)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test
-    fun submit_unknown_surfacesGenericMessage() = runUnitTest {
+    fun submit_unknown_surfacesUnknownError() = runUnitTest {
         val vm = buildVm(
             auth = FakeAuthRepository(
                 deleteOutcome = DeleteAccountOutcome.Unknown(RuntimeException("boom")),
@@ -210,7 +197,7 @@ class DeleteAccountViewModelTest : CoroutineTest() {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
             assertEquals(false, last.isSubmitting)
-            assertNotNull(last.error)
+            assertEquals(DeleteAccountError.Unknown, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }

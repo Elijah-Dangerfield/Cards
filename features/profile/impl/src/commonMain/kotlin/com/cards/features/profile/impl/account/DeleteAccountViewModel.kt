@@ -54,7 +54,7 @@ class DeleteAccountViewModel(
                     is DeleteAccountOutcome.NotConfigured -> updateState {
                         it.copy(
                             isSubmitting = false,
-                            error = "Account deletion isn't available right now. Please try again later or contact support.",
+                            error = DeleteAccountError.NotConfigured,
                         )
                     }
                     is DeleteAccountOutcome.NotSignedIn -> {
@@ -72,19 +72,19 @@ class DeleteAccountViewModel(
                         // or the user ended up here via deep-link.
                         it.copy(
                             isSubmitting = false,
-                            error = "Anonymous accounts can't be deleted. Sign out instead, or claim your account first.",
+                            error = DeleteAccountError.AnonymousNotAllowed,
                         )
                     }
                     is DeleteAccountOutcome.NetworkError -> updateState {
                         it.copy(
                             isSubmitting = false,
-                            error = "Couldn't reach the server. Check your connection and try again.",
+                            error = DeleteAccountError.NetworkError,
                         )
                     }
                     is DeleteAccountOutcome.Unknown -> updateState {
                         it.copy(
                             isSubmitting = false,
-                            error = "Something went wrong. Please try again.",
+                            error = DeleteAccountError.Unknown,
                         )
                     }
                 }
@@ -96,7 +96,7 @@ class DeleteAccountViewModel(
 data class DeleteAccountState(
     val confirmationInput: String = "",
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: DeleteAccountError? = null,
 ) {
     val isConfirmationValid: Boolean
         get() = confirmationInput.trim().equals(REQUIRED_PHRASE, ignoreCase = true)
@@ -108,6 +108,13 @@ data class DeleteAccountState(
         /** The user must type this (case-insensitive) before the delete button enables. */
         const val REQUIRED_PHRASE = "delete"
     }
+}
+
+sealed interface DeleteAccountError {
+    data object NotConfigured : DeleteAccountError
+    data object AnonymousNotAllowed : DeleteAccountError
+    data object NetworkError : DeleteAccountError
+    data object Unknown : DeleteAccountError
 }
 
 sealed interface DeleteAccountEvent {
