@@ -140,3 +140,40 @@ Tests: extended `TelemetryTest` with `logger_inSpanContext_attachesTraceIdToLogR
 2. **Appender flag tuning.** Set `captureCodeAttributes=true` (so `code.namespace` / `code.lineno` ride along with each record), `captureMarkerAttribute=true`, `captureKeyValuePairAttributes=true`, but kept `captureExperimentalAttributes=false`. The first three are stable OTel semantic-convention attributes; the experimental one expands to fields like `logger.name` that aren't stabilised yet and risk attribute-name churn at backend upgrade. Conservative default, easy to flip.
 
 **Deferred:** The Sentry plugin doesn't yet emit breadcrumbs into OTel logs (so a Sentry-captured exception's surrounding log lines are still grep-only). Could land in a follow-up; not on the todo today. Same for an `OpenTelemetryAppender` shutdown hook — if we want clean flushing of the appender's buffer at shutdown, `OpenTelemetryAppender` has a `stop()` API but it isn't tied to Logback's shutdown today. Park unless we see lost records on Fly redeploys.
+
+## feat(identity): tag profiles with X-Install-Id header from client
+
+**Problem:** §A P1 install_id work — the V1 scope-cut design in `docs/recovery-and-orphaned-accounts.md` calls for an `install_id` UUID generated client-side, sent on every authenticated call, and recorded on the user's profile so a future L1 orphan sweep can find anon rows from prior owners of the same install. None of the four pieces shipped yet: no `profiles.install_id` column, no client-side UUID storage, no header in the network layer, no /me handler logic.
+
+**Approach:** End-to-end slice for items 1+2+3 (server schema + client UUID + /me UPDATE). Item 4 (L1 cleanup task) and item 6 (loss-disclosure UX) deferred; item 5 (spec amendment) was already in §6.1.
+
+Server:
+- New Flyway `V49__install_id.sql`: `ALTER TABLE profiles ADD COLUMN install_id UUID NULL` + `CREATE INDEX … WHERE install_id IS NOT NULL` (partial index — cleanup reads always filter for non-null).
+- `ProfilesTable.installId` mirrors the nullable UUID column.
+- New `ProfileRepository.touchInstallId(userId, installId): UUID?` — compare-and-skip: returns the prior value when the column changes (the L1 cleanup cue), null when same / unset / profile missing. `PostgresProfileRepository` reads the current value first so a same-install repeat is one SELECT, no UPDATE.
+- `MeRoutes.kt` reads `X-Install-Id` after `findOrCreate`, parses as UUID (malformed silently dropped), calls `touchInstallId`. Header constant + parse helper sit at file scope.
+- Tests: three new `MeRoutesTest` cases (header present → repo gets the call; absent → no call; malformed → no call), four new `PostgresProfileRepositoryTest` cases (cold tag, replace tag returns prior, same-value no-op returns null, unknown-user returns null). Extended `RoomRoutesTest` + `DefaultOrphanAnonymousSweepTest` fakes with no-op `touchInstallId` overrides.
+
+Client:
+- `AppData.installId: String?` added to the persisted cache. Stored as string so the JSON serializer needs no Uuid adapter.
+- New `InstallIdProvider` interface in `:libraries:networking` (non-suspending `current(): String?`).
+- New `CachedInstallIdProvider` in `:libraries:cards:impl` — implements both `InstallIdProvider` and `AutoInit` so DI's boot iterator forces construction at app start. `init {}` launches an `appScope.launch` that reads `AppCache.installId`, mints + persists a `Uuid.random()` if null, populates a `@Volatile var` snapshot. `current()` returns the snapshot (null until hydration completes — accepted: header is then simply omitted and the server tolerates absence).
+- `ClientHeaders.installId: String?` + `HEADER_INSTALL_ID = "X-Install-Id"` constant.
+- `DefaultClientHeadersProvider` takes the new provider as a ctor param and threads its value into `ClientHeaders`.
+- `NetworkClientImpl.applyCommonConfig` appends the header when non-null (the existing `?.let { headers.append(…) }` pattern handles the null-skip uniformly with `countryCode`).
+- Tests: three new `CachedInstallIdProviderTest` cases (cold mint persists to cache, hot read of pre-populated cache is verbatim, throwing AppCache leaves `current()` null and doesn't crash).
+
+**Reviewer notes:** Three calls worth scrutiny:
+
+1. **`touchInstallId` separate from `findOrCreate` rather than overload.** Considered `findOrCreate(userId, installId: UUID? = null)` so first-contact would tag in one transaction. Chose a separate call because (a) the install-id flow is purely additive — every authenticated /me consults it, including ones where the profile already exists, so the entry seam is the route layer, not the create path; (b) the L1 cleanup design wants the prior-value return from the tag operation, which doesn't compose with `findOrCreate`'s "give me a Profile" shape; (c) the route-layer call is a one-liner gated on a nullable header, so adding an extra DB round-trip on the cold-create path is fine — the warm path (the common one) is a single SELECT inside `touchInstallId` when the value already matches.
+
+2. **`AutoInit` hydration via `appScope.launch` rather than an explicit suspending bootstrap.** Two options here: (a) a `suspend fun initialize(): String` the caller awaits, or (b) launch-and-forget with `current(): String?` returning null until ready. Picked (b) because the alternative would either (i) make `ClientHeadersProvider.current()` suspend (poisoning every Ktor `DefaultRequest` block, which is not suspending) or (ii) demand every consumer await an "install-id ready" signal before their first authed call (fragile, easy to forget). The brief window where `current()` returns null means the header is missing on the very first cold-boot /me call; the server treats absence as "client too old to send one" and the *next* /me sends it, so the tag still lands within a few hundred ms.
+
+3. **String-typed `AppData.installId` rather than `Uuid`.** `kotlinx.uuid.ExperimentalUuidApi` is still experimental and adding the opt-in cascades through every consumer of `AppData`. Stringly-typed UUID is what the wire serializes to anyway and `UUID.fromString` round-trips losslessly. If the repo ever wants stronger typing on AppData fields, this is one of several spots that'd flip in one pass.
+
+Two design alternatives I considered but rejected: a `kotlinx.atomicfu` ref for the in-memory snapshot (cards:impl doesn't take an atomicfu dep today and `@Volatile var` does the job for a write-once shape); a default `NoOpInstallIdProvider` binding in `:libraries:networking` (would require DI wiring on the api module — but the real impl in cards:impl is part of the production graph already, and dropping the no-op means DI fails fast in any module that asks for `InstallIdProvider` without the real binding wired, which is the safer failure mode).
+
+**Deferred:**
+- §A P1 L1 cleanup task — rewrote the todo entry to describe what's left: the SQL + Kotlin verifier + the `appScope.launch` from the /me handler keyed on `touchInstallId`'s non-null prior return.
+- §A P1 Loss-disclosure UX — kept in the rewritten todo entry, still gated on designer + product confirmation per the original wording.
+- The dormant `DefaultOrphanAnonymousSweep` stays in tree per the todo's instruction; the L1 task uses a different shape (per-request, prior-value-driven) so it can't reuse the sweep's TTL-based machinery.

@@ -258,6 +258,58 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         repo.delete(UserId(UUID.randomUUID()))
     }
 
+    @Test
+    fun touchInstallId_setsValue_onProfileWithoutPriorTag() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+        val install = UUID.randomUUID()
+
+        val prior = repo.touchInstallId(userId, install)
+
+        assertNull(prior, "Profile starts un-tagged so prior must be null")
+        assertEquals(install, readInstallId(userId))
+    }
+
+    @Test
+    fun touchInstallId_returnsPriorValue_whenInstallIdChanges() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+        val first = UUID.randomUUID()
+        val second = UUID.randomUUID()
+        repo.touchInstallId(userId, first)
+
+        val prior = repo.touchInstallId(userId, second)
+
+        assertEquals(first, prior, "Replacing the tag returns the prior install_id (the L1 cleanup cue)")
+        assertEquals(second, readInstallId(userId))
+    }
+
+    @Test
+    fun touchInstallId_isNoOp_whenInstallIdMatches() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+        val install = UUID.randomUUID()
+        repo.touchInstallId(userId, install)
+
+        val prior = repo.touchInstallId(userId, install)
+
+        assertNull(prior, "Same install on re-tag returns null (no write happened)")
+        assertEquals(install, readInstallId(userId))
+    }
+
+    @Test
+    fun touchInstallId_returnsNull_whenProfileDoesNotExist() = runTest {
+        val repo = newRepository()
+        val unknown = UserId(UUID.randomUUID())
+
+        val prior = repo.touchInstallId(unknown, UUID.randomUUID())
+
+        assertNull(prior, "No profile → defensive no-op, returns null")
+    }
+
     private fun newRepository(
         usernameGenerator: UsernameGenerator = AdjectiveNounUsernameGenerator(),
         avatarGenerator: AvatarGenerator = EmojiAvatarGenerator(),
@@ -289,6 +341,14 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
                     acquisitionSource = it[InventoryTable.acquisitionSource],
                 )
             }
+    }
+
+    private fun readInstallId(userId: UserId): UUID? = database.blockingTransaction {
+        ProfilesTable
+            .selectAll()
+            .where { ProfilesTable.userId eq userId.value }
+            .singleOrNull()
+            ?.get(ProfilesTable.installId)
     }
 
     private data class UserMessageRow(

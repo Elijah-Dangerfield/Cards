@@ -190,6 +190,35 @@ class MeRoutesTest {
     }
 
     @Test
+    fun me_tagsInstallId_whenHeaderProvided() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val install = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        callMe(repo, bearer = validJwt(), installIdHeader = install.toString()) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(listOf(userId to install), repo.installIdCalls)
+        }
+    }
+
+    @Test
+    fun me_skipsInstallIdTag_whenHeaderAbsent() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callMe(repo, bearer = validJwt(), installIdHeader = null) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertTrue(repo.installIdCalls.isEmpty(), "no header → no touchInstallId call")
+        }
+    }
+
+    @Test
+    fun me_skipsInstallIdTag_whenHeaderIsMalformed() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callMe(repo, bearer = validJwt(), installIdHeader = "not-a-uuid") { resp ->
+            // Malformed header is dropped silently — request still succeeds.
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertTrue(repo.installIdCalls.isEmpty(), "malformed header → no touchInstallId call")
+        }
+    }
+
+    @Test
     fun activeRooms_returnsRoomsCallerIsMemberOf() = runTest {
         val rooms = InMemoryRoomService(clock = FixedClock(), random = kotlin.random.Random(0L))
         val otherUser = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
@@ -277,6 +306,7 @@ class MeRoutesTest {
         bearer: String?,
         adminClient: SupabaseAdminClient = AlwaysSuccessAdmin,
         inventory: InventoryRepository = EmptyInventory,
+        installIdHeader: String? = null,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -292,6 +322,7 @@ class MeRoutesTest {
             }
             val response = client.get("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                installIdHeader?.let { header(INSTALL_ID_HEADER, it) }
             }
             assert(response)
         }
@@ -335,6 +366,7 @@ class MeRoutesTest {
             private set
         var deleteCalls: Int = 0
             private set
+        val installIdCalls: MutableList<Pair<UserId, UUID>> = mutableListOf()
 
         override suspend fun findById(userId: UserId): Profile? = existing
 
@@ -360,6 +392,11 @@ class MeRoutesTest {
 
         override suspend fun delete(userId: UserId) {
             deleteCalls++
+        }
+
+        override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? {
+            installIdCalls += userId to installId
+            return null
         }
     }
 

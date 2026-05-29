@@ -34,6 +34,13 @@ object ProfilesTable : Table("profiles") {
      * race-free ordering across concurrent first-contact inserts.
      */
     val seq = long("seq").uniqueIndex("profiles_seq_uq")
+    /**
+     * Client-generated UUID per app installation (V49). Tagged on every
+     * `/v1/me` request from the `X-Install-Id` header. Nullable for legacy
+     * rows that existed before V49 landed; steady-state non-null for any
+     * profile that's seen one authed `/v1/me` from a current client.
+     */
+    val installId = uuid("install_id").nullable()
     override val primaryKey = PrimaryKey(userId)
 }
 
