@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.Room
@@ -113,6 +114,22 @@ fun Route.roomSocketRoutes(
             )
 
             rooms.markConnected(code, userId, connected = true)
+
+            // Hydrate from the durable snapshot before the game publisher
+            // subscribes. Without this, a client reconnecting after a
+            // server restart sees the lobby snapshot but no game-state
+            // frames until *someone* submits an intent — applyIntent /
+            // requestNextHand both route through findOrHydrate, so the
+            // first action would rehydrate, but a player who reconnects
+            // mid-hand and just wants to watch their turn play out would
+            // be staring at an empty table. Best-effort: a snapshot DB
+            // failure logs but doesn't block the lobby socket from
+            // working — the next intent will retry.
+            Catching { gameSessions.findOrHydrate(code) }
+                .onFailure {
+                    LoggerFactory.getLogger("RoomSocket")
+                        .warn("Snapshot hydrate failed for room=$code user=$userId", it)
+                }
 
             // The room-flow collector runs in a child coroutine so we
             // can independently watch [incoming] for the close signal.

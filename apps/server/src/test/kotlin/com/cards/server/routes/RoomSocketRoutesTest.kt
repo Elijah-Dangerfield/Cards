@@ -23,6 +23,7 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
@@ -218,6 +219,80 @@ class RoomSocketRoutesTest {
     }
 
     @Test
+    fun connect_afterRestart_hydratesGameStateFromSnapshot() = runTest {
+        // Simulates the §B0 ↔ §B1 hand-off: a hand was started on a
+        // previous server process (snapshot lives in the durable store),
+        // the process restarted (a fresh registry with empty in-memory
+        // state takes its place), and a player reconnects. The WS
+        // upgrade must hydrate the session from the store so the game
+        // publisher emits a GameStateSnapshot frame without waiting for
+        // an intent to trigger lazy hydration.
+        val store = InMemoryTestSnapshotStore()
+        val rooms = newRoomService()
+        val room = rooms.createOrFail(host, "Host", maxSeats = 4)
+        rooms.join(room.code, alice, "Alice")
+
+        // Seed the durable store via a throwaway registry — equivalent
+        // to "the previous server process started a hand here."
+        val seedRegistry = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
+            snapshotStore = store,
+            clock = Clock.System,
+        )
+        val occupants = listOf(
+            com.dangerfield.cards.server.game.SeatOccupant(
+                seatIndex = 0,
+                userId = host.value.toString(),
+                displayName = "Host",
+                isBot = false,
+            ),
+            com.dangerfield.cards.server.game.SeatOccupant(
+                seatIndex = 1,
+                userId = alice.value.toString(),
+                displayName = "Alice",
+                isBot = false,
+            ),
+        )
+        seedRegistry.startHand(
+            code = room.code,
+            occupants = occupants,
+            settings = com.dangerfield.cards.libraries.gameplay.RoomSettings(
+                smallBlind = 5,
+                bigBlind = 10,
+                startingStack = 1_000,
+                maxSeats = 6,
+                turnTimerSeconds = 30,
+            ),
+        )
+        val seededHandNumber = seedRegistry.peek(room.code)!!.state.value!!.handNumber
+
+        // Fresh registry against the same store — nothing in-memory.
+        val freshRegistry = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
+            snapshotStore = store,
+            clock = Clock.System,
+        )
+
+        withApp(rooms, gameSessions = freshRegistry) { client ->
+            client.openSocket(room.code, asUser = host) { session ->
+                // Drain frames until we see the GameStateSnapshot. The
+                // lobby Snapshot is always first; the game frame
+                // arrives once findOrHydrate populates the in-memory
+                // registry and the publisher subscribes.
+                var gameSnapshot: RoomSocketEventDto.GameStateSnapshot? = null
+                for (attempt in 0 until 8) {
+                    val event = session.receiveOne()
+                    if (event is RoomSocketEventDto.GameStateSnapshot) {
+                        gameSnapshot = event
+                        break
+                    }
+                }
+                assertNotNull(gameSnapshot, "expected GameStateSnapshot after hydrate")
+                assertEquals(seededHandNumber, gameSnapshot.state.handNumber)
+                assertEquals(2, gameSnapshot.state.seats.size)
+            }
+        }
+    }
+
+    @Test
     fun reconnectSameUser_preservesSeat_andDoesNotDuplicateMember() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
@@ -263,6 +338,11 @@ class RoomSocketRoutesTest {
     private suspend fun withApp(
         rooms: InMemoryRoomService,
         reaperGrace: kotlin.time.Duration = 5.minutes,
+        gameSessions: com.dangerfield.cards.server.game.GameSessionRegistry =
+            com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
+                snapshotStore = com.dangerfield.cards.server.game.NoOpSessionSnapshotStore(),
+                clock = kotlin.time.Clock.System,
+            ),
         block: suspend (SocketClient) -> Unit,
     ) {
         testApplication {
@@ -274,10 +354,7 @@ class RoomSocketRoutesTest {
                 routing {
                     roomSocketRoutes(
                         rooms = rooms,
-                        gameSessions = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
-                            snapshotStore = com.dangerfield.cards.server.game.NoOpSessionSnapshotStore(),
-                            clock = kotlin.time.Clock.System,
-                        ),
+                        gameSessions = gameSessions,
                         reaperGrace = reaperGrace,
                     )
                 }
@@ -377,5 +454,21 @@ class RoomSocketRoutesTest {
 
     private class FixedClock(private val ms: Long = 1_700_000_000_000) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(ms)
+    }
+
+    private class InMemoryTestSnapshotStore : com.dangerfield.cards.server.game.SessionSnapshotStore {
+        private val rows = mutableMapOf<String, com.dangerfield.cards.server.game.SessionSnapshot>()
+        private val mutex = kotlinx.coroutines.sync.Mutex()
+
+        override suspend fun upsert(snapshot: com.dangerfield.cards.server.game.SessionSnapshot) {
+            mutex.withLock { rows[snapshot.code] = snapshot }
+        }
+
+        override suspend fun readByCode(code: String): com.dangerfield.cards.server.game.SessionSnapshot? =
+            mutex.withLock { rows[code] }
+
+        override suspend fun deleteByCode(code: String) {
+            mutex.withLock { rows.remove(code) }
+        }
     }
 }
