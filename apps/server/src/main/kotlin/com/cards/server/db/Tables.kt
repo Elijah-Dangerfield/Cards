@@ -134,6 +134,20 @@ object WalletEventsTable : Table("wallet_events") {
 }
 
 /**
+ * Snapshot of the live `GameSession` state for a room. One row per active
+ * session, overwritten on every state mutation inside the per-session
+ * mutex. Hydrated on registry lookup when in-memory has no entry for the
+ * code (server restart path). See `V48__room_sessions.sql`.
+ */
+object RoomSessionsTable : Table("room_sessions") {
+    val sessionId = uuid("session_id")
+    val roomCode = text("room_code").uniqueIndex("room_sessions_room_code_uq")
+    val stateJsonb = jsonb("state_jsonb")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(sessionId)
+}
+
+/**
  * Per-user in-app messages. Authored by admins, delivered as either a
  * dialog (modal pop on foreground) or an inbox row (passive entry in
  * the Notifications screen). Acked exactly once; expiry filters out

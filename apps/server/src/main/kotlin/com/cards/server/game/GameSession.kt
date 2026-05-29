@@ -58,10 +58,20 @@ class GameSession internal constructor(
     /**
      * Stable identity for this session. Stamped at construction so the
      * registry's `code → session` map can stay string-keyed today while
-     * future server-authoritative persistence (the B0 `room_sessions`
-     * snapshot table) keys rows by a stable UUID.
+     * the B0 `room_sessions` snapshot table keys rows by a stable UUID.
      */
     val id: UUID = UUID.randomUUID(),
+    /**
+     * Called inside the per-session mutex after every state mutation
+     * (start hand, apply intent, request next hand, hydrate). The
+     * registry wires this to the snapshot store so durable state stays
+     * in step with the in-memory cache. Suspends with the mutex held —
+     * the snapshot write must complete (or fail loudly) before the
+     * mutation returns, so a concurrent intent can't observe out-of-
+     * order durable state. Defaults to no-op for tests / unit code that
+     * doesn't need persistence.
+     */
+    private val onStateChange: suspend (GameState) -> Unit = {},
 ) {
     private val mutex = Mutex()
 
@@ -138,9 +148,23 @@ class GameSession internal constructor(
             return@withLock IntentResult.Rejected(e.message ?: "illegal intent")
         }
         _state.value = result.state
+        onStateChange(result.state)
         result.events.forEach { _events.tryEmit(it) }
         recordNonce(clientNonce)
         IntentResult.Accepted
+    }
+
+    /**
+     * Restart-time loader. Pushes a previously-persisted [GameState]
+     * into the session without re-running the engine. Intended only for
+     * the registry's hydration path — application code that wants a
+     * mutation goes through [startHand] / [applyIntent] / [requestNextHand].
+     * No `onStateChange` callback fires here: the snapshot is already
+     * durable, and re-writing it the moment we read it would be
+     * pointless I/O.
+     */
+    suspend fun hydrate(state: GameState) = mutex.withLock {
+        _state.value = state
     }
 
     /**
@@ -234,6 +258,7 @@ class GameSession internal constructor(
             deck = deck,
         )
         _state.value = result.state
+        onStateChange(result.state)
         result.events.forEach { _events.tryEmit(it) }
         return IntentResult.Accepted
     }

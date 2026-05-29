@@ -274,7 +274,10 @@ class RoomSocketRoutesTest {
                 routing {
                     roomSocketRoutes(
                         rooms = rooms,
-                        gameSessions = com.dangerfield.cards.server.game.InMemoryGameSessionRegistry(),
+                        gameSessions = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
+                            snapshotStore = com.dangerfield.cards.server.game.NoOpSessionSnapshotStore(),
+                            clock = kotlin.time.Clock.System,
+                        ),
                         reaperGrace = reaperGrace,
                     )
                 }

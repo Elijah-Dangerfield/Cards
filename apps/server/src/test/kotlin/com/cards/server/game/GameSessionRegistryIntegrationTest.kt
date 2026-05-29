@@ -13,7 +13,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 /**
- * Drives a real hand through [InMemoryGameSessionRegistry] end-to-end:
+ * Drives a real hand through [DefaultGameSessionRegistry] end-to-end:
  * register → start → observe state appearing → fold-to-complete → next
  * hand. This is the smoke test for "the registry actually behaves
  * like the socket route will call it"; the socket route adds its own
@@ -33,14 +33,14 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun observeSession_emitsNull_beforeStart() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
 
         assertNull(registry.observeSession("ROOM1").first())
     }
 
     @Test
     fun observeSession_emitsSession_afterStart() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
 
         registry.startHand("ROOM1", listOf(alice, bob), settings)
         val session = registry.observeSession("ROOM1").first()
@@ -51,7 +51,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun observeSession_isCodeScoped() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
 
         registry.startHand("ROOM_A", listOf(alice, bob), settings)
 
@@ -63,7 +63,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun fullHand_fold_drivesStateToComplete_through_registry() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
 
         val started = registry.startHand("ROOM1", listOf(alice, bob), settings)
         assertIs<IntentResult.Accepted>(started)
@@ -86,7 +86,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun applyIntent_unknownCode_isRejected() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
 
         val result = registry.applyIntent(
             code = "GHOST",
@@ -101,7 +101,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun end_dropsSession_andSubsequentLookupReturnsNull() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
         registry.startHand("ROOM1", listOf(alice, bob), settings)
         assertNotNull(registry.peek("ROOM1"))
 
@@ -113,7 +113,7 @@ class GameSessionRegistryIntegrationTest {
 
     @Test
     fun nextHand_continues_after_completion() = runTest {
-        val registry = InMemoryGameSessionRegistry()
+        val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
         registry.startHand("ROOM1", listOf(alice, bob), settings)
 
         val session = registry.peek("ROOM1")!!

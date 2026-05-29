@@ -104,7 +104,7 @@ Home now exposes three surfaces that need the friends / recents system to actual
 
 ### B0 — Server-side state durability
 
-- `[P1]` **`room_sessions(state_jsonb)` snapshot table + write-through on every mutation.** New `room_sessions(session_id UUID PRIMARY KEY, state_jsonb JSONB, updated_at TIMESTAMPTZ)` overwritten inside the per-session mutex on every state change. Replaces the in-memory-only `StateFlow` as the source of truth. **Acceptance:** server restart mid-hand → registry hydrates from snapshot → players reconnect into the live game with their seats / stacks / current betting round intact. **Files / hints:** new migration; new `SessionSnapshotWriter` (`apps/server/.../game/` is the natural home); `GameSessionRegistry` hydrates on first read. The reusable `Table.jsonb(name)` helper in [`JsonbColumn.kt`](../apps/server/src/main/kotlin/com/cards/server/db/JsonbColumn.kt) is the column-type primitive to lean on. **Out of scope:** the rolling event tail for animation-replay-on-reconnect (parked — see §B5). OTel traces cover the "every move debug" use case the event log was reaching for.
+_All items shipped. `room_sessions(session_id UUID PRIMARY KEY, room_code TEXT UNIQUE, state_jsonb JSONB, updated_at TIMESTAMPTZ)` is written through the per-session mutex on every state mutation; `DefaultGameSessionRegistry` lazy-hydrates from it on a code-miss (post-restart recovery)._
 
 ### B1 — WS reconnect protocol
 

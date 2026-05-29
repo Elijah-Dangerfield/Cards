@@ -1,5 +1,7 @@
 package com.dangerfield.cards.server.game
 
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.di.ServerScope
@@ -11,8 +13,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
+import org.slf4j.LoggerFactory
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import java.util.UUID
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 /**
  * One [GameSession] per active room. Lifecycle:
@@ -35,6 +41,13 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * the observable map stays consistent. Per-session mutation is
  * serialized by a Mutex inside [GameSession] itself. The two layers
  * handle different concerns — don't merge.
+ *
+ * Persistence: every state mutation inside a session writes through to
+ * [SessionSnapshotStore] (the B0 `room_sessions` table). On a request
+ * for a code that isn't in memory, the registry first asks the store
+ * whether a snapshot exists and hydrates a fresh session from it — that
+ * is the server-restart-mid-hand recovery path. Tests that don't want
+ * Postgres in the loop inject [NoOpSessionSnapshotStore].
  *
  * Bots: the registry doesn't know or care about bots; they're just
  * another `SeatOccupant` with `isBot = true`. Phase 3 adds a server
@@ -62,12 +75,22 @@ interface GameSessionRegistry {
     ): IntentResult
 
     /**
-     * Synchronous lookup. Returns the active session for [code] or null
-     * if the room has no game session yet. Mostly for tests and one-off
-     * code paths; production subscribers use [observeSession] so they
-     * pick up the session at its moment of birth.
+     * Synchronous lookup of an in-memory session. Returns null when the
+     * registry doesn't currently hold one for [code] — does **not**
+     * consult the snapshot store. Mostly for tests and one-off code
+     * paths; production subscribers use [observeSession] so they pick
+     * up the session at its moment of birth and use [findOrHydrate] when
+     * they explicitly need the post-restart recovery path.
      */
     fun peek(code: String): GameSession?
+
+    /**
+     * Suspending lookup that also hydrates from the snapshot store on
+     * miss. Use this when callers (HTTP routes, WS connection setup)
+     * need to discover whether a durable session exists for the code,
+     * even after a server restart.
+     */
+    suspend fun findOrHydrate(code: String): GameSession?
 
     /**
      * Reactive lookup. Emits the current session for [code] (null if
@@ -79,7 +102,8 @@ interface GameSessionRegistry {
 
     /**
      * Drop the session for [code]. Called when the room closes or the
-     * last player leaves. Does nothing if no session exists.
+     * last player leaves. Removes the durable snapshot too so a future
+     * lookup doesn't resurrect the dead session.
      */
     suspend fun end(code: String)
 }
@@ -87,7 +111,11 @@ interface GameSessionRegistry {
 @SingleIn(ServerScope::class)
 @ContributesBinding(ServerScope::class)
 @Inject
-class InMemoryGameSessionRegistry : GameSessionRegistry {
+@OptIn(ExperimentalTime::class)
+class DefaultGameSessionRegistry(
+    private val snapshotStore: SessionSnapshotStore,
+    private val clock: Clock,
+) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
     // the read-modify-write of the map so two concurrent startHand
@@ -100,11 +128,7 @@ class InMemoryGameSessionRegistry : GameSessionRegistry {
         occupants: List<SeatOccupant>,
         settings: RoomSettings,
     ): IntentResult {
-        val session = mutex.withLock {
-            sessions.value[code] ?: GameSession().also { fresh ->
-                sessions.value = sessions.value + (code to fresh)
-            }
-        }
+        val session = obtain(code)
         return session.startHand(occupants, settings)
     }
 
@@ -113,7 +137,7 @@ class InMemoryGameSessionRegistry : GameSessionRegistry {
         actorUserId: String,
         intent: PlayerIntent,
         clientNonce: String,
-    ): IntentResult = sessions.value[code]
+    ): IntentResult = findOrHydrate(code)
         ?.applyIntent(actorUserId, intent, clientNonce)
         ?: IntentResult.Rejected("no game session for room $code")
 
@@ -121,11 +145,23 @@ class InMemoryGameSessionRegistry : GameSessionRegistry {
         code: String,
         actorUserId: String,
         clientNonce: String,
-    ): IntentResult = sessions.value[code]
+    ): IntentResult = findOrHydrate(code)
         ?.requestNextHand(actorUserId, clientNonce)
         ?: IntentResult.Rejected("no game session for room $code")
 
     override fun peek(code: String): GameSession? = sessions.value[code]
+
+    override suspend fun findOrHydrate(code: String): GameSession? {
+        sessions.value[code]?.let { return it }
+        val snapshot = snapshotStore.readByCode(code) ?: return null
+        return mutex.withLock {
+            sessions.value[code]?.let { return@withLock it }
+            val hydrated = createSession(code = code, sessionId = snapshot.sessionId)
+            hydrated.hydrate(snapshot.state)
+            sessions.value = sessions.value + (code to hydrated)
+            hydrated
+        }
+    }
 
     override fun observeSession(code: String): Flow<GameSession?> =
         sessions.asStateFlow().map { it[code] }.distinctUntilChanged()
@@ -134,5 +170,46 @@ class InMemoryGameSessionRegistry : GameSessionRegistry {
         mutex.withLock {
             sessions.value = sessions.value - code
         }
+        Catching { snapshotStore.deleteByCode(code) }
+            .onFailure { log.warn("Failed to delete snapshot for room {} during end()", code, it) }
+    }
+
+    private suspend fun obtain(code: String): GameSession {
+        sessions.value[code]?.let { return it }
+        val snapshot = snapshotStore.readByCode(code)
+        return mutex.withLock {
+            sessions.value[code] ?: run {
+                val fresh = if (snapshot != null) {
+                    createSession(code = code, sessionId = snapshot.sessionId)
+                        .also { it.hydrate(snapshot.state) }
+                } else {
+                    createSession(code = code, sessionId = UUID.randomUUID())
+                }
+                sessions.value = sessions.value + (code to fresh)
+                fresh
+            }
+        }
+    }
+
+    private fun createSession(code: String, sessionId: UUID): GameSession = GameSession(
+        id = sessionId,
+        onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
+    )
+
+    private suspend fun persist(code: String, sessionId: UUID, state: GameState) {
+        Catching {
+            snapshotStore.upsert(
+                SessionSnapshot(
+                    sessionId = sessionId,
+                    code = code,
+                    state = state,
+                    updatedAt = clock.now(),
+                ),
+            )
+        }.onFailure { log.warn("Snapshot persist failed for room {} session {}", code, sessionId, it) }
+    }
+
+    private companion object {
+        private val log = LoggerFactory.getLogger(DefaultGameSessionRegistry::class.java)
     }
 }
