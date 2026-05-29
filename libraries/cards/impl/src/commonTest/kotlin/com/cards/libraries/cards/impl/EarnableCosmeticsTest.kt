@@ -155,13 +155,20 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun showFullHouse_mapsToFullBoatTitle() {
+        val reward = cosmeticRewardFor(AchievementId.SHOW_FULL_HOUSE)
+        assertEquals("title_full_boat", reward?.productId)
+        assertEquals("Full Boat title", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
         // cover an unrelated id (e.g. via copy-paste) fails the test.
         assertNull(cosmeticRewardFor(AchievementId.FIRST_HAND))
         assertNull(cosmeticRewardFor(AchievementId.HANDS_100))
-        assertNull(cosmeticRewardFor(AchievementId.SHOW_FULL_HOUSE))
+        assertNull(cosmeticRewardFor(AchievementId.SHOW_FOUR_OF_KIND))
         assertNull(cosmeticRewardFor(AchievementId.TUTORIAL_COMPLETE))
         assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_5))
     }
