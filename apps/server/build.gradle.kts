@@ -42,6 +42,23 @@ dependencies {
     // so the dependency is paid (in jar size) but stays a no-op for
     // unconfigured deploys. See plugins/Sentry.kt.
     implementation("io.sentry:sentry:7.18.1")
+
+    // OpenTelemetry traces — SDK initialises at boot. When the OTLP
+    // endpoint is unset, falls back to a stdout exporter so spans show
+    // in `flyctl logs` without a sink being provisioned yet. See
+    // plugins/Telemetry.kt and docs/todo.md §C Observability.
+    implementation(libs.opentelemetry.api)
+    implementation(libs.opentelemetry.sdk)
+    implementation(libs.opentelemetry.sdk.logs)
+    implementation(libs.opentelemetry.exporter.otlp)
+    implementation(libs.opentelemetry.exporter.logging)
+    implementation(libs.opentelemetry.exporter.logging.otlp)
+    implementation(libs.opentelemetry.logback.appender)
+    // Bridges OTel `Context` into Kotlin's `CoroutineContext` so a span
+    // started in one suspension shows up as the parent for child spans
+    // started across a `withContext(span.asContextElement())` block.
+    implementation(libs.opentelemetry.extension.kotlin)
+
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation("ch.qos.logback:logback-classic:1.5.6")
     implementation(libs.ktor.serverAuth)
@@ -98,6 +115,8 @@ dependencies {
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.ktor.client.contentNegotiation)
     testImplementation(libs.testcontainers.postgres)
+    // OTel SDK test harness: in-memory span exporter for unit tests.
+    testImplementation(libs.opentelemetry.sdk.testing)
 }
 
 kotlin {

@@ -10,6 +10,9 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import com.dangerfield.cards.server.plugins.SpanAttrs
+import com.dangerfield.cards.server.plugins.withSpan
+import io.opentelemetry.api.trace.Span
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -142,16 +145,50 @@ class GameSession internal constructor(
             return@withLock IntentResult.Rejected("intent seat does not match caller")
         }
 
-        val result = try {
-            GameEngine.applyIntent(current, intent)
-        } catch (e: IllegalArgumentException) {
-            return@withLock IntentResult.Rejected(e.message ?: "illegal intent")
+        // Stamp session-scoped attributes on whatever span is current —
+        // this is the outer `submit_intent` span when the caller is the
+        // WS route, or no-op when the SDK isn't configured. Cheap either
+        // way; keeps session.id + hand.number visible at the trace root.
+        Span.current().apply {
+            setAttribute(SpanAttrs.SessionId, id.toString())
+            setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
         }
-        _state.value = result.state
-        onStateChange(result.state)
-        result.events.forEach { _events.tryEmit(it) }
-        recordNonce(clientNonce)
-        IntentResult.Accepted
+
+        val resolved: EngineResolution = withSpan(
+            name = "engine.apply_intent",
+            configure = {
+                setAttribute(SpanAttrs.IntentType, intent::class.simpleName ?: "Unknown")
+                setAttribute(SpanAttrs.SessionId, id.toString())
+                setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
+            },
+        ) {
+            try {
+                EngineResolution.Resolved(GameEngine.applyIntent(current, intent))
+            } catch (e: IllegalArgumentException) {
+                EngineResolution.Rejected(e.message ?: "illegal intent")
+            }
+        }
+        when (resolved) {
+            is EngineResolution.Rejected -> return@withLock IntentResult.Rejected(resolved.reason)
+            is EngineResolution.Resolved -> {
+                _state.value = resolved.result.state
+                onStateChange(resolved.result.state)
+                resolved.result.events.forEach { _events.tryEmit(it) }
+                recordNonce(clientNonce)
+                return@withLock IntentResult.Accepted
+            }
+        }
+    }
+
+    /**
+     * Internal carrier for the `engine.apply_intent` span's return value
+     * — Kotlin's exception-based rejection signal doesn't compose with
+     * the [withSpan] return-value flow, so we lift the dichotomy into a
+     * sealed type.
+     */
+    private sealed interface EngineResolution {
+        data class Resolved(val result: com.dangerfield.cards.libraries.gameplay.StepResult) : EngineResolution
+        data class Rejected(val reason: String) : EngineResolution
     }
 
     /**

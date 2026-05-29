@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.di.create
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installCors
 import com.dangerfield.cards.server.plugins.installObservability
+import com.dangerfield.cards.server.plugins.installOpenTelemetry
 import com.dangerfield.cards.server.plugins.installRateLimits
 import com.dangerfield.cards.server.plugins.installSentry
 import com.dangerfield.cards.server.plugins.installSerialization
@@ -44,6 +45,11 @@ fun Application.module(config: ServerConfig) {
 
     // Sentry first so any failure later in module() can be captured.
     installSentry(config.sentry)
+
+    // OpenTelemetry next so spans (and, once the appender bridge lands,
+    // logs) emitted by any subsequent plugin land in the configured
+    // exporter. Falls back to stdout when no OTLP endpoint is set.
+    installOpenTelemetry(config.observability)
 
     installSerialization()
     installCors()

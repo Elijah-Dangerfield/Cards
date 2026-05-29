@@ -13,6 +13,7 @@ data class ServerConfig(
     val http: HttpConfig,
     val sentry: SentryConfig,
     val admin: AdminConfig,
+    val observability: ObservabilityConfig,
 ) {
     companion object {
         fun fromEnv(env: Env = Env()): ServerConfig = ServerConfig(
@@ -21,6 +22,7 @@ data class ServerConfig(
             http = HttpConfig.fromEnv(env),
             sentry = SentryConfig.fromEnv(env),
             admin = AdminConfig.fromEnv(env),
+            observability = ObservabilityConfig.fromEnv(env),
         )
     }
 }
@@ -160,6 +162,53 @@ data class SentryConfig(
                     else -> "dev"
                 },
             release = env["SENTRY_RELEASE"],
+        )
+    }
+}
+
+/**
+ * OpenTelemetry exporter wiring. The SDK initialises at boot regardless;
+ * the only knob is *where* spans (and logs, once the appender bridge
+ * lands) ship to.
+ *
+ *  - [otlpEndpoint] null/blank → stdout exporter. Spans appear in
+ *    `flyctl logs` so dev runs and undeployed environments stay
+ *    debuggable without an external sink.
+ *  - [otlpEndpoint] set → OTLP/HTTP exporter pointed at the URL.
+ *    Standard env name `OTEL_EXPORTER_OTLP_ENDPOINT` so SDK-native
+ *    tooling (the CLI, Grafana Cloud's onboarding flow) drops in
+ *    without renaming.
+ *  - [otlpHeaders] mirrors `OTEL_EXPORTER_OTLP_HEADERS` (comma-separated
+ *    `Key=Value` pairs). Grafana Cloud uses one Authorization header
+ *    holding `Basic <base64(instance_id:api_token)>`.
+ *
+ * [serviceName] and [environment] feed the OTel `Resource` so every span
+ * carries `service.name` + `deployment.environment` attributes for
+ * grouping in the backend. Environment defaults to the Sentry
+ * convention (Fly app name → `prod` else `dev`) so traces and errors
+ * filter on the same value.
+ */
+data class ObservabilityConfig(
+    val otlpEndpoint: String?,
+    val otlpHeaders: String?,
+    val serviceName: String,
+    val environment: String,
+    val release: String?,
+) {
+    companion object {
+        fun fromEnv(env: Env): ObservabilityConfig = ObservabilityConfig(
+            otlpEndpoint = env["OTEL_EXPORTER_OTLP_ENDPOINT"],
+            otlpHeaders = env["OTEL_EXPORTER_OTLP_HEADERS"],
+            serviceName = env["OTEL_SERVICE_NAME"] ?: "cards-server",
+            // Match Sentry's environment derivation so a single env tag
+            // groups traces + errors consistently.
+            environment = env["OTEL_DEPLOYMENT_ENVIRONMENT"]
+                ?: env["SENTRY_ENVIRONMENT"]
+                ?: when (env["FLY_APP_NAME"]) {
+                    "cards-server" -> "prod"
+                    else -> "dev"
+                },
+            release = env["OTEL_SERVICE_VERSION"] ?: env["SENTRY_RELEASE"],
         )
     }
 }

@@ -10,7 +10,9 @@ import com.dangerfield.cards.server.game.GameSessionRegistry
 import com.dangerfield.cards.server.game.IntentResult
 import com.dangerfield.cards.server.game.SeatOccupant
 import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
+import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.userId
+import com.dangerfield.cards.server.plugins.withSpan
 import io.ktor.server.auth.authenticate
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.application
@@ -286,12 +288,23 @@ private suspend fun handleClientFrame(
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
         is RoomClientFrame.StartHand -> handleStartHand(code, userId, rooms, gameSessions)
-        is RoomClientFrame.SubmitIntent -> gameSessions.applyIntent(
-            code = code,
-            actorUserId = userId.value.toString(),
-            intent = frame.intent,
-            clientNonce = frame.clientNonce,
-        )
+        is RoomClientFrame.SubmitIntent -> withSpan(
+            name = "submit_intent",
+            configure = {
+                setAttribute(SpanAttrs.FrameType, "submit_intent")
+                setAttribute(SpanAttrs.RoomCode, code)
+                setAttribute(SpanAttrs.UserId, userId.value.toString())
+                setAttribute(SpanAttrs.ClientNonce, frame.clientNonce)
+                setAttribute(SpanAttrs.IntentType, frame.intent::class.simpleName ?: "Unknown")
+            },
+        ) {
+            gameSessions.applyIntent(
+                code = code,
+                actorUserId = userId.value.toString(),
+                intent = frame.intent,
+                clientNonce = frame.clientNonce,
+            ).also { recordIntentOutcome(it) }
+        }
         is RoomClientFrame.RequestNextHand -> gameSessions.requestNextHand(
             code = code,
             actorUserId = userId.value.toString(),
@@ -303,6 +316,20 @@ private suspend fun handleClientFrame(
         accepted = result is IntentResult.Accepted,
         error = (result as? IntentResult.Rejected)?.reason,
     )
+}
+
+/**
+ * Stamps the active span (the `submit_intent` root started above) with
+ * the outcome of the registry call. Decoupled from the result encoding
+ * so attribute names stay consistent regardless of how IntentAck
+ * evolves.
+ */
+private fun recordIntentOutcome(result: IntentResult) {
+    val span = io.opentelemetry.api.trace.Span.current()
+    span.setAttribute(SpanAttrs.Accepted, result is IntentResult.Accepted)
+    if (result is IntentResult.Rejected) {
+        span.setAttribute(SpanAttrs.RejectionReason, result.reason)
+    }
 }
 
 /**

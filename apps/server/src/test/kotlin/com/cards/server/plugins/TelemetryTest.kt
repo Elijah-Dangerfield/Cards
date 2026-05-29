@@ -1,0 +1,173 @@
+package com.dangerfield.cards.server.plugins
+
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.server.config.ObservabilityConfig
+import com.dangerfield.cards.server.game.GameSession
+import com.dangerfield.cards.server.game.SeatOccupant
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import kotlinx.coroutines.test.runTest
+import org.junit.Before
+import org.junit.BeforeClass
+import java.util.concurrent.TimeUnit
+import kotlin.random.Random
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * Pins the OTel wiring contract: the SDK builds for both exporter
+ * modes, [withSpan] emits properly-attributed spans, and the gameplay
+ * path produces the expected child spans.
+ *
+ * `GlobalOpenTelemetry.set(...)` is set-once per classloader; this is
+ * the only test class in the suite that touches the global slot, so a
+ * single companion-init install is safe. Other tests run alongside
+ * with an installed SDK that pipes their spans into the same in-memory
+ * exporter — `@Before` clears it so each test asserts on its own slice.
+ */
+class TelemetryTest {
+
+    @Before
+    fun resetExporter() {
+        exporter.reset()
+    }
+
+    @Test
+    fun buildOpenTelemetrySdk_withNoEndpoint_returnsUsableSdk() {
+        val sdk = buildOpenTelemetrySdk(
+            ObservabilityConfig(
+                otlpEndpoint = null,
+                otlpHeaders = null,
+                serviceName = "test-server",
+                environment = "test",
+                release = null,
+            ),
+        )
+
+        sdk.getTracer("smoke").spanBuilder("noop").startSpan().end()
+        sdk.close()
+    }
+
+    @Test
+    fun buildOpenTelemetrySdk_resourceCarriesServiceAndEnvAttrs() {
+        val exporter = InMemorySpanExporter.create()
+        val sdk = buildOpenTelemetrySdk(
+            ObservabilityConfig(
+                otlpEndpoint = null,
+                otlpHeaders = null,
+                serviceName = "cards-server",
+                environment = "test",
+                release = "abc123",
+            ),
+            spanExporter = exporter,
+        )
+        sdk.getTracer("attrs").spanBuilder("noop").startSpan().end()
+        sdk.sdkTracerProvider.forceFlush().join(1, TimeUnit.SECONDS)
+
+        val span = exporter.finishedSpanItems.single()
+        val resourceAttrs = span.resource.attributes
+        assertEquals("cards-server", resourceAttrs.get(AttributeKey.stringKey("service.name")))
+        assertEquals("test", resourceAttrs.get(AttributeKey.stringKey("deployment.environment")))
+        assertEquals("abc123", resourceAttrs.get(AttributeKey.stringKey("service.version")))
+        sdk.close()
+    }
+
+    @Test
+    fun withSpan_emitsSpanWithAttributes() = runTest {
+        withSpan(
+            name = "test_span",
+            configure = {
+                setAttribute(SpanAttrs.RoomCode, "AB1234")
+                setAttribute(SpanAttrs.UserId, "user-1")
+            },
+        ) {
+            // no-op body
+        }
+        flushSpans()
+
+        val span = exporter.finishedSpanItems.single { it.name == "test_span" }
+        assertEquals("AB1234", span.attributes.get(SpanAttrs.RoomCode))
+        assertEquals("user-1", span.attributes.get(SpanAttrs.UserId))
+    }
+
+    @Test
+    fun withSpan_propagatesContextToChild() = runTest {
+        withSpan(name = "outer") {
+            withSpan(name = "inner") { }
+        }
+        flushSpans()
+
+        val outer = exporter.finishedSpanItems.single { it.name == "outer" }
+        val inner = exporter.finishedSpanItems.single { it.name == "inner" }
+        assertEquals(
+            outer.spanContext.spanId,
+            inner.parentSpanContext.spanId,
+            "inner span should be parented to outer via the coroutine context element",
+        )
+    }
+
+    @Test
+    fun gameSession_applyIntent_emitsEngineApplyIntentSpanWithIntentAttrs() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+        session.startHand(listOf(alice, bob), RoomSettings.Default)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+
+        session.applyIntent(
+            actorUserId = actor.playerId!!,
+            intent = PlayerIntent.Fold(seatIndex = acting),
+            clientNonce = "n1",
+        )
+        flushSpans()
+
+        val engineSpan = exporter.finishedSpanItems.firstOrNull { it.name == "engine.apply_intent" }
+        assertNotNull(engineSpan, "expected an engine.apply_intent span; got ${exporter.finishedSpanItems.map { it.name }}")
+        assertEquals("Fold", engineSpan.attributes.get(SpanAttrs.IntentType))
+        assertEquals(1L, engineSpan.attributes.get(SpanAttrs.HandNumber))
+        assertTrue(engineSpan.attributes.get(SpanAttrs.SessionId)?.isNotBlank() == true)
+    }
+
+    private fun flushSpans() {
+        sdk.sdkTracerProvider.forceFlush().join(1, TimeUnit.SECONDS)
+    }
+
+    companion object {
+        private val exporter = InMemorySpanExporter.create()
+        private val sdk = buildOpenTelemetrySdk(
+            ObservabilityConfig(
+                otlpEndpoint = null,
+                otlpHeaders = null,
+                serviceName = "cards-server-test",
+                environment = "test",
+                release = null,
+            ),
+            spanExporter = exporter,
+        )
+
+        @BeforeClass
+        @JvmStatic
+        fun installGlobalOpenTelemetry() {
+            // `GlobalOpenTelemetry.set` is one-shot: it can only be
+            // called once before any `get` call. Other tests in the
+            // suite that exercise the gameplay path implicitly hit
+            // `GlobalOpenTelemetry.getTracer(...)` (via withSpan), which
+            // initialises the global to noop and locks `set` out. The
+            // SDK ships a package-private `resetForTest` for exactly
+            // this scenario; reflection bypasses the access check.
+            resetGlobalOpenTelemetry()
+            GlobalOpenTelemetry.set(sdk)
+        }
+
+        private fun resetGlobalOpenTelemetry() {
+            val method = GlobalOpenTelemetry::class.java.getDeclaredMethod("resetForTest")
+            method.isAccessible = true
+            method.invoke(null)
+        }
+    }
+}
