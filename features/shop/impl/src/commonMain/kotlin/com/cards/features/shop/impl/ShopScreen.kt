@@ -58,7 +58,7 @@ import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Surface
@@ -751,19 +751,21 @@ private fun LockedFooter(requiredLevel: Int) {
 @Composable
 private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(
+        Box(
             modifier = Modifier
                 .clip(Radii.Round.shape)
                 .background(AppTheme.colors.danger.color.copy(alpha = 0.18f))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            ChipCoin(size = 16.dp, textTypography = AppTheme.typography.Body.B400)
-            Spacer(modifier = Modifier.size(6.dp))
-            Text(
-                text = formatChips(cost),
+            // ChipCoinAmount keeps the gold-coin + count shape aligned with
+            // every other cost / balance surface; danger color carries the
+            // can't-afford signal.
+            ChipCoinAmount(
+                amount = cost,
+                coinSize = 16.dp,
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.danger,
+                formatter = ::formatChips,
             )
         }
         if (shortBy > 0) {
@@ -813,21 +815,20 @@ private fun OwnedFooter() {
 @Composable
 private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
     val bg = if (canAfford) AppTheme.colors.surfaceTertiary.color else AppTheme.colors.surfaceDisabled.color
-    Row(
+    Box(
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(bg)
             .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // ChipCoin (DS) — matches the gold coin used in the header / table pot
-        // / stack so users get one consistent "this means chips" affordance.
-        ChipCoin(size = 16.dp, textTypography = AppTheme.typography.Body.B400)
-        Spacer(modifier = Modifier.size(6.dp))
-        Text(
-            text = formatChips(cost),
+        // ChipCoinAmount keeps the gold-coin + count shape aligned with
+        // every other cost / balance surface (table pot, stack, header).
+        ChipCoinAmount(
+            amount = cost,
+            coinSize = 16.dp,
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
+            formatter = ::formatChips,
         )
     }
 }
