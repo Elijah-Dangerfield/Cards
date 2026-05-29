@@ -118,5 +118,9 @@ fun cosmeticRewardFor(id: AchievementId): CosmeticReward? = when (id) {
         productId = "title_full_boat",
         label = "Full Boat title",
     )
+    AchievementId.SHOW_FOUR_OF_KIND -> CosmeticReward(
+        productId = "title_quartet",
+        label = "Quartet title",
+    )
     else -> null
 }

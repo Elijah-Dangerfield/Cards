@@ -162,13 +162,20 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun showFourOfKind_mapsToQuartetTitle() {
+        val reward = cosmeticRewardFor(AchievementId.SHOW_FOUR_OF_KIND)
+        assertEquals("title_quartet", reward?.productId)
+        assertEquals("Quartet title", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
         // cover an unrelated id (e.g. via copy-paste) fails the test.
         assertNull(cosmeticRewardFor(AchievementId.FIRST_HAND))
         assertNull(cosmeticRewardFor(AchievementId.HANDS_100))
-        assertNull(cosmeticRewardFor(AchievementId.SHOW_FOUR_OF_KIND))
+        assertNull(cosmeticRewardFor(AchievementId.SHOW_FLUSH))
         assertNull(cosmeticRewardFor(AchievementId.TUTORIAL_COMPLETE))
         assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_5))
     }

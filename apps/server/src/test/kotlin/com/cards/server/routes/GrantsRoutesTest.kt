@@ -266,6 +266,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsQuartetTitle_forShowFourOfKind() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_quartet"))
+        post(inventory, catalog, defaultPolicy, "SHOW_FOUR_OF_KIND") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_quartet", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("title_quartet", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun defaultPolicy_grantsBeatBotSignaturePacks_forBeat10AchievementsPerBot() = runTest {
         val pairings = listOf(
             "BEAT_JANE_10" to "emotes_inspector",
