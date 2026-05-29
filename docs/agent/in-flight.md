@@ -1,6 +1,14 @@
 # In-flight — cycle 2026-05-29
 
-## refactor(server): retire game_events write path
+## docs(todo): close §A RNG sweep + refresh stale earnable-pairing counts
+
+**Problem:** Two stale items in `docs/todo.md` after the 2026-05-29 RNG-title retire commit. (1) The §A P1 "remaining sweep after the RNG title retire" bullet asked for a follow-up sweep of `show X at showdown` / `win any pot > N` entries, which on actual survey has no remaining retire/raise targets — the bullet was sitting there waiting for a worker to discover that. (2) The companion §A P1 "Audit existing earnable pairings" bullet still cited "22 pairings; 8 are vanity titles, 6 of those 8 are single-showdown RNG" — pre-retire numbers; current state is 18 pairings, 4 vanity titles, 0 single-showdown RNG.
+
+**Approach:** Audited the registry by hand. The remaining `SHOW_*` family (`SHOW_PAIR` → `SHOW_ROYAL_FLUSH`) is all XP-only after the prior retire commit, no cosmetic or chip leg attached. COMMON-rarity entries (Pair/TwoPair/ThreeOfKind) aren't really RNG — they're volume gates, basically guaranteed in normal play. RARE/EPIC/LEGENDARY entries are single-showdown RNG but XP-only fits the prior worker's framing of "serendipitous gold star without inflating economic / cosmetic significance." No retire/raise candidates remain. For the "win any pot > N" half of the ask: there are no such entries — `POT_500` / `POT_1000` / `POT_5000` all key off `MAX_POT_SEEN` / `MAX_POT_BB_RATIO` (sticky high-water marks), not per-pot triggers. Dropped the closed bullet, refreshed the audit-bullet counts to the actual 18 / 4 / 0 state. No code changes; the registry itself is already in the shape these bullets described as the target.
+
+**Reviewer notes:** None. Docs cleanup behind already-shipped work.
+
+
 
 **Problem:** §B0 P2 — the `game_events` durable log (V31, shipped 2026-05-28) was built for the event-sourced direction; the 2026-05-29 architecture flip to snapshot-only state means nothing reads from it, and the writer + DI binding + Postgres table are dead weight.
 
