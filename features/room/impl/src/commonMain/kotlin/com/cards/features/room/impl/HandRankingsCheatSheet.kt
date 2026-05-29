@@ -77,6 +77,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD200
@@ -311,7 +312,7 @@ private fun CurrentHandCard(
             .fillMaxWidth()
             .clip(Radii.R1000.shape)
             .background(AppTheme.colors.surfaceSecondary.color)
-            .padding(horizontal = 22.dp, vertical = 22.dp),
+            .padding(horizontal = Dimension.D850, vertical = Dimension.D850),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Row(
@@ -390,7 +391,7 @@ private fun StreetProgress(current: BettingRound) {
             Box(
                 modifier = Modifier
                     .height(8.dp)
-                    .width(if (isCurrent) 22.dp else 10.dp)
+                    .width(if (isCurrent) Dimension.D850 else 10.dp)
                     .clip(Radii.Round.shape)
                     .background(color),
             )

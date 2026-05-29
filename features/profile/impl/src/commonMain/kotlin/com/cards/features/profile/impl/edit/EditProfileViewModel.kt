@@ -117,19 +117,19 @@ class EditProfileViewModel(
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
-                it.copy(displayName = action.value, error = null, displayNameError = null)
+                it.copy(displayName = action.value, displayNameError = null)
             }
 
             is EditProfileAction.AvatarSelected -> action.updateState {
-                it.copy(selectedAvatarEmoji = action.emoji, error = null)
+                it.copy(selectedAvatarEmoji = action.emoji)
             }
 
             is EditProfileAction.AvatarBackgroundColorSelected -> action.updateState {
-                it.copy(selectedAvatarBackgroundColor = action.color, error = null)
+                it.copy(selectedAvatarBackgroundColor = action.color)
             }
 
             is EditProfileAction.DismissError -> action.updateState {
-                it.copy(error = null, displayNameError = null)
+                it.copy(displayNameError = null)
             }
 
             is EditProfileAction.Submit -> action.run {
@@ -137,7 +137,7 @@ class EditProfileViewModel(
                 if (!current.canSubmit) return@run
 
                 updateState {
-                    it.copy(isSubmitting = true, error = null, displayNameError = null)
+                    it.copy(isSubmitting = true, displayNameError = null)
                 }
 
                 val colorChanged = current.selectedAvatarBackgroundColor != current.initialAvatarBackgroundColor
@@ -196,13 +196,13 @@ class EditProfileViewModel(
             UpdateProfileOutcome.DisplayNameTaken -> updateState {
                 it.copy(
                     isSubmitting = false,
-                    displayNameError = "That name is taken. Try another.",
+                    displayNameError = EditProfileDisplayNameError.Taken,
                 )
             }
             UpdateProfileOutcome.InvalidDisplayName -> updateState {
                 it.copy(
                     isSubmitting = false,
-                    displayNameError = "That name isn't allowed. Use letters and numbers.",
+                    displayNameError = EditProfileDisplayNameError.Invalid,
                 )
             }
             // Non-validation failures (NotSignedIn, NetworkError,
@@ -261,14 +261,7 @@ data class EditProfileState(
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
-    val error: String? = null,
-    /**
-     * Inline error rendered under the display-name field. Set when the
-     * server rejects the new name (already taken, or otherwise invalid).
-     * Cleared on the next edit of the field. Distinct from [error] so
-     * the UI can place it at the field rather than as a generic banner.
-     */
-    val displayNameError: String? = null,
+    val displayNameError: EditProfileDisplayNameError? = null,
 ) {
     /**
      * Display projection: every server pack, paired with whether the
@@ -326,6 +319,16 @@ data class AvatarPackDisplay(
 
 sealed interface EditProfileEvent {
     data object Saved : EditProfileEvent
+}
+
+/**
+ * Inline error surfaced under the display-name field. Typed so the VM
+ * doesn't hold raw user-facing copy — `EditProfileScreen.kt` resolves
+ * each variant through Compose Multiplatform resources at render time.
+ */
+sealed interface EditProfileDisplayNameError {
+    data object Taken : EditProfileDisplayNameError
+    data object Invalid : EditProfileDisplayNameError
 }
 
 sealed interface EditProfileAction {

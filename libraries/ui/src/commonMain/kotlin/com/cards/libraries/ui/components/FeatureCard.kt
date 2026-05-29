@@ -23,6 +23,7 @@ import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 
 /**
@@ -50,7 +51,7 @@ fun FeatureCard(
                 ),
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 22.dp),
+            .padding(horizontal = Dimension.D850, vertical = Dimension.D850),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(

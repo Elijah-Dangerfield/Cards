@@ -1,6 +1,10 @@
 package com.dangerfield.cards.features.profile.impl.items
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +19,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_my_items_badge_earned
 import cards.libraries.resources.generated.resources.profile_my_items_badge_unlocked
@@ -67,7 +78,27 @@ fun MyItemsScreen(
     state: MyItemsState,
     onAction: (MyItemsAction) -> Unit,
     onBack: () -> Unit,
+    highlightProductId: String? = null,
 ) {
+    val listState = rememberLazyListState()
+    var pulseProductId by remember { mutableStateOf<String?>(null) }
+
+    // Scroll the just-unlocked row into view, then pulse its border for a
+    // beat so the user can spot the new item against an otherwise-uniform
+    // list. Inventory + catalog hydrate via separate flows; we wait until
+    // the highlight target actually appears in ownedItems before scrolling
+    // so a deep-link into a freshly-purchased product (where the
+    // optimistic write is still settling) lands cleanly.
+    LaunchedEffect(highlightProductId, state.ownedItems) {
+        if (highlightProductId == null) return@LaunchedEffect
+        val target = state.ownedItems.indexOfFirst { it.productId == highlightProductId }
+        if (target < 0) return@LaunchedEffect
+        listState.animateScrollToItem(target)
+        pulseProductId = highlightProductId
+        delay(HighlightPulseDurationMillis)
+        pulseProductId = null
+    }
+
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
@@ -102,12 +133,14 @@ fun MyItemsScreen(
                 EmptyState()
             } else {
                 LazyColumn(
+                    state = listState,
                     verticalArrangement = Arrangement.spacedBy(Dimension.D400),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(state.ownedItems, key = { it.productId }) { item ->
                         OwnedItemRow(
                             item = item,
+                            isPulsing = item.productId == pulseProductId,
                             onToggle = { onAction(MyItemsAction.ToggleEquipped(item.productId)) },
                         )
                     }
@@ -117,14 +150,34 @@ fun MyItemsScreen(
     }
 }
 
+private const val HighlightPulseDurationMillis = 1_800L
+
 @Composable
-private fun OwnedItemRow(item: OwnedItem, onToggle: () -> Unit) {
+private fun OwnedItemRow(
+    item: OwnedItem,
+    onToggle: () -> Unit,
+    isPulsing: Boolean = false,
+) {
+    // Fade an accent border in then back out to spotlight the just-
+    // unlocked row without rearranging layout — the row itself stays
+    // anchored, the eye gets a beat to lock on.
+    val pulseAlpha by animateFloatAsState(
+        targetValue = if (isPulsing) 1f else 0f,
+        animationSpec = tween(durationMillis = 600, easing = LinearEasing),
+        label = "OwnedItemRowPulseAlpha",
+    )
+    val rowShape = Radii.R700.shape
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clip(Radii.R700.shape)
+            .clip(rowShape)
             .background(AppTheme.colors.surfacePrimary.color)
+            .border(
+                width = 2.dp,
+                color = AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha),
+                shape = rowShape,
+            )
             .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
     ) {
         CosmeticPreview(

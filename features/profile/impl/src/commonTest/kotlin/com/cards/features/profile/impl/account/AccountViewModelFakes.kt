@@ -36,6 +36,8 @@ internal class FakeAuthRepository(
     val deleteOutcome: DeleteAccountOutcome = DeleteAccountOutcome.Unknown(RuntimeException("not stubbed")),
     val linkOutcome: LinkIdentityOutcome = LinkIdentityOutcome.Unknown(RuntimeException("not stubbed")),
     val oauthSignInOutcome: SignInOutcome = SignInOutcome.Unknown(RuntimeException("not stubbed")),
+    val linkEmailOutcome: LinkEmailIdentityOutcome = LinkEmailIdentityOutcome.Unknown(RuntimeException("not stubbed")),
+    val signUpOutcome: SignUpOutcome = SignUpOutcome.Unknown(RuntimeException("not stubbed")),
 ) : AuthRepository {
 
     var deleteCalls: Int = 0
@@ -48,6 +50,14 @@ internal class FakeAuthRepository(
         private set
     var lastOAuthProvider: OAuthProvider? = null
         private set
+    var linkEmailCalls: Int = 0
+        private set
+    var lastLinkEmail: Pair<String, String>? = null
+        private set
+    var signUpCalls: Int = 0
+        private set
+    var lastSignUpEmail: Pair<String, String>? = null
+        private set
 
     private val state = MutableStateFlow<AuthState>(AuthState.Unauthenticated())
 
@@ -58,8 +68,11 @@ internal class FakeAuthRepository(
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
         error("signInWithEmail not used by the account ViewModels")
 
-    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =
-        error("signUpWithEmail not used by the account ViewModels")
+    override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome {
+        signUpCalls += 1
+        lastSignUpEmail = email to password
+        return signUpOutcome
+    }
 
     override suspend fun refreshSession(): RefreshOutcome =
         error("refreshSession not used by the account ViewModels")
@@ -83,8 +96,11 @@ internal class FakeAuthRepository(
         return linkOutcome
     }
 
-    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome =
-        error("linkEmailIdentity not used by the account ViewModels")
+    override suspend fun linkEmailIdentity(email: String, password: String): LinkEmailIdentityOutcome {
+        linkEmailCalls += 1
+        lastLinkEmail = email to password
+        return linkEmailOutcome
+    }
 
     override suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome {
         oauthSignInCalls += 1

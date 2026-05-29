@@ -38,6 +38,10 @@ import cards.libraries.resources.generated.resources.auth_forgot_password_submit
 import cards.libraries.resources.generated.resources.auth_forgot_password_submit_button_progress
 import cards.libraries.resources.generated.resources.auth_forgot_password_subtitle
 import cards.libraries.resources.generated.resources.auth_forgot_password_title
+import cards.libraries.resources.generated.resources.auth_sign_in_error_invalid_credentials
+import cards.libraries.resources.generated.resources.auth_sign_in_error_network
+import cards.libraries.resources.generated.resources.auth_sign_in_error_provider_not_enabled
+import cards.libraries.resources.generated.resources.auth_sign_in_error_unknown
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_apple
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_google
@@ -51,6 +55,12 @@ import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_p
 import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_secondary
 import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_title
 import cards.libraries.resources.generated.resources.auth_sign_up_confirm_password_label
+import cards.libraries.resources.generated.resources.auth_sign_up_error_email_already_registered
+import cards.libraries.resources.generated.resources.auth_sign_up_error_invalid_email
+import cards.libraries.resources.generated.resources.auth_sign_up_error_network
+import cards.libraries.resources.generated.resources.auth_sign_up_error_passwords_dont_match
+import cards.libraries.resources.generated.resources.auth_sign_up_error_unknown
+import cards.libraries.resources.generated.resources.auth_sign_up_error_weak_password
 import cards.libraries.resources.generated.resources.auth_sign_up_password_helper
 import cards.libraries.resources.generated.resources.auth_sign_up_password_mismatch_helper
 import cards.libraries.resources.generated.resources.auth_sign_up_submit_button
@@ -199,7 +209,7 @@ fun SignInScreen(
 
         state.error?.let {
             Spacer(modifier = Modifier.height(Dimension.D400))
-            ErrorText(it)
+            ErrorText(it.message())
         }
 
         Spacer(modifier = Modifier.height(Dimension.D300))
@@ -377,7 +387,7 @@ fun SignUpScreen(
 
         state.error?.let {
             Spacer(modifier = Modifier.height(Dimension.D400))
-            ErrorText(it)
+            ErrorText(it.message())
         }
 
         Spacer(modifier = Modifier.height(Dimension.D800))
@@ -576,6 +586,30 @@ private fun ErrorText(text: String) {
 }
 
 @Composable
+private fun SignInError.message(): String = when (this) {
+    SignInError.InvalidCredentials -> stringResource(Res.string.auth_sign_in_error_invalid_credentials)
+    SignInError.NetworkError -> stringResource(Res.string.auth_sign_in_error_network)
+    SignInError.ProviderNotEnabled -> stringResource(Res.string.auth_sign_in_error_provider_not_enabled)
+    SignInError.Unknown -> stringResource(Res.string.auth_sign_in_error_unknown)
+}
+
+@Composable
+private fun SignUpError.message(): String = when (this) {
+    SignUpError.PasswordsDontMatch ->
+        stringResource(Res.string.auth_sign_up_error_passwords_dont_match)
+    SignUpError.EmailAlreadyRegistered ->
+        stringResource(Res.string.auth_sign_up_error_email_already_registered)
+    is SignUpError.WeakPassword ->
+        stringResource(Res.string.auth_sign_up_error_weak_password, minLength)
+    SignUpError.InvalidEmail ->
+        stringResource(Res.string.auth_sign_up_error_invalid_email)
+    SignUpError.NetworkError ->
+        stringResource(Res.string.auth_sign_up_error_network)
+    SignUpError.Unknown ->
+        stringResource(Res.string.auth_sign_up_error_unknown)
+}
+
+@Composable
 private fun BannerText(banner: VerifyEmailState.Banner) {
     val (resource, color) = bannerResource(banner)
     Text(
@@ -664,7 +698,7 @@ private fun SignInScreenPreview_Error() {
             state = SignInState(
                 email = "elijah@example.com",
                 password = "wrongpass",
-                error = "That email or password didn't match.",
+                error = SignInError.InvalidCredentials,
             ),
             onAction = {},
             onBack = {},
@@ -735,7 +769,7 @@ private fun SignUpScreenPreview_Error() {
                 email = "elijah@example.com",
                 password = "hunter22ish",
                 confirmPassword = "hunter22ish",
-                error = "Sign up failed. Please try again.",
+                error = SignUpError.Unknown,
             ),
             onAction = {},
             onBack = {},

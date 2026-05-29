@@ -23,6 +23,8 @@
     <!-- Shop — snackbar titles + messages fired from non-Composable contexts. -->
     <string name="shop_snackbar_redeem_succeeded_title">Unlocked!</string>
     <string name="shop_snackbar_redeem_succeeded_message">%1$s is yours.</string>
+    <string name="shop_snackbar_redeem_succeeded_action_equip">Equip</string>
+    <string name="shop_snackbar_redeem_succeeded_action_view">View</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>
@@ -85,6 +87,40 @@
     <string name="lobby_connection_connecting">Connecting…</string>
     <string name="lobby_connection_reconnecting">Reconnecting (attempt %1$d)…</string>
     <string name="lobby_connection_connected">Connected</string>
+
+    <!-- Sign-in — inline error states surfaced by the VM (sealed SignInError → resource). -->
+    <string name="auth_sign_in_error_invalid_credentials">Email or password is incorrect.</string>
+    <string name="auth_sign_in_error_network">Couldn't reach the server. Check your connection.</string>
+    <string name="auth_sign_in_error_provider_not_enabled">That sign-in option isn't available yet.</string>
+    <string name="auth_sign_in_error_unknown">Sign in failed. Please try again.</string>
+
+    <!-- Lobby — inline error states surfaced by the VM (sealed LobbyError → resource). -->
+    <string name="lobby_error_create_not_signed_in">Sign in first to create a room.</string>
+    <string name="lobby_error_create_network">Couldn't reach the server.</string>
+    <string name="lobby_error_create_unknown">Couldn't create a room.</string>
+    <string name="lobby_error_join_blank_code">Enter a room code to join.</string>
+    <string name="lobby_error_join_not_found">No room with code %1$s.</string>
+    <string name="lobby_error_join_full">That room is full.</string>
+    <string name="lobby_error_join_not_accepting">That room isn't accepting players right now.</string>
+    <string name="lobby_error_join_not_signed_in">Sign in first to join a room.</string>
+    <string name="lobby_error_join_network">Couldn't reach the server.</string>
+    <string name="lobby_error_join_unknown">Couldn't join.</string>
+    <string name="lobby_error_leave_server_not_notified">Couldn't tell the server we left. Your seat will free up.</string>
+    <string name="lobby_error_room_was_closed">The room was closed.</string>
+    <string name="lobby_error_connect_rejected">Couldn't connect — try rejoining.</string>
+    <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update — invite your friends and stand by.</string>
+
+    <!-- Onboarding — inline error states surfaced by the VM (sealed OnboardingAuthError + OnboardingSaveError → resource). -->
+    <string name="onboarding_auth_error_oauth_provider_not_enabled">That sign-in option isn\'t available yet.</string>
+    <string name="onboarding_auth_error_oauth_network">Couldn\'t reach the server. Check your connection.</string>
+    <string name="onboarding_auth_error_oauth_failed">Sign in failed. Please try again.</string>
+    <string name="onboarding_auth_error_guest_anonymous_disabled">Anonymous sign-in isn\'t enabled in this Supabase project. Enable it in Authentication → Providers → Email (Allow anonymous sign-ins).</string>
+    <string name="onboarding_auth_error_guest_captcha">Captcha is required by this Supabase project. Disable it in dev or wire a token.</string>
+    <string name="onboarding_auth_error_guest_invalid_config">The Supabase anon key looks wrong or expired. Check IdentityConfig.</string>
+    <string name="onboarding_auth_error_guest_failed">Couldn\'t reach the server. Check your connection and try again.</string>
+    <string name="onboarding_auth_error_debug_suffix">\n\nDEBUG: %1$s</string>
+    <string name="onboarding_save_error_display_name_taken">That name is taken. Try another.</string>
+    <string name="onboarding_save_error_invalid_display_name">Try a different name — letters and numbers only.</string>
 
     <!-- Onboarding — Welcome step (entry screen). -->
     <string name="onboarding_welcome_title">Cards</string>
@@ -214,6 +250,26 @@
     <string name="auth_sign_up_claim_dialog_primary">Send link</string>
     <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
 
+    <!-- Sign-up — inline error states surfaced by the VM (sealed SignUpError → resource). -->
+    <string name="auth_sign_up_error_passwords_dont_match">Passwords don\'t match.</string>
+    <string name="auth_sign_up_error_email_already_registered">That email is already in use. Try signing in instead.</string>
+    <string name="auth_sign_up_error_weak_password">Pick a stronger password (at least %1$d characters).</string>
+    <string name="auth_sign_up_error_invalid_email">That email doesn\'t look right.</string>
+    <string name="auth_sign_up_error_network">Couldn\'t reach the server. Check your connection.</string>
+    <string name="auth_sign_up_error_unknown">Sign up failed. Please try again.</string>
+
+    <!-- Claim account — inline error states surfaced by the VM (sealed ClaimAccountError → resource). -->
+    <string name="auth_claim_error_passwords_dont_match">Passwords don\'t match.</string>
+    <string name="auth_claim_error_already_on_another_account">That account is already in use. You can switch to it, but your current guest progress (chips, XP, achievements) won\'t carry over.</string>
+    <string name="auth_claim_error_not_signed_in">Sign in first, then claim your account.</string>
+    <string name="auth_claim_error_provider_not_enabled">%1$s sign-in isn\'t available yet. Please try again later.</string>
+    <string name="auth_claim_error_network">Couldn\'t reach the server. Check your connection.</string>
+    <string name="auth_claim_error_unknown">Couldn\'t claim your account. Please try again.</string>
+    <string name="auth_claim_error_switch_failed">Couldn\'t sign in. Please try again.</string>
+    <string name="auth_claim_error_email_already_registered">That email is already in use. Try signing in instead.</string>
+    <string name="auth_claim_error_weak_password">Pick a stronger password (at least %1$d characters).</string>
+    <string name="auth_claim_error_invalid_email">That email doesn\'t look right.</string>
+
     <!-- Auth — Forgot password screen. -->
     <string name="auth_forgot_password_link">Forgot password?</string>
     <string name="auth_forgot_password_title">Reset your password</string>
@@ -329,14 +385,16 @@
     <string name="profile_edit_pack_locked_prefix">🔒  %1$s</string>
     <string name="profile_edit_pack_unlock_button">Get in shop</string>
 
+    <!-- Edit profile — inline display-name error states surfaced by the VM (sealed EditProfileDisplayNameError → resource). -->
+    <string name="profile_edit_display_name_error_taken">That name is taken. Try another.</string>
+    <string name="profile_edit_display_name_error_invalid">That name isn\'t allowed. Use letters and numbers.</string>
+
     <!-- Profile — Claim account hero (anonymous → claimed flow). -->
     <string name="profile_claim_back_a11y">Back</string>
     <string name="profile_claim_title">Claim your account</string>
     <string name="profile_claim_subtitle">Save your chips, XP, and achievements across devices.</string>
     <string name="profile_claim_provider_google">Continue with Google</string>
     <string name="profile_claim_provider_apple">Continue with Apple</string>
-    <string name="profile_claim_provider_email">Continue with email</string>
-    <string name="profile_claim_coming_soon">Apple and Google sign-in are coming soon.</string>
     <string name="profile_claim_conflict_switch_button">Switch to my %1$s account anyway</string>
 
     <!-- Profile — Delete account destructive flow. -->

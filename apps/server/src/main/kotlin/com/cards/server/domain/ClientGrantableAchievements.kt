@@ -57,6 +57,14 @@ class ClientGrantableAchievements(
                 "HANDS_1000" to "emotes_grinder",
                 "DOUBLE_UP" to "emotes_doubler",
                 "CHALLENGING_10_WINS" to "emotes_tactician",
+                "REACH_LEVEL_25" to "title_felt_veteran",
+                "BEAT_JANE_10" to "emotes_inspector",
+                "BEAT_DAVID_10" to "emotes_showstopper",
+                "BEAT_GINA_10" to "emotes_outsmarter",
+                "BEAT_STEVE_10" to "emotes_marathoner",
+                "BEAT_MIKE_10" to "emotes_tamer",
+                "SHOW_ROYAL_FLUSH" to "title_royalty",
+                "SHOW_STRAIGHT_FLUSH" to "title_suited_run",
             ),
             // Multiplayer-mode achievements live here so the client grant
             // route returns 403, not 204. Once Phase 4.2 server-authoritative

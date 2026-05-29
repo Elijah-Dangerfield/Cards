@@ -431,3 +431,16 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Hint:** the existing `LinkEmailIdentityOutcome` mapping shape is the model — add `UpdatePasswordOutcome` (`Success` / `WeakPassword` / `SessionExpired` / `NetworkError` / `Unknown`) and a `AuthRepository.updatePassword(newPassword)` method. The screen lives in `:features:onboarding:impl` alongside the existing `ForgotPasswordScreen` and routes from a new `ResetPasswordRoute(token: String)` registered on `OnboardingFeatureEntryPoint`.
 
 **Status:** Backlog — gated on the dashboard redirect-URL entry, not on engineering.
+
+---
+
+## Investigate iOS pre-splash black frame on cold boot
+
+**Idea:** On a fresh iOS install, observed a brief black screen before the launch-screen splash renders on cold boot. Don't know yet whether it's iOS's own pre-launch frame, our `LaunchScreen.storyboard` taking a tick to load, or something in `iOSApp.swift` blocking the first paint. Worth a focused look before assuming a fix.
+
+**Sketch directions when revisiting:**
+- Confirm whether the black frame is iOS-managed (between `application(_:didFinishLaunching...)` and the launch storyboard rendering) or app-side. A screen recording on a fresh install + Instruments → App Launch trace would localize it.
+- If app-side: check whether `iOSApp.init` does synchronous work (DI graph construction via `IosAppComponentFactory.create`, Sentry init) on the main thread before the launch storyboard yields. The Compose framework load (`ComposeApp.xcframework`) also happens here.
+- If iOS-managed: launch storyboard background color / image alignment is the only lever — confirm `LaunchScreen.storyboard` matches the Compose splash's background so the transition is invisible.
+
+**Status:** Backlog. No known impact beyond the visual; flagged for an investigation pass next time someone touches the iOS launch path. Don't preemptively "fix" — the answer might be "iOS does this and there's nothing to do."

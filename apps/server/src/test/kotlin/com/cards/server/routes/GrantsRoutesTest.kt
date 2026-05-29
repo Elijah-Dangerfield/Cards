@@ -201,6 +201,19 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun defaultPolicy_grantsFeltVeteranTitle_forReachLevel25() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_felt_veteran"))
+        post(inventory, catalog, defaultPolicy, "REACH_LEVEL_25") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_felt_veteran", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("title_felt_veteran", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
     fun defaultPolicy_grantsBotWhispererTitle_forBotWhispererCapstone() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_bot_whisperer"))
@@ -210,6 +223,54 @@ class GrantsRoutesTest {
             assertEquals("title_bot_whisperer", body.productId)
             assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
             assertEquals("title_bot_whisperer", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
+    fun defaultPolicy_grantsRoyaltyTitle_forShowRoyalFlush() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_royalty"))
+        post(inventory, catalog, defaultPolicy, "SHOW_ROYAL_FLUSH") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_royalty", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("title_royalty", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
+    fun defaultPolicy_grantsSuitedRunTitle_forShowStraightFlush() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("title_suited_run"))
+        post(inventory, catalog, defaultPolicy, "SHOW_STRAIGHT_FLUSH") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("title_suited_run", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals("title_suited_run", inventory.earnedGrants.single().productId)
+        }
+    }
+
+    @Test
+    fun defaultPolicy_grantsBeatBotSignaturePacks_forBeat10AchievementsPerBot() = runTest {
+        val pairings = listOf(
+            "BEAT_JANE_10" to "emotes_inspector",
+            "BEAT_DAVID_10" to "emotes_showstopper",
+            "BEAT_GINA_10" to "emotes_outsmarter",
+            "BEAT_STEVE_10" to "emotes_marathoner",
+            "BEAT_MIKE_10" to "emotes_tamer",
+        )
+        for ((achievementId, expectedProductId) in pairings) {
+            val inventory = CapturingInventory()
+            val catalog = FakeCatalog.with(stubProduct(expectedProductId))
+            post(inventory, catalog, defaultPolicy, achievementId) { resp ->
+                assertEquals(HttpStatusCode.OK, resp.status, "id=$achievementId")
+                val body = resp.body<OwnedItemDto>()
+                assertEquals(expectedProductId, body.productId, "id=$achievementId")
+                assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource, "id=$achievementId")
+                assertEquals(expectedProductId, inventory.earnedGrants.single().productId, "id=$achievementId")
+            }
         }
     }
 

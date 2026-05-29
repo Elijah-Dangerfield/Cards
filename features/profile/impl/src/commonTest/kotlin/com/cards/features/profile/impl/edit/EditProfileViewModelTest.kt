@@ -249,12 +249,36 @@ class EditProfileViewModelTest : CoroutineTest() {
             runCurrent()
 
             expectNoEvents() // still no Saved — the validation failed.
-            val error = vm.state.displayNameError
-                ?: error("expected inline displayNameError on the name field")
-            assertTrue(
-                error.contains("taken", ignoreCase = true),
-                "expected a 'name is taken' message; got: $error",
-            )
+            assertEquals(EditProfileDisplayNameError.Taken, vm.state.displayNameError)
+            assertEquals(false, vm.state.isSubmitting)
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_nameChanged_invalidName_surfacesInvalidInline() = runUnitTest {
+        // Sibling to the DisplayNameTaken case — InvalidDisplayName is the
+        // server's other inline-rejection variant (e.g. punctuation,
+        // disallowed character class). Same await-and-surface treatment.
+        val gate = CompletableDeferred<UpdateProfileOutcome>()
+        val profile = GatedUpdateProfile(gate)
+        val vm = EditProfileViewModel(
+            profileRepository = profile,
+            inventoryRepository = NoOpInventoryRepository,
+            appScope = AppCoroutineScope(dispatchers),
+        )
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(EditProfileAction.DisplayNameChanged("Bad!Name"))
+            vm.takeAction(EditProfileAction.Submit)
+            runCurrent()
+
+            gate.complete(UpdateProfileOutcome.InvalidDisplayName)
+            runCurrent()
+
+            expectNoEvents()
+            assertEquals(EditProfileDisplayNameError.Invalid, vm.state.displayNameError)
             assertEquals(false, vm.state.isSubmitting)
         }
     }

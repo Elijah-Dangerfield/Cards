@@ -37,7 +37,6 @@ import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * Pins [LobbyViewModel]'s state machine. Heavy use of in-memory fakes
@@ -124,7 +123,7 @@ class LobbyViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(last.error!!.contains("reach"))
+            assertEquals(LobbyError.CreateNetworkError, last.error)
             assertEquals(null, last.room)
             cancelAndIgnoreRemainingEvents()
         }
@@ -140,7 +139,7 @@ class LobbyViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(last.error!!.contains("full"))
+            assertEquals(LobbyError.JoinRoomFull, last.error)
             assertEquals(null, last.room)
             cancelAndIgnoreRemainingEvents()
         }
@@ -155,8 +154,75 @@ class LobbyViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(last.error!!.contains("Enter"))
+            assertEquals(LobbyError.JoinBlankCode, last.error)
             assertEquals(0, rooms.joinCalls, "blank code short-circuits before the network")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun join_notFound_surfacesError_withCode() = runUnitTest {
+        val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.NotFound)
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CodeChanged("WXYZ12"))
+        vm.takeAction(LobbyAction.SubmitJoin)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(LobbyError.JoinRoomNotFound(code = "WXYZ12"), last.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun createRoom_invalidMaxSeats_carriesServerMessage() = runUnitTest {
+        val rooms = FakeRoomRepository(
+            createOutcome = CreateRoomOutcome.InvalidMaxSeats("maxSeats must be 2..9"),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            val err = assertIs<LobbyError.CreateInvalidMaxSeats>(last.error)
+            assertEquals("maxSeats must be 2..9", err.message)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun startGame_surfacesComingSoon() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(LobbyAction.StartGame)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(LobbyError.StartGameComingSoon, last.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun dismissError_clearsTheState() = runUnitTest {
+        val rooms = FakeRoomRepository(joinOutcome = JoinRoomOutcome.Full)
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CodeChanged("ABCDEF"))
+        vm.takeAction(LobbyAction.SubmitJoin)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        vm.takeAction(LobbyAction.DismissError)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error != null) last = awaitItem()
+            assertEquals(null, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }

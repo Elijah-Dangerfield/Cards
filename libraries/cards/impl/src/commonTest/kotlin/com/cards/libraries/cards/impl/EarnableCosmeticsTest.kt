@@ -99,14 +99,70 @@ class EarnableCosmeticsTest {
     }
 
     @Test
+    fun reachLevel25_mapsToFeltVeteranTitle() {
+        val reward = cosmeticRewardFor(AchievementId.REACH_LEVEL_25)
+        assertEquals("title_felt_veteran", reward?.productId)
+        assertEquals("Felt Veteran title", reward?.label)
+    }
+
+    @Test
+    fun beatJane10_mapsToInspectorEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_JANE_10)
+        assertEquals("emotes_inspector", reward?.productId)
+        assertEquals("Inspector emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatDavid10_mapsToShowstopperEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_DAVID_10)
+        assertEquals("emotes_showstopper", reward?.productId)
+        assertEquals("Showstopper emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatGina10_mapsToOutsmarterEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_GINA_10)
+        assertEquals("emotes_outsmarter", reward?.productId)
+        assertEquals("Outsmarter emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatSteve10_mapsToMarathonerEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_STEVE_10)
+        assertEquals("emotes_marathoner", reward?.productId)
+        assertEquals("Marathoner emote pack", reward?.label)
+    }
+
+    @Test
+    fun beatMike10_mapsToTamerEmotePack() {
+        val reward = cosmeticRewardFor(AchievementId.BEAT_MIKE_10)
+        assertEquals("emotes_tamer", reward?.productId)
+        assertEquals("Tamer emote pack", reward?.label)
+    }
+
+    @Test
+    fun showRoyalFlush_mapsToRoyaltyTitle() {
+        val reward = cosmeticRewardFor(AchievementId.SHOW_ROYAL_FLUSH)
+        assertEquals("title_royalty", reward?.productId)
+        assertEquals("Royalty title", reward?.label)
+    }
+
+    @Test
+    fun showStraightFlush_mapsToSuitedRunTitle() {
+        val reward = cosmeticRewardFor(AchievementId.SHOW_STRAIGHT_FLUSH)
+        assertEquals("title_suited_run", reward?.productId)
+        assertEquals("Suited Run title", reward?.label)
+    }
+
+    @Test
     fun achievementsWithoutCosmeticRewards_returnNull() {
         // Spot-checks across the most common categories. The goal is to
         // pin "no reward" so accidentally extending the when-branch to
         // cover an unrelated id (e.g. via copy-paste) fails the test.
         assertNull(cosmeticRewardFor(AchievementId.FIRST_HAND))
         assertNull(cosmeticRewardFor(AchievementId.HANDS_100))
-        assertNull(cosmeticRewardFor(AchievementId.SHOW_ROYAL_FLUSH))
+        assertNull(cosmeticRewardFor(AchievementId.SHOW_FULL_HOUSE))
         assertNull(cosmeticRewardFor(AchievementId.TUTORIAL_COMPLETE))
-        assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_25))
+        assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_5))
     }
 }

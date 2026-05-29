@@ -43,7 +43,7 @@ class SignUpViewModel(
                 val current = state
                 if (!current.canSubmit) return@run
                 if (current.password != current.confirmPassword) {
-                    updateState { it.copy(error = "Passwords don't match.") }
+                    updateState { it.copy(error = SignUpError.PasswordsDontMatch) }
                     return@run
                 }
 
@@ -88,21 +88,24 @@ class SignUpViewModel(
                 sendEvent(SignUpEvent.NavigateToVerifyEmail(outcome.email))
             }
             is LinkEmailIdentityOutcome.EmailAlreadyRegistered -> updateState {
-                it.copy(isSubmitting = false, error = "That email is already in use. Try signing in instead.")
+                it.copy(isSubmitting = false, error = SignUpError.EmailAlreadyRegistered)
             }
             is LinkEmailIdentityOutcome.WeakPassword -> updateState {
-                it.copy(isSubmitting = false, error = "Pick a stronger password (at least ${SignUpState.MIN_PASSWORD_LENGTH} characters).")
+                it.copy(
+                    isSubmitting = false,
+                    error = SignUpError.WeakPassword(SignUpState.MIN_PASSWORD_LENGTH),
+                )
             }
             is LinkEmailIdentityOutcome.InvalidEmail -> updateState {
-                it.copy(isSubmitting = false, error = "That email doesn't look right.")
+                it.copy(isSubmitting = false, error = SignUpError.InvalidEmail)
             }
             LinkEmailIdentityOutcome.NotAnonymous,
             LinkEmailIdentityOutcome.NotSignedIn -> handleSignUp(email, password)
             is LinkEmailIdentityOutcome.NetworkError -> updateState {
-                it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+                it.copy(isSubmitting = false, error = SignUpError.NetworkError)
             }
             is LinkEmailIdentityOutcome.Unknown -> updateState {
-                it.copy(isSubmitting = false, error = "Sign up failed. Please try again.")
+                it.copy(isSubmitting = false, error = SignUpError.Unknown)
             }
         }
     }
@@ -115,19 +118,22 @@ class SignUpViewModel(
                 sendEvent(SignUpEvent.NavigateToVerifyEmail(outcome.email))
             }
             is SignUpOutcome.EmailAlreadyRegistered -> updateState {
-                it.copy(isSubmitting = false, error = "That email is already in use. Try signing in instead.")
+                it.copy(isSubmitting = false, error = SignUpError.EmailAlreadyRegistered)
             }
             is SignUpOutcome.WeakPassword -> updateState {
-                it.copy(isSubmitting = false, error = "Pick a stronger password (at least ${SignUpState.MIN_PASSWORD_LENGTH} characters).")
+                it.copy(
+                    isSubmitting = false,
+                    error = SignUpError.WeakPassword(SignUpState.MIN_PASSWORD_LENGTH),
+                )
             }
             is SignUpOutcome.InvalidEmail -> updateState {
-                it.copy(isSubmitting = false, error = "That email doesn't look right.")
+                it.copy(isSubmitting = false, error = SignUpError.InvalidEmail)
             }
             is SignUpOutcome.NetworkError -> updateState {
-                it.copy(isSubmitting = false, error = "Couldn't reach the server. Check your connection.")
+                it.copy(isSubmitting = false, error = SignUpError.NetworkError)
             }
             is SignUpOutcome.Unknown -> updateState {
-                it.copy(isSubmitting = false, error = "Sign up failed. Please try again.")
+                it.copy(isSubmitting = false, error = SignUpError.Unknown)
             }
         }
     }
@@ -138,7 +144,7 @@ data class SignUpState(
     val password: String = "",
     val confirmPassword: String = "",
     val isSubmitting: Boolean = false,
-    val error: String? = null,
+    val error: SignUpError? = null,
     /** True while the guest-claim confirm dialog is up; the actual
      *  `linkEmailIdentity` call doesn't fire until the user confirms.
      *  Fresh sign-ups (not anonymous) never reach this state. */
@@ -160,6 +166,22 @@ data class SignUpState(
 
 sealed interface SignUpEvent {
     data class NavigateToVerifyEmail(val email: String) : SignUpEvent
+}
+
+/**
+ * Inline error surfaced under the sign-up form. Typed so the VM doesn't
+ * hold raw user-facing copy — `AuthScreens.kt` resolves each variant
+ * through Compose Multiplatform resources at render time. `WeakPassword`
+ * carries the minimum-length floor so the resource format arg stays
+ * server-driven if we ever tune it from the wire.
+ */
+sealed interface SignUpError {
+    data object PasswordsDontMatch : SignUpError
+    data object EmailAlreadyRegistered : SignUpError
+    data class WeakPassword(val minLength: Int) : SignUpError
+    data object InvalidEmail : SignUpError
+    data object NetworkError : SignUpError
+    data object Unknown : SignUpError
 }
 
 sealed interface SignUpAction {

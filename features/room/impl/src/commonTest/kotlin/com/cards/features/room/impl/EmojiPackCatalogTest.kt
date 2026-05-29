@@ -29,6 +29,8 @@ class EmojiPackCatalogTest {
                 "emotes_eliminator", "emotes_baller", "emotes_iron_stack",
                 "emotes_convincer", "emotes_disciplined", "emotes_grinder",
                 "emotes_doubler", "emotes_tactician",
+                "emotes_inspector", "emotes_showstopper", "emotes_outsmarter",
+                "emotes_marathoner", "emotes_tamer",
             ))
             .toSet()
         preview.forEach { glyph ->
@@ -117,6 +119,46 @@ class EmojiPackCatalogTest {
             ownedProductIds = setOf("emotes_tactician"),
         )
         assertEquals(listOf("♟️", "🦅", "🥷", "🏹"), available)
+    }
+
+    @Test
+    fun inspectorPack_unlocksItsEmojis() {
+        val available = EmojiPackCatalog.availableEmojisFor(
+            ownedProductIds = setOf("emotes_inspector"),
+        )
+        assertEquals(listOf("🔍", "📋", "🤓", "☝️"), available)
+    }
+
+    @Test
+    fun showstopperPack_unlocksItsEmojis() {
+        val available = EmojiPackCatalog.availableEmojisFor(
+            ownedProductIds = setOf("emotes_showstopper"),
+        )
+        assertEquals(listOf("🎤", "✨", "👏", "🎬"), available)
+    }
+
+    @Test
+    fun outsmarterPack_unlocksItsEmojis() {
+        val available = EmojiPackCatalog.availableEmojisFor(
+            ownedProductIds = setOf("emotes_outsmarter"),
+        )
+        assertEquals(listOf("💡", "🪤", "🕸️", "🔮"), available)
+    }
+
+    @Test
+    fun marathonerPack_unlocksItsEmojis() {
+        val available = EmojiPackCatalog.availableEmojisFor(
+            ownedProductIds = setOf("emotes_marathoner"),
+        )
+        assertEquals(listOf("🦥", "🐌", "🪨", "🌅"), available)
+    }
+
+    @Test
+    fun tamerPack_unlocksItsEmojis() {
+        val available = EmojiPackCatalog.availableEmojisFor(
+            ownedProductIds = setOf("emotes_tamer"),
+        )
+        assertEquals(listOf("🦁", "🎪", "🤹", "🪅"), available)
     }
 
     @Test

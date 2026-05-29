@@ -9,7 +9,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
  * Pins [SignInViewModel]'s outcome → state mapping. The VM is a thin
@@ -68,7 +67,7 @@ class SignInViewModelTest : CoroutineTest() {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
             assertEquals(false, last.isSubmitting, "isSubmitting clears on failure")
-            assertTrue(last.error!!.contains("incorrect"))
+            assertEquals(SignInError.InvalidCredentials, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -87,11 +86,26 @@ class SignInViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(
-                last.error!!.contains("reach", ignoreCase = true) ||
-                    last.error!!.contains("connection", ignoreCase = true),
-                "expected a network-shaped error, got: ${last.error}",
-            )
+            assertEquals(SignInError.NetworkError, last.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun submit_unknown_surfacesUnknownError() = runUnitTest {
+        val vm = buildVm(
+            identity = FakeAuthRepository(
+                signInOutcome = SignInOutcome.Unknown(RuntimeException("boom")),
+            ),
+        )
+        vm.takeAction(SignInAction.EmailChanged("a@b.com"))
+        vm.takeAction(SignInAction.PasswordChanged("password"))
+        vm.takeAction(SignInAction.Submit)
+
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.error == null) last = awaitItem()
+            assertEquals(SignInError.Unknown, last.error)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -197,7 +211,7 @@ class SignInViewModelTest : CoroutineTest() {
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.error == null) last = awaitItem()
-            assertTrue(last.error!!.contains("isn't available", ignoreCase = true))
+            assertEquals(SignInError.ProviderNotEnabled, last.error)
             assertEquals(false, last.isSubmitting)
             cancelAndIgnoreRemainingEvents()
         }

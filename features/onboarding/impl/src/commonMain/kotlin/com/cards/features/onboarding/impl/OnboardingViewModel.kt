@@ -126,7 +126,7 @@ class OnboardingViewModel(
                 it.copy(isAuthing = false, step = OnboardingStep.PickIdentity)
             }
             is AuthState.Unauthenticated -> updateState {
-                it.copy(isAuthing = false, authError = describeFailure(resolved.cause))
+                it.copy(isAuthing = false, authError = describeGuestFailure(resolved.cause))
             }
         }
     }
@@ -174,19 +174,16 @@ class OnboardingViewModel(
             }
             SignInOutcome.Cancelled -> updateState { it.copy(oauthInFlight = null) }
             SignInOutcome.ProviderNotEnabled -> updateState {
-                it.copy(oauthInFlight = null, authError = "That sign-in option isn't available yet.")
+                it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthProviderNotEnabled)
             }
             is SignInOutcome.NetworkError -> updateState {
-                it.copy(
-                    oauthInFlight = null,
-                    authError = "Couldn't reach the server. Check your connection.",
-                )
+                it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthNetworkError)
             }
             SignInOutcome.InvalidCredentials,
             is SignInOutcome.EmailNotConfirmed,
             is SignInOutcome.Unknown,
             -> updateState {
-                it.copy(oauthInFlight = null, authError = "Sign in failed. Please try again.")
+                it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthFailed)
             }
         }
     }
@@ -205,12 +202,12 @@ class OnboardingViewModel(
                 it.copy(isSavingProfile = false, step = OnboardingStep.HowItWorks)
             }
             UpdateProfileOutcome.DisplayNameTaken -> updateState {
-                it.copy(isSavingProfile = false, saveError = "That name is taken. Try another.")
+                it.copy(isSavingProfile = false, saveError = OnboardingSaveError.DisplayNameTaken)
             }
             UpdateProfileOutcome.InvalidDisplayName -> updateState {
                 it.copy(
                     isSavingProfile = false,
-                    saveError = "Try a different name — letters and numbers only.",
+                    saveError = OnboardingSaveError.InvalidDisplayName,
                 )
             }
             // For everything else (NotSignedIn / NetworkError / Unknown / etc.)
@@ -234,34 +231,27 @@ class OnboardingViewModel(
     }
 
     /**
-     * Map the underlying exception onto something a user (or a dev
-     * looking at the screen) can act on. Pattern-matches against the most
-     * common Supabase responses; falls back to a generic line for the
-     * rest. Debug builds get the exception message tacked on so dev can
-     * see what's going on without opening the logs.
+     * Map the underlying guest-sign-in exception onto a typed [OnboardingAuthError]
+     * variant. Pattern-matches against the most common Supabase responses;
+     * falls back to a generic variant for the rest. The optional
+     * `debugDetails` payload carries through the exception message so the
+     * resolver in `OnboardingScreen.kt` can append a `DEBUG:` suffix on
+     * debug builds without putting that branching in the VM.
      */
-    private fun describeFailure(cause: Throwable?): String {
+    private fun describeGuestFailure(cause: Throwable?): OnboardingAuthError {
         val msg = cause?.message.orEmpty().lowercase()
-        val friendly = when {
+        val debugDetails = (cause?.message ?: cause?.let { it::class.simpleName.orEmpty() })
+            ?.takeIf { it.isNotEmpty() }
+            ?.take(200)
+        return when {
             "anonymous" in msg && ("disabled" in msg || "not enabled" in msg || "not allowed" in msg) ->
-                "Anonymous sign-in isn't enabled in this Supabase project. " +
-                    "Enable it in Authentication → Providers → Email (Allow anonymous sign-ins)."
+                OnboardingAuthError.AnonymousSignInDisabled(debugDetails)
             "captcha" in msg ->
-                "Captcha is required by this Supabase project. Disable it in dev or wire a token."
+                OnboardingAuthError.CaptchaRequired(debugDetails)
             "jwt" in msg || "invalid api key" in msg ->
-                "The Supabase anon key looks wrong or expired. Check IdentityConfig."
-            "unable to resolve host" in msg ||
-                "failed to connect" in msg ||
-                "network is unreachable" in msg ||
-                "timeout" in msg ->
-                "Couldn't reach the server. Check your connection and try again."
-            else -> "Couldn't reach the server. Check your connection and try again."
-        }
-        return if (BuildInfo.isDebug && cause != null) {
-            val raw = (cause.message ?: cause::class.simpleName.orEmpty()).take(200)
-            "$friendly\n\nDEBUG: $raw"
-        } else {
-            friendly
+                OnboardingAuthError.InvalidConfig(debugDetails)
+            else ->
+                OnboardingAuthError.GuestSignInFailed(debugDetails)
         }
     }
 
@@ -307,7 +297,7 @@ data class OnboardingState(
     val step: OnboardingStep = OnboardingStep.Welcome,
     val isAuthing: Boolean = false,
     val oauthInFlight: OAuthProvider? = null,
-    val authError: String? = null,
+    val authError: OnboardingAuthError? = null,
 
     val displayName: String = "",
     /** True once the user has typed in the name field — gates profile prefill. */
@@ -325,7 +315,7 @@ data class OnboardingState(
     val starterPack: List<AvatarOption> = OnboardingViewModel.STARTER_PACK,
 
     val isSavingProfile: Boolean = false,
-    val saveError: String? = null,
+    val saveError: OnboardingSaveError? = null,
 
     val googleEnabled: Boolean = false,
     val appleEnabled: Boolean = false,
@@ -346,6 +336,43 @@ data class AvatarOption(
 
 sealed interface OnboardingEvent {
     data object NavigateToHome : OnboardingEvent
+}
+
+/**
+ * Inline error surfaced under the Welcome step's primary CTAs. Typed so
+ * the VM doesn't hold raw user-facing copy — `OnboardingScreen.kt`
+ * resolves each variant through Compose Multiplatform resources at
+ * render time. The four `data class` variants from the guest-sign-in
+ * path carry an optional `debugDetails` payload so the resolver can
+ * append a `DEBUG:` suffix on debug builds without dragging the
+ * branching into the VM.
+ */
+sealed interface OnboardingAuthError {
+    /** OAuth provider isn't enabled in Supabase dashboard yet. */
+    data object OAuthProviderNotEnabled : OnboardingAuthError
+    /** OAuth network unreachable. */
+    data object OAuthNetworkError : OnboardingAuthError
+    /** OAuth invalid credentials / email-not-confirmed / unknown. */
+    data object OAuthFailed : OnboardingAuthError
+
+    /** Guest path: Supabase project has anonymous sign-in disabled. */
+    data class AnonymousSignInDisabled(val debugDetails: String?) : OnboardingAuthError
+    /** Guest path: project requires captcha. */
+    data class CaptchaRequired(val debugDetails: String?) : OnboardingAuthError
+    /** Guest path: Supabase anon key looks wrong or expired. */
+    data class InvalidConfig(val debugDetails: String?) : OnboardingAuthError
+    /** Guest path: network unreachable or generic failure (shared copy). */
+    data class GuestSignInFailed(val debugDetails: String?) : OnboardingAuthError
+}
+
+/**
+ * Inline error surfaced under the PickIdentity step's display-name field.
+ * Both variants come from the profile-update outcome; everything else is
+ * intentionally swallowed so the user isn't dead-ended.
+ */
+sealed interface OnboardingSaveError {
+    data object DisplayNameTaken : OnboardingSaveError
+    data object InvalidDisplayName : OnboardingSaveError
 }
 
 sealed interface OnboardingAction {

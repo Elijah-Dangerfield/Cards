@@ -9,7 +9,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
-import com.dangerfield.cards.features.onboarding.SignUpRoute
+import com.dangerfield.cards.features.onboarding.VerifyEmailRoute
 import com.dangerfield.cards.features.profile.BugReportRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.profile.impl.account.AccountActionsAction
@@ -240,11 +240,13 @@ class ProfileFeatureEntryPoint(
             )
         }
 
-        screen<MyItemsRoute> {
+        screen<MyItemsRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<MyItemsRoute>()
             val viewModel: MyItemsViewModel = viewModel { myItemsViewModelFactory() }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
             MyItemsScreen(
                 state = state,
+                highlightProductId = route.highlightProductId,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
             )
@@ -260,13 +262,15 @@ class ProfileFeatureEntryPoint(
                         OnboardingRoute(),
                         NavigationOptions(launchSingleTop = true, clearBackStack = true),
                     )
+                    is ClaimAccountEvent.NavigateToVerifyEmail -> router.navigate(
+                        VerifyEmailRoute(event.email),
+                    )
                 }
             }
             ClaimAccountScreen(
                 state = state,
                 onAction = viewModel::takeAction,
                 onBack = { router.goBack() },
-                onContinueWithEmail = { router.navigate(SignUpRoute()) },
             )
         }
 

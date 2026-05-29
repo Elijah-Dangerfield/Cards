@@ -83,17 +83,17 @@ class LobbyViewModel(
                 when (val outcome = rooms.createRoom()) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)
                     is CreateRoomOutcome.InvalidMaxSeats -> updateState {
-                        it.copy(creating = false, error = outcome.message)
+                        it.copy(creating = false, error = LobbyError.CreateInvalidMaxSeats(outcome.message))
                     }
                     is CreateRoomOutcome.NotSignedIn -> updateState {
-                        it.copy(creating = false, error = "Sign in first to create a room.")
+                        it.copy(creating = false, error = LobbyError.CreateNotSignedIn)
                     }
                     is CreateRoomOutcome.NetworkError -> updateState {
-                        it.copy(creating = false, error = "Couldn't reach the server.")
+                        it.copy(creating = false, error = LobbyError.CreateNetworkError)
                     }
                     is CreateRoomOutcome.Unknown -> {
                         logger.w(outcome.cause) { "Create room failed" }
-                        updateState { it.copy(creating = false, error = "Couldn't create a room.") }
+                        updateState { it.copy(creating = false, error = LobbyError.CreateUnknownError) }
                     }
                 }
             }
@@ -103,30 +103,30 @@ class LobbyViewModel(
                 if (current.isBusy) return@run
                 val code = current.codeInput.trim()
                 if (code.isBlank()) {
-                    updateState { it.copy(error = "Enter a room code to join.") }
+                    updateState { it.copy(error = LobbyError.JoinBlankCode) }
                     return@run
                 }
                 updateState { it.copy(joining = true, error = null) }
                 when (val outcome = rooms.joinRoom(code)) {
                     is JoinRoomOutcome.Success -> startConnection(outcome.room)
                     JoinRoomOutcome.NotFound -> updateState {
-                        it.copy(joining = false, error = "No room with code $code.")
+                        it.copy(joining = false, error = LobbyError.JoinRoomNotFound(code))
                     }
                     JoinRoomOutcome.Full -> updateState {
-                        it.copy(joining = false, error = "That room is full.")
+                        it.copy(joining = false, error = LobbyError.JoinRoomFull)
                     }
                     JoinRoomOutcome.NotJoinable -> updateState {
-                        it.copy(joining = false, error = "That room isn't accepting players right now.")
+                        it.copy(joining = false, error = LobbyError.JoinRoomNotAcceptingPlayers)
                     }
                     is JoinRoomOutcome.NotSignedIn -> updateState {
-                        it.copy(joining = false, error = "Sign in first to join a room.")
+                        it.copy(joining = false, error = LobbyError.JoinNotSignedIn)
                     }
                     is JoinRoomOutcome.NetworkError -> updateState {
-                        it.copy(joining = false, error = "Couldn't reach the server.")
+                        it.copy(joining = false, error = LobbyError.JoinNetworkError)
                     }
                     is JoinRoomOutcome.Unknown -> {
                         logger.w(outcome.cause) { "Join failed" }
-                        updateState { it.copy(joining = false, error = "Couldn't join.") }
+                        updateState { it.copy(joining = false, error = LobbyError.JoinUnknownError) }
                     }
                 }
             }
@@ -141,13 +141,13 @@ class LobbyViewModel(
                     LeaveRoomOutcome.Success,
                     LeaveRoomOutcome.NotFound,
                     LeaveRoomOutcome.NotInRoom,
-                        -> resetToIdle("")
+                        -> resetToIdle(error = null)
                     is LeaveRoomOutcome.NetworkError -> {
-                        resetToIdle("Couldn't tell the server we left. Your seat will free up.")
+                        resetToIdle(error = LobbyError.LeaveServerNotNotified)
                     }
                     is LeaveRoomOutcome.Unknown -> {
                         logger.w(outcome.cause) { "Leave failed" }
-                        resetToIdle("")
+                        resetToIdle(error = null)
                     }
                 }
             }
@@ -166,12 +166,10 @@ class LobbyViewModel(
                         connectionStatus = ConnectionStatus.Reconnecting(conn.attempt),
                     )
                     is RoomConnection.Closed -> when (conn.reason) {
-                        ClosedReason.RoomDeleted -> it.also {
-                            // Push terminal close → drop back to idle with a note.
-                        }.copy(
+                        ClosedReason.RoomDeleted -> it.copy(
                             room = null,
                             connectionStatus = ConnectionStatus.Disconnected,
-                            error = "The room was closed.",
+                            error = LobbyError.RoomWasClosed,
                             creating = false,
                             joining = false,
                             leaving = false,
@@ -179,7 +177,7 @@ class LobbyViewModel(
                         ClosedReason.Rejected -> it.copy(
                             room = null,
                             connectionStatus = ConnectionStatus.Disconnected,
-                            error = "Couldn't connect — try rejoining.",
+                            error = LobbyError.ConnectRejected,
                             creating = false,
                             joining = false,
                             leaving = false,
@@ -203,7 +201,7 @@ class LobbyViewModel(
                 // is the next chunk. Until then, the host can see the
                 // start CTA but tapping it surfaces an honest "coming soon"
                 // message so this doesn't look like a black hole.
-                updateState { it.copy(error = "Multiplayer gameplay launches with the next update — invite your friends and stand by.") }
+                updateState { it.copy(error = LobbyError.StartGameComingSoon) }
             }
         }
     }
@@ -225,7 +223,7 @@ class LobbyViewModel(
         }
     }
 
-    private suspend fun resetToIdle(error: String) {
+    private suspend fun resetToIdle(error: LobbyError?) {
         updateStateInternal {
             it.copy(
                 room = null,
@@ -233,7 +231,7 @@ class LobbyViewModel(
                 joining = false,
                 leaving = false,
                 connectionStatus = ConnectionStatus.Disconnected,
-                error = error.takeIf { it.isNotBlank() },
+                error = error,
             )
         }
     }
@@ -260,7 +258,7 @@ data class LobbyState(
     val leaving: Boolean = false,
     val room: Room? = null,
     val connectionStatus: ConnectionStatus = ConnectionStatus.Disconnected,
-    val error: String? = null,
+    val error: LobbyError? = null,
     /** Filled at init from AuthRepository so the UI can tell who's host. */
     val currentUserId: String? = null,
 ) {
@@ -292,6 +290,30 @@ sealed interface ConnectionStatus {
     data object Connecting : ConnectionStatus
     data object Connected : ConnectionStatus
     data class Reconnecting(val attempt: Int) : ConnectionStatus
+}
+
+/**
+ * Inline error surfaced under the lobby form. Typed so the VM doesn't
+ * hold raw user-facing copy — the screen resolves each variant through
+ * Compose Multiplatform resources at render time.
+ */
+sealed interface LobbyError {
+    /** Server rejected the create-room call because maxSeats was out of range. The server-provided message is passed through verbatim (the wire format may evolve before V1.x). */
+    data class CreateInvalidMaxSeats(val message: String) : LobbyError
+    data object CreateNotSignedIn : LobbyError
+    data object CreateNetworkError : LobbyError
+    data object CreateUnknownError : LobbyError
+    data object JoinBlankCode : LobbyError
+    data class JoinRoomNotFound(val code: String) : LobbyError
+    data object JoinRoomFull : LobbyError
+    data object JoinRoomNotAcceptingPlayers : LobbyError
+    data object JoinNotSignedIn : LobbyError
+    data object JoinNetworkError : LobbyError
+    data object JoinUnknownError : LobbyError
+    data object LeaveServerNotNotified : LobbyError
+    data object RoomWasClosed : LobbyError
+    data object ConnectRejected : LobbyError
+    data object StartGameComingSoon : LobbyError
 }
 
 sealed interface LobbyEvent

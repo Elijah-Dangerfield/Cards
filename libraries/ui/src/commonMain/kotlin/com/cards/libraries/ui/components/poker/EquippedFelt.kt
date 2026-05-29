@@ -137,6 +137,9 @@ fun titleForProductId(productId: String?): String? = when (productId) {
     "title_pot_magnet" -> "Pot Magnet"
     "title_short_stack_hero" -> "Short Stack Hero"
     "title_bot_whisperer" -> "Bot Whisperer"
+    "title_felt_veteran" -> "Felt Veteran"
+    "title_royalty" -> "Royalty"
+    "title_suited_run" -> "Suited Run"
     else -> null
 }
 
@@ -148,7 +151,7 @@ fun titleForProductId(productId: String?): String? = when (productId) {
  * Badges live in the permanent seat slot (mirrored placement opposite
  * the SB/BB chip). Granted server-side during profile creation when the
  * user falls inside the matching cohort window — see
- * `apps/server/.../V26__founding_member_badge.sql` for the catalog
+ * `apps/server/.../V43__founding_member_badge.sql` for the catalog
  * entry and `PostgresProfileRepository.grantFoundingMemberBadge` for
  * the issuance pathway.
  */
