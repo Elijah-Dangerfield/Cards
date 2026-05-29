@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
@@ -232,11 +233,7 @@ internal const val INSTALL_ID_HEADER: String = "X-Install-Id"
  * — the request itself is independent of whether we can record it.
  */
 private fun parseUuidOrNull(raw: String): UUID? =
-    try {
-        UUID.fromString(raw)
-    } catch (_: IllegalArgumentException) {
-        null
-    }
+    Catching { UUID.fromString(raw) }.getOrNull()
 
 private fun problem(code: String, message: String): Map<String, Map<String, String>> =
     mapOf("error" to mapOf("code" to code, "message" to message))

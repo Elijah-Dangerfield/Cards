@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.plugins
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.config.ObservabilityConfig
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopPreparing
@@ -59,7 +60,7 @@ import org.slf4j.LoggerFactory
 fun Application.installOpenTelemetry(config: ObservabilityConfig): OpenTelemetry {
     val log = LoggerFactory.getLogger("OpenTelemetry")
 
-    val existing = runCatching { GlobalOpenTelemetry.get() }.getOrNull()
+    val existing = Catching { GlobalOpenTelemetry.get() }.getOrNull()
     if (existing != null && existing != OpenTelemetry.noop()) {
         log.info("OpenTelemetry already initialised; reusing the global SDK")
         return existing
@@ -70,7 +71,7 @@ fun Application.installOpenTelemetry(config: ObservabilityConfig): OpenTelemetry
     OpenTelemetryAppender.install(sdk)
 
     monitor.subscribe(ApplicationStopPreparing) {
-        runCatching { sdk.close() }
+        Catching { sdk.close() }
             .onFailure { log.warn("OpenTelemetry SDK shutdown failed", it) }
     }
 
