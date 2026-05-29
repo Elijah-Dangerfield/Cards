@@ -25,6 +25,103 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-05-29 — Multiplayer: snapshot-only state, OTel for debugging
+
+**Decision:** Server-authoritative MP state lives in a single `room_sessions(session_id UUID PRIMARY KEY, state_jsonb JSONB, updated_at TIMESTAMPTZ)` row, overwritten inside the per-session mutex on every mutation. Drop the event-sourced `game_events` write path (it shipped 2026-05-28 against the prior direction and never had a reader). Debugging visibility ("every move on every hand") is provided by OpenTelemetry traces on the server — one trace per `SubmitIntent`, spans for the engine pipeline, attributes for `session_id` / `user_id` / `hand_id`. Sentry covers crash + error capture (single project, platform-tagged).
+
+**Supersedes the 2026-05-27 "Multiplayer: event-sourced game state + persisted room membership" entry.**
+
+**Why this over the prior path:**
+- The event log's *only* V1 consumer was crash recovery. A single-row snapshot table accomplishes that in ~20 lines.
+- Hand history / spectator hydrate / replay-as-a-feature aren't V1 scope. Designing for them now pays the complexity tax for a future we may not build.
+- Per-hand event volume (~15–30 rows) scaled to a real MP userbase = millions of rows per day without a pruning policy. We don't have a pruning policy.
+- OTel traces give us *better* "every move debug" visibility than `game_events` would have. Spans carry timing + attributes + cross-service correlation; `game_events` rows are just append-only Postgres tuples.
+- The animation-pop on reconnect (without the rolling tail) is a one-frame visual jank, not a correctness issue. The 5-minute disconnect grace means the snapshot a reconnecting client reads is always fresh.
+
+**Alternatives considered:**
+- **Keep event-sourced.** Rejected: pays for features V1 doesn't ship; doesn't actually give us "every move debug" (OTel does that better).
+- **Hybrid (snapshot-only + rolling tail of last ~50 events for reconnect animation replay).** Parked. Add only if reconnect smoothness becomes a real user complaint — the write path is already mostly written.
+
+**Telemetry:**
+- **Sentry — single project, platform-tagged.** Tag every event with `platform=ios|android|server` + `release=<version>`. Multi-project = fragmented alerts + harder cross-platform regression triage.
+- **OpenTelemetry — server only for V1, traces *and* logs.** Ktor instrumentation + OTLP exporter handles both signal types. One trace per `SubmitIntent`, spans for validate → engine-resolve → state-mutate → broadcast → per-recipient WS-send. Server logs also flow through the OTel logs SDK so they're auto-tagged with the current `trace_id`, enabling trace ↔ log correlation in Grafana. Client-side OTel deferred; client errors flow through Sentry.
+- **Where signals land.** Confirmed via Fly's community thread on Grafana data sources: Fly's bundled `fly-metrics.net` is multi-tenant and locked down to its built-in data sources — users get Editor-only access, can't add Tempo or external endpoints. Their managed Quickwit deployment is also wired for logs only (no Traces tab in their Grafana). So Fly's bundle gives us logs (Quickwit / VictoriaLogs) + metrics (Prometheus); traces have no home there. **Decision: Grafana Cloud is our daily Grafana.** Logs (Loki) + traces (Tempo) ship there via OTel; Fly's Prometheus added as a remote datasource using `flyctl auth token` so infra metrics stay queryable from the same UI. Fly's `fly-metrics.net` stays available for the canned infra dashboards but isn't where we live day-to-day.
+- **Collector preference order** if Grafana Cloud is ever outgrown: self-hosted Grafana + Tempo + Loki as a Fly app (Fly's own suggested workaround for the locked bundle), then Honeycomb (paid, best trace-query UX). Captured in [`developer-todo.md`](./developer-todo.md).
+
+**What changes in the spec / code:**
+- [`todo.md §B`](./todo.md) rewritten around the snapshot-only direction; `B0` collapsed to one snapshot bullet, `B1` reduced to "snapshot-on-reconnect," `B5` parks the rolling-tail option.
+- The shipped `game_events` write path retires in a follow-up commit (P2 in `§B0`). The table either drops or is kept bookmarked for a future hand-history feature.
+- New `§C Observability` section in `todo.md` tracks the Sentry + OTel wiring; new dashboard items in `developer-todo.md` track the project / endpoint provisioning.
+
+**Status:** Locked.
+
+---
+
+## 2026-05-29 — V1 scope: install_id only, no recovery on reinstall
+
+**Companion doc** with the full design + upgrade-path detail: [`recovery-and-orphaned-accounts.md`](./recovery-and-orphaned-accounts.md).
+
+**Decision (V1):** Ship with install_id-only cleanup. **No recovery_id, no platform-keychain integration, no Welcome-back screen, no revival on reinstall.** Anon users who uninstall lose their account; claim (Apple / Google / email) is the only durable identity path. Two upgrade paths (B and C) preserved in [`backlog.md`](./backlog.md) for when revival becomes a real complaint vector.
+
+**Behavioral consequences accepted:**
+- Reinstall = fresh anon account; all progress lost for non-claimed users.
+- Cross-device = fresh anon (iPhone + iPad with same Apple ID don't share progress).
+- Starter farm exploit stays open. Disincentive is intrinsic — the farmer loses their old account every loop, which contains all progress and any earned/paid cosmetics. Exchange rate is unfavorable enough that this isn't expected to be a meaningful attack vector pre-launch.
+- Spec §6.1 "best-effort revival on reinstall" language is amended to "claim is the only durable identity path in V1."
+
+**Why this is acceptable for V1:**
+- Pre-launch, zero users. Revival isn't load-bearing for any current cohort.
+- KMP platform-keychain work (iCloud Keychain + Block Store, per-platform actual implementations, cross-device testing) is real engineering complexity that can defer to V1.x without launch impact.
+- Loss-disclosure UX (see below) tells anon users *"sign in to keep this"* at the moments it matters — so the cost is clearly communicated, not silently absorbed.
+
+**What we ship (V1):**
+- `install_id` per app installation, stored app-local (DataStore / file).
+- **L1 server-side cleanup** on every authenticated `/v1/me` request: SQL pre-filter (anon + same install_id + no IAP via LEFT JOIN on `wallet_events`) → Kotlin verification (still-anon, level ≤ 1, zero achievements, no recent activity) → delete via `SupabaseAdminClient.deleteUser` + `ProfileRepository.delete`. Background task; doesn't block /me response.
+- **Loss-disclosure UX** at the moments it matters: shop pre-purchase confirmation, stats banner, settings account section. Exact placements TBD per the companion doc — these are *consequence disclosure*, not the proactive claim prompts rejected in the 2026-05-20 decision.
+- Spec §6.1 amended per above.
+
+**What we don't ship (V1):**
+- recovery_id, KMP keychain stores (`RecoveryIdStore` / iOS Keychain / Android Block Store).
+- Welcome-back screen, splash-time recovery lookup, `/v1/recovery` endpoint.
+- Any cross-device or post-reinstall revival path.
+- Starter-grant dedup gate (since there's no signal to dedup against).
+
+**No client-driven delete.** Earlier same-day draft proposed firing a delete from the client during the OAuth-signin-to-existing-account path. Walked back — server-side cleanup keyed by `install_id` catches the same orphans more reliably (no retry queue, no anon-token expiry race, no mid-signin timing concerns) and fires on every /me from the new owner.
+
+**Walked back from the prior time-based sweep:** anon users buy chip packs, earn cosmetics, accumulate level + achievements. `last_sign_in_at` + TTL can't distinguish "user took a break" from "user abandoned this identity." Risk asymmetry favors leaking 10KB orphan rows over wiping paying users.
+
+**Status of the existing sweep code:** [`OrphanAnonymousSweep`](../apps/server/src/main/kotlin/com/cards/server/data/DefaultOrphanAnonymousSweep.kt) + `POST /v1/admin/sweep-anonymous-users` stay in the codebase but go **dormant** — no cron, no scheduled trigger. Functionally retired once L1 ships. Future cleanup commit can delete the class + endpoint.
+
+**Upgrade paths preserved in [backlog.md](./backlog.md):**
+- **Option B** — install_id + `identifierForVendor` (iOS) / `ANDROID_ID` (Android). ~3 days of work. Adds same-device-reinstall revival + casual anti-farm gate. No KMP keychain needed.
+- **Option C** — install_id + recovery_id via iCloud Keychain / Block Store. ~1–2 weeks of work. Adds cross-device revival, new-phone-restored-from-iCloud revival, strongest anti-farm gate. Full design preserved in git at `13b84b37` (the same-day draft prior to scope-cut).
+
+**Revisit trigger:** ship V1, watch for anon-revival complaint volume in support and orphan-account count in OTel metric. If either grows, Option B is the cheap first step.
+
+**Status:** Locked for V1.
+
+
+## 2026-05-29 — RLS enabled (deny-all) on per-user tables
+
+**Decision (landed):** Flipped RLS on for every per-user table — `profiles`, `wallets`, `wallet_events`, `inventory`, `equipment`, `user_messages`, `products`, `room_sessions`, `game_events` — **with no policies**. This is "default-deny against the PostgREST `anon` and `authenticated` roles" — exactly what we want because the client never hits PostgREST directly (all data flows through the Ktor server's service-role JDBC connection, which bypasses RLS).
+
+**Why this isn't the "inert policies false sense of security" trap flagged in the 2026-05-23 entry below:** there are no policies. The wall is hard. Anon clients with the public key can no longer pull rows from `https://yuqrfhdoejonclgbixlw.supabase.co/rest/v1/...`. Authenticated users with a valid JWT also can't (they have no business hitting PostgREST in our architecture). Only service-role connections get through, which is Ktor.
+
+**Triggered by:** Supabase dashboard warning *"This table can be accessed by anyone via the Data API as RLS is disabled."* The warning is correct; the original deferral conflated two different RLS problems:
+- **(A) PostgREST anon/authenticated data-API hole** — closed by this entry via deny-all.
+- **(B) Per-user policy enforcement** (`USING (auth.uid() = user_id)`) — still deferred per the entry below. Requires the per-request DB role architecture; not worth it for V1, and would still be inert under the current service-role connection.
+
+**Verification:**
+```bash
+curl "https://yuqrfhdoejonclgbixlw.supabase.co/rest/v1/wallets" \
+  -H "apikey: <anon_key>" -H "Authorization: Bearer <anon_key>"
+```
+Before: returns rows. After: `[]` or permission error. Ktor routes continue working unchanged.
+
+**Status:** Locked.
+
+---
+
 ## 2026-05-23 — FK to auth.users landed; RLS deferred
 
 **Decision (landed):** Added foreign-key constraints with `ON DELETE
@@ -192,19 +289,19 @@ The optimistic cache emit in `init` stays for first-frame identity UX; it just n
 
 **Why drop claim prompts:** The original case for proactive claim prompts was anti-farming on the starter grant. That exploit is now closed by device-fingerprint deduplication ([§6.1](./product/product-spec.md#anti-farming-on-the-starter-grant)) — claim adds nothing to it. The remaining benefits of claim (durability, friends, leaderboards, public-room hosting) are *for the user*, not for us, and best-effort recovery via fingerprint + iCloud Keychain / Block Store already covers the common case. Pushing users to claim was begging for a conversion metric that wasn't load-bearing — a §10 brand-check violation.
 
-**Why add review prompts:** Those same positive moments (Epic+ achievement unlock, Level 10, net-positive session end) are *legitimately* good moments to ask the user for a kind word — they're feeling good, they've invested, they're not interrupting anything. The native review APIs handle their own throttling (iOS 3/year, Android similar), so calling at the trigger moment doesn't mean prompting at the trigger moment — the OS decides. We add a 7-day install-age gate and a 90-day no-prompt gate as belt-and-suspenders, plus a "last-hand-not-a-bust" check so we never ask after a frustrating moment. App-store rating is load-bearing for ASO ([v1-mvp.md §1](./product/v1-mvp.md) target: ≥ 4.3) in a way claim conversion never was.
+**Why add review prompts:** Those same positive moments (Epic+ achievement unlock, Level 10, net-positive session end) are *legitimately* good moments to ask the user for a kind word — they're feeling good, they've invested, they're not interrupting anything. The native review APIs handle their own throttling (iOS 3/year, Android similar), so calling at the trigger moment doesn't mean prompting at the trigger moment — the OS decides. We add a 7-day install-age gate and a 90-day no-prompt gate as belt-and-suspenders, plus a "last-hand-not-a-bust" check so we never ask after a frustrating moment. App-store rating is load-bearing for ASO (v1-mvp.md §1 target: ≥ 4.3 — doc has since been deleted) in a way claim conversion never was.
 
 **Alternatives considered:**
 - **Keep some claim prompts, drop others** (e.g., keep only "first shop purchase" since cosmetic durability is the most concrete pitch). Rejected: any proactive prompt is begging when the underlying need is already met by fingerprinting. Cleaner to drop the surface entirely and let inline-when-required carry the message.
 - **Build our own "rate Cards!" star-rating dialog.** Rejected: the App Store explicitly discourages it, self-built rating sheets erode trust, and the native APIs already handle the hard parts (throttling, dismissal, no-commitment).
-- **Don't ask for reviews at all.** Rejected: ASO matters, target rating in v1-mvp.md is ≥ 4.3, and the native APIs are extremely low-cost / low-risk when gated to positive moments. Not asking would leave organic discovery on the table.
+- **Don't ask for reviews at all.** Rejected: ASO matters, the target rating was ≥ 4.3, and the native APIs are extremely low-cost / low-risk when gated to positive moments. Not asking would leave organic discovery on the table.
 
 **What changes in the spec:**
 - [product-spec.md §2.1](./product/product-spec.md#21-first-session--the-60-second-rule) — "Smart claim prompts fire at meaningful moments" callout removed; replaced with "Claim is opt-in, never pushed."
 - [product-spec.md §6.1](./product/product-spec.md#61-anonymous-by-default) — "Smart claim prompts (not gating)" subsection rewritten as "Claim is opt-in (no proactive prompts)" with the rationale and the inline-only surface table.
 - [product-spec.md §2.6](./product/product-spec.md#26-app-store-review-prompts) — new section for review-prompt triggers, eligibility gate, never-trigger list.
-- [v1-mvp.md §1](./product/v1-mvp.md) — "anonymous → claimed conversion" downgraded from a ≥ 20% target to directional-only.
-- [v1-mvp.md §2.2 + §2.6](./product/v1-mvp.md) — Phase 3 must-haves updated; new §2.6 for review prompts.
+- v1-mvp.md §1 — "anonymous → claimed conversion" downgraded from a ≥ 20% target to directional-only. (v1-mvp.md has since been deleted; tracked here for the historical record.)
+- v1-mvp.md §2.2 + §2.6 — Phase 3 must-haves updated; new §2.6 for review prompts.
 
 **Status:** Locked. The smart-claim-prompts design in the original 6.1 is superseded.
 
@@ -227,7 +324,7 @@ Achievements already carry the "give me a near-term reason to play" load on a lo
 - **Replace with "weekly play streak"** (consecutive weeks with ≥1 MP hand). Already documented as a V1.x option in [Appendix B item 17](./product/product-spec.md#appendix-b--open-decisions) — leave it on the table separately; not a replacement for the quest tray.
 - **Add more low-bar achievements instead.** Open option noted in [C.7](./product/product-spec.md#c7-todays-quests-rejected-2026-05-20) — if early-session "fast wins" data shows a gap, address it via achievement design, not by reintroducing a quest layer.
 
-**Status:** Locked. Phase 6 in [product-spec.md §9](./product/product-spec.md#9-roadmap) and [v1-mvp.md §2.5](./product/v1-mvp.md) now scopes to "Notifications" only.
+**Status:** Locked. Phase 6 in [product-spec.md §9](./product/product-spec.md#9-roadmap) now scopes to "Notifications" only.
 
 ---
 
@@ -771,7 +868,7 @@ The moment Apple/Google "claim" lands (Phase 3.1). A claimed account binds to a 
 
 **This supersedes the 2026-05-18 "Identity pivot: server-managed device-keyed identity" entry above.** The earlier reversal of the original 2026-05-13 Supabase-Auth design was made on the assumption that "build claim flow ourselves" was a 2–3 day effort. On a more honest re-estimate (Sign in with Apple's email-privacy-relay handling, name-only-on-first-signin trap, server-side JWKS verification, Google Credential Manager flow on Android, account-linking edge cases), it's 5–7 days plus indefinite maintenance of edge cases.
 
-Phase 3.1 (Apple/Google claim flow) is V1 scope per `docs/product/v1-mvp.md`, so this is a near-term cost, not a deferred one. Supabase Auth handles all of the above out of the box; `supabase-kt` (already in `libs.versions.toml`) is a first-class KMP client. The right call is to commit.
+Phase 3.1 (Apple/Google claim flow) was V1 scope (per the v1-mvp.md doc that existed at the time of this decision; the V1 scope frame now lives in [product-spec.md §9](./product/product-spec.md#9-roadmap)), so this is a near-term cost, not a deferred one. Supabase Auth handles all of the above out of the box; `supabase-kt` (already in `libs.versions.toml`) is a first-class KMP client. The right call is to commit.
 
 **The new shape:**
 
@@ -1368,8 +1465,9 @@ into a Postgres `wallets` table on the server. V6 migration adds:
   chip movement.
 
 **Why:** Closes the V1 MVP must-have "Server-side XP / chip persistence
-via Supabase" + "Starter grant deduplication" lines from `docs/product/
-v1-mvp.md`. Pre-V6 a reinstall granted a fresh 10K because the seed
+via Supabase" + "Starter grant deduplication" lines (originally tracked
+in the since-deleted `docs/product/v1-mvp.md`; V1 scope frame now lives
+in `docs/product/product-spec.md` §9). Pre-V6 a reinstall granted a fresh 10K because the seed
 lived in Room; V6 ties the grant to the userId so the second device /
 reinstall sees the same wallet. The CHECK on `balance >= 0` is
 defense-in-depth — the application layer's [ApplyOutcome.InsufficientChips]
@@ -1662,7 +1760,7 @@ catalog, achievements, profile) are tracked in
 [`developer-todo.md`](./developer-todo.md) — each needs a per-endpoint
 call before adoption.
 
-## 2026-05-27 — Multiplayer: event-sourced game state + persisted room membership
+## 2026-05-27 — Multiplayer: event-sourced game state + persisted room membership (Superseded by 2026-05-29)
 
 **Decision:** Adopt the recommended target from
 [`multiplayer-architecture-eval.md`](./multiplayer-architecture-eval.md)

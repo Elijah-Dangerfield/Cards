@@ -59,7 +59,7 @@ You may modify `docs/todo.md` in three cases: removing an item you fully shipped
 2. Add/update tests (`CoroutineTest` + Turbine where it fits). If genuinely untestable, say so in the in-flight note.
 3. Run locally before committing — `./gradlew :apps:compose:assembleDebug` for client, `./gradlew :apps:server:test` for server, plus targeted module tests.
 4. One logical commit per item, Conventional Commits subject under ~70 chars.
-5. Remove the item from `docs/todo.md`.
+5. **Remove the item from `docs/todo.md` in the same commit.** This is not optional. If you shipped the item end-to-end, the bullet must be gone from `docs/todo.md`. Partial slice → rewrite the bullet to describe what's left (the slicing rule above). Fully shipped → delete the bullet. A todo entry sitting in the file after its item shipped is the most common failure mode of this prompt — re-check before pushing.
 6. Append a block to `docs/agent/in-flight.md` (create if missing):
 
    ```
@@ -93,7 +93,7 @@ The app hasn't launched. There are no production users. When a change touches da
 ## End of run
 
 - All commits pushed to `origin/agent`.
-- `docs/todo.md` reflects what you removed.
+- `docs/todo.md` reflects what you removed. **Re-scan every item you shipped this cycle — if any of those bullets are still in `docs/todo.md`, that's a bug. Push a follow-up commit that deletes them.**
 - `docs/agent/in-flight.md` has a block per commit you added tonight.
 - Working tree is clean. Stray modifications mean you left work behind — resolve before stopping.
 
