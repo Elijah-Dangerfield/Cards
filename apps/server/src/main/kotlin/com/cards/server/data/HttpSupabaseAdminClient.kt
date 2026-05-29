@@ -1,5 +1,6 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.DeleteUserResult
@@ -129,7 +130,7 @@ class HttpSupabaseAdminClient(
                     ?: user.createdAt?.let { parseRfc3339OrNull(it) }
                     ?: continue
                 if (lastSeen < olderThan) {
-                    runCatching { UserId.parse(user.id) }.getOrNull()?.let { matching += it }
+                    Catching { UserId.parse(user.id) }.getOrNull()?.let { matching += it }
                 }
             }
 
@@ -156,7 +157,7 @@ class HttpSupabaseAdminClient(
             coerceInputValues = true
         }
 
-        private fun parseRfc3339OrNull(value: String): Instant? = runCatching {
+        private fun parseRfc3339OrNull(value: String): Instant? = Catching {
             // Supabase emits ISO-8601 / RFC-3339 timestamps. java.time
             // parses them; we then bridge to kotlin.time.Instant via the
             // epoch-millis adapter that's already imported elsewhere.
