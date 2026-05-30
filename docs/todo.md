@@ -133,10 +133,6 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 - `[P1]` **OTel spans on the server — `broadcast` + per-recipient `ws-send`.** The SubmitIntent / start-hand / next-hand paths are traced; the publisher → `sendJson` fan-out isn't. Propagate the `submit_intent` context through the publisher's `StateFlow → flatMapLatest → merge → map` chain (`asContextElement`, or a `Flow` carrying the `Context` per emission).
   **Hints:** the publisher loop in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `withSpan` in `plugins/Tracing.kt`.
 
-- `[P1]` **Server-side Sentry SDK.** The client reports to the `cards` Sentry project already; the Ktor server doesn't. Wire the JVM Sentry SDK in `:apps:server`, init from the DSN in the server secret store, and tag `platform=server` + `release` so server errors share the cross-platform issue timeline. *(proposed 2026-05-30)*
-  **Acceptance:** an unhandled server exception lands in the `cards` Sentry project tagged `platform=server`; the DSN is read from config/secret, not hardcoded.
-  **Hints:** mirror the client tag scheme in [`AppTelemetry.kt`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/AppTelemetry.kt). **Depends on:** the DSN being in the server secret store (developer-todo).
-
 ### Lint / static analysis
 
 - `[P2]` **Stand up detekt with `verifyStrings` as the first rule.** We want an AI-authorable rule set that the build enforces and that runs pre-push — detekt is the framework, `verifyStrings` is rule #1. Add detekt to the build, wire it into `check` and a `.githooks/pre-push`, and write a custom rule that fails on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM-emitted copy) outside `:libraries:resources`, honoring an allowlist for glyph-only/preview/server-supplied strings (per [`AGENTS.md` §strings](../AGENTS.md)). Land behind a baseline so the gate goes green on day one; migrate the existing violations separately. *(proposed 2026-05-30)*
