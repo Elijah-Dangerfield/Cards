@@ -6,12 +6,15 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -20,6 +23,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Assisted
 import me.tatarka.inject.annotations.Inject
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * Drives the lobby. Three phases:
@@ -51,6 +56,13 @@ class LobbyViewModel(
 
     private val logger = KLog.withTag("LobbyVM")
     private var connectionJob: Job? = null
+
+    /**
+     * Stashed across action handlers so [LobbyAction.StartGame] can
+     * write a [ClientFrame.StartHand] over the same WS the connection
+     * collector reads on.
+     */
+    private var currentHandle: RoomConnectionHandle? = null
 
     init {
         // Seed currentUserId so the UI knows who's host. current()
@@ -135,6 +147,7 @@ class LobbyViewModel(
                 val code = state.room?.code ?: return@run
                 connectionJob?.cancel()
                 connectionJob = null
+                currentHandle = null
                 updateState { it.copy(leaving = true) }
                 val outcome = appScope.async { rooms.leaveRoom(code) }.await()
                 when (outcome) {
@@ -152,40 +165,56 @@ class LobbyViewModel(
                 }
             }
 
-            is LobbyAction.ConnectionUpdated -> action.updateState {
-                when (val conn = action.connection) {
-                    RoomConnection.Connecting -> it.copy(connectionStatus = ConnectionStatus.Connecting)
-                    is RoomConnection.Connected -> it.copy(
-                        room = conn.room,
-                        connectionStatus = ConnectionStatus.Connected,
-                        creating = false,
-                        joining = false,
-                        leaving = false,
-                    )
-                    is RoomConnection.Reconnecting -> it.copy(
-                        connectionStatus = ConnectionStatus.Reconnecting(conn.attempt),
-                    )
-                    is RoomConnection.Closed -> when (conn.reason) {
-                        ClosedReason.RoomDeleted -> it.copy(
-                            room = null,
-                            connectionStatus = ConnectionStatus.Disconnected,
-                            error = LobbyError.RoomWasClosed,
+            is LobbyAction.ConnectionUpdated -> action.run {
+                // Capture the previous effective host *before* the state
+                // transitions so we can detect a host promotion on
+                // member-list changes (a disconnect / leave / reconnect).
+                val previousHost = state.effectiveHostUserId
+                updateState {
+                    when (val conn = action.connection) {
+                        RoomConnection.Connecting -> it.copy(connectionStatus = ConnectionStatus.Connecting)
+                        is RoomConnection.Connected -> it.copy(
+                            room = conn.room,
+                            connectionStatus = ConnectionStatus.Connected,
                             creating = false,
                             joining = false,
                             leaving = false,
                         )
-                        ClosedReason.Rejected -> it.copy(
-                            room = null,
-                            connectionStatus = ConnectionStatus.Disconnected,
-                            error = LobbyError.ConnectRejected,
-                            creating = false,
-                            joining = false,
-                            leaving = false,
+                        is RoomConnection.Reconnecting -> it.copy(
+                            connectionStatus = ConnectionStatus.Reconnecting(conn.attempt),
                         )
-                        ClosedReason.Cancelled -> it.copy(
-                            connectionStatus = ConnectionStatus.Disconnected,
-                        )
+                        is RoomConnection.Closed -> when (conn.reason) {
+                            ClosedReason.RoomDeleted -> it.copy(
+                                room = null,
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                error = LobbyError.RoomWasClosed,
+                                creating = false,
+                                joining = false,
+                                leaving = false,
+                            )
+                            ClosedReason.Rejected -> it.copy(
+                                room = null,
+                                connectionStatus = ConnectionStatus.Disconnected,
+                                error = LobbyError.ConnectRejected,
+                                creating = false,
+                                joining = false,
+                                leaving = false,
+                            )
+                            ClosedReason.Cancelled -> it.copy(
+                                connectionStatus = ConnectionStatus.Disconnected,
+                            )
+                        }
                     }
+                }
+                val newHost = state.effectiveHostUserId
+                if (previousHost != null && newHost != null && previousHost != newHost) {
+                    val newHostMember = state.room?.members?.firstOrNull { it.userId == newHost }
+                    sendEvent(
+                        LobbyEvent.HostPromoted(
+                            newHostDisplayName = newHostMember?.displayName ?: "Someone",
+                            isLocalUser = newHost == state.currentUserId,
+                        ),
+                    )
                 }
             }
 
@@ -196,18 +225,37 @@ class LobbyViewModel(
             }
 
             LobbyAction.StartGame -> action.run {
-                // Multiplayer gameplay sync is Phase 4.2 — the per-room WS
-                // already exists for presence; plugging GameEngine into it
-                // is the next chunk. Until then, the host can see the
-                // start CTA but tapping it surfaces an honest "coming soon"
-                // message so this doesn't look like a black hole.
-                updateState { it.copy(error = LobbyError.StartGameComingSoon) }
+                val current = state
+                if (!current.canStart) return@run
+                val code = current.room?.code ?: return@run
+                val handle = currentHandle ?: return@run
+                handle.send(ClientFrame.StartHand(newNonce()))
+                // Host navigates eagerly; non-hosts follow when the
+                // first GameStateSnapshot arrives via the gameplay
+                // collector below.
+                sendEvent(LobbyEvent.NavigateToMultiplayer(code))
+            }
+
+            LobbyAction.GameplaySnapshotReceived -> action.run {
+                val current = state
+                if (current.hasReceivedGameplaySnapshot) return@run
+                updateState { it.copy(hasReceivedGameplaySnapshot = true) }
+                // Host already navigated when they tapped Start; only
+                // non-hosts need this auto-follow.
+                if (!current.isHost) {
+                    val code = current.room?.code ?: return@run
+                    sendEvent(LobbyEvent.NavigateToMultiplayer(code))
+                }
             }
         }
     }
 
+    @OptIn(ExperimentalUuidApi::class)
+    private fun newNonce(): String = Uuid.random().toString()
+
     private suspend fun startConnection(room: Room) {
         connectionJob?.cancel()
+        currentHandle = null
         // Stage the room immediately so the UI flips to the in-room
         // view while the socket warms up. ConnectionUpdated will refine
         // status as events come in.
@@ -217,8 +265,28 @@ class LobbyViewModel(
             // user who created a room before the anonymous bootstrap
             // settled). Once we have one, observe the socket.
             auth.observe().filterIsInstance<AuthState.Authenticated>().first()
-            rooms.connect(room.code).connection.collect { connection ->
-                takeAction(LobbyAction.ConnectionUpdated(connection))
+            val handle = rooms.connect(room.code)
+            currentHandle = handle
+            // Connection + gameplay collectors run in parallel inside
+            // the same connectionJob so cancelling the job tears both
+            // down via structured concurrency.
+            launch {
+                handle.connection.collect { connection ->
+                    takeAction(LobbyAction.ConnectionUpdated(connection))
+                }
+            }
+            launch {
+                handle.gameplayFrames.collect { frame ->
+                    // The first GameStateSnapshot signals "the hand
+                    // has started" — non-hosts use this to auto-follow
+                    // the host into the play screen. We don't care
+                    // about other frames here; the play screen will
+                    // re-subscribe through the same shared handle and
+                    // pick up its own stream.
+                    if (frame is GameplayFrame.StateSnapshot) {
+                        takeAction(LobbyAction.GameplaySnapshotReceived)
+                    }
+                }
             }
         }
     }
@@ -261,6 +329,10 @@ data class LobbyState(
     val error: LobbyError? = null,
     /** Filled at init from AuthRepository so the UI can tell who's host. */
     val currentUserId: String? = null,
+    /** Set on the first GameStateSnapshot received for the current room.
+     *  Used by [LobbyAction.GameplaySnapshotReceived] to navigate
+     *  non-host clients into the play screen exactly once per session. */
+    val hasReceivedGameplaySnapshot: Boolean = false,
 ) {
     val isBusy: Boolean get() = creating || joining || leaving
     val isInRoom: Boolean get() = room != null
@@ -269,9 +341,19 @@ data class LobbyState(
     val canCreate: Boolean
         get() = !isBusy && !isInRoom
 
+    /**
+     * The user who currently owns the room. Computed as the first
+     * *connected* member — this gives implicit auto-promotion when the
+     * server-tagged host disconnects (next connected member becomes
+     * effective host). When the original host reconnects they may or
+     * may not regain host depending on their seat order.
+     */
+    val effectiveHostUserId: String?
+        get() = room?.members?.firstOrNull { it.isConnected }?.userId
+
     /** True when the current user owns this room (and a start-game CTA should appear). */
     val isHost: Boolean
-        get() = room != null && currentUserId != null && room.hostUserId == currentUserId
+        get() = effectiveHostUserId != null && effectiveHostUserId == currentUserId
 
     /** Host can start once at least one other player has joined. */
     val canStart: Boolean
@@ -316,7 +398,19 @@ sealed interface LobbyError {
     data object StartGameComingSoon : LobbyError
 }
 
-sealed interface LobbyEvent
+sealed interface LobbyEvent {
+    /** Host tapped Start, or a non-host saw the first
+     *  GameStateSnapshot — either way it's time to leave the lobby
+     *  and render the play screen. */
+    data class NavigateToMultiplayer(val roomCode: String) : LobbyEvent
+
+    /** The effective host changed mid-session (typically because the
+     *  previous host disconnected). Screen surfaces a short banner. */
+    data class HostPromoted(
+        val newHostDisplayName: String,
+        val isLocalUser: Boolean,
+    ) : LobbyEvent
+}
 
 sealed interface LobbyAction {
     data class CodeChanged(val value: String) : LobbyAction
@@ -329,4 +423,8 @@ sealed interface LobbyAction {
     data class ConnectionUpdated(val connection: RoomConnection) : LobbyAction
     /** Internal — fired when bootstrap identity resolves. */
     data class IdentityResolved(val userId: String) : LobbyAction
+    /** Internal — fired on the first gameplay-frames StateSnapshot per
+     *  room so non-host clients can auto-follow the host into the
+     *  play screen. */
+    data object GameplaySnapshotReceived : LobbyAction
 }

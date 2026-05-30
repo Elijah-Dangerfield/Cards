@@ -82,6 +82,7 @@
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>
     <string name="lobby_in_room_member_seat_label">Seat %1$d</string>
+    <string name="lobby_in_room_host_badge">Host</string>
 
     <!-- Lobby — connection-status banner above the member list. -->
     <string name="lobby_connection_disconnected">Disconnected</string>

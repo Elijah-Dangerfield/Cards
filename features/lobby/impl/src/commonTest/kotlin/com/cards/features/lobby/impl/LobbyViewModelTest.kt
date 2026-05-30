@@ -196,16 +196,16 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun startGame_surfacesComingSoon() = runUnitTest {
+    fun startGame_outsideRoom_noOps() = runUnitTest {
+        // StartGame requires canStart (host + ≥2 members + live handle).
+        // From the idle screen none of that holds, so the action should
+        // silently no-op — no error, no event.
         val vm = buildVm()
         vm.takeAction(LobbyAction.StartGame)
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.StartGameComingSoon, last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals(null, vm.state.error)
+        // The handler returns early so no NavigateToMultiplayer event
+        // is emitted either.
     }
 
     @Test
