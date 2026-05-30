@@ -24,8 +24,10 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.typography.TypographyResource
-import com.dangerfield.cards.libraries.ui.PreviewContent
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.TEXT_FIELD_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.TextFieldCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,62 +139,8 @@ private val outlinedTextFieldColors
 private val FocusedBorderThickness = 2.dp
 private val UnfocusedBorderThickness = 2.dp
 
+@Preview(widthDp = 600, heightDp = 560)
 @Composable
-@Preview
-private fun PreviewOutlinedTextField() {
-    PreviewContent(modifier = Modifier.padding(24.dp)) {
-        com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField(
-            value = "Hello World",
-            onValueChange = { })
-    }
-}
-
-
-@Composable
-@Preview
-private fun PreviewOutlinedTextFieldError() {
-    PreviewContent(modifier = Modifier.padding(24.dp)) {
-        com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField(
-            value = "Hello World",
-            isError = true,
-            onValueChange = { }
-        )
-    }
-}
-
-@Composable
-@Preview
-private fun PreviewOutlinedTextFieldDisabled() {
-    PreviewContent(modifier = Modifier.padding(24.dp)) {
-        com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField(
-            value = "Hello World",
-            enabled = false,
-            onValueChange = { }
-        )
-    }
-}
-
-@Composable
-@Preview
-private fun PreviewOutlinedTextField1() {
-    PreviewContent(modifier = Modifier.padding(24.dp)) {
-        com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField(
-            value = "1",
-            onValueChange = { },
-            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            modifier = Modifier.width(IntrinsicSize.Max)
-        )
-    }
-}
-
-@Composable
-@Preview
-private fun PreviewOutlinedTextFieldEmpty() {
-    PreviewContent(modifier = Modifier.padding(24.dp)) {
-        com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField(
-            value = "",
-            onValueChange = { },
-            placeholder = { Text("Type something") })
-    }
+private fun TextFieldPreview() {
+    CatalogPage(title = "Text field", subtitle = TEXT_FIELD_SUBTITLE) { TextFieldCatalogBody() }
 }

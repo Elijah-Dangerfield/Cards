@@ -6,8 +6,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.libraries.ui.PreviewContent
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.SWITCH_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.SwitchCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 
 @Composable
 fun Switch(
@@ -40,43 +42,8 @@ fun Switch(
     )
 }
 
+@Preview(widthDp = 520, heightDp = 320)
 @Composable
-@Preview
-private fun Unchecked() {
-    PreviewContent {
-        Switch(checked = false, onCheckedChange = {})
-    }
+private fun SwitchPreview() {
+    CatalogPage(title = "Switch", subtitle = SWITCH_SUBTITLE) { SwitchCatalogBody() }
 }
-
-@Composable
-@Preview
-private fun Checked() {
-    PreviewContent {
-        Switch(checked = true, onCheckedChange = {})
-    }
-}
-
-@Composable
-@Preview
-private fun CheckedDisabled() {
-    PreviewContent {
-        Switch(
-            checked = true,
-            onCheckedChange = {},
-            enabled = false
-        )
-    }
-}
-
-@Composable
-@Preview
-private fun UncheckedDisabled() {
-    PreviewContent {
-        Switch(
-            checked = false,
-            onCheckedChange = {},
-            enabled = false
-        )
-    }
-}
-

@@ -11,9 +11,8 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.Dimension
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private const val BUTTON_SUBTITLE =
+internal const val BUTTON_SUBTITLE =
     "type is the only emphasis semantic (Primary > Secondary > Ghost; Danger is destructive). style " +
         "picks the treatment; accent recolors a filled Primary. Filled + enabled buttons get the 3D lip."
 
@@ -89,12 +88,6 @@ internal fun ButtonCatalogBody() {
             Button(size = ButtonSize.ExtraSmall, onClick = {}) { Text("ExtraSmall") }
         }
     }
-}
-
-@Preview(widthDp = 1100, heightDp = 1500)
-@Composable
-private fun ButtonCatalog() {
-    CatalogPage(title = "Buttons", subtitle = BUTTON_SUBTITLE) { ButtonCatalogBody() }
 }
 
 @Composable

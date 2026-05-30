@@ -10,8 +10,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.RADIO_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.RadioCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.libraries.ui.PreviewContent
 
 @Composable
 fun RadioButton(
@@ -31,57 +33,6 @@ fun RadioButton(
         colors = colors.toMaterial(),
         interactionSource = interactionSource
     )
-}
-
-@Preview
-@Composable
-private fun PreviewButton() {
-    PreviewContent {
-        var selected by remember { mutableStateOf(false) }
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(
-            selected = selected,
-            onClick = { selected = !selected })
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonUnselected() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(selected = false, onClick = { })
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonSelected() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(selected = true, onClick = { })
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonUnselectedDisabled() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(
-            selected = false,
-            onClick = { },
-            enabled = false
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonSelectedDisabled() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(
-            selected = true,
-            onClick = { },
-            enabled = false
-        )
-    }
 }
 object RadioButtonDefaults {
     @Composable
@@ -113,3 +64,9 @@ private fun com.dangerfield.cards.libraries.ui.components.radio.RadioButtonColor
     disabledSelectedColor = disabledSelectedColor,
     disabledUnselectedColor = disabledUnselectedColor
 )
+
+@Preview(widthDp = 600, heightDp = 320)
+@Composable
+private fun RadioPreview() {
+    CatalogPage(title = "Radio", subtitle = RADIO_SUBTITLE) { RadioCatalogBody() }
+}

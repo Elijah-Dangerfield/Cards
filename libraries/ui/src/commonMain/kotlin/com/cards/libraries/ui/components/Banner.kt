@@ -16,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
@@ -24,6 +23,9 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.BANNER_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.BannerCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 
 /**
  * Inline, non-modal message. Invents zero colors — each tone is built from the status `subtle`
@@ -145,20 +147,8 @@ private fun BannerType.palette(): BannerPalette = with(AppTheme.colors) {
     }
 }
 
-@Preview(widthDp = 480)
+@Preview(widthDp = 900, heightDp = 1500)
 @Composable
-private fun PreviewBanners() {
-    PreviewContent {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(Dimension.D700),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D600),
-        ) {
-            Banner(BannerType.Info, "Heads up", "Tournaments start at the top of the hour.")
-            Banner(BannerType.Success, "Saved", "Your progress is synced across devices.")
-            Banner(BannerType.Warning, "Low balance", "You're running low on chips.")
-            Banner(BannerType.Danger, "Action needed", "Your last hand could not be recorded.")
-            Banner(BannerType.Promo, "Go Premium", "Unlock private tables and custom felt.")
-            Banner(BannerType.Trust, "Save your progress", "Create an account to keep your stats.")
-        }
-    }
+private fun BannerPreview() {
+    CatalogPage(title = "Banner", subtitle = BANNER_SUBTITLE) { BannerCatalogBody() }
 }

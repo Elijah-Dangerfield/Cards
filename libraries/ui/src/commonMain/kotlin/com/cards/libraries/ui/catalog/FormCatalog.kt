@@ -15,15 +15,24 @@ import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private const val FORM_SUBTITLE =
-    "Text field, switch, checkbox, radio. Focus reads as gold; selected = accentPrimary; disabled is " +
-        "the muted ramp. Disabled is the only non-default interaction state (touch app)."
+internal const val SWITCH_SUBTITLE = "Immediate on/off setting (no save step). On = accentPrimary track."
+internal const val CHECKBOX_SUBTITLE = "Multi-select, or a single opt-in. Checked fill = accentPrimary."
+internal const val RADIO_SUBTITLE = "Pick exactly one from a small set. Selected ring = accentPrimary."
+internal const val TEXT_FIELD_SUBTITLE = "Single- or multi-line input. Focus edge = accentPrimary; error = danger."
 
-/** The forms page body. Reused by [DesignSystemPreview]. */
+/** All form controls — used by [DesignSystemPreview]. Each control also has its own body below so a
+ *  component file can preview just itself. */
 @Composable
 internal fun FormCatalogBody() {
+    TextFieldCatalogBody()
+    SwitchCatalogBody()
+    CheckboxCatalogBody()
+    RadioCatalogBody()
+}
+
+@Composable
+internal fun TextFieldCatalogBody() {
     CatalogSection(
         "Text field",
         "Single- or multi-line input. States: rest, placeholder (empty), error (danger edge), disabled.",
@@ -38,7 +47,10 @@ internal fun FormCatalogBody() {
             OutlinedTextField(value = "Read only", onValueChange = {}, enabled = false)
         }
     }
+}
 
+@Composable
+internal fun SwitchCatalogBody() {
     CatalogSection(
         "Switch",
         "Immediate on/off setting (no save step). On = accentPrimary track.",
@@ -50,7 +62,10 @@ internal fun FormCatalogBody() {
             Labeled("Off · disabled") { Switch(checked = false, onCheckedChange = {}, enabled = false) }
         }
     }
+}
 
+@Composable
+internal fun CheckboxCatalogBody() {
     CatalogSection(
         "Checkbox",
         "Multi-select, or a single opt-in (terms, \"don't show again\"). Checked fill = accentPrimary.",
@@ -62,7 +77,10 @@ internal fun FormCatalogBody() {
             Labeled("Unchecked · disabled") { Checkbox(checked = false, onCheckedChange = {}, enabled = false) }
         }
     }
+}
 
+@Composable
+internal fun RadioCatalogBody() {
     CatalogSection(
         "Radio",
         "Pick exactly one from a small set. Selected ring = accentPrimary; unselected = borderStrong.",
@@ -74,12 +92,6 @@ internal fun FormCatalogBody() {
             Labeled("Unselected · disabled") { RadioButton(selected = false, onClick = {}, enabled = false) }
         }
     }
-}
-
-@Preview(widthDp = 1000, heightDp = 1100)
-@Composable
-private fun FormCatalog() {
-    CatalogPage(title = "Forms", subtitle = FORM_SUBTITLE) { FormCatalogBody() }
 }
 
 @Composable

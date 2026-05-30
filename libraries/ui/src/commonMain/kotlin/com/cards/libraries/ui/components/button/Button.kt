@@ -41,10 +41,6 @@
 package com.dangerfield.cards.libraries.ui.components.button
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
@@ -53,15 +49,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.animateColorResourceAsState
 import com.dangerfield.cards.libraries.ui.components.icon.IconResource
-import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.BUTTON_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.ButtonCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 
 @Composable
 @OptIn(LowLevelDSComponent::class)
@@ -153,22 +149,11 @@ enum class ButtonSize {
 }
 
 /**
- * Button style determines the visual treatment.
- * 
- * **Filled** - Solid background color
- * - Used for Primary, PrimaryAlt, and Tertiary by default
- * - High visual prominence
- * - Clear clickable affordance
- * 
- * **Outlined** - Border only, transparent background
- * - Used for Secondary by default
- * - Less prominent than filled
- * - Works well on any background
- * 
- * **Text** - No background or border, text only
- * - Used for Ghost by default
- * - Minimal visual weight
- * - Looks like a clickable text link
+ * The visual treatment, independent of [ButtonType] emphasis.
+ *
+ * - **Filled** — solid background; highest prominence. Filled + enabled gets the 3D lip.
+ * - **Outlined** — border only, transparent fill; medium prominence, works on any surface.
+ * - **Text** — no background or border; minimal weight, reads as a link.
  */
 enum class ButtonStyle {
     Filled,
@@ -450,317 +435,8 @@ private fun contentColor(
     }
 }
 
-
-@Preview
+@Preview(widthDp = 1100, heightDp = 1500)
 @Composable
-private fun PreviewButtonSizes() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Button Size Progression", typography = AppTheme.typography.Heading.H600)
-
-            Button(
-                onClick = {},
-                size = ButtonSize.Large,
-                content = { Text("Large Button") }
-            )
-
-            Button(
-                onClick = {},
-                size = ButtonSize.Medium,
-                content = { Text("Medium Button") }
-            )
-
-            Button(
-                onClick = {},
-                size = ButtonSize.Small,
-                content = { Text("Small Button") }
-            )
-
-            Button(
-                onClick = {},
-                size = ButtonSize.ExtraSmall,
-                content = { Text("Extra Small") }
-            )
-        }
-    }
+private fun ButtonsPreview() {
+    CatalogPage(title = "Buttons", subtitle = BUTTON_SUBTITLE) { ButtonCatalogBody() }
 }
-
-@Preview
-@Composable
-private fun PreviewButtonHierarchy() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Button Type Hierarchy", typography = AppTheme.typography.Heading.H600)
-            
-            Text("Filled Style (Default)", typography = AppTheme.typography.Label.L500)
-            
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                content = { Text("Primary - Main CTA") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                accent = ButtonAccent.Secondary,
-                content = { Text("Primary - Secondary accent") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Secondary,
-                content = { Text("Secondary - Important") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                accent = ButtonAccent.Tertiary,
-                content = { Text("Primary - Tertiary accent") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Ghost,
-                content = { Text("Ghost - Minimal") }
-            )
-
-
-            Button(
-                onClick = {},
-                type = ButtonType.Danger,
-                content = { Text("Danger - Errors") }
-            )
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewOutlinedButtons() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Outlined Button Style", typography = AppTheme.typography.Heading.H600)
-
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                style = ButtonStyle.Outlined,
-                content = { Text("Primary Outlined") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                accent = ButtonAccent.Secondary,
-                style = ButtonStyle.Outlined,
-                content = { Text("Primary Secondary-accent Outlined") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Secondary,
-                style = ButtonStyle.Outlined,
-                content = { Text("Secondary Outlined") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Danger,
-                style = ButtonStyle.Outlined,
-                content = { Text("Danger Outlined") }
-            )
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewTextButtons() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Text Button Style", typography = AppTheme.typography.Heading.H600)
-
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                style = ButtonStyle.Text,
-                content = { Text("Primary Text") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                accent = ButtonAccent.Secondary,
-                style = ButtonStyle.Text,
-                content = { Text("Primary Secondary-accent Text") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Ghost,
-                style = ButtonStyle.Text,
-                content = { Text("Ghost Text") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Danger,
-                style = ButtonStyle.Text,
-                content = { Text("Danger Text") }
-            )
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewDisabledStates() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Disabled States", typography = AppTheme.typography.Heading.H600)
-
-            Button(
-                onClick = {},
-                type = ButtonType.Primary,
-                enabled = false,
-                content = { Text("Primary Disabled") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Secondary,
-                style = ButtonStyle.Outlined,
-                enabled = false,
-                content = { Text("Outlined Disabled") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Ghost,
-                style = ButtonStyle.Text,
-                enabled = false,
-                content = { Text("Text Disabled") }
-            )
-
-            Button(
-                onClick = {},
-                type = ButtonType.Danger,
-                style = ButtonStyle.Text,
-                enabled = false,
-                content = { Text("Danger Disabled") }
-            )
-
-
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewConvenienceFunctions() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Convenience Functions - Better Readability", typography = AppTheme.typography.Heading.H600)
-            
-            Text("Much easier to scan and understand intent:", typography = AppTheme.typography.Body.B400)
-
-            ButtonPrimary(
-                onClick = {}
-            ) { Text("Submit Application") }
-
-            ButtonPrimary(
-                onClick = {},
-                accent = ButtonAccent.Secondary,
-            ) { Text("Upgrade to Premium") }
-
-            ButtonSecondary(
-                onClick = {}
-            ) { Text("Cancel") }
-
-            ButtonSecondary(
-                onClick = {}
-            ) { Text("Advanced Settings") }
-
-            ButtonGhost(
-                onClick = {}
-            ) { Text("Forgot Password?") }
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewRealWorldDialog() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D800),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Real-World Example: Confirmation Dialog", typography = AppTheme.typography.Heading.H600)
-            
-            Text("Are you sure you want to delete this item?", typography = AppTheme.typography.Body.B500)
-            
-            androidx.compose.foundation.layout.Row(
-                horizontalArrangement = Arrangement.spacedBy(Dimension.D500)
-            ) {
-                ButtonGhost(
-                    onClick = {},
-                    modifier = Modifier.weight(1f)
-                ) { Text("Cancel") }
-                
-                ButtonDanger(
-                    onClick = {},
-                    modifier = Modifier.weight(1f)
-                ) { Text("Delete") }
-            }
-        }
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewRealWorldForm() {
-    PreviewContent {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            modifier = Modifier.padding(Dimension.D800)
-        ) {
-            Text("Real-World Example: Form", typography = AppTheme.typography.Heading.H600)
-            
-            // Form fields would go here
-            Text("Name: _____________", typography = AppTheme.typography.Body.B500)
-            Text("Email: _____________", typography = AppTheme.typography.Body.B500)
-            
-            ButtonPrimary(
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Create Account") }
-            
-            ButtonGhost(
-                onClick = {},
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Already have an account? Sign in") }
-        }
-    }
-}
-

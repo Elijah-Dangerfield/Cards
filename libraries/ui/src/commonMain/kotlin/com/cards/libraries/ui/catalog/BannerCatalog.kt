@@ -11,11 +11,9 @@ import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private const val BANNER_SUBTITLE =
+internal const val BANNER_SUBTITLE =
     "Inline, non-modal messages. Six tones built only from status subtle-fill + solid-edge tokens " +
         "(Promo uses the gold gradient). Optional leading well + trailing action slot."
 
@@ -67,10 +65,4 @@ internal fun BannerCatalogBody() {
             )
         }
     }
-}
-
-@Preview(widthDp = 900, heightDp = 1500)
-@Composable
-private fun BannerCatalog() {
-    CatalogPage(title = "Banner", subtitle = BANNER_SUBTITLE) { BannerCatalogBody() }
 }
