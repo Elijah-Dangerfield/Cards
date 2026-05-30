@@ -464,3 +464,40 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Sketch:** one-line check in `applyDeltaInternal` — query `walletEventDao` for the idempotency key before applying the delta; if present, no-op the delta (the event was already accounted for). Update the pinned test to assert single-application.
 
 **Status:** Backlog. Defensive, not blocking — there's no observable user-visible bug today. Pick up if `ChipsRepository` ever grows a caller that could re-issue with the same key (offline retry queue, multi-write replay, …).
+
+---
+
+## OpenTelemetry log tree on the client
+
+**Idea:** Today the only structured client telemetry leaving the device is Sentry breadcrumbs + events ([`SentryLogTree`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/AppTelemetry.kt)). That covers error monitoring, but not dashboards — we can't slice "claim-failure rate per app version" or "warn-level frequency on degraded network" without an aggregated log/metric pipeline. The Grafana Cloud OTLP endpoint we're already planning to use for server traces (see [developer-todo.md → Dashboard / external-service config](./developer-todo.md)) accepts client OTLP just as cleanly — slot the clients in by planting a third tree alongside Kermit and Sentry.
+
+**Sketch:**
+- New `OpenTelemetryLogTree(otel: OpenTelemetry, defaults: DefaultLogAttributes)` next to the existing `KermitLogTree` + `SentryLogTree` in [`libraries/cards/impl/.../AppTelemetry.kt`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/AppTelemetry.kt). Planted at the same boot site via `KLog.plant(...)` — the existing tree contract carries everything we need (`LogEntry.level`, `scope.tags`, `throwable`); the tree just maps to the OTel SDK's logs/events API.
+- `isLoggable` filter: **Info and above in release**, Debug in debug builds. Mirror the cutoff `SentryLogTree.minBreadcrumbLevel` already uses so the two trees stay in lockstep.
+- `DefaultLogAttributes` snapshot installed once at boot, refreshed on auth/connectivity change. Lookup is synchronous (logging is hot), so cache a `MutableStateFlow<DefaultLogAttributes>` and read `.value` at log time. Fields:
+  - `platform` (`"android"` / `"ios"`) — known at install
+  - `app.version` + `app.version_code` + `app.release_channel` — from [`BuildInfo`](../libraries/core/src/commonMain/kotlin/com/cards/libraries/core/BuildInfo.kt)
+  - `device.model` + `device.os_version` — platform expect/actual
+  - `install_id` — from [`CachedInstallIdProvider`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/CachedInstallIdProvider.kt) (`AppCache.installId`)
+  - `user.id` + `user.is_anonymous` — updated via the same `AppTelemetry.setUser(...)` hook Sentry uses
+  - `connectivity` (`"online"` / `"offline"`) — last-known value from [`ConnectivityObserver`](../libraries/networking/impl/src/commonMain/kotlin/com/cards/libraries/networking/impl/ConnectivityObserver.kt), refreshed on every flow emission
+  - `session_id` — minted per-process so a dashboard can collapse "events from one app launch"
+- One-pass cleanup at planting time: audit existing `logger.d` / `logger.v` callsites and **promote to Info** anything we'd want to query in prod (e.g. claim-account submit outcome, IAP outcomes, websocket open/close, room-join start/finish, anon→claimed transitions); **demote to Debug** anything that's just engineer-trace noise (every flow emission, every state mutation, per-frame work). The filter is the dashboard's bill of materials — what flows up is what we can graph.
+
+**Obfuscation watch:**
+- R8/ProGuard collapses class names, so any tag/attribute derived from `::class.simpleName` ends up `a$b` in release. Use stable string keys at the callsite (`logger.withTag("auth.claim")`, not `logger.withTag(this::class.simpleName!!)`). Same goes for the `LogEntry.tag` chain — none of it should leak the obfuscated name.
+- Exception types in `Throwable.recordException(...)` *are* the obfuscated name. The OTel SDK already records the message + stack; for the dashboard to be useful, log the operation name as a separate attribute (`op = "supabase.linkEmailIdentity"`) so queries don't depend on the post-R8 class.
+
+**Dashboards this enables (worth designing for):**
+- **Funnel:** anon → claim-submit → verify-email-link-tapped → claimed. Today we can only see crashes; with structured Info logs each step is a row.
+- **Error rate per app version × platform.** Catches release regressions before Play / TestFlight crash-free rate does.
+- **Degraded-network sessions.** Filter `connectivity = "offline"`-tagged warns/errors to estimate how much of the support backlog is network rather than bug.
+- **WebSocket session quality.** open-duration, reconnect count, close-reasons grouped by `room.code` (server side already traces these — pairing client + server traces via trace ID gives end-to-end).
+- **IAP outcomes by store.** `store = google/apple`, `outcome = success/cancelled/store_unavailable/...`. Already structured in `ShopEvent.PurchaseFinished` — surface it.
+
+**Tradeoffs:**
+- One more SDK on the cold path. Kotlin OTel for KMP is still moving — the JVM SDK is stable, Kotlin/Native is newer; on iOS we may want a thin OTel-over-URLSession exporter rather than the full Kotlin/Native SDK if size or boot time bites. Validate with a release-build APK/IPA size delta before committing.
+- Cost — Grafana Cloud free tier (50 GB logs / 14-day retention) is generous, but Info-level from every client adds up faster than server traces. Tune sampling (`isLoggable` per-tag) if we cross the threshold.
+- Doubles up on Sentry breadcrumbs for the same line. That's fine — Sentry stays the crash-attribution surface (it has stack-symbolication + alerting we don't want to rebuild); OTel is the queryable analytics surface. Split of concerns is intentional.
+
+**Status:** Backlog. Pairs with the Grafana Cloud OTLP signup in [developer-todo.md](./developer-todo.md) — that endpoint is the destination. Pick up alongside the next observability batch (server already has `ws_send` span-link plumbing landed; client-side OTLP would close the trace ↔ log correlation across the wire).
