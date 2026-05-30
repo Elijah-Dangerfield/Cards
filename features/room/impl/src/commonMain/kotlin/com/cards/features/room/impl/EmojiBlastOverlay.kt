@@ -99,7 +99,7 @@ internal fun EmojiBlastOverlay(
             Text(
                 text = current.emoji,
                 typography = AppTheme.typography.Display.D1500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             if (emitterName != null) {
                 VerticalSpacerD300()

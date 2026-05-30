@@ -32,16 +32,16 @@ internal fun ComingSoonSheet(
     BottomSheet(
         title = title,
         onDismissRequest = onDismiss,
-        backgroundColor = AppTheme.colors.surfacePrimary,
+        backgroundColor = AppTheme.colors.surface,
         dragHandle = topAccessoryEmoji(
             emoji = emoji,
-            surface = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
+            surface = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
         ).asDragHandle(),
     ) {
         Text(
             text = body,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )

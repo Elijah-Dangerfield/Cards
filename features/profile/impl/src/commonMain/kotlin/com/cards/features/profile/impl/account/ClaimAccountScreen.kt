@@ -99,7 +99,7 @@ fun ClaimAccountScreen(
                     icon = Icons.ArrowBack(stringResource(Res.string.profile_claim_back_a11y)),
                     onClick = onBack,
                     enabled = !state.isSubmitting,
-                    iconColor = AppTheme.colors.onSurfacePrimary,
+                    iconColor = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
@@ -112,13 +112,13 @@ fun ClaimAccountScreen(
                 Text(
                     text = stringResource(Res.string.profile_claim_title),
                     typography = AppTheme.typography.Heading.H800,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
                     text = stringResource(Res.string.profile_claim_subtitle),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
 
                 Spacer(modifier = Modifier.height(Dimension.D900))
@@ -186,7 +186,7 @@ fun ClaimAccountScreen(
                     Text(
                         text = stringResource(Res.string.auth_sign_in_oauth_divider),
                         typography = AppTheme.typography.Body.B400,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = AppTheme.colors.contentSecondary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
                     )

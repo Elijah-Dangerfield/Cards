@@ -100,7 +100,7 @@ fun QaMenuScreen(
             Text(
                 text = "Override any server-driven config value for this session. Cleared on uninstall.",
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
 
             UserIdBlock(userId = userId)
@@ -113,7 +113,7 @@ fun QaMenuScreen(
             Box(
                 modifier = Modifier
                     .clip(Radii.R400.shape)
-                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .background(AppTheme.colors.surfaceRaised.color)
                     .clickable {
                         scope.launch { overrideRepository.clearAll() }
                     }
@@ -122,7 +122,7 @@ fun QaMenuScreen(
                 Text(
                     text = "Clear all overrides",
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
             }
 
@@ -177,20 +177,20 @@ private fun UserIdBlock(userId: String?) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R400.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .then(clickable)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
             text = "User ID",
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = userId ?: "— not signed in —",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -200,7 +200,7 @@ private fun UserIdBlock(userId: String?) {
                 else -> "Long-press to copy"
             },
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -226,25 +226,25 @@ private fun ProgressionDebugBlock(
         Text(
             text = "Progression",
             typography = AppTheme.typography.Heading.H500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(Radii.R700.shape)
-                .background(AppTheme.colors.surfacePrimary.color)
+                .background(AppTheme.colors.surface.color)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = "Current: Level ${progress.level} · $totalXp XP",
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             Text(
                 text = "Sets XP directly — bypasses the ledger. Level snaps to that level's start XP.",
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             ProgressionInputRow(
                 label = "XP",
@@ -282,14 +282,14 @@ private fun ProgressionInputRow(
         Text(
             text = label,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
             modifier = Modifier.width(56.dp),
         )
         Box(
             modifier = Modifier
                 .weight(1f)
                 .clip(Radii.R400.shape)
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfaceRaised.color)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
             BasicTextField(
@@ -330,13 +330,13 @@ private fun QaSection(title: String, content: @Composable () -> Unit) {
         Text(
             text = title.replaceFirstChar { it.uppercase() },
             typography = AppTheme.typography.Heading.H500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(Radii.R700.shape)
-                .background(AppTheme.colors.surfacePrimary.color)
+                .background(AppTheme.colors.surface.color)
                 .padding(vertical = 4.dp),
         ) {
             content()
@@ -361,25 +361,25 @@ private fun QaRow(
                 Text(
                     text = row.name,
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Text(
                     text = row.path,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
             Text(
                 text = typeLabelFor(row.default),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "current: ${row.currentValue}    default: ${row.default}",
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -391,7 +391,7 @@ private fun QaRow(
                     Text(
                         text = if (checked) "on" else "off",
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.onSurfacePrimary,
+                        color = AppTheme.colors.content,
                         modifier = Modifier.weight(1f),
                     )
                     Switch(
@@ -411,7 +411,7 @@ private fun QaRow(
                                 .clip(Radii.Round.shape)
                                 .background(
                                     if (selected) AppTheme.colors.accentPrimary.color
-                                    else AppTheme.colors.surfaceSecondary.color,
+                                    else AppTheme.colors.surfaceRaised.color,
                                 )
                                 .clickable { onApply(option) }
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -420,7 +420,7 @@ private fun QaRow(
                                 text = option.toString(),
                                 typography = AppTheme.typography.Body.B500,
                                 color = if (selected) AppTheme.colors.onAccentPrimary
-                                else AppTheme.colors.onSurfacePrimary,
+                                else AppTheme.colors.content,
                             )
                         }
                     }
@@ -432,7 +432,7 @@ private fun QaRow(
                         modifier = Modifier
                             .weight(1f)
                             .clip(Radii.R400.shape)
-                            .background(AppTheme.colors.surfaceSecondary.color)
+                            .background(AppTheme.colors.surfaceRaised.color)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                     ) {
                         BasicTextField(

@@ -64,7 +64,7 @@ fun FeatureCard(
             Text(
                 text = glyph,
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         Spacer(modifier = Modifier.width(18.dp))
@@ -72,19 +72,19 @@ fun FeatureCard(
             Text(
                 text = title,
                 typography = AppTheme.typography.Heading.H500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         Icon(
             icon = Icons.ChevronRight(contentDescription = null),
             size = IconSize.Medium,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }

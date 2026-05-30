@@ -45,13 +45,13 @@ fun SectionHeader(
         Text(
             text = title,
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         if (trailingLabel != null) {
             Text(
                 text = trailingLabel,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
     }

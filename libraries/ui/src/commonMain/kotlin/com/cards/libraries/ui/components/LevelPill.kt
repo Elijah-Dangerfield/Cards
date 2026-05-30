@@ -117,7 +117,7 @@ fun XpBadge(
         anim
     }
     val ringColor = RING_HUE
-    val trackColor = AppTheme.colors.surfaceTertiary.color
+    val trackColor = AppTheme.colors.surfaceHigh.color
     val circleSize = size * (12f / 18f)
     val sparkleSize = size * (7f / 18f)
     val strokeWidth = size * (2f / 18f)
@@ -173,7 +173,7 @@ fun XpBadge(
             // bounds exactly under our control.
             SparkleGlyph(
                 size = sparkleSize,
-                color = AppTheme.colors.text.color,
+                color = AppTheme.colors.content.color,
             )
         }
     }

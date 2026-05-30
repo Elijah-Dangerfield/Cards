@@ -52,7 +52,7 @@ internal fun ErrorDialog(
                     Text(
                         text = "Error code: $it",
                         typography = AppTheme.typography.Body.B500.Bold,
-                        color = AppTheme.colors.textSecondary,
+                        color = AppTheme.colors.contentSecondary,
                     )
                 }
 
@@ -71,7 +71,7 @@ internal fun ErrorDialog(
                     Spacer(modifier = Modifier.height(Dimension.D600))
                     Button(
                         size = ButtonSize.Medium,
-                        type = ButtonType.Tertiary,
+                        type = ButtonType.Secondary,
                         onClick = { onReportToDeveloper() },
                         modifier = Modifier.fillMaxWidth()
                     ) {

@@ -80,7 +80,7 @@ object ClickableTextDefaults {
     @Composable
     @ReadOnlyComposable
     fun primaryLinkStyle(): SpanStyle = SpanStyle(
-        color = AppTheme.colors.text.color,
+        color = AppTheme.colors.content.color,
         fontWeight = FontWeight.SemiBold,
         textDecoration = Underline
     )
@@ -88,7 +88,7 @@ object ClickableTextDefaults {
     @Composable
     @ReadOnlyComposable
     fun subtleLinkStyle(): SpanStyle = SpanStyle(
-        color = AppTheme.colors.textSecondary.color,
+        color = AppTheme.colors.contentSecondary.color,
         fontWeight = FontWeight.Medium,
         textDecoration = Underline
     )

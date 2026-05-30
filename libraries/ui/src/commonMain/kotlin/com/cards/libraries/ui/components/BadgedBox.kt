@@ -321,7 +321,7 @@ private fun PreviewBadgedBox() {
                     CircleIcon(
                         icon = Icons.Check("Close"),
                         iconSize = IconSize.Small,
-                        backgroundColor = AppTheme.colors.onBackground,
+                        backgroundColor = AppTheme.colors.content,
                         contentColor = AppTheme.colors.background,
                         padding = Dimension.D100,
                         elevation = Elevation.Button
@@ -332,7 +332,7 @@ private fun PreviewBadgedBox() {
                     Surface(
                         radius = radius,
                         color = AppTheme.colors.accentPrimary,
-                        contentColor = AppTheme.colors.onBackground,
+                        contentColor = AppTheme.colors.content,
                         contentPadding = PaddingValues(Dimension.D800),
                     ) {
                         Text(text = "Rounded Edges")
@@ -347,7 +347,7 @@ private fun PreviewBadgedBox() {
                     CircleIcon(
                         icon = Icons.Check(""),
                         iconSize = IconSize.Small,
-                        backgroundColor = AppTheme.colors.onBackground,
+                        backgroundColor = AppTheme.colors.content,
                         contentColor = AppTheme.colors.background,
                         padding = Dimension.D100,
                         elevation = Elevation.Button
@@ -357,7 +357,7 @@ private fun PreviewBadgedBox() {
                 content = {
                     Surface(
                         color = AppTheme.colors.accentPrimary,
-                        contentColor = AppTheme.colors.onBackground,
+                        contentColor = AppTheme.colors.content,
                         contentPadding = PaddingValues(Dimension.D800),
                     ) {
                         Text(text = "Non Rounded")
@@ -392,7 +392,7 @@ private fun PreviewBadgedBoxTranslations() {
                 Surface(
                     radius = radius,
                     color = AppTheme.colors.accentPrimary,
-                    contentColor = AppTheme.colors.onBackground,
+                    contentColor = AppTheme.colors.content,
                     contentPadding = PaddingValues(Dimension.D800),
                 ) {
                     Text(text = "Offset inward")
@@ -411,7 +411,7 @@ private fun PreviewBadgedBoxTranslations() {
                 Surface(
                     radius = radius,
                     color = AppTheme.colors.accentPrimary,
-                    contentColor = AppTheme.colors.onBackground,
+                    contentColor = AppTheme.colors.content,
                     contentPadding = PaddingValues(Dimension.D800),
                 ) {
                     Text(text = "Offset outward")

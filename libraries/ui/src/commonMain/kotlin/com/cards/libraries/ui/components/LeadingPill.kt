@@ -47,7 +47,7 @@ fun LeadingPill(
     Row(
         modifier = modifier
             .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = Dimension.D400, vertical = Dimension.D400),
         verticalAlignment = Alignment.CenterVertically,
@@ -77,7 +77,7 @@ fun LeadingPill(
             Text(
                 text = text,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         },
     )

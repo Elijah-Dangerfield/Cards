@@ -227,13 +227,13 @@ private fun WelcomeStep(
             Text(
                 text = stringResource(Res.string.onboarding_welcome_title),
                 typography = AppTheme.typography.Display.D1300,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(Dimension.D500))
             Text(
                 text = stringResource(Res.string.onboarding_welcome_subtitle),
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -314,7 +314,7 @@ private fun WelcomeStep(
             Text(
                 text = stringResource(Res.string.onboarding_welcome_footer),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(Dimension.D700))
@@ -366,14 +366,14 @@ private fun PickIdentityStep(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(AppTheme.colors.surfaceSecondary.color)
+                        .background(AppTheme.colors.surfaceRaised.color)
                         .border(2.dp, AppTheme.colors.background.color, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         icon = Icons.Pencil(null),
                         size = IconSize.Smallest,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = AppTheme.colors.contentSecondary,
                     )
                 }
             }
@@ -383,7 +383,7 @@ private fun PickIdentityStep(
         Text(
             text = stringResource(Res.string.onboarding_identity_title),
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -391,7 +391,7 @@ private fun PickIdentityStep(
         Text(
             text = stringResource(Res.string.onboarding_identity_subtitle),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -414,7 +414,7 @@ private fun PickIdentityStep(
                 Icon(
                     icon = Icons.Pencil(editNameIconDesc),
                     size = IconSize.Small,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             },
             isError = state.saveError != null,
@@ -456,13 +456,13 @@ private fun PickIdentityStep(
             Icon(
                 icon = Icons.Lock(null),
                 size = IconSize.Smallest,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             Spacer(modifier = Modifier.width(Dimension.D300))
             Text(
                 text = stringResource(Res.string.onboarding_identity_more_packs_hint),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
 
@@ -548,7 +548,7 @@ private fun SectionLabel(text: String) {
     Text(
         text = text,
         typography = AppTheme.typography.Label.L400,
-        color = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.contentSecondary,
     )
 }
 
@@ -567,13 +567,13 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
         Text(
             text = stringResource(Res.string.onboarding_how_eyebrow),
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
             text = stringResource(Res.string.onboarding_how_title),
             typography = AppTheme.typography.Display.D1000,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -634,13 +634,13 @@ private fun InfoCard(
                 Text(
                     text = title,
                     typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D100))
                 Text(
                     text = subtitle,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }
@@ -659,7 +659,7 @@ private fun EmojiTile(glyph: String, tint: Color) {
         Text(
             text = glyph,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
     }
 }

@@ -255,7 +255,7 @@ fun PlayPokerScreen(
         if (actionSheetOpen && active?.isHumanTurn == true && legal != null) {
             BottomSheet(
                 onDismissRequest = { actionSheetOpen = false },
-                backgroundColor = AppTheme.colors.surfacePrimary,
+                backgroundColor = AppTheme.colors.surface,
                 showCloseButton = true,
             ) {
                 PlayerActionSheet(
@@ -455,7 +455,7 @@ private fun ConnectionBanner(connection: ConnectionState) {
         Text(
             text = stringResource(Res.string.room_connection_lost_banner),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
         )
     }
@@ -517,7 +517,7 @@ private fun TopBar(
                 HorizontalSpacerD200()
             }
             IconButton(
-                backgroundColor = AppTheme.colors.surfacePrimary,
+                backgroundColor = AppTheme.colors.surface,
                 icon = Icons.Question(
                     stringResource(Res.string.room_top_bar_hand_info_a11y),
                 ),
@@ -534,7 +534,7 @@ private fun LoadingTable() {
         Text(
             text = stringResource(Res.string.room_loading_dealing_in),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }

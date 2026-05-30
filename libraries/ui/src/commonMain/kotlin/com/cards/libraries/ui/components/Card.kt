@@ -12,8 +12,8 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 @Composable
 fun Card(
     modifier: Modifier = Modifier,
-    color: ColorResource? = AppTheme.colors.surfacePrimary,
-    contentColor: ColorResource = AppTheme.colors.onSurfacePrimary,
+    color: ColorResource? = AppTheme.colors.surface,
+    contentColor: ColorResource = AppTheme.colors.content,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
@@ -40,8 +40,8 @@ fun CardSecondary(
 ) {
     Surface(
         modifier = modifier,
-        color = AppTheme.colors.surfaceSecondary,
-        contentColor = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.surfaceRaised,
+        contentColor = AppTheme.colors.contentSecondary,
         onClick = onClick ?: {},
         bounceScale = if (onClick != null) 0.9f else 1f,
         elevation = Elevation.Button,

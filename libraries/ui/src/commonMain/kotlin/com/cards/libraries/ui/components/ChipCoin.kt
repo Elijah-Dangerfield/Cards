@@ -90,7 +90,7 @@ fun ChipCoinAmount(
     modifier: Modifier = Modifier,
     coinSize: Dp = 18.dp,
     typography: TypographyResource = AppTheme.typography.Body.B500,
-    color: ColorResource = AppTheme.colors.text,
+    color: ColorResource = AppTheme.colors.content,
     gap: Dp = 6.dp,
     coinSymbolTypography: TypographyResource = coinSymbolTypographyFor(coinSize),
     formatter: (Long) -> String = ::formatThousands,

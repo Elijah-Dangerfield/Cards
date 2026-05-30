@@ -45,10 +45,10 @@ fun AppThemeProvider(
 
     MaterialWrapper {
         CompositionLocalProvider(
-            LocalContentColor provides colors.text,
+            LocalContentColor provides colors.content,
             LocalTextSelectionColors provides textSelectionColors,
             LocalTypography provides typography,
-            androidx.compose.material3.LocalContentColor provides colors.text.color,
+            androidx.compose.material3.LocalContentColor provides colors.content.color,
             LocalColors provides colors,
             content = content
         )

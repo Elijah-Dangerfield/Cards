@@ -45,13 +45,13 @@ internal fun LastActionExplainer(
         Text(
             text = stringResource(explainerResourceFor(action)),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
         Text(
             text = stringResource(Res.string.room_last_action_cheat_sheet_hint),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }

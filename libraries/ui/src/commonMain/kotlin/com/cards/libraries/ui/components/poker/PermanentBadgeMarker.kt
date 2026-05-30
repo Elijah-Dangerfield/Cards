@@ -36,7 +36,7 @@ fun PermanentBadgeMarker(
             modifier = Modifier
                 .size(Dimension.D850)
                 .clip(CircleShape)
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfaceRaised.color)
                 .border(
                     width = 1.dp,
                     color = PokerPalette.ChipGold,
@@ -47,7 +47,7 @@ fun PermanentBadgeMarker(
             Text(
                 text = emoji,
                 typography = AppTheme.typography.Label.L500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
     }

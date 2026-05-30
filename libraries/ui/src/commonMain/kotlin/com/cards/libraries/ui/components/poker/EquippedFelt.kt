@@ -65,7 +65,7 @@ fun feltSurfaceColor(felt: EquippedFelt): Color = when (felt) {
 /**
  * Surface accent that sits *on top of* the felt — icon-button backgrounds,
  * subtle dividers, anything that would normally come from
- * `AppTheme.colors.surfaceSecondary` but needs to stay legible against
+ * `AppTheme.colors.surfaceRaised` but needs to stay legible against
  * the equipped felt instead of the default app background.
  *
  * Rule of thumb: same hue as the felt, ~12–15% lighter. Reads as "raised
@@ -75,7 +75,7 @@ fun feltSurfaceColor(felt: EquippedFelt): Color = when (felt) {
  */
 @Composable
 fun feltAccentSurface(felt: EquippedFelt): Color = when (felt) {
-    EquippedFelt.Default -> AppTheme.colors.surfaceSecondary.color
+    EquippedFelt.Default -> AppTheme.colors.surfaceRaised.color
     EquippedFelt.RoyalRed -> Color(0xFF6A2429)
     EquippedFelt.MidnightBlue -> Color(0xFF1E3061)
     EquippedFelt.Charcoal -> Color(0xFF24272C)
@@ -88,7 +88,7 @@ fun feltAccentSurface(felt: EquippedFelt): Color = when (felt) {
  * The active felt's accent-surface color, scoped to the play surface. PlayPokerScreen
  * provides this at the top of its content tree based on the equipped felt; any
  * descendant element that needs a "raised felt" tone — icon-button backgrounds, subtle
- * dividers, anything currently using `AppTheme.colors.surfaceSecondary` while sitting
+ * dividers, anything currently using `AppTheme.colors.surfaceRaised` while sitting
  * on the felt — should read this instead so it stays legible across all felt choices.
  *
  * Default fallback is the standard secondary surface, so reading this outside the play

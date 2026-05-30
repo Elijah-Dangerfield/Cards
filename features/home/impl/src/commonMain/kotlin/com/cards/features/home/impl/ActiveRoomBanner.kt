@@ -33,7 +33,6 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
-import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -57,7 +56,7 @@ internal fun ActiveRoomBanner(
         modifier = modifier
             .fillMaxWidth()
             .clip(Radii.Card.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape)
             .padding(Dimension.D600),
     ) {
@@ -72,7 +71,7 @@ internal fun ActiveRoomBanner(
                 Text(
                     text = "⏳",
                     typography = AppTheme.typography.Heading.H800,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
             }
             HorizontalSpacerD400()
@@ -80,13 +79,13 @@ internal fun ActiveRoomBanner(
                 Text(
                     text = stringResource(Res.string.home_active_room_title),
                     typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
                 VerticalSpacerD200()
                 Text(
                     text = stringResource(Res.string.home_active_room_subtitle, code),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }

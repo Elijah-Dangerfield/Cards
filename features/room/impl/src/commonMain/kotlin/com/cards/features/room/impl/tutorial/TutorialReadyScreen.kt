@@ -102,7 +102,7 @@ internal fun TutorialReadyScreen(
             Text(
                 text = stringResource(Res.string.tutorial_ready_body),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )

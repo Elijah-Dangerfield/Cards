@@ -152,13 +152,13 @@ fun SignInScreen(
         Text(
             text = stringResource(Res.string.auth_sign_in_title),
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
             text = stringResource(Res.string.auth_sign_in_subtitle),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
 
         if (state.anyOAuthEnabled) {
@@ -182,7 +182,7 @@ fun SignInScreen(
             Text(
                 text = stringResource(Res.string.auth_sign_in_oauth_divider),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -268,7 +268,7 @@ fun ForgotPasswordScreen(
                 else Res.string.auth_forgot_password_title,
             ),
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
@@ -278,7 +278,7 @@ fun ForgotPasswordScreen(
                 stringResource(Res.string.auth_forgot_password_subtitle)
             },
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
 
         if (!state.sent) {
@@ -339,13 +339,13 @@ fun SignUpScreen(
         Text(
             text = stringResource(Res.string.auth_sign_up_title),
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
             text = stringResource(Res.string.auth_sign_up_subtitle),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
 
         Spacer(modifier = Modifier.height(Dimension.D900))
@@ -439,7 +439,7 @@ fun VerifyEmailScreen(
         Text(
             text = stringResource(Res.string.auth_verify_email_title),
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -452,7 +452,7 @@ fun VerifyEmailScreen(
                 stringResource(Res.string.auth_verify_email_body, state.email)
             },
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -598,9 +598,9 @@ private fun forgotPasswordBannerResource(
 private fun bannerResource(banner: VerifyEmailState.Banner): Pair<StringResource, ColorResource> =
     when (banner) {
         VerifyEmailState.Banner.StillPending ->
-            Res.string.auth_verify_email_banner_still_pending to AppTheme.colors.onSurfaceSecondary
+            Res.string.auth_verify_email_banner_still_pending to AppTheme.colors.contentSecondary
         VerifyEmailState.Banner.ResendSent ->
-            Res.string.auth_verify_email_banner_resend_sent to AppTheme.colors.onSurfaceSecondary
+            Res.string.auth_verify_email_banner_resend_sent to AppTheme.colors.contentSecondary
         VerifyEmailState.Banner.ResendRateLimited ->
             Res.string.auth_verify_email_banner_resend_rate_limited to AppTheme.colors.danger
         VerifyEmailState.Banner.NetworkError ->

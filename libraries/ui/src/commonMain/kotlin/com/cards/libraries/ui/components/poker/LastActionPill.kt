@@ -28,14 +28,14 @@ fun LastActionPill(label: String, modifier: Modifier = Modifier, onClick: (() ->
             // Lifted off the table surface via a DS token rather than a
             // hand-tuned alpha; matches the chip badge / XP badge family so
             // every pill in the app has the same surface temperature.
-            .background(AppTheme.colors.surfaceTertiary.color)
+            .background(AppTheme.colors.surfaceHigh.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 8.dp, vertical = 2.dp),
     ) {
         Text(
             text = label,
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }

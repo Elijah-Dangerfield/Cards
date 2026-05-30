@@ -79,7 +79,7 @@ fun DeleteAccountScreen(
                     icon = Icons.ArrowBack(stringResource(Res.string.profile_delete_back_a11y)),
                     onClick = onBack,
                     enabled = !state.isSubmitting,
-                    iconColor = AppTheme.colors.onSurfacePrimary,
+                    iconColor = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D700))
 
@@ -95,13 +95,13 @@ fun DeleteAccountScreen(
                 Text(
                     text = stringResource(Res.string.profile_delete_title),
                     typography = AppTheme.typography.Heading.H800,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 Text(
                     text = stringResource(Res.string.profile_delete_subtitle),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
 
                 Spacer(modifier = Modifier.height(Dimension.D700))
@@ -109,7 +109,7 @@ fun DeleteAccountScreen(
                 Text(
                     text = stringResource(Res.string.profile_delete_section_title),
                     typography = AppTheme.typography.Heading.H500,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D300))
                 BulletItem(stringResource(Res.string.profile_delete_bullet_identity))
@@ -233,7 +233,7 @@ private fun BulletItem(text: String) {
     Text(
         text = "• $text",
         typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.contentSecondary,
         modifier = Modifier.padding(vertical = 2.dp),
     )
 }

@@ -131,20 +131,20 @@ private fun XpHero(progress: LevelProgress) {
             Text(
                 text = progress.level.toString(),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
             text = "Level ${progress.level}",
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = "${formatThousands(progress.totalXp)} XP",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(16.dp))
         LevelProgressBar(fraction = progress.fraction, height = 10.dp)
@@ -152,7 +152,7 @@ private fun XpHero(progress: LevelProgress) {
         Text(
             text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -196,19 +196,19 @@ private fun StatTile(
     Column(
         modifier = modifier
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Text(
             text = value,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -219,7 +219,7 @@ private fun RecentEventsList(events: List<XpEvent>) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfacePrimary.color),
+            .background(AppTheme.colors.surface.color),
     ) {
         events.forEachIndexed { index, event ->
             EventRow(event)
@@ -247,7 +247,7 @@ private fun EventRow(event: XpEvent) {
             Text(
                 text = sourceLabel(event.source),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             // Subline disambiguates the row: hand id for hand-derived XP,
             // achievement name for achievement unlocks. Without this the feed
@@ -263,7 +263,7 @@ private fun EventRow(event: XpEvent) {
                 Text(
                     text = it,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }
@@ -271,7 +271,7 @@ private fun EventRow(event: XpEvent) {
         Text(
             text = "+${event.deltaXp}",
             typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -306,13 +306,13 @@ private fun AchievementsHighlights(
             Text(
                 text = "Achievements",
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "$earnedCount / $total",
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
         Spacer(modifier = Modifier.height(10.dp))
@@ -331,7 +331,7 @@ private fun AchievementsHighlights(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(Radii.Round.shape)
-                .background(AppTheme.colors.surfacePrimary.color)
+                .background(AppTheme.colors.surface.color)
                 .clickable(onClick = onSeeAll)
                 .padding(vertical = 12.dp),
             contentAlignment = Alignment.Center,
@@ -339,7 +339,7 @@ private fun AchievementsHighlights(
             Text(
                 text = "See all $total achievements",
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
     }
@@ -349,8 +349,8 @@ private fun AchievementsHighlights(
 private fun ClaimDisclosureCard(onClaimAccount: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = AppTheme.colors.surfacePrimary,
-        contentColor = AppTheme.colors.text,
+        color = AppTheme.colors.surface,
+        contentColor = AppTheme.colors.content,
         radius = Radii.Card,
         onClick = onClaimAccount,
         bounceScale = 0.98f,
@@ -364,12 +364,12 @@ private fun ClaimDisclosureCard(onClaimAccount: () -> Unit) {
                 Text(
                     text = stringResource(Res.string.stats_claim_disclosure_title),
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
                 Text(
                     text = stringResource(Res.string.stats_claim_disclosure_body),
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -387,7 +387,7 @@ private fun SectionTitle(text: String) {
     Text(
         text = text,
         typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.text,
+        color = AppTheme.colors.content,
     )
 }
 

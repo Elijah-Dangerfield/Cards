@@ -137,12 +137,6 @@ enum class ButtonType {
 
     /** Destructive action — red. */
     Danger,
-
-    @Deprecated("Use ButtonType.Primary with accent = ButtonAccent.Secondary")
-    PrimaryAlt,
-
-    @Deprecated("Old filled 'Tertiary' is now Secondary")
-    Tertiary,
 }
 
 /**
@@ -240,46 +234,6 @@ fun ButtonPrimary(
 }
 
 /**
- * Alternative primary button — a Primary recolored with the Secondary brand accent (teal).
- *
- * Use for the rare two-CTA screen that needs a distinct second primary-level action.
- *
- * @see Button for full documentation
- */
-@Deprecated(
-    "Use ButtonPrimary(accent = ButtonAccent.Secondary)",
-    ReplaceWith("ButtonPrimary(onClick, modifier, accent = ButtonAccent.Secondary, content = content)")
-)
-@Composable
-fun ButtonPrimaryAlt(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    icon: IconResource? = null,
-    size: ButtonSize = LocalButtonSize.current,
-    style: ButtonStyle = ButtonStyle.Filled,
-    onDisabledTap: (() -> Unit)? = null,
-    enabled: Boolean = true,
-    flat: Boolean = false,
-    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    content: @Composable () -> Unit,
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        icon = icon,
-        type = ButtonType.Primary,
-        accent = ButtonAccent.Secondary,
-        size = size,
-        onDisabledTap = onDisabledTap,
-        style = style,
-        enabled = enabled,
-        flat = flat,
-        interactionSource = interactionSource,
-        content = content
-    )
-}
-
-/**
  * Secondary button - White outlined, important but not primary.
  * 
  * Use for important actions that aren't the main CTA (e.g., "Cancel", "Skip", "Back").
@@ -310,43 +264,6 @@ fun ButtonSecondary(
         style = style,
         enabled = enabled,
         flat = flat,
-        interactionSource = interactionSource,
-        content = content
-    )
-}
-
-/**
- * Tertiary button — the old dark filled tertiary is now just [ButtonSecondary].
- *
- * @see Button for full documentation
- */
-@Deprecated(
-    "Old filled 'Tertiary' is now Secondary",
-    ReplaceWith("ButtonSecondary(onClick, modifier, content = content)")
-)
-@Composable
-fun ButtonTertiary(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    icon: IconResource? = null,
-    size: ButtonSize = LocalButtonSize.current,
-    style: ButtonStyle = ButtonStyle.Filled,
-    enabled: Boolean = true,
-    flat: Boolean = false,
-    onDisabledTap: (() -> Unit)? = null,
-    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
-    content: @Composable () -> Unit,
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        icon = icon,
-        type = ButtonType.Secondary,
-        size = size,
-        style = style,
-        enabled = enabled,
-        flat = flat,
-        onDisabledTap = onDisabledTap,
         interactionSource = interactionSource,
         content = content
     )
@@ -451,7 +368,6 @@ private fun onAccent(a: ButtonAccent) = when (a) {
     ButtonAccent.Tertiary -> AppTheme.colors.onAccentTertiary
 }
 
-@Suppress("DEPRECATION")
 @Composable
 @ReadOnlyComposable
 private fun backgroundColor(
@@ -467,12 +383,9 @@ private fun backgroundColor(
         ButtonType.Secondary -> AppTheme.colors.surfaceHigh
         ButtonType.Ghost -> null
         ButtonType.Danger -> AppTheme.colors.danger
-        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Tertiary -> AppTheme.colors.surfaceHigh
     }
 }
 
-@Suppress("DEPRECATION")
 @Composable
 @ReadOnlyComposable
 private fun deepColor(
@@ -488,12 +401,9 @@ private fun deepColor(
         ButtonType.Secondary -> AppTheme.colors.background // espresso lip under the neutral fill
         ButtonType.Ghost -> null
         ButtonType.Danger -> AppTheme.colors.dangerDeep
-        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondaryDeep
-        ButtonType.Tertiary -> AppTheme.colors.background
     }
 }
 
-@Suppress("DEPRECATION")
 @Composable
 @ReadOnlyComposable
 private fun borderColor(
@@ -509,12 +419,9 @@ private fun borderColor(
         ButtonType.Secondary -> AppTheme.colors.borderStrong
         ButtonType.Ghost -> null
         ButtonType.Danger -> AppTheme.colors.danger
-        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Tertiary -> AppTheme.colors.borderStrong
     }
 }
 
-@Suppress("DEPRECATION")
 @Composable
 @ReadOnlyComposable
 private fun contentColor(
@@ -529,21 +436,16 @@ private fun contentColor(
         ButtonType.Secondary -> AppTheme.colors.content
         ButtonType.Ghost -> AppTheme.colors.content
         ButtonType.Danger -> AppTheme.colors.onDanger
-        ButtonType.PrimaryAlt -> AppTheme.colors.onAccentSecondary
-        ButtonType.Tertiary -> AppTheme.colors.content
     }
     style == ButtonStyle.Outlined -> when (type) {
         ButtonType.Primary -> accentSolid(accent)
         ButtonType.Secondary -> AppTheme.colors.content
         ButtonType.Ghost -> AppTheme.colors.content
         ButtonType.Danger -> AppTheme.colors.danger
-        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Tertiary -> AppTheme.colors.content
     }
     else -> when (type) { // Text
         ButtonType.Danger -> AppTheme.colors.danger
         ButtonType.Secondary -> AppTheme.colors.contentSecondary
-        ButtonType.PrimaryAlt -> AppTheme.colors.contentSecondary
         else -> AppTheme.colors.content
     }
 }
@@ -606,8 +508,9 @@ private fun PreviewButtonHierarchy() {
 
             Button(
                 onClick = {},
-                type = ButtonType.PrimaryAlt,
-                content = { Text("Primary Alt - Alt CTA") }
+                type = ButtonType.Primary,
+                accent = ButtonAccent.Secondary,
+                content = { Text("Primary - Secondary accent") }
             )
 
             Button(
@@ -618,8 +521,9 @@ private fun PreviewButtonHierarchy() {
 
             Button(
                 onClick = {},
-                type = ButtonType.Tertiary,
-                content = { Text("Tertiary - Subtle") }
+                type = ButtonType.Primary,
+                accent = ButtonAccent.Tertiary,
+                content = { Text("Primary - Tertiary accent") }
             )
 
             Button(
@@ -657,9 +561,10 @@ private fun PreviewOutlinedButtons() {
 
             Button(
                 onClick = {},
-                type = ButtonType.PrimaryAlt,
+                type = ButtonType.Primary,
+                accent = ButtonAccent.Secondary,
                 style = ButtonStyle.Outlined,
-                content = { Text("Primary Alt Outlined") }
+                content = { Text("Primary Secondary-accent Outlined") }
             )
 
             Button(
@@ -698,9 +603,10 @@ private fun PreviewTextButtons() {
 
             Button(
                 onClick = {},
-                type = ButtonType.PrimaryAlt,
+                type = ButtonType.Primary,
+                accent = ButtonAccent.Secondary,
                 style = ButtonStyle.Text,
-                content = { Text("Primary Alt Text") }
+                content = { Text("Primary Secondary-accent Text") }
             )
 
             Button(
@@ -782,15 +688,16 @@ private fun PreviewConvenienceFunctions() {
                 onClick = {}
             ) { Text("Submit Application") }
 
-            ButtonPrimaryAlt(
-                onClick = {}
+            ButtonPrimary(
+                onClick = {},
+                accent = ButtonAccent.Secondary,
             ) { Text("Upgrade to Premium") }
 
             ButtonSecondary(
                 onClick = {}
             ) { Text("Cancel") }
 
-            ButtonTertiary(
+            ButtonSecondary(
                 onClick = {}
             ) { Text("Advanced Settings") }
 

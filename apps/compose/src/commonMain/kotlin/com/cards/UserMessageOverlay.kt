@@ -81,7 +81,7 @@ private fun UserMessageDialogContent(
             Text(
                 text = message.title,
                 typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(Dimension.D400))
@@ -93,7 +93,7 @@ private fun UserMessageDialogContent(
                 Text(
                     text = message.body,
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                 )
             }

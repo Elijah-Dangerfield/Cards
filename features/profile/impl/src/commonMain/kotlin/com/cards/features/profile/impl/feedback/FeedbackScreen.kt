@@ -79,7 +79,7 @@ fun FeedbackScreen(
             Text(
                 text = stringResource(Res.string.profile_feedback_hero),
                 typography = AppTheme.typography.Body.B700,
-                color = AppTheme.colors.textSecondary
+                color = AppTheme.colors.contentSecondary
             )
 
             VerticalSpacerD500()
@@ -137,7 +137,7 @@ fun FeedbackScreen(
                 val counterColor = if (messageLength >= FEEDBACK_CHAR_LIMIT) {
                     AppTheme.colors.danger
                 } else {
-                    AppTheme.colors.textSecondary
+                    AppTheme.colors.contentSecondary
                 }
 
                 Text(

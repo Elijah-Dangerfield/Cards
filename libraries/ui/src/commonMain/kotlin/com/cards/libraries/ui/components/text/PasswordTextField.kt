@@ -94,7 +94,7 @@ fun PasswordTextField(
             Text(
                 text = it,
                 typography = AppTheme.typography.Body.B400,
-                color = if (isError) AppTheme.colors.danger else AppTheme.colors.onSurfaceSecondary,
+                color = if (isError) AppTheme.colors.danger else AppTheme.colors.contentSecondary,
             )
         }
     }

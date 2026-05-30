@@ -85,7 +85,7 @@ internal fun AchievementUnlockedDialog(
                 Text(
                     text = stringResource(Res.string.achievement_unlocked_dialog_registry_drift_fallback),
                     typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                 )
             } else {
@@ -96,7 +96,7 @@ internal fun AchievementUnlockedDialog(
                 Text(
                     text = achievement.name,
                     typography = AppTheme.typography.Heading.H800.Italic,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                 )
                 if (achievement.description.isNotBlank()) {
@@ -104,7 +104,7 @@ internal fun AchievementUnlockedDialog(
                     Text(
                         text = achievement.description,
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.textSecondary,
+                        color = AppTheme.colors.contentSecondary,
                         textAlign = TextAlign.Center,
                     )
                 }

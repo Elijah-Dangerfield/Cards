@@ -51,7 +51,7 @@ internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
             Text(
                 text = stringResource(Res.string.room_blind_roles_title),
                 typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
         },
@@ -102,13 +102,13 @@ private fun RoleRow(label: String, bg: Color, title: String, description: String
             Text(
                 text = title,
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD50()
             Text(
                 text = description,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
     }

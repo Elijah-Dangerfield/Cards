@@ -37,7 +37,7 @@ fun IconButton(
     icon: IconResource,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    backgroundColor: ColorResource? = AppTheme.colors.surfacePrimary,
+    backgroundColor: ColorResource? = AppTheme.colors.surface,
     iconColor: ColorResource = LocalContentColor.current,
     size: Size = Size.Medium,
     enabled: Boolean = true,
@@ -164,7 +164,7 @@ private fun PreviewIconButtonsBackground() {
                     com.dangerfield.cards.libraries.ui.components.icon.IconButton(
                         icon = icon,
                         modifier = Modifier.size(48.dp),
-                        backgroundColor = AppTheme.colors.onBackground,
+                        backgroundColor = AppTheme.colors.content,
                         iconColor = AppTheme.colors.background,
                         size = Size.Medium,
                         onClick = {}

@@ -137,8 +137,8 @@ private fun StatusPillPreview_SurfaceTertiary() {
     PreviewContent {
         StatusPill(
             text = "Lvl 14",
-            background = AppTheme.colors.surfaceTertiary,
-            foreground = AppTheme.colors.textSecondary,
+            background = AppTheme.colors.surfaceHigh,
+            foreground = AppTheme.colors.contentSecondary,
             typography = AppTheme.typography.Label.L300,
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
         )

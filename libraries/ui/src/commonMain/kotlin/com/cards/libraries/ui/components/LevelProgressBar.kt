@@ -19,7 +19,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Horizontal progress bar painted with the cyan-to-green
- * [LevelProgressGradient] over a [surfacePrimary][AppTheme.colors.surfacePrimary]
+ * [LevelProgressGradient] over a [surfacePrimary][AppTheme.colors.surface]
  * track. The shared visual for any "X of Y XP" / "level progress"
  * surface — Profile's level summary, Stats's level pill, future
  * progression banners.
@@ -40,7 +40,7 @@ fun LevelProgressBar(
     fraction: Float,
     modifier: Modifier = Modifier,
     height: Dp = 8.dp,
-    trackColor: ColorResource = AppTheme.colors.surfacePrimary,
+    trackColor: ColorResource = AppTheme.colors.surface,
     progressBrush: Brush = LevelProgressGradient,
 ) {
     Box(

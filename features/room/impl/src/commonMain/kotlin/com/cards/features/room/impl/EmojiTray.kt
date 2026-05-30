@@ -179,8 +179,8 @@ private fun CooldownChip(remainingSeconds: Long) {
     // the icon footprint exactly so the chrome doesn't jump as cooldown
     // toggles.
     Surface(
-        color = AppTheme.colors.surfacePrimary,
-        contentColor = AppTheme.colors.textSecondary,
+        color = AppTheme.colors.surface,
+        contentColor = AppTheme.colors.contentSecondary,
         radius = Radii.IconButton,
         contentPadding = PaddingValues(TriggerSize.padding),
     ) {
@@ -191,7 +191,7 @@ private fun CooldownChip(remainingSeconds: Long) {
             Text(
                 text = stringResource(Res.string.room_emoji_tray_cooldown, remainingSeconds),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -213,9 +213,9 @@ private fun EmptyEmojiPopup(
     val feltAccent = LocalFeltAccentSurface.current
     Surface(
         modifier = modifier,
-        color = if (feltAccent != null) null else AppTheme.colors.surfaceSecondary,
+        color = if (feltAccent != null) null else AppTheme.colors.surfaceRaised,
         colorOverride = feltAccent,
-        contentColor = AppTheme.colors.text,
+        contentColor = AppTheme.colors.content,
         radius = Radii.Card,
         contentPadding = PaddingValues(
             horizontal = Dimension.D400,
@@ -248,7 +248,7 @@ private fun EmptyEmojiPopup(
             Text(
                 text = stringResource(Res.string.room_emoji_tray_empty_caption),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -267,9 +267,9 @@ private fun EmojiPickerRow(
     val feltAccent = LocalFeltAccentSurface.current
     Surface(
         modifier = modifier,
-        color = if (feltAccent != null) null else AppTheme.colors.surfaceSecondary,
+        color = if (feltAccent != null) null else AppTheme.colors.surfaceRaised,
         colorOverride = feltAccent,
-        contentColor = AppTheme.colors.text,
+        contentColor = AppTheme.colors.content,
         radius = Radii.Round,
         contentPadding = PaddingValues(
             horizontal = Dimension.D300,

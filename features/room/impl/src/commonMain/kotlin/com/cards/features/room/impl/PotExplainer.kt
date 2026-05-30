@@ -30,7 +30,7 @@ internal fun PotExplainer(onDismiss: () -> Unit) {
         Text(
             text = stringResource(Res.string.room_pot_explainer_body),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }

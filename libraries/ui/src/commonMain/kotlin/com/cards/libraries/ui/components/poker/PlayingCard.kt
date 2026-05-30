@@ -173,7 +173,7 @@ private fun CardBackOrnament(
             Text(
                 text = "💀",
                 typography = skullTypographyFor(size.width),
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         CardBackStyle.Galaxy -> {
@@ -183,7 +183,7 @@ private fun CardBackOrnament(
             Text(
                 text = "✦",
                 typography = skullTypographyFor(size.width),
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         CardBackStyle.Holographic -> {

@@ -61,13 +61,13 @@ internal fun BotTableSetupDialog(
             Text(
                 text = stringResource(Res.string.home_bot_setup_title),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD300()
             Text(
                 text = subtitleFor(seatCount, difficulty),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             VerticalSpacerD800()
             // Difficulty first — it changes the table's feel; seat
@@ -79,7 +79,7 @@ internal fun BotTableSetupDialog(
             Text(
                 text = stringResource(Res.string.home_bot_setup_difficulty_label),
                 typography = AppTheme.typography.Label.L400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             VerticalSpacerD300()
             OptionPillRow(
@@ -92,7 +92,7 @@ internal fun BotTableSetupDialog(
             Text(
                 text = stringResource(Res.string.home_bot_setup_seats_label),
                 typography = AppTheme.typography.Label.L400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             VerticalSpacerD300()
             OptionPillRow(
@@ -105,7 +105,7 @@ internal fun BotTableSetupDialog(
             Text(
                 text = seatSummaryLabel(seatCount),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -114,7 +114,7 @@ internal fun BotTableSetupDialog(
             Text(
                 text = stringResource(Res.string.home_bot_setup_balance_disclaimer),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )

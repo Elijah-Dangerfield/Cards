@@ -126,7 +126,7 @@ fun MyItemsScreen(
                     )
                 },
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             Spacer(modifier = Modifier.height(Dimension.D800))
 
@@ -173,7 +173,7 @@ private fun OwnedItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(rowShape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .border(
                 width = 2.dp,
                 color = AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha),
@@ -191,14 +191,14 @@ private fun OwnedItemRow(
             Text(
                 text = item.title,
                 typography = AppTheme.typography.Heading.H500,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = item.subtitle,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
                 if (item.isEquippable && item.acquisitionSource == AcquisitionSource.Earned) {
                     Spacer(modifier = Modifier.size(Dimension.D200))
@@ -214,7 +214,7 @@ private fun OwnedItemRow(
                 Text(
                     text = desc,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }
@@ -234,13 +234,13 @@ private fun OwnershipBadge(source: AcquisitionSource) {
         AcquisitionSource.Purchased -> stringResource(Res.string.profile_my_items_badge_unlocked)
     }
     val textColor = when (source) {
-        AcquisitionSource.Earned -> AppTheme.colors.accentEarned
-        AcquisitionSource.Purchased -> AppTheme.colors.onSurfaceSecondary
+        AcquisitionSource.Earned -> AppTheme.colors.league.amethyst
+        AcquisitionSource.Purchased -> AppTheme.colors.contentSecondary
     }
     Box(
         modifier = Modifier
             .clip(Radii.R500.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = Dimension.D400, vertical = Dimension.D200),
     ) {
         Text(
@@ -278,13 +278,13 @@ private fun EarnedTag(tier: CosmeticTier?) {
     Box(
         modifier = Modifier
             .clip(Radii.R400.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
     ) {
         Text(
             text = label,
             typography = AppTheme.typography.Label.L300,
-            color = AppTheme.colors.accentEarned,
+            color = AppTheme.colors.league.amethyst,
         )
     }
 }
@@ -299,13 +299,13 @@ private fun PersonalCosmeticTag() {
     Box(
         modifier = Modifier
             .clip(Radii.R400.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
     ) {
         Text(
             text = stringResource(Res.string.profile_my_items_personal_cosmetic_tag),
             typography = AppTheme.typography.Label.L300,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -346,13 +346,13 @@ private fun EmptyState() {
         Text(
             text = stringResource(Res.string.profile_my_items_empty_title),
             typography = AppTheme.typography.Heading.H600,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
             text = stringResource(Res.string.profile_my_items_empty_body),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }

@@ -34,7 +34,7 @@ fun CircleCheckbox(
             .height(IntrinsicSize.Min)
             .aspectRatio(1f)
             .clip(CircleShape)
-            .background(AppTheme.colors.onBackground.color)
+            .background(AppTheme.colors.content.color)
             .clipToBounds()
             .bounceClick(
                 enabled = enabled,
@@ -55,7 +55,7 @@ fun CircleCheckbox(
                     modifier =
                     Modifier
                         .clip(CircleShape)
-                        .background(AppTheme.colors.onBackground.color)
+                        .background(AppTheme.colors.content.color)
                         .fillMaxSize(0.8f)
                 )
             }

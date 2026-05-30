@@ -64,8 +64,8 @@ private fun OptionPill(
     modifier: Modifier = Modifier,
 ) {
     val bg = if (selected) AppTheme.colors.accentPrimary.color
-    else AppTheme.colors.surfaceSecondary.color
-    val fg = if (selected) AppTheme.colors.onAccentPrimary else AppTheme.colors.onSurfacePrimary
+    else AppTheme.colors.surfaceRaised.color
+    val fg = if (selected) AppTheme.colors.onAccentPrimary else AppTheme.colors.content
     Box(
         modifier = modifier
             .height(height)

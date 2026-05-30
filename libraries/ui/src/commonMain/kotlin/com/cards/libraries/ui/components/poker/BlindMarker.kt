@@ -38,7 +38,7 @@ fun BlindMarker(
         isSmallBlind -> Triple("SB", PokerPalette.ChipGold, AppTheme.colors.background)
         // White-on-red for the BB — black-on-red is too low contrast against
         // the dark red background to read at this size.
-        isBigBlind -> Triple("BB", PokerPalette.BlindRed, AppTheme.colors.text)
+        isBigBlind -> Triple("BB", PokerPalette.BlindRed, AppTheme.colors.content)
         else -> null
     } ?: return
     val (label, bg, fg) = role

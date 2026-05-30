@@ -98,7 +98,7 @@ private fun EmptyRecentOpponents(
     Text(
         text = stringResource(Res.string.home_recents_empty_state),
         typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.contentSecondary,
     )
     VerticalSpacerD500()
     Row(
@@ -123,7 +123,7 @@ private fun SuggestPill(label: String, onClick: () -> Unit, modifier: Modifier =
     Box(
         modifier = modifier
             .clip(Radii.R500.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .clickable(onClick = onClick)
             .padding(vertical = Dimension.D400, horizontal = Dimension.D500)
             .wrapContentWidth(),
@@ -132,7 +132,7 @@ private fun SuggestPill(label: String, onClick: () -> Unit, modifier: Modifier =
         Text(
             text = label,
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -144,7 +144,7 @@ private fun OpponentTile(opponent: RecentOpponent, onAddFriend: () -> Unit) {
         modifier = Modifier
             .width(TILE_WIDTH)
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .padding(horizontal = Dimension.D400, vertical = Dimension.D500),
     ) {
         AvatarCircle(
@@ -157,7 +157,7 @@ private fun OpponentTile(opponent: RecentOpponent, onAddFriend: () -> Unit) {
         Text(
             text = opponent.displayName,
             typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -172,9 +172,9 @@ private fun OpponentTile(opponent: RecentOpponent, onAddFriend: () -> Unit) {
 
 @Composable
 private fun AddFriendPill(sent: Boolean, onClick: () -> Unit) {
-    val bg = if (sent) AppTheme.colors.surfaceTertiary.color
+    val bg = if (sent) AppTheme.colors.surfaceHigh.color
     else AppTheme.colors.accentPrimary.color
-    val fg = if (sent) AppTheme.colors.onSurfaceSecondary
+    val fg = if (sent) AppTheme.colors.contentSecondary
     else AppTheme.colors.onAccentPrimary
     Box(
         modifier = Modifier

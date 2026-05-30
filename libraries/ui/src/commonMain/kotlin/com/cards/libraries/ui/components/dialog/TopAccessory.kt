@@ -104,7 +104,7 @@ enum class AccessoryShape { Circle, Squircle }
 fun topAccessoryEmoji(
     emoji: String,
     style: AccessoryShape = AccessoryShape.Circle,
-    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
+    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
 ): TopAccessory.Emoji = TopAccessory.Emoji(emoji, style, surface)
 
 /**
@@ -116,7 +116,7 @@ fun topAccessoryIcon(
     iconSize: IconSize = IconSize.Largest,
     iconColor: ColorResource? = null,
     style: AccessoryShape = AccessoryShape.Circle,
-    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
+    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
 ): TopAccessory.Icon = TopAccessory.Icon(icon, iconSize, iconColor, style, surface)
 
 /**

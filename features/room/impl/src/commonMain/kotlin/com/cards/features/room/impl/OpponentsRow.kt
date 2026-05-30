@@ -316,7 +316,7 @@ private fun OpponentSeat(
         Text(
             text = seat.displayName,
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
@@ -338,7 +338,7 @@ private fun OpponentSeat(
                 amount = seat.stack,
                 coinSize = 12.dp,
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 gap = 4.dp,
                 formatter = ::formatCompactChips,
                 modifier = dimMod,
@@ -372,7 +372,7 @@ private fun ChevronOverlay(visible: Boolean, modifier: Modifier = Modifier) {
             Text(
                 text = "▼",
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
     }

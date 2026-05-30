@@ -51,7 +51,7 @@ fun EmojiButton(
     emoji: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    backgroundColor: ColorResource? = AppTheme.colors.surfacePrimary,
+    backgroundColor: ColorResource? = AppTheme.colors.surface,
     contentColor: ColorResource = LocalContentColor.current,
     size: Size = Size.Medium,
     enabled: Boolean = true,

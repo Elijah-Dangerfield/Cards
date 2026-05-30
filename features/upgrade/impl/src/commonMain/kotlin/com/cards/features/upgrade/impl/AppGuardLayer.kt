@@ -110,7 +110,7 @@ private fun MaintenanceBanner(message: String) {
     // Lives in the Scaffold's topBar slot, which draws at y=0 with no
     // implicit insets — so we apply statusBars padding ourselves to keep
     // text out from under the notch while the background bleeds up.
-    val warning = AppTheme.colors.status.warning
+    val warning = AppTheme.colors.warning
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -128,7 +128,7 @@ private fun MaintenanceBanner(message: String) {
         Text(
             text = message,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Start,
         )
     }
@@ -140,14 +140,14 @@ private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: ()
         Text(
             text = stringResource(Res.string.upgrade_required_title),
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = stringResource(Res.string.upgrade_required_body),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(24.dp))
@@ -165,14 +165,14 @@ private fun MaintenanceBlockingOverlay(message: String, onClearOverrides: () -> 
         Text(
             text = stringResource(Res.string.upgrade_maintenance_blocking_title),
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = message,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }
@@ -236,7 +236,7 @@ private fun AppGuardLayerPreview_Normal() {
                 Text(
                     text = "App content",
                     typography = AppTheme.typography.Heading.H600,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
             }
         }
@@ -258,7 +258,7 @@ private fun AppGuardLayerPreview_Banner() {
                 Text(
                     text = "App content",
                     typography = AppTheme.typography.Heading.H600,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
             }
         }

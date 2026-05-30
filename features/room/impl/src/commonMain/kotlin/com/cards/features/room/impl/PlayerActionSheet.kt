@@ -139,7 +139,7 @@ internal fun PlayerActionSheet(
             Text(
                 text = stringResource(Res.string.room_action_max_hint, formatCompactChips(legal.maxRaiseTotal)),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -216,8 +216,8 @@ private fun PresetPill(
     onClick: () -> Unit,
 ) {
     val bg = if (selected) AppTheme.colors.accentPrimary.color
-    else AppTheme.colors.surfaceSecondary.color
-    val fg = if (selected) AppTheme.colors.onAccentPrimary else AppTheme.colors.onSurfacePrimary
+    else AppTheme.colors.surfaceRaised.color
+    val fg = if (selected) AppTheme.colors.onAccentPrimary else AppTheme.colors.content
     Box(
         modifier = modifier
             .height(56.dp)
@@ -264,7 +264,7 @@ private fun StepperRow(
                 .weight(1f)
                 .height(64.dp)
                 .clip(Radii.Button.shape)
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfaceRaised.color)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = null,
@@ -300,9 +300,9 @@ private fun StepperButton(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val bg = if (enabled) AppTheme.colors.surfaceSecondary.color
+    val bg = if (enabled) AppTheme.colors.surfaceRaised.color
     else AppTheme.colors.surfaceDisabled.color
-    val fg = if (enabled) AppTheme.colors.onSurfacePrimary else AppTheme.colors.onSurfaceDisabled
+    val fg = if (enabled) AppTheme.colors.content else AppTheme.colors.contentDisabled
     Box(
         modifier = Modifier
             .size(64.dp)
@@ -335,11 +335,11 @@ private fun BigActionPill(
     // irreversible actions.
     val bg = when (style) {
         PillStyle.Destructive -> AppTheme.colors.danger
-        PillStyle.Neutral -> AppTheme.colors.surfaceSecondary
+        PillStyle.Neutral -> AppTheme.colors.surfaceRaised
     }
     val fg = when (style) {
         PillStyle.Destructive -> AppTheme.colors.onAccentPrimary
-        PillStyle.Neutral -> AppTheme.colors.onSurfacePrimary
+        PillStyle.Neutral -> AppTheme.colors.content
     }
     Box(
         modifier = modifier

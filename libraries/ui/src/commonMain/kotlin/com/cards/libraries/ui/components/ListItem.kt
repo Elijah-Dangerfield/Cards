@@ -46,7 +46,7 @@ fun ListSection(
     modifier: Modifier = Modifier,
     title: String? = null,
     supportingText: String? = null,
-    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
+    backgroundColor: ColorResource = AppTheme.colors.surface,
     dividerColor: ColorResource = AppTheme.colors.border,
 ) {
     if (items.isEmpty()) return
@@ -66,7 +66,7 @@ fun ListSection(
             Text(
                 text = supportingText,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary
+                color = AppTheme.colors.contentSecondary
             )
             VerticalSpacerD200()
         }
@@ -131,7 +131,7 @@ fun ListItem(
     contentPadding: PaddingValues = ListItemDefaults.contentPadding(),
     showDivider: Boolean = false,
     dividerStartInset: Dp = ListItemDefaults.dividerStartInset(leadingContent != null),
-    dividerColor: ColorResource = AppTheme.colors.borderSecondary,
+    dividerColor: ColorResource = AppTheme.colors.borderStrong,
 ) {
     Column(
         modifier = modifier.fillMaxWidth()
@@ -166,7 +166,7 @@ fun ListItem(
                 modifier = Modifier.weight(1f)
             ) {
                 ProvideTextConfig(
-                    color = if (enabled) AppTheme.colors.onSurfacePrimary else AppTheme.colors.onSurfaceDisabled
+                    color = if (enabled) AppTheme.colors.content else AppTheme.colors.contentDisabled
                 ) {
                     headlineContent()
                 }
@@ -174,7 +174,7 @@ fun ListItem(
                 if (supportingContent != null) {
                     VerticalSpacerD200()
                     ProvideTextConfig(
-                        color = if (enabled) AppTheme.colors.onSurfaceSecondary else AppTheme.colors.onSurfaceDisabled
+                        color = if (enabled) AppTheme.colors.contentSecondary else AppTheme.colors.contentDisabled
                     ) {
                         supportingContent()
                     }
@@ -263,14 +263,14 @@ private fun Accessory(
         ListItemAccessory.Chevron ->
             Icon(
                 icon = Icons.ChevronRight("Navigate"),
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
                 size = IconSize.Small
             )
 
         is ListItemAccessory.Icon ->
             Icon(
                 icon = accessory.icon,
-                color = accessory.tint ?: AppTheme.colors.onSurfacePrimary,
+                color = accessory.tint ?: AppTheme.colors.content,
                 size = accessory.size
             )
 
@@ -287,7 +287,7 @@ private fun Accessory(
                 text = accessory.text,
                 typography = accessory.typography ?: AppTheme.typography.Body.B600,
                 color = accessory.color
-                    ?: if (enabled) AppTheme.colors.onSurfaceSecondary else AppTheme.colors.onSurfaceDisabled
+                    ?: if (enabled) AppTheme.colors.contentSecondary else AppTheme.colors.contentDisabled
             )
 
         is ListItemAccessory.Custom -> accessory.content()

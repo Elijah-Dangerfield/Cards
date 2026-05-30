@@ -29,7 +29,7 @@ fun RankBadge(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
@@ -43,7 +43,7 @@ fun RankBadge(
             Text(
                 text = "♛",
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
@@ -52,7 +52,7 @@ fun RankBadge(
             // The sheet behind this badge explains the path to a real rating.
             text = if (rank <= 0) "Unranked" else "Rank $rank",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }

@@ -240,13 +240,13 @@ private fun MysteryCard(
     Box(
         modifier = modifier
             .clip(Radii.R900.shape)
-            .background(AppTheme.colors.surfaceSecondary.color),
+            .background(AppTheme.colors.surfaceRaised.color),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "?",
             typography = AppTheme.typography.Display.D1400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }

@@ -293,7 +293,7 @@ private fun MediumButton() {
         BaseButton(
             backgroundColor = null,
             borderColor = AppTheme.colors.border,
-            contentColor = AppTheme.colors.text,
+            contentColor = AppTheme.colors.content,
             size = ButtonSize.Medium,
             onClick = {},
             content = { Text(text = "Outlined Button") }

@@ -32,8 +32,8 @@ fun BasicTextField(
     readOnly: Boolean = false,
     typographyToken: TypographyResource = LocalTextConfig.current.typography
         ?: AppTheme.typography.Default,
-    color: Color = AppTheme.colors.text.color,
-    disabledColor: Color = AppTheme.colors.textDisabled.color,
+    color: Color = AppTheme.colors.content.color,
+    disabledColor: Color = AppTheme.colors.contentDisabled.color,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,

@@ -112,7 +112,7 @@ fun BugReportScreen(
             Text(
                 text = stringResource(Res.string.profile_bug_hero),
                 typography = AppTheme.typography.Body.B700,
-                color = AppTheme.colors.textSecondary
+                color = AppTheme.colors.contentSecondary
             )
 
             VerticalSpacerD1000()
@@ -170,7 +170,7 @@ fun BugReportScreen(
                 val counterColor = if (messageLength >= BUG_REPORT_CHAR_LIMIT) {
                     AppTheme.colors.danger
                 } else {
-                    AppTheme.colors.textSecondary
+                    AppTheme.colors.contentSecondary
                 }
 
                 Text(

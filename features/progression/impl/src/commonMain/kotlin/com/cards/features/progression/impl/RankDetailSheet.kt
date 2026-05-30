@@ -92,20 +92,20 @@ private fun RankHero(rank: Int, isAnonymous: Boolean) {
             Text(
                 text = "♛",
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = if (rank <= 0) "Unranked" else rank.toString(),
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = if (isAnonymous) "Claim your account to start ranking" else "Multiplayer Elo rating",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -121,7 +121,7 @@ private fun HowRankWorks() {
         Text(
             text = "Three separate axes — chips, rank, XP — so a rough session never wipes your sense of progress.",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -140,7 +140,7 @@ private fun ClaimAccountCard(onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = AppTheme.colors.accentPrimary,
-        contentColor = AppTheme.colors.text,
+        contentColor = AppTheme.colors.content,
         radius = Radii.Card,
         onClick = onClick,
         bounceScale = 0.97f,
@@ -150,26 +150,26 @@ private fun ClaimAccountCard(onClick: () -> Unit) {
             Text(
                 text = "Play with real opponents",
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             Text(
                 text = "Sign in with Apple or Google to unlock multiplayer, earn a real rank, and save your chips across devices. Your XP and progress carry over.",
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD100()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(Radii.R500.shape)
-                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .background(AppTheme.colors.surfaceRaised.color)
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "Claim your account",
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
             }
         }
@@ -182,7 +182,7 @@ private fun InfoCard(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -196,13 +196,13 @@ private fun Bullet(text: String) {
         Text(
             text = "·",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = text,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -212,7 +212,7 @@ private fun SectionTitle(text: String) {
     Text(
         text = text,
         typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.text,
+        color = AppTheme.colors.content,
     )
 }
 

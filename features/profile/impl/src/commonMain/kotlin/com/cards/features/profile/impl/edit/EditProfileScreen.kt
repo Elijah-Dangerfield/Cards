@@ -136,7 +136,7 @@ fun EditProfileScreen(
                 Text(
                     text = stringResource(Res.string.profile_edit_title),
                     typography = AppTheme.typography.Heading.H800,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -144,7 +144,7 @@ fun EditProfileScreen(
                 Text(
                     text = stringResource(Res.string.profile_edit_subtitle),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -180,7 +180,7 @@ fun EditProfileScreen(
                         color = if (state.displayNameError != null) {
                             AppTheme.colors.danger
                         } else {
-                            AppTheme.colors.onSurfaceSecondary
+                            AppTheme.colors.contentSecondary
                         },
                     )
                 }
@@ -194,7 +194,7 @@ fun EditProfileScreen(
                     Text(
                         text = stringResource(Res.string.profile_edit_avatar_color_section),
                         typography = AppTheme.typography.Heading.H500,
-                        color = AppTheme.colors.onSurfacePrimary,
+                        color = AppTheme.colors.content,
                     )
                     Spacer(modifier = Modifier.height(Dimension.D400))
                     BackgroundColorPicker(
@@ -210,7 +210,7 @@ fun EditProfileScreen(
                 Text(
                     text = stringResource(Res.string.profile_edit_avatar_section),
                     typography = AppTheme.typography.Heading.H500,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D400))
 
@@ -320,7 +320,7 @@ private fun AvatarPicker(
         Text(
             text = stringResource(Res.string.profile_edit_avatars_loading),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(vertical = Dimension.D800),
         )
@@ -331,7 +331,7 @@ private fun AvatarPicker(
         Text(
             text = stringResource(Res.string.profile_edit_avatars_load_error),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             modifier = Modifier.padding(bottom = Dimension.D400),
         )
     }
@@ -379,7 +379,7 @@ private fun PackHeader(
                 name
             },
             typography = AppTheme.typography.Label.L500,
-            color = if (isLocked) AppTheme.colors.onSurfaceSecondary else AppTheme.colors.onSurfaceSecondary,
+            color = if (isLocked) AppTheme.colors.contentSecondary else AppTheme.colors.contentSecondary,
             modifier = Modifier.weight(1f),
         )
         if (isLocked && onUnlock != null) {
@@ -462,7 +462,7 @@ private fun AvatarTile(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfaceRaised.color)
                 .border(borderWidth, borderColor, CircleShape)
                 .clickable(enabled = enabled, onClick = onClick),
         ) {
@@ -479,7 +479,7 @@ private fun AvatarTile(
                     .align(Alignment.BottomEnd)
                     .size(18.dp)
                     .clip(CircleShape)
-                    .background(AppTheme.colors.surfacePrimary.color),
+                    .background(AppTheme.colors.surface.color),
             ) {
                 Text(
                     text = "🔒",

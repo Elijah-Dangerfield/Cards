@@ -20,7 +20,6 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -61,7 +60,7 @@ internal fun TutorialLeaveDialog(
             Text(
                 text = stringResource(Res.string.tutorial_leave_dialog_title),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             Text(
@@ -71,7 +70,7 @@ internal fun TutorialLeaveDialog(
                     stringResource(Res.string.tutorial_leave_dialog_body_already_basics)
                 },
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
             if (showBackToBasics) {

@@ -220,7 +220,7 @@ fun HandRankingsCheatSheet(
     BaseBottomSheet(
         onDismissRequest = onDismiss,
         dragHandle = com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.None,
-        backgroundColor = AppTheme.colors.surfacePrimary,
+        backgroundColor = AppTheme.colors.surface,
     ) {
         Column(
             modifier = Modifier
@@ -240,7 +240,7 @@ fun HandRankingsCheatSheet(
             Text(
                 text = stringResource(Res.string.room_cheat_sheet_actions_heading),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD600()
             ActionRow(
@@ -282,13 +282,13 @@ fun HandRankingsCheatSheet(
             Text(
                 text = stringResource(Res.string.room_cheat_sheet_rankings_heading),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD200()
             Text(
                 text = stringResource(Res.string.room_cheat_sheet_rankings_subtitle),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             VerticalSpacerD800()
 
@@ -311,7 +311,7 @@ private fun CurrentHandCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R1000.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = Dimension.D850, vertical = Dimension.D850),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
@@ -330,7 +330,7 @@ private fun CurrentHandCard(
             Text(
                 text = stringResource(streetLabelResourceFor(street)),
                 typography = AppTheme.typography.Heading.H900,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.weight(1f))
             if (pot != null && pot > 0) {
@@ -341,7 +341,7 @@ private fun CurrentHandCard(
         Text(
             text = stringResource(streetExplainerResourceFor(street)),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -351,13 +351,13 @@ private fun HandNumberPill(handNumber: Int) {
     Box(
         modifier = Modifier
             .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfaceTertiary.color)
+            .background(AppTheme.colors.surfaceHigh.color)
             .padding(horizontal = 12.dp, vertical = 5.dp),
     ) {
         Text(
             text = stringResource(Res.string.room_cheat_sheet_hand_number_pill, handNumber),
             typography = AppTheme.typography.Label.L500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -385,8 +385,8 @@ private fun StreetProgress(current: BettingRound) {
             val isPast = index < currentIndex
             val color = when {
                 isCurrent -> AppTheme.colors.accentPrimary.color
-                isPast -> AppTheme.colors.onSurfaceSecondary.color
-                else -> AppTheme.colors.surfaceTertiary.color
+                isPast -> AppTheme.colors.contentSecondary.color
+                else -> AppTheme.colors.surfaceHigh.color
             }
             Box(
                 modifier = Modifier
@@ -419,7 +419,7 @@ private fun ActionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R800.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -441,13 +441,13 @@ private fun ActionRow(
             Text(
                 text = title,
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD50()
             Text(
                 text = desc,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
     }
@@ -459,7 +459,7 @@ private fun RankingCard(entry: RankingEntry) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R800.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -467,12 +467,12 @@ private fun RankingCard(entry: RankingEntry) {
             Text(
                 text = stringResource(entry.name),
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             Text(
                 text = stringResource(entry.tagline),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

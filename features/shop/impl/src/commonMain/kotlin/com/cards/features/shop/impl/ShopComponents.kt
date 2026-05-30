@@ -61,7 +61,7 @@ internal fun ProductIcon(
     val bg = when (tone) {
         IconTone.Gold -> ColorResource.Amber600.color.copy(alpha = 0.18f)
         IconTone.Accent -> AppTheme.colors.accentPrimary.color.copy(alpha = 0.18f)
-        IconTone.Neutral -> AppTheme.colors.surfaceSecondary.color
+        IconTone.Neutral -> AppTheme.colors.surfaceRaised.color
     }
     Box(
         modifier = modifier
@@ -73,7 +73,7 @@ internal fun ProductIcon(
         Text(
             text = emoji,
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }

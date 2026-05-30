@@ -82,44 +82,11 @@ interface Colors {
 
     /* ── Categorical · namespaced, NOT accents ─────────────────── */
     val league: LeagueColors
-
-    // ─────────────────────────────────────────────────────────────
-    // DEPRECATED ALIASES — keep old call sites compiling during migration.
-    // Removed in the Phase 6 sweep.
-    // ─────────────────────────────────────────────────────────────
-    @Deprecated("use surface", ReplaceWith("surface")) val surfacePrimary: ColorResource get() = surface
-    @Deprecated("use content", ReplaceWith("content")) val onSurfacePrimary: ColorResource get() = content
-    @Deprecated("use surfaceRaised", ReplaceWith("surfaceRaised")) val surfaceSecondary: ColorResource get() = surfaceRaised
-    @Deprecated("use contentSecondary", ReplaceWith("contentSecondary")) val onSurfaceSecondary: ColorResource get() = contentSecondary
-    @Deprecated("use surfaceHigh", ReplaceWith("surfaceHigh")) val surfaceTertiary: ColorResource get() = surfaceHigh
-    @Deprecated("use contentSecondary", ReplaceWith("contentSecondary")) val onSurfaceTertiary: ColorResource get() = contentSecondary
-    @Deprecated("use contentDisabled", ReplaceWith("contentDisabled")) val onSurfaceDisabled: ColorResource get() = contentDisabled
-    @Deprecated("use content", ReplaceWith("content")) val onBackground: ColorResource get() = content
-    @Deprecated("use scrim", ReplaceWith("scrim")) val backgroundOverlay: ColorResource get() = scrim
-    @Deprecated("use borderStrong", ReplaceWith("borderStrong")) val borderSecondary: ColorResource get() = borderStrong
-    @Deprecated("use content", ReplaceWith("content")) val text: ColorResource get() = content
-    @Deprecated("use contentSecondary", ReplaceWith("contentSecondary")) val textSecondary: ColorResource get() = contentSecondary
-    @Deprecated("use contentDisabled", ReplaceWith("contentDisabled")) val textDisabled: ColorResource get() = contentDisabled
-    @Deprecated("categorical now: colors.league.amethyst", ReplaceWith("league.amethyst")) val accentEarned: ColorResource get() = league.amethyst
-
-    @Deprecated("status is flat now (info/success/warning/danger + on*/…Subtle)")
-    val status: StatusColor get() = object : StatusColor {
-        override val okay = success
-        override val warning = this@Colors.warning
-        override val bad = danger
-    }
 }
 
 interface LeagueColors {
     val amethyst: ColorResource   // current purple (was RankBadgePurple / old accentEarned)
     // Bronze … Diamond tiers fill in here from the leagues feature.
-}
-
-@Deprecated("status is flat now — use info/success/warning/danger (+ on*/…Subtle) on Colors")
-interface StatusColor {
-    val okay: ColorResource
-    val warning: ColorResource
-    val bad: ColorResource
 }
 
 private val WarmPremiumGradient = Brush.linearGradient(
@@ -191,7 +158,7 @@ private fun SectionTitle(text: String, colors: Colors) {
         text = text,
         fontSize = 20.sp,
         fontWeight = FontWeight.SemiBold,
-        color = colors.textSecondary.color,
+        color = colors.contentSecondary.color,
         modifier = Modifier.padding(bottom = Dimension.D400)
     )
 }
@@ -202,7 +169,7 @@ private fun HeroPanel(colors: Colors) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.Card.shape)
-            .background(colors.surfacePrimary.color)
+            .background(colors.surface.color)
             .border(1.dp, colors.border.color, Radii.Card.shape)
             .padding(Dimension.D700)
     ) {
@@ -210,12 +177,12 @@ private fun HeroPanel(colors: Colors) {
             text = "Color palette",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = colors.onSurfacePrimary.color
+            color = colors.content.color
         )
         Text(
             text = "Modern light theme",
             fontSize = 14.sp,
-            color = colors.textSecondary.color,
+            color = colors.contentSecondary.color,
             modifier = Modifier.padding(top = Dimension.D200)
         )
 
@@ -229,19 +196,19 @@ private fun HeroPanel(colors: Colors) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(Radii.Card.shape)
-                    .background(colors.surfaceSecondary.color)
+                    .background(colors.surfaceRaised.color)
                     .padding(Dimension.D500)
             ) {
                 Text(
                     text = "Active session",
                     fontSize = 14.sp,
-                    color = colors.onSurfaceSecondary.color
+                    color = colors.contentSecondary.color
                 )
                 Text(
                     text = "42m remaining",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = colors.onSurfaceSecondary.color,
+                    color = colors.contentSecondary.color,
                     modifier = Modifier.padding(top = Dimension.D200)
                 )
             }
@@ -250,13 +217,13 @@ private fun HeroPanel(colors: Colors) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(Radii.Card.shape)
-                    .background(colors.backgroundOverlay.color)
+                    .background(colors.scrim.color)
                     .padding(Dimension.D500)
             ) {
                 Text(
                     text = "Status",
                     fontSize = 14.sp,
-                    color = colors.onBackground.color
+                    color = colors.content.color
                 )
                 Text(
                     text = "All good",
@@ -278,7 +245,7 @@ private fun HeroPanel(colors: Colors) {
             Text(
                 text = "Recent activity",
                 fontSize = 14.sp,
-                color = colors.textSecondary.color
+                color = colors.contentSecondary.color
             )
             Box(
                 modifier = Modifier
@@ -377,32 +344,32 @@ private fun SurfaceStack(colors: Colors) {
         ) {
             SurfaceCard(
                 title = "Primary",
-                background = colors.surfacePrimary,
-                foreground = colors.onSurfacePrimary,
+                background = colors.surface,
+                foreground = colors.content,
                 border = colors.border,
-                supporting = colors.surfacePrimary.toHexString()
+                supporting = colors.surface.toHexString()
             )
             SurfaceCard(
                 title = "Secondary",
-                background = colors.surfaceSecondary,
-                foreground = colors.onSurfaceSecondary,
+                background = colors.surfaceRaised,
+                foreground = colors.contentSecondary,
                 border = colors.border,
-                supporting = colors.surfaceSecondary.toHexString()
+                supporting = colors.surfaceRaised.toHexString()
             )
             SurfaceCard(
                 title = "Tertiary",
-                background = colors.surfaceTertiary,
-                foreground = colors.onSurfaceTertiary,
+                background = colors.surfaceHigh,
+                foreground = colors.contentSecondary,
                 border = colors.border,
-                supporting = colors.surfaceTertiary.toHexString()
+                supporting = colors.surfaceHigh.toHexString()
             )
 
             SurfaceCard(
                 title = "Disabled",
                 background = colors.surfaceDisabled,
-                foreground = colors.onSurfaceDisabled,
+                foreground = colors.contentDisabled,
                 border = colors.border,
-                supporting = colors.surfaceTertiary.toHexString()
+                supporting = colors.surfaceHigh.toHexString()
             )
         }
     }
@@ -459,9 +426,9 @@ private fun TextHierarchy(colors: Colors) {
                 .padding(Dimension.D600),
             verticalArrangement = Arrangement.spacedBy(Dimension.D500)
         ) {
-            TextSample("Primary", colors.text, colors.text)
-            TextSample("Secondary", colors.textSecondary, colors.textSecondary)
-            TextSample("Disabled", colors.textDisabled, colors.textDisabled)
+            TextSample("Primary", colors.content, colors.content)
+            TextSample("Secondary", colors.contentSecondary, colors.contentSecondary)
+            TextSample("Disabled", colors.contentDisabled, colors.contentDisabled)
             TextSample("Danger", colors.danger, colors.danger)
         }
     }
@@ -493,13 +460,13 @@ private fun SemanticStrip(colors: Colors) {
             modifier = Modifier
                 .clip(Radii.Card.shape)
                 .border(1.dp, colors.border.color, Radii.Card.shape)
-                .background(colors.surfaceSecondary.color)
+                .background(colors.surfaceRaised.color)
                 .padding(Dimension.D400),
             horizontalArrangement = Arrangement.spacedBy(Dimension.D400)
         ) {
-            SemanticBadge("Background", colors.background, colors.onBackground)
-            SemanticBadge("Overlay", colors.backgroundOverlay, colors.onBackground)
-            SemanticBadge("Shadow", colors.shadow, colors.onBackground)
+            SemanticBadge("Background", colors.background, colors.content)
+            SemanticBadge("Overlay", colors.scrim, colors.content)
+            SemanticBadge("Shadow", colors.shadow, colors.content)
             SemanticBadge("Danger", colors.danger, colors.onAccentSecondary)
         }
     }
@@ -538,23 +505,23 @@ private fun RowScope.SemanticBadge(
 private fun PaletteGridSection(colors: Colors) {
     val palette = listOf(
         colors.background,
-        colors.backgroundOverlay,
-        colors.onBackground,
-        colors.surfacePrimary,
-        colors.onSurfacePrimary,
-        colors.surfaceSecondary,
-        colors.onSurfaceSecondary,
-        colors.surfaceTertiary,
-        colors.onSurfaceTertiary,
+        colors.scrim,
+        colors.content,
+        colors.surface,
+        colors.content,
+        colors.surfaceRaised,
+        colors.contentSecondary,
+        colors.surfaceHigh,
+        colors.contentSecondary,
         colors.surfaceDisabled,
-        colors.onSurfaceDisabled,
+        colors.contentDisabled,
         colors.accentPrimary,
         colors.onAccentPrimary,
         colors.accentSecondary,
         colors.onAccentSecondary,
-        colors.text,
-        colors.textSecondary,
-        colors.textDisabled,
+        colors.content,
+        colors.contentSecondary,
+        colors.contentDisabled,
         colors.danger,
         colors.border,
         colors.borderDisabled,
@@ -568,7 +535,7 @@ private fun PaletteGridSection(colors: Colors) {
         Box(
             modifier = Modifier
                 .clip(Radii.Card.shape)
-                .background(colors.surfaceSecondary.color)
+                .background(colors.surfaceRaised.color)
                 .border(1.dp, colors.border.color, Radii.Card.shape)
                 .padding(Dimension.D300)
         ) {

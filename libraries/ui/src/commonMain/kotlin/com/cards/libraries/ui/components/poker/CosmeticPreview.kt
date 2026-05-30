@@ -98,7 +98,7 @@ private fun EmojiTile(emoji: String, size: Dp, modifier: Modifier = Modifier) {
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(AppTheme.colors.surfaceSecondary.color),
+            .background(AppTheme.colors.surfaceRaised.color),
         contentAlignment = Alignment.Center,
     ) {
         Text(

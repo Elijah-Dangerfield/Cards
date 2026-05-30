@@ -25,13 +25,13 @@ fun ChipBadge(
                 Text(
                     text = "—",
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             } else {
                 AnimatedNumberText(
                     value = amount,
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     formatter = { formatThousands(it) },
                 )
             }

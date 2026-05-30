@@ -69,13 +69,13 @@ internal fun PlayerProfileSheet(
 
     BottomSheet(
         onDismissRequest = onDismiss,
-        backgroundColor = AppTheme.colors.surfacePrimary,
+        backgroundColor = AppTheme.colors.surface,
         dragHandle = handle,
         title = {
             Text(
                 text = seat.displayName,
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -84,7 +84,7 @@ internal fun PlayerProfileSheet(
                 Text(
                     text = badge.label(),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -164,14 +164,14 @@ private fun PlayingStyleBlock(personality: BotPersonality) {
         Text(
             text = stringResource(Res.string.room_player_profile_playing_style_heading),
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
         VerticalSpacerD200()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(Radii.Card.shape)
-                .background(AppTheme.colors.surfacePrimary.color)
+                .background(AppTheme.colors.surface.color)
                 .padding(Dimension.D500),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,13 +179,13 @@ private fun PlayingStyleBlock(personality: BotPersonality) {
                     Text(
                         text = stringResource(style.label),
                         typography = AppTheme.typography.Body.B600,
-                        color = AppTheme.colors.onSurfacePrimary,
+                        color = AppTheme.colors.content,
                     )
                     VerticalSpacerD200()
                     Text(
                         text = stringResource(style.description),
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = AppTheme.colors.contentSecondary,
                     )
                 }
                 Column(

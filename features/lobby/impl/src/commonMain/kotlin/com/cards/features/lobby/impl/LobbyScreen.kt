@@ -142,7 +142,7 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     Text(
         text = stringResource(Res.string.lobby_idle_subtitle),
         typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.contentSecondary,
     )
 
     Spacer(modifier = Modifier.height(Dimension.D800))
@@ -165,7 +165,7 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     Text(
         text = stringResource(Res.string.lobby_idle_or_join_heading),
         typography = AppTheme.typography.Heading.H500,
-        color = AppTheme.colors.onSurfacePrimary,
+        color = AppTheme.colors.content,
     )
     Spacer(modifier = Modifier.height(Dimension.D300))
 
@@ -212,26 +212,26 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R800.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .padding(vertical = Dimension.D900),
     ) {
         Text(
             text = stringResource(Res.string.lobby_in_room_code_label),
             typography = AppTheme.typography.Label.L500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
             text = room.code,
             typography = AppTheme.typography.Display.D1000,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
         Text(
             text = stringResource(Res.string.lobby_in_room_code_share_hint),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 
@@ -244,7 +244,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     Text(
         text = stringResource(Res.string.lobby_in_room_players_count, room.seatCount, room.maxSeats),
         typography = AppTheme.typography.Heading.H500,
-        color = AppTheme.colors.onSurfacePrimary,
+        color = AppTheme.colors.content,
     )
     Spacer(modifier = Modifier.height(Dimension.D300))
 
@@ -289,7 +289,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         Text(
             text = stringResource(Res.string.lobby_in_room_waiting_for_host),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
     }
@@ -318,10 +318,10 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
         ConnectionStatus.Connected -> stringResource(Res.string.lobby_connection_connected)
     }
     val tone = when (status) {
-        ConnectionStatus.Disconnected -> AppTheme.colors.status.bad
-        ConnectionStatus.Connecting -> AppTheme.colors.status.warning
-        is ConnectionStatus.Reconnecting -> AppTheme.colors.status.warning
-        ConnectionStatus.Connected -> AppTheme.colors.status.okay
+        ConnectionStatus.Disconnected -> AppTheme.colors.danger
+        ConnectionStatus.Connecting -> AppTheme.colors.warning
+        is ConnectionStatus.Reconnecting -> AppTheme.colors.warning
+        ConnectionStatus.Connected -> AppTheme.colors.success
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
@@ -334,7 +334,7 @@ private fun ConnectionStatusRow(status: ConnectionStatus) {
         Text(
             text = label,
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -530,7 +530,7 @@ private fun MemberRow(member: RoomMember, isHost: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R500.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
     ) {
         // Tiny presence dot — green when their socket's live, gray when
@@ -540,8 +540,8 @@ private fun MemberRow(member: RoomMember, isHost: Boolean) {
                 .size(8.dp)
                 .clip(CircleShape)
                 .background(
-                    (if (member.isConnected) AppTheme.colors.status.okay
-                    else AppTheme.colors.onSurfaceSecondary).color,
+                    (if (member.isConnected) AppTheme.colors.success
+                    else AppTheme.colors.contentSecondary).color,
                 ),
         )
         Spacer(modifier = Modifier.size(Dimension.D400))
@@ -549,12 +549,12 @@ private fun MemberRow(member: RoomMember, isHost: Boolean) {
             Text(
                 text = member.displayName,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             Text(
                 text = stringResource(Res.string.lobby_in_room_member_seat_label, member.seatIndex + 1),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
         if (isHost) {

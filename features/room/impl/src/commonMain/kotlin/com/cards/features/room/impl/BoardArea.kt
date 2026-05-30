@@ -165,7 +165,7 @@ private fun BoardCard(card: Card, revealDelayMs: Int, size: PlayingCardSize) {
 
 @Composable
 private fun PotPill(amount: Long, onClick: () -> Unit) {
-    val pillBackground = LocalFeltAccentSurface.current ?: AppTheme.colors.surfaceSecondary.color
+    val pillBackground = LocalFeltAccentSurface.current ?: AppTheme.colors.surfaceRaised.color
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -184,12 +184,12 @@ private fun PotPill(amount: Long, onClick: () -> Unit) {
         Text(
             text = stringResource(Res.string.room_board_pot_pill_label),
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Text(
             text = formatCompactChips(amount),
             typography = AppTheme.typography.Heading.H600,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
     }
 }

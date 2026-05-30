@@ -51,7 +51,7 @@ fun OfflineBanner() {
 
 @Composable
 private fun OfflineBannerContent() {
-    val warning = AppTheme.colors.status.warning
+    val warning = AppTheme.colors.warning
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -69,7 +69,7 @@ private fun OfflineBannerContent() {
         Text(
             text = "Offline — some features unavailable.",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Start,
         )
     }
