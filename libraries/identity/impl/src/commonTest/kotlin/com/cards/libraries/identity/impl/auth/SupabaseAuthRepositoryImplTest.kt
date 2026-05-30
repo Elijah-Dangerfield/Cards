@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.RefreshOutcome
 import com.dangerfield.cards.libraries.identity.impl.MeDto
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
@@ -237,6 +238,39 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertEquals(listOf<AppEvent>(AppEvent.SignedOut), events.dispatched)
     }
 
+    // ---------- refreshSession ----------
+
+    @Test
+    fun refreshSession_anonymousUser_returnsStillPending() = runUnitTest {
+        // Regression: VerifyEmailScreen's AppResumed handler calls
+        // refreshSession() the moment it mounts. If we report EmailConfirmed
+        // for any anonymous user (the gateway used to do that via
+        // `isAnon || emailConfirmedAt != null`), the user is yanked to Home
+        // before they can read the "tap the link in your email" copy.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(),
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.refreshSession()
+        assertIs<RefreshOutcome.StillPending>(outcome)
+    }
+
+    @Test
+    fun refreshSession_emailConfirmedSession_returnsEmailConfirmed() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = claimedSession(),
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.refreshSession()
+        assertIs<RefreshOutcome.EmailConfirmed>(outcome)
+    }
+
     // ---------- deleteAccount ----------
 
     @Test
@@ -308,7 +342,7 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         email = null,
         accessToken = accessToken,
         isAnonymous = true,
-        isEmailConfirmed = true,
+        isEmailConfirmed = false,
     )
 
     private fun claimedSession(
