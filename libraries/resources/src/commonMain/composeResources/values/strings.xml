@@ -369,6 +369,11 @@
     <string name="profile_claim_card_body">Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.</string>
     <string name="profile_claim_card_cta">Get started</string>
 
+    <!-- Stats — Anonymous-only "don't lose your progress" disclosure, shown past level 1. -->
+    <string name="stats_claim_disclosure_title">Don\'t lose your progress</string>
+    <string name="stats_claim_disclosure_body">You\'re playing as a guest. Claim your account to keep your level, chips, and achievements.</string>
+    <string name="stats_claim_disclosure_cta">Claim</string>
+
     <!-- Profile — Notifications inbox top bar + empty state. -->
     <string name="profile_notifications_title">Notifications</string>
     <string name="profile_notifications_empty_title">No notifications</string>

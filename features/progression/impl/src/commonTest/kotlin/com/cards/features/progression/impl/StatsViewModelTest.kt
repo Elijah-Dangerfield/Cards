@@ -30,6 +30,7 @@ class StatsViewModelTest : CoroutineTest() {
             progressionRepository = NeverEmittingProgressionRepository,
             xpEventRepository = NeverEmittingXpEventRepository,
             achievementRepository = NeverEmittingAchievementRepository,
+            authRepository = FakeAuthRepository(),
         )
         assertEquals(true, vm.state.isLoading)
         assertEquals(Progression.Empty, vm.state.progression)
@@ -61,6 +62,7 @@ class StatsViewModelTest : CoroutineTest() {
             progressionRepository = FakeProgressionRepository(initial = seedProgression),
             xpEventRepository = FakeXpEventRepository(initial = seedEvents),
             achievementRepository = FakeAchievementRepository(initial = seedAchievements),
+            authRepository = FakeAuthRepository(),
         )
 
         vm.stateFlow.test {
@@ -83,6 +85,7 @@ class StatsViewModelTest : CoroutineTest() {
             progressionRepository = progression,
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
+            authRepository = FakeAuthRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -108,6 +111,7 @@ class StatsViewModelTest : CoroutineTest() {
             progressionRepository = FakeProgressionRepository(),
             xpEventRepository = events,
             achievementRepository = FakeAchievementRepository(),
+            authRepository = FakeAuthRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -131,6 +135,36 @@ class StatsViewModelTest : CoroutineTest() {
             var last = awaitItem()
             while (last.recentEvents.isEmpty()) last = awaitItem()
             assertEquals(listOf(newEvent), last.recentEvents)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun anonymousAuth_setsIsAnonymous() = runUnitTest {
+        val vm = StatsViewModel(
+            progressionRepository = FakeProgressionRepository(),
+            xpEventRepository = FakeXpEventRepository(),
+            achievementRepository = FakeAchievementRepository(),
+            authRepository = FakeAuthRepository(initial = anonymousAuthState()),
+        )
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (!last.isAnonymous) last = awaitItem()
+            assertEquals(true, last.isAnonymous)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun claimedAuth_keepsIsAnonymousFalse() = runUnitTest {
+        val vm = StatsViewModel(
+            progressionRepository = FakeProgressionRepository(),
+            xpEventRepository = FakeXpEventRepository(),
+            achievementRepository = FakeAchievementRepository(),
+            authRepository = FakeAuthRepository(initial = claimedAuthState()),
+        )
+        vm.stateFlow.test {
+            assertEquals(false, awaitItem().isAnonymous)
             cancelAndIgnoreRemainingEvents()
         }
     }

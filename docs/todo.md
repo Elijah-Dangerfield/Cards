@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & account onboarding
 
-- `[P1]` **Loss-disclosure on the Stats page.** Once a user passes level 1, show a small disclosure on the Stats page encouraging them to claim their account so they don't lose progress.
-  **Acceptance:** an anonymous user past L1 sees it; a claimed user doesn't.
-  **Hints:** the claim card in [`ProfileScreen.kt`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt) is a copy starting point.
-
 - `[P1]` **Gate real-money IAP behind account claim** (decided 2026-05-30 — see [decisions.md](./decisions.md)). An anonymous user can't make a real purchase until they've claimed their account (email / Apple). The shop's purchase action, when anonymous, routes to the claim flow instead of the store. This removes the "paid then lost the account" risk at the source. *(proposed 2026-05-30)*
   **Acceptance:** an anonymous user tapping buy on a chip pack is sent to claim-account, not the platform purchase sheet; a claimed user purchases normally.
   **Hints:** purchase entry in `:features:shop:impl`; `IdentityState` exposes anonymous-vs-claimed. **Out of scope:** changing what claimed users can buy.

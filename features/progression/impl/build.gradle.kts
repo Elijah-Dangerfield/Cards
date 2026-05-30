@@ -10,6 +10,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.features.progression)
+            implementation(projects.features.profile)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.core)
             implementation(projects.libraries.identity)

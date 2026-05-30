@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.stats_claim_disclosure_body
+import cards.libraries.resources.generated.resources.stats_claim_disclosure_cta
+import cards.libraries.resources.generated.resources.stats_claim_disclosure_title
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
@@ -36,6 +41,7 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -44,6 +50,7 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -52,6 +59,7 @@ fun StatsScreen(
     onBack: () -> Unit,
     onSeeAllAchievements: () -> Unit = {},
     onShowExplainers: () -> Unit = {},
+    onClaimAccount: () -> Unit = {},
 ) {
     val levelProgress = remember(state.progression.totalXp) {
         levelProgressFor(state.progression.totalXp)
@@ -80,6 +88,11 @@ fun StatsScreen(
         ) {
             XpHero(progress = levelProgress)
             Spacer(modifier = Modifier.height(24.dp))
+
+            if (state.isAnonymous && levelProgress.level > 1) {
+                ClaimDisclosureCard(onClaimAccount = onClaimAccount)
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             SectionTitle("Lifetime")
             Spacer(modifier = Modifier.height(8.dp))
@@ -333,6 +346,43 @@ private fun AchievementsHighlights(
 }
 
 @Composable
+private fun ClaimDisclosureCard(onClaimAccount: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = AppTheme.colors.surfacePrimary,
+        contentColor = AppTheme.colors.text,
+        radius = Radii.Card,
+        onClick = onClaimAccount,
+        bounceScale = 0.98f,
+        contentPadding = PaddingValues(16.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = stringResource(Res.string.stats_claim_disclosure_title),
+                    typography = AppTheme.typography.Body.B600,
+                    color = AppTheme.colors.text,
+                )
+                Text(
+                    text = stringResource(Res.string.stats_claim_disclosure_body),
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.textSecondary,
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = stringResource(Res.string.stats_claim_disclosure_cta),
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.accentPrimary,
+            )
+        }
+    }
+}
+
+@Composable
 private fun SectionTitle(text: String) {
     Text(
         text = text,
@@ -430,6 +480,29 @@ private fun StatsScreenPreview_SingleAchievementEarned() {
                     earned = mapOf(earnedId to 0L),
                     counters = emptyMap(),
                     customCounters = emptyMap(),
+                ),
+            ),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun StatsScreenPreview_AnonymousDisclosure() {
+    PreviewContent {
+        StatsScreen(
+            state = StatsState(
+                isLoading = false,
+                isAnonymous = true,
+                progression = Progression(
+                    totalXp = 2_840,
+                    handsPlayed = 412,
+                    handsWon = 110,
+                    handsFolded = 220,
+                    handsLostAtShowdown = 82,
+                    botHandsPlayed = 412,
+                    updatedAtEpochMs = 0,
                 ),
             ),
             onBack = {},
