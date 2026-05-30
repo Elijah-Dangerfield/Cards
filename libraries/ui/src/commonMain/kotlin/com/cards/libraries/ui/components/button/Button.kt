@@ -1,71 +1,42 @@
 /**
  * # Button Component System
- * 
- * A comprehensive button system following industry-standard Material Design principles
- * with custom brand colors.
- * 
- * ## Quick Reference Guide
- * 
- * ### When to Use Each Type:
- * 
- * | Type | Visual | Use Case | Example |
- * |------|--------|----------|---------|
- * | **Primary** | Green filled | Most important action, main CTA | "Continue", "Save", "Sign In" |
- * | **PrimaryAlt** | Cyan filled | Alternative important action | "Try Premium", "Upgrade" |
- * | **Secondary** | White outlined | Important but not primary | "Cancel", "Skip", "Learn More" |
- * | **Tertiary** | Dark filled | Subtle action, less emphasis | "Advanced Settings", tertiary nav |
- * | **Ghost** | Text only | Minimal weight, inline links | "Forgot Password?", "Terms" |
- * 
- * ### Button Styles:
- * 
- * - **Filled**: Solid background, highest prominence
- * - **Outlined**: Border only, medium prominence  
- * - **Text**: No background/border, lowest prominence
- * 
- * ### Common Patterns:
- * 
+ *
+ * A button exposes ONE emphasis semantic — [ButtonType] — plus a [ButtonStyle] (Filled / Outlined
+ * / Text) and a [ButtonSize]. Filled, enabled buttons render a hard 3D "lip" (the `deep` token)
+ * that the face drops onto when pressed; everything else stays flat.
+ *
+ * ## Emphasis hierarchy (most → least prominent)
+ *
+ * | Type | Use case | Example |
+ * |------|----------|---------|
+ * | **Primary**   | The main CTA — gold by default | "Continue", "Save", "Sign In" |
+ * | **Secondary** | Important but not the CTA — neutral fill / strong border | "Cancel", "Skip" |
+ * | **Ghost**     | Minimal weight, inline links | "Forgot Password?", "Terms" |
+ * | **Danger**    | Destructive action | "Delete", "Leave game" |
+ *
+ * Limit Primary to 1–2 per screen. Use Filled > Outlined > Text for decreasing emphasis.
+ *
+ * ## Accent (the rare two-CTA case)
+ *
+ * A *filled Primary* can be recolored with [ButtonAccent] (Primary = gold, Secondary = teal,
+ * Tertiary = coral). Accent is **role-named, never a literal color** — repointing or dropping an
+ * accent token never touches a button. Reach for it only when a screen genuinely needs two
+ * primary-level actions in different brand colors.
+ *
  * ```kotlin
- * // ✨ RECOMMENDED: Use convenience functions for better readability
  * ButtonPrimary(onClick = { }) { Text("Continue") }
  * ButtonSecondary(onClick = { }) { Text("Cancel") }
  * ButtonGhost(onClick = { }) { Text("Forgot Password?") }
- * 
- * // Dialog with two actions
- * Row {
- *     ButtonGhost(onClick = { }) { Text("Cancel") }
- *     ButtonPrimary(onClick = { }) { Text("Confirm") }
+ * ButtonDanger(onClick = { }) { Text("Delete") }
+ *
+ * // two distinct primary-level CTAs
+ * ButtonPrimary(onClick = { }, accent = ButtonAccent.Secondary) { Text("Upgrade") }
+ *
+ * // full control
+ * Button(type = ButtonType.Primary, style = ButtonStyle.Outlined, size = ButtonSize.Small, onClick = { }) {
+ *     Text("Continue")
  * }
- * 
- * // Alternative brand action
- * ButtonPrimaryAlt(onClick = { }) { Text("Upgrade to Premium") }
- * 
- * // Subtle tertiary action
- * ButtonTertiary(onClick = { }) { Text("Advanced Settings") }
- * 
- * // Or use the full Button() with explicit type if you need more control:
- * Button(
- *     type = ButtonType.Primary,
- *     style = ButtonStyle.Outlined,  // Override default style
- *     size = ButtonSize.Small,       // Override default size
- *     onClick = { }
- * ) { Text("Continue") }
  * ```
- * 
- * ### Visual Hierarchy Rules:
- * 
- * 1. **One primary per screen**: Limit Primary/PrimaryAlt to 1-2 buttons max
- * 2. **Clear hierarchy**: Use different types to show importance
- * 3. **Consistent positioning**: Primary on right/bottom in button groups
- * 4. **Appropriate style**: Filled > Outlined > Text for decreasing emphasis
- * 
- * ### Color Mappings:
- * 
- * - **Primary**: accentPrimary (Aurora500 #00907C)
- * - **PrimaryAlt**: accentSecondary (Pulse500 #7555FF)
- * - **Secondary**: surfacePrimary (Midnight800 #0A101E) with border
- * - **Tertiary**: surfaceSecondary (Midnight700 #101A2C)
- * - **Ghost**: Text color only, no surface
- * - **Disabled**: surfaceDisabled (Graphite600 #3A3F50)
  */
 package com.dangerfield.cards.libraries.ui.components.button
 
@@ -99,6 +70,7 @@ fun Button(
     modifier: Modifier = Modifier,
     icon: IconResource? = null,
     type: ButtonType = LocalButtonType.current,
+    accent: ButtonAccent = ButtonAccent.Primary,
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = LocalButtonStyle.current,
     enabled: Boolean = true,
@@ -107,9 +79,9 @@ fun Button(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     content: @Composable () -> Unit,
 ) {
-    val backgroundColor = backgroundColor(type, style, enabled)
+    val backgroundColor = backgroundColor(type, accent, style, enabled)
         ?.let { targetColor ->
-            key(type, style) {
+            key(type, accent, style) {
                 animateColorResourceAsState(
                     targetValue = targetColor,
                     label = "Background_Color_Anim"
@@ -117,19 +89,21 @@ fun Button(
             }.value
         }
 
-    val contentColor by key(type, style) {
+    val contentColor by key(type, accent, style) {
         animateColorResourceAsState(
-            targetValue = type.contentColor(style, enabled),
+            targetValue = contentColor(type, accent, style, enabled),
             label = "Content_Color_Anim"
         )
     }
 
-    val borderColor = borderColor(type, style, enabled)
+    val borderColor = borderColor(type, accent, style, enabled)
+    val deepColor = deepColor(type, accent, style, enabled, flat)
 
     BaseButton(
         backgroundColor = backgroundColor,
         borderColor = borderColor,
         contentColor = contentColor,
+        deepColor = deepColor,
         onClick = onClick,
         modifier = modifier,
         icon = icon,
@@ -143,62 +117,39 @@ fun Button(
 }
 
 /**
- * Button type determines the visual hierarchy and semantic meaning of the button.
- * 
- * Visual hierarchy (most to least prominent):
- * Primary > Secondary > Tertiary > Ghost
- * 
- * ## Usage Guidelines:
- * 
- * **Primary** - Most important action on the screen
- * - Brand green color (accentPrimary)
- * - High visual prominence
- * - Examples: "Continue", "Save", "Submit", "Sign In"
- * - Limit to 1-2 per screen for maximum impact
- * 
- * **PrimaryAlt** - Alternative primary action with different brand color
- * - Secondary brand color (accentSecondary - cyan)
- * - Same prominence as Primary but different semantic meaning
- * - Examples: "Try Premium", "Upgrade", secondary CTAs
- * - Use when you need two distinct primary-level actions
- * 
- * **Secondary** - Important but not primary action
- * - White/light background with border
- * - Clear but less prominent than primary
- * - Examples: "Cancel", "Back", "Skip", "Learn More"
- * - Can have multiple per screen
- * 
- * **Tertiary** - Subtle actions, less important
- * - Dark background (surfaceSecondary)
- * - Blends with dark theme but still distinct
- * - Examples: "Advanced Options", "Settings", tertiary navigation
- * - Use for actions that shouldn't dominate the UI
- * 
- * **Ghost** - Least prominent, text-only appearance
- * - No background, colored text only
- * - Minimal visual weight
- * - Examples: "Forgot Password?", "Terms", inline links
- * - Use for supplementary actions
+ * Emphasis hierarchy — the only semantic a button exposes (most → least prominent):
+ * Primary > Secondary > Ghost. Danger is destructive emphasis, orthogonal to the ladder.
+ *
+ * - **Primary** — the main CTA. Gold filled by default; recolor with [ButtonAccent]. 1–2 per screen.
+ * - **Secondary** — important but not the CTA. Neutral fill (filled) or strong border (outlined).
+ * - **Ghost** — minimal weight, text-only. Inline links, supplementary actions.
+ * - **Danger** — destructive action (red).
  */
 enum class ButtonType {
-    /** Brand green CTA - most important action (accentPrimary) */
+    /** The main CTA — gold filled by default (accentPrimary). */
     Primary,
-    
-    /** Alternative brand cyan CTA - secondary important action (accentSecondary) */
-    PrimaryAlt,
-    
-    /** White outlined button - important but not primary */
+
+    /** Important but not the CTA — neutral fill / strong border. */
     Secondary,
-    
-    /** Dark subtle button - less prominent action */
-    Tertiary,
-    
-    /** Text-only button - minimal visual weight */
+
+    /** Text-only button — minimal visual weight. */
     Ghost,
 
-    /** Danger - red button */
-    Danger
+    /** Destructive action — red. */
+    Danger,
+
+    @Deprecated("Use ButtonType.Primary with accent = ButtonAccent.Secondary")
+    PrimaryAlt,
+
+    @Deprecated("Old filled 'Tertiary' is now Secondary")
+    Tertiary,
 }
+
+/**
+ * Which brand accent a *filled Primary* renders. Role-named, never a literal color, so dropping or
+ * repointing an accent token never touches a button.
+ */
+enum class ButtonAccent { Primary, Secondary, Tertiary }
 
 enum class ButtonSize {
     Large,
@@ -263,6 +214,7 @@ fun ButtonPrimary(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: IconResource? = null,
+    accent: ButtonAccent = ButtonAccent.Primary,
     size: ButtonSize = LocalButtonSize.current,
     style: ButtonStyle = ButtonStyle.Filled,
     onDisabledTap: (() -> Unit)? = null,
@@ -276,6 +228,7 @@ fun ButtonPrimary(
         modifier = modifier,
         icon = icon,
         type = ButtonType.Primary,
+        accent = accent,
         size = size,
         onDisabledTap = onDisabledTap,
         style = style,
@@ -287,12 +240,16 @@ fun ButtonPrimary(
 }
 
 /**
- * Alternative primary button with cyan brand color.
- * 
- * Use for secondary CTAs that need high prominence (e.g., "Upgrade to Premium", "Try Now").
- * 
+ * Alternative primary button — a Primary recolored with the Secondary brand accent (teal).
+ *
+ * Use for the rare two-CTA screen that needs a distinct second primary-level action.
+ *
  * @see Button for full documentation
  */
+@Deprecated(
+    "Use ButtonPrimary(accent = ButtonAccent.Secondary)",
+    ReplaceWith("ButtonPrimary(onClick, modifier, accent = ButtonAccent.Secondary, content = content)")
+)
 @Composable
 fun ButtonPrimaryAlt(
     onClick: () -> Unit,
@@ -310,7 +267,8 @@ fun ButtonPrimaryAlt(
         onClick = onClick,
         modifier = modifier,
         icon = icon,
-        type = ButtonType.PrimaryAlt,
+        type = ButtonType.Primary,
+        accent = ButtonAccent.Secondary,
         size = size,
         onDisabledTap = onDisabledTap,
         style = style,
@@ -358,12 +316,14 @@ fun ButtonSecondary(
 }
 
 /**
- * Tertiary button - Dark subtle button for less prominent actions.
- * 
- * Use for actions that shouldn't dominate the UI (e.g., "Advanced Options", "Settings").
- * 
+ * Tertiary button — the old dark filled tertiary is now just [ButtonSecondary].
+ *
  * @see Button for full documentation
  */
+@Deprecated(
+    "Old filled 'Tertiary' is now Secondary",
+    ReplaceWith("ButtonSecondary(onClick, modifier, content = content)")
+)
 @Composable
 fun ButtonTertiary(
     onClick: () -> Unit,
@@ -381,7 +341,7 @@ fun ButtonTertiary(
         onClick = onClick,
         modifier = modifier,
         icon = icon,
-        type = ButtonType.Tertiary,
+        type = ButtonType.Secondary,
         size = size,
         style = style,
         enabled = enabled,
@@ -466,79 +426,126 @@ internal val LocalButtonSize =
 private val LocalButtonStyle =
     compositionLocalOf { ButtonStyle.Filled }
 
+// ── accent token resolvers ───────────────────────────────────
 @Composable
 @ReadOnlyComposable
-private fun backgroundColor(
-    type: ButtonType,
-    style: ButtonStyle,
-    enabled: Boolean,
-): ColorResource? = when {
-    !enabled && style == ButtonStyle.Filled -> AppTheme.colors.surfaceDisabled
-    !enabled && style == ButtonStyle.Outlined -> null
-    !enabled && style == ButtonStyle.Text -> null
-    style == ButtonStyle.Text -> null
-    style == ButtonStyle.Outlined -> null
-    else -> when (type) {
-        ButtonType.Primary -> AppTheme.colors.accentPrimary
-        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Secondary -> AppTheme.colors.surfaceSecondary
-        ButtonType.Tertiary -> AppTheme.colors.onSurfaceTertiary
-        ButtonType.Ghost -> null
-        ButtonType.Danger -> AppTheme.colors.danger
-    }
+private fun accentSolid(a: ButtonAccent) = when (a) {
+    ButtonAccent.Primary -> AppTheme.colors.accentPrimary
+    ButtonAccent.Secondary -> AppTheme.colors.accentSecondary
+    ButtonAccent.Tertiary -> AppTheme.colors.accentTertiary
 }
 
 @Composable
 @ReadOnlyComposable
+private fun accentDeep(a: ButtonAccent) = when (a) {
+    ButtonAccent.Primary -> AppTheme.colors.accentPrimaryDeep
+    ButtonAccent.Secondary -> AppTheme.colors.accentSecondaryDeep
+    ButtonAccent.Tertiary -> AppTheme.colors.accentTertiaryDeep
+}
+
+@Composable
+@ReadOnlyComposable
+private fun onAccent(a: ButtonAccent) = when (a) {
+    ButtonAccent.Primary -> AppTheme.colors.onAccentPrimary
+    ButtonAccent.Secondary -> AppTheme.colors.onAccentSecondary
+    ButtonAccent.Tertiary -> AppTheme.colors.onAccentTertiary
+}
+
+@Suppress("DEPRECATION")
+@Composable
+@ReadOnlyComposable
+private fun backgroundColor(
+    type: ButtonType,
+    accent: ButtonAccent,
+    style: ButtonStyle,
+    enabled: Boolean,
+): ColorResource? = when {
+    !enabled && style == ButtonStyle.Filled -> AppTheme.colors.surfaceDisabled
+    style != ButtonStyle.Filled -> null
+    else -> when (type) {
+        ButtonType.Primary -> accentSolid(accent)
+        ButtonType.Secondary -> AppTheme.colors.surfaceHigh
+        ButtonType.Ghost -> null
+        ButtonType.Danger -> AppTheme.colors.danger
+        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
+        ButtonType.Tertiary -> AppTheme.colors.surfaceHigh
+    }
+}
+
+@Suppress("DEPRECATION")
+@Composable
+@ReadOnlyComposable
+private fun deepColor(
+    type: ButtonType,
+    accent: ButtonAccent,
+    style: ButtonStyle,
+    enabled: Boolean,
+    flat: Boolean,
+): ColorResource? = when {
+    flat || !enabled || style != ButtonStyle.Filled -> null // only filled, enabled buttons get the lip
+    else -> when (type) {
+        ButtonType.Primary -> accentDeep(accent)
+        ButtonType.Secondary -> AppTheme.colors.background // espresso lip under the neutral fill
+        ButtonType.Ghost -> null
+        ButtonType.Danger -> AppTheme.colors.dangerDeep
+        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondaryDeep
+        ButtonType.Tertiary -> AppTheme.colors.background
+    }
+}
+
+@Suppress("DEPRECATION")
+@Composable
+@ReadOnlyComposable
 private fun borderColor(
     type: ButtonType,
+    accent: ButtonAccent,
     style: ButtonStyle,
     enabled: Boolean
 ): ColorResource? = when {
     style != ButtonStyle.Outlined -> null
     !enabled -> AppTheme.colors.borderDisabled
     else -> when (type) {
-        ButtonType.Primary -> AppTheme.colors.accentPrimary
-        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Secondary -> AppTheme.colors.border
-        ButtonType.Tertiary -> AppTheme.colors.border
+        ButtonType.Primary -> accentSolid(accent)
+        ButtonType.Secondary -> AppTheme.colors.borderStrong
         ButtonType.Ghost -> null
         ButtonType.Danger -> AppTheme.colors.danger
+        ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
+        ButtonType.Tertiary -> AppTheme.colors.borderStrong
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 @ReadOnlyComposable
-private fun ButtonType.contentColor(
+private fun contentColor(
+    type: ButtonType,
+    accent: ButtonAccent,
     style: ButtonStyle,
     enabled: Boolean
 ): ColorResource = when {
-    !enabled -> AppTheme.colors.textDisabled
-    style == ButtonStyle.Filled -> when (this) {
-        ButtonType.Primary -> AppTheme.colors.onAccentPrimary
+    !enabled -> AppTheme.colors.contentDisabled
+    style == ButtonStyle.Filled -> when (type) {
+        ButtonType.Primary -> onAccent(accent)
+        ButtonType.Secondary -> AppTheme.colors.content
+        ButtonType.Ghost -> AppTheme.colors.content
+        ButtonType.Danger -> AppTheme.colors.onDanger
         ButtonType.PrimaryAlt -> AppTheme.colors.onAccentSecondary
-        ButtonType.Secondary -> AppTheme.colors.onSurfacePrimary
-        ButtonType.Tertiary -> AppTheme.colors.background
-        ButtonType.Ghost -> AppTheme.colors.text
-        ButtonType.Danger -> AppTheme.colors.danger.onColor
+        ButtonType.Tertiary -> AppTheme.colors.content
     }
-    style == ButtonStyle.Outlined -> when (this) {
-        ButtonType.Primary -> AppTheme.colors.accentPrimary
+    style == ButtonStyle.Outlined -> when (type) {
+        ButtonType.Primary -> accentSolid(accent)
+        ButtonType.Secondary -> AppTheme.colors.content
+        ButtonType.Ghost -> AppTheme.colors.content
+        ButtonType.Danger -> AppTheme.colors.danger
         ButtonType.PrimaryAlt -> AppTheme.colors.accentSecondary
-        ButtonType.Secondary -> AppTheme.colors.text
-        ButtonType.Tertiary -> AppTheme.colors.textSecondary
-        ButtonType.Ghost -> AppTheme.colors.text
-        ButtonType.Danger -> AppTheme.colors.danger
+        ButtonType.Tertiary -> AppTheme.colors.content
     }
-    style == ButtonStyle.Text -> when (this) {
-        ButtonType.Primary -> AppTheme.colors.text
-        ButtonType.PrimaryAlt -> AppTheme.colors.textSecondary
-        ButtonType.Secondary -> AppTheme.colors.textSecondary
-        ButtonType.Tertiary -> AppTheme.colors.text
-        ButtonType.Ghost -> AppTheme.colors.text
+    else -> when (type) { // Text
         ButtonType.Danger -> AppTheme.colors.danger
+        ButtonType.Secondary -> AppTheme.colors.contentSecondary
+        ButtonType.PrimaryAlt -> AppTheme.colors.contentSecondary
+        else -> AppTheme.colors.content
     }
-    else -> AppTheme.colors.text
 }
 
 
