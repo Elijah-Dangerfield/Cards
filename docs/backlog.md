@@ -452,3 +452,15 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - If iOS-managed: launch storyboard background color / image alignment is the only lever — confirm `LaunchScreen.storyboard` matches the Compose splash's background so the transition is invisible.
 
 **Status:** Backlog. No known impact beyond the visual; flagged for an investigation pass next time someone touches the iOS launch path. Don't preemptively "fix" — the answer might be "iOS does this and there's nothing to do."
+
+---
+
+## Guard `ChipsRepositoryImpl.applyDeltaInternal` against duplicate idempotency keys
+
+**Idea:** [`ChipsRepositoryImpl`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/ChipsRepositoryImpl.kt) writes to two tables on every local chip mutation: `walletEventDao.insert(...)` (primary key on idempotency key, `OnConflictStrategy.IGNORE`) and `chipsDao.applyDelta(...)` (no key awareness). If the same idempotency key arrives twice, the wallet event is dedup'd to one row but the local balance is double-applied. The next `setBalance` from the server's authoritative sync reconciles, so end-state is correct — but the optimistic window shows a wrong balance to the user.
+
+**Why it's a latent foot-gun, not a real bug today:** callers don't re-issue `addChips` / `subtractChips` with the same key. The retry path is the sync loop, which uses `setBalance` (not delta), so the duplicate-key case is currently unreachable from production code. Pinning the current behaviour in `ChipsRepositoryImplTest.addChips_withDuplicateIdempotencyKey_dropsTheSecondEvent_butStillAppliesDelta` keeps a future change deliberate.
+
+**Sketch:** one-line check in `applyDeltaInternal` — query `walletEventDao` for the idempotency key before applying the delta; if present, no-op the delta (the event was already accounted for). Update the pinned test to assert single-application.
+
+**Status:** Backlog. Defensive, not blocking — there's no observable user-visible bug today. Pick up if `ChipsRepository` ever grows a caller that could re-issue with the same key (offline retry queue, multi-write replay, …).
