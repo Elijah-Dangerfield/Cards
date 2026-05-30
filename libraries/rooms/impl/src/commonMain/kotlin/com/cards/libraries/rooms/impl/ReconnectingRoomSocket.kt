@@ -95,9 +95,21 @@ class ReconnectingRoomSocket @Inject constructor(
      * Try to evict [state] from the cache. Returns false if the entry
      * has already been replaced by a newer state (race between linger
      * expiry and a fresh `connect()`).
+     *
+     * Implemented as a manual identity-check-then-remove rather than
+     * `Map.remove(key, value)`: the two-arg `remove` is a JVM-only
+     * extension and breaks iOS compilation. The atomicity the two-arg
+     * form guarantees is already ours from being inside the mutex.
      */
     private suspend fun evict(code: String, state: SharedSocketState): Boolean =
-        statesMutex.withLock { statesByCode.remove(code, state) }
+        statesMutex.withLock {
+            if (statesByCode[code] === state) {
+                statesByCode.remove(code)
+                true
+            } else {
+                false
+            }
+        }
 
     private inner class HandleImpl(private val code: String) : RoomConnectionHandle {
         override val connection: Flow<RoomConnection> = flow {
