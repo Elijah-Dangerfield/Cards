@@ -20,6 +20,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
+- `[P1]` **Multi-achievement bottom sheet isn't scrollable.** When several achievements unlock at once, the sheet smashes them together instead of scrolling. Make the content scroll within the sheet's max height. *(proposed 2026-05-30)*
+  **Acceptance:** unlocking 4+ achievements at once shows a scrollable list; one unlock looks unchanged.
+  **Hints:** the achievement celebration sheet in `:features:progression:impl`.
+
 - `[P2]` **MP achievement grants — server-side hand-count floor (blocked).** Multiplayer achievements need the server to gate grants on a real hand count, but there's no `hands_finished` signal server-side yet. Blocked on server-authoritative gameplay (Phase 4.2). Bot achievements (client self-grant) are the permanent shape and are not in scope here.
 
 ### Auth & account onboarding
@@ -27,6 +31,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **Loss-disclosure on the Stats page.** Once a user passes level 1, show a small disclosure on the Stats page encouraging them to claim their account so they don't lose progress.
   **Acceptance:** an anonymous user past L1 sees it; a claimed user doesn't.
   **Hints:** the claim card in [`ProfileScreen.kt`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt) is a copy starting point.
+
+- `[P1]` **Gate real-money IAP behind account claim** (decided 2026-05-30 — see [decisions.md](./decisions.md)). An anonymous user can't make a real purchase until they've claimed their account (email / Apple). The shop's purchase action, when anonymous, routes to the claim flow instead of the store. This removes the "paid then lost the account" risk at the source. *(proposed 2026-05-30)*
+  **Acceptance:** an anonymous user tapping buy on a chip pack is sent to claim-account, not the platform purchase sheet; a claimed user purchases normally.
+  **Hints:** purchase entry in `:features:shop:impl`; `IdentityState` exposes anonymous-vs-claimed. **Out of scope:** changing what claimed users can buy.
 
 - `[P1]` **Sign in with Apple on iOS — native button via `NativeViewFactory`.** Apple requires the system `ASAuthorizationAppleIDButton` (App Review rejects custom buttons). Render it on iOS through [`NativeViewFactory`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/native/NativeViewFactory.kt), capture the authorization, hand the ID token to `SupabaseAuthGateway.signInWithOAuthIdToken(provider = "apple", …)`.
   **Acceptance:** tap opens the system sheet; success authenticates with the linked Apple identity; cancel returns silently; error surfaces via `ClaimAccountState.error`.
@@ -89,6 +97,10 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 
 - `[P1]` **MP credit by table composition** ([§5.4](./product/product-spec.md#mp-credit-by-table-composition)). Grant MP XP / league / achievements only when ≥2 humans AND humans ≥ bots, read from `state_jsonb` at `HandComplete`. Client shows a "Practice tier · bots present" label from the same source. **Depends on:** B0.
 
+- `[P1]` **Per-turn time limit in multiplayer.** A player shouldn't be able to stall the table by sitting on their action. Give each turn a deadline; on expiry, auto-check if checking is legal, otherwise auto-fold. Surface the countdown to the table. *(proposed 2026-05-30)*
+  **Acceptance:** a seat that doesn't act within the limit is auto-checked/folded and play continues; the active seat shows a visible countdown.
+  **Hints:** turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
+
 - `[P1]` **Orphaned-room policy — forfeit-then-spectator.** Last human leaving still kills the room. On disconnect, keep the seat warm via the existing grace; if it expires mid-hand, mark `SeatForfeited`, auto-fold the rest of the session, downgrade the WS subscription to read-only. `GET /v1/me/active-rooms` drives the Rejoin / Forfeit banner. **Depends on:** B0 + B4.
 
 ### B4 — Spectator role
@@ -120,6 +132,22 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 
 - `[P1]` **OTel spans on the server — `broadcast` + per-recipient `ws-send`.** The SubmitIntent / start-hand / next-hand paths are traced; the publisher → `sendJson` fan-out isn't. Propagate the `submit_intent` context through the publisher's `StateFlow → flatMapLatest → merge → map` chain (`asContextElement`, or a `Flow` carrying the `Context` per emission).
   **Hints:** the publisher loop in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `withSpan` in `plugins/Tracing.kt`.
+
+- `[P1]` **Server-side Sentry SDK.** The client reports to the `cards` Sentry project already; the Ktor server doesn't. Wire the JVM Sentry SDK in `:apps:server`, init from the DSN in the server secret store, and tag `platform=server` + `release` so server errors share the cross-platform issue timeline. *(proposed 2026-05-30)*
+  **Acceptance:** an unhandled server exception lands in the `cards` Sentry project tagged `platform=server`; the DSN is read from config/secret, not hardcoded.
+  **Hints:** mirror the client tag scheme in [`AppTelemetry.kt`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/AppTelemetry.kt). **Depends on:** the DSN being in the server secret store (developer-todo).
+
+### Lint / static analysis
+
+- `[P2]` **Stand up detekt with `verifyStrings` as the first rule.** We want an AI-authorable rule set that the build enforces and that runs pre-push — detekt is the framework, `verifyStrings` is rule #1. Add detekt to the build, wire it into `check` and a `.githooks/pre-push`, and write a custom rule that fails on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM-emitted copy) outside `:libraries:resources`, honoring an allowlist for glyph-only/preview/server-supplied strings (per [`AGENTS.md` §strings](../AGENTS.md)). Land behind a baseline so the gate goes green on day one; migrate the existing violations separately. *(proposed 2026-05-30)*
+  **Acceptance:** adding `Text("Hello")` to a feature `:impl` fails `./gradlew check` and the pre-push hook; the same string via `stringResource(...)` passes; a documented allowlist annotation suppresses a flagged line.
+  **Hints:** `gradle/libs.versions.toml` has no detekt entry yet; convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing violations (`PurchaseConfirmSheet.kt`, `AppGuardLayer.kt`, …) — track as a separate cleanup; adding rules beyond `verifyStrings` (the framework is set up to grow, but land one rule first).
+
+### Abuse & security
+
+- `[P1]` **Account suspension / ban enforcement.** There's no way to lock out a bad actor today. Add a `status` (active / suspended) on `profiles` and a server gate that rejects authenticated HTTP requests and WS upgrades from a suspended account with a clear error; the client renders a "this account is suspended" state. *(proposed 2026-05-30)*
+  **Acceptance:** a suspended account is locked out of the API + gameplay and sees the suspended state; an active account is unaffected.
+  **Hints:** `ProfileRepository`; the bearer-token auth plugin; WS upgrade in `RoomSocketRoutes.kt`. **Out of scope:** the admin UI/policy for *who* gets banned (developer-todo); automated detection (backlog).
 
 ---
 
