@@ -2,7 +2,7 @@ package com.dangerfield.cards.libraries.ui.components.achievement
 
 import androidx.compose.ui.graphics.Color
 import com.dangerfield.cards.libraries.cards.AchievementRarity
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
+import com.dangerfield.cards.libraries.ui.system.color.AchievementRarityPalette
 
 /**
  * Single source of truth for the rarity → accent color mapping used by
@@ -12,11 +12,12 @@ import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
  *
  * Not a `Color` themed token — these are deliberately fixed hues that
  * signal rarity tier regardless of the surrounding theme (the rarity
- * means the same thing in dark or light).
+ * means the same thing in dark or light). Concrete hex values live in
+ * [AchievementRarityPalette].
  */
 fun AchievementRarity.toAccentColor(): Color = when (this) {
-    AchievementRarity.COMMON -> Color(0xFFB08D57)
-    AchievementRarity.RARE -> Color(0xFFB0B0B8)
-    AchievementRarity.EPIC -> PokerPalette.ChipGold
-    AchievementRarity.LEGENDARY -> Color(0xFFE07AB1)
+    AchievementRarity.COMMON -> AchievementRarityPalette.Common
+    AchievementRarity.RARE -> AchievementRarityPalette.Rare
+    AchievementRarity.EPIC -> AchievementRarityPalette.Epic
+    AchievementRarity.LEGENDARY -> AchievementRarityPalette.Legendary
 }
