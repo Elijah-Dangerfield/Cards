@@ -501,3 +501,23 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - Doubles up on Sentry breadcrumbs for the same line. That's fine — Sentry stays the crash-attribution surface (it has stack-symbolication + alerting we don't want to rebuild); OTel is the queryable analytics surface. Split of concerns is intentional.
 
 **Status:** Backlog. Pairs with the Grafana Cloud OTLP signup in [developer-todo.md](./developer-todo.md) — that endpoint is the destination. Pick up alongside the next observability batch (server already has `ws_send` span-link plumbing landed; client-side OTLP would close the trace ↔ log correlation across the wire).
+
+---
+
+## Stale-intent semantics on the room socket's outbound buffer
+
+**Idea:** The reshape in [`ReconnectingRoomSocket`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/ReconnectingRoomSocket.kt) buffers outbound [`ClientFrame`](../libraries/rooms/src/commonMain/kotlin/com/cards/libraries/rooms/ClientFrame.kt)s in a 32-slot channel; the writer drains them on the live WS, and queued frames re-send across a reconnect. Server-side nonce dedupe handles the duplicate-after-reconnect case. But `ClientFrame.SubmitIntent` carries a *per-turn-state* action — bet 200, fold, call — and the engine state has moved on by the time the WS comes back. Sending the stale intent after the reconnect either gets rejected by the validator (best case) or applied to a different street than the user thought they were acting in (worst case).
+
+**Why it's mostly latent today:** the user can't see "your turn" while disconnected (the gameplay state flow stops), so they don't usually submit intents during a drop. The hole is when the WS drops *while* a `SubmitIntent` is mid-flight in the outbound buffer — the gameplay UI thinks the action was sent, the user sees the act-button greyed out, the server never receives it; on reconnect it does receive it but the engine has either moved past their seat or finished the hand.
+
+**Sketch:**
+- Split outbound semantics by frame: `StartHand` / `RequestNextHand` are idempotent over the lifetime of a hand → buffer normally. `SubmitIntent` is bound to *this connection* → drop it on disconnect (don't re-send), and surface the dropped intent as a synthetic `GameplayFrame.IntentAck(accepted=false, error="connection_lost")` so `RemotePokerSession.submit()` can resolve its `CompletableDeferred` with a rejection.
+- Implementation: a per-connection scratch channel for connection-bound frames (drained-or-dropped with the writer), separate from the durable outbound buffer for idempotent frames. Or: tag frames at the call site (`send(frame, connectionBound = true)`) and let the socket route them.
+- Alternative: keep a single buffer but inspect each frame on writer-restart and drop intents older than the current `GameState.lastSequence`. More server-coupled.
+
+**Tradeoffs:**
+- Adds complexity to the socket layer that today's V1 doesn't strictly need (intents rarely race a disconnect).
+- The drop-on-disconnect path requires `RemotePokerSession` to wire the synthetic ack into its nonce table — modest, but a real coupling.
+- Without this, the only safety net is the engine validator rejecting actions that don't fit the current state. That's a real (if ugly) backstop.
+
+**Status:** Backlog. Pick up when MP playtests show the symptom or when the engine validator's rejection messaging is verified non-confusing for end users. Pairs with [Lobby host-promotion banner](./decisions.md) — anything that gates on "did my last action go through?" wants this fixed.

@@ -1,11 +1,7 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
-import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
-import com.dangerfield.cards.libraries.networking.NetworkClient
-import com.dangerfield.cards.libraries.networking.NetworkConfig
-import com.dangerfield.cards.libraries.networking.authedWebSocketSession
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
@@ -15,24 +11,18 @@ import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.websocket.WebSocketException
-import io.ktor.client.request.HttpRequestBuilder
-import io.ktor.http.HttpMethod
-import io.ktor.http.URLProtocol
-import io.ktor.http.Url
-import io.ktor.http.path
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.Frame
-import io.ktor.websocket.close
-import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
@@ -54,12 +44,15 @@ import kotlin.math.pow
  * write channel — all backed by one underlying socket.
  *
  * Sharing model: handles for the same room code reuse one
- * [SharedSocketState], cached on this singleton. A per-state
+ * [SharedSocketState] cached on this singleton. A per-state
  * coordinator coroutine watches the two `SharedFlow.subscriptionCount`
  * sums; while at least one collector exists the WS runs, otherwise it
- * shuts down. Navigating between lobby and gameplay screens does not
- * tear the socket down because both screens collect through the same
- * shared state.
+ * waits [STOP_LINGER_MS] and shuts down. The linger means navigating
+ * lobby → play screen doesn't tear the socket down: the lobby's
+ * collector cancels, the gameplay collector mounts a frame later, and
+ * the WS stays open across the gap. After a full linger with no
+ * collectors the state evicts itself from the cache so we don't leak
+ * one coordinator + two SharedFlows per code the user ever visited.
  *
  * Reconnect policy: exponential backoff starting at 250ms, doubling
  * per attempt, capped at 16s. Stops reconnecting on two terminal
@@ -82,10 +75,8 @@ interface RoomSocket {
 
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
-@Inject
-class ReconnectingRoomSocket(
-    private val networkClient: NetworkClient,
-    private val networkConfig: NetworkConfig,
+class ReconnectingRoomSocket @Inject constructor(
+    private val transport: RoomSocketTransport,
     private val appScope: AppCoroutineScope,
 ) : RoomSocket {
 
@@ -99,6 +90,14 @@ class ReconnectingRoomSocket(
     private suspend fun stateFor(code: String): SharedSocketState = statesMutex.withLock {
         statesByCode.getOrPut(code) { SharedSocketState(code) }
     }
+
+    /**
+     * Try to evict [state] from the cache. Returns false if the entry
+     * has already been replaced by a newer state (race between linger
+     * expiry and a fresh `connect()`).
+     */
+    private suspend fun evict(code: String, state: SharedSocketState): Boolean =
+        statesMutex.withLock { statesByCode.remove(code, state) }
 
     private inner class HandleImpl(private val code: String) : RoomConnectionHandle {
         override val connection: Flow<RoomConnection> = flow {
@@ -115,15 +114,25 @@ class ReconnectingRoomSocket(
     }
 
     /**
-     * Per-room shared state. Lifecycle is driven by the two
-     * [SharedFlow.subscriptionCount]s: while their sum is > 0 the WS
-     * runs, otherwise the coordinator parks. Outbound frames buffer in
-     * a Channel and drain to the live session when one exists; on
-     * reconnect any buffered frames re-send (server-side nonce dedupe
-     * handles the duplicate-after-reconnect case).
+     * Per-room shared state. Owns the two outbound SharedFlows, the
+     * outbound queue, and the coordinator coroutine that runs the WS
+     * loop while at least one collector exists.
      */
     private inner class SharedSocketState(val code: String) {
-        private val outbound = Channel<ClientFrame>(Channel.UNLIMITED)
+
+        /**
+         * SUSPEND overflow with a small bound: if the WS has been
+         * disconnected long enough that 32 frames pile up, the caller
+         * suspends rather than silently buffering an unbounded queue.
+         * On reconnect the writer drains in FIFO order; server-side
+         * nonce dedupe collapses any frames the server already saw
+         * before the drop. Stale per-turn intents are a separate
+         * problem captured in `docs/backlog.md`.
+         */
+        private val outbound = Channel<ClientFrame>(
+            capacity = OUTBOUND_CAPACITY,
+            onBufferOverflow = BufferOverflow.SUSPEND,
+        )
 
         private val _connection = MutableSharedFlow<RoomConnection>(
             replay = 1,
@@ -137,102 +146,145 @@ class ReconnectingRoomSocket(
         )
         val gameplayFrames: SharedFlow<GameplayFrame> = _gameplayFrames.asSharedFlow()
 
-        init {
-            appScope.launch {
-                combine(
-                    _connection.subscriptionCount,
-                    _gameplayFrames.subscriptionCount,
-                ) { a, b -> (a + b) > 0 }
-                    .distinctUntilChanged()
-                    .collectLatest { hasSubscribers ->
-                        if (hasSubscribers) runSocketLoop()
-                    }
-            }
-        }
+        private val coordinatorJob: Job = appScope.launch { runCoordinator() }
 
         suspend fun send(frame: ClientFrame) {
             outbound.send(frame)
         }
 
-        private suspend fun runSocketLoop() {
+        /**
+         * Lifecycle: the WS loop runs while any subscriber is active,
+         * parks after [STOP_LINGER_MS] of zero subscribers, and evicts
+         * the state from the cache once the linger fully elapses.
+         *
+         * Why `combine + distinctUntilChanged + a per-edge launch`:
+         *  - combine + map { sum > 0 } collapses both flows to a single
+         *    "has anyone subscribed?" boolean.
+         *  - distinctUntilChanged silences subscriber-count deltas that
+         *    don't cross the 0 boundary (a second collector joining
+         *    must NOT restart the WS).
+         *  - A manual loopJob / pendingStopJob pair handles the
+         *    linger: on every edge we cancel whatever stop-timer is
+         *    pending, and the WS only actually closes after the timer
+         *    elapses. This is hairier than the simpler
+         *    `collectLatest { if (hasSubs) runWsLoop() }` we had
+         *    before, but that version closed the WS instantly on the
+         *    last unsubscribe — defeating the cross-screen sharing.
+         */
+        private suspend fun runCoordinator() = coroutineScope {
+            var loopJob: Job? = null
+            var pendingStopJob: Job? = null
+
+            try {
+                combine(
+                    _connection.subscriptionCount,
+                    _gameplayFrames.subscriptionCount,
+                ) { a, b -> (a + b) > 0 }
+                    .distinctUntilChanged()
+                    .collect { hasSubscribers ->
+                        if (hasSubscribers) {
+                            pendingStopJob?.cancel()
+                            pendingStopJob = null
+                            if (loopJob?.isActive != true) {
+                                loopJob = launch { runSocketLoop() }
+                            }
+                        } else {
+                            pendingStopJob?.cancel()
+                            pendingStopJob = launch {
+                                delay(STOP_LINGER_MS)
+                                loopJob?.cancel()
+                                loopJob = null
+                                if (evict(code, this@SharedSocketState)) {
+                                    // Stop the coordinator from the
+                                    // inside — once we've evicted, a
+                                    // future connect() builds a fresh
+                                    // state.
+                                    coordinatorJob.cancel()
+                                }
+                            }
+                        }
+                    }
+            } finally {
+                loopJob?.cancel()
+                pendingStopJob?.cancel()
+            }
+        }
+
+        /**
+         * The actual read/write loop. Runs until externally cancelled
+         * (subscribers all gone past linger), receives a terminal
+         * frame (RoomClosed), or hits a terminal handshake (4xx). On
+         * any of those it returns normally and the coordinator parks.
+         *
+         * `coroutineScope { ... }` parents the writer to this loop, so
+         * external cancellation cascades and the writer never outlives
+         * the connection it was meant to drain.
+         */
+        private suspend fun runSocketLoop() = coroutineScope {
+            // The replay buffer's purpose is "a fresh collector sees
+            // the current state". A leftover `Reconnecting(attempt=5)`
+            // from a prior session of the same code is not the current
+            // state — clear it so the new collector sees a clean
+            // Connecting → … sequence.
+            _connection.resetReplayCache()
             _connection.emit(RoomConnection.Connecting)
 
             var attempt = 0
-            var stop = false
 
-            while (!stop) {
-                val session = try {
-                    networkClient.authedWebSocketSession("rooms.socket") {
-                        socketRequest(code)
-                    }.getOrThrow()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: ClientRequestException) {
-                    val status = e.response.status
-                    logger.w(e) { "Room socket rejected during handshake: ${status.value} ${status.description}" }
-                    _connection.emit(RoomConnection.Closed(ClosedReason.Rejected))
-                    return
-                } catch (e: WebSocketException) {
-                    val status = e.handshakeStatusOrNull()
-                    if (status != null && status in 400..499) {
-                        logger.w(e) { "Room socket rejected during handshake: status $status" }
-                        _connection.emit(RoomConnection.Closed(ClosedReason.Rejected))
-                        return
+            while (true) {
+                val sessionResult = transport.open(code)
+                val session = sessionResult.getOrElse { e ->
+                    when (val classification = classifyHandshake(e)) {
+                        Handshake.Terminal -> {
+                            logger.w(e) { "Room socket rejected during handshake (terminal)" }
+                            _connection.emit(RoomConnection.Closed(ClosedReason.Rejected))
+                            return@coroutineScope
+                        }
+                        is Handshake.Retry -> {
+                            attempt += 1
+                            logger.w(e) { "Room socket handshake failed${classification.suffix} (attempt $attempt)" }
+                            _connection.emit(RoomConnection.Reconnecting(attempt, e))
+                            delay(backoffFor(attempt))
+                            continue
+                        }
                     }
-                    attempt += 1
-                    val suffix = status?.let { " (status $it)" }.orEmpty()
-                    logger.w(e) { "Room socket handshake failed$suffix (attempt $attempt)" }
-                    _connection.emit(RoomConnection.Reconnecting(attempt, e))
-                    delay(backoffFor(attempt))
-                    continue
-                } catch (e: Throwable) {
-                    attempt += 1
-                    val statusSuffix = (e as? ResponseException)?.response?.status?.value
-                        ?.let { " (status $it)" }
-                        .orEmpty()
-                    logger.w(e) { "Room socket handshake failed$statusSuffix (attempt $attempt)" }
-                    _connection.emit(RoomConnection.Reconnecting(attempt, e))
-                    delay(backoffFor(attempt))
-                    continue
                 }
 
                 attempt = 0
+                val terminal = runConnectedSession(session)
+                if (terminal) return@coroutineScope
 
-                // Writer side: drain outbound channel and ship frames to
-                // the live session. Lives only for this connection — a
-                // reconnect cancels the writer and a fresh one starts
-                // with the next loop iteration, but the outbound channel
-                // itself survives, so frames queued during the gap
-                // re-send on reconnect.
-                val writerJob: Job = appScope.launch {
-                    try {
-                        for (frame in outbound) {
-                            val text = RoomSocketJson.encodeToString(
-                                ClientFrame.serializer(),
-                                frame,
-                            )
-                            session.send(Frame.Text(text))
-                        }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Throwable) {
-                        logger.w(e) { "Outbound frame send failed" }
-                    }
-                }
+                // Clean drop without RoomClosed — server dropped us
+                // (deploy / restart / brief network glitch). Retry.
+                attempt += 1
+                _connection.emit(RoomConnection.Reconnecting(attempt, null))
+                delay(backoffFor(attempt))
+            }
+        }
 
+        /**
+         * Drives one live session until it drops or completes a
+         * terminal frame. Returns true on terminal (no reconnect),
+         * false on clean drop (reconnect with backoff). Owns its own
+         * `coroutineScope` so the writer is structurally a child of
+         * this session and dies with it.
+         */
+        private suspend fun runConnectedSession(session: RoomSocketSession): Boolean =
+            coroutineScope {
+                val writerJob = launch { drainOutbound(session) }
+                var terminal = false
                 try {
-                    for (frame in session.incoming) {
-                        if (frame !is Frame.Text) continue
-                        val event = decode(frame) ?: continue
+                    session.incoming.collect { text ->
+                        val event = decode(text) ?: return@collect
                         when (event) {
                             is RoomSocketEventDto.Snapshot -> {
                                 val room: Room = event.room.toDomain()
                                 _connection.emit(RoomConnection.Connected(room))
                             }
-                            // Lobby-side deltas don't carry full state —
-                            // the Snapshot baseline already keeps clients
-                            // correct, so we drop these. A future cycle
-                            // can surface them as animation hints.
+                            // Lobby-side deltas don't carry full state;
+                            // the Snapshot baseline keeps clients
+                            // correct. A future cycle can surface them
+                            // as animation hints.
                             is RoomSocketEventDto.MemberJoined,
                             is RoomSocketEventDto.MemberLeft,
                             is RoomSocketEventDto.MemberPresenceChanged,
@@ -251,63 +303,73 @@ class ReconnectingRoomSocket(
                                 )
                             RoomSocketEventDto.RoomClosed -> {
                                 _connection.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
-                                stop = true
-                                writerJob.cancel()
-                                return
+                                terminal = true
+                                // Use a private cancellation marker to
+                                // break out of `collect` — there's no
+                                // natural completion signal on the
+                                // incoming flow until the server
+                                // actually closes the WS, which may
+                                // race the next frame.
+                                throw TerminalFrameMarker
                             }
                         }
                     }
-                    attempt += 1
-                    _connection.emit(RoomConnection.Reconnecting(attempt, null))
-                    delay(backoffFor(attempt))
                 } catch (e: CancellationException) {
-                    throw e
+                    // Distinguish our control-flow marker from an
+                    // external cancellation (subscriber drop / app
+                    // shutdown). Marker → propagate `terminal = true`
+                    // through; real cancellation → propagate up.
+                    if (e !== TerminalFrameMarker) throw e
                 } catch (e: Throwable) {
-                    attempt += 1
-                    logger.w(e) { "Room socket dropped mid-stream (attempt $attempt)" }
-                    _connection.emit(RoomConnection.Reconnecting(attempt, e))
-                    delay(backoffFor(attempt))
+                    logger.w(e) { "Room socket dropped mid-stream" }
                 } finally {
                     writerJob.cancel()
-                    Catching {
-                        session.close(CloseReason(CloseReason.Codes.NORMAL, "client-closing"))
-                    }
+                    session.close()
                 }
+                terminal
+            }
+
+        private suspend fun CoroutineScope.drainOutbound(session: RoomSocketSession) {
+            try {
+                for (frame in outbound) {
+                    val text = RoomSocketJson.encodeToString(ClientFrame.serializer(), frame)
+                    session.send(text)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                logger.w(e) { "Outbound frame send failed" }
             }
         }
     }
 
-    private fun HttpRequestBuilder.socketRequest(code: String) {
-        // Auth bearer rides on the authenticated client's Auth plugin —
-        // no need to set Authorization here.
-        //
-        // We set protocol/host/port explicitly from the parsed base URL
-        // instead of leaning on DefaultRequest's merge. Two reasons:
-        //  1. The Ktor WebSockets plugin pre-fills the URLBuilder with
-        //     `protocol = WS, port = 80` before this block runs. If we
-        //     only flip the protocol to WSS, port 80 sticks and Ktor
-        //     attempts TLS against the Fly server's plaintext :80 — the
-        //     handshake fails with `WRONG_VERSION_NUMBER`.
-        //  2. DefaultRequest's URL merge copies host from the base URL
-        //     only when the request host is empty, and it leaves any
-        //     already-set port alone. So we have to populate both
-        //     ourselves to override the WS-plugin defaults.
-        val base = Url(networkConfig.baseUrl)
-        val useWss = base.protocol.name.equals("https", ignoreCase = true)
-        url {
-            protocol = if (useWss) URLProtocol.WSS else URLProtocol.WS
-            host = base.host
-            port = base.port
-            path("v1", "rooms", code.uppercase(), "socket")
-        }
-        method = HttpMethod.Get
-    }
-
-    private fun decode(frame: Frame.Text): RoomSocketEventDto? = try {
-        RoomSocketJson.decodeFromString(RoomSocketEventDto.serializer(), frame.readText())
+    private fun decode(text: String): RoomSocketEventDto? = try {
+        RoomSocketJson.decodeFromString(RoomSocketEventDto.serializer(), text)
     } catch (e: Throwable) {
         logger.w(e) { "Dropped unrecognized socket frame" }
         null
+    }
+
+    /**
+     * Classifies a handshake failure as terminal (4xx — caller must
+     * re-join) or retryable (5xx, transport, unknown).
+     */
+    private fun classifyHandshake(e: Throwable): Handshake = when (e) {
+        is ClientRequestException -> Handshake.Terminal
+        is WebSocketException -> {
+            val status = e.handshakeStatusOrNull()
+            if (status != null && status in 400..499) Handshake.Terminal
+            else Handshake.Retry(status?.let { " (status $it)" }.orEmpty())
+        }
+        else -> {
+            val status = (e as? ResponseException)?.response?.status?.value
+            Handshake.Retry(status?.let { " (status $it)" }.orEmpty())
+        }
+    }
+
+    private sealed interface Handshake {
+        data object Terminal : Handshake
+        data class Retry(val suffix: String) : Handshake
     }
 
     /**
@@ -326,6 +388,12 @@ class ReconnectingRoomSocket(
     companion object {
         private const val BACKOFF_BASE_MS: Long = 250
         private const val BACKOFF_CAP_MS: Long = 16_000
+
+        /** How long to keep the WS open after the last subscriber unsubscribes. */
+        internal const val STOP_LINGER_MS: Long = 1_000
+
+        /** Outbound buffer cap; a full buffer suspends `send()`. */
+        private const val OUTBOUND_CAPACITY: Int = 32
     }
 }
 
@@ -341,3 +409,10 @@ private fun WebSocketException.handshakeStatusOrNull(): Int? =
     message?.let { HandshakeStatusPattern.find(it)?.groupValues?.get(1)?.toIntOrNull() }
 
 private val HandshakeStatusPattern = Regex("expected status code 101 but was (\\d{3})")
+
+/**
+ * Private control-flow marker thrown to break out of the
+ * `incoming.collect` body once a terminal frame (RoomClosed) lands.
+ * Distinguished from real cancellation by identity check.
+ */
+private object TerminalFrameMarker : CancellationException("room-closed")
