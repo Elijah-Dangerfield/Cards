@@ -21,5 +21,9 @@ kotlin {
             api(libs.jetbrains.navigation.compose)
             implementation(libs.kotlinx.serialization.json)
         }
+        commonTest.dependencies {
+            implementation(projects.libraries.flowroutines.testing)
+            implementation(projects.libraries.navigation)
+        }
     }
 }
