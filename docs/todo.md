@@ -2,7 +2,7 @@
 
 **Last reviewed:** 2026-05-30 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
-> **🎯 Top priority (2026-05-30): finish multiplayer (§B).** MP is not playable today — the server runs authoritative hands but the client drops every gameplay frame. The gate is **B1** below; everything else in §B is the finish-out behind it.
+> **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
 The live punch list of actionable engineering work. Append, check off, and **delete** done items — they don't live here as history.
 
@@ -70,21 +70,17 @@ Home exposes three surfaces that need this system to work: the friends strip wit
 
 ## B. Multiplayer hardening
 
-**Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). **Sequence to a playable, shippable MP: B1 (the gate) → B2 → B3 → B4.**
+**Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). **B1 shipped — MP is playable; sequence to *shippable* MP is now B6 (the test gate) → B2 → B3 → B4.**
 
-**State of play (2026-05-30):** rooms work end-to-end (create / join by code / leave / seat allocation / presence), and the server runs **fully authoritative** hands — deals, validates every `SubmitIntent` through the engine, broadcasts scrubbed `GameStateSnapshot` frames, dedupes nonces, persists to Postgres, rehydrates on restart. The **only** reason two humans can't play a hand is B1: the client silently drops the gameplay frames, so the Play screen always runs the local bot engine. Server side of MP is essentially done; the remaining work is client-side plumbing + the finish-out items.
+**State of play (2026-05-30):** rooms work end-to-end (create / join / leave / seat allocation / presence), the server runs **fully authoritative** hands, and the client now consumes server-driven gameplay (B1 shipped). Two humans can play a full hand against each other end-to-end with auto-promotion when the host disconnects. The remaining work is **B6 (test coverage)** — bulletproofing MP before real users — and B2–B4 (persistence, gameplay items, spectator).
 
 ### B0 — Server-side state durability
 
 _Shipped._ `room_sessions` is written through the per-session mutex on every mutation; the registry lazy-hydrates on a code-miss.
 
-### B1 — Client gameplay loop · **the playability gate**
+### B1 — Client gameplay loop
 
-- `[P0]` **Make multiplayer hands actually render and play on the client.** The socket receives the server's live hand, but [`ReconnectingRoomSocket.kt`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/ReconnectingRoomSocket.kt) drops `GameStateSnapshot` / `GameEventOccurred` / `IntentAck` as a deliberate `-> Unit` ("Phase 2b") no-op, and only `SoloBotsPokerSessionFactory` is ever injected — so nothing remote reaches the gameplay VM. Three pieces:
-  1. **Fan gameplay frames to a second channel** on the room socket (keep the lobby flow — presence / snapshot — untouched), so a gameplay consumer can subscribe without lobby concerns.
-  2. **Write a `RemotePokerSessionFactory`** that implements the `PokerSession` contract: feed `GameStateSnapshot` → `StateFlow<GameState>` and `GameEventOccurred` → the event flow, send `RoomClientFrame.{StartHand, SubmitIntent, RequestNextHand}` back, and correlate `IntentAck` for rejection feedback. `PlayPokerViewModel` already takes any `PokerSessionFactory`, so this is additive.
-  3. **Add a multiplayer entry point + route** (sibling to [`PlayPokerFeatureEntryPoint`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerFeatureEntryPoint.kt)) that takes a room code, builds the remote factory, and drives `PlayPokerViewModel`.
-  **Acceptance:** two humans in the same room can play a full hand against each other — deal, bet/call/fold/raise, showdown — with state rendering on both clients and rejected intents surfaced. **Out of scope:** event-tail catch-up / fast-forward (B5); reconnect animation replay.
+_Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePokerSessionFactory`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/RemotePokerSessionFactory.kt) implements `PokerSession` over the server's broadcasts; [`PlayMultiplayerRoute`](../features/room/src/commonMain/kotlin/com/cards/features/room/PlayMultiplayerRoute.kt) + its entry point drive the existing `PlayPokerViewModel` against it; lobby's "Start hand" sends `ClientFrame.StartHand` and auto-promotes the effective host on disconnect. Hardening + tests live in **B6**.
 
 ### B2 — Persisted room membership
 
@@ -107,6 +103,12 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 
 - `[P2]` **Spectator = WS subscriber without a seat.** Extend the auth check so a non-seated subscriber gets the scrubbed-for-everyone view (no hole cards) and the server rejects `SubmitIntent` from them. Friend rooms stay closed to non-members.
   **Hints:** auth check in `RoomSocketRoutes.kt`. **Out of scope:** public-room discovery, spectator chat.
+
+### B6 — Bulletproof MP + engine test coverage
+
+- `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
+  **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
+  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — start with Round 1 (highest impact-per-hour); subsequent rounds are independent and can be picked up in any order. **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
 
 ### B5 — Parked
 
