@@ -677,6 +677,10 @@
     <!-- UI library — shared close-button a11y label (BottomSheet dismiss + Snackbar dismiss). -->
     <string name="ui_close_a11y">Close</string>
 
+    <!-- UI library — PasswordTextField visibility-toggle a11y labels (TalkBack / VoiceOver). -->
+    <string name="ui_password_show_a11y">Show password</string>
+    <string name="ui_password_hide_a11y">Hide password</string>
+
     <!-- Calendar — Month names (used wherever a friendly Month + Year string is built). -->
     <string name="month_january">January</string>
     <string name="month_february">February</string>
