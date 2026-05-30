@@ -2,8 +2,8 @@ package com.dangerfield.cards.system
 
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -76,7 +76,11 @@ private fun MaterialWrapper(content: @Composable () -> Unit) {
             labelMedium = invalidTextStyle,
             labelSmall = invalidTextStyle
         ),
-        colorScheme = ColorScheme(
+        // Every Material role is forced to red so any accidental raw-Material usage
+        // screams during development — use AppTheme.colors instead. Built via the
+        // darkColorScheme factory (not the deprecated ColorScheme constructor) so the
+        // newer surfaceContainer* roles exist; .copy() paints those red too.
+        colorScheme = darkColorScheme(
             primary = Color.Red,
             onPrimary = Color.Red,
             primaryContainer = Color.Red,
@@ -106,6 +110,14 @@ private fun MaterialWrapper(content: @Composable () -> Unit) {
             outline = Color.Red,
             outlineVariant = Color.Red,
             scrim = Color.Red
+        ).copy(
+            surfaceBright = Color.Red,
+            surfaceDim = Color.Red,
+            surfaceContainer = Color.Red,
+            surfaceContainerHigh = Color.Red,
+            surfaceContainerHighest = Color.Red,
+            surfaceContainerLow = Color.Red,
+            surfaceContainerLowest = Color.Red,
         ),
         content = content
     )
