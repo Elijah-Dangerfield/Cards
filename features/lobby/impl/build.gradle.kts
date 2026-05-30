@@ -10,6 +10,9 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.features.lobby)
+            // The entry point routes LobbyEvent.NavigateToMultiplayer
+            // to PlayMultiplayerRoute defined in :features:room.
+            implementation(projects.features.room)
             implementation(projects.libraries.rooms)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.identity)

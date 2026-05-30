@@ -82,6 +82,7 @@
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>
     <string name="lobby_in_room_member_seat_label">Seat %1$d</string>
+    <string name="lobby_in_room_host_badge">Host</string>
 
     <!-- Lobby — connection-status banner above the member list. -->
     <string name="lobby_connection_disconnected">Disconnected</string>
@@ -246,10 +247,6 @@
     <string name="auth_sign_up_submit_button">Create account</string>
     <string name="auth_sign_up_submit_button_progress">Creating account…</string>
     <string name="auth_sign_up_to_sign_in_button">Already have an account? Sign in</string>
-    <string name="auth_sign_up_claim_dialog_title">Save your progress to %1$s?</string>
-    <string name="auth_sign_up_claim_dialog_description">We'll send a verification link. Your chips, XP, and unlocks come with you to the new account.</string>
-    <string name="auth_sign_up_claim_dialog_primary">Send link</string>
-    <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
 
     <!-- Sign-up — inline error states surfaced by the VM (sealed SignUpError → resource). -->
     <string name="auth_sign_up_error_passwords_dont_match">Passwords don\'t match.</string>
@@ -368,6 +365,11 @@
     <string name="profile_claim_card_title">Claim your account</string>
     <string name="profile_claim_card_body">Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.</string>
     <string name="profile_claim_card_cta">Get started</string>
+
+    <!-- Stats — Anonymous-only "don't lose your progress" disclosure, shown past level 1. -->
+    <string name="stats_claim_disclosure_title">Don\'t lose your progress</string>
+    <string name="stats_claim_disclosure_body">You\'re playing as a guest. Claim your account to keep your level, chips, and achievements.</string>
+    <string name="stats_claim_disclosure_cta">Claim</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
     <string name="profile_notifications_title">Notifications</string>
@@ -671,6 +673,10 @@
 
     <!-- UI library — shared close-button a11y label (BottomSheet dismiss + Snackbar dismiss). -->
     <string name="ui_close_a11y">Close</string>
+
+    <!-- UI library — PasswordTextField visibility-toggle a11y labels (TalkBack / VoiceOver). -->
+    <string name="ui_password_show_a11y">Show password</string>
+    <string name="ui_password_hide_a11y">Hide password</string>
 
     <!-- Calendar — Month names (used wherever a friendly Month + Year string is built). -->
     <string name="month_january">January</string>

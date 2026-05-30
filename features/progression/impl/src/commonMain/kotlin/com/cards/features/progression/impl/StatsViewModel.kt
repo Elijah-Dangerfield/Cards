@@ -8,6 +8,8 @@ import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpEventRepository
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
@@ -17,6 +19,7 @@ class StatsViewModel(
     progressionRepository: ProgressionRepository,
     xpEventRepository: XpEventRepository,
     achievementRepository: AchievementRepository,
+    authRepository: AuthRepository,
 ) : SEAViewModel<StatsState, StatsEvent, StatsAction>(
     initialStateArg = StatsState(),
 ) {
@@ -33,6 +36,12 @@ class StatsViewModel(
                 takeAction(StatsAction.DataChanged(progression, events, achievements))
             }
         }
+        viewModelScope.launch {
+            authRepository.observe().collect { auth ->
+                val isAnonymous = (auth as? AuthState.Authenticated)?.isAnonymous ?: false
+                takeAction(StatsAction.AuthChanged(isAnonymous))
+            }
+        }
     }
 
     override suspend fun handleAction(action: StatsAction) {
@@ -44,6 +53,9 @@ class StatsViewModel(
                     achievements = action.achievements,
                     isLoading = false,
                 )
+            }
+            is StatsAction.AuthChanged -> action.updateState {
+                it.copy(isAnonymous = action.isAnonymous)
             }
         }
     }
@@ -58,6 +70,7 @@ data class StatsState(
     val progression: Progression = Progression.Empty,
     val recentEvents: List<XpEvent> = emptyList(),
     val achievements: AchievementProgress = AchievementProgress.Empty,
+    val isAnonymous: Boolean = false,
 )
 
 sealed interface StatsEvent
@@ -68,4 +81,6 @@ sealed interface StatsAction {
         val events: List<XpEvent>,
         val achievements: AchievementProgress,
     ) : StatsAction
+
+    data class AuthChanged(val isAnonymous: Boolean) : StatsAction
 }

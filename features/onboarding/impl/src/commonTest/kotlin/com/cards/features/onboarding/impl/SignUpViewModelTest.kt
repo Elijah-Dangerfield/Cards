@@ -238,7 +238,7 @@ class SignUpViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun submit_whenAnonymous_awaitsConfirm_thenRoutesToLinkEmailIdentity_preservingGuestProgress() = runUnitTest {
+    fun submit_whenAnonymous_routesToLinkEmailIdentity_preservingGuestProgress() = runUnitTest {
         val identity = FakeAuthRepository(
             linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("ok@example.com"),
             initialAuthState = anonymousAuthState,
@@ -248,43 +248,14 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.takeAction(SignUpAction.PasswordChanged("password"))
         vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
-
-        // Submit on an anonymous guest pops the confirm dialog instead of
-        // hitting the network — the link is destructive-ish (commits guest
-        // progress to a real email) so we surface the choice first.
-        assertEquals(true, vm.state.awaitingClaimConfirm)
-        assertEquals(0, identity.linkEmailCalls, "must not call network before confirm")
-
-        vm.takeAction(SignUpAction.ConfirmClaim)
 
         vm.eventFlow.test {
             val event = assertIs<SignUpEvent.NavigateToVerifyEmail>(awaitItem())
             assertEquals("ok@example.com", event.email)
             cancelAndIgnoreRemainingEvents()
         }
-        assertEquals(false, vm.state.awaitingClaimConfirm)
         assertEquals(1, identity.linkEmailCalls, "anonymous guest must take the link path")
         assertEquals(0, identity.signUpCalls, "anonymous guest must not orphan the session via signUp")
-    }
-
-    @Test
-    fun submit_whenAnonymous_dismissingConfirm_cancelsTheClaim() = runUnitTest {
-        val identity = FakeAuthRepository(
-            linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("ok@example.com"),
-            initialAuthState = anonymousAuthState,
-        )
-        val vm = buildVm(identity = identity)
-        vm.takeAction(SignUpAction.EmailChanged("ok@example.com"))
-        vm.takeAction(SignUpAction.PasswordChanged("password"))
-        vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
-        vm.takeAction(SignUpAction.Submit)
-        assertEquals(true, vm.state.awaitingClaimConfirm)
-
-        vm.takeAction(SignUpAction.DismissClaimConfirm)
-
-        assertEquals(false, vm.state.awaitingClaimConfirm)
-        assertEquals(0, identity.linkEmailCalls, "dismiss must not fire the link call")
-        assertEquals(false, vm.state.isSubmitting, "dismiss leaves the form re-submittable")
     }
 
     @Test
@@ -319,7 +290,6 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.takeAction(SignUpAction.PasswordChanged("password"))
         vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
-        vm.takeAction(SignUpAction.ConfirmClaim)
 
         vm.eventFlow.test {
             awaitItem()
@@ -341,7 +311,6 @@ class SignUpViewModelTest : CoroutineTest() {
         vm.takeAction(SignUpAction.PasswordChanged("password"))
         vm.takeAction(SignUpAction.ConfirmPasswordChanged("password"))
         vm.takeAction(SignUpAction.Submit)
-        vm.takeAction(SignUpAction.ConfirmClaim)
 
         vm.stateFlow.test {
             var last = awaitItem()

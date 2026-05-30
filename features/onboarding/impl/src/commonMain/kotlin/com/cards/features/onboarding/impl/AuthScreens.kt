@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import cards.libraries.resources.generated.resources.Res
@@ -51,10 +50,6 @@ import cards.libraries.resources.generated.resources.auth_sign_in_submit_button_
 import cards.libraries.resources.generated.resources.auth_sign_in_subtitle
 import cards.libraries.resources.generated.resources.auth_sign_in_title
 import cards.libraries.resources.generated.resources.auth_sign_in_to_create_account_button
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_description
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_primary
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_secondary
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_title
 import cards.libraries.resources.generated.resources.auth_sign_up_confirm_password_label
 import cards.libraries.resources.generated.resources.auth_sign_up_error_email_already_registered
 import cards.libraries.resources.generated.resources.auth_sign_up_error_invalid_email
@@ -87,8 +82,8 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
+import com.dangerfield.cards.libraries.ui.components.text.PasswordTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -201,12 +196,13 @@ fun SignInScreen(
             onChange = { onAction(SignInAction.EmailChanged(it)) },
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
-        PasswordField(
+        PasswordTextField(
             value = state.password,
+            onValueChange = { onAction(SignInAction.PasswordChanged(it)) },
+            label = stringResource(Res.string.auth_field_password_label),
             enabled = !state.isSubmitting,
-            onChange = { onAction(SignInAction.PasswordChanged(it)) },
             imeAction = ImeAction.Go,
-            onSubmitImeAction = submit,
+            onImeAction = submit,
         )
 
         state.error?.let {
@@ -360,25 +356,26 @@ fun SignUpScreen(
             onChange = { onAction(SignUpAction.EmailChanged(it)) },
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
-        PasswordField(
+        PasswordTextField(
             value = state.password,
+            onValueChange = { onAction(SignUpAction.PasswordChanged(it)) },
+            label = stringResource(Res.string.auth_field_password_label),
             enabled = !state.isSubmitting,
-            onChange = { onAction(SignUpAction.PasswordChanged(it)) },
             imeAction = ImeAction.Next,
-            onSubmitImeAction = submit,
+            onImeAction = submit,
             helper = stringResource(
                 Res.string.auth_sign_up_password_helper,
                 SignUpState.MIN_PASSWORD_LENGTH,
             ),
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
-        PasswordField(
+        PasswordTextField(
             value = state.confirmPassword,
-            enabled = !state.isSubmitting,
-            onChange = { onAction(SignUpAction.ConfirmPasswordChanged(it)) },
-            imeAction = ImeAction.Go,
-            onSubmitImeAction = submit,
+            onValueChange = { onAction(SignUpAction.ConfirmPasswordChanged(it)) },
             label = stringResource(Res.string.auth_sign_up_confirm_password_label),
+            enabled = !state.isSubmitting,
+            imeAction = ImeAction.Go,
+            onImeAction = submit,
             helper = if (state.passwordMismatch) {
                 stringResource(Res.string.auth_sign_up_password_mismatch_helper)
             } else {
@@ -417,25 +414,6 @@ fun SignUpScreen(
         ) {
             Text(stringResource(Res.string.auth_sign_up_to_sign_in_button))
         }
-    }
-
-    if (state.awaitingClaimConfirm) {
-        // Positive framing — this is the moment a guest commits their
-        // chips/XP/achievements to a real account. The OAuth-conflict
-        // dialog (`ConfirmSwitchToExisting`) covers the destructive case;
-        // this covers the constructive one.
-        Dialog(
-            title = stringResource(
-                Res.string.auth_sign_up_claim_dialog_title,
-                state.email.trim(),
-            ),
-            description = stringResource(Res.string.auth_sign_up_claim_dialog_description),
-            primaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_primary),
-            secondaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_secondary),
-            onPrimaryButtonClicked = { onAction(SignUpAction.ConfirmClaim) },
-            onSecondaryButtonClicked = { onAction(SignUpAction.DismissClaimConfirm) },
-            onDismissRequest = { onAction(SignUpAction.DismissClaimConfirm) },
-        )
     }
 }
 
@@ -543,47 +521,6 @@ private fun EmailField(
         label = { Text(stringResource(Res.string.auth_field_email_label)) },
         modifier = Modifier.fillMaxWidth(),
     )
-}
-
-@Composable
-private fun PasswordField(
-    value: String,
-    enabled: Boolean,
-    onChange: (String) -> Unit,
-    imeAction: ImeAction,
-    onSubmitImeAction: () -> Unit,
-    label: String = stringResource(Res.string.auth_field_password_label),
-    helper: String? = null,
-    isError: Boolean = false,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onChange,
-            enabled = enabled,
-            singleLine = true,
-            isError = isError,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = imeAction,
-            ),
-            keyboardActions = KeyboardActions(
-                onGo = { onSubmitImeAction() },
-                onNext = { onSubmitImeAction() },
-            ),
-            label = { Text(label) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        helper?.let {
-            Spacer(modifier = Modifier.height(Dimension.D200))
-            Text(
-                text = it,
-                typography = AppTheme.typography.Body.B400,
-                color = if (isError) AppTheme.colors.danger else AppTheme.colors.onSurfaceSecondary,
-            )
-        }
-    }
 }
 
 @Composable
@@ -780,24 +717,6 @@ private fun SignUpScreenPreview_Error() {
                 password = "hunter22ish",
                 confirmPassword = "hunter22ish",
                 error = SignUpError.Unknown,
-            ),
-            onAction = {},
-            onBack = {},
-            onSignIn = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun SignUpScreenPreview_AwaitingClaimConfirm() {
-    PreviewContent {
-        SignUpScreen(
-            state = SignUpState(
-                email = "elijah@example.com",
-                password = "hunter22ish",
-                confirmPassword = "hunter22ish",
-                awaitingClaimConfirm = true,
             ),
             onAction = {},
             onBack = {},

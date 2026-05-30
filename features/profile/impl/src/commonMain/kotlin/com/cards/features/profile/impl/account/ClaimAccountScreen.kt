@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.auth_claim_error_already_on_another_account
@@ -33,10 +32,6 @@ import cards.libraries.resources.generated.resources.auth_claim_error_weak_passw
 import cards.libraries.resources.generated.resources.auth_field_email_label
 import cards.libraries.resources.generated.resources.auth_field_password_label
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_description
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_primary
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_secondary
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_title
 import cards.libraries.resources.generated.resources.auth_sign_up_confirm_password_label
 import cards.libraries.resources.generated.resources.auth_sign_up_password_helper
 import cards.libraries.resources.generated.resources.auth_sign_up_password_mismatch_helper
@@ -53,10 +48,10 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
+import com.dangerfield.cards.libraries.ui.components.text.PasswordTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -134,25 +129,26 @@ fun ClaimAccountScreen(
                     onChange = { onAction(ClaimAccountAction.EmailChanged(it)) },
                 )
                 Spacer(modifier = Modifier.height(Dimension.D500))
-                PasswordField(
+                PasswordTextField(
                     value = state.password,
+                    onValueChange = { onAction(ClaimAccountAction.PasswordChanged(it)) },
+                    label = stringResource(Res.string.auth_field_password_label),
                     enabled = !state.isSubmitting,
-                    onChange = { onAction(ClaimAccountAction.PasswordChanged(it)) },
                     imeAction = ImeAction.Next,
-                    onSubmitImeAction = submit,
+                    onImeAction = submit,
                     helper = stringResource(
                         Res.string.auth_sign_up_password_helper,
                         ClaimAccountState.MIN_PASSWORD_LENGTH,
                     ),
                 )
                 Spacer(modifier = Modifier.height(Dimension.D500))
-                PasswordField(
+                PasswordTextField(
                     value = state.confirmPassword,
-                    enabled = !state.isSubmitting,
-                    onChange = { onAction(ClaimAccountAction.ConfirmPasswordChanged(it)) },
-                    imeAction = ImeAction.Go,
-                    onSubmitImeAction = submit,
+                    onValueChange = { onAction(ClaimAccountAction.ConfirmPasswordChanged(it)) },
                     label = stringResource(Res.string.auth_sign_up_confirm_password_label),
+                    enabled = !state.isSubmitting,
+                    imeAction = ImeAction.Go,
+                    onImeAction = submit,
                     helper = if (state.passwordMismatch) {
                         stringResource(Res.string.auth_sign_up_password_mismatch_helper)
                     } else {
@@ -235,21 +231,6 @@ fun ClaimAccountScreen(
             Spacer(modifier = Modifier.height(Dimension.D800))
         }
     }
-
-    if (state.awaitingClaimConfirm) {
-        Dialog(
-            title = stringResource(
-                Res.string.auth_sign_up_claim_dialog_title,
-                state.email.trim(),
-            ),
-            description = stringResource(Res.string.auth_sign_up_claim_dialog_description),
-            primaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_primary),
-            secondaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_secondary),
-            onPrimaryButtonClicked = { onAction(ClaimAccountAction.ConfirmClaim) },
-            onSecondaryButtonClicked = { onAction(ClaimAccountAction.DismissClaimConfirm) },
-            onDismissRequest = { onAction(ClaimAccountAction.DismissClaimConfirm) },
-        )
-    }
 }
 
 @Composable
@@ -271,47 +252,6 @@ private fun EmailField(
         label = { Text(stringResource(Res.string.auth_field_email_label)) },
         modifier = Modifier.fillMaxWidth(),
     )
-}
-
-@Composable
-private fun PasswordField(
-    value: String,
-    enabled: Boolean,
-    onChange: (String) -> Unit,
-    imeAction: ImeAction,
-    onSubmitImeAction: () -> Unit,
-    label: String = stringResource(Res.string.auth_field_password_label),
-    helper: String? = null,
-    isError: Boolean = false,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onChange,
-            enabled = enabled,
-            singleLine = true,
-            isError = isError,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = imeAction,
-            ),
-            keyboardActions = KeyboardActions(
-                onGo = { onSubmitImeAction() },
-                onNext = { onSubmitImeAction() },
-            ),
-            label = { Text(label) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        helper?.let {
-            Spacer(modifier = Modifier.height(Dimension.D200))
-            Text(
-                text = it,
-                typography = AppTheme.typography.Body.B400,
-                color = if (isError) AppTheme.colors.danger else AppTheme.colors.onSurfaceSecondary,
-            )
-        }
-    }
 }
 
 @Composable
@@ -446,21 +386,3 @@ private fun ClaimAccountScreenPreview_Conflict() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@Composable
-private fun ClaimAccountScreenPreview_AwaitingConfirm() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        ClaimAccountScreen(
-            state = ClaimAccountState(
-                googleEnabled = true,
-                appleEnabled = true,
-                email = "you@example.com",
-                password = "hunter22ish",
-                confirmPassword = "hunter22ish",
-                awaitingClaimConfirm = true,
-            ),
-            onAction = {},
-            onBack = {},
-        )
-    }
-}

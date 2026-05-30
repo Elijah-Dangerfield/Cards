@@ -54,6 +54,7 @@ import cards.libraries.resources.generated.resources.lobby_idle_join_button_prog
 import cards.libraries.resources.generated.resources.lobby_idle_or_join_heading
 import cards.libraries.resources.generated.resources.lobby_idle_subtitle
 import cards.libraries.resources.generated.resources.lobby_in_room_code_label
+import cards.libraries.resources.generated.resources.lobby_in_room_host_badge
 import cards.libraries.resources.generated.resources.lobby_in_room_code_share_hint
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button_progress
@@ -258,7 +259,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
             .height((64 * room.maxSeats).dp.coerceAtLeast(64.dp)),
     ) {
         items(room.members, key = { it.userId }) { member ->
-            MemberRow(member)
+            MemberRow(member, isHost = member.userId == state.effectiveHostUserId)
         }
     }
 
@@ -523,7 +524,7 @@ private fun LobbyScreenPreview_InRoom_Leaving() {
 }
 
 @Composable
-private fun MemberRow(member: RoomMember) {
+private fun MemberRow(member: RoomMember, isHost: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -544,7 +545,7 @@ private fun MemberRow(member: RoomMember) {
                 ),
         )
         Spacer(modifier = Modifier.size(Dimension.D400))
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = member.displayName,
                 typography = AppTheme.typography.Body.B500,
@@ -555,6 +556,23 @@ private fun MemberRow(member: RoomMember) {
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.onSurfaceSecondary,
             )
+        }
+        if (isHost) {
+            // Pill renders the "host" affordance — implicit
+            // auto-promotion means this travels to a new seat if the
+            // original host disconnects.
+            Box(
+                modifier = Modifier
+                    .clip(Radii.R300.shape)
+                    .background(AppTheme.colors.accentPrimary.color)
+                    .padding(horizontal = Dimension.D300, vertical = Dimension.D200),
+            ) {
+                Text(
+                    text = stringResource(Res.string.lobby_in_room_host_badge),
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.onAccentPrimary,
+                )
+            }
         }
     }
 }

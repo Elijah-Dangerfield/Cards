@@ -15,12 +15,15 @@ import com.dangerfield.cards.libraries.identity.auth.ResendOutcome
 import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
@@ -193,16 +196,16 @@ class LobbyViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun startGame_surfacesComingSoon() = runUnitTest {
+    fun startGame_outsideRoom_noOps() = runUnitTest {
+        // StartGame requires canStart (host + ≥2 members + live handle).
+        // From the idle screen none of that holds, so the action should
+        // silently no-op — no error, no event.
         val vm = buildVm()
         vm.takeAction(LobbyAction.StartGame)
 
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(LobbyError.StartGameComingSoon, last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertEquals(null, vm.state.error)
+        // The handler returns early so no NavigateToMultiplayer event
+        // is emitted either.
     }
 
     @Test
@@ -356,7 +359,7 @@ class LobbyViewModelTest : CoroutineTest() {
         }
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
             GetActiveRoomsOutcome.Success(emptyList())
-        override fun observeRoom(code: String): Flow<RoomConnection> = flow { }
+        override fun connect(code: String): RoomConnectionHandle = EmptyHandle
     }
 
     private class FakeRoomRepository(
@@ -375,7 +378,17 @@ class LobbyViewModelTest : CoroutineTest() {
         }
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = leaveOutcome
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome = activeRoomsOutcome
-        override fun observeRoom(code: String): Flow<RoomConnection> = observe(code)
+        override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {
+            override val connection: Flow<RoomConnection> = observe(code)
+            override val gameplayFrames: Flow<GameplayFrame> = flow { }
+            override suspend fun send(frame: ClientFrame) = Unit
+        }
+    }
+
+    private object EmptyHandle : RoomConnectionHandle {
+        override val connection: Flow<RoomConnection> = flow { }
+        override val gameplayFrames: Flow<GameplayFrame> = flow { }
+        override suspend fun send(frame: ClientFrame) = Unit
     }
 
     private class AlwaysSignedInAuth : AuthRepository {

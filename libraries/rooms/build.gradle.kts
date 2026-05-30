@@ -15,6 +15,10 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(libs.kotlinx.coroutines.core)
+            // ClientFrame / GameplayFrame carry PlayerIntent, GameState,
+            // and GameEvent in their public surface — the api expresses
+            // gameplay, so it depends on the gameplay model.
+            api(projects.libraries.gameplay)
         }
     }
 }

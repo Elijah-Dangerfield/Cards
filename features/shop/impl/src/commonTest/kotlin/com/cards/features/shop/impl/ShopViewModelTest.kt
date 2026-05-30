@@ -357,12 +357,10 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun confirmIapPack_anonymousUser_emitsNotSignedIn_doesNotCallBilling() = runUnitTest {
-        // The shop is generally reachable post-onboarding, but the
-        // anonymous-by-default state means is_anonymous=true is normal.
-        // Anonymous Supabase users still have a userId — that's what we
-        // forward to the store. The screen should only block when there's
-        // NO signed-in user at all (state == Unknown).
+    fun confirmIapPack_noSession_emitsNotSignedIn_doesNotCallBilling() = runUnitTest {
+        // No Supabase session at all (offline cold start, anon sign-in
+        // disabled). There's no userId to forward, so the store can't be
+        // reached — surface NotSignedIn rather than crashing.
         val billing = FakeBillingClient(nextResult = PurchaseResult.Success(SAMPLE_TRANSACTION))
         val identity = FakeAuthRepository(initialState = AuthState.Unauthenticated())
         val vm = buildVm(billingClient = billing, authRepository = identity)
@@ -374,6 +372,35 @@ class ShopViewModelTest : CoroutineTest() {
         assertEquals(0, billing.purchaseCalls, "should not call billing without a userId")
         val event = received.firstOrNull { it is ShopEvent.PurchaseFinished }
         assertEquals(IapPurchaseOutcome.NotSignedIn, (event as ShopEvent.PurchaseFinished).outcome)
+    }
+
+    @Test
+    fun confirmIapPack_anonymousUser_emitsClaimAccountRequired_doesNotCallBilling() = runUnitTest {
+        // Real-money IAP is gated behind account claim: an anonymous
+        // (un-linked) Supabase user is routed to the claim flow instead of
+        // the platform purchase sheet, killing the "paid then lost the
+        // account" risk at the source.
+        val billing = FakeBillingClient(nextResult = PurchaseResult.Success(SAMPLE_TRANSACTION))
+        val identity = FakeAuthRepository(
+            initialState = AuthState.Authenticated(
+                userId = SAMPLE_USER_ID,
+                isAnonymous = true,
+                email = null,
+            ),
+        )
+        val chips = FakeChipsRepository(initialBalance = 0)
+        val vm = buildVm(billingClient = billing, authRepository = identity, chipsRepository = chips)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(ShopAction.ConfirmPurchase(SAMPLE_CATALOG.chipPacks.first()))
+
+        assertEquals(0, billing.purchaseCalls, "anonymous users must not reach billing")
+        assertEquals(0L, chips.getBalance(), "no chips credited when routed to claim")
+        assertTrue(
+            received.any { it is ShopEvent.ClaimAccountRequired },
+            "expected ClaimAccountRequired, got: $received",
+        )
     }
 
     // ---------- Sync on launch ----------

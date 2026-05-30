@@ -27,12 +27,16 @@ import androidx.compose.material.icons.filled.Egg
 import androidx.compose.material.icons.filled.Exposure
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Person4
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Window
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.rounded.BugReport
@@ -274,6 +278,18 @@ enum class Icons(
 
     FitScreen(
         default = androidx.compose.material.icons.Icons.Rounded.FitScreen,
+    ),
+
+    Visibility(
+        default = androidx.compose.material.icons.Icons.Outlined.Visibility,
+        filled = androidx.compose.material.icons.Icons.Filled.Visibility,
+        outlined = androidx.compose.material.icons.Icons.Outlined.Visibility,
+    ),
+
+    VisibilityOff(
+        default = androidx.compose.material.icons.Icons.Outlined.VisibilityOff,
+        filled = androidx.compose.material.icons.Icons.Filled.VisibilityOff,
+        outlined = androidx.compose.material.icons.Icons.Outlined.VisibilityOff,
     )
 
     ;

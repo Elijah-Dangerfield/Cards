@@ -2,7 +2,7 @@
 
 **Last reviewed:** 2026-05-30 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
-> **🎯 Top priority (2026-05-30): finish multiplayer (§B).** MP is not playable today — the server runs authoritative hands but the client drops every gameplay frame. The gate is **B1** below; everything else in §B is the finish-out behind it.
+> **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
 The live punch list of actionable engineering work. Append, check off, and **delete** done items — they don't live here as history.
 
@@ -22,25 +22,13 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P1]` **Multi-achievement bottom sheet isn't scrollable.** When several achievements unlock at once, the sheet smashes them together instead of scrolling. Make the content scroll within the sheet's max height. *(proposed 2026-05-30)*
-  **Acceptance:** unlocking 4+ achievements at once shows a scrollable list; one unlock looks unchanged.
-  **Hints:** the achievement celebration sheet in `:features:progression:impl`.
-
 - `[P2]` **MP achievement grants — server-side hand-count floor (blocked).** Multiplayer achievements need the server to gate grants on a real hand count, but there's no `hands_finished` signal server-side yet. Blocked on server-authoritative gameplay (Phase 4.2). Bot achievements (client self-grant) are the permanent shape and are not in scope here.
 
 ### Auth & account onboarding
 
-- `[P1]` **Loss-disclosure on the Stats page.** Once a user passes level 1, show a small disclosure on the Stats page encouraging them to claim their account so they don't lose progress.
-  **Acceptance:** an anonymous user past L1 sees it; a claimed user doesn't.
-  **Hints:** the claim card in [`ProfileScreen.kt`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt) is a copy starting point.
-
-- `[P1]` **Gate real-money IAP behind account claim** (decided 2026-05-30 — see [decisions.md](./decisions.md)). An anonymous user can't make a real purchase until they've claimed their account (email / Apple). The shop's purchase action, when anonymous, routes to the claim flow instead of the store. This removes the "paid then lost the account" risk at the source. *(proposed 2026-05-30)*
-  **Acceptance:** an anonymous user tapping buy on a chip pack is sent to claim-account, not the platform purchase sheet; a claimed user purchases normally.
-  **Hints:** purchase entry in `:features:shop:impl`; `IdentityState` exposes anonymous-vs-claimed. **Out of scope:** changing what claimed users can buy.
-
-- `[P1]` **Sign in with Apple on iOS — native button via `NativeViewFactory`.** Apple requires the system `ASAuthorizationAppleIDButton` (App Review rejects custom buttons). Render it on iOS through [`NativeViewFactory`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/native/NativeViewFactory.kt), capture the authorization, hand the ID token to `SupabaseAuthGateway.signInWithOAuthIdToken(provider = "apple", …)`.
-  **Acceptance:** tap opens the system sheet; success authenticates with the linked Apple identity; cancel returns silently; error surfaces via `ClaimAccountState.error`.
-  **Hints:** `apps/ios` native button surface; `SupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS; the existing Android Apple flow.
+- `[P1]` **Wire the native Apple sign-in button into the onboarding/claim flow.** The `createAppleSignInButton` primitive (`NativeViewFactory.kt`) + its Swift `ASAuthorizationAppleIDButton` impl exist, but the Apple slot still renders a custom `ButtonSecondary` ([`OnboardingScreen.kt:283`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt)) that App Review rejects. Render the native button there, capture the authorization, and exchange the ID token for a Supabase session — no id-token sign-in path exists today (`RealSupabaseAuthGateway` only runs the web OAuth flow).
+  **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
+  **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
 
 ### Gameplay & table UX
 
@@ -72,7 +60,9 @@ Home exposes three surfaces that need this system to work: the friends strip wit
 
 - `[P1]` **Block-relation behavior** (blocked on the friend-graph endpoints). Blocking removes any existing `accepted` relation and the public-rooms matchmaker filters blocked pairs out of the same room. Implement defaults.
 
-- `[P2]` **Banned / suspended account enforcement — server gate + client blocking screen.** Today a Supabase-dashboard ban only sets `auth.users.banned_until`, which our stack treats as a *silent, delayed session-expiry*: the server ([`Authentication.kt`](../apps/server/src/main/kotlin/com/cards/server/plugins/Authentication.kt)) verifies only the JWT signature/issuer/exp and never inspects ban state, so a banned user with an unexpired token keeps playing for up to ~1h; when their token finally fails to refresh, the client maps the 401/403 to a generic `RefreshOutcome.SessionExpired` ([`SupabaseAuthRepositoryImpl.kt:222`](../libraries/identity/impl/src/commonMain/kotlin/com/cards/libraries/identity/impl/auth/SupabaseAuthRepositoryImpl.kt#L222)) — indistinguishable from a normal expiry, no ban-specific UI. Build the moderation contract already specced in [product-spec.md §7.2](./product/product-spec.md): protected routes return **`403` with a typed body** `{"reason": "banned"|"suspended", "until": ISO-8601|null, "appeal_url": "..."}`; client parses `reason` and dispatches the existing `BlockingErrorScreen` (`:libraries:navigation:impl`). **Locked direction (don't re-litigate):** the wire carries only machine-readable data — `reason` is an enum, `until` is an ISO timestamp the client formats per locale, `appeal_url` is server config. **All user-facing copy stays client-side in `:libraries:resources` (`strings.xml`), keyed off `reason`.** The server must NOT depend on `:libraries:resources` — it's a Compose Multiplatform resource module and the server is plain JVM Ktor; wrong dependency direction, and it splits translated copy across two surfaces. **Note:** Supabase's native ban only populates `banned_until` — it carries no `reason`/`appeal_url`/suspended-vs-banned distinction, so the typed contract implies an **app-level moderation table** (our own), not just the native flag; the per-request check is an Admin-API/DB lookup in the auth middleware, cached. **Acceptance:** a flagged account gets a `403 {reason}` on protected routes (not a silent expiry); client shows `BlockingErrorScreen` with localized copy + appeal affordance; a clean account is unaffected. **Out of scope:** automated ban triggers (V1 policy is manual human review only — see §7.2 "Why no auto-bans in V1"), shadow-ban emoji-dropping, the moderation review dashboard. **Worker note:** mostly Phase 5 scope, but the minimum-viable slice (route banned→`BlockingErrorScreen` instead of silent expiry) is cheap and closes the "banned user silently keeps playing" gap — ship that slice first if picking this up pre-Phase-5.
+- `[P2]` **Banned / suspended account enforcement — server gate + client blocking screen.** A dashboard ban only sets `auth.users.banned_until`; the server verifies JWT signature/exp only, so a banned user keeps playing until their token fails to refresh — and the client then maps that to a generic `SessionExpired`, with no ban-specific UI. Build the [§7.2](./product/product-spec.md) contract: protected routes return `403` with a typed body `{reason: "banned"|"suspended", until: ISO-8601|null, appeal_url}`; client parses `reason` and shows `BlockingErrorScreen`. **Locked:** the wire carries machine-readable data only; user-facing copy stays client-side in `:libraries:resources` keyed off `reason` (the server is plain JVM Ktor and must not depend on the Compose resources module). Implies an app-level moderation table, since the native flag carries no reason/appeal_url.
+  **Acceptance:** a flagged account gets `403 {reason}` (not a silent expiry) and sees `BlockingErrorScreen` with localized copy + appeal; a clean account is unaffected.
+  **Hints:** [`Authentication.kt`](../apps/server/src/main/kotlin/com/cards/server/plugins/Authentication.kt); `BlockingErrorScreen` in `:libraries:navigation:impl`. **Worker note:** ship the minimum slice first — route banned→`BlockingErrorScreen` instead of silent expiry. **Out of scope:** auto-ban triggers, shadow-bans, the review dashboard.
 
 - **Out of scope for V1.x:** friend suggestions, invite-via-share-link, push notifications for requests, group chat.
 
@@ -80,21 +70,17 @@ Home exposes three surfaces that need this system to work: the friends strip wit
 
 ## B. Multiplayer hardening
 
-**Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). **Sequence to a playable, shippable MP: B1 (the gate) → B2 → B3 → B4.**
+**Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). **B1 shipped — MP is playable; sequence to *shippable* MP is now B6 (the test gate) → B2 → B3 → B4.**
 
-**State of play (2026-05-30):** rooms work end-to-end (create / join by code / leave / seat allocation / presence), and the server runs **fully authoritative** hands — deals, validates every `SubmitIntent` through the engine, broadcasts scrubbed `GameStateSnapshot` frames, dedupes nonces, persists to Postgres, rehydrates on restart. The **only** reason two humans can't play a hand is B1: the client silently drops the gameplay frames, so the Play screen always runs the local bot engine. Server side of MP is essentially done; the remaining work is client-side plumbing + the finish-out items.
+**State of play (2026-05-30):** rooms work end-to-end (create / join / leave / seat allocation / presence), the server runs **fully authoritative** hands, and the client now consumes server-driven gameplay (B1 shipped). Two humans can play a full hand against each other end-to-end with auto-promotion when the host disconnects. The remaining work is **B6 (test coverage)** — bulletproofing MP before real users — and B2–B4 (persistence, gameplay items, spectator).
 
 ### B0 — Server-side state durability
 
 _Shipped._ `room_sessions` is written through the per-session mutex on every mutation; the registry lazy-hydrates on a code-miss.
 
-### B1 — Client gameplay loop · **the playability gate**
+### B1 — Client gameplay loop
 
-- `[P0]` **Make multiplayer hands actually render and play on the client.** The socket receives the server's live hand, but [`ReconnectingRoomSocket.kt`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/ReconnectingRoomSocket.kt) drops `GameStateSnapshot` / `GameEventOccurred` / `IntentAck` as a deliberate `-> Unit` ("Phase 2b") no-op, and only `SoloBotsPokerSessionFactory` is ever injected — so nothing remote reaches the gameplay VM. Three pieces:
-  1. **Fan gameplay frames to a second channel** on the room socket (keep the lobby flow — presence / snapshot — untouched), so a gameplay consumer can subscribe without lobby concerns.
-  2. **Write a `RemotePokerSessionFactory`** that implements the `PokerSession` contract: feed `GameStateSnapshot` → `StateFlow<GameState>` and `GameEventOccurred` → the event flow, send `RoomClientFrame.{StartHand, SubmitIntent, RequestNextHand}` back, and correlate `IntentAck` for rejection feedback. `PlayPokerViewModel` already takes any `PokerSessionFactory`, so this is additive.
-  3. **Add a multiplayer entry point + route** (sibling to [`PlayPokerFeatureEntryPoint`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerFeatureEntryPoint.kt)) that takes a room code, builds the remote factory, and drives `PlayPokerViewModel`.
-  **Acceptance:** two humans in the same room can play a full hand against each other — deal, bet/call/fold/raise, showdown — with state rendering on both clients and rejected intents surfaced. **Out of scope:** event-tail catch-up / fast-forward (B5); reconnect animation replay.
+_Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePokerSessionFactory`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/RemotePokerSessionFactory.kt) implements `PokerSession` over the server's broadcasts; [`PlayMultiplayerRoute`](../features/room/src/commonMain/kotlin/com/cards/features/room/PlayMultiplayerRoute.kt) + its entry point drive the existing `PlayPokerViewModel` against it; lobby's "Start hand" sends `ClientFrame.StartHand` and auto-promotes the effective host on disconnect. Hardening + tests live in **B6**.
 
 ### B2 — Persisted room membership
 
@@ -118,6 +104,12 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 - `[P2]` **Spectator = WS subscriber without a seat.** Extend the auth check so a non-seated subscriber gets the scrubbed-for-everyone view (no hole cards) and the server rejects `SubmitIntent` from them. Friend rooms stay closed to non-members.
   **Hints:** auth check in `RoomSocketRoutes.kt`. **Out of scope:** public-room discovery, spectator chat.
 
+### B6 — Bulletproof MP + engine test coverage
+
+- `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
+  **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
+  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — start with Round 1 (highest impact-per-hour); subsequent rounds are independent and can be picked up in any order. **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
+
 ### B5 — Parked
 
 - Rolling event tail for smoother reconnect animations — resurrect only if users complain post-launch.
@@ -137,11 +129,6 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 ### Module sprawl
 
 - `[P2]` **Audit and split `libraries/cards`.** It's become a dumping ground overlapping `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). Audit what's truly cross-feature primitive vs. what landed there for lack of a home; capture as a deliberate refactor pass. Don't entangle with feature work.
-
-### Observability
-
-- `[P1]` **OTel spans on the server — `broadcast` + per-recipient `ws-send`.** The SubmitIntent / start-hand / next-hand paths are traced; the publisher → `sendJson` fan-out isn't. Propagate the `submit_intent` context through the publisher's `StateFlow → flatMapLatest → merge → map` chain (`asContextElement`, or a `Flow` carrying the `Context` per emission).
-  **Hints:** the publisher loop in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `withSpan` in `plugins/Tracing.kt`.
 
 ### Lint / static analysis
 

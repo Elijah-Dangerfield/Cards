@@ -72,19 +72,7 @@ class ClaimAccountViewModel(
                     updateState { it.copy(error = ClaimAccountError.PasswordsDontMatch) }
                     return@run
                 }
-                updateState { it.copy(awaitingClaimConfirm = true, error = null) }
-            }
-
-            is ClaimAccountAction.DismissClaimConfirm -> action.updateState {
-                it.copy(awaitingClaimConfirm = false)
-            }
-
-            is ClaimAccountAction.ConfirmClaim -> action.run {
-                val current = state
-                if (!current.awaitingClaimConfirm) return@run
-                updateState {
-                    it.copy(awaitingClaimConfirm = false, isSubmitting = true, error = null)
-                }
+                updateState { it.copy(isSubmitting = true, error = null) }
                 handleLinkEmail(current.email.trim(), current.password)
             }
 
@@ -227,9 +215,6 @@ data class ClaimAccountState(
     val error: ClaimAccountError? = null,
     /** Set when the user attempted to link an identity already used by another account. */
     val conflictingProvider: OAuthProvider? = null,
-    /** True while the constructive claim-confirm dialog is up; the actual
-     *  `linkEmailIdentity` call doesn't fire until the user confirms. */
-    val awaitingClaimConfirm: Boolean = false,
 ) {
     val anyProviderEnabled: Boolean get() = googleEnabled || appleEnabled
 
@@ -293,7 +278,5 @@ sealed interface ClaimAccountAction {
     data class PasswordChanged(val value: String) : ClaimAccountAction
     data class ConfirmPasswordChanged(val value: String) : ClaimAccountAction
     data object Submit : ClaimAccountAction
-    data object ConfirmClaim : ClaimAccountAction
-    data object DismissClaimConfirm : ClaimAccountAction
     data object DismissError : ClaimAccountAction
 }

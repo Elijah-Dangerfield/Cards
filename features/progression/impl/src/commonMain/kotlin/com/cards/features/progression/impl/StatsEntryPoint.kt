@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
+import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsExplainersSheetRoute
 import com.dangerfield.cards.features.progression.StatsRoute
@@ -32,6 +33,7 @@ class StatsEntryPoint(
                 onBack = router::goBack,
                 onSeeAllAchievements = { router.navigate(AchievementsRoute()) },
                 onShowExplainers = { router.navigate(StatsExplainersSheetRoute()) },
+                onClaimAccount = { router.navigate(ClaimAccountRoute()) },
             )
         }
     }

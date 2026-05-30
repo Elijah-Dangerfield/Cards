@@ -52,7 +52,7 @@ class RealSupabaseAuthGateway(
             email = if (isAnon) null else user.email,
             accessToken = session.accessToken,
             isAnonymous = isAnon,
-            isEmailConfirmed = isAnon || user.emailConfirmedAt != null,
+            isEmailConfirmed = user.emailConfirmedAt != null,
         )
     }
 

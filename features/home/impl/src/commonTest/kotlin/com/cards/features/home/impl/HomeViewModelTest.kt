@@ -18,12 +18,15 @@ import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
 import kotlinx.coroutines.flow.Flow
@@ -434,7 +437,11 @@ class HomeViewModelTest : CoroutineTest() {
             getActiveRoomsCalls += 1
             return activeRoomsOutcome
         }
-        override fun observeRoom(code: String): Flow<RoomConnection> = flow { }
+        override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {
+            override val connection: Flow<RoomConnection> = flow { }
+            override val gameplayFrames: Flow<GameplayFrame> = flow { }
+            override suspend fun send(frame: ClientFrame) = Unit
+        }
     }
 
     private class FakeProgressionRepository(
