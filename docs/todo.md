@@ -22,10 +22,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P1]` **Multi-achievement bottom sheet isn't scrollable.** When several achievements unlock at once, the sheet smashes them together instead of scrolling. Make the content scroll within the sheet's max height. *(proposed 2026-05-30)*
-  **Acceptance:** unlocking 4+ achievements at once shows a scrollable list; one unlock looks unchanged.
-  **Hints:** the achievement celebration sheet in `:features:progression:impl`.
-
 - `[P2]` **MP achievement grants — server-side hand-count floor (blocked).** Multiplayer achievements need the server to gate grants on a real hand count, but there's no `hands_finished` signal server-side yet. Blocked on server-authoritative gameplay (Phase 4.2). Bot achievements (client self-grant) are the permanent shape and are not in scope here.
 
 ### Auth & account onboarding

@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,7 +60,6 @@ import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD500
-import com.dangerfield.cards.system.VerticalSpacerD700
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -103,7 +104,7 @@ internal fun AchievementCelebrationSheet(
         onDismissRequest = onContinue,
         backgroundColor = AppTheme.colors.surfacePrimary,
         dragHandle = handle,
-        title = {
+        stickyTopContent = {
             Text(
                 text = title,
                 typography = AppTheme.typography.Heading.H800,
@@ -120,21 +121,27 @@ internal fun AchievementCelebrationSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
         },
+        stickyBottomContent = {
+            ButtonPrimary(
+                onClick = onContinue,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = stringResource(Res.string.room_celebration_continue_button))
+            }
+        },
     ) {
-        earned.forEachIndexed { index, item ->
-            if (index > 0) VerticalSpacerD500()
-            CelebrationCard(
-                earned = item,
-                index = index,
-                autoReveal = index == 0,
-            )
-        }
-        VerticalSpacerD700()
-        ButtonPrimary(
-            onClick = onContinue,
-            modifier = Modifier.fillMaxWidth(),
+        Column(
+            modifier = Modifier.verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(text = stringResource(Res.string.room_celebration_continue_button))
+            earned.forEachIndexed { index, item ->
+                if (index > 0) VerticalSpacerD500()
+                CelebrationCard(
+                    earned = item,
+                    index = index,
+                    autoReveal = index == 0,
+                )
+            }
         }
     }
 }
