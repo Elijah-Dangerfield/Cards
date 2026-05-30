@@ -82,11 +82,47 @@ interface Colors {
 
     /* ── Categorical · namespaced, NOT accents ─────────────────── */
     val league: LeagueColors
+    val poker: PokerColors    // physical-object game colors (chip gold, card back, …)
+    val rarity: RarityColors  // achievement rarity tiers
 }
 
 interface LeagueColors {
     val amethyst: ColorResource   // current purple (was RankBadgePurple / old accentEarned)
     // Bronze … Diamond tiers fill in here from the leagues feature.
+}
+
+/**
+ * Physical-object poker colors — a chip is gold, a card back is blue, regardless of theme. These
+ * are categorical, NOT semantic; reach for [Colors] accents/surfaces for anything theme-driven.
+ */
+interface PokerColors {
+    val chipGold: ColorResource
+    val chipGoldOutline: ColorResource
+    val cardWhite: ColorResource
+    val dealerWhite: ColorResource   // alias of cardWhite, kept distinct so the role reads at the call site
+    val cardBackBlue: ColorResource
+    val seatActive: ColorResource
+    val blindRed: ColorResource
+    val cardSlot: ColorResource
+    val cardSlotOutline: ColorResource
+    val progressionCyan: ColorResource
+    val progressionGreen: ColorResource
+    val sparkleGold: ColorResource
+    val coinGradientStart: ColorResource
+    val coinGradientEnd: ColorResource
+    val coinOutline: ColorResource
+    val coinGlyph: ColorResource
+    val rankBadgePurple: ColorResource
+    val rankBadgePink: ColorResource
+    val feltGreen: ColorResource
+}
+
+/** Achievement rarity tier identity colors. Epic reuses [PokerColors.chipGold]. */
+interface RarityColors {
+    val common: ColorResource
+    val rare: ColorResource
+    val epic: ColorResource
+    val legendary: ColorResource
 }
 
 private val WarmPremiumGradient = Brush.linearGradient(
@@ -149,6 +185,33 @@ val defaultColors: Colors = object : Colors {
     // Categorical
     override val league: LeagueColors = object : LeagueColors {
         override val amethyst = ColorResource.LeagueAmethyst
+    }
+    override val poker: PokerColors = object : PokerColors {
+        override val chipGold = ColorResource.PokerChipGold
+        override val chipGoldOutline = ColorResource.PokerChipGoldOutline
+        override val cardWhite = ColorResource.PokerCardWhite
+        override val dealerWhite = ColorResource.PokerCardWhite
+        override val cardBackBlue = ColorResource.PokerCardBackBlue
+        override val seatActive = ColorResource.PokerSeatActive
+        override val blindRed = ColorResource.PokerBlindRed
+        override val cardSlot = ColorResource.PokerCardSlot
+        override val cardSlotOutline = ColorResource.PokerCardSlotOutline
+        override val progressionCyan = ColorResource.PokerProgressionCyan
+        override val progressionGreen = ColorResource.PokerProgressionGreen
+        override val sparkleGold = ColorResource.PokerSparkleGold
+        override val coinGradientStart = ColorResource.PokerCoinGradientStart
+        override val coinGradientEnd = ColorResource.PokerCoinGradientEnd
+        override val coinOutline = ColorResource.PokerCoinOutline
+        override val coinGlyph = ColorResource.PokerCoinGlyph
+        override val rankBadgePurple = ColorResource.PokerRankBadgePurple
+        override val rankBadgePink = ColorResource.PokerRankBadgePink
+        override val feltGreen = ColorResource.PokerFeltGreen
+    }
+    override val rarity: RarityColors = object : RarityColors {
+        override val common = ColorResource.RarityCommon
+        override val rare = ColorResource.RarityRare
+        override val epic = ColorResource.PokerChipGold
+        override val legendary = ColorResource.RarityLegendary
     }
 }
 

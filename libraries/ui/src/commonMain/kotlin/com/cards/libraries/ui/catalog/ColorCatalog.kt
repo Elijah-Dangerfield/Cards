@@ -119,5 +119,30 @@ private fun ColorCatalog() {
                 ColorSwatch("league.amethyst", c.league.amethyst, c.background)
             }
         }
+
+        CatalogSection("Categorical · colors.poker (physical-object game colors)") {
+            SwatchFlow {
+                ColorSwatch("poker.chipGold", c.poker.chipGold, c.poker.coinGlyph)
+                ColorSwatch("poker.cardWhite", c.poker.cardWhite, c.poker.cardBackBlue)
+                ColorSwatch("poker.cardBackBlue", c.poker.cardBackBlue, c.poker.cardWhite)
+                ColorSwatch("poker.seatActive", c.poker.seatActive, c.poker.coinGlyph)
+                ColorSwatch("poker.blindRed", c.poker.blindRed, c.content)
+                ColorSwatch("poker.progressionCyan", c.poker.progressionCyan, c.background)
+                ColorSwatch("poker.progressionGreen", c.poker.progressionGreen, c.background)
+                ColorSwatch("poker.sparkleGold", c.poker.sparkleGold, c.poker.coinGlyph)
+                ColorSwatch("poker.rankBadgePurple", c.poker.rankBadgePurple, c.background)
+                ColorSwatch("poker.rankBadgePink", c.poker.rankBadgePink, c.background)
+                ColorSwatch("poker.feltGreen", c.poker.feltGreen, c.content)
+            }
+        }
+
+        CatalogSection("Categorical · colors.rarity (achievement tiers)") {
+            SwatchFlow {
+                ColorSwatch("rarity.common", c.rarity.common, c.background)
+                ColorSwatch("rarity.rare", c.rarity.rare, c.background)
+                ColorSwatch("rarity.epic", c.rarity.epic, c.background)
+                ColorSwatch("rarity.legendary", c.rarity.legendary, c.background)
+            }
+        }
     }
 }

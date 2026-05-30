@@ -149,6 +149,33 @@ sealed class ColorResource(val color: Color, val designSystemName: String) {
     // Categorical (NOT accents) — colors.league.*
     object LeagueAmethyst : ColorResource(Color(0xFF8E7CC3), "league-amethyst") // current purple
 
+    // ── Poker · physical-object colors (colors.poker.*) ──────────
+    // Theme-independent by design: a chip is gold, a card back is blue, under any theme.
+    object PokerChipGold : ColorResource(Color(0xFFE0B863), "poker-chip-gold")
+    object PokerChipGoldOutline : ColorResource(Color(0xFF765F2D), "poker-chip-gold-outline")
+    object PokerCardWhite : ColorResource(Color(0xFFF4F1E8), "poker-card-white")
+    object PokerCardBackBlue : ColorResource(Color(0xFF2E4A9E), "poker-card-back-blue")
+    object PokerSeatActive : ColorResource(Color(0xFFFFD66E), "poker-seat-active")
+    object PokerBlindRed : ColorResource(Color(0xFFC42E2E), "poker-blind-red")
+    object PokerCardSlot : ColorResource(Color(0x14F4F1E8), "poker-card-slot")
+    object PokerCardSlotOutline : ColorResource(Color(0x1AFFFFFF), "poker-card-slot-outline")
+    object PokerProgressionCyan : ColorResource(Color(0xFF4FC3F7), "poker-progression-cyan")
+    object PokerProgressionGreen : ColorResource(Color(0xFF66BB6A), "poker-progression-green")
+    object PokerSparkleGold : ColorResource(Color(0xFFE5B946), "poker-sparkle-gold")
+    object PokerCoinGradientStart : ColorResource(Color(0xFFFFD66B), "poker-coin-gradient-start")
+    object PokerCoinGradientEnd : ColorResource(Color(0xFFD9A933), "poker-coin-gradient-end")
+    object PokerCoinOutline : ColorResource(Color(0xFFB68721), "poker-coin-outline")
+    object PokerCoinGlyph : ColorResource(Color(0xFF3D2A0A), "poker-coin-glyph")
+    object PokerRankBadgePurple : ColorResource(Color(0xFF8E7CC3), "poker-rank-badge-purple")
+    object PokerRankBadgePink : ColorResource(Color(0xFFE07AB1), "poker-rank-badge-pink")
+    object PokerFeltGreen : ColorResource(Color(0xFF3F5B45), "poker-felt-green")
+
+    // ── Achievement rarity tiers (colors.rarity.*) ───────────────
+    // Fixed identity per tier; Epic intentionally reuses the chip gold.
+    object RarityCommon : ColorResource(Color(0xFFB08D57), "rarity-common")
+    object RarityRare : ColorResource(Color(0xFFB0B0B8), "rarity-rare")
+    object RarityLegendary : ColorResource(Color(0xFFE07AB1), "rarity-legendary")
+
     class FromColor(color: Color, name: String) : ColorResource(color, name)
 
     val onColor: ColorResource
