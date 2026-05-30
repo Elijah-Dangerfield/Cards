@@ -128,11 +128,6 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 
 - `[P2]` **Audit and split `libraries/cards`.** It's become a dumping ground overlapping `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). Audit what's truly cross-feature primitive vs. what landed there for lack of a home; capture as a deliberate refactor pass. Don't entangle with feature work.
 
-### Observability
-
-- `[P1]` **Link the game-state-snapshot `ws_send` spans back to their `submit_intent`.** The `GameEventOccurred` fan-out now links to the emitting span via the `TracedGameEvent` envelope, but the `GameStateSnapshot` leg (the conflated `StateFlow<GameState?>`) still fans out as root spans. Carry the originating span context for state emissions too — the catch is `StateFlow` conflation collapses rapid updates, so per-value attribution is only approximate. **Design call:** wrap state in a `StateFlow<TracedState?>` envelope (mirrors `TracedGameEvent`) accepting approximate attribution, or decide snapshot sends stay intentionally unlinked and document why.
-  **Hints:** `OutboundGameFrame` / `sendTraced(link = …)` in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `GameSession.state`; `TracedGameEvent` is the shipped events-leg precedent.
-
 ### Lint / static analysis
 
 - `[P1]` **Stand up detekt as the project's custom-rule framework, gated in CI + pre-push.** The point is a growable set of AGENTS.md conventions the build mechanically enforces — both in CI and on `.githooks/pre-push` — so neither humans nor the nightly agents can violate them. Land the framework + the first rule now; the rest are cheap follow-ons. *(proposed 2026-05-30)*

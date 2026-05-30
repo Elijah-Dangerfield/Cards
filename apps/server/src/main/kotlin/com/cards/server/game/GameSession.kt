@@ -39,6 +39,12 @@ import kotlin.random.Random
  *    re-broadcast a personalized projection on every change. Null
  *    until the first `startHand` succeeds; remains last-known across
  *    `BettingRound.Complete` so post-hand summary UIs keep rendering.
+ *  - [tracedState] — the same state wrapped in a [TracedState] envelope
+ *    carrying the OTel span context active at mutation time, so the
+ *    socket fan-out can link each `GameStateSnapshot` send back to the
+ *    causing intent. A sibling flow rather than a type change on [state]
+ *    so every existing `state` reader stays untouched and tracing never
+ *    leaks into the gameplay types.
  *  - [events] — `SharedFlow<TracedGameEvent>` for animation triggers,
  *    each carrying the OTel span context active at emit time so the
  *    socket fan-out can link back to the causing intent. Buffered
@@ -82,6 +88,9 @@ class GameSession internal constructor(
 
     private val _state = MutableStateFlow<GameState?>(null)
     val state: StateFlow<GameState?> get() = _state.asStateFlow()
+
+    private val _tracedState = MutableStateFlow<TracedState?>(null)
+    val tracedState: StateFlow<TracedState?> get() = _tracedState.asStateFlow()
 
     private val _events = MutableSharedFlow<TracedGameEvent>(
         replay = 16,
@@ -210,9 +219,10 @@ class GameSession internal constructor(
                         setAttribute(SpanAttrs.HandNumber, current.handNumber.toLong())
                     },
                 ) {
-                    _state.value = resolved.result.state
-                    onStateChange(resolved.result.state)
                     val origin = Span.current().spanContext
+                    _state.value = resolved.result.state
+                    _tracedState.value = TracedState(resolved.result.state, origin)
+                    onStateChange(resolved.result.state)
                     resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
                     recordNonce(clientNonce)
                 }
@@ -254,6 +264,7 @@ class GameSession internal constructor(
      */
     suspend fun hydrate(state: GameState) = mutex.withLock {
         _state.value = state
+        _tracedState.value = TracedState(state, Span.current().spanContext)
     }
 
     /**
@@ -354,9 +365,10 @@ class GameSession internal constructor(
             buttonSeatIndex = newButton,
             deck = deck,
         )
-        _state.value = result.state
-        onStateChange(result.state)
         val origin = Span.current().spanContext
+        _state.value = result.state
+        _tracedState.value = TracedState(result.state, origin)
+        onStateChange(result.state)
         result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
         return IntentResult.Accepted
     }

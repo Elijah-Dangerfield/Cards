@@ -190,9 +190,10 @@ fun Route.roomSocketRoutes(
                         .flatMapLatest { session ->
                             if (session == null) emptyFlow<OutboundGameFrame>()
                             else merge(
-                                session.state
+                                session.tracedState
                                     .filterNotNull()
-                                    .map { state ->
+                                    .map { traced ->
+                                        val state = traced.state
                                         val viewerSeat = state.seats
                                             .firstOrNull { it.playerId == userIdString }
                                             ?.index ?: -1
@@ -200,7 +201,7 @@ fun Route.roomSocketRoutes(
                                             RoomSocketEventDto.GameStateSnapshot(
                                                 state.scrubbedFor(viewerSeat),
                                             ),
-                                            link = null,
+                                            link = traced.originSpanContext.takeIf { it.isValid },
                                         )
                                     },
                                 session.events.map { traced ->
@@ -406,13 +407,14 @@ private suspend fun WebSocketServerSession.sendJson(event: RoomSocketEventDto) {
  * natural granularity is one span per recipient per frame (`user.id` =
  * recipient).
  *
- * [link] ties the send back to the span that produced the frame. Game
- * events carry the originating `state_mutate` / `start_hand` span context
- * on their [TracedGameEvent] envelope, so a per-recipient `GameEventOccurred`
- * fan-out links back to the `submit_intent` that triggered it instead of
- * floating as a root span. Lobby snapshots and the conflated game-state
- * `StateFlow` leg pass `null` (no link) — see `docs/todo.md` for the
- * remaining state-snapshot leg.
+ * [link] ties the send back to the span that produced the frame. Both
+ * gameplay legs carry the originating `state_mutate` / `start_hand` span
+ * context — game events on their [TracedGameEvent] envelope, game-state
+ * snapshots on [TracedState] — so a per-recipient `GameEventOccurred` or
+ * `GameStateSnapshot` fan-out links back to the `submit_intent` that
+ * triggered it instead of floating as a root span. The snapshot leg's
+ * attribution is approximate (the conflated `StateFlow` may collapse
+ * rapid mutations); see [TracedState]. Lobby snapshots pass `null`.
  */
 private suspend fun WebSocketServerSession.sendTraced(
     event: RoomSocketEventDto,

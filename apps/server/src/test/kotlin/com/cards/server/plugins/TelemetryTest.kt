@@ -314,6 +314,56 @@ class TelemetryTest {
         )
     }
 
+    @Test
+    fun gameSession_startHand_tracedStateCarriesStartHandSpanContext() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+
+        session.startHand(listOf(alice, bob), RoomSettings.Default)
+        flushSpans()
+
+        val startSpan = exporter.finishedSpanItems.first { it.name == "start_hand" }
+        val traced = session.tracedState.value
+        assertNotNull(traced, "startHand should publish a traced state snapshot")
+        assertEquals(
+            startSpan.spanContext.spanId,
+            traced.originSpanContext.spanId,
+            "the published state should carry the start_hand span context so the ws_send snapshot fan-out can link back",
+        )
+    }
+
+    @Test
+    fun gameSession_applyIntent_tracedStateCarriesStateMutateSpanContext() = runTest {
+        val session = GameSession(random = Random(seed = 42))
+        val alice = SeatOccupant(seatIndex = 0, userId = "alice", displayName = "Alice", isBot = false)
+        val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
+        session.startHand(listOf(alice, bob), RoomSettings.Default)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+
+        session.applyIntent(
+            actorUserId = actor.playerId!!,
+            intent = PlayerIntent.Fold(seatIndex = acting),
+            clientNonce = "snapshot-link-1",
+        )
+        flushSpans()
+
+        val mutateSpan = exporter.finishedSpanItems.first { it.name == "state_mutate" }
+        val traced = session.tracedState.value
+        assertNotNull(traced, "applyIntent should publish a traced state snapshot")
+        assertEquals(
+            mutateSpan.spanContext.spanId,
+            traced.originSpanContext.spanId,
+            "the post-intent state should carry the state_mutate span context (which sits under submit_intent)",
+        )
+        assertEquals(
+            mutateSpan.spanContext.traceId,
+            traced.originSpanContext.traceId,
+            "the linked snapshot must share the submit_intent trace",
+        )
+    }
+
     private fun flushSpans() {
         sdk.sdkTracerProvider.forceFlush().join(1, TimeUnit.SECONDS)
     }
