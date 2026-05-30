@@ -19,6 +19,10 @@ kotlin {
             implementation(projects.libraries.identity)
             implementation(projects.libraries.core)
             implementation(projects.libraries.flowroutines)
+            // RemotePokerSession + Factory consume RoomRepository.connect()
+            // and the RoomConnectionHandle / GameplayFrame / ClientFrame
+            // types it exposes for multiplayer hand playback.
+            implementation(projects.libraries.rooms)
             implementation(projects.libraries.resources)
             implementation(projects.libraries.review)
             implementation(projects.libraries.ui)
@@ -51,6 +55,7 @@ kotlin {
             implementation(projects.libraries.storage)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.ui)
+            implementation(projects.libraries.rooms)
         }
     }
 }
