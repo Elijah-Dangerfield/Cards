@@ -6,32 +6,12 @@ import androidx.compose.animation.core.AnimationVector4D
 import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.system.Dimension
-import com.dangerfield.cards.system.Radii
-import com.dangerfield.cards.system.VerticalSpacerD100
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.roundToInt
 
 @Suppress("ClassNaming")
@@ -153,115 +133,6 @@ fun animateColorResourceAsState(
         label = label,
         finishedListener = finishedListener
     )
-}
-
-private val colors = listOf(
-    // Utilities
-    ColorResource.Black,
-    ColorResource.White,
-    // Warm felt theme — Espresso neutrals
-    ColorResource.Espresso950,
-    ColorResource.Espresso900,
-    ColorResource.Espresso850,
-    ColorResource.Espresso800,
-    ColorResource.Espresso700,
-    // Warm-white ramp
-    ColorResource.WarmWhite,
-    ColorResource.WarmWhite_A64,
-    ColorResource.WarmWhite_A44,
-    ColorResource.WarmWhite_A30,
-    // Accents
-    ColorResource.Gold500,
-    ColorResource.Gold800,
-    ColorResource.GoldInk,
-    ColorResource.Teal500,
-    ColorResource.Teal800,
-    ColorResource.TealInk,
-    ColorResource.Coral500,
-    ColorResource.Coral800,
-    ColorResource.CoralInk,
-    // Status
-    ColorResource.Blue500W,
-    ColorResource.Green500W,
-    ColorResource.Amber500W,
-    ColorResource.Red500W,
-    ColorResource.Red800W,
-    // Categorical
-    ColorResource.LeagueAmethyst,
-    ColorResource.PokerChipGold,
-    ColorResource.PokerCardBackBlue,
-    ColorResource.PokerSeatActive,
-    ColorResource.PokerBlindRed,
-    ColorResource.PokerRankBadgePurple,
-    ColorResource.PokerRankBadgePink,
-    ColorResource.PokerFeltGreen,
-    ColorResource.RarityCommon,
-    ColorResource.RarityRare,
-    ColorResource.RarityLegendary,
-)
-
-@Preview(widthDp = 2000, heightDp = 10000, showBackground = false)
-@Composable
-private fun PreviewColorSwatch() {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(10)
-    ) {
-        items(colors) { colorResource ->
-            ColorCard(
-                colorResource,
-                title = colorResource.designSystemName,
-                description = colorResource.toHexString()
-            )
-        }
-    }
-}
-
-
-@Composable
-internal fun ColorCard(
-    colorResource: ColorResource,
-    title: String,
-    description: String
-) {
-    Box(
-        modifier = Modifier.Companion.padding(Dimension.D100)
-            .background(colorResource.color, shape = Radii.Card.shape)
-            .height(150.dp)
-            .width(120.dp)
-            .clip(Radii.Card.shape),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-
-
-        Column {
-            if (colorResource.color.luminance() > 0.5f) {
-                HorizontalDivider(
-                    color = Color.DarkGray,
-                )
-            }
-
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(Dimension.D500)
-            ) {
-
-                Text(
-                    text = title,
-                    color = Color.Black
-                )
-
-                VerticalSpacerD100()
-
-                Text(
-                    text = description,
-                    color = Color.Black
-                )
-            }
-        }
-
-    }
 }
 
 /**
