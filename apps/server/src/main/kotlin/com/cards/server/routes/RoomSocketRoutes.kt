@@ -393,8 +393,12 @@ private suspend fun WebSocketServerSession.sendJson(event: RoomSocketEventDto) {
  *
  * Renames / seat-shuffles aren't reported as deltas — those are
  * implicitly captured by the Snapshot that goes out alongside.
+ *
+ * `internal` so [`DiffDeltasTest`] can pin the contract directly — the
+ * publisher loop's `scan { acc, next -> ... }` shape would require
+ * driving the entire flow to assert on the deltas otherwise.
  */
-private fun diffDeltas(previous: Room, next: Room): List<RoomSocketEventDto> {
+internal fun diffDeltas(previous: Room, next: Room): List<RoomSocketEventDto> {
     val prevById = previous.members.associateBy { it.userId }
     val nextById = next.members.associateBy { it.userId }
     val out = mutableListOf<RoomSocketEventDto>()
