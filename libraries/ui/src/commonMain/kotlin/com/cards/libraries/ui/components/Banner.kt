@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -32,6 +33,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 enum class BannerType { Info, Success, Warning, Danger, Promo, Trust }
 
 /**
+ * String convenience overload — the common case. Delegates to the slot version, which owns the
+ * title / body typography so every banner reads the same.
+ *
  * @param leading optional icon / emoji slot (rendered in a tinted 34dp well)
  * @param action  optional trailing slot (e.g. a small Button)
  */
@@ -40,6 +44,33 @@ fun Banner(
     type: BannerType,
     title: String,
     body: String,
+    modifier: Modifier = Modifier,
+    leading: (@Composable () -> Unit)? = null,
+    action: (@Composable () -> Unit)? = null,
+) = Banner(
+    type = type,
+    modifier = modifier,
+    leading = leading,
+    action = action,
+    title = { Text(text = title) },
+    body = { Text(text = body) },
+)
+
+/**
+ * Slot version. Like every opinionated DS component, the banner **owns the typography of its
+ * slots**: anything in [title] renders in [Label.L600] / [content][Colors.content], anything in
+ * [body] renders in [Body.B500] / [contentSecondary][Colors.contentSecondary]. So a bare
+ * `Text("…")` in either slot is correct by default. Reach for this overload (over the `String`
+ * one) when a slot needs more than a single run of text — an inline icon, a price, a link.
+ *
+ * @param leading optional icon / emoji slot (rendered in a tinted 34dp well)
+ * @param action  optional trailing slot (e.g. a small Button)
+ */
+@Composable
+fun Banner(
+    type: BannerType,
+    title: @Composable () -> Unit,
+    body: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     leading: (@Composable () -> Unit)? = null,
     action: (@Composable () -> Unit)? = null,
@@ -75,13 +106,16 @@ fun Banner(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, typography = AppTheme.typography.Label.L600)
-            Text(
-                text = body,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-                modifier = Modifier.padding(top = Dimension.D100),
-            )
+            ProvideTextConfig(
+                typography = AppTheme.typography.Label.L600,
+                color = AppTheme.colors.content,
+            ) { title() }
+            Box(modifier = Modifier.padding(top = Dimension.D100)) {
+                ProvideTextConfig(
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.contentSecondary,
+                ) { body() }
+            }
         }
 
         if (action != null) {

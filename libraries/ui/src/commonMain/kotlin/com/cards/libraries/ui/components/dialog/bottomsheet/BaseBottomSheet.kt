@@ -109,7 +109,7 @@ fun BaseBottomSheet(
             sheetState = state.materialSheetStateDelegate,
             containerColor = backgroundColor.color,
             sheetGesturesEnabled = sheetGesturesEnabled,
-            scrimColor = AppTheme.colors.backgroundOverlay.color,
+            scrimColor = AppTheme.colors.scrim.color,
             shape = sheetShape,
             properties = ModalBottomSheetProperties(
                 shouldDismissOnBackPress = shouldDismissOnBackPress,
@@ -126,7 +126,7 @@ fun BaseBottomSheet(
                     is BottomSheetDragHandle.Custom -> dragHandle.render()
                     is BottomSheetDragHandle.Accessory -> TopAccessoryBubble(
                         accessory = dragHandle.accessory,
-                        fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
+                        fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
                         contentColor = contentColor,
                     )
                 }
@@ -181,7 +181,7 @@ private fun PreviewBaseBottomSheet_EmojiHandle_DefaultSurface() {
         BaseBottomSheet(
             onDismissRequest = {},
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
-            backgroundColor = AppTheme.colors.surfacePrimary,
+            backgroundColor = AppTheme.colors.surface,
             dragHandle = TopAccessory.Emoji(emoji = "🎉").asDragHandle(),
         ) {
             Text(
@@ -206,7 +206,7 @@ private fun PreviewBaseBottomSheet_EmojiHandle_AccentSurface() {
         BaseBottomSheet(
             onDismissRequest = {},
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
-            backgroundColor = AppTheme.colors.surfacePrimary,
+            backgroundColor = AppTheme.colors.surface,
             dragHandle = TopAccessory.Emoji(
                 emoji = "$",
                 style = AccessoryShape.Squircle,

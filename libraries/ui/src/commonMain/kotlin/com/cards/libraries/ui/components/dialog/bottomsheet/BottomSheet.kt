@@ -22,7 +22,9 @@ import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.libraries.ui.components.dialog.ModalContent
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.system.typography.TypographyResource
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -76,7 +78,7 @@ fun BottomSheet(
     shouldDismissOnBackPress: Boolean = true,
     shouldDismissOnClickOutside: Boolean = true,
     dragHandle: BottomSheetDragHandle = BottomSheetDragHandle.Basic,
-    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
+    backgroundColor: ColorResource = AppTheme.colors.surface,
     contentAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     topPadding: Dp = defaultTopPaddingFor(dragHandle),
     stickyTopContent: @Composable () -> Unit = {},
@@ -147,7 +149,7 @@ fun BottomSheet(
     shouldDismissOnBackPress: Boolean = true,
     shouldDismissOnClickOutside: Boolean = true,
     dragHandle: BottomSheetDragHandle = BottomSheetDragHandle.Basic,
-    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
+    backgroundColor: ColorResource = AppTheme.colors.surface,
     contentAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     topPadding: Dp = defaultTopPaddingFor(dragHandle),
     body: @Composable ColumnScope.() -> Unit,
@@ -167,8 +169,8 @@ fun BottomSheet(
         title = {
             Text(
                 text = title,
-                typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.onSurfacePrimary,
+                typography = SheetTitleTypography,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -182,11 +184,13 @@ fun BottomSheet(
  * shape as the string-title overload, but takes a `title: @Composable`
  * slot for cases where the title isn't a single line of text — e.g.
  * the tap-an-opponent profile sheet's displayName + sub-badge stack.
- * Callers using this slot own the title's typography + alignment; the
- * preset only owns layout (top padding for the handle, D500 spacer
- * between title and body, D800 trailing breathing room). Prefer the
- * string overload when the title is plain text so typography stays
- * consistent by default.
+ *
+ * Like every opinionated DS component, the sheet **owns the typography of
+ * its title slot**: anything in [title] renders in the serif felt-signature
+ * headline ([SheetTitleTypography]) in [content][Colors.content]. Body rows
+ * inherit [Body.B500][BodyTypography.B500] from [ModalContent]. So a bare
+ * `Text("…")` in [title] is correct by default; pass an explicit
+ * `typography`/`color` on a child to override.
  */
 @Composable
 fun BottomSheet(
@@ -199,7 +203,7 @@ fun BottomSheet(
     shouldDismissOnBackPress: Boolean = true,
     shouldDismissOnClickOutside: Boolean = true,
     dragHandle: BottomSheetDragHandle = BottomSheetDragHandle.Basic,
-    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
+    backgroundColor: ColorResource = AppTheme.colors.surface,
     contentAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
     topPadding: Dp = defaultTopPaddingFor(dragHandle),
     body: @Composable ColumnScope.() -> Unit,
@@ -218,13 +222,21 @@ fun BottomSheet(
         topPadding = topPadding,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            title()
+            ProvideTextConfig(
+                typography = SheetTitleTypography,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            ) { title() }
             Spacer(modifier = Modifier.height(Dimension.D500))
             body()
             Spacer(modifier = Modifier.height(Dimension.D800))
         }
     }
 }
+
+/** Felt-world signature for a sheet headline — same serif Display as the dialog title. */
+private val SheetTitleTypography: TypographyResource
+    @Composable get() = AppTheme.typography.Display.D900.Italic
 
 /**
  * Picks the right default top padding for the chosen handle. Icon sheets
@@ -249,7 +261,7 @@ private fun PreviewBottomSheet_HandleBasic() {
         BottomSheet(
             state = rememberBottomSheetState(BottomSheetValue.Expanded),
             onDismissRequest = {},
-            backgroundColor = AppTheme.colors.surfacePrimary,
+            backgroundColor = AppTheme.colors.surface,
             stickyTopContent = {
                 Text(
                     text = "Hello",
