@@ -10,6 +10,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDeepLink
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
+import androidx.navigation.navDeepLink
 import androidx.navigation.compose.ComposeNavigator
 import androidx.navigation.compose.ComposeNavigatorDestinationBuilder
 import androidx.navigation.get
@@ -68,6 +69,25 @@ inline fun <reified T : Route> NavGraphBuilder.screen(
             }
     )
 }
+
+/**
+ * Builds a [NavDeepLink] for a [Route], injecting the [AnimationType]
+ * NavType the way [screen]/[dialog]/[bottomSheet] do for their
+ * destinations. Every [Route] carries `enter`/`exit`/`popExit`
+ * AnimationType args, so a raw `navDeepLink<T>(basePath = …)` (empty
+ * typeMap) crashes at graph-build time with
+ * "could not find any NavType for argument enter of type AnimationType".
+ * Always use this for route deep links — never the bare `navDeepLink`.
+ */
+inline fun <reified T : Route> routeDeepLink(
+    basePath: String,
+    typeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = emptyMap(),
+): NavDeepLink = navDeepLink<T>(
+    basePath = basePath,
+    typeMap = typeMap + mapOf(
+        typeOf<AnimationType>() to serializableType<AnimationType>()
+    ),
+)
 
 inline fun <reified T : Route> NavGraphBuilder.dialog(
     typeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = emptyMap(),

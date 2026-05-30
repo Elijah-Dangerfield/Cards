@@ -3,7 +3,6 @@ package com.dangerfield.cards.features.onboarding.impl
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
-import androidx.navigation.navDeepLink
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.onboarding.ForgotPasswordRoute
@@ -15,6 +14,7 @@ import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Router
+import com.dangerfield.cards.libraries.navigation.routeDeepLink
 import com.dangerfield.cards.libraries.navigation.screen
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -108,7 +108,7 @@ class OnboardingFeatureEntryPoint(
 
         screen<VerifyEmailRoute>(
             deepLinks = listOf(
-                navDeepLink<VerifyEmailRoute>(basePath = "cards://auth/confirmed"),
+                routeDeepLink<VerifyEmailRoute>(basePath = "cards://auth/confirmed"),
             ),
         ) { backStackEntry ->
             val route = backStackEntry.toRoute<VerifyEmailRoute>()
