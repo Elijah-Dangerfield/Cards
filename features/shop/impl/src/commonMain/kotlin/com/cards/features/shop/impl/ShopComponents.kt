@@ -4,11 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -20,6 +18,9 @@ import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.Radius
+import com.dangerfield.cards.system.clip
 
 /**
  * Shared building blocks used by [ShopScreen] grid cells and
@@ -54,7 +55,7 @@ internal fun ProductIcon(
     emoji: String,
     tone: IconTone,
     size: Dp = 64.dp,
-    cornerRadius: Dp = 20.dp,
+    radius: Radius = Radii.R800,
     modifier: Modifier = Modifier,
 ) {
     val bg = when (tone) {
@@ -65,7 +66,7 @@ internal fun ProductIcon(
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(cornerRadius))
+            .clip(radius)
             .background(bg),
         contentAlignment = Alignment.Center,
     ) {
