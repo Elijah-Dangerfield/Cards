@@ -22,9 +22,13 @@ primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-e
   SERVER_HOST = '0.0.0.0'
   SERVER_PORT = '8080'
   LOG_LEVEL = 'INFO'
-  # JVM heap tuned for the smallest Fly machine (256MB total).
-  # Leaving 64MB for native + metaspace.
-  JAVA_OPTS = '-Xms64m -Xmx192m -XX:+UseSerialGC -XX:+UnlockExperimentalVMOptions'
+  # JVM heap tuned for a 512MB machine. The Ktor + Exposed + Hikari +
+  # OkHttp/OTel dependency set has a ~150-200MB off-heap floor (metaspace,
+  # thread stacks, JIT code cache, Netty/OkHttp direct buffers) before the
+  # heap is counted at all — so 256MB total OOM-killed the JVM in a restart
+  # loop (observed 2026-05-30). 256m heap + 96m metaspace cap leaves ~150MB
+  # for off-heap + OS on the 512MB box.
+  JAVA_OPTS = '-Xms64m -Xmx256m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:+UnlockExperimentalVMOptions'
 
 [http_service]
   internal_port = 8080
@@ -51,4 +55,4 @@ primary_region = 'iad'   # US East — closest to Supabase's default `aws-0-us-e
 
 [[vm]]
   size = 'shared-cpu-1x'
-  memory = '256mb'
+  memory = '512mb'
