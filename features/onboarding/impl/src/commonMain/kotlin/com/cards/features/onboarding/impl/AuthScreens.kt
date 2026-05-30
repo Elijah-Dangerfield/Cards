@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import cards.libraries.resources.generated.resources.Res
@@ -89,6 +88,7 @@ import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
+import com.dangerfield.cards.libraries.ui.components.text.PasswordTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -201,12 +201,13 @@ fun SignInScreen(
             onChange = { onAction(SignInAction.EmailChanged(it)) },
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
-        PasswordField(
+        PasswordTextField(
             value = state.password,
+            onValueChange = { onAction(SignInAction.PasswordChanged(it)) },
+            label = stringResource(Res.string.auth_field_password_label),
             enabled = !state.isSubmitting,
-            onChange = { onAction(SignInAction.PasswordChanged(it)) },
             imeAction = ImeAction.Go,
-            onSubmitImeAction = submit,
+            onImeAction = submit,
         )
 
         state.error?.let {
@@ -360,25 +361,26 @@ fun SignUpScreen(
             onChange = { onAction(SignUpAction.EmailChanged(it)) },
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
-        PasswordField(
+        PasswordTextField(
             value = state.password,
+            onValueChange = { onAction(SignUpAction.PasswordChanged(it)) },
+            label = stringResource(Res.string.auth_field_password_label),
             enabled = !state.isSubmitting,
-            onChange = { onAction(SignUpAction.PasswordChanged(it)) },
             imeAction = ImeAction.Next,
-            onSubmitImeAction = submit,
+            onImeAction = submit,
             helper = stringResource(
                 Res.string.auth_sign_up_password_helper,
                 SignUpState.MIN_PASSWORD_LENGTH,
             ),
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
-        PasswordField(
+        PasswordTextField(
             value = state.confirmPassword,
-            enabled = !state.isSubmitting,
-            onChange = { onAction(SignUpAction.ConfirmPasswordChanged(it)) },
-            imeAction = ImeAction.Go,
-            onSubmitImeAction = submit,
+            onValueChange = { onAction(SignUpAction.ConfirmPasswordChanged(it)) },
             label = stringResource(Res.string.auth_sign_up_confirm_password_label),
+            enabled = !state.isSubmitting,
+            imeAction = ImeAction.Go,
+            onImeAction = submit,
             helper = if (state.passwordMismatch) {
                 stringResource(Res.string.auth_sign_up_password_mismatch_helper)
             } else {
@@ -543,47 +545,6 @@ private fun EmailField(
         label = { Text(stringResource(Res.string.auth_field_email_label)) },
         modifier = Modifier.fillMaxWidth(),
     )
-}
-
-@Composable
-private fun PasswordField(
-    value: String,
-    enabled: Boolean,
-    onChange: (String) -> Unit,
-    imeAction: ImeAction,
-    onSubmitImeAction: () -> Unit,
-    label: String = stringResource(Res.string.auth_field_password_label),
-    helper: String? = null,
-    isError: Boolean = false,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = onChange,
-            enabled = enabled,
-            singleLine = true,
-            isError = isError,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Password,
-                imeAction = imeAction,
-            ),
-            keyboardActions = KeyboardActions(
-                onGo = { onSubmitImeAction() },
-                onNext = { onSubmitImeAction() },
-            ),
-            label = { Text(label) },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        helper?.let {
-            Spacer(modifier = Modifier.height(Dimension.D200))
-            Text(
-                text = it,
-                typography = AppTheme.typography.Body.B400,
-                color = if (isError) AppTheme.colors.danger else AppTheme.colors.onSurfaceSecondary,
-            )
-        }
-    }
 }
 
 @Composable
