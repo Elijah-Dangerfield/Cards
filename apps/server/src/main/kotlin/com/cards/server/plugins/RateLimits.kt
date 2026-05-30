@@ -95,8 +95,13 @@ fun Application.installRateLimits() {
  * then the socket address). Order matters: the wrong choice would mean
  * everyone shares Fly's edge IP and the limiter degenerates to a single
  * global bucket.
+ *
+ * `internal` so [`ClientIpTest`] can pin the precedence directly via a
+ * tiny test route — the alternative (driving traffic through the full
+ * `installRateLimits` plugin and inspecting the limiter's bucket keying)
+ * tests the same logic with three extra moving parts.
  */
-private fun io.ktor.server.application.ApplicationCall.clientIp(): String {
+internal fun io.ktor.server.application.ApplicationCall.clientIp(): String {
     request.header("Fly-Client-IP")?.takeIf { it.isNotBlank() }?.let { return it }
     request.header("X-Forwarded-For")?.split(',')?.firstOrNull()?.trim()
         ?.takeIf { it.isNotBlank() }?.let { return it }
