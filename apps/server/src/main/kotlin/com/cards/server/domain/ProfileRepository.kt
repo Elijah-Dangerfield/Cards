@@ -65,6 +65,24 @@ interface ProfileRepository {
      * after `findOrCreate`, so this is defensive only).
      */
     suspend fun touchInstallId(userId: UserId, installId: java.util.UUID): java.util.UUID?
+
+    /**
+     * L1 orphan-cleanup pre-filter. Returns anonymous-user profile rows
+     * that share [installId] with the caller (excluding [currentUserId])
+     * AND have no IAP wallet events. The "user signed out then in to a
+     * different anon account on the same install" siblings the L1 sweep
+     * is responsible for reaping — see
+     * [docs/recovery-and-orphaned-accounts.md](../../../../../../../../docs/recovery-and-orphaned-accounts.md).
+     *
+     * The cheap SQL gate filters by install_id + anon status + zero IAP
+     * spend. Per-candidate verification (engagement-grade inventory,
+     * active room seat) stays in Kotlin so the policy can evolve without
+     * a migration; see [OrphanInstallSweep].
+     */
+    suspend fun findInstallSiblings(
+        installId: java.util.UUID,
+        currentUserId: UserId,
+    ): List<UserId>
 }
 
 sealed interface UpdateProfileOutcome {

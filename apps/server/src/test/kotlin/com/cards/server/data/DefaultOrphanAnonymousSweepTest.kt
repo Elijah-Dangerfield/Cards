@@ -170,5 +170,9 @@ class DefaultOrphanAnonymousSweepTest {
         ): UpdateProfileOutcome = error("unused")
 
         override suspend fun touchInstallId(userId: UserId, installId: java.util.UUID): java.util.UUID? = error("unused")
+        override suspend fun findInstallSiblings(
+            installId: java.util.UUID,
+            currentUserId: UserId,
+        ): List<UserId> = error("unused")
     }
 }

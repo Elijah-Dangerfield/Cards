@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
+import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RoomService
@@ -49,6 +50,7 @@ abstract class ServerComponent(
     abstract val profileRepository: ProfileRepository
     abstract val supabaseAdminClient: SupabaseAdminClient
     abstract val orphanAnonymousSweep: OrphanAnonymousSweep
+    abstract val orphanInstallSweep: OrphanInstallSweep
     abstract val equipmentRepository: EquipmentRepository
     abstract val inventoryRepository: InventoryRepository
     abstract val walletRepository: WalletRepository

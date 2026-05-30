@@ -81,6 +81,7 @@ fun Application.module(config: ServerConfig) {
             component.walletRepository,
             component.userMessageRepository,
             component.roomService,
+            component.orphanInstallSweep,
         )
         grantsRoutes(
             inventory = component.inventoryRepository,

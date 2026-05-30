@@ -2,8 +2,10 @@ package com.dangerfield.cards.server.db
 
 import com.dangerfield.cards.server.config.DatabaseConfig
 import com.dangerfield.cards.server.domain.UserId
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.update
 import org.junit.AfterClass
 import org.junit.Assume
 import org.junit.BeforeClass
@@ -45,12 +47,26 @@ abstract class DatabaseTest {
      * referencing `user_id` must seed the matching auth row first — the
      * V11 FK constraint blocks orphan profile/wallet/etc. rows.
      *
+     * Pass [isAnonymous] = true to mark the row as anonymous; the L1
+     * install_id sweep filters on this column. Idempotent — re-seeding the
+     * same id with a different [isAnonymous] updates the flag rather than
+     * tripping the PK.
+     *
      * The Testcontainer's `auth.users` table is the minimal stub seeded
-     * by `init-auth.sql` (just `id UUID PRIMARY KEY`); see that file.
+     * by `init-auth.sql`; see that file.
      */
-    protected fun seedAuthUser(id: UUID = UUID.randomUUID()): UserId {
+    protected fun seedAuthUser(
+        id: UUID = UUID.randomUUID(),
+        isAnonymous: Boolean = false,
+    ): UserId {
         database.blockingTransaction {
-            AuthUsersTable.insertIgnore { it[AuthUsersTable.id] = id }
+            AuthUsersTable.insertIgnore {
+                it[AuthUsersTable.id] = id
+                it[AuthUsersTable.isAnonymous] = isAnonymous
+            }
+            AuthUsersTable.update({ AuthUsersTable.id eq id }) {
+                it[AuthUsersTable.isAnonymous] = isAnonymous
+            }
         }
         return UserId(id)
     }
@@ -58,6 +74,7 @@ abstract class DatabaseTest {
     /** Exposed mapping for the minimal `auth.users` stub. */
     private object AuthUsersTable : Table("auth.users") {
         val id = uuid("id")
+        val isAnonymous = bool("is_anonymous")
         override val primaryKey = PrimaryKey(id)
     }
 
