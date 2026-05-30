@@ -176,7 +176,7 @@ private fun IapPackConfirmContent(
         )
         pack.badge?.let {
             VerticalSpacerD300()
-            BadgePill(text = it, accent = ColorResource.Amber600)
+            BadgePill(text = it, accent = AppTheme.colors.accentPrimary)
         }
         VerticalSpacerD500()
         Text(
@@ -255,7 +255,7 @@ private fun ChipOfferConfirmContent(
         )
         offer.badge?.let {
             VerticalSpacerD300()
-            BadgePill(text = it, accent = ColorResource.Red400)
+            BadgePill(text = it, accent = AppTheme.colors.danger)
         }
         // Hero preview of the cosmetic itself — felts paint as a tinted
         // swatch, card backs render the real PlayingCardBack. The user

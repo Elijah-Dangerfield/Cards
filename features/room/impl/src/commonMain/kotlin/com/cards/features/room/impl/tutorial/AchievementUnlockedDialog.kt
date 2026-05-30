@@ -27,7 +27,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD500
@@ -74,7 +73,7 @@ internal fun AchievementUnlockedDialog(
             Text(
                 text = stringResource(Res.string.achievement_unlocked_dialog_heading),
                 typography = AppTheme.typography.Display.D1100,
-                color = ColorResource.Amber500,
+                color = AppTheme.colors.accentPrimary,
                 textAlign = TextAlign.Center,
             )
             VerticalSpacerD500()

@@ -166,7 +166,7 @@ internal fun NarrationStep(
                     Text(
                         text = stringResource(titleRes),
                         typography = AppTheme.typography.Display.D1100.Italic,
-                        color = ColorResource.Amber500,
+                        color = AppTheme.colors.accentPrimary,
                         textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -364,8 +364,8 @@ private fun RankRow(
     // amber outline via a Modifier wrapping the Card. Non-highlighted
     // rows fall back to the DS border token so they pick up the
     // theme's stock outline without us hand-coding a color.
-    val outline = if (highlighted) ColorResource.Amber500.color else AppTheme.colors.border.color
-    val titleColor = if (highlighted) ColorResource.Amber500 else AppTheme.colors.content
+    val outline = if (highlighted) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
+    val titleColor = if (highlighted) AppTheme.colors.accentPrimary else AppTheme.colors.content
     DsCard(
         modifier = Modifier
             .fillMaxWidth()

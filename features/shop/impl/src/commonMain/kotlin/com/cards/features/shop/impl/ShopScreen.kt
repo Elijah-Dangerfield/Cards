@@ -512,7 +512,7 @@ private fun ChipPackCard(
             }
         }
         packBadge != null -> {
-            { OverhangBadge(text = packBadge, accent = ColorResource.Amber600) }
+            { OverhangBadge(text = packBadge, accent = AppTheme.colors.accentPrimary) }
         }
         else -> null
     }
@@ -697,7 +697,7 @@ private fun ChipOfferCard(
             }
         }
         offerBadge != null -> {
-            { OverhangBadge(text = offerBadge, accent = ColorResource.Red400) }
+            { OverhangBadge(text = offerBadge, accent = AppTheme.colors.danger) }
         }
         else -> null
     }

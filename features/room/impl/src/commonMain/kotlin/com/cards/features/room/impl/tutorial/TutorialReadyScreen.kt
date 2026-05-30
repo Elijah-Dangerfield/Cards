@@ -93,7 +93,7 @@ internal fun TutorialReadyScreen(
             Text(
                 text = stringResource(Res.string.tutorial_ready_title),
                 typography = AppTheme.typography.Display.D1100.Italic,
-                color = ColorResource.Amber500,
+                color = AppTheme.colors.accentPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )

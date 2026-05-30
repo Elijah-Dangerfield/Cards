@@ -247,35 +247,35 @@ fun HandRankingsCheatSheet(
                 symbol = "✓",
                 title = stringResource(Res.string.room_cheat_sheet_action_check_title),
                 desc = stringResource(Res.string.room_cheat_sheet_action_check_description),
-                accent = ColorResource.Green600,
+                accent = AppTheme.colors.success,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "=",
                 title = stringResource(Res.string.room_cheat_sheet_action_call_title),
                 desc = stringResource(Res.string.room_cheat_sheet_action_call_description),
-                accent = ColorResource.Blue600,
+                accent = AppTheme.colors.info,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "↑",
                 title = stringResource(Res.string.room_cheat_sheet_action_raise_title),
                 desc = stringResource(Res.string.room_cheat_sheet_action_raise_description),
-                accent = ColorResource.Orange600,
+                accent = AppTheme.colors.warning,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "✕",
                 title = stringResource(Res.string.room_cheat_sheet_action_fold_title),
                 desc = stringResource(Res.string.room_cheat_sheet_action_fold_description),
-                accent = ColorResource.Red600,
+                accent = AppTheme.colors.danger,
             )
             VerticalSpacerD300()
             ActionRow(
                 symbol = "★",
                 title = stringResource(Res.string.room_cheat_sheet_action_all_in_title),
                 desc = stringResource(Res.string.room_cheat_sheet_action_all_in_description),
-                accent = ColorResource.Purple600,
+                accent = AppTheme.colors.accentPrimary,
             )
 
             VerticalSpacerD1000()
