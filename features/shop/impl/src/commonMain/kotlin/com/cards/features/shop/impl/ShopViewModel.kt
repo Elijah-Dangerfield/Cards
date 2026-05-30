@@ -210,12 +210,22 @@ class ShopViewModel @Inject constructor(
     }
 
     private suspend fun launchIapPurchase(pack: Product.ChipPack) {
-        val userId = (authRepository.current() as? AuthState.Authenticated)?.userId
-        if (userId == null) {
+        val authenticated = authRepository.current() as? AuthState.Authenticated
+        if (authenticated == null) {
             logger.w { "IAP purchase requested with no signed-in user" }
             sendEvent(ShopEvent.PurchaseFinished(IapPurchaseOutcome.NotSignedIn))
             return
         }
+        if (authenticated.isAnonymous) {
+            // Real-money IAP is gated behind account claim: an anonymous
+            // user can't buy until they've linked email/Apple, removing the
+            // "paid then lost the account" risk at the source. Route to the
+            // claim flow instead of the platform purchase sheet.
+            logger.i { "IAP purchase blocked for anonymous user — routing to account claim" }
+            sendEvent(ShopEvent.ClaimAccountRequired)
+            return
+        }
+        val userId = authenticated.userId
         val result = billingClient.purchase(sku = pack.store.sku, userId = userId)
         val outcome = when (result) {
             is PurchaseResult.Success -> {
@@ -497,6 +507,13 @@ sealed interface ShopEvent {
 
     /** Chip-funded redemption confirmed. Screen plays a celebration cue. */
     data class RedeemSucceeded(val offer: Product.ChipOffer) : ShopEvent
+
+    /**
+     * An anonymous user tapped buy on a real-money pack. The screen routes
+     * to the account-claim flow instead of the platform purchase sheet —
+     * they must link an account before any real purchase.
+     */
+    data object ClaimAccountRequired : ShopEvent
 
     /** Idempotent re-redeem — user tried to buy something they already own. */
     data class AlreadyOwned(val offer: Product.ChipOffer) : ShopEvent

@@ -5,6 +5,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
 import com.dangerfield.cards.features.profile.MyItemsRoute
 import com.dangerfield.cards.features.shop.ShopGraph
@@ -114,6 +115,7 @@ class ShopFeatureEntryPoint(
                             message = getString(Res.string.shop_snackbar_offer_expired_message),
                             duration = SnackbarDuration.Short,
                         )
+                        ShopEvent.ClaimAccountRequired -> router.navigate(ClaimAccountRoute())
                     }
                 }
 

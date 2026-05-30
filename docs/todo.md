@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & account onboarding
 
-- `[P1]` **Gate real-money IAP behind account claim** (decided 2026-05-30 — see [decisions.md](./decisions.md)). An anonymous user can't make a real purchase until they've claimed their account (email / Apple). The shop's purchase action, when anonymous, routes to the claim flow instead of the store. This removes the "paid then lost the account" risk at the source. *(proposed 2026-05-30)*
-  **Acceptance:** an anonymous user tapping buy on a chip pack is sent to claim-account, not the platform purchase sheet; a claimed user purchases normally.
-  **Hints:** purchase entry in `:features:shop:impl`; `IdentityState` exposes anonymous-vs-claimed. **Out of scope:** changing what claimed users can buy.
-
 - `[P1]` **Wire the native Apple sign-in button into the onboarding/claim flow.** The `createAppleSignInButton` primitive (`NativeViewFactory.kt`) + its Swift `ASAuthorizationAppleIDButton` impl exist, but the Apple slot still renders a custom `ButtonSecondary` ([`OnboardingScreen.kt:283`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt)) that App Review rejects. Render the native button there, capture the authorization, and exchange the ID token for a Supabase session — no id-token sign-in path exists today (`RealSupabaseAuthGateway` only runs the web OAuth flow).
   **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
   **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
