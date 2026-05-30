@@ -32,6 +32,7 @@ import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.VerticalSpacerD500

@@ -22,6 +22,17 @@ Workers append blocks per commit. Reviewer reads when writing the PR and deletes
 **Reviewer notes:** None.
 **Source:** worker-hydrated this cycle (not human-curated). Same lane / same source as the prior block.
 
+## refactor(ui): promote SectionHeader to :libraries:ui
+
+**Problem:** `:libraries:ui`-promotion sweep (P2 in §A) explicitly flagged the home-local `SectionHeader` ("the 'section header with see-all' pattern — should likely promote to `:libraries:ui` and verify cross-feature usage matches"). Internal at [`features/home/impl/.../SectionHeader.kt`](../../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/SectionHeader.kt), used by `HomeScreen` ("Take a seat") plus the three home shelves (`FriendsStrip`, `RecentAchievementsStrip`, `RecentlyPlayedWithStrip`).
+**Approach:** Lifted the composable verbatim — same `title` + `trailingLabel` + `onClick` API, same `H800` / `B500` typography, same `Row + SpaceBetween` skeleton, same two previews — to `:libraries:ui/components/header/SectionHeader.kt` alongside `TopBar`. Made `public` (was `internal`) and dropped the docstring's "lift to `:libraries:ui` if Shop / Profile / etc. want the same shape" note (no longer accurate). Updated the four home callsites (`HomeScreen`, `FriendsStrip`, `RecentAchievementsStrip`, `RecentlyPlayedWithStrip`) to import from the new package; deleted the feature-local file. Verified `:features:home:impl` + `:libraries:ui` both compile on `iosSimulatorArm64`.
+
+Cross-feature audit: shop's local `private fun SectionHeader(title, subtitle: String?)` at [`ShopScreen.kt:295`](../../features/shop/impl/src/commonMain/kotlin/com/cards/features/shop/impl/ShopScreen.kt) is a **different shape** — title + optional second-line subtitle in a `Column`, `H700` typography, no trailing label or tap target. Intentionally NOT folded into the new DS primitive: merging would either require an API that supports both layouts (Row-with-trailing OR Column-with-subtitle) or visually re-tuning shop's section headers to `H800` + the trailing pattern. Both are real design calls the worker shouldn't quietly make. Reviewer can triage whether shop's variant graduates to a sibling DS primitive (e.g. `SectionHeader.Stacked(title, subtitle)` overload), or stays bespoke.
+
+Todo: updated `[P2]` DS-sweep bullet in §A to mark the SectionHeader promotion done and reflect that the achievement-tile shape and hand-result rows are what's left on the survey.
+**Reviewer notes:** None — pure refactor, no behavior change, no rendered pixels move on home. The "verify cross-feature usage matches" half of the original todo intentionally short-circuited to "shop's variant is a different shape — defer the merge" rather than forcing a consolidation in this commit.
+**Source:** worker-hydrated this cycle from the explicit P2 hint in `docs/todo.md` (not human-curated as a standalone todo). Lane D — mechanical lift, revert is cheap.
+
 ## test(cards): pin ChipsRepositoryImpl local write path
 
 **Problem:** [`ChipsRepositoryImplSyncTest`](../../libraries/cards/impl/src/commonTest/kotlin/com/cards/libraries/cards/impl/ChipsRepositoryImplSyncTest.kt) covers the server round-trip thoroughly but the offline write path (`addChips` / `subtractChips` / `setBalance` / `deleteAll` plus their `require()` guards and the optimistic-debit contract) has no coverage. Sibling repos in the same module (`InventoryRepositoryImplTest`, `EquipmentRepositoryImplTest`, `UserMessageRepositoryImplTest`) all pair the sync test with a local-write test; chips was the odd one out.
