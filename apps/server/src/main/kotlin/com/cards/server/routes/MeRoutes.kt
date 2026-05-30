@@ -5,10 +5,12 @@ import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
+import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.plugins.DELETE_ACCOUNT_LIMIT
@@ -17,15 +19,19 @@ import com.dangerfield.cards.server.plugins.SUPABASE_JWT_AUTH
 import com.dangerfield.cards.server.plugins.isAnonymousUser
 import com.dangerfield.cards.server.plugins.userId
 import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.Application
 import io.ktor.server.auth.authenticate
 import io.ktor.server.plugins.ratelimit.RateLimitName
 import io.ktor.server.plugins.ratelimit.rateLimit
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.application
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -68,19 +74,25 @@ fun Route.meRoutes(
     wallet: WalletRepository,
     messages: UserMessageRepository,
     rooms: RoomService,
+    installSweep: OrphanInstallSweep,
 ) {
+    val app = application
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val profile = repository.findOrCreate(userId)
             // Tag the profile with the caller's install_id (header). The
-            // L1 orphan-cleanup task — once it lands — consults this column
-            // to find prior anon rows that share the same install_id.
+            // L1 orphan-cleanup task consults this column to find prior
+            // anon rows that share the same install_id and reaps the
+            // abandoned ones — see docs/recovery-and-orphaned-accounts.md.
             // Malformed headers are silently dropped; clients on builds
             // older than V49 send no header and skip the tag entirely.
-            call.request.headers[INSTALL_ID_HEADER]
+            val installId = call.request.headers[INSTALL_ID_HEADER]
                 ?.let { parseUuidOrNull(it) }
-                ?.let { repository.touchInstallId(userId, it) }
+            if (installId != null) {
+                repository.touchInstallId(userId, installId)
+                fireInstallSweep(app, installSweep, installId, userId)
+            }
             call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
         }
 
@@ -226,6 +238,32 @@ private val NAME_LENGTH = 1..32
  * the L1 orphan-cleanup design — see docs/recovery-and-orphaned-accounts.md.
  */
 internal const val INSTALL_ID_HEADER: String = "X-Install-Id"
+
+/**
+ * Fire-and-forget the L1 sweep on the application scope so the /v1/me
+ * response doesn't block on Supabase admin round-trips. The sweep is
+ * idempotent — a retry on the next /v1/me will catch any candidates a
+ * crashed previous launch missed. CancellationException is swallowed so
+ * a request-scoped cancellation doesn't poison the unrelated app scope.
+ */
+private fun fireInstallSweep(
+    app: Application,
+    sweep: OrphanInstallSweep,
+    installId: UUID,
+    userId: UserId,
+) {
+    app.launch {
+        try {
+            sweep.run(currentInstallId = installId, currentUserId = userId)
+        } catch (_: CancellationException) {
+            // App shutdown or scope cancellation — the next /v1/me will
+            // retry the sweep; no recovery needed here.
+        } catch (e: Throwable) {
+            LoggerFactory.getLogger("MeRoutes")
+                .warn("L1 install sweep failed for install={} user={}", installId, userId, e)
+        }
+    }
+}
 
 /**
  * Parse [raw] as a UUID, or null if it doesn't conform. We swallow the

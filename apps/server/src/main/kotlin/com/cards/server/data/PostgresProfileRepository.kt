@@ -95,6 +95,40 @@ class PostgresProfileRepository(
             if (updated == 0) null else priorInstallId
         }
 
+    override suspend fun findInstallSiblings(
+        installId: UUID,
+        currentUserId: UserId,
+    ): List<UserId> = database.transaction {
+        // Raw SQL because the query crosses into Supabase's `auth` schema
+        // (which Supabase owns + we don't model in Exposed). The cheap
+        // gate is the LEFT JOIN against wallet_events filtered to
+        // `reason LIKE 'iap.%'` — IS NULL means no real-money spend.
+        val candidates = mutableListOf<UserId>()
+        TransactionManager.current().exec(
+            stmt = """
+                SELECT p.user_id
+                FROM profiles p
+                LEFT JOIN wallet_events we
+                  ON we.user_id = p.user_id AND we.reason LIKE 'iap.%'
+                WHERE p.install_id = ?
+                  AND p.user_id <> ?
+                  AND p.user_id IN (SELECT id FROM auth.users WHERE is_anonymous = TRUE)
+                  AND we.user_id IS NULL
+            """.trimIndent(),
+            args = listOf(
+                org.jetbrains.exposed.sql.UUIDColumnType() to installId,
+                org.jetbrains.exposed.sql.UUIDColumnType() to currentUserId.value,
+            ),
+        ) { rs ->
+            while (rs.next()) {
+                val raw = rs.getObject("user_id", UUID::class.java)
+                    ?: continue
+                candidates += UserId(raw)
+            }
+        }
+        candidates.toList()
+    }
+
     override suspend fun update(
         userId: UserId,
         displayName: String?,

@@ -2,14 +2,13 @@ package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_stack_explainer_body
 import cards.libraries.resources.generated.resources.room_stack_explainer_practice_note
 import cards.libraries.resources.generated.resources.room_stack_explainer_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryChipBubble
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.resources.stringResource
@@ -23,16 +22,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 internal fun StackExplainer(stack: Long, onDismiss: () -> Unit) {
     Dialog(
+        title = stringResource(Res.string.room_stack_explainer_title, stack.toString()),
         onDismissRequest = onDismiss,
-        title = {
-            ChipCoin(size = 56.dp, textTypography = AppTheme.typography.Heading.H800)
-            Text(
-                text = stringResource(Res.string.room_stack_explainer_title, stack.toString()),
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
-                textAlign = TextAlign.Center,
-            )
-        },
+        topAccessory = topAccessoryChipBubble(),
     ) {
         Text(
             text = stringResource(Res.string.room_stack_explainer_body),

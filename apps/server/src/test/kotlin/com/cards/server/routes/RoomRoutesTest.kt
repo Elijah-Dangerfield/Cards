@@ -319,5 +319,10 @@ class RoomRoutesTest {
         override suspend fun delete(userId: UserId) { /* no-op for route tests */ }
 
         override suspend fun touchInstallId(userId: UserId, installId: java.util.UUID): java.util.UUID? = null
+
+        override suspend fun findInstallSiblings(
+            installId: java.util.UUID,
+            currentUserId: UserId,
+        ): List<UserId> = emptyList()
     }
 }

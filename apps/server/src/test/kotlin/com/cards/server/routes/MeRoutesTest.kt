@@ -219,6 +219,39 @@ class MeRoutesTest {
     }
 
     @Test
+    fun me_firesInstallSweep_whenHeaderProvided() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val install = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+        val sweep = RecordingInstallSweep()
+        callMe(
+            repo,
+            bearer = validJwt(),
+            installIdHeader = install.toString(),
+            installSweep = sweep,
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            sweep.awaitFirstCall()
+            assertEquals(listOf(install to userId), sweep.calls)
+        }
+    }
+
+    @Test
+    fun me_skipsInstallSweep_whenHeaderAbsent() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        val sweep = RecordingInstallSweep()
+        callMe(
+            repo,
+            bearer = validJwt(),
+            installIdHeader = null,
+            installSweep = sweep,
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            // No header → no sweep trigger; nothing to await.
+            assertTrue(sweep.calls.isEmpty(), "no header → no install sweep launched")
+        }
+    }
+
+    @Test
     fun activeRooms_returnsRoomsCallerIsMemberOf() = runTest {
         val rooms = InMemoryRoomService(clock = FixedClock(), random = kotlin.random.Random(0L))
         val otherUser = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
@@ -266,7 +299,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyMessages, rooms)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyMessages, rooms, NoOpInstallSweep)
                 }
             }
             val client = createClient {
@@ -307,6 +340,7 @@ class MeRoutesTest {
         adminClient: SupabaseAdminClient = AlwaysSuccessAdmin,
         inventory: InventoryRepository = EmptyInventory,
         installIdHeader: String? = null,
+        installSweep: com.dangerfield.cards.server.domain.OrphanInstallSweep = NoOpInstallSweep,
         assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -315,7 +349,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyMessages, EmptyRooms) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyMessages, EmptyRooms, installSweep) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -340,7 +374,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages, EmptyRooms) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -398,11 +432,38 @@ class MeRoutesTest {
             installIdCalls += userId to installId
             return null
         }
+
+        override suspend fun findInstallSiblings(
+            installId: UUID,
+            currentUserId: UserId,
+        ): List<UserId> = emptyList()
     }
 
     private object AlwaysSuccessAdmin : SupabaseAdminClient {
         override suspend fun deleteUser(userId: UserId): DeleteUserResult = DeleteUserResult.Success
         override suspend fun listAnonymousUsersOlderThan(olderThan: kotlin.time.Instant): List<UserId> = emptyList()
+    }
+
+    private object NoOpInstallSweep : com.dangerfield.cards.server.domain.OrphanInstallSweep {
+        override suspend fun run(
+            currentInstallId: UUID,
+            currentUserId: UserId,
+        ): com.dangerfield.cards.server.domain.InstallSweepResult =
+            com.dangerfield.cards.server.domain.InstallSweepResult(0, 0, 0, 0, false)
+    }
+
+    private class RecordingInstallSweep : com.dangerfield.cards.server.domain.OrphanInstallSweep {
+        val calls: MutableList<Pair<UUID, UserId>> = mutableListOf()
+        private val completion = kotlinx.coroutines.CompletableDeferred<Unit>()
+        suspend fun awaitFirstCall() = completion.await()
+        override suspend fun run(
+            currentInstallId: UUID,
+            currentUserId: UserId,
+        ): com.dangerfield.cards.server.domain.InstallSweepResult {
+            calls += currentInstallId to currentUserId
+            completion.complete(Unit)
+            return com.dangerfield.cards.server.domain.InstallSweepResult(0, 0, 0, 0, false)
+        }
     }
 
     private class StubAdmin(val result: DeleteUserResult) : SupabaseAdminClient {

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.shop.impl
 
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.shop_also_earnable_hint
 import cards.libraries.resources.generated.resources.shop_empty_subtitle
 import cards.libraries.resources.generated.resources.shop_empty_title
 import cards.libraries.resources.generated.resources.shop_error_retry
@@ -43,9 +44,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
+import com.dangerfield.cards.libraries.cards.tierForProductId
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.StoreSku
@@ -58,7 +61,7 @@ import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.BalancePillSlot
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.ChipCoinAmount
 import com.dangerfield.cards.libraries.ui.components.CircularLoadingIndicator
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Surface
@@ -236,6 +239,7 @@ private fun CatalogContent(
                 ChipOfferCard(
                     offer = offer,
                     cardState = state.classify(offer),
+                    tier = tierForProductId(offer.id),
                     timeAnchor = state.timeAnchor,
                     onExpired = { onAction(ShopAction.Refresh(force = true)) },
                     onClick = { onProductTap(offer.id) },
@@ -548,6 +552,7 @@ private fun ChipPackCard(
 private fun ChipOfferCard(
     offer: Product.ChipOffer,
     cardState: ChipOfferCardState,
+    tier: CosmeticTier?,
     timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
     onExpired: () -> Unit,
     onClick: () -> Unit,
@@ -634,6 +639,16 @@ private fun ChipOfferCard(
                         text = stringResource(Res.string.shop_personal_cosmetic_hint),
                         typography = AppTheme.typography.Label.L300,
                         color = AppTheme.colors.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.alpha(dimmableAlpha),
+                    )
+                }
+                if (tier == CosmeticTier.EARN_OR_BUY) {
+                    VerticalSpacerD100()
+                    Text(
+                        text = "🏆 " + stringResource(Res.string.shop_also_earnable_hint),
+                        typography = AppTheme.typography.Label.L300,
+                        color = AppTheme.colors.accentEarned,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.alpha(dimmableAlpha),
                     )
@@ -751,19 +766,21 @@ private fun LockedFooter(requiredLevel: Int) {
 @Composable
 private fun InsufficientChipsFooter(cost: Long, shortBy: Long) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(
+        Box(
             modifier = Modifier
                 .clip(Radii.Round.shape)
                 .background(AppTheme.colors.danger.color.copy(alpha = 0.18f))
                 .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            ChipCoin(size = 16.dp, textTypography = AppTheme.typography.Body.B400)
-            Spacer(modifier = Modifier.size(6.dp))
-            Text(
-                text = formatChips(cost),
+            // ChipCoinAmount keeps the gold-coin + count shape aligned with
+            // every other cost / balance surface; danger color carries the
+            // can't-afford signal.
+            ChipCoinAmount(
+                amount = cost,
+                coinSize = 16.dp,
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.danger,
+                formatter = ::formatChips,
             )
         }
         if (shortBy > 0) {
@@ -813,21 +830,20 @@ private fun OwnedFooter() {
 @Composable
 private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
     val bg = if (canAfford) AppTheme.colors.surfaceTertiary.color else AppTheme.colors.surfaceDisabled.color
-    Row(
+    Box(
         modifier = Modifier
             .clip(Radii.Round.shape)
             .background(bg)
             .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // ChipCoin (DS) — matches the gold coin used in the header / table pot
-        // / stack so users get one consistent "this means chips" affordance.
-        ChipCoin(size = 16.dp, textTypography = AppTheme.typography.Body.B400)
-        Spacer(modifier = Modifier.size(6.dp))
-        Text(
-            text = formatChips(cost),
+        // ChipCoinAmount keeps the gold-coin + count shape aligned with
+        // every other cost / balance surface (table pot, stack, header).
+        ChipCoinAmount(
+            amount = cost,
+            coinSize = 16.dp,
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.text,
+            formatter = ::formatChips,
         )
     }
 }
@@ -996,6 +1012,31 @@ private fun ShopScreenPreview_MixedOwnedAndDisabled() {
             onProductTap = {},
             onIdeaTap = {},
         )
+    }
+}
+
+@Preview
+@Composable
+private fun ChipOfferCardPreview_EarnOrBuyTier() {
+    PreviewContent {
+        Box(modifier = Modifier.padding(16.dp)) {
+            ChipOfferCard(
+                offer = Product.ChipOffer(
+                    id = "tool_win_odds",
+                    title = "Win Odds Display",
+                    subtitle = "Utility",
+                    iconEmoji = "📊",
+                    costChips = 10_000,
+                    grantsKey = "tool.win_odds",
+                    unlockLevel = 1,
+                ),
+                cardState = ChipOfferCardState.Available(costChips = 10_000),
+                tier = CosmeticTier.EARN_OR_BUY,
+                timeAnchor = null,
+                onExpired = {},
+                onClick = {},
+            )
+        }
     }
 }
 

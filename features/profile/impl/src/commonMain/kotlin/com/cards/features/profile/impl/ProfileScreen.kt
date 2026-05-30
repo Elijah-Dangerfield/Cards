@@ -98,7 +98,6 @@ import cards.libraries.resources.generated.resources.profile_turn_feedback_vibra
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
-import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -109,9 +108,11 @@ import com.dangerfield.cards.libraries.ui.components.BasicDropdownMenuItem
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.DropdownMenu
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
+import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -348,31 +349,16 @@ fun ProfileScreen(
 
 @Composable
 private fun UnreadNotificationsChip(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.accentPrimary.color)
-            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            typography = AppTheme.typography.Caption.C200.SemiBold,
-            color = AppTheme.colors.onAccentPrimary,
-        )
-    }
+    StatusPill(
+        text = text,
+        background = AppTheme.colors.accentPrimary,
+        foreground = AppTheme.colors.onAccentPrimary,
+    )
 }
 
 @Composable
 private fun FoundingMemberChip() {
-    Row(
-        modifier = Modifier
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.accentSecondary.color)
-            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D100),
-    ) {
+    StatusPill(background = AppTheme.colors.accentSecondary) {
         Text(
             text = "🏛",
             typography = AppTheme.typography.Caption.C200,
@@ -692,24 +678,6 @@ private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier)
             ),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
-        )
-    }
-}
-
-@Composable
-private fun LevelProgressBar(fraction: Float, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .height(8.dp)
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfacePrimary.color),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction)
-                .height(8.dp)
-                .clip(Radii.Round.shape)
-                .background(LevelProgressGradient),
         )
     }
 }

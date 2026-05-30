@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.profile.impl.items
 
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
+import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
@@ -85,6 +86,25 @@ class MyItemsViewModelTest : CoroutineTest() {
         val owned = vm.state.ownedItems.associateBy { it.productId }
         assertEquals(AcquisitionSource.Purchased, owned.getValue("ck.gold").acquisitionSource)
         assertEquals(AcquisitionSource.Earned, owned.getValue("ck.legendary").acquisitionSource)
+    }
+
+    @Test
+    fun ownedItems_threadsCosmeticTier_fromEarnableMap() = runUnitTest {
+        // Items present in EarnableCosmetics inherit their tier; items
+        // outside it (chip packs, shop-only cosmetics) come through with
+        // null. Drives the EARN_ONLY vs EARN_OR_BUY badge dispatch in
+        // OwnedItemRow.
+        val inventory = FakeInventoryRepository(
+            initial = listOf(
+                inventoryItem("title_pot_magnet", AcquisitionSource.Earned),
+                inventoryItem("chips_1000", AcquisitionSource.Purchased),
+            ),
+        )
+        val vm = buildVm(inventoryRepository = inventory)
+
+        val owned = vm.state.ownedItems.associateBy { it.productId }
+        assertEquals(CosmeticTier.EARN_ONLY, owned.getValue("title_pot_magnet").tier)
+        assertEquals(null, owned.getValue("chips_1000").tier)
     }
 
     @Test

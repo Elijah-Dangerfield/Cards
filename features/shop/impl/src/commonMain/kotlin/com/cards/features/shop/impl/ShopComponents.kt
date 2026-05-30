@@ -2,7 +2,7 @@ package com.dangerfield.cards.features.shop.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -15,11 +15,11 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.products.Product
+import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.system.Radii
 
 /**
  * Shared building blocks used by [ShopScreen] grid cells and
@@ -82,43 +82,43 @@ internal fun ProductIcon(
  * inline (under a title, in the sheet) when we want to label something
  * with a colored marker that doesn't scream "buy this now" the way the
  * solid grid badge does.
+ *
+ * Thin shop facade over [StatusPill] — pins the translucent-flavor
+ * bg/fg pair plus the shop's Label.L400 + 10/4 padding shape so the
+ * five callsites stay readable as "soft accent pill".
  */
 @Composable
 internal fun BadgePill(text: String, accent: ColorResource) {
-    Box(
-        modifier = Modifier
-            .clip(Radii.Round.shape)
-            .background(accent.color.copy(alpha = 0.18f))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = text,
-            typography = AppTheme.typography.Label.L400,
-            color = accent,
-        )
-    }
+    StatusPill(
+        text = text,
+        background = accent.withAlpha(SOFT_PILL_ALPHA),
+        foreground = accent,
+        typography = AppTheme.typography.Label.L400,
+        contentPadding = SHOP_PILL_PADDING,
+    )
 }
 
 /**
  * Solid pill — accent-colored background, background-colored text. The
  * version used as a [com.dangerfield.cards.libraries.ui.components.BadgedBox]
  * overhang on grid cards so it reads as "stuck on" the card.
+ *
+ * Thin shop facade over [StatusPill] — pins the solid-flavor bg/fg
+ * pair plus the shop's Label.L400 + 10/4 padding shape.
  */
 @Composable
 internal fun OverhangBadge(text: String, accent: ColorResource) {
-    Box(
-        modifier = Modifier
-            .clip(Radii.Round.shape)
-            .background(accent.color)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = text,
-            typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.background,
-        )
-    }
+    StatusPill(
+        text = text,
+        background = accent,
+        foreground = AppTheme.colors.background,
+        typography = AppTheme.typography.Label.L400,
+        contentPadding = SHOP_PILL_PADDING,
+    )
 }
+
+private const val SOFT_PILL_ALPHA = 0.18f
+private val SHOP_PILL_PADDING = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
 
 /**
  * Bubble surface for the purchase sheet's emoji handle, picked so the

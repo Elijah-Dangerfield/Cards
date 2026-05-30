@@ -4,6 +4,8 @@ import com.dangerfield.cards.server.db.DatabaseTest
 import com.dangerfield.cards.server.db.InventoryTable
 import com.dangerfield.cards.server.db.ProfilesTable
 import com.dangerfield.cards.server.db.UserMessagesTable
+import com.dangerfield.cards.server.db.WalletEventsTable
+import com.dangerfield.cards.server.db.WalletsTable
 import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.AvatarGenerator
 import com.dangerfield.cards.server.domain.AvatarPalette
@@ -15,6 +17,7 @@ import com.dangerfield.cards.server.domain.UsernameGenerator
 import kotlinx.coroutines.test.runTest
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteAll
+import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.junit.After
@@ -36,6 +39,8 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
     fun cleanTables() {
         database.blockingTransaction {
             UserMessagesTable.deleteAll()
+            WalletEventsTable.deleteAll()
+            WalletsTable.deleteAll()
             InventoryTable.deleteAll()
             ProfilesTable.deleteAll()
             // BIGSERIAL ignores row deletes, so the seq would carry over
@@ -308,6 +313,69 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
         val prior = repo.touchInstallId(unknown, UUID.randomUUID())
 
         assertNull(prior, "No profile → defensive no-op, returns null")
+    }
+
+    @Test
+    fun findInstallSiblings_returnsAnonRows_sharingInstallId_excludingCaller() = runTest {
+        val repo = newRepository()
+        val install = UUID.randomUUID()
+        val caller = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        val sibling = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        val nonAnon = seedAuthUser(isAnonymous = false).also { repo.findOrCreate(it) }
+        repo.touchInstallId(caller, install)
+        repo.touchInstallId(sibling, install)
+        repo.touchInstallId(nonAnon, install)
+
+        val results = repo.findInstallSiblings(install, caller)
+
+        assertEquals(listOf(sibling), results, "Sweep matches anon rows tagged with the same install_id, excluding the caller and non-anon rows")
+    }
+
+    @Test
+    fun findInstallSiblings_excludesRowsWithIapPurchases() = runTest {
+        val repo = newRepository()
+        val install = UUID.randomUUID()
+        val caller = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        val spender = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        val freeloader = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        repo.touchInstallId(caller, install)
+        repo.touchInstallId(spender, install)
+        repo.touchInstallId(freeloader, install)
+        // A real-money purchase pins `spender` outside the sweep.
+        seedIapPurchase(spender, idempotencyKey = "iap_${spender.value}", reason = "iap.chip_pack_small")
+
+        val results = repo.findInstallSiblings(install, caller)
+
+        assertEquals(listOf(freeloader), results, "Anon rows with any iap.% wallet_event are not sweep candidates")
+    }
+
+    @Test
+    fun findInstallSiblings_returnsEmpty_whenNoSharedInstall() = runTest {
+        val repo = newRepository()
+        val install = UUID.randomUUID()
+        val other = UUID.randomUUID()
+        val caller = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        val unrelated = seedAuthUser(isAnonymous = true).also { repo.findOrCreate(it) }
+        repo.touchInstallId(caller, install)
+        repo.touchInstallId(unrelated, other)
+
+        val results = repo.findInstallSiblings(install, caller)
+
+        assertTrue(results.isEmpty(), "Sibling lookup is install-scoped — unrelated installs are invisible to it")
+    }
+
+    private fun seedIapPurchase(userId: UserId, idempotencyKey: String, reason: String) {
+        // wallet_events FKs auth.users directly, not wallets, so we don't
+        // need a wallet row — just the event. Matches the V11 schema.
+        database.blockingTransaction {
+            WalletEventsTable.insert {
+                it[WalletEventsTable.userId] = userId.value
+                it[WalletEventsTable.idempotencyKey] = idempotencyKey
+                it[WalletEventsTable.delta] = 1_000L
+                it[WalletEventsTable.reason] = reason
+                it[WalletEventsTable.appliedAt] = java.time.Instant.now()
+            }
+        }
     }
 
     private fun newRepository(

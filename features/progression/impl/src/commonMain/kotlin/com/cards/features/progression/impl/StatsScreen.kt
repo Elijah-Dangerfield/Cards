@@ -34,6 +34,7 @@ import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
@@ -133,31 +134,12 @@ private fun XpHero(progress: LevelProgress) {
             color = AppTheme.colors.textSecondary,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        LevelProgressBar(progress = progress)
+        LevelProgressBar(fraction = progress.fraction, height = 10.dp)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.textSecondary,
-        )
-    }
-}
-
-@Composable
-private fun LevelProgressBar(progress: LevelProgress) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(10.dp)
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfacePrimary.color),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(progress.fraction)
-                .height(10.dp)
-                .clip(Radii.Round.shape)
-                .background(LevelProgressGradient),
         )
     }
 }

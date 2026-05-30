@@ -6,8 +6,10 @@ import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.plugins.ServerMetrics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
+import org.junit.Before
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,6 +29,14 @@ class DefaultOrphanAnonymousSweepTest {
     private val frozen = Instant.fromEpochSeconds(1_700_000_000)
     private val fixedClock = object : Clock { override fun now(): Instant = frozen }
 
+    @Before
+    fun resetServerMetrics() {
+        // ServerMetrics is a process-wide object; clear it between tests
+        // so the orphan-count assertions don't observe a previous test's
+        // value.
+        ServerMetrics.reset()
+    }
+
     @Test
     fun run_deletesAllCandidates_onHappyPath() = runTest {
         val admin = FakeAdmin(candidates = listOf(u1, u2, u3))
@@ -41,6 +51,8 @@ class DefaultOrphanAnonymousSweepTest {
         assertEquals(false, result.notConfigured)
         assertEquals(listOf(u1, u2, u3), admin.deletedAdminUsers)
         assertEquals(listOf(u1, u2, u3), profiles.deletedProfileUsers)
+        assertEquals(3L, ServerMetrics.debugLastAnonOrphanCount())
+        assertEquals(30L, ServerMetrics.debugLastAnonOrphanTtlDays())
     }
 
     @Test
@@ -99,6 +111,26 @@ class DefaultOrphanAnonymousSweepTest {
 
         assertEquals(0, result.candidatesFound)
         assertEquals(true, result.notConfigured)
+        // No metric recording when the sweep can't authenticate — the
+        // sentinel -1 stays so the gauge skips emission.
+        assertEquals(-1L, ServerMetrics.debugLastAnonOrphanCount())
+    }
+
+    @Test
+    fun run_recordsZeroCandidates_whenSweepFindsNothing() = runTest {
+        val admin = FakeAdmin(candidates = emptyList())
+        val profiles = FakeProfileRepository()
+        val sweep = DefaultOrphanAnonymousSweep(admin, profiles, fixedClock)
+
+        val result = sweep.run(maxInactiveAge = 30.days)
+
+        assertEquals(0, result.candidatesFound)
+        assertEquals(false, result.notConfigured)
+        // A configured sweep that finds zero is the "all-clear" signal;
+        // record 0 so the gauge line drops to zero between runs that
+        // had work.
+        assertEquals(0L, ServerMetrics.debugLastAnonOrphanCount())
+        assertEquals(30L, ServerMetrics.debugLastAnonOrphanTtlDays())
     }
 
     private class FakeAdmin(
@@ -138,5 +170,9 @@ class DefaultOrphanAnonymousSweepTest {
         ): UpdateProfileOutcome = error("unused")
 
         override suspend fun touchInstallId(userId: UserId, installId: java.util.UUID): java.util.UUID? = error("unused")
+        override suspend fun findInstallSiblings(
+            installId: java.util.UUID,
+            currentUserId: UserId,
+        ): List<UserId> = error("unused")
     }
 }

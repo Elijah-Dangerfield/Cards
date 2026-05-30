@@ -8,9 +8,11 @@ import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.exporter.logging.LoggingMetricExporter
 import io.opentelemetry.exporter.logging.LoggingSpanExporter
 import io.opentelemetry.exporter.logging.SystemOutLogRecordExporter
 import io.opentelemetry.exporter.otlp.http.logs.OtlpHttpLogRecordExporter
+import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter
 import io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender
 import io.opentelemetry.sdk.OpenTelemetrySdk
@@ -18,12 +20,17 @@ import io.opentelemetry.sdk.logs.SdkLoggerProvider
 import io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor
 import io.opentelemetry.sdk.logs.export.LogRecordExporter
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.export.MetricExporter
+import io.opentelemetry.sdk.metrics.export.MetricReader
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.resources.Resource
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import io.opentelemetry.sdk.trace.export.SpanExporter
 import org.slf4j.LoggerFactory
+import java.time.Duration as JavaDuration
 
 /**
  * Initialises the OpenTelemetry SDK and registers it as
@@ -77,6 +84,7 @@ fun Application.installOpenTelemetry(config: ObservabilityConfig): OpenTelemetry
         GlobalOpenTelemetry.get()
     }
     OpenTelemetryAppender.install(installed)
+    ServerMetrics.register()
 
     monitor.subscribe(ApplicationStopPreparing) {
         Catching { sdk.close() }
@@ -103,6 +111,7 @@ fun buildOpenTelemetrySdk(
     config: ObservabilityConfig,
     spanExporter: SpanExporter? = null,
     logRecordExporter: LogRecordExporter? = null,
+    metricReader: MetricReader? = null,
 ): OpenTelemetrySdk {
     val resource = Resource.getDefault().merge(
         Resource.create(
@@ -140,9 +149,17 @@ fun buildOpenTelemetrySdk(
         .addLogRecordProcessor(logProcessor)
         .build()
 
+    val resolvedMetricReader = metricReader ?: defaultMetricReader(config)
+
+    val meterProvider = SdkMeterProvider.builder()
+        .setResource(resource)
+        .registerMetricReader(resolvedMetricReader)
+        .build()
+
     return OpenTelemetrySdk.builder()
         .setTracerProvider(tracerProvider)
         .setLoggerProvider(loggerProvider)
+        .setMeterProvider(meterProvider)
         .build()
 }
 
@@ -163,6 +180,28 @@ private fun defaultLogRecordExporter(config: ObservabilityConfig): LogRecordExpo
     applyOtlpHeaders(config.otlpHeaders) { name, value -> builder.addHeader(name, value) }
     return builder.build()
 }
+
+private fun defaultMetricExporter(config: ObservabilityConfig): MetricExporter {
+    val endpoint = config.otlpEndpoint?.takeUnless { it.isBlank() }
+        ?: return LoggingMetricExporter.create()
+    val builder = OtlpHttpMetricExporter.builder()
+        .setEndpoint(endpoint.trimEnd('/') + "/v1/metrics")
+    applyOtlpHeaders(config.otlpHeaders) { name, value -> builder.addHeader(name, value) }
+    return builder.build()
+}
+
+private fun defaultMetricReader(config: ObservabilityConfig): MetricReader {
+    val exporter = defaultMetricExporter(config)
+    // PeriodicMetricReader is the standard pull-from-exporter scheduler.
+    // 60s matches the OTel default; intentionally not surfaced as an env
+    // knob — the only callers tuning this would be tests, and they pass
+    // a custom reader directly into buildOpenTelemetrySdk.
+    return PeriodicMetricReader.builder(exporter)
+        .setInterval(JavaDuration.ofSeconds(METRIC_EXPORT_INTERVAL_SECONDS))
+        .build()
+}
+
+private const val METRIC_EXPORT_INTERVAL_SECONDS: Long = 60L
 
 /**
  * Parses an `OTEL_EXPORTER_OTLP_HEADERS`-shaped string (`Key=Value,Key=Value`)

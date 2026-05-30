@@ -1,15 +1,11 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.system.Radii
 
 /**
  * Small pill rendered under a seat's avatar on the play screen.
@@ -37,13 +33,12 @@ internal fun SeatBadgePill(
         // stack number down a row.
         return
     }
-    Text(
+    StatusPill(
         text = text,
+        background = AppTheme.colors.surfaceTertiary,
+        foreground = AppTheme.colors.textSecondary,
         typography = AppTheme.typography.Label.L300,
-        color = AppTheme.colors.textSecondary,
-        modifier = modifier
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfaceTertiary.color)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+        modifier = modifier,
     )
 }

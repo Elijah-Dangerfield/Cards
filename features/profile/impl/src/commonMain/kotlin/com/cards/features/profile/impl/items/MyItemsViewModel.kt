@@ -2,11 +2,13 @@ package com.dangerfield.cards.features.profile.impl.items
 
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
+import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
+import com.dangerfield.cards.libraries.cards.tierForProductId
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.products.Product
@@ -144,6 +146,19 @@ data class OwnedItem(
      * claim earned-prestige.
      */
     val acquisitionSource: AcquisitionSource = AcquisitionSource.Purchased,
+    /**
+     * Catalog-axis tier for the underlying product, looked up via
+     * [tierForProductId]. `null` for products that have no
+     * achievement-grant mapping (i.e. shop-only / `BUY_ONLY`); non-null
+     * for everything in the [EarnableCosmetics] map.
+     *
+     * Lets the row distinguish an [EARN_ONLY] earned item (single source,
+     * "Earned" pin always applies) from an [EARN_OR_BUY] earned item (the
+     * same product could also have been bought, so an achievement badge
+     * reinforces the earn-grant variant). See `docs/todo.md` §A "Catalog
+     * gating".
+     */
+    val tier: CosmeticTier? = null,
 )
 
 data class MyItemsState(
@@ -166,6 +181,7 @@ data class MyItemsState(
                     isEquipped = item.productId in equippedIds,
                     isEquippable = product?.isEquippable ?: false,
                     acquisitionSource = item.acquisitionSource,
+                    tier = tierForProductId(item.productId),
                 )
             }
         }

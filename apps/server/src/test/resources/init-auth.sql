@@ -17,5 +17,11 @@
 CREATE SCHEMA IF NOT EXISTS auth;
 
 CREATE TABLE IF NOT EXISTS auth.users (
-    id UUID PRIMARY KEY
+    id UUID PRIMARY KEY,
+    -- Mirrors the real Supabase column. The L1 install_id sweep queries
+    -- `auth.users.is_anonymous` directly via a SQL `IN (SELECT id FROM
+    -- auth.users WHERE is_anonymous = TRUE)` gate, so the stub has to
+    -- carry it. Defaults to FALSE so existing seed callers stay
+    -- non-anonymous; callers explicitly opt in via seedAuthUser(..., isAnonymous = true).
+    is_anonymous BOOLEAN NOT NULL DEFAULT FALSE
 );

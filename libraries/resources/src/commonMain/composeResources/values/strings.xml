@@ -49,6 +49,7 @@
     <string name="shop_header_subtitle">Spend chips. Stock up. Flex.</string>
     <string name="shop_idea_footer_button">Got an idea? Tell us</string>
     <string name="shop_personal_cosmetic_hint">Only you see this</string>
+    <string name="shop_also_earnable_hint">Also earnable</string>
 
     <!-- Shop — empty state. -->
     <string name="shop_empty_title">Shop is empty for now</string>

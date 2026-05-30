@@ -1,7 +1,9 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.AchievementId
+import com.dangerfield.cards.libraries.cards.CosmeticTier
 import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
+import com.dangerfield.cards.libraries.cards.tierForProductId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -150,6 +152,79 @@ class EarnableCosmeticsTest {
         assertNull(cosmeticRewardFor(AchievementId.SHOW_FLUSH))
         assertNull(cosmeticRewardFor(AchievementId.TUTORIAL_COMPLETE))
         assertNull(cosmeticRewardFor(AchievementId.REACH_LEVEL_5))
+    }
+
+    @Test
+    fun everyMappedCosmetic_isTaggedEarnOnly_inV1() {
+        // V1 catalog ships every earnable cosmetic as `unlock_only = TRUE`
+        // server-side (V17 / V20 / V27-V34 migrations), so the matching
+        // client-side tier must read EARN_ONLY across the board. Flipping
+        // a row to `unlock_only = FALSE` (i.e. adding the earn-or-buy
+        // axis) needs a matching tier flip here — pinning every id keeps
+        // the two sides from drifting silently.
+        val earnOnlyIds = listOf(
+            AchievementId.POT_5000,
+            AchievementId.COMEBACK_FROM_5BB,
+            AchievementId.DONT_CALL_IT_COMEBACK,
+            AchievementId.BOT_WHISPERER,
+            AchievementId.BUST_DEALT_5,
+            AchievementId.TRIPLE_UP,
+            AchievementId.NO_BUST_100,
+            AchievementId.WIN_BY_FOLD_10,
+            AchievementId.GOOD_FOLD_25,
+            AchievementId.HANDS_1000,
+            AchievementId.DOUBLE_UP,
+            AchievementId.CHALLENGING_10_WINS,
+            AchievementId.REACH_LEVEL_25,
+            AchievementId.BEAT_JANE_10,
+            AchievementId.BEAT_DAVID_10,
+            AchievementId.BEAT_GINA_10,
+            AchievementId.BEAT_STEVE_10,
+            AchievementId.BEAT_MIKE_10,
+        )
+        earnOnlyIds.forEach { id ->
+            assertEquals(
+                CosmeticTier.EARN_ONLY,
+                cosmeticRewardFor(id)?.tier,
+                "Expected $id to be tagged EARN_ONLY",
+            )
+        }
+    }
+
+    @Test
+    fun tierForProductId_returnsTierForKnownProduct() {
+        // Each productId is the inverse of the achievement → reward map;
+        // spot-check the same shape on each of the 18 V1 entries.
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("title_pot_magnet"))
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("cardback_comeback_kid"))
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("emotes_grinder"))
+        assertEquals(CosmeticTier.EARN_ONLY, tierForProductId("title_felt_veteran"))
+    }
+
+    @Test
+    fun tierForProductId_returnsNullForUnknownProduct() {
+        // Shop-only products (chip packs, BUY_ONLY cosmetics) have no
+        // achievement-grant mapping and should fall through to null so
+        // the render layer reads them as "no provenance badge".
+        assertNull(tierForProductId("chips_1000"))
+        assertNull(tierForProductId("totally_made_up"))
+        assertNull(tierForProductId(""))
+    }
+
+    @Test
+    fun tierForProductId_mirrorsCosmeticRewardForEveryAchievement() {
+        // For every (achievementId, reward) pair, looking up the
+        // productId should return the exact same tier. Guards against
+        // drift between the forward map (used by unlock callouts) and
+        // the inverse lookup (used by inventory / shop badges).
+        AchievementId.entries.forEach { id ->
+            val reward = cosmeticRewardFor(id) ?: return@forEach
+            assertEquals(
+                reward.tier,
+                tierForProductId(reward.productId),
+                "tierForProductId(${reward.productId}) must match cosmeticRewardFor($id).tier",
+            )
+        }
     }
 
     @Test
