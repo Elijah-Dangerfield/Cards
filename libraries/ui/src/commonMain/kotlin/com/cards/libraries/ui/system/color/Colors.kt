@@ -19,6 +19,8 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,87 +32,156 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+/*
+ * The warm "felt" semantic schema. Naming is role / universal-meaning only.
+ * Status tokens are FLAT (info/onInfo/infoSubtle, …) — same shape as Material's
+ * error/onError/errorContainer. Categorical colors are namespaced (colors.league.*).
+ * Old names remain as @Deprecated default getters so call sites compile during migration.
+ */
 @Immutable
 @Suppress("LongParameterList")
 interface Colors {
 
-    val accentPrimary: ColorResource
-    val onAccentPrimary: ColorResource
-    val accentSecondary: ColorResource
-    val onAccentSecondary: ColorResource
-    val accentEarned: ColorResource
-
-    /* Backgrounds */
+    /* ── Surfaces · neutral elevation ladder ───────────────────── */
+    val background: ColorResource        // app canvas, scaffolds, base of full-screen sheets
+    val surface: ColorResource           // default container: cards, sheets, menus, banners, rows
+    val surfaceRaised: ColorResource     // a thing ON a surface: inputs, nested cards, selected rows
+    val surfaceHigh: ColorResource       // highest: pressed states, floating menus/tooltips/popovers
+    val surfaceDisabled: ColorResource   // disabled control fills
+    val scrim: ColorResource             // dim behind modals/sheets
     val shadow: ColorResource
-    val background: ColorResource
-    val backgroundOverlay: ColorResource
-    val onBackground: ColorResource
-    val border: ColorResource
 
-    val borderSecondary: ColorResource
+    /* ── Content · one foreground ramp for background + all surfaces ─ */
+    val content: ColorResource           // primary text & active icons
+    val contentSecondary: ColorResource  // supporting text, captions, inactive icons
+    val contentTertiary: ColorResource   // metadata, placeholders, timestamps
+    val contentDisabled: ColorResource   // disabled text/icons
+
+    /* ── Accents · solid / on / deep (3D lip) / subtle (tint) ──── */
+    val accentPrimary: ColorResource;        val onAccentPrimary: ColorResource
+    val accentPrimaryDeep: ColorResource;    val accentPrimarySubtle: ColorResource
+    val accentSecondary: ColorResource;      val onAccentSecondary: ColorResource
+    val accentSecondaryDeep: ColorResource;  val accentSecondarySubtle: ColorResource
+    val accentTertiary: ColorResource;       val onAccentTertiary: ColorResource
+    val accentTertiaryDeep: ColorResource;   val accentTertiarySubtle: ColorResource
+
+    /* ── Status · universal states · solid / on / subtle ───────── */
+    val info: ColorResource;     val onInfo: ColorResource;     val infoSubtle: ColorResource
+    val success: ColorResource;  val onSuccess: ColorResource;  val successSubtle: ColorResource
+    val warning: ColorResource;  val onWarning: ColorResource;  val warningSubtle: ColorResource
+    val danger: ColorResource;   val onDanger: ColorResource;   val dangerSubtle: ColorResource
+    val dangerDeep: ColorResource // 3D lip for the Danger button
+
+    /* ── Borders ──────────────────────────────────────────────── */
+    val border: ColorResource         // default edges, dividers, input rest
+    val borderStrong: ColorResource   // focused / selected edges
     val borderDisabled: ColorResource
 
-    /* Texts */
-    val text: ColorResource
-    val textSecondary: ColorResource
-    val textDisabled: ColorResource
-    val danger: ColorResource
+    /* ── Gradient · the one, derived from the gold accent ──────── */
+    val accentPrimaryGradient: Brush   // premium / promo surfaces only
 
-    val status: StatusColor
+    /* ── Categorical · namespaced, NOT accents ─────────────────── */
+    val league: LeagueColors
 
-    /* Surfaces */
-    val surfacePrimary: ColorResource
-    val onSurfacePrimary: ColorResource
-    val surfaceSecondary: ColorResource
-    val onSurfaceSecondary: ColorResource
-    val surfaceTertiary: ColorResource
-    val onSurfaceTertiary: ColorResource
+    // ─────────────────────────────────────────────────────────────
+    // DEPRECATED ALIASES — keep old call sites compiling during migration.
+    // Removed in the Phase 6 sweep.
+    // ─────────────────────────────────────────────────────────────
+    @Deprecated("use surface", ReplaceWith("surface")) val surfacePrimary: ColorResource get() = surface
+    @Deprecated("use content", ReplaceWith("content")) val onSurfacePrimary: ColorResource get() = content
+    @Deprecated("use surfaceRaised", ReplaceWith("surfaceRaised")) val surfaceSecondary: ColorResource get() = surfaceRaised
+    @Deprecated("use contentSecondary", ReplaceWith("contentSecondary")) val onSurfaceSecondary: ColorResource get() = contentSecondary
+    @Deprecated("use surfaceHigh", ReplaceWith("surfaceHigh")) val surfaceTertiary: ColorResource get() = surfaceHigh
+    @Deprecated("use contentSecondary", ReplaceWith("contentSecondary")) val onSurfaceTertiary: ColorResource get() = contentSecondary
+    @Deprecated("use contentDisabled", ReplaceWith("contentDisabled")) val onSurfaceDisabled: ColorResource get() = contentDisabled
+    @Deprecated("use content", ReplaceWith("content")) val onBackground: ColorResource get() = content
+    @Deprecated("use scrim", ReplaceWith("scrim")) val backgroundOverlay: ColorResource get() = scrim
+    @Deprecated("use borderStrong", ReplaceWith("borderStrong")) val borderSecondary: ColorResource get() = borderStrong
+    @Deprecated("use content", ReplaceWith("content")) val text: ColorResource get() = content
+    @Deprecated("use contentSecondary", ReplaceWith("contentSecondary")) val textSecondary: ColorResource get() = contentSecondary
+    @Deprecated("use contentDisabled", ReplaceWith("contentDisabled")) val textDisabled: ColorResource get() = contentDisabled
+    @Deprecated("categorical now: colors.league.amethyst", ReplaceWith("league.amethyst")) val accentEarned: ColorResource get() = league.amethyst
 
-    val surfaceDisabled: ColorResource
-    val onSurfaceDisabled: ColorResource
-
+    @Deprecated("status is flat now (info/success/warning/danger + on*/…Subtle)")
+    val status: StatusColor get() = object : StatusColor {
+        override val okay = success
+        override val warning = this@Colors.warning
+        override val bad = danger
+    }
 }
 
+interface LeagueColors {
+    val amethyst: ColorResource   // current purple (was RankBadgePurple / old accentEarned)
+    // Bronze … Diamond tiers fill in here from the leagues feature.
+}
+
+@Deprecated("status is flat now — use info/success/warning/danger (+ on*/…Subtle) on Colors")
 interface StatusColor {
     val okay: ColorResource
     val warning: ColorResource
     val bad: ColorResource
 }
 
-val defaultColors = object : Colors {
-    override val accentPrimary = ColorResource.Blue600
-    override val onAccentPrimary = ColorResource.White
-    override val accentSecondary = ColorResource.Purple600
-    override val onAccentSecondary = ColorResource.White
-    override val accentEarned = ColorResource.Purple100
+private val WarmPremiumGradient = Brush.linearGradient(
+    listOf(Color(0xFF3F320F), Color(0xFF6E5A1F)) // gradient FORM of the gold accent (dark gold)
+)
 
+val defaultColors: Colors = object : Colors {
+    // Surfaces
+    override val background = ColorResource.Espresso950
+    override val surface = ColorResource.Espresso900
+    override val surfaceRaised = ColorResource.Espresso800
+    override val surfaceHigh = ColorResource.Espresso700
+    override val surfaceDisabled = ColorResource.Espresso800
+    override val scrim = ColorResource.Black_A70
     override val shadow = ColorResource.Black_A30
-    override val textDisabled = ColorResource.Gray600
-    override val danger = ColorResource.Red600
 
-    override val surfacePrimary = ColorResource.Gray900
-    override val surfaceDisabled = ColorResource.Gray800
-    override val onSurfacePrimary = ColorResource.Gray50
-    override val surfaceSecondary = ColorResource.Gray800
-    override val onSurfaceSecondary = ColorResource.Gray100
-    override val surfaceTertiary = ColorResource.Gray700
-    override val onSurfaceTertiary = ColorResource.Gray100
-    override val onSurfaceDisabled = ColorResource.Gray500
+    // Content
+    override val content = ColorResource.WarmWhite
+    override val contentSecondary = ColorResource.WarmWhite_A64
+    override val contentTertiary = ColorResource.WarmWhite_A44
+    override val contentDisabled = ColorResource.WarmWhite_A30
 
-    override val background = ColorResource.Black
-    override val onBackground = ColorResource.Gray50
-    override val border = ColorResource.Gray800
-    override val borderSecondary = ColorResource.Gray400
-    override val borderDisabled = ColorResource.Gray800
+    // Accents
+    override val accentPrimary = ColorResource.Gold500
+    override val onAccentPrimary = ColorResource.GoldInk
+    override val accentPrimaryDeep = ColorResource.Gold800
+    override val accentPrimarySubtle = ColorResource.Gold500.withAlpha(0.13f)
+    override val accentSecondary = ColorResource.Teal500
+    override val onAccentSecondary = ColorResource.TealInk
+    override val accentSecondaryDeep = ColorResource.Teal800
+    override val accentSecondarySubtle = ColorResource.Teal500.withAlpha(0.13f)
+    override val accentTertiary = ColorResource.Coral500
+    override val onAccentTertiary = ColorResource.CoralInk
+    override val accentTertiaryDeep = ColorResource.Coral800
+    override val accentTertiarySubtle = ColorResource.Coral500.withAlpha(0.13f)
 
-    override val text = ColorResource.Gray50
-    override val backgroundOverlay = ColorResource.Black_A70
-    override val textSecondary = ColorResource.Gray400
+    // Status
+    override val info = ColorResource.Blue500W
+    override val onInfo = ColorResource.BlueInk
+    override val infoSubtle = ColorResource.Blue500W.withAlpha(0.13f)
+    override val success = ColorResource.Green500W
+    override val onSuccess = ColorResource.GreenInk
+    override val successSubtle = ColorResource.Green500W.withAlpha(0.13f)
+    override val warning = ColorResource.Amber500W
+    override val onWarning = ColorResource.AmberInk
+    override val warningSubtle = ColorResource.Amber500W.withAlpha(0.13f)
+    override val danger = ColorResource.Red500W
+    override val onDanger = ColorResource.RedInk
+    override val dangerSubtle = ColorResource.Red500W.withAlpha(0.13f)
+    override val dangerDeep = ColorResource.Red800W
 
-    override val status = object : StatusColor {
-        override val okay = ColorResource.Green600
-        override val warning = ColorResource.Amber600
-        override val bad = ColorResource.Red600
+    // Borders
+    override val border = ColorResource.Hairline_09
+    override val borderStrong = ColorResource.Hairline_22
+    override val borderDisabled = ColorResource.Hairline_06
+
+    // Gradient
+    override val accentPrimaryGradient: Brush = WarmPremiumGradient
+
+    // Categorical
+    override val league: LeagueColors = object : LeagueColors {
+        override val amethyst = ColorResource.LeagueAmethyst
     }
 }
 

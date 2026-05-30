@@ -44,6 +44,7 @@ object Radii {
     val R500 = Radius(CornerSize(DimensionResource.D500.dp))
     val R600 = Radius(CornerSize(DimensionResource.D600.dp))
     val R700 = Radius(CornerSize(DimensionResource.D700.dp))
+    val R750 = Radius(CornerSize(DimensionResource.D750.dp))
     val R800 = Radius(CornerSize(DimensionResource.D800.dp))
     val R850 = Radius(CornerSize(DimensionResource.D850.dp))
     val R900 = Radius(CornerSize(DimensionResource.D900.dp))
@@ -51,12 +52,12 @@ object Radii {
     val None = Radius(SquareCornerSize)
 
     val Default get() = None
-    val Button get() = Radius(CornerSize(percent = 50))
+    val Button get() = R700   // was CornerSize(percent = 50) — full pill → 16dp springy rect
     val IconButton get() = Round
-    val Banner get() = R400
+    val Banner get() = R600   // was R400 → 14dp
     val Callout get() = R500
     val Header get() = None
-    val Card get() = R400
+    val Card get() = R750     // was R400 → 18dp, bubblier
 }
 
 

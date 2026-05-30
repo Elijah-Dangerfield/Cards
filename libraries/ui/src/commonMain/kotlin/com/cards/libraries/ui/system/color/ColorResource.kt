@@ -105,6 +105,50 @@ sealed class ColorResource(val color: Color, val designSystemName: String) {
     object White_A70 : ColorResource(Color(0xFFFFFFFF).copy(alpha = 0.7f), "white-a-70")
     object White_A30 : ColorResource(Color(0xFFFFFFFF).copy(alpha = 0.3f), "white-a-30")
 
+    // ── Warm felt theme ──────────────────────────────────────────
+    // Espresso neutrals (warm charcoal elevation ladder)
+    object Espresso950 : ColorResource(Color(0xFF121110), "espresso-950") // background
+    object Espresso900 : ColorResource(Color(0xFF1C1A18), "espresso-900") // surface
+    object Espresso850 : ColorResource(Color(0xFF211F1C), "espresso-850") // (spare)
+    object Espresso800 : ColorResource(Color(0xFF262320), "espresso-800") // surfaceRaised / surfaceDisabled
+    object Espresso700 : ColorResource(Color(0xFF322E2A), "espresso-700") // surfaceHigh
+
+    // Warm-white foreground ramp
+    object WarmWhite : ColorResource(Color(0xFFFFFAF4), "warm-white")                            // content
+    object WarmWhite_A64 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.64f), "warm-white-a-64") // contentSecondary
+    object WarmWhite_A44 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.44f), "warm-white-a-44") // contentTertiary
+    object WarmWhite_A30 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.30f), "warm-white-a-30") // contentDisabled
+
+    // Hairlines (warm white, low alpha)
+    object Hairline_09 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.09f), "hairline-09") // border
+    object Hairline_22 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.22f), "hairline-22") // borderStrong
+    object Hairline_06 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.06f), "hairline-06") // borderDisabled
+
+    // Accents (solid / deep for the 3D lip / ink)
+    object Gold500 : ColorResource(Color(0xFFE0BC52), "gold-500")
+    object Gold800 : ColorResource(Color(0xFF8A6916), "gold-800")
+    object GoldInk : ColorResource(Color(0xFF241B07), "gold-ink")
+    object Teal500 : ColorResource(Color(0xFF4DBAB0), "teal-500")
+    object Teal800 : ColorResource(Color(0xFF2C7E76), "teal-800")
+    object TealInk : ColorResource(Color(0xFF08312D), "teal-ink")
+    object Coral500 : ColorResource(Color(0xFFFF8A5B), "coral-500")
+    object Coral800 : ColorResource(Color(0xFFB85A33), "coral-800")
+    object CoralInk : ColorResource(Color(0xFF2A0C0C), "coral-ink")
+
+    // Status (warm variants, suffixed W to avoid clashing with the legacy scale)
+    object Blue500W : ColorResource(Color(0xFF3E7BD0), "blue-500-w")   // info
+    object BlueInk : ColorResource(Color(0xFF08182E), "blue-ink")
+    object Green500W : ColorResource(Color(0xFF5FB67A), "green-500-w") // success
+    object GreenInk : ColorResource(Color(0xFF06210F), "green-ink")
+    object Amber500W : ColorResource(Color(0xFFE6A23C), "amber-500-w") // warning
+    object AmberInk : ColorResource(Color(0xFF2A1C06), "amber-ink")
+    object Red500W : ColorResource(Color(0xFFE26B6B), "red-500-w")     // danger
+    object Red800W : ColorResource(Color(0xFF7E2A2A), "red-800-w")     // dangerDeep (button lip)
+    object RedInk : ColorResource(Color(0xFF2A0C0C), "red-ink")
+
+    // Categorical (NOT accents) — colors.league.*
+    object LeagueAmethyst : ColorResource(Color(0xFF8E7CC3), "league-amethyst") // current purple
+
     class FromColor(color: Color, name: String) : ColorResource(color, name)
 
     val onColor: ColorResource
@@ -195,7 +239,33 @@ private val colors = listOf(
     ColorResource.Purple700,
     // Utilities
     ColorResource.Black,
-    ColorResource.White
+    ColorResource.White,
+    // Warm felt theme — Espresso neutrals
+    ColorResource.Espresso950,
+    ColorResource.Espresso900,
+    ColorResource.Espresso850,
+    ColorResource.Espresso800,
+    ColorResource.Espresso700,
+    // Warm-white ramp
+    ColorResource.WarmWhite,
+    // Accents
+    ColorResource.Gold500,
+    ColorResource.Gold800,
+    ColorResource.GoldInk,
+    ColorResource.Teal500,
+    ColorResource.Teal800,
+    ColorResource.TealInk,
+    ColorResource.Coral500,
+    ColorResource.Coral800,
+    ColorResource.CoralInk,
+    // Status
+    ColorResource.Blue500W,
+    ColorResource.Green500W,
+    ColorResource.Amber500W,
+    ColorResource.Red500W,
+    ColorResource.Red800W,
+    // Categorical
+    ColorResource.LeagueAmethyst
 )
 
 @Preview(widthDp = 2000, heightDp = 10000, showBackground = false)
