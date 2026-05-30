@@ -52,23 +52,31 @@ import org.slf4j.LoggerFactory
  * of its bounded queue without crashing.
  *
  * Multiple calls within one JVM (e.g. tests) are guarded:
- * `GlobalOpenTelemetry` is set-once. If already initialised, this is a
- * no-op that returns the existing instance. Tests that need a fresh SDK
- * should bypass this function and call [buildOpenTelemetrySdk] directly
- * with their own exporter, then plug it into the routing via DI.
+ * `GlobalOpenTelemetry` is set-once. If something else already set the
+ * global (or a stray `get()` from a static initialiser locked it to noop
+ * — logback's `OpenTelemetryAppender` is the culprit on this server),
+ * `set()` throws `IllegalStateException`; we catch it, log, and reuse
+ * whatever's there. Tests that need a fresh SDK bypass this function
+ * and call [buildOpenTelemetrySdk] directly, plugging the result into
+ * the routing via DI.
+ *
+ * Critically, we do **not** probe with `GlobalOpenTelemetry.get()`
+ * before calling `set()`. The probe itself registers a placeholder and
+ * locks the slot, which then makes our own `set()` throw. Try-set-catch
+ * is the only safe order.
  */
 fun Application.installOpenTelemetry(config: ObservabilityConfig): OpenTelemetry {
     val log = LoggerFactory.getLogger("OpenTelemetry")
 
-    val existing = Catching { GlobalOpenTelemetry.get() }.getOrNull()
-    if (existing != null && existing != OpenTelemetry.noop()) {
-        log.info("OpenTelemetry already initialised; reusing the global SDK")
-        return existing
-    }
-
     val sdk = buildOpenTelemetrySdk(config)
-    GlobalOpenTelemetry.set(sdk)
-    OpenTelemetryAppender.install(sdk)
+    val installed: OpenTelemetry = try {
+        GlobalOpenTelemetry.set(sdk)
+        sdk
+    } catch (e: IllegalStateException) {
+        log.warn("OpenTelemetry global already set; reusing the live SDK", e)
+        GlobalOpenTelemetry.get()
+    }
+    OpenTelemetryAppender.install(installed)
 
     monitor.subscribe(ApplicationStopPreparing) {
         Catching { sdk.close() }
@@ -81,7 +89,7 @@ fun Application.installOpenTelemetry(config: ObservabilityConfig): OpenTelemetry
         config.environment,
         if (config.otlpEndpoint.isNullOrBlank()) "stdout" else "otlp-http",
     )
-    return sdk
+    return installed
 }
 
 /**
