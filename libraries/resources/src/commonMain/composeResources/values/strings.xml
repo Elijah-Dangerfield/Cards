@@ -246,10 +246,6 @@
     <string name="auth_sign_up_submit_button">Create account</string>
     <string name="auth_sign_up_submit_button_progress">Creating account…</string>
     <string name="auth_sign_up_to_sign_in_button">Already have an account? Sign in</string>
-    <string name="auth_sign_up_claim_dialog_title">Save your progress to %1$s?</string>
-    <string name="auth_sign_up_claim_dialog_description">We'll send a verification link. Your chips, XP, and unlocks come with you to the new account.</string>
-    <string name="auth_sign_up_claim_dialog_primary">Send link</string>
-    <string name="auth_sign_up_claim_dialog_secondary">Not yet</string>
 
     <!-- Sign-up — inline error states surfaced by the VM (sealed SignUpError → resource). -->
     <string name="auth_sign_up_error_passwords_dont_match">Passwords don\'t match.</string>

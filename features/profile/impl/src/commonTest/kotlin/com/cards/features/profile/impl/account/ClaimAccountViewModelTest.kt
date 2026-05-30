@@ -322,7 +322,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     // ---------- email / password path ----------
 
     @Test
-    fun emailSubmit_belowMinimum_doesNotShowConfirm() = runUnitTest {
+    fun emailSubmit_belowMinimum_doesNotFireLink() = runUnitTest {
         val identity = FakeAuthRepository(
             linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("you@example.com"),
         )
@@ -332,7 +332,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("short"))
 
         vm.takeAction(ClaimAccountAction.Submit)
-        assertEquals(false, vm.state.awaitingClaimConfirm)
         assertEquals(0, identity.linkEmailCalls, "Below MIN_PASSWORD_LENGTH must short-circuit before any repo call")
     }
 
@@ -351,37 +350,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun emailSubmit_showsConfirmDialog_doesNotFireLinkUntilConfirmed() = runUnitTest {
-        // The whole point of the confirm dialog: catch typos before the
-        // chips/XP are permanently bound to a wrong email.
-        val identity = FakeAuthRepository(
-            linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("you@example.com"),
-        )
-        val vm = buildVm(identity = identity)
-        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
-        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
-        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
-        vm.takeAction(ClaimAccountAction.Submit)
-
-        assertEquals(true, vm.state.awaitingClaimConfirm)
-        assertEquals(0, identity.linkEmailCalls, "Submit must not fire linkEmailIdentity until the user confirms")
-    }
-
-    @Test
-    fun emailSubmit_dismissConfirm_clearsDialog_doesNotFireLink() = runUnitTest {
-        val identity = FakeAuthRepository()
-        val vm = buildVm(identity = identity)
-        vm.takeAction(ClaimAccountAction.EmailChanged("you@example.com"))
-        vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
-        vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
-        vm.takeAction(ClaimAccountAction.Submit)
-        vm.takeAction(ClaimAccountAction.DismissClaimConfirm)
-
-        assertEquals(false, vm.state.awaitingClaimConfirm)
-        assertEquals(0, identity.linkEmailCalls)
-    }
-
-    @Test
     fun emailClaim_verificationRequired_emitsNavigateToVerifyEmail() = runUnitTest {
         val identity = FakeAuthRepository(
             linkEmailOutcome = LinkEmailIdentityOutcome.VerificationRequired("you@example.com"),
@@ -391,7 +359,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.Submit)
-        vm.takeAction(ClaimAccountAction.ConfirmClaim)
 
         vm.eventFlow.test {
             val event = awaitItem()
@@ -414,7 +381,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.Submit)
-        vm.takeAction(ClaimAccountAction.ConfirmClaim)
 
         vm.stateFlow.test {
             var last = awaitItem()
@@ -434,7 +400,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.Submit)
-        vm.takeAction(ClaimAccountAction.ConfirmClaim)
 
         vm.stateFlow.test {
             var last = awaitItem()
@@ -457,7 +422,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.Submit)
-        vm.takeAction(ClaimAccountAction.ConfirmClaim)
 
         vm.stateFlow.test {
             var last = awaitItem()
@@ -480,7 +444,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.Submit)
-        vm.takeAction(ClaimAccountAction.ConfirmClaim)
 
         vm.eventFlow.test {
             assertIs<ClaimAccountEvent.NavigateToVerifyEmail>(awaitItem())
@@ -500,7 +463,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         vm.takeAction(ClaimAccountAction.PasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.ConfirmPasswordChanged("hunter22ish"))
         vm.takeAction(ClaimAccountAction.Submit)
-        vm.takeAction(ClaimAccountAction.ConfirmClaim)
 
         vm.stateFlow.test {
             var last = awaitItem()

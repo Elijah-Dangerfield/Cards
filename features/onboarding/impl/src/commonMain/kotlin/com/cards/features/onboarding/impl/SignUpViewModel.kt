@@ -52,30 +52,12 @@ class SignUpViewModel(
                 val isAnonymousGuest =
                     (authRepository.current() as? AuthState.Authenticated)?.isAnonymous == true
 
+                updateState { it.copy(isSubmitting = true, error = null) }
                 if (isAnonymousGuest) {
-                    // Anonymous guests get a confirm dialog first — the link
-                    // permanently attaches their chips/XP/avatars to this
-                    // email, and an accidental tap with a typo'd address is
-                    // costly to undo. Fresh sign-ups (already-signed-out)
-                    // skip the confirm and submit directly.
-                    updateState { it.copy(awaitingClaimConfirm = true, error = null) }
+                    handleLinkEmail(email, password)
                 } else {
-                    updateState { it.copy(isSubmitting = true, error = null) }
                     handleSignUp(email, password)
                 }
-            }
-
-            is SignUpAction.DismissClaimConfirm -> action.updateState {
-                it.copy(awaitingClaimConfirm = false)
-            }
-
-            is SignUpAction.ConfirmClaim -> action.run {
-                val current = state
-                if (!current.awaitingClaimConfirm) return@run
-                updateState {
-                    it.copy(awaitingClaimConfirm = false, isSubmitting = true, error = null)
-                }
-                handleLinkEmail(current.email.trim(), current.password)
             }
         }
     }
@@ -145,10 +127,6 @@ data class SignUpState(
     val confirmPassword: String = "",
     val isSubmitting: Boolean = false,
     val error: SignUpError? = null,
-    /** True while the guest-claim confirm dialog is up; the actual
-     *  `linkEmailIdentity` call doesn't fire until the user confirms.
-     *  Fresh sign-ups (not anonymous) never reach this state. */
-    val awaitingClaimConfirm: Boolean = false,
 ) {
     val passwordMismatch: Boolean
         get() = confirmPassword.isNotEmpty() && password != confirmPassword
@@ -190,8 +168,4 @@ sealed interface SignUpAction {
     data class ConfirmPasswordChanged(val value: String) : SignUpAction
     data object Submit : SignUpAction
     data object DismissError : SignUpAction
-    /** User accepted the "this links your guest progress to this email" confirm. */
-    data object ConfirmClaim : SignUpAction
-    /** User dismissed the confirm without submitting. */
-    data object DismissClaimConfirm : SignUpAction
 }

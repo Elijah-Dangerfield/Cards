@@ -32,10 +32,6 @@ import cards.libraries.resources.generated.resources.auth_claim_error_weak_passw
 import cards.libraries.resources.generated.resources.auth_field_email_label
 import cards.libraries.resources.generated.resources.auth_field_password_label
 import cards.libraries.resources.generated.resources.auth_sign_in_oauth_divider
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_description
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_primary
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_secondary
-import cards.libraries.resources.generated.resources.auth_sign_up_claim_dialog_title
 import cards.libraries.resources.generated.resources.auth_sign_up_confirm_password_label
 import cards.libraries.resources.generated.resources.auth_sign_up_password_helper
 import cards.libraries.resources.generated.resources.auth_sign_up_password_mismatch_helper
@@ -52,7 +48,6 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
@@ -236,21 +231,6 @@ fun ClaimAccountScreen(
             Spacer(modifier = Modifier.height(Dimension.D800))
         }
     }
-
-    if (state.awaitingClaimConfirm) {
-        Dialog(
-            title = stringResource(
-                Res.string.auth_sign_up_claim_dialog_title,
-                state.email.trim(),
-            ),
-            description = stringResource(Res.string.auth_sign_up_claim_dialog_description),
-            primaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_primary),
-            secondaryButtonText = stringResource(Res.string.auth_sign_up_claim_dialog_secondary),
-            onPrimaryButtonClicked = { onAction(ClaimAccountAction.ConfirmClaim) },
-            onSecondaryButtonClicked = { onAction(ClaimAccountAction.DismissClaimConfirm) },
-            onDismissRequest = { onAction(ClaimAccountAction.DismissClaimConfirm) },
-        )
-    }
 }
 
 @Composable
@@ -406,21 +386,3 @@ private fun ClaimAccountScreenPreview_Conflict() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@Composable
-private fun ClaimAccountScreenPreview_AwaitingConfirm() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        ClaimAccountScreen(
-            state = ClaimAccountState(
-                googleEnabled = true,
-                appleEnabled = true,
-                email = "you@example.com",
-                password = "hunter22ish",
-                confirmPassword = "hunter22ish",
-                awaitingClaimConfirm = true,
-            ),
-            onAction = {},
-            onBack = {},
-        )
-    }
-}
