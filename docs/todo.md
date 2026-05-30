@@ -39,7 +39,7 @@ The earnable catalog should bias toward axes that *can't* be paid for: usage vol
 
 ### Screen / chrome consistency
 
-- `[P2]` **Sweep features for other DS-promotion candidates.** Chip rendering is the obvious one; survey the rest. Likely candidates: pill-shaped status badges, the "section header with see-all" pattern, the achievement-tile shape, hand-result rows. One-by-one promote what you find, thorough previews on each.
+- `[P2]` **Sweep features for other DS-promotion candidates — remaining.** Pill-shaped status badges shipped 2026-05-29 (`StatusPill` in `:libraries:ui`, callsites in `SeatBadgePill`, `UnreadNotificationsChip`, `FoundingMemberChip`). Still on the survey: the achievement-tile shape, hand-result rows, the "section header with see-all" pattern (`SectionHeader` is already a primitive but verify cross-feature usage matches), the shop's `BadgePill` / `OverhangBadge` pair (currently `internal` to shop — promote if any other feature wants the same translucent/solid accent treatment). One-by-one promote what you find, thorough previews on each.
 
 ### Auth & account onboarding
 

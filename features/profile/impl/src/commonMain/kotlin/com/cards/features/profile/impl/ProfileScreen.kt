@@ -112,6 +112,7 @@ import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -348,31 +349,16 @@ fun ProfileScreen(
 
 @Composable
 private fun UnreadNotificationsChip(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.accentPrimary.color)
-            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            typography = AppTheme.typography.Caption.C200.SemiBold,
-            color = AppTheme.colors.onAccentPrimary,
-        )
-    }
+    StatusPill(
+        text = text,
+        background = AppTheme.colors.accentPrimary,
+        foreground = AppTheme.colors.onAccentPrimary,
+    )
 }
 
 @Composable
 private fun FoundingMemberChip() {
-    Row(
-        modifier = Modifier
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.accentSecondary.color)
-            .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D100),
-    ) {
+    StatusPill(background = AppTheme.colors.accentSecondary) {
         Text(
             text = "🏛",
             typography = AppTheme.typography.Caption.C200,
