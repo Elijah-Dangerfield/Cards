@@ -6,7 +6,7 @@ You are **not** a worker. You don't pick features, write code, or refactor. You 
 
 This prompt replaces the old split between a "fact-checker" and a "hydrator" — one pass does both: reconcile what's there, top up only if it's thin.
 
-**Working branch:** `agent`. Bot-only — the human never commits here.
+**Working branch:** `develop`. The human also commits here (usually via worktrees merged separately) — it is not disposable.
 
 ## The two failure modes you exist to prevent
 
@@ -38,16 +38,20 @@ When you touch an item for any reason, leave it in this shape. You don't have to
 ## Start of run
 
 1. `git fetch origin`.
-2. `gh pr list --head agent --state open --json number,url`. **If a PR exists, exit immediately with no commits** — last night's work is still under review.
-3. Align `agent`:
-   - **If `docs/agent/in-flight.md` exists on `origin/agent`** → a worker is already mid-cycle. Exit; you should have run before workers, not during.
-   - **Else** → reset to main so workers start clean:
+2. `gh pr list --head develop --state open --json number,url`. **If a PR exists, exit immediately with no commits** — last night's work is still under review.
+3. Align `develop`:
+   - **If `docs/agent/in-flight.md` exists on `origin/develop`** → a worker is already mid-cycle. Exit; you should have run before workers, not during.
+   - **Else** → reset `develop` to `main` so workers start clean — but **only when its content already matches `main`** (clears post-merge commit-ID drift without destroying unmerged work):
      ```
-     git checkout agent
-     git reset --hard origin/main
-     git push --force-with-lease origin agent
+     git checkout develop
+     git fetch origin
+     if git diff --quiet origin/main origin/develop; then
+       git reset --hard origin/main
+       git push --force-with-lease origin develop
+     else
+       echo "develop has content not in main (human WIP?) — NOT resetting" >&2
+     fi
      ```
-     Idempotent — no-op if `agent` is already at `main`.
 4. Read `AGENTS.md` (architecture + conventions).
 5. Read `docs/todo.md` (everything in it is in scope), `docs/backlog.md`, `docs/developer-todo.md` (**never edit**), and `docs/decisions.md`.
 
@@ -110,7 +114,7 @@ Otherwise:
    - "Per-turn MP timer" — no turn deadline exists; rg'd `turnDeadline` across :libraries:rooms, empty.
    ```
    No citation → don't make the change.
-4. `git push origin agent`. If a hook fails, fix the root cause — no `--no-verify`.
+4. `git push origin develop`. If a hook fails, fix the root cause — no `--no-verify`.
 
 ## Hard rules
 
