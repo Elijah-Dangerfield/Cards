@@ -2,6 +2,8 @@
 
 **Last reviewed:** 2026-05-30 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
+> **🎯 Top priority (2026-05-30): finish multiplayer (§B).** MP is not playable today — the server runs authoritative hands but the client drops every gameplay frame. The gate is **B1** below; everything else in §B is the finish-out behind it.
+
 The live punch list of actionable engineering work. Append, check off, and **delete** done items — they don't live here as history.
 
 **Minimum viable context.** Every item is one bold title line + at most ~3 short lines (Problem / Acceptance / Hints). No status archaeology — don't narrate what already shipped, what's "locked," or which sub-part landed when. If a sub-part ships, delete that clause. A bullet a human can't skim in five seconds is too long. (The `todo-maintainer` enforces this nightly.)
@@ -78,15 +80,21 @@ Home exposes three surfaces that need this system to work: the friends strip wit
 
 ## B. Multiplayer hardening
 
-**Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). Order: B0 → B2 → B3; B1 can interleave.
+**Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). **Sequence to a playable, shippable MP: B1 (the gate) → B2 → B3 → B4.**
+
+**State of play (2026-05-30):** rooms work end-to-end (create / join by code / leave / seat allocation / presence), and the server runs **fully authoritative** hands — deals, validates every `SubmitIntent` through the engine, broadcasts scrubbed `GameStateSnapshot` frames, dedupes nonces, persists to Postgres, rehydrates on restart. The **only** reason two humans can't play a hand is B1: the client silently drops the gameplay frames, so the Play screen always runs the local bot engine. Server side of MP is essentially done; the remaining work is client-side plumbing + the finish-out items.
 
 ### B0 — Server-side state durability
 
 _Shipped._ `room_sessions` is written through the per-session mutex on every mutation; the registry lazy-hydrates on a code-miss.
 
-### B1 — WS reconnect protocol
+### B1 — Client gameplay loop · **the playability gate**
 
-- `[P1]` **Snapshot-on-reconnect — client subscriber.** The server emits a fresh `GameStateSnapshot` frame on reconnect, but the client drops it: [`ReconnectingRoomSocket.kt`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/ReconnectingRoomSocket.kt) treats `GameStateSnapshot` / `GameEventOccurred` / `IntentAck` as passthroughs. Wire a gameplay channel that consumes them and feeds the gameplay VM. **Out of scope:** event-tail catch-up (B5).
+- `[P0]` **Make multiplayer hands actually render and play on the client.** The socket receives the server's live hand, but [`ReconnectingRoomSocket.kt`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/ReconnectingRoomSocket.kt) drops `GameStateSnapshot` / `GameEventOccurred` / `IntentAck` as a deliberate `-> Unit` ("Phase 2b") no-op, and only `SoloBotsPokerSessionFactory` is ever injected — so nothing remote reaches the gameplay VM. Three pieces:
+  1. **Fan gameplay frames to a second channel** on the room socket (keep the lobby flow — presence / snapshot — untouched), so a gameplay consumer can subscribe without lobby concerns.
+  2. **Write a `RemotePokerSessionFactory`** that implements the `PokerSession` contract: feed `GameStateSnapshot` → `StateFlow<GameState>` and `GameEventOccurred` → the event flow, send `RoomClientFrame.{StartHand, SubmitIntent, RequestNextHand}` back, and correlate `IntentAck` for rejection feedback. `PlayPokerViewModel` already takes any `PokerSessionFactory`, so this is additive.
+  3. **Add a multiplayer entry point + route** (sibling to [`PlayPokerFeatureEntryPoint`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerFeatureEntryPoint.kt)) that takes a room code, builds the remote factory, and drives `PlayPokerViewModel`.
+  **Acceptance:** two humans in the same room can play a full hand against each other — deal, bet/call/fold/raise, showdown — with state rendering on both clients and rejected intents surfaced. **Out of scope:** event-tail catch-up / fast-forward (B5); reconnect animation replay.
 
 ### B2 — Persisted room membership
 
@@ -137,9 +145,12 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 
 ### Lint / static analysis
 
-- `[P2]` **Stand up detekt with `verifyStrings` as the first rule.** We want an AI-authorable rule set that the build enforces and that runs pre-push — detekt is the framework, `verifyStrings` is rule #1. Add detekt to the build, wire it into `check` and a `.githooks/pre-push`, and write a custom rule that fails on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM-emitted copy) outside `:libraries:resources`, honoring an allowlist for glyph-only/preview/server-supplied strings (per [`AGENTS.md` §strings](../AGENTS.md)). Land behind a baseline so the gate goes green on day one; migrate the existing violations separately. *(proposed 2026-05-30)*
-  **Acceptance:** adding `Text("Hello")` to a feature `:impl` fails `./gradlew check` and the pre-push hook; the same string via `stringResource(...)` passes; a documented allowlist annotation suppresses a flagged line.
-  **Hints:** `gradle/libs.versions.toml` has no detekt entry yet; convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing violations (`PurchaseConfirmSheet.kt`, `AppGuardLayer.kt`, …) — track as a separate cleanup; adding rules beyond `verifyStrings` (the framework is set up to grow, but land one rule first).
+- `[P1]` **Stand up detekt as the project's custom-rule framework, gated in CI + pre-push.** The point is a growable set of AGENTS.md conventions the build mechanically enforces — both in CI and on `.githooks/pre-push` — so neither humans nor the nightly agents can violate them. Land the framework + the first rule now; the rest are cheap follow-ons. *(proposed 2026-05-30)*
+  - **Framework:** add detekt to `gradle/libs.versions.toml` + a `build-logic/` convention plugin, wire `detekt` into `check` (so CI's existing gradle run catches it) and into a new `.githooks/pre-push`. Land behind a baseline file so the gate is green on day one.
+  - **Rule #1 — `verifyStrings`:** fail on inline user-facing string literals (`Text("…")`, `placeholder = "…"`, VM-emitted copy) outside `:libraries:resources`, with an allowlist for glyph-only / preview / server-supplied strings (per [`AGENTS.md` §strings](../AGENTS.md)).
+  - **Next rules (each a small follow-on, not this item):** `Catching {}` instead of `try/catch` / `runCatching`; `DispatcherProvider` instead of direct `Dispatchers.{Main,IO,Default,Unconfined}`; raw `Color(0xFF…)` / `Color.White.copy(alpha=)` / one-off `RoundedCornerShape(N.dp)` for semantic surfaces. All are mechanical AGENTS.md conventions a rule can pin.
+  **Acceptance:** adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
+  **Hints:** convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations (`PurchaseConfirmSheet.kt`, `AppGuardLayer.kt`, …) — separate cleanup once the gate exists.
 
 ### Abuse & security
 
