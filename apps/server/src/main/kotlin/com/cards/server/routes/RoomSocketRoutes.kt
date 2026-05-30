@@ -15,6 +15,7 @@ import com.dangerfield.cards.server.plugins.userId
 import com.dangerfield.cards.server.plugins.withSpan
 import io.ktor.server.auth.authenticate
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanContext
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.application
 import io.ktor.server.websocket.WebSocketServerSession
@@ -187,7 +188,7 @@ fun Route.roomSocketRoutes(
                 try {
                     gameSessions.observeSession(code)
                         .flatMapLatest { session ->
-                            if (session == null) emptyFlow<RoomSocketEventDto>()
+                            if (session == null) emptyFlow<OutboundGameFrame>()
                             else merge(
                                 session.state
                                     .filterNotNull()
@@ -195,19 +196,25 @@ fun Route.roomSocketRoutes(
                                         val viewerSeat = state.seats
                                             .firstOrNull { it.playerId == userIdString }
                                             ?.index ?: -1
-                                        RoomSocketEventDto.GameStateSnapshot(
-                                            state.scrubbedFor(viewerSeat),
+                                        OutboundGameFrame(
+                                            RoomSocketEventDto.GameStateSnapshot(
+                                                state.scrubbedFor(viewerSeat),
+                                            ),
+                                            link = null,
                                         )
                                     },
-                                session.events.map { event ->
-                                    RoomSocketEventDto.GameEventOccurred(
-                                        seq = event.sequence,
-                                        event = event,
+                                session.events.map { traced ->
+                                    OutboundGameFrame(
+                                        RoomSocketEventDto.GameEventOccurred(
+                                            seq = traced.event.sequence,
+                                            event = traced.event,
+                                        ),
+                                        link = traced.originSpanContext.takeIf { it.isValid },
                                     )
                                 },
                             )
                         }
-                        .collect { sendTraced(it, code, userIdString) }
+                        .collect { sendTraced(it.event, code, userIdString, link = it.link) }
                 } catch (_: CancellationException) {
                     // Expected on close.
                 } catch (e: Throwable) {
@@ -397,25 +404,43 @@ private suspend fun WebSocketServerSession.sendJson(event: RoomSocketEventDto) {
  * Fan-out here is implicit: there's no central broadcast loop, each
  * socket's own publisher collects the shared room / game flows, so the
  * natural granularity is one span per recipient per frame (`user.id` =
- * recipient). These are currently root spans — linking them back to the
- * `submit_intent` that triggered the state change would mean carrying the
- * OTel `Context` through `GameSession`'s domain `StateFlow`/`SharedFlow`,
- * a coupling deferred to a follow-up (see `docs/todo.md`).
+ * recipient).
+ *
+ * [link] ties the send back to the span that produced the frame. Game
+ * events carry the originating `state_mutate` / `start_hand` span context
+ * on their [TracedGameEvent] envelope, so a per-recipient `GameEventOccurred`
+ * fan-out links back to the `submit_intent` that triggered it instead of
+ * floating as a root span. Lobby snapshots and the conflated game-state
+ * `StateFlow` leg pass `null` (no link) — see `docs/todo.md` for the
+ * remaining state-snapshot leg.
  */
 private suspend fun WebSocketServerSession.sendTraced(
     event: RoomSocketEventDto,
     code: String,
     recipient: String,
+    link: SpanContext? = null,
 ) = withSpan(
     name = "ws_send",
     configure = {
         setAttribute(SpanAttrs.FrameType, event::class.simpleName ?: "Unknown")
         setAttribute(SpanAttrs.RoomCode, code)
         setAttribute(SpanAttrs.UserId, recipient)
+        if (link != null && link.isValid) addLink(link)
     },
 ) {
     sendJson(event)
 }
+
+/**
+ * Pairs an outbound [RoomSocketEventDto] with the optional span context
+ * to link its `ws_send` span to. Lets the game publisher merge the
+ * unlinked state-snapshot leg and the linked game-event leg into one
+ * collected flow without losing the per-frame link.
+ */
+private data class OutboundGameFrame(
+    val event: RoomSocketEventDto,
+    val link: SpanContext?,
+)
 
 /**
  * Returns the delta events that turn [previous] into [next]. Order:

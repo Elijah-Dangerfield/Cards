@@ -39,10 +39,12 @@ import kotlin.random.Random
  *    re-broadcast a personalized projection on every change. Null
  *    until the first `startHand` succeeds; remains last-known across
  *    `BettingRound.Complete` so post-hand summary UIs keep rendering.
- *  - [events] — `SharedFlow<GameEvent>` for animation triggers.
- *    Buffered (`replay = 16`, `extraBufferCapacity = 64`) so a
- *    subscriber that attaches a few ms after `startHand` still sees
- *    the opening `HandStarted` / `BlindPosted` / etc.
+ *  - [events] — `SharedFlow<TracedGameEvent>` for animation triggers,
+ *    each carrying the OTel span context active at emit time so the
+ *    socket fan-out can link back to the causing intent. Buffered
+ *    (`replay = 16`, `extraBufferCapacity = 64`) so a subscriber that
+ *    attaches a few ms after `startHand` still sees the opening
+ *    `HandStarted` / `BlindPosted` / etc.
  *
  * Idempotency: every public mutation accepts a `clientNonce`. A
  * 64-entry ring buffer per session dedupes retries — re-submitting the
@@ -81,11 +83,11 @@ class GameSession internal constructor(
     private val _state = MutableStateFlow<GameState?>(null)
     val state: StateFlow<GameState?> get() = _state.asStateFlow()
 
-    private val _events = MutableSharedFlow<GameEvent>(
+    private val _events = MutableSharedFlow<TracedGameEvent>(
         replay = 16,
         extraBufferCapacity = 64,
     )
-    val events: SharedFlow<GameEvent> get() = _events.asSharedFlow()
+    val events: SharedFlow<TracedGameEvent> get() = _events.asSharedFlow()
 
     // Cached so requestNextHand can re-seed without the caller re-supplying.
     private var settings: RoomSettings = RoomSettings.Default
@@ -210,7 +212,8 @@ class GameSession internal constructor(
                 ) {
                     _state.value = resolved.result.state
                     onStateChange(resolved.result.state)
-                    resolved.result.events.forEach { _events.tryEmit(it) }
+                    val origin = Span.current().spanContext
+                    resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
                     recordNonce(clientNonce)
                 }
                 return@withLock IntentResult.Accepted
@@ -353,7 +356,8 @@ class GameSession internal constructor(
         )
         _state.value = result.state
         onStateChange(result.state)
-        result.events.forEach { _events.tryEmit(it) }
+        val origin = Span.current().spanContext
+        result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
         return IntentResult.Accepted
     }
 

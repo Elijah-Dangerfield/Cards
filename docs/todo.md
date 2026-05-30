@@ -130,8 +130,8 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 
 ### Observability
 
-- `[P1]` **Link the `ws_send` fan-out spans back to their `submit_intent`.** Per-recipient `ws_send` spans now wrap the publisher fan-out, but they're root spans — a state broadcast isn't tied to the intent that caused it. Carry the originating OTel `Context` from `applyIntent` (under the `submit_intent` span) through `GameSession`'s `StateFlow<GameState?>` / `SharedFlow<GameEvent>` to the publisher so the sends parent/link correctly. **Design call:** either give the session flows `(value, Context)` envelopes (vs. polluting the domain `GameState`) or use OTel span *links* for the async fan-out; `StateFlow` conflation makes exact parent attribution approximate, so the un-conflated `SharedFlow<GameEvent>` is the cleaner first target.
-  **Hints:** `sendTraced` + the two publishers in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `GameSession.state` / `events`; `withSpan` in `plugins/Tracing.kt`.
+- `[P1]` **Link the game-state-snapshot `ws_send` spans back to their `submit_intent`.** The `GameEventOccurred` fan-out now links to the emitting span via the `TracedGameEvent` envelope, but the `GameStateSnapshot` leg (the conflated `StateFlow<GameState?>`) still fans out as root spans. Carry the originating span context for state emissions too — the catch is `StateFlow` conflation collapses rapid updates, so per-value attribution is only approximate. **Design call:** wrap state in a `StateFlow<TracedState?>` envelope (mirrors `TracedGameEvent`) accepting approximate attribution, or decide snapshot sends stay intentionally unlinked and document why.
+  **Hints:** `OutboundGameFrame` / `sendTraced(link = …)` in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `GameSession.state`; `TracedGameEvent` is the shipped events-leg precedent.
 
 ### Lint / static analysis
 
