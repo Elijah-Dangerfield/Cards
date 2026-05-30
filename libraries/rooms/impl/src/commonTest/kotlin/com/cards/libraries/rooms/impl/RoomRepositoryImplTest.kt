@@ -1,11 +1,14 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
 import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
+import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.RoomConnection
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -16,7 +19,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -179,10 +182,14 @@ class RoomRepositoryImplTest {
             expectSuccess = true
         }
         val api = HttpRoomApi(FakeNetworkClient(client))
-        // The socket flow isn't exercised here — empty flow keeps the
-        // repo's observeRoom delegation off the critical path.
+        // The socket isn't exercised here — an empty handle keeps the
+        // repo's connect delegation off the critical path.
         val socket = object : RoomSocket {
-            override fun observe(code: String): Flow<RoomConnection> = emptyFlow()
+            override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {
+                override val connection: Flow<RoomConnection> = flow { }
+                override val gameplayFrames: Flow<GameplayFrame> = flow { }
+                override suspend fun send(frame: ClientFrame) = Unit
+            }
         }
         return RoomRepositoryImpl(api, socket)
     }

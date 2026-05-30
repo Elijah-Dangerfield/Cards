@@ -217,7 +217,7 @@ class LobbyViewModel(
             // user who created a room before the anonymous bootstrap
             // settled). Once we have one, observe the socket.
             auth.observe().filterIsInstance<AuthState.Authenticated>().first()
-            rooms.observeRoom(room.code).collect { connection ->
+            rooms.connect(room.code).connection.collect { connection ->
                 takeAction(LobbyAction.ConnectionUpdated(connection))
             }
         }

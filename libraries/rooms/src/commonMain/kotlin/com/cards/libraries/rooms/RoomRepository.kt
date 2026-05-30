@@ -1,7 +1,5 @@
 package com.dangerfield.cards.libraries.rooms
 
-import kotlinx.coroutines.flow.Flow
-
 /**
  * Single client surface for the multiplayer room lifecycle.
  * Wraps the HTTP routes (create / join / leave) and the per-room
@@ -9,17 +7,23 @@ import kotlinx.coroutines.flow.Flow
  *
  *  - [createRoom] / [joinRoom] / [leaveRoom] are one-shot HTTP calls
  *    that return a sealed outcome.
- *  - [observeRoom] opens (and reconnects) a WebSocket and emits
- *    [RoomConnection] state transitions: Connecting → Connected(room)
- *    → Reconnecting → Connected(room) → ... The flow never throws;
- *    transport failures surface as [RoomConnection.Reconnecting].
+ *  - [connect] opens (and reconnects) a WebSocket and returns a
+ *    [RoomConnectionHandle] that splits the stream into a lobby-shaped
+ *    `connection` flow, a gameplay `gameplayFrames` flow, and an
+ *    outbound `send` channel. Transport failures surface as
+ *    [RoomConnection.Reconnecting] on the connection flow; neither
+ *    flow ever throws.
  *
- * Lifecycle: observeRoom holds the connection for the duration of the
- * collection. Cancelling the collector closes the socket.
+ * Lifecycle: handles for the same room code share one underlying WS.
+ * The socket opens when either flow is first collected and closes
+ * (after a small linger) when no flow has any active collector — so
+ * the lobby + gameplay screen can each hold their own handle without
+ * spinning up duplicate connections, and navigating between them
+ * never tears the socket down.
  *
- * Membership: observeRoom assumes the user is already a member of the
+ * Membership: [connect] assumes the user is already a member of the
  * room. Call [joinRoom] first; the LobbyScreen does this in sequence
- * (join → observe).
+ * (join → connect).
  */
 interface RoomRepository {
 
@@ -38,11 +42,11 @@ interface RoomRepository {
     suspend fun getActiveRooms(): GetActiveRoomsOutcome
 
     /**
-     * Live connection to a room's WebSocket. Auto-reconnects on
+     * Open a live handle to the room's WebSocket. Auto-reconnects on
      * transport failures with exponential backoff (capped at ~16s).
-     * Cancel the collector to close the socket.
+     * Cancel every collector on the returned handle to close the socket.
      */
-    fun observeRoom(code: String): Flow<RoomConnection>
+    fun connect(code: String): RoomConnectionHandle
 }
 
 sealed interface CreateRoomOutcome {

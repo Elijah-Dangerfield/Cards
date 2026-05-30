@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.rooms.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.flowroutines.DefaultDispatcherProvider
 import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.RoomConnection
@@ -47,7 +49,7 @@ class ReconnectingRoomSocketTest {
     fun handshakeFailure_emitsConnecting_thenReconnecting() = runTest {
         val socket = newSocket(MockEngine { respond(content = "", status = HttpStatusCode.InternalServerError) })
 
-        socket.observe("ABC123").test {
+        socket.connect("ABC123").connection.test {
             assertEquals(RoomConnection.Connecting, awaitItem())
             val reconnecting = assertIs<RoomConnection.Reconnecting>(awaitItem())
             assertEquals(1, reconnecting.attempt, "first failure surfaces as attempt 1")
@@ -59,7 +61,7 @@ class ReconnectingRoomSocketTest {
     fun transportException_alsoSurfacesReconnecting() = runTest {
         val socket = newSocket(MockEngine { throw SimulatedNetworkError("connection refused") })
 
-        socket.observe("ABC123").test {
+        socket.connect("ABC123").connection.test {
             assertEquals(RoomConnection.Connecting, awaitItem())
             val reconnecting = assertIs<RoomConnection.Reconnecting>(awaitItem())
             assertTrue(reconnecting.cause is SimulatedNetworkError)
@@ -87,13 +89,17 @@ class ReconnectingRoomSocketTest {
         val socket = ReconnectingRoomSocket(
             networkClient = FakeNetworkClient(client),
             networkConfig = FakeNetworkConfig(),
+            appScope = AppCoroutineScope(DefaultDispatcherProvider()),
         )
 
-        socket.observe("ABC123").test {
+        socket.connect("ABC123").connection.test {
             assertEquals(RoomConnection.Connecting, awaitItem())
             val closed = assertIs<RoomConnection.Closed>(awaitItem())
             assertEquals(ClosedReason.Rejected, closed.reason)
-            awaitComplete()
+            // The connection flow is a SharedFlow so it never completes
+            // — the consumer stops collecting on Closed instead. Stop
+            // here to mirror that contract.
+            cancelAndIgnoreRemainingEvents()
         }
     }
 
@@ -101,7 +107,7 @@ class ReconnectingRoomSocketTest {
     fun cancellation_propagates_andStopsLoop() = runTest {
         val socket = newSocket(MockEngine { throw SimulatedNetworkError("nope") })
 
-        socket.observe("ABC123").test {
+        socket.connect("ABC123").connection.test {
             assertEquals(RoomConnection.Connecting, awaitItem())
             // Receive one reconnect, then cancel. The test would hang
             // if the loop kept emitting after cancellation.
@@ -129,9 +135,10 @@ class ReconnectingRoomSocketTest {
         val socket = ReconnectingRoomSocket(
             networkClient = FakeNetworkClient(client),
             networkConfig = FakeNetworkConfig(baseUrl = "https://example.com"),
+            appScope = AppCoroutineScope(DefaultDispatcherProvider()),
         )
 
-        socket.observe("ABC123").test {
+        socket.connect("ABC123").connection.test {
             assertEquals(RoomConnection.Connecting, awaitItem())
             assertIs<RoomConnection.Reconnecting>(awaitItem())
             cancelAndIgnoreRemainingEvents()
@@ -165,9 +172,10 @@ class ReconnectingRoomSocketTest {
         val socket = ReconnectingRoomSocket(
             networkClient = FakeNetworkClient(client),
             networkConfig = FakeNetworkConfig(baseUrl = "http://localhost:8080"),
+            appScope = AppCoroutineScope(DefaultDispatcherProvider()),
         )
 
-        socket.observe("ABC123").test {
+        socket.connect("ABC123").connection.test {
             assertEquals(RoomConnection.Connecting, awaitItem())
             assertIs<RoomConnection.Reconnecting>(awaitItem())
             cancelAndIgnoreRemainingEvents()
@@ -188,6 +196,7 @@ class ReconnectingRoomSocketTest {
         return ReconnectingRoomSocket(
             networkClient = FakeNetworkClient(client),
             networkConfig = FakeNetworkConfig(),
+            appScope = AppCoroutineScope(DefaultDispatcherProvider()),
         )
     }
 

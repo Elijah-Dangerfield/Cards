@@ -4,14 +4,13 @@ import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
-import com.dangerfield.cards.libraries.rooms.RoomConnection
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.ServerResponseException
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.flow.Flow
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -107,7 +106,7 @@ class RoomRepositoryImpl(
         GetActiveRoomsOutcome.NetworkError(e)
     }
 
-    override fun observeRoom(code: String): Flow<RoomConnection> = socket.observe(code)
+    override fun connect(code: String): RoomConnectionHandle = socket.connect(code)
 
     private suspend fun extractMessage(e: ClientRequestException): String? = try {
         e.response.body<ProblemEnvelopeDto>().error.message
