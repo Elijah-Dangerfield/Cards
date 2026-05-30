@@ -174,10 +174,12 @@ private class ConfiguredTelemetry(
     }
 }
 
-private const val ANDROID_DEBUG_DSN_PLACEHOLDER = "https://527ff39be0de65d7d96cfc0976f34393@o4510490770079744.ingest.us.sentry.io/4510494550589440"
-private const val ANDROID_RELEASE_DSN_PLACEHOLDER = "https://0bc66272a354ec2a2c550ef435782ee4@o4510490770079744.ingest.us.sentry.io/4510494555832320"
-private const val IOS_DEBUG_DSN_PLACEHOLDER = "https://59d54ea15ef9826ecfe6e50835e1fa35@o4510490770079744.ingest.us.sentry.io/4510494554259456"
-private const val IOS_RELEASE_DSN_PLACEHOLDER = "https://af45ba8caf0a26ae529f08ba375df917@o4510490770079744.ingest.us.sentry.io/4510494557798400"
+// All platforms / build types report to the single `cards` Sentry project.
+// The `environment` tag (releaseChannel-platform-buildType) and the
+// `platform` extra separate debug vs release and iOS vs Android within it,
+// so one DSN is enough. If debug noise floods the project, gate the debug
+// branch off in [SentryRuntimeConfig.forApp] rather than minting new DSNs.
+private const val CARDS_SENTRY_DSN = "https://2010decd1b11057a4038b99bcd75878b@o327796.ingest.us.sentry.io/4511478399565824"
 
 data class SentryRuntimeConfig(
     val dsn: String,
@@ -207,10 +209,7 @@ data class SentryRuntimeConfig(
                 Platform.iOS -> "ios"
             }
             val buildTypeTag = buildInfo.buildType
-            val dsn = when (buildInfo.platform) {
-                Platform.Android -> if (buildInfo.isDebug) ANDROID_DEBUG_DSN_PLACEHOLDER else ANDROID_RELEASE_DSN_PLACEHOLDER
-                Platform.iOS -> if (buildInfo.isDebug) IOS_DEBUG_DSN_PLACEHOLDER else IOS_RELEASE_DSN_PLACEHOLDER
-            }
+            val dsn = CARDS_SENTRY_DSN
             val environment = "${buildInfo.releaseChannel}-$platformTag-$buildTypeTag"
             val release = "cardse@${buildInfo.versionName}+${buildInfo.buildNumber}"
             val tracesSampleRate = if (buildInfo.isDebug) 1.0 else 0.15
