@@ -24,16 +24,16 @@ fun Switch(
         enabled = enabled,
         interactionSource = interactionSource,
         colors = SwitchDefaults.colors(
-            uncheckedThumbColor = AppTheme.colors.onSurfacePrimary.color,
-            uncheckedTrackColor = AppTheme.colors.surfacePrimary.color,
-            uncheckedBorderColor = AppTheme.colors.onSurfacePrimary.color,
+            uncheckedThumbColor = AppTheme.colors.content.color,
+            uncheckedTrackColor = AppTheme.colors.surfaceHigh.color,   // was surfacePrimary — too dark on a card
+            uncheckedBorderColor = AppTheme.colors.surfaceHigh.color,  // drop the bright white ring
             checkedThumbColor = AppTheme.colors.onAccentPrimary.color,
             checkedTrackColor = AppTheme.colors.accentPrimary.color,
             checkedBorderColor = AppTheme.colors.accentPrimary.color,
-            disabledCheckedBorderColor = AppTheme.colors.onSurfaceDisabled.color,
-            disabledUncheckedBorderColor = AppTheme.colors.onSurfaceDisabled.color,
-            disabledCheckedThumbColor = AppTheme.colors.onSurfaceDisabled.color,
-            disabledUncheckedThumbColor = AppTheme.colors.onSurfaceDisabled.color,
+            disabledCheckedBorderColor = AppTheme.colors.contentDisabled.color,
+            disabledUncheckedBorderColor = AppTheme.colors.contentDisabled.color,
+            disabledCheckedThumbColor = AppTheme.colors.contentDisabled.color,
+            disabledUncheckedThumbColor = AppTheme.colors.contentDisabled.color,
             disabledCheckedTrackColor = AppTheme.colors.surfaceDisabled.color,
             disabledUncheckedTrackColor = AppTheme.colors.surfaceDisabled.color
         )

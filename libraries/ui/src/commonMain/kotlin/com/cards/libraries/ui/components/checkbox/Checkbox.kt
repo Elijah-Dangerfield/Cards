@@ -77,7 +77,7 @@ object CheckboxDefaults {
         checkedCheckmarkColor = AppTheme.colors.onAccentPrimary.color,
         uncheckedCheckmarkColor = Color.Transparent,
         checkedBoxColor = AppTheme.colors.accentPrimary.color,
-        uncheckedBoxColor = AppTheme.colors.surfaceSecondary.color,
+        uncheckedBoxColor = AppTheme.colors.surfaceRaised.color,
         disabledCheckedBoxColor = AppTheme.colors.surfaceDisabled.color,
         disabledUncheckedBoxColor = AppTheme.colors.surfaceDisabled.color,
         disabledIndeterminateBoxColor = AppTheme.colors.surfaceDisabled.color,

@@ -87,7 +87,7 @@ fun OutlinedTextField(
                             typography = typographyToken.copy(
                                 fontWeight = FontWeight.ExtraLight
                             ),
-                            color = AppTheme.colors.textDisabled,
+                            color = AppTheme.colors.contentTertiary,   // placeholder ≠ disabled
                             textDecoration = TextDecoration.Underline,
                             textAlign = TextAlign.Start,
                             maxLines = 1,
@@ -124,11 +124,13 @@ private val outlineTextFieldPadding
 private val outlinedTextFieldColors
     @Composable
     get() = OutlinedTextFieldDefaults.colors(
-        focusedContainerColor = AppTheme.colors.background.color,
-        unfocusedContainerColor = AppTheme.colors.background.color,
-        disabledContainerColor = AppTheme.colors.background.color,
-        focusedBorderColor = AppTheme.colors.border.color,
+        // a field is a thing *on* a surface — raise the fill off the canvas
+        focusedContainerColor = AppTheme.colors.surfaceRaised.color,
+        unfocusedContainerColor = AppTheme.colors.surfaceRaised.color,
+        disabledContainerColor = AppTheme.colors.surfaceRaised.color,
+        focusedBorderColor = AppTheme.colors.accentPrimary.color, // focus now has an affordance
         unfocusedBorderColor = AppTheme.colors.border.color,
+        errorBorderColor = AppTheme.colors.danger.color,
         disabledBorderColor = AppTheme.colors.borderDisabled.color,
     )
 

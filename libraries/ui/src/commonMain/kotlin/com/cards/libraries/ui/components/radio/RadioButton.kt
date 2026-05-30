@@ -86,10 +86,10 @@ private fun PreviewButtonSelectedDisabled() {
 object RadioButtonDefaults {
     @Composable
     fun colors(
-        selectedColor: Color = AppTheme.colors.onBackground.color,
-        unselectedColor: Color = AppTheme.colors.onBackground.color,
-        disabledSelectedColor: Color = AppTheme.colors.textDisabled.color,
-        disabledUnselectedColor: Color = AppTheme.colors.textDisabled.color
+        selectedColor: Color = AppTheme.colors.accentPrimary.color,    // was onBackground — THE change
+        unselectedColor: Color = AppTheme.colors.borderStrong.color,   // was onBackground — too loud for a rest ring
+        disabledSelectedColor: Color = AppTheme.colors.contentDisabled.color,
+        disabledUnselectedColor: Color = AppTheme.colors.contentDisabled.color
     ): com.dangerfield.cards.libraries.ui.components.radio.RadioButtonColors =
         com.dangerfield.cards.libraries.ui.components.radio.RadioButtonColors(
             selectedColor,
