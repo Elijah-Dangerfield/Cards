@@ -26,6 +26,11 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
+        commonTest.dependencies {
+            implementation(projects.libraries.core)
+            implementation(projects.libraries.flowroutines)
+            implementation(projects.libraries.flowroutines.testing)
+        }
     }
 }
 

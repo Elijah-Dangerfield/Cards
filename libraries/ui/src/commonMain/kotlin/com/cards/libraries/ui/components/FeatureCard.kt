@@ -88,10 +88,3 @@ fun FeatureCard(
         )
     }
 }
-
-object FeatureCardAccents {
-    val Green = Color(0xFF2D5F4A)
-    val Blue = Color(0xFF2D4A6F)
-    val Magenta = Color(0xFF6F2D4A)
-    val Gold = Color(0xFF6F5F2D)
-}
