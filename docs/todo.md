@@ -130,8 +130,8 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
 
 ### Observability
 
-- `[P1]` **OTel spans on the server — `broadcast` + per-recipient `ws-send`.** The SubmitIntent / start-hand / next-hand paths are traced; the publisher → `sendJson` fan-out isn't. Propagate the `submit_intent` context through the publisher's `StateFlow → flatMapLatest → merge → map` chain (`asContextElement`, or a `Flow` carrying the `Context` per emission).
-  **Hints:** the publisher loop in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `withSpan` in `plugins/Tracing.kt`.
+- `[P1]` **Link the `ws_send` fan-out spans back to their `submit_intent`.** Per-recipient `ws_send` spans now wrap the publisher fan-out, but they're root spans — a state broadcast isn't tied to the intent that caused it. Carry the originating OTel `Context` from `applyIntent` (under the `submit_intent` span) through `GameSession`'s `StateFlow<GameState?>` / `SharedFlow<GameEvent>` to the publisher so the sends parent/link correctly. **Design call:** either give the session flows `(value, Context)` envelopes (vs. polluting the domain `GameState`) or use OTel span *links* for the async fan-out; `StateFlow` conflation makes exact parent attribution approximate, so the un-conflated `SharedFlow<GameEvent>` is the cleaner first target.
+  **Hints:** `sendTraced` + the two publishers in [`RoomSocketRoutes.kt`](../apps/server/src/main/kotlin/com/cards/server/routes/RoomSocketRoutes.kt); `GameSession.state` / `events`; `withSpan` in `plugins/Tracing.kt`.
 
 ### Lint / static analysis
 

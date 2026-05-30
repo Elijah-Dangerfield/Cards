@@ -134,6 +134,10 @@ fun Route.roomSocketRoutes(
                         .warn("Snapshot hydrate failed for room=$code user=$userId", it)
                 }
 
+            // This socket's recipient id — stamped on every outbound
+            // ws_send span so the fan-out is queryable per recipient.
+            val userIdString = userId.value.toString()
+
             // The room-flow collector runs in a child coroutine so we
             // can independently watch [incoming] for the close signal.
             // Without this split, the collector blocks indefinitely on
@@ -154,13 +158,13 @@ fun Route.roomSocketRoutes(
                             if (pair == null) return@collect
                             val (previous, next) = pair
                             if (previous == null) {
-                                sendJson(RoomSocketEventDto.Snapshot(next.toDto()))
+                                sendTraced(RoomSocketEventDto.Snapshot(next.toDto()), code, userIdString)
                             } else {
                                 // Order: Snapshot first (always-correct
                                 // state) then any deltas the client can
                                 // use for toasts / animations.
-                                sendJson(RoomSocketEventDto.Snapshot(next.toDto()))
-                                diffDeltas(previous, next).forEach { sendJson(it) }
+                                sendTraced(RoomSocketEventDto.Snapshot(next.toDto()), code, userIdString)
+                                diffDeltas(previous, next).forEach { sendTraced(it, code, userIdString) }
                             }
                         }
                 } catch (_: CancellationException) {
@@ -179,7 +183,6 @@ fun Route.roomSocketRoutes(
             // seat from the live state by playerId match — robust if
             // the seat index ever shifts (V1 it doesn't, but cheap to
             // be correct).
-            val userIdString = userId.value.toString()
             val gamePublisher = launch {
                 try {
                     gameSessions.observeSession(code)
@@ -204,7 +207,7 @@ fun Route.roomSocketRoutes(
                                 },
                             )
                         }
-                        .collect { sendJson(it) }
+                        .collect { sendTraced(it, code, userIdString) }
                 } catch (_: CancellationException) {
                     // Expected on close.
                 } catch (e: Throwable) {
@@ -384,6 +387,34 @@ private val JSON = Json {
 
 private suspend fun WebSocketServerSession.sendJson(event: RoomSocketEventDto) {
     send(Frame.Text(JSON.encodeToString(RoomSocketEventDto.serializer(), event)))
+}
+
+/**
+ * [sendJson] wrapped in a `ws_send` span so the publisher fan-out — until
+ * now the one untraced leg of the gameplay path — shows up in traces with
+ * its own latency + error record per recipient.
+ *
+ * Fan-out here is implicit: there's no central broadcast loop, each
+ * socket's own publisher collects the shared room / game flows, so the
+ * natural granularity is one span per recipient per frame (`user.id` =
+ * recipient). These are currently root spans — linking them back to the
+ * `submit_intent` that triggered the state change would mean carrying the
+ * OTel `Context` through `GameSession`'s domain `StateFlow`/`SharedFlow`,
+ * a coupling deferred to a follow-up (see `docs/todo.md`).
+ */
+private suspend fun WebSocketServerSession.sendTraced(
+    event: RoomSocketEventDto,
+    code: String,
+    recipient: String,
+) = withSpan(
+    name = "ws_send",
+    configure = {
+        setAttribute(SpanAttrs.FrameType, event::class.simpleName ?: "Unknown")
+        setAttribute(SpanAttrs.RoomCode, code)
+        setAttribute(SpanAttrs.UserId, recipient)
+    },
+) {
+    sendJson(event)
 }
 
 /**
