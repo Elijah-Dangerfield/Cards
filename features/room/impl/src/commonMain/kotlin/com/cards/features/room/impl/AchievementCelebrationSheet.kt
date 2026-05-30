@@ -41,6 +41,7 @@ import com.dangerfield.cards.libraries.cards.cosmeticRewardFor
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
+import com.dangerfield.cards.libraries.ui.components.achievement.toCelebrationTint
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -142,7 +143,7 @@ internal fun AchievementCelebrationSheet(
 private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: Boolean) {
     val achievement = earned.achievement
     val cosmetic = remember(achievement.id) { cosmeticRewardFor(achievement.id) }
-    val accent = remember(achievement.rarity) { rarityAccent(achievement.rarity) }
+    val accent = remember(achievement.rarity) { achievement.rarity.toCelebrationTint() }
 
     // Stagger the card chrome's entrance so multi-unlock celebrations cascade
     // rather than popping in all at once. Each card waits 90ms longer than
@@ -301,13 +302,6 @@ private fun MysteryRevealTrigger(onTap: () -> Unit) {
 }
 
 private val REVEAL_SIZE = 140.dp
-
-private fun rarityAccent(rarity: AchievementRarity): androidx.compose.ui.graphics.Color = when (rarity) {
-    AchievementRarity.COMMON -> PokerPalette.ChipGold.copy(alpha = 0.12f)
-    AchievementRarity.RARE -> PokerPalette.ChipGold.copy(alpha = 0.18f)
-    AchievementRarity.EPIC -> PokerPalette.ChipGold.copy(alpha = 0.24f)
-    AchievementRarity.LEGENDARY -> PokerPalette.ChipGold.copy(alpha = 0.30f)
-}
 
 @Preview
 @Composable
