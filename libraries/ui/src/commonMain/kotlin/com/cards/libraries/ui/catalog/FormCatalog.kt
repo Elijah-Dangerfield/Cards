@@ -17,56 +17,69 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/**
- * Form controls in every state. Focus now reads as gold, selected radios/switches/checkboxes use
- * the accent, and disabled is the only other interaction state (this is a touch app).
- */
+private const val FORM_SUBTITLE =
+    "Text field, switch, checkbox, radio. Focus reads as gold; selected = accentPrimary; disabled is " +
+        "the muted ramp. Disabled is the only non-default interaction state (touch app)."
+
+/** The forms page body. Reused by [DesignSystemPreview]. */
+@Composable
+internal fun FormCatalogBody() {
+    CatalogSection(
+        "Text field",
+        "Single- or multi-line input. States: rest, placeholder (empty), error (danger edge), disabled.",
+    ) {
+        Column(
+            modifier = Modifier.width(420.dp),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
+        ) {
+            OutlinedTextField(value = "Phil Ivey", onValueChange = {})
+            OutlinedTextField(value = "", onValueChange = {}, placeholder = { Text("Display name") })
+            OutlinedTextField(value = "not-an-email", onValueChange = {}, isError = true)
+            OutlinedTextField(value = "Read only", onValueChange = {}, enabled = false)
+        }
+    }
+
+    CatalogSection(
+        "Switch",
+        "Immediate on/off setting (no save step). On = accentPrimary track.",
+    ) {
+        ControlRow {
+            Labeled("On") { Switch(checked = true, onCheckedChange = {}) }
+            Labeled("Off") { Switch(checked = false, onCheckedChange = {}) }
+            Labeled("On · disabled") { Switch(checked = true, onCheckedChange = {}, enabled = false) }
+            Labeled("Off · disabled") { Switch(checked = false, onCheckedChange = {}, enabled = false) }
+        }
+    }
+
+    CatalogSection(
+        "Checkbox",
+        "Multi-select, or a single opt-in (terms, \"don't show again\"). Checked fill = accentPrimary.",
+    ) {
+        ControlRow {
+            Labeled("Checked") { Checkbox(checked = true, onCheckedChange = {}) }
+            Labeled("Unchecked") { Checkbox(checked = false, onCheckedChange = {}) }
+            Labeled("Checked · disabled") { Checkbox(checked = true, onCheckedChange = {}, enabled = false) }
+            Labeled("Unchecked · disabled") { Checkbox(checked = false, onCheckedChange = {}, enabled = false) }
+        }
+    }
+
+    CatalogSection(
+        "Radio",
+        "Pick exactly one from a small set. Selected ring = accentPrimary; unselected = borderStrong.",
+    ) {
+        ControlRow {
+            Labeled("Selected") { RadioButton(selected = true, onClick = {}) }
+            Labeled("Unselected") { RadioButton(selected = false, onClick = {}) }
+            Labeled("Selected · disabled") { RadioButton(selected = true, onClick = {}, enabled = false) }
+            Labeled("Unselected · disabled") { RadioButton(selected = false, onClick = {}, enabled = false) }
+        }
+    }
+}
+
 @Preview(widthDp = 1000, heightDp = 1100)
 @Composable
 private fun FormCatalog() {
-    CatalogPage(
-        title = "Forms",
-        subtitle = "Text field, switch, checkbox, radio. Selected = accentPrimary; disabled = the muted ramp.",
-    ) {
-        CatalogSection("Text field") {
-            Column(
-                modifier = Modifier.width(420.dp),
-                verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-            ) {
-                OutlinedTextField(value = "Phil Ivey", onValueChange = {})
-                OutlinedTextField(value = "", onValueChange = {}, placeholder = { Text("Display name") })
-                OutlinedTextField(value = "not-an-email", onValueChange = {}, isError = true)
-                OutlinedTextField(value = "Read only", onValueChange = {}, enabled = false)
-            }
-        }
-
-        CatalogSection("Switch") {
-            ControlRow {
-                Labeled("On") { Switch(checked = true, onCheckedChange = {}) }
-                Labeled("Off") { Switch(checked = false, onCheckedChange = {}) }
-                Labeled("On · disabled") { Switch(checked = true, onCheckedChange = {}, enabled = false) }
-                Labeled("Off · disabled") { Switch(checked = false, onCheckedChange = {}, enabled = false) }
-            }
-        }
-
-        CatalogSection("Checkbox") {
-            ControlRow {
-                Labeled("Checked") { Checkbox(checked = true, onCheckedChange = {}) }
-                Labeled("Unchecked") { Checkbox(checked = false, onCheckedChange = {}) }
-                Labeled("Checked · disabled") { Checkbox(checked = true, onCheckedChange = {}, enabled = false) }
-                Labeled("Unchecked · disabled") { Checkbox(checked = false, onCheckedChange = {}, enabled = false) }
-            }
-        }
-
-        CatalogSection("Radio") {
-            ControlRow {
-                Labeled("Selected") { RadioButton(selected = true, onClick = {}) }
-                Labeled("Unselected") { RadioButton(selected = false, onClick = {}) }
-                Labeled("Selected · disabled") { RadioButton(selected = true, onClick = {}, enabled = false) }
-                Labeled("Unselected · disabled") { RadioButton(selected = false, onClick = {}, enabled = false) }
-            }
-        }
-    }
+    CatalogPage(title = "Forms", subtitle = FORM_SUBTITLE) { FormCatalogBody() }
 }
 
 @Composable

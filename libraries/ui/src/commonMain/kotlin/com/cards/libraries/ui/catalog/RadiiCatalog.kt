@@ -16,43 +16,50 @@ import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.Radius
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/**
- * Corner radii — the semantic getters components actually use, and the raw R-scale beneath them.
- * Buttons are a springy 16dp rect (was a full pill), cards 18dp, banners 14dp.
- */
+private const val RADII_SUBTITLE =
+    "Reach for the semantic getter (Button / Card / Banner / Callout) — never a raw R-value at a " +
+        "call site. The R-scale is the underlying ramp the semantics point at."
+
+/** The radii page body. Reused by [DesignSystemPreview]. */
+@Composable
+internal fun RadiiCatalogBody() {
+    CatalogSection(
+        "Semantic",
+        "What components actually use. Buttons are a springy 16dp rect (was a full pill); cards 18dp; banners 14dp.",
+    ) {
+        SwatchFlow {
+            RadiusTile("Button", Radii.Button)
+            RadiusTile("Card", Radii.Card)
+            RadiusTile("Banner", Radii.Banner)
+            RadiusTile("Callout", Radii.Callout)
+            RadiusTile("IconButton", Radii.IconButton)
+            RadiusTile("Round", Radii.Round)
+            RadiusTile("None", Radii.None)
+        }
+    }
+    CatalogSection(
+        "Scale",
+        "The raw ramp. Don't reach for these directly — add or repoint a semantic getter instead.",
+    ) {
+        SwatchFlow {
+            RadiusTile("R300", Radii.R300)
+            RadiusTile("R400", Radii.R400)
+            RadiusTile("R500", Radii.R500)
+            RadiusTile("R600", Radii.R600)
+            RadiusTile("R700", Radii.R700)
+            RadiusTile("R750", Radii.R750)
+            RadiusTile("R800", Radii.R800)
+            RadiusTile("R850", Radii.R850)
+            RadiusTile("R900", Radii.R900)
+            RadiusTile("R1000", Radii.R1000)
+        }
+    }
+}
+
 @Preview(widthDp = 1100, heightDp = 1000)
 @Composable
 private fun RadiiCatalog() {
-    CatalogPage(
-        title = "Radii",
-        subtitle = "Reach for the semantic getter (Button / Card / Banner / Callout) — the R-scale is the raw ramp behind them.",
-    ) {
-        CatalogSection("Semantic") {
-            SwatchFlow {
-                RadiusTile("Button", Radii.Button)
-                RadiusTile("Card", Radii.Card)
-                RadiusTile("Banner", Radii.Banner)
-                RadiusTile("Callout", Radii.Callout)
-                RadiusTile("IconButton", Radii.IconButton)
-                RadiusTile("Round", Radii.Round)
-                RadiusTile("None", Radii.None)
-            }
-        }
-        CatalogSection("Scale") {
-            SwatchFlow {
-                RadiusTile("R300", Radii.R300)
-                RadiusTile("R400", Radii.R400)
-                RadiusTile("R500", Radii.R500)
-                RadiusTile("R600", Radii.R600)
-                RadiusTile("R700", Radii.R700)
-                RadiusTile("R750", Radii.R750)
-                RadiusTile("R800", Radii.R800)
-                RadiusTile("R850", Radii.R850)
-                RadiusTile("R900", Radii.R900)
-                RadiusTile("R1000", Radii.R1000)
-            }
-        }
-    }
+    CatalogPage(title = "Radii", subtitle = RADII_SUBTITLE) { RadiiCatalogBody() }
 }
 
 @Composable
