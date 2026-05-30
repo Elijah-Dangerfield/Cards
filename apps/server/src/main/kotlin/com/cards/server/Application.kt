@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.di.ServerComponent
 import com.dangerfield.cards.server.di.create
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installCors
+import com.dangerfield.cards.server.plugins.installHttpServerTracing
 import com.dangerfield.cards.server.plugins.installObservability
 import com.dangerfield.cards.server.plugins.installOpenTelemetry
 import com.dangerfield.cards.server.plugins.installRateLimits
@@ -49,7 +50,11 @@ fun Application.module(config: ServerConfig) {
     // OpenTelemetry next so spans (and, once the appender bridge lands,
     // logs) emitted by any subsequent plugin land in the configured
     // exporter. Falls back to stdout when no OTLP endpoint is set.
-    installOpenTelemetry(config.observability)
+    val openTelemetry = installOpenTelemetry(config.observability)
+
+    // HTTP-server auto-instrumentation: one span per request, so ordinary
+    // traffic produces traces (not just the manual gameplay spans).
+    installHttpServerTracing(openTelemetry)
 
     installSerialization()
     installCors()

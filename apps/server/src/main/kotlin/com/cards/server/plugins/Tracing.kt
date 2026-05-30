@@ -1,13 +1,34 @@
 package com.dangerfield.cards.server.plugins
 
+import io.ktor.server.application.Application
+import io.ktor.server.application.install
 import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.extension.kotlin.asContextElement
+import io.opentelemetry.instrumentation.ktor.v3_0.KtorServerTelemetry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+
+/**
+ * Installs automatic HTTP-server tracing: the OpenTelemetry Ktor plugin
+ * opens a span for every inbound request and closes it on response, so
+ * ordinary traffic (`/v1/me`, auth, wallet, …) produces traces without
+ * any manual [withSpan] calls. The gameplay `withSpan` chain still nests
+ * under the per-request span when it runs inside a request scope.
+ *
+ * Pass the live SDK returned by [installOpenTelemetry] rather than reading
+ * [GlobalOpenTelemetry], so the plugin is wired to the same instance even
+ * if the global slot was locked to noop before our `set()` ran.
+ */
+fun Application.installHttpServerTracing(openTelemetry: OpenTelemetry) {
+    install(KtorServerTelemetry) {
+        setOpenTelemetry(openTelemetry)
+    }
+}
 
 /**
  * Single tracer name for the whole server. The OTel convention is one

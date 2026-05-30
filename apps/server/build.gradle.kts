@@ -54,6 +54,9 @@ dependencies {
     implementation(libs.opentelemetry.exporter.logging)
     implementation(libs.opentelemetry.exporter.logging.otlp)
     implementation(libs.opentelemetry.logback.appender)
+    // Auto-instruments the Ktor server: one span per HTTP request, so
+    // ordinary traffic produces traces without manual withSpan calls.
+    implementation(libs.opentelemetry.ktor)
     // Bridges OTel `Context` into Kotlin's `CoroutineContext` so a span
     // started in one suspension shows up as the parent for child spans
     // started across a `withContext(span.asContextElement())` block.
