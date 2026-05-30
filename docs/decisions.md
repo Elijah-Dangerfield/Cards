@@ -25,6 +25,13 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-05-30 — Real-money IAP gated behind account claim
+
+**Decision:** Anonymous users cannot make real-money purchases until they claim their account (email / Apple). The shop's purchase action routes an unclaimed user into the claim flow instead of the platform purchase sheet. A separate, softer loss-disclosure nudge lives on the Stats page (once past level 1) for non-purchase progress loss.
+**Why:** Removes the "paid, then lost the account" failure at its source. An unclaimed anonymous account is an orphan-deletion candidate; letting it hold real purchases creates a support/liability problem and forces the account-cleanup logic to special-case "anonymous but paid." Gating purchase on claim guarantees every paying account is owner-recoverable, and the orphan-deletion path never has to reason about paid anonymous accounts.
+**Alternatives considered:** Allow anonymous IAP and rely on loss-disclosure copy + a "never delete accounts with purchases" guard. Rejected as the *primary* protection (kept as defense-in-depth) — it still leaves unrecoverable paid accounts and complicates deletion. Interacts with [2026-05-23 — Account deletion: hard-delete now] and the still-open abandoned-account deletion-model question in `developer-todo.md`.
+**Status:** Locked.
+
 ## 2026-05-29 — Multiplayer: snapshot-only state, OTel for debugging
 
 **Decision:** Server-authoritative MP state lives in a single `room_sessions(session_id UUID PRIMARY KEY, state_jsonb JSONB, updated_at TIMESTAMPTZ)` row, overwritten inside the per-session mutex on every mutation. Drop the event-sourced `game_events` write path (it shipped 2026-05-28 against the prior direction and never had a reader). Debugging visibility ("every move on every hand") is provided by OpenTelemetry traces on the server — one trace per `SubmitIntent`, spans for the engine pipeline, attributes for `session_id` / `user_id` / `hand_id`. Sentry covers crash + error capture (single project, platform-tagged).
