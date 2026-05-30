@@ -12,7 +12,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -34,11 +33,11 @@ fun BlindMarker(
     onClick: (() -> Unit)? = null,
 ) {
     val role = when {
-        isDealer -> Triple("D", PokerPalette.DealerWhite, AppTheme.colors.background)
-        isSmallBlind -> Triple("SB", PokerPalette.ChipGold, AppTheme.colors.background)
+        isDealer -> Triple("D", AppTheme.colors.poker.dealerWhite.color, AppTheme.colors.background)
+        isSmallBlind -> Triple("SB", AppTheme.colors.poker.chipGold.color, AppTheme.colors.background)
         // White-on-red for the BB — black-on-red is too low contrast against
         // the dark red background to read at this size.
-        isBigBlind -> Triple("BB", PokerPalette.BlindRed, AppTheme.colors.content)
+        isBigBlind -> Triple("BB", AppTheme.colors.poker.blindRed.color, AppTheme.colors.content)
         else -> null
     } ?: return
     val (label, bg, fg) = role

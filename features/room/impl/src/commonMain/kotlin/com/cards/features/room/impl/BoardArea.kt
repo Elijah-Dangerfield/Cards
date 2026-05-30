@@ -42,7 +42,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD600
@@ -98,7 +97,7 @@ private fun BoardWell(width: androidx.compose.ui.unit.Dp, height: androidx.compo
             .clip(Radii.R700.shape)
             .border(
                 width = 1.5.dp,
-                color = PokerPalette.CardSlotOutline,
+                color = AppTheme.colors.poker.cardSlotOutline.color,
                 shape = Radii.R700.shape,
             ),
     )
@@ -179,7 +178,7 @@ private fun PotPill(amount: Long, onClick: () -> Unit) {
             modifier = Modifier
                 .size(8.dp)
                 .clip(Radii.Round.shape)
-                .background(PokerPalette.ChipGold),
+                .background(AppTheme.colors.poker.chipGold.color),
         )
         Text(
             text = stringResource(Res.string.room_board_pot_pill_label),

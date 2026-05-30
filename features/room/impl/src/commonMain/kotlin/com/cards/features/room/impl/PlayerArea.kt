@@ -90,7 +90,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSlot
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
@@ -128,8 +127,8 @@ internal fun PlayerArea(
     // This replaces the dropped "Your turn" text banner.
     val pulseAlpha = if (human.isActing) pulseAlpha(low = 0.30f, high = 0.85f) else 0f
     val borderColor = when {
-        isWinner -> PokerPalette.ChipGold
-        human.isActing -> PokerPalette.SeatActive.copy(alpha = pulseAlpha)
+        isWinner -> AppTheme.colors.poker.chipGold.color
+        human.isActing -> AppTheme.colors.poker.seatActive.color.copy(alpha = pulseAlpha)
         else -> Color.Transparent
     }
     val borderWidth = if (isWinner || human.isActing) 2.dp else 0.dp
@@ -578,7 +577,7 @@ private fun PlayerInfoTile(
             buildAnnotatedString {
                 append(seat.displayName)
                 append(" · ")
-                withStyle(SpanStyle(color = PokerPalette.ChipGold)) { append(title) }
+                withStyle(SpanStyle(color = AppTheme.colors.poker.chipGold.color)) { append(title) }
             }
         } else {
             buildAnnotatedString { append(seat.displayName) }

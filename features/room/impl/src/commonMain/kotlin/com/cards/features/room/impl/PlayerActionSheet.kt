@@ -42,7 +42,6 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.text.BasicTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
@@ -374,7 +373,7 @@ private fun ConfirmPill(label: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .height(72.dp)
             .clip(Radii.Button.shape)
-            .background(PokerPalette.ChipGold)
+            .background(AppTheme.colors.poker.chipGold.color)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

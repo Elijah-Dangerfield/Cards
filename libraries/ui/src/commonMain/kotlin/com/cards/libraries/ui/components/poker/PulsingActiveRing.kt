@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components.poker
 
+import com.dangerfield.cards.system.AppTheme
+
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -16,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -42,7 +43,7 @@ fun PulsingActiveRing(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(PokerPalette.SeatActive.copy(alpha = alpha)),
+            .background(AppTheme.colors.poker.seatActive.color.copy(alpha = alpha)),
     )
 }
 

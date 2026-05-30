@@ -65,7 +65,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
@@ -97,7 +96,7 @@ internal fun ShowdownDialog(
         ?: 0L
     val byFold = result.winners.all { it.byFold }
     val totalPot = result.winners.sumOf { it.amount }
-    val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    val goldText = AppTheme.colors.poker.chipGold
     val heroEmoji = when {
         humanWon -> "🏆"
         byFold -> "🫳"
@@ -290,7 +289,7 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R700)
-            .background(PokerPalette.ChipGold.copy(alpha = 0.18f))
+            .background(AppTheme.colors.poker.chipGold.color.copy(alpha = 0.18f))
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
@@ -403,7 +402,7 @@ private fun ShowdownRow(
             HandEvaluator.evaluate(seat.holeCards + board).describe()
         } else null
     }
-    val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    val goldText = AppTheme.colors.poker.chipGold
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),

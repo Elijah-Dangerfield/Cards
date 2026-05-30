@@ -37,7 +37,6 @@ import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.typography.TypographyResource
@@ -89,7 +88,7 @@ fun PlayingCard(
             .size(width = width, height = height)
             .shadow(shadowElevation(width), RoundedCornerShape(cornerRadius))
             .clip(RoundedCornerShape(cornerRadius))
-            .background(PokerPalette.CardWhite)
+            .background(AppTheme.colors.poker.cardWhite.color)
             .padding(horizontal = padding, vertical = padding),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -224,7 +223,7 @@ private fun CardBackOrnament(
         CardBackStyle.Avatar -> {
             if (avatarOverlay != null) {
                 val bg = parseHexColor(avatarOverlay.backgroundColorHex)
-                    ?: PokerPalette.CardBackBlue
+                    ?: AppTheme.colors.poker.cardBackBlue.color
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -471,7 +470,7 @@ fun PlayingCardSlot(
         modifier = modifier
             .size(width = size.width, height = size.height)
             .clip(RoundedCornerShape(cornerRadius))
-            .background(PokerPalette.CardSlot),
+            .background(AppTheme.colors.poker.cardSlot.color),
     )
 }
 

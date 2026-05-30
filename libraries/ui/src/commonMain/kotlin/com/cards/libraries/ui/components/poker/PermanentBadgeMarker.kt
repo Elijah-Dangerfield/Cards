@@ -12,7 +12,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -39,7 +38,7 @@ fun PermanentBadgeMarker(
                 .background(AppTheme.colors.surfaceRaised.color)
                 .border(
                     width = 1.dp,
-                    color = PokerPalette.ChipGold,
+                    color = AppTheme.colors.poker.chipGold.color,
                     shape = CircleShape,
                 ),
             contentAlignment = Alignment.Center,

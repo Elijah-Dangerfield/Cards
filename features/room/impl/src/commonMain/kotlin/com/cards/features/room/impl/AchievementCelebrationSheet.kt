@@ -52,7 +52,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHa
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -83,7 +82,7 @@ internal fun AchievementCelebrationSheet(
 ) {
     if (earned.isEmpty()) return
 
-    val goldBubble = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold")
+    val goldBubble = AppTheme.colors.poker.chipGold
     val handle: BottomSheetDragHandle = topAccessoryEmoji(
         emoji = "🎉",
         surface = BubbleSurface.Solid(goldBubble),
@@ -233,7 +232,7 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: B
                     Text(
                         text = rewardText,
                         typography = AppTheme.typography.Body.B600,
-                        color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
+                        color = AppTheme.colors.poker.chipGold,
                         textAlign = TextAlign.Center,
                     )
                     cosmetic?.let { reward ->

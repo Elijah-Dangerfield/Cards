@@ -41,7 +41,7 @@ fun feltForProductId(productId: String?): EquippedFelt = when (productId) {
  * chips readable; high enough chroma to feel intentional ("yes I bought
  * this") rather than a stock theme tint.
  *
- * Note these are *intentionally* not in `PokerPalette` — they're a per-
+ * Note these are *intentionally* not in `colors.poker` — they're a per-
  * user choice, not a brand constant. Keeping them local means a future
  * "server ships its own hex per product" pass touches one file.
  *

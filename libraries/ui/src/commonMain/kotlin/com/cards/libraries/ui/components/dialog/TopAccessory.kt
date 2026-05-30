@@ -6,7 +6,6 @@ import androidx.compose.runtime.Stable
 import com.dangerfield.cards.libraries.ui.components.icon.IconResource
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 
 /**
@@ -129,7 +128,7 @@ fun topAccessoryChipBubble(): TopAccessory.Emoji = TopAccessory.Emoji(
     emoji = "$",
     style = AccessoryShape.Circle,
     surface = BubbleSurface.Solid(
-        color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
+        color = ColorResource.FromColor(AppTheme.colors.poker.chipGold.color, "chip-gold"),
     ),
 )
 

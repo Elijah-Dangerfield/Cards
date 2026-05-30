@@ -30,7 +30,6 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD50
@@ -59,19 +58,19 @@ internal fun BlindRolesExplainer(onDismiss: () -> Unit) {
     ) {
         RoleRow(
             label = stringResource(Res.string.room_blind_roles_dealer_label),
-            bg = PokerPalette.DealerWhite,
+            bg = AppTheme.colors.poker.dealerWhite.color,
             title = stringResource(Res.string.room_blind_roles_dealer_title),
             description = stringResource(Res.string.room_blind_roles_dealer_description),
         )
         RoleRow(
             label = stringResource(Res.string.room_blind_roles_small_blind_label),
-            bg = PokerPalette.ChipGold,
+            bg = AppTheme.colors.poker.chipGold.color,
             title = stringResource(Res.string.room_blind_roles_small_blind_title),
             description = stringResource(Res.string.room_blind_roles_small_blind_description),
         )
         RoleRow(
             label = stringResource(Res.string.room_blind_roles_big_blind_label),
-            bg = PokerPalette.BlindRed,
+            bg = AppTheme.colors.poker.blindRed.color,
             title = stringResource(Res.string.room_blind_roles_big_blind_title),
             description = stringResource(Res.string.room_blind_roles_big_blind_description),
         )

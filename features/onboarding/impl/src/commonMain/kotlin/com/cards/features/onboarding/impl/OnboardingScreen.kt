@@ -66,7 +66,6 @@ import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -582,7 +581,7 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
             title = stringResource(Res.string.onboarding_how_card_play_title),
             subtitle = stringResource(Res.string.onboarding_how_card_play_subtitle),
         ) {
-            EmojiTile(glyph = "🎴", tint = PokerPalette.FeltGreen)
+            EmojiTile(glyph = "🎴", tint = AppTheme.colors.poker.feltGreen.color)
         }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(

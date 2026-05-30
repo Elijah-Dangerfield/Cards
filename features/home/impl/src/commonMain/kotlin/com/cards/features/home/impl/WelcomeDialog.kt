@@ -38,7 +38,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
 import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.resources.stringResource
@@ -72,7 +71,7 @@ internal fun WelcomeDialog(
             color = ColorResource.FromColor(resolvedAvatarBg, "user-avatar-bg"),
         )
     }
-    val chipGold = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    val chipGold = AppTheme.colors.poker.chipGold
 
     Dialog(
         state = state,
