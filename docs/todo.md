@@ -152,12 +152,6 @@ _Shipped._ `room_sessions` is written through the per-session mutex on every mut
   **Acceptance:** adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
   **Hints:** convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations (`PurchaseConfirmSheet.kt`, `AppGuardLayer.kt`, …) — separate cleanup once the gate exists.
 
-### Abuse & security
-
-- `[P1]` **Account suspension / ban enforcement.** There's no way to lock out a bad actor today. Add a `status` (active / suspended) on `profiles` and a server gate that rejects authenticated HTTP requests and WS upgrades from a suspended account with a clear error; the client renders a "this account is suspended" state. *(proposed 2026-05-30)*
-  **Acceptance:** a suspended account is locked out of the API + gameplay and sees the suspended state; an active account is unaffected.
-  **Hints:** `ProfileRepository`; the bearer-token auth plugin; WS upgrade in `RoomSocketRoutes.kt`. **Out of scope:** the admin UI/policy for *who* gets banned (developer-todo); automated detection (backlog).
-
 ---
 
 ## D. Already on the books elsewhere
