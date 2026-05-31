@@ -66,16 +66,16 @@ Add to [`LobbyViewModelTest`](../features/lobby/impl/src/commonTest/kotlin/com/c
 
 Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/kotlin/com/cards/features/room/impl/RemotePokerSessionFactoryTest.kt) — **this is the most critical addition** because the `humanSeatIndex` lookup keying off `localUserId` is load-bearing for every action submission:
 
-- [ ] `occupantsFor_emptyState_returnsEmptyList` — pre-snapshot case.
-- [ ] `occupantsFor_filledSeats_derivesHumanBotEmpty` — three-seat state with each variant; assert exact `SeatOccupant` shapes.
-- [ ] `occupantsFor_humanSeat_carriesPlayerIdAndDisplayName` — pin the data on the Human variant.
-- [ ] `tableFor_emptyState_returnsLoading` — Loading sentinel before first snapshot.
-- [ ] `tableFor_localUserAtSeat0_humanSeatIndexIs0` — base lookup.
-- [ ] `tableFor_localUserAtSeat3_humanSeatIndexIs3` — non-zero seat.
-- [ ] `tableFor_localUserNotInRoom_humanSeatIndexIsMinusOne` — observer/spectator case; assert it doesn't crash and renders correctly.
-- [ ] `tableFor_userReseats_pickedUpInNextProjection` — V1 forbids re-seating but the dynamic lookup should still work; tests the invariant.
-- [ ] `difficultyName_and_xpMode_areMultiplayer` — pin the labels.
-- [ ] `bootstrap_callsSessionRun` — verify bootstrap actually drives the session loop.
+- [x] `occupantsFor_emptyState_returnsEmptyList` — pre-snapshot case.
+- [x] `occupantsFor_filledSeats_derivesHumanBotEmpty` — three-seat state with each variant; assert exact `SeatOccupant` shapes.
+- [x] `occupantsFor_humanSeat_carriesPlayerIdAndDisplayName` — pin the data on the Human variant.
+- [x] `tableFor_emptyState_returnsLoading` — Loading sentinel before first snapshot.
+- [x] `tableFor_localUserAtSeat0_humanSeatIndexIs0` — base lookup.
+- [x] `tableFor_localUserAtSeat3_humanSeatIndexIs3` — non-zero seat.
+- [x] `tableFor_localUserNotInRoom_humanSeatIndexIsMinusOne` — observer/spectator case; assert it doesn't crash and renders correctly.
+- [x] `tableFor_userReseats_pickedUpInNextProjection` — V1 forbids re-seating but the dynamic lookup should still work; tests the invariant.
+- [x] `difficultyName_and_xpMode_areMultiplayer` — pin the labels.
+- [x] `bootstrap_callsSessionRun` — verify bootstrap actually drives the session loop.
 
 ---
 
