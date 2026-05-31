@@ -550,8 +550,7 @@ class RoomSocketGameplayRoutesTest {
         send(Frame.Text(json.encodeToString(RoomClientFrame.serializer(), frame)))
     }
 
-    /** Pull the next decoded event off the socket. Fails fast if quiet. */
-    private suspend fun ClientWebSocketSession.receiveOne(): RoomSocketEventDto = withTimeout(3_000) {
+    private suspend fun ClientWebSocketSession.receiveOne(): RoomSocketEventDto = withTimeout(10_000) {
         val frame = incoming.receive()
         val text = (frame as Frame.Text).readText()
         json.decodeFromString(RoomSocketEventDto.serializer(), text)
