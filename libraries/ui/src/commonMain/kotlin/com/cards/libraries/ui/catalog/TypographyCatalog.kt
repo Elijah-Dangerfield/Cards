@@ -18,9 +18,17 @@ private const val TYPE_SUBTITLE =
     "Display = serif (the felt headline). Heading / Label / Body / Caption = sans. Higher number = " +
         "bigger. Modifiers chain off any token: .Italic, .Bold, .SemiBold, …"
 
-/** The type page body. Reused by [DesignSystemPreview]. */
+/** The type page body. Split into two halves so [DesignSystemPreview] can lay it out in two
+ *  columns; call this combined version for a single-column page. */
 @Composable
 internal fun TypographyCatalogBody() {
+    TypographyCatalogBodyHeadlines()
+    TypographyCatalogBodyText()
+}
+
+/** First half — the big stuff: serif Display + sans Heading. */
+@Composable
+internal fun TypographyCatalogBodyHeadlines() {
     val t = AppTheme.typography
 
     CatalogSection(
@@ -48,6 +56,12 @@ internal fun TypographyCatalogBody() {
         TypeRow("Heading.H500", t.Heading.H500, "Tournaments")
         TypeRow("Heading.H400", t.Heading.H400, "Tournaments")
     }
+}
+
+/** Second half — running text: sans Body, Label, Caption. */
+@Composable
+internal fun TypographyCatalogBodyText() {
+    val t = AppTheme.typography
 
     CatalogSection(
         "Body · sans",

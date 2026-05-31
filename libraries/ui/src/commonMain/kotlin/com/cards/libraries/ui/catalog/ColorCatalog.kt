@@ -21,9 +21,17 @@ private const val COLOR_SUBTITLE =
         "in solid / on / deep (3D lip) / subtle (tint). Reach for a role — never a raw ColorResource."
 
 /** The color page body: a documentation ladder of every semantic token + its usage, then the
- *  categorical groups as swatch grids. Reused by [DesignSystemPreview]. */
+ *  categorical groups as swatch grids. Split into two halves so [DesignSystemPreview] can lay it
+ *  out in two columns; call this combined version for a single-column page. */
 @Composable
 internal fun ColorCatalogBody() {
+    ColorCatalogBodyPrimary()
+    ColorCatalogBodySupport()
+}
+
+/** First half — the everyday tokens: surfaces, the content ramp, and the accent triads. */
+@Composable
+internal fun ColorCatalogBodyPrimary() {
     val c = AppTheme.colors
 
     CatalogSection(
@@ -88,6 +96,12 @@ internal fun ColorCatalogBody() {
             ColorRow("accentTertiarySubtle", c.accentTertiarySubtle, c.content, "Low-alpha coral tint.")
         }
     }
+}
+
+/** Second half — status, borders, the one gradient, and the categorical groups. */
+@Composable
+internal fun ColorCatalogBodySupport() {
+    val c = AppTheme.colors
 
     CatalogSection(
         "Status",

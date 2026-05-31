@@ -21,43 +21,47 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /*
  * # Design-system catalog — grouped previews
  *
- * The whole system is too tall for one preview, so it's split into two logical groups you can open
+ * The whole system is too tall for one preview, so it's split into logical groups you can open
  * side by side in the IDE preview pane:
  *
- *   • [FoundationsPreview] — the raw material: Color · Typography · Radii.
- *   • [ComponentsPreview]  — built from the tokens: Buttons · Banner · Forms (+ Overlays pointer).
+ *   • [ColorPreview]      — the palette: surfaces, content, accents | status, borders, gradient, categorical.
+ *   • [TypographyPreview] — the type scale: Display + Heading | Body + Label + Caption.
+ *   • [ComponentsPreview] — built from the tokens: Buttons · Banner · Forms · Radii (+ Overlays pointer).
  *
  * Each is a wide, two-column page so it spreads horizontally instead of running tall. For a single
  * area, every catalog file (ColorCatalog, …) and component file (Button.kt, …) has its own focused
  * @Preview. Add a token/component to the matching *CatalogBody() and it shows up in the right group.
  */
 
-@Preview(widthDp = 2400, heightDp = 11000)
+@Preview(widthDp = 2400, heightDp = 7000)
 @Composable
-private fun FoundationsPreview() {
+private fun ColorPreview() {
     CatalogScaffold(
-        title = "Foundations",
-        subtitle = "The raw material — design tokens. Always reach for a role, never a literal value.",
+        title = "Color",
+        subtitle = "Warm felt, dark-only. Tokens name a role, never a literal color. Reach for a role — never a raw ColorResource.",
     ) {
         TwoColumn(
-            left = {
-                Area("Color", "Role-named tokens — surfaces, the content ramp, accents, status, borders, categorical.") {
-                    ColorCatalogBody()
-                }
-            },
-            right = {
-                Area("Typography", "The serif Display headline + the sans Heading / Body / Label / Caption ramps.") {
-                    TypographyCatalogBody()
-                }
-                Area("Radii", "Semantic corner radii and the raw scale behind them.") {
-                    RadiiCatalogBody()
-                }
-            },
+            left = { ColorCatalogBodyPrimary() },
+            right = { ColorCatalogBodySupport() },
         )
     }
 }
 
-@Preview(widthDp = 2400, heightDp = 6000)
+@Preview(widthDp = 2400, heightDp = 4000)
+@Composable
+private fun TypographyPreview() {
+    CatalogScaffold(
+        title = "Typography",
+        subtitle = "Display = serif (the felt headline; its italic is the dialog/sheet title). Heading / Body / Label / Caption = sans.",
+    ) {
+        TwoColumn(
+            left = { TypographyCatalogBodyHeadlines() },
+            right = { TypographyCatalogBodyText() },
+        )
+    }
+}
+
+@Preview(widthDp = 2400, heightDp = 5000)
 @Composable
 private fun ComponentsPreview() {
     CatalogScaffold(
@@ -76,6 +80,9 @@ private fun ComponentsPreview() {
             right = {
                 Area("Forms", "Text field, switch, checkbox, radio — every state.") {
                     FormCatalogBody()
+                }
+                Area("Radii", "Semantic corner radii and the raw scale behind them.") {
+                    RadiiCatalogBody()
                 }
                 // Overlays don't render inline (they host as full-screen scrims) — point to their previews.
                 Area("Overlays", "Dialog & BottomSheet host as full-screen scrims, so they can't render inline here.") {
