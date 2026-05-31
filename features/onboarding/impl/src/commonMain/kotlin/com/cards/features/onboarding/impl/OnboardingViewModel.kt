@@ -2,13 +2,13 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AppCache
-import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
+import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
+import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
@@ -56,16 +56,14 @@ class OnboardingViewModel(
     private val appCache: AppCache,
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
-    appConfigMap: AppConfigMap,
+    googleSignInEnabled: GoogleSignInEnabled,
+    appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<OnboardingState, OnboardingEvent, OnboardingAction>(
-    initialStateArg = run {
-        val cfg = IdentityFeatureConfig(appConfigMap)
-        OnboardingState(
-            displayName = DisplayNameSuggester.next(),
-            googleEnabled = cfg.googleSignInEnabled,
-            appleEnabled = cfg.appleSignInEnabled && BuildInfo.isiOS(),
-        )
-    },
+    initialStateArg = OnboardingState(
+        displayName = DisplayNameSuggester.next(),
+        googleEnabled = googleSignInEnabled(),
+        appleEnabled = appleSignInEnabled() && BuildInfo.isiOS(),
+    ),
 ) {
 
     init {

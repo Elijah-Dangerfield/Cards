@@ -26,13 +26,15 @@ sealed interface AppGuardState {
 
     companion object {
         fun from(configMap: AppConfigMap, clientVersionCode: Int): AppGuardState {
-            val config = UpgradeConfig(configMap)
-            if (clientVersionCode < config.minSupportedVersionCode) {
+            // Resolve against the passed (streamed) map rather than the injected
+            // singletons so a server-side maintenance toggle takes effect live.
+            if (clientVersionCode < MinSupportedVersionCode(configMap).value) {
                 return UpgradeRequired
             }
-            return when (config.maintenanceMode.lowercase()) {
-                "blocking" -> MaintenanceBlocking(config.maintenanceMessage)
-                "banner" -> MaintenanceBanner(config.maintenanceMessage)
+            val message = MaintenanceMessage(configMap).value
+            return when (MaintenanceMode(configMap).value.lowercase()) {
+                "blocking" -> MaintenanceBlocking(message)
+                "banner" -> MaintenanceBanner(message)
                 else -> Normal
             }
         }

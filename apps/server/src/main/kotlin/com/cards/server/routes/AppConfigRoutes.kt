@@ -9,7 +9,7 @@ import io.ktor.server.routing.get
  * `GET /v1/app-config` — returns the sparse override tree keyed by ConfiguredValue.path.
  *
  * Empty object is a legitimate response — it means "use client defaults". The client
- * always has safe defaults declared in FeatureConfig classes, so an empty server config
+ * always has safe defaults declared in its ConfiguredValue classes, so an empty server config
  * still produces a fully functional app.
  */
 fun Route.appConfigRoutes(source: AppConfigSource) {

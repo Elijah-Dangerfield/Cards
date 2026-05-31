@@ -2,6 +2,8 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
+import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
@@ -482,12 +484,16 @@ class OnboardingViewModelTest : CoroutineTest() {
         cache: FakeAppCache = FakeAppCache(),
         auth: FakeAuthRepository = FakeAuthRepository(),
         profile: FakeProfileRepository = FakeProfileRepository(),
-    ): OnboardingViewModel = OnboardingViewModel(
-        appCache = cache,
-        authRepository = auth,
-        profileRepository = profile,
-        appConfigMap = EmptyAppConfigMap(),
-    )
+    ): OnboardingViewModel {
+        val config = EmptyAppConfigMap()
+        return OnboardingViewModel(
+            appCache = cache,
+            authRepository = auth,
+            profileRepository = profile,
+            googleSignInEnabled = GoogleSignInEnabled(config),
+            appleSignInEnabled = AppleSignInEnabled(config),
+        )
+    }
 
     private fun authenticatedProfile(
         displayName: String = "ServerName",

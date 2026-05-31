@@ -15,9 +15,9 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             api(libs.kotlinx.coroutines.core)
-            // IdentityFeatureConfig flags live alongside the identity api so
-            // any consumer (sign-in screen, claim screen) sees them with the
-            // identity import.
+            // The identity ConfiguredValue flags (GoogleSignInEnabled, …) live
+            // alongside the identity api so any consumer (sign-in screen, claim
+            // screen) sees them with the identity import.
             implementation(projects.libraries.config)
         }
     }

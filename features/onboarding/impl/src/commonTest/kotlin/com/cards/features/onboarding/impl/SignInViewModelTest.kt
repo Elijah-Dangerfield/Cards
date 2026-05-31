@@ -3,6 +3,8 @@ package com.dangerfield.cards.features.onboarding.impl
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
+import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import kotlin.test.Test
@@ -259,9 +261,13 @@ class SignInViewModelTest : CoroutineTest() {
     private fun buildVm(
         identity: FakeAuthRepository = FakeAuthRepository(),
         appCache: FakeAppCache = FakeAppCache(),
-    ): SignInViewModel = SignInViewModel(
-        authRepository = identity,
-        appCache = appCache,
-        appConfigMap = EmptyAppConfigMap(),
-    )
+    ): SignInViewModel {
+        val config = EmptyAppConfigMap()
+        return SignInViewModel(
+            authRepository = identity,
+            appCache = appCache,
+            googleSignInEnabled = GoogleSignInEnabled(config),
+            appleSignInEnabled = AppleSignInEnabled(config),
+        )
+    }
 }
