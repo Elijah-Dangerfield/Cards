@@ -15,6 +15,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 internal data class WalletResponseDto(
     val balance: Long,
+    /** True only on the response that lazy-created the wallet (brand-new
+     *  account). Drives the one-shot starter-grant reveal. Defaults false
+     *  for older servers that don't send it. */
+    val walletCreated: Boolean = false,
 )
 
 @Serializable
@@ -34,6 +38,10 @@ internal data class WalletSyncResponseDto(
     val schemaVersion: Int = 1,
     val balance: Long,
     val results: List<WalletEventResultDto> = emptyList(),
+    /** True only on the response that lazy-created the wallet (brand-new
+     *  account). Drives the one-shot starter-grant reveal. Defaults false
+     *  for older servers that don't send it. */
+    val walletCreated: Boolean = false,
 )
 
 @Serializable

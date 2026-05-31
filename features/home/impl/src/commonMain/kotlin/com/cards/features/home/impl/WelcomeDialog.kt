@@ -1,26 +1,16 @@
 package com.dangerfield.cards.features.home.impl
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.home_welcome_dialog_chip_use_line
 import cards.libraries.resources.generated.resources.home_welcome_dialog_daily_grant_line
@@ -28,7 +18,7 @@ import cards.libraries.resources.generated.resources.home_welcome_dialog_gift_li
 import cards.libraries.resources.generated.resources.home_welcome_dialog_greeting
 import cards.libraries.resources.generated.resources.home_welcome_dialog_primary_cta
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.AnimatedChipReveal
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -61,7 +51,7 @@ internal fun WelcomeDialog(
     displayName: String,
     avatarEmoji: String,
     avatarBackgroundColorHex: String?,
-    chips: Long?,
+    chips: Long,
     onDismiss: () -> Unit,
     state: DialogState = rememberDialogState(),
 ) {
@@ -108,14 +98,10 @@ internal fun WelcomeDialog(
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(Dimension.D600))
-            if (chips != null) {
-                AnimatedChipReveal(
-                    amount = chips,
-                    color = chipGold,
-                )
-            } else {
-                ChipRevealPlaceholder(color = chipGold)
-            }
+            AnimatedChipReveal(
+                amount = chips,
+                color = chipGold,
+            )
             Spacer(Modifier.height(Dimension.D1000))
             Text(
                 text = stringResource(Res.string.home_welcome_dialog_gift_line),
@@ -154,83 +140,6 @@ internal fun WelcomeDialog(
             }
         }
     }
-}
-
-/**
- * Hero chip count for the welcome dialog — gold coin + odometer-style
- * tween from 0 to [amount] on first composition. Bespoke (not
- * [com.dangerfield.cards.libraries.ui.components.AnimatedNumberText])
- * because that primitive intentionally suppresses animation during its
- * mount-settle window to avoid "0 → real" flashes on tab switches; here
- * we *want* the 0 → real reveal to read as a "you just got these chips"
- * moment.
- */
-@Composable
-private fun AnimatedChipReveal(
-    amount: Long,
-    color: ColorResource,
-) {
-    val animated = remember { Animatable(initialValue = 0f) }
-    var displayed by remember { mutableStateOf(0L) }
-    LaunchedEffect(amount) {
-        animated.animateTo(
-            targetValue = amount.toFloat(),
-            animationSpec = tween(
-                durationMillis = 1_100,
-                easing = FastOutSlowInEasing,
-            ),
-        ) {
-            displayed = this.value.toLong()
-        }
-        // Pin the final value exactly — the tween's last frame can land a
-        // hair short of the target due to float→long truncation.
-        displayed = amount
-    }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        ChipCoin(
-            size = 40.dp,
-            textTypography = AppTheme.typography.Heading.H700,
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = formatWithThousands(displayed),
-            typography = AppTheme.typography.Display.D1100,
-            color = color,
-        )
-    }
-}
-
-/**
- * Static fallback shown when the wallet hasn't hydrated by the time the
- * welcome gate fires (slow network on fresh install). Same chip-coin +
- * em-dash silhouette as the live reveal so the dialog layout doesn't
- * jump; the user sees the real balance on Home the moment they dismiss.
- */
-@Composable
-private fun ChipRevealPlaceholder(color: ColorResource) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        ChipCoin(
-            size = 40.dp,
-            textTypography = AppTheme.typography.Heading.H700,
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = "—",
-            typography = AppTheme.typography.Display.D1100,
-            color = color,
-        )
-    }
-}
-
-private fun formatWithThousands(value: Long): String {
-    val s = value.toString()
-    val sb = StringBuilder()
-    val len = s.length
-    for (i in 0 until len) {
-        if (i > 0 && (len - i) % 3 == 0) sb.append(',')
-        sb.append(s[i])
-    }
-    return sb.toString()
 }
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
@@ -275,16 +184,3 @@ private fun WelcomeDialogPreview_LargerGrant() {
     }
 }
 
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@Composable
-private fun WelcomeDialogPreview_ChipsNotHydrated() {
-    PreviewContent {
-        WelcomeDialog(
-            displayName = "Slow-Network-721",
-            avatarEmoji = "🦊",
-            avatarBackgroundColorHex = "#F6B26B",
-            chips = null,
-            onDismiss = {},
-        )
-    }
-}
