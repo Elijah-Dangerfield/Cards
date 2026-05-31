@@ -147,19 +147,19 @@ Landed in [`GameEnginePropertyTest`](../libraries/gameplay/src/commonTest/kotlin
 
 ### Cross-product table tests
 
-For every `(street, action, seatStatus, handParticipation)` combo, assert the engine's response (accept / reject / specific reason):
+Landed in [`GameEngineActionTableTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEngineActionTableTest.kt), with the raise/min-raise boundary and BB-option rows already pinned by [`GameEngineAdvancedTest`]. Each row asserts the engine's response (accept with the right accounting / reject):
 
-- [ ] **Preflop blinds posted correctly for 2..9 seats.**
-- [ ] **Heads-up button = SB**, multi-way SB = first after button.
-- [ ] **Action sequence preflop:** UTG → … → BB has option to raise.
-- [ ] **Postflop action sequence:** SB-left first (or first remaining left of button if SB folded).
-- [ ] **Raise must be at least previous raise size** — table all "min-raise" boundary cases.
-- [ ] **All-in for less than min-raise** — does NOT reopen action.
-- [ ] **All-in for more than min-raise** — DOES reopen action.
-- [ ] **Check when bet is 0**: legal. **Check when bet > 0**: illegal.
-- [ ] **Call when stack ≥ bet**: full call. **Call when stack < bet**: all-in for stack.
-- [ ] **Fold any time you can act**: legal.
-- [ ] **Bet ≤ stack required**: illegal otherwise.
+- [x] **Preflop blinds posted correctly for 2..9 seats.**
+- [x] **Heads-up button = SB**, multi-way SB = first after button.
+- [x] **Action sequence preflop:** UTG → … → BB has option to raise. (`GameEngineAdvancedTest.bbOption_*`, `raise_reopensActionForAllPriorCallers`.)
+- [x] **Postflop action sequence:** SB-left first (or first remaining left of button if SB folded). (`GameEngineAdvancedTest.headsUp_postflopFirstToAct` + the `orderFromAfter` button helper.)
+- [x] **Raise must be at least previous raise size** — table all "min-raise" boundary cases. (`GameEngineAdvancedTest.raise_belowMinIncrementRefused`, `minRaise_afterRaise_*`.)
+- [x] **All-in for less than min-raise** — does NOT reopen action.
+- [x] **All-in for more than min-raise** — DOES reopen action.
+- [x] **Check when bet is 0**: legal. **Check when bet > 0**: illegal.
+- [x] **Call when stack ≥ bet**: full call. **Call when stack < bet**: all-in for stack.
+- [x] **Fold any time you can act**: legal.
+- [x] **Bet ≤ stack required**: illegal otherwise.
 
 ### Edge-case scenarios
 
@@ -309,7 +309,7 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 | 0 — baseline | shipped | The MP-feature stack ([`cea38b18`](https://github.com/Elijah-Dangerfield/Cards/commit/cea38b18) through [`a59ea74d`](https://github.com/Elijah-Dangerfield/Cards/commit/a59ea74d)) shipped with the coverage in the snapshot. Round 1 closes its gaps. |
 | 1 — close MP gaps | shipped | `RemotePokerSessionFactoryTest` (10) + `LobbyViewModelTest` new MP paths (13). Also caught + fixed a latent `HostPromoted` non-firing bug. |
 | 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
-| 3 — engine SUPER tests | in progress | Property-based invariants shipped (`GameEnginePropertyTest`, 6 invariants × 300 seeds). Cross-product table tests, edge-case scenarios, and hand-history fixtures still open. |
+| 3 — engine SUPER tests | shipped (bar hand-history) | Property invariants (`GameEnginePropertyTest`), edge-case scenarios (`GameEngineEdgeCaseTest`), and cross-product action tables (`GameEngineActionTableTest`) all landed. Only the 50-hand history fixtures remain — gated on a real production playtest. |
 | 4 — server gameplay flow | shipped | `RoomSocketGameplayRoutesTest` — 9 tests pinning the WS route → registry → per-recipient broadcast cycle. |
 | 5 — chaos / fault injection | not started | Lives in `:integration`. ~10 tests, ~4-6h. |
 | 6 — Compose UI tests | not started | `:features:room:impl` androidUnitTest. ~15 tests, ~6-8h. |
