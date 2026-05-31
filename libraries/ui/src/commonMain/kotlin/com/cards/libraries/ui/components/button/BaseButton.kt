@@ -135,8 +135,12 @@ internal fun BaseButton(
             ) {
                 // deep band fills the whole box (face + the reserved lip strip)
                 Box(Modifier.matchParentSize().clip(Radii.Button.shape).background(deepColor.color))
-                // face sized normally + a constant bottom reserve (stable height); drops on press
+                // face sized normally + a constant bottom reserve (stable height); drops on press.
+                // propagateMinConstraints carries the outer Box's min width (set by a caller's
+                // fillMaxWidth) down to the face Surface, so a full-width button's face stretches to
+                // match the lip band instead of wrapping its content on the left.
                 Box(
+                    propagateMinConstraints = true,
                     modifier = Modifier
                         .padding(bottom = depthAtRest)
                         .offset { IntOffset(x = 0, y = drop.roundToPx()) },
