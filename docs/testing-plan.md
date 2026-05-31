@@ -163,15 +163,17 @@ For every `(street, action, seatStatus, handParticipation)` combo, assert the en
 
 ### Edge-case scenarios
 
-- [ ] **Fold around to BB** — BB wins SB + own posted blind.
-- [ ] **All seats all-in preflop, run-out to showdown** — no further action; engine deals all streets in one go.
-- [ ] **Side pot with three different all-in stacks** — pot 1 has all three, pot 2 has two, pot 3 has remaining.
-- [ ] **Showdown ties on the board (board plays)** — chops the pot.
-- [ ] **Showdown three-way tie with one short-stack** — sidepot math + tie split simultaneously.
-- [ ] **Stack of 0 starts hand** — that seat is sat-out, not dealt.
-- [ ] **Single contender after folds** — engine fast-forwards to PotAwarded without dealing remaining streets.
-- [ ] **Hand ends mid-street on fold-around** — community cards stop being dealt.
-- [ ] **Bot vs human seat parity** — engine behavior identical regardless of `isBot` flag (the flag is metadata only at the engine layer).
+Landed in [`GameEngineEdgeCaseTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEngineEdgeCaseTest.kt) (board-plays chop and zero-stack-sat-out were already pinned by `GameEngineAdvancedTest`):
+
+- [x] **Fold around to BB** — BB wins SB + own posted blind.
+- [x] **All seats all-in preflop, run-out to showdown** — no further action; engine deals all streets in one go.
+- [x] **Side pot with three different all-in stacks** — pot 1 has all three, pot 2 has two, pot 3 has remaining.
+- [x] **Showdown ties on the board (board plays)** — chops the pot. (`GameEngineAdvancedTest.showdown_splitPotOnTie`.)
+- [x] **Showdown three-way tie with one short-stack** — sidepot math + tie split simultaneously.
+- [x] **Stack of 0 starts hand** — that seat is sat-out, not dealt. (`GameEngineAdvancedTest.startHand_skipsSeatsWithZeroStack`.)
+- [x] **Single contender after folds** — engine fast-forwards to PotAwarded without dealing remaining streets.
+- [x] **Hand ends mid-street on fold-around** — community cards stop being dealt.
+- [x] **Bot vs human seat parity** — engine behavior identical regardless of `isBot` flag (the flag is metadata only at the engine layer).
 
 ### Hand history regression tests
 
