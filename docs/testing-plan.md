@@ -136,14 +136,14 @@ integration/
 
 ### Property-based tests
 
-Adopt [`kotest-property`](https://kotest.io/docs/proptest/property-based-testing.html) for the engine tests (JVM-only is fine; engine's deterministic given a seed). Pin these invariants:
+Landed in [`GameEnginePropertyTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEnginePropertyTest.kt). Rather than add a `kotest-property` dependency (and a JVM-only test split), these run a deterministic random-legal-action driver over 300 seeds × varying seat counts / stacks / button positions in plain `kotlin.test` — multiplatform-safe, and a failure reproduces from the printed seed. Invariants pinned:
 
-- [ ] **Stack conservation** — for any sequence of legal actions, `sum(seat.stack) + sum(pot.amount) == sum(starting stacks)`. No chip created or destroyed.
-- [ ] **Pot eligibility correctness** — for any all-in distribution, every pot's `eligibleSeatIndexes` contains exactly the seats that contributed to that pot tier.
-- [ ] **Hand monotonicity** — `lastSequence` strictly increases across emitted events within a hand.
-- [ ] **Acting seat rotation** — `actingSeatIndex` always points to a seat with `canAct = true`, or is null at street end.
-- [ ] **Settlement equals winnings** — sum of `PotAwarded.amount` across all pots == `pot.amount` before settlement.
-- [ ] **Hole-card scrub correctness** — `state.scrubbedFor(viewerSeat)` never reveals a non-viewer seat's hole cards unless that seat is at showdown.
+- [x] **Stack conservation** — for any sequence of legal actions, `sum(seat.stack) + chips-on-table == sum(starting stacks)` mid-hand, and `sum(seat.stack) == starting total` once Complete. No chip created or destroyed.
+- [x] **Pot eligibility correctness** — pot conservation (`sum(pot.amount) == total contributed`), eligible seats are always in-hand, and side-pot eligibility nests monotonically (each pot ⊆ the prior). Exact per-tier eligibility for the 3-way all-in case is pinned by `GameEngineAdvancedTest`.
+- [x] **Hand monotonicity** — `lastSequence` strictly increases across emitted events within a hand and matches the final state's `lastSequence`.
+- [x] **Acting seat rotation** — `actingSeatIndex` always points to a seat with `canAct = true`, or is null exactly when the hand is Complete.
+- [x] **Settlement equals winnings** — sum of `PotAwarded.amount` == sum of pot amounts before settlement == total contributed.
+- [x] **Hole-card scrub correctness** — `state.scrubbedFor(viewerSeat)` (and `-1` spectator) never reveals a non-viewer seat's hole cards unless that seat is in-hand at showdown; the viewer always sees their own.
 
 ### Cross-product table tests
 
@@ -307,7 +307,7 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 | 0 — baseline | shipped | The MP-feature stack ([`cea38b18`](https://github.com/Elijah-Dangerfield/Cards/commit/cea38b18) through [`a59ea74d`](https://github.com/Elijah-Dangerfield/Cards/commit/a59ea74d)) shipped with the coverage in the snapshot. Round 1 closes its gaps. |
 | 1 — close MP gaps | shipped | `RemotePokerSessionFactoryTest` (10) + `LobbyViewModelTest` new MP paths (13). Also caught + fixed a latent `HostPromoted` non-firing bug. |
 | 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
-| 3 — engine SUPER tests | not started | Property tests + invariant pins + edge cases. ~20-30 tests, ~6-8h. |
+| 3 — engine SUPER tests | in progress | Property-based invariants shipped (`GameEnginePropertyTest`, 6 invariants × 300 seeds). Cross-product table tests, edge-case scenarios, and hand-history fixtures still open. |
 | 4 — server gameplay flow | shipped | `RoomSocketGameplayRoutesTest` — 9 tests pinning the WS route → registry → per-recipient broadcast cycle. |
 | 5 — chaos / fault injection | not started | Lives in `:integration`. ~10 tests, ~4-6h. |
 | 6 — Compose UI tests | not started | `:features:room:impl` androidUnitTest. ~15 tests, ~6-8h. |
