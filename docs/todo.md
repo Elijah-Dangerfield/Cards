@@ -46,6 +46,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 - `[P1]` **Tap-an-opponent sheet — remaining affordances.** Add the human-variant "Add friend" affordance (pairs with the friend graph) and "view full profile" tap-through once profile-of-a-stranger is a real route.
 
+- `[P2]` **Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint (the KDoc already notes the vertical half). *(proposed 2026-05-31)*
+  **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
+  **Hints:** the `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
+
 ### Social graph + friends — load-bearing for V1.x
 
 Home exposes three surfaces that need this system to work: the friends strip with presence, the "recently played with" shelf with add-friend, and the friend-requests inbox on profile. All currently fake or no-op.
@@ -112,7 +116,7 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 - `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
   **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
-  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — Rounds 1, 3 (engine property invariants + edge-case scenarios + cross-product action tables), and 4 are shipped; only Round 3's hand-history fixtures remain, gated on a real production playtest. Round 2 (integration module) and Round 5 (chaos / fault injection) are the open, independent rounds. **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
+  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — Rounds 1, 3 (engine property invariants + edge-case scenarios + cross-product action tables), and 4 are shipped; only Round 3's hand-history fixtures remain, gated on a real production playtest. Round 5 (chaos / fault injection) is the open round here; Round 2 (the `:integration` module) is parked in [`developer-todo.md`](./developer-todo.md). **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
 
 ### B5 — Parked
 
