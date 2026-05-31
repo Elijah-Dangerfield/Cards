@@ -2,9 +2,7 @@ package com.dangerfield.cards.libraries.ui.catalog
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,7 +30,7 @@ internal fun ColorCatalogBody() {
         "Surfaces",
         "The neutral elevation ladder. Each step sits visually 'on top of' the one before it.",
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+        SwatchFlow {
             ColorRow("background", c.background, c.content, "App canvas, scaffolds, and the base of full-screen sheets.")
             ColorRow("surface", c.surface, c.content, "The default container — cards, sheets, menus, banners, list rows.")
             ColorRow("surfaceRaised", c.surfaceRaised, c.content, "A thing ON a surface — text inputs, nested cards, selected rows.")
@@ -47,7 +45,7 @@ internal fun ColorCatalogBody() {
         "Content",
         "One foreground ramp that works on the background and every surface. Step down for less emphasis.",
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+        SwatchFlow {
             ColorRow("content", c.content, c.background, "Primary text and active icons.")
             ColorRow("contentSecondary", c.contentSecondary, c.background, "Supporting text, captions, inactive icons.")
             ColorRow("contentTertiary", c.contentTertiary, c.background, "Metadata, placeholders, timestamps.")
@@ -59,7 +57,7 @@ internal fun ColorCatalogBody() {
         "Accent · Primary (gold)",
         "The brand. The main CTA, focus rings, selected states. solid → fill, on → text on it, deep → 3D lip, subtle → tint.",
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+        SwatchFlow {
             ColorRow("accentPrimary", c.accentPrimary, c.onAccentPrimary, "Primary buttons, focus, selection — the one thing you want tapped.")
             ColorRow("onAccentPrimary", c.onAccentPrimary, c.accentPrimary, "Text and icons rendered on an accentPrimary fill.")
             ColorRow("accentPrimaryDeep", c.accentPrimaryDeep, c.onAccentPrimary, "The hard band under a filled primary button — the 3D 'lip'.")
@@ -71,7 +69,7 @@ internal fun ColorCatalogBody() {
         "Accent · Secondary (teal)",
         "The second brand accent — only for the rare screen with two primary-level CTAs in different colors.",
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+        SwatchFlow {
             ColorRow("accentSecondary", c.accentSecondary, c.onAccentSecondary, "A second, distinct primary-level action (e.g. 'Upgrade' beside 'Continue').")
             ColorRow("onAccentSecondary", c.onAccentSecondary, c.accentSecondary, "Text and icons on an accentSecondary fill.")
             ColorRow("accentSecondaryDeep", c.accentSecondaryDeep, c.onAccentSecondary, "3D lip under a Secondary-accented filled button.")
@@ -83,7 +81,7 @@ internal fun ColorCatalogBody() {
         "Accent · Tertiary (coral)",
         "The third brand accent — sparingly, when a third categorical pop is genuinely needed.",
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+        SwatchFlow {
             ColorRow("accentTertiary", c.accentTertiary, c.onAccentTertiary, "A third categorical accent — rare.")
             ColorRow("onAccentTertiary", c.onAccentTertiary, c.accentTertiary, "Text and icons on an accentTertiary fill.")
             ColorRow("accentTertiaryDeep", c.accentTertiaryDeep, c.onAccentTertiary, "3D lip under a Tertiary-accented filled button.")
@@ -95,7 +93,7 @@ internal fun ColorCatalogBody() {
         "Status",
         "Universal state meaning, same shape as Material's error roles: solid fill + on-color + subtle tint.",
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+        SwatchFlow {
             ColorRow("info", c.info, c.onInfo, "Neutral, informational callouts and banners.")
             ColorRow("infoSubtle", c.infoSubtle, c.content, "Tinted info background — info banner fill, trust card.")
             ColorRow("success", c.success, c.onSuccess, "Positive confirmation — saved, completed, hand won.")
@@ -112,7 +110,7 @@ internal fun ColorCatalogBody() {
         "Borders",
         "Edges and dividers. Strength signals interaction state.",
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+        SwatchFlow {
             ColorRow("border", c.border, c.content, "Default edges, dividers, input rest state.")
             ColorRow("borderStrong", c.borderStrong, c.content, "Focused / selected edges, and quiet rest rings (radio, switch).")
             ColorRow("borderDisabled", c.borderDisabled, c.content, "Edges of disabled controls.")

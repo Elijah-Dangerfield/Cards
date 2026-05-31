@@ -123,7 +123,9 @@ internal fun ColorRow(
     usage: String,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        // Fixed width so a ladder of these wraps into columns on a wide canvas (see SwatchFlow)
+        // instead of one tall single-file stack.
+        modifier = Modifier.width(500.dp),
         horizontalArrangement = Arrangement.spacedBy(Dimension.D600),
         verticalAlignment = Alignment.Top,
     ) {
