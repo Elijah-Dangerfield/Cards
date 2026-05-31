@@ -81,6 +81,10 @@
     <string name="lobby_in_room_waiting_for_host">Waiting for the host to start the game…</string>
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>
+    <string name="lobby_leave_dialog_title">Leave the room?</string>
+    <string name="lobby_leave_dialog_body">You\'ll give up your seat and won\'t be in this game anymore.</string>
+    <string name="lobby_leave_dialog_primary">Leave</string>
+    <string name="lobby_leave_dialog_secondary">Stay</string>
     <string name="lobby_in_room_member_seat_label">Seat %1$d</string>
     <string name="lobby_in_room_host_badge">Host</string>
 
