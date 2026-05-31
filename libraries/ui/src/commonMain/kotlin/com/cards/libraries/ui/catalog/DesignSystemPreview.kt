@@ -19,21 +19,86 @@ import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /*
- * # DesignSystemPreview — the whole system on one page.
+ * # Design-system catalog — grouped previews
  *
- * Open this in the IDE preview pane to scroll the entire design system top to bottom: a cover, then
- * every area (Color · Typography · Radii · Buttons · Banner · Forms) rendered live next to its
- * "when to use it" notes. Each area also has its own focused @Preview in its catalog file
- * (ColorCatalog, ButtonCatalog, …) when you want just that one.
+ * The whole system is too tall for one preview, so it's split into two logical groups you can open
+ * side by side in the IDE preview pane:
  *
- * This is documentation, not a screen — read it like a spec sheet. If you add a component or token,
- * add it to the matching *CatalogBody() and it shows up here automatically.
+ *   • [FoundationsPreview] — the raw material: Color · Typography · Radii.
+ *   • [ComponentsPreview]  — built from the tokens: Buttons · Banner · Forms (+ Overlays pointer).
+ *
+ * Each is a wide, two-column page so it spreads horizontally instead of running tall. For a single
+ * area, every catalog file (ColorCatalog, …) and component file (Button.kt, …) has its own focused
+ * @Preview. Add a token/component to the matching *CatalogBody() and it shows up in the right group.
  */
-// Wide + two columns: spreads horizontally so the page is ~half as tall as a single stack. heightDp
-// is intentionally generous (trailing blank space is harmless; too small clips) — trim to taste.
-@Preview(widthDp = 2400, heightDp = 15000)
+
+@Preview(widthDp = 2400, heightDp = 11000)
 @Composable
-private fun DesignSystemPreview() {
+private fun FoundationsPreview() {
+    CatalogScaffold(
+        title = "Foundations",
+        subtitle = "The raw material — design tokens. Always reach for a role, never a literal value.",
+    ) {
+        TwoColumn(
+            left = {
+                Area("Color", "Role-named tokens — surfaces, the content ramp, accents, status, borders, categorical.") {
+                    ColorCatalogBody()
+                }
+            },
+            right = {
+                Area("Typography", "The serif Display headline + the sans Heading / Body / Label / Caption ramps.") {
+                    TypographyCatalogBody()
+                }
+                Area("Radii", "Semantic corner radii and the raw scale behind them.") {
+                    RadiiCatalogBody()
+                }
+            },
+        )
+    }
+}
+
+@Preview(widthDp = 2400, heightDp = 6000)
+@Composable
+private fun ComponentsPreview() {
+    CatalogScaffold(
+        title = "Components",
+        subtitle = "Built from the tokens — opinionated and congruent by default.",
+    ) {
+        TwoColumn(
+            left = {
+                Area("Buttons", "Emphasis × treatment × state, the accent recolor, and the size ramp.") {
+                    ButtonCatalogBody()
+                }
+                Area("Banner", "Inline non-modal messages in every tone.") {
+                    BannerCatalogBody()
+                }
+            },
+            right = {
+                Area("Forms", "Text field, switch, checkbox, radio — every state.") {
+                    FormCatalogBody()
+                }
+                // Overlays don't render inline (they host as full-screen scrims) — point to their previews.
+                Area("Overlays", "Dialog & BottomSheet host as full-screen scrims, so they can't render inline here.") {
+                    Text(
+                        text = "See the focused previews in Dialog.kt and BottomSheet.kt. Both own the typography " +
+                            "of their title/body slots: a bare Text in a title slot becomes the serif felt headline, " +
+                            "body text becomes Body.B500 in contentSecondary.",
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.contentSecondary,
+                    )
+                }
+            },
+        )
+    }
+}
+
+/** Themed, scrollable page with a cover header — the shell every group preview shares. */
+@Composable
+private fun CatalogScaffold(
+    title: String,
+    subtitle: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     PreviewContent {
         Column(
             modifier = Modifier
@@ -42,66 +107,40 @@ private fun DesignSystemPreview() {
                 .padding(Dimension.D1000),
             verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
         ) {
-            // Cover spans the full width above the columns.
             Column(verticalArrangement = Arrangement.spacedBy(Dimension.D300)) {
-                Text(text = "Cards Design System", typography = AppTheme.typography.Display.D1500)
+                Text(text = title, typography = AppTheme.typography.Display.D1500)
                 Text(
-                    text = "Warm felt · dark-only. Role-named tokens, an opinionated component set, and one " +
-                        "place to review it all. Below: color, type, radii, buttons, banner, forms — each " +
-                        "shown live with notes on when to reach for it.",
+                    text = subtitle,
                     typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.contentSecondary,
                 )
             }
-
-            // Two balanced columns so the catalog spreads horizontally instead of running tall.
-            // Areas are split by rough height: the big Color ladder + a couple of mediums on the
-            // left, the rest on the right.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Dimension.D1100),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
-                ) {
-                    Area("Color", "Role-named tokens — surfaces, the content ramp, accents, status, borders, categorical.") {
-                        ColorCatalogBody()
-                    }
-                    Area("Buttons", "Emphasis × treatment × state, the accent recolor, and the size ramp.") {
-                        ButtonCatalogBody()
-                    }
-                    Area("Banner", "Inline non-modal messages in every tone.") {
-                        BannerCatalogBody()
-                    }
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
-                ) {
-                    Area("Typography", "The serif Display headline + the sans Heading / Body / Label / Caption ramps.") {
-                        TypographyCatalogBody()
-                    }
-                    Area("Forms", "Text field, switch, checkbox, radio — every state.") {
-                        FormCatalogBody()
-                    }
-                    Area("Radii", "Semantic corner radii and the raw scale behind them.") {
-                        RadiiCatalogBody()
-                    }
-                    // Overlays don't render inline (they host as full-screen scrims) — point to their previews.
-                    Area("Overlays", "Dialog & BottomSheet host as full-screen scrims, so they can't render inline here.") {
-                        Text(
-                            text = "See the focused previews in Dialog.kt and BottomSheet.kt. Both own the typography " +
-                                "of their title/body slots: a bare Text in a title slot becomes the serif felt headline, " +
-                                "body text becomes Body.B500 in contentSecondary.",
-                            typography = AppTheme.typography.Body.B500,
-                            color = AppTheme.colors.contentSecondary,
-                        )
-                    }
-                }
-            }
+            content()
         }
+    }
+}
+
+/** Two balanced columns so a page spreads horizontally instead of running tall. */
+@Composable
+private fun TwoColumn(
+    left: @Composable ColumnScope.() -> Unit,
+    right: @Composable ColumnScope.() -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Dimension.D1100),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
+            content = left,
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
+            content = right,
+        )
     }
 }
 
