@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.system.color.defaultColors
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import kotlinx.coroutines.delay
@@ -130,24 +131,23 @@ private enum class Urgency(
 ) {
     Comfortable(
         icon = "⏱",
-        // status.okay carries a tint of "all good, just FYI."
-        background = ColorResource.Gray800,
-        foreground = ColorResource.White,
+        background = defaultColors.surfaceHigh,
+        foreground = defaultColors.content,
     ),
     Warning(
         icon = "⏰",
-        background = ColorResource.Amber600,
-        foreground = ColorResource.White,
+        background = defaultColors.warning,
+        foreground = defaultColors.onWarning,
     ),
     Urgent(
         icon = "⏰",
-        background = ColorResource.Red500,
-        foreground = ColorResource.White,
+        background = defaultColors.danger,
+        foreground = defaultColors.onDanger,
     ),
     Critical(
         icon = "🔥",
-        background = ColorResource.Red500,
-        foreground = ColorResource.White,
+        background = defaultColors.danger,
+        foreground = defaultColors.onDanger,
     ),
 }
 

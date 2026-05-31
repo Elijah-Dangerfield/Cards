@@ -12,7 +12,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -36,10 +35,10 @@ fun PermanentBadgeMarker(
             modifier = Modifier
                 .size(Dimension.D850)
                 .clip(CircleShape)
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfaceRaised.color)
                 .border(
                     width = 1.dp,
-                    color = PokerPalette.ChipGold,
+                    color = AppTheme.colors.poker.chipGold.color,
                     shape = CircleShape,
                 ),
             contentAlignment = Alignment.Center,
@@ -47,7 +46,7 @@ fun PermanentBadgeMarker(
             Text(
                 text = emoji,
                 typography = AppTheme.typography.Label.L500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
     }

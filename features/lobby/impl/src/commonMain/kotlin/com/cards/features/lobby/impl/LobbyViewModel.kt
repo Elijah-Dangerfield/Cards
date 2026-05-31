@@ -170,6 +170,11 @@ class LobbyViewModel(
                 // transitions so we can detect a host promotion on
                 // member-list changes (a disconnect / leave / reconnect).
                 val previousHost = state.effectiveHostUserId
+                // Capture the applied snapshot directly. Re-reading `state`
+                // after updateState races the derived stateFlow's
+                // propagation, so the promotion check keys off the value we
+                // just wrote rather than a possibly-stale read.
+                var appliedState = state
                 updateState {
                     when (val conn = action.connection) {
                         RoomConnection.Connecting -> it.copy(connectionStatus = ConnectionStatus.Connecting)
@@ -204,15 +209,15 @@ class LobbyViewModel(
                                 connectionStatus = ConnectionStatus.Disconnected,
                             )
                         }
-                    }
+                    }.also { appliedState = it }
                 }
-                val newHost = state.effectiveHostUserId
+                val newHost = appliedState.effectiveHostUserId
                 if (previousHost != null && newHost != null && previousHost != newHost) {
-                    val newHostMember = state.room?.members?.firstOrNull { it.userId == newHost }
+                    val newHostMember = appliedState.room?.members?.firstOrNull { it.userId == newHost }
                     sendEvent(
                         LobbyEvent.HostPromoted(
                             newHostDisplayName = newHostMember?.displayName ?: "Someone",
-                            isLocalUser = newHost == state.currentUserId,
+                            isLocalUser = newHost == appliedState.currentUserId,
                         ),
                     )
                 }

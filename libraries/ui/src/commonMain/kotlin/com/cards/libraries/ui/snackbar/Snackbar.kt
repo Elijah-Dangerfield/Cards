@@ -241,7 +241,7 @@ private fun SnackbarEmojiBubble(
         modifier = modifier
             .size(SnackbarEmojiBubbleSize)
             .clip(CircleShape)
-            .background(AppTheme.colors.surfaceTertiary.color),
+            .background(AppTheme.colors.surfaceHigh.color),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -255,8 +255,8 @@ private val SnackbarEmojiBubbleSize = 36.dp
 
 object SnackbarDefaults {
     val shape: Shape @Composable get() = Radii.R600.shape
-    val backgroundColor: ColorResource @Composable get() = AppTheme.colors.surfaceSecondary
-    val contentColor: ColorResource @Composable get() = AppTheme.colors.onSurfaceSecondary
+    val backgroundColor: ColorResource @Composable get() = AppTheme.colors.surfaceRaised
+    val contentColor: ColorResource @Composable get() = AppTheme.colors.contentSecondary
 }
 
 // ---------------------------------------------------------------------

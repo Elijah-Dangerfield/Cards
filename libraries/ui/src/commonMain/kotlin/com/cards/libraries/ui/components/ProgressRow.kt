@@ -71,7 +71,7 @@ fun ProgressRow(
             Box {
                 ProvideTextConfig(
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.onSurfacePrimary
+                    color = AppTheme.colors.content
                 ) {
                     content()
                 }
@@ -149,7 +149,7 @@ fun RoundedIndicator(modifier: Modifier = Modifier) {
         modifier = modifier
             .size(Dimension.D600)
             .background(
-                color = AppTheme.colors.surfacePrimary.color,
+                color = AppTheme.colors.surface.color,
                 shape = CircleShape
             )
     )
@@ -160,7 +160,7 @@ fun LineIndicator(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(width = Dimension.D100, height = Dimension.D800)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
     )
 }
 

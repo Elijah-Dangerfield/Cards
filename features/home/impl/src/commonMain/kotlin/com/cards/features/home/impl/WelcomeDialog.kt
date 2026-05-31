@@ -38,7 +38,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
 import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import org.jetbrains.compose.resources.stringResource
@@ -72,7 +71,7 @@ internal fun WelcomeDialog(
             color = ColorResource.FromColor(resolvedAvatarBg, "user-avatar-bg"),
         )
     }
-    val chipGold = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    val chipGold = AppTheme.colors.poker.chipGold
 
     Dialog(
         state = state,
@@ -97,7 +96,7 @@ internal fun WelcomeDialog(
             Text(
                 text = stringResource(Res.string.home_welcome_dialog_greeting),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(Dimension.D200))
@@ -105,7 +104,7 @@ internal fun WelcomeDialog(
             Text(
                 text = displayName,
                 typography = AppTheme.typography.Heading.H900,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(Dimension.D600))
@@ -121,7 +120,7 @@ internal fun WelcomeDialog(
             Text(
                 text = stringResource(Res.string.home_welcome_dialog_gift_line),
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
 
@@ -129,7 +128,7 @@ internal fun WelcomeDialog(
             Text(
                 text = stringResource(Res.string.home_welcome_dialog_chip_use_line),
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
 
@@ -141,7 +140,7 @@ internal fun WelcomeDialog(
             Text(
                 text = stringResource(Res.string.home_welcome_dialog_daily_grant_line),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
 

@@ -63,7 +63,7 @@ internal fun BlockingErrorScreen(
                 Text(
                     text = "Error code: $it",
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                 )
             }

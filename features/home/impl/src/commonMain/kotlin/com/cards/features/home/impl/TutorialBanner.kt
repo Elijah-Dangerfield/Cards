@@ -54,7 +54,7 @@ internal fun TutorialBanner(
             .fillMaxWidth()
             .clip(Radii.Card.shape)
             .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .bounceClick(onClick = onStart)
             .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
         verticalAlignment = Alignment.CenterVertically,
@@ -65,13 +65,13 @@ internal fun TutorialBanner(
             Text(
                 text = stringResource(Res.string.home_tutorial_banner_title),
                 typography = AppTheme.typography.Body.B700.SemiBold,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD100()
             Text(
                 text = stringResource(Res.string.home_tutorial_banner_subtitle),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
         HorizontalSpacerD500()
@@ -87,7 +87,7 @@ internal fun TutorialBanner(
             onClick = onDismiss,
             size = IconButton.Size.Small,
             backgroundColor = null,
-            iconColor = AppTheme.colors.textSecondary,
+            iconColor = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -104,7 +104,7 @@ private fun IconTile() {
         Text(
             text = "🔑",
             typography = AppTheme.typography.Heading.H500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }

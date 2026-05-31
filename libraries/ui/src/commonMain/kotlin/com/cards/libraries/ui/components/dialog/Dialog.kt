@@ -54,9 +54,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.button.ButtonAccent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
+import com.dangerfield.cards.system.typography.TypographyResource
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
 import com.dangerfield.cards.system.AppTheme
@@ -123,15 +126,15 @@ fun Dialog(
                 .then(capModifier)
                 .animateContentSize()
                 .clipToBounds()
-                .background(AppTheme.colors.surfacePrimary.color, shape = surfaceShape),
+                .background(AppTheme.colors.surface.color, shape = surfaceShape),
             contentAlignment = Alignment.Center
         ) {
             if (topAccessory != null) {
                 Column {
                     TopAccessoryBubble(
                         accessory = topAccessory,
-                        fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
-                        contentColor = AppTheme.colors.onSurfacePrimary,
+                        fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
+                        contentColor = AppTheme.colors.content,
                     )
                     content()
                 }
@@ -219,7 +222,7 @@ fun Dialog(
                     Spacer(modifier = Modifier.height(Dimension.D600))
                     Button(
                         size = ButtonSize.Medium,
-                        type = ButtonType.Tertiary,
+                        type = ButtonType.Secondary,
                         onClick = onSecondaryButtonClicked,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -273,8 +276,8 @@ fun Dialog(
         title = {
             Text(
                 text = title,
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                typography = DialogTitleTypography,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
         },
@@ -284,17 +287,23 @@ fun Dialog(
 
 /**
  * Composite-title variant of the title preset. Same outer padding +
- * inter-row spacing as the string-title overload, but takes a
- * `title: @Composable` slot for cases where the title isn't a single
- * line of text (e.g. headline + sub-badge stack, icon + title row).
- * Callers using this slot own the title's typography + alignment —
- * the preset only owns layout. Prefer the string overload when the
- * title is plain text so we keep typography consistent by default.
+ * inter-row spacing as the string-title overload, and — like every other
+ * Dialog overload — the component **owns the typography of its slots**:
  *
- * [itemSpacing] controls the vertical gap between every direct child
- * of the inner column (title row + each body row). Default is
- * [Dimension.D500] (12.dp); override when an explainer's rows need
- * more breathing room.
+ *  - everything in [title] renders in the serif felt-signature headline
+ *    ([DialogTitleTypography]) in [content][Colors.content], centered;
+ *  - everything in [body] renders in [Body.B500][BodyTypography.B500] in
+ *    [contentSecondary][Colors.contentSecondary], centered.
+ *
+ * So a bare `Text("…")` dropped into either slot is correct by default and
+ * every dialog stays congruent. Override per-call by passing an explicit
+ * `typography`/`color` on a child `Text` (it wins over the provided config).
+ * Use the `title: String` overload when the title is plain text; reach for
+ * this slot when it isn't (headline + sub-badge stack, icon + title row).
+ *
+ * [itemSpacing] controls the vertical gap between every direct child of the
+ * inner column. Default is [Dimension.D500] (12.dp); override when an
+ * explainer's rows need more breathing room.
  */
 @Composable
 fun Dialog(
@@ -327,15 +336,28 @@ fun Dialog(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(itemSpacing),
         ) {
-            title()
-            body()
+            ProvideTextConfig(
+                typography = DialogTitleTypography,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            ) { title() }
+            ProvideTextConfig(
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            ) { body() }
         }
     }
 }
 
-/** Dialog top-corner radius. Matches [Radii.Card] visually but expressed
- *  as a Dp because [NotchedSheetShape] takes Dp directly. */
-private val DialogCardCornerRadius = 20.dp
+/** Dialog top-corner radius. Matches [Radii.Card] (18dp) but expressed as a Dp
+ *  because [NotchedSheetShape] takes Dp directly. */
+private val DialogCardCornerRadius = 18.dp
+
+/** The felt-world signature for a dialog headline: serif Display, italic. Every
+ *  Dialog overload provides this to its title slot so dialogs stay congruent. */
+private val DialogTitleTypography: TypographyResource
+    @Composable get() = AppTheme.typography.Display.D900.Italic
 
 @Preview
 @Composable
@@ -462,7 +484,8 @@ private fun PreviewDialog_PrimaryAltAndSecondary() {
             Spacer(modifier = Modifier.height(Dimension.D400))
             Button(
                 size = ButtonSize.Medium,
-                type = ButtonType.PrimaryAlt,
+                type = ButtonType.Primary,
+                accent = ButtonAccent.Secondary,
                 onClick = {},
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -618,7 +641,7 @@ private fun PreviewDialog_ThreeStackedButtons() {
             }
             Button(
                 size = ButtonSize.Medium,
-                type = ButtonType.Tertiary,
+                type = ButtonType.Ghost,
                 onClick = {},
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -811,7 +834,7 @@ object ModalDialogDefaults {
     private val exitMillis = 180
 
     @Composable
-    fun scrimColor(): Color = AppTheme.colors.backgroundOverlay.color
+    fun scrimColor(): Color = AppTheme.colors.scrim.color
 
     fun scrimEnter(): EnterTransition = fadeIn(
         animationSpec = tween(enterMillis)

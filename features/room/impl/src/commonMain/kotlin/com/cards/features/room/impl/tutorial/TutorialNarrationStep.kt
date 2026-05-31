@@ -56,16 +56,15 @@ import com.dangerfield.cards.libraries.ui.components.Card as DsCard
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonAccent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
-import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension.D1000
 import com.dangerfield.cards.system.Dimension.D500
@@ -167,7 +166,7 @@ internal fun NarrationStep(
                     Text(
                         text = stringResource(titleRes),
                         typography = AppTheme.typography.Display.D1100.Italic,
-                        color = ColorResource.Amber500,
+                        color = AppTheme.colors.accentPrimary,
                         textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -176,7 +175,7 @@ internal fun NarrationStep(
                 Text(
                     text = stringResource(animatedStep.coach.body),
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Start,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -197,7 +196,8 @@ internal fun NarrationStep(
                     VerticalSpacerD400()
                     Button(
                         onClick = onSkipBasics,
-                        type = ButtonType.PrimaryAlt,
+                        type = ButtonType.Primary,
+                        accent = ButtonAccent.Secondary,
                         style = ButtonStyle.Text,
                         size = ButtonSize.Small,
                         content = { Text(stringResource(Res.string.tutorial_skip_basics_button)) }
@@ -261,7 +261,7 @@ private fun PotHero() {
         Text(
             text = formatChipCount(animated.value.toInt()),
             typography = AppTheme.typography.Display.D1100,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -280,18 +280,18 @@ private fun Coin(modifier: Modifier = Modifier) {
             .background(
                 Brush.radialGradient(
                     listOf(
-                        PokerPalette.CoinGradientStart,
-                        PokerPalette.CoinGradientEnd,
+                        AppTheme.colors.poker.coinGradientStart.color,
+                        AppTheme.colors.poker.coinGradientEnd.color,
                     ),
                 ),
             )
-            .border(3.dp, PokerPalette.CoinOutline, CircleShape),
+            .border(3.dp, AppTheme.colors.poker.coinOutline.color, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "$",
             typography = AppTheme.typography.Display.D1100,
-            color = ColorResource.FromColor(PokerPalette.CoinGlyph, "coin-glyph"),
+            color = AppTheme.colors.poker.coinGlyph,
         )
     }
 }
@@ -364,8 +364,8 @@ private fun RankRow(
     // amber outline via a Modifier wrapping the Card. Non-highlighted
     // rows fall back to the DS border token so they pick up the
     // theme's stock outline without us hand-coding a color.
-    val outline = if (highlighted) ColorResource.Amber500.color else AppTheme.colors.border.color
-    val titleColor = if (highlighted) ColorResource.Amber500 else AppTheme.colors.text
+    val outline = if (highlighted) AppTheme.colors.accentPrimary.color else AppTheme.colors.border.color
+    val titleColor = if (highlighted) AppTheme.colors.accentPrimary else AppTheme.colors.content
     DsCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -385,7 +385,7 @@ private fun RankRow(
                 Text(
                     text = stringResource(subtitle),
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }
@@ -451,12 +451,12 @@ private fun ActionsHero(
             description = Res.string.tutorial_actions_fold_description,
         )
         ActionLegendRow(
-            color = AppTheme.colors.surfacePrimary,
+            color = AppTheme.colors.surface,
             label = Res.string.tutorial_actions_call_label,
             description = Res.string.tutorial_actions_call_description,
         )
         ActionLegendRow(
-            color = AppTheme.colors.surfaceSecondary,
+            color = AppTheme.colors.surfaceRaised,
             label = Res.string.tutorial_actions_raise_label,
             description = Res.string.tutorial_actions_raise_description,
         )
@@ -481,14 +481,14 @@ private fun ActionLegendRow(
             Text(
                 text = stringResource(label),
                 typography = AppTheme.typography.Body.B600.SemiBold,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         Row(modifier = Modifier.width(12.dp)) {}
         Text(
             text = stringResource(description),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             modifier = Modifier.weight(1f),
         )
     }

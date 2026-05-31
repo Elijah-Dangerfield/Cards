@@ -41,7 +41,7 @@ fun StatsExplainersSheet(
             Text(
                 text = "How XP works",
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         },
         content = {
@@ -74,7 +74,7 @@ private fun HowToEarnCard() {
         Text(
             text = "Bot hands earn at half the rate of multiplayer. XP never depends on whether you win or lose — just on how engaged the hand was.",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Start,
         )
     }
@@ -86,7 +86,7 @@ private fun WhatXpDoesCard() {
         Text(
             text = "XP is your lifetime engagement score — it never goes down. Every session adds to it whether you stack chips or bust out.",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Spacer(modifier = Modifier.height(8.dp))
         SheetBullet("Unlocks shop items as you climb — titles, emote packs, table felts, utilities, and more")
@@ -96,7 +96,7 @@ private fun WhatXpDoesCard() {
         Text(
             text = "Multiplayer hands will earn 2× when it ships.",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -107,7 +107,7 @@ private fun SheetInfoCard(content: @Composable () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -121,13 +121,13 @@ private fun SheetBullet(text: String) {
         Text(
             text = "·",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = text,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -137,7 +137,7 @@ private fun SheetSectionTitle(text: String) {
     Text(
         text = text,
         typography = AppTheme.typography.Body.B600.SemiBold,
-        color = AppTheme.colors.text,
+        color = AppTheme.colors.content,
     )
 }
 

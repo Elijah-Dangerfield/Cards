@@ -5,7 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.HorizontalSpacerD200
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 
 @Composable
 fun AsteriskText(text: @Composable () -> Unit) {
@@ -17,7 +16,7 @@ fun AsteriskText(text: @Composable () -> Unit) {
         Text(
             text = "*",
             typography = AppTheme.typography.Display.D800,
-            color = ColorResource.Red500
+            color = AppTheme.colors.danger
         )
     }
 }

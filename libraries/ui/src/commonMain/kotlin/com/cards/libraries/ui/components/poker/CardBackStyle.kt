@@ -1,10 +1,11 @@
 package com.dangerfield.cards.libraries.ui.components.poker
 
+import com.dangerfield.cards.system.AppTheme
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 
 /**
  * The visual styles a face-down card can render as. Decoupled from
@@ -46,7 +47,7 @@ internal data class CardBackPalette(
 @Composable
 internal fun paletteFor(style: CardBackStyle): CardBackPalette = when (style) {
     CardBackStyle.Default -> CardBackPalette(
-        baseBrush = Brush.linearGradient(listOf(PokerPalette.CardBackBlue, PokerPalette.CardBackBlue)),
+        baseBrush = Brush.linearGradient(listOf(AppTheme.colors.poker.cardBackBlue.color, AppTheme.colors.poker.cardBackBlue.color)),
         borderColor = Color.White.copy(alpha = 0.18f),
     )
     CardBackStyle.Marble -> CardBackPalette(
@@ -59,9 +60,9 @@ internal fun paletteFor(style: CardBackStyle): CardBackPalette = when (style) {
     )
     CardBackStyle.Gold -> CardBackPalette(
         // Goldsmith two-tone — slightly redder warm gold at the top
-        // fading into [PokerPalette.ChipGold].
+        // fading into [PokerColors.chipGold].
         baseBrush = Brush.linearGradient(
-            listOf(Color(0xFFB67E2C), PokerPalette.ChipGold),
+            listOf(Color(0xFFB67E2C), AppTheme.colors.poker.chipGold.color),
         ),
         borderColor = Color(0xFFFFE7A0),
     )

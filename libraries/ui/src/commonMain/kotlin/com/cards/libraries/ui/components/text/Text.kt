@@ -203,7 +203,7 @@ fun TypographyResource.toStyle(
     lineBreak: LineBreak? = null,
 ): TextStyle {
     val fallbackColor =
-        LocalTextConfig.current.color.takeOrElse(LocalContentColor.current.takeOrElse(AppTheme.colors.text))
+        LocalTextConfig.current.color.takeOrElse(LocalContentColor.current.takeOrElse(AppTheme.colors.content))
 
     return style.copy(
         color = color?.takeOrElse(fallbackColor)?.color ?: fallbackColor.color,

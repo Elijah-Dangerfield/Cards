@@ -65,7 +65,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.libraries.ui.system.color.LevelProgressGradient
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
@@ -97,7 +96,7 @@ internal fun ShowdownDialog(
         ?: 0L
     val byFold = result.winners.all { it.byFold }
     val totalPot = result.winners.sumOf { it.amount }
-    val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    val goldText = AppTheme.colors.poker.chipGold
     val heroEmoji = when {
         humanWon -> "🏆"
         byFold -> "🫳"
@@ -134,7 +133,7 @@ internal fun ShowdownDialog(
                 Text(
                     text = headlineText,
                     typography = AppTheme.typography.Display.D1200,
-                    color = if (humanWon) goldText else AppTheme.colors.onSurfacePrimary,
+                    color = if (humanWon) goldText else AppTheme.colors.content,
                 )
                 if (humanWon) {
                     Text(
@@ -146,7 +145,7 @@ internal fun ShowdownDialog(
                     Text(
                         text = stringResource(Res.string.room_showdown_pot_amount, totalPot.toString()),
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = AppTheme.colors.contentSecondary,
                     )
                 }
             }
@@ -179,7 +178,7 @@ internal fun ShowdownDialog(
                     Text(
                         text = stringResource(Res.string.room_showdown_board_label),
                         typography = AppTheme.typography.Body.B400,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = AppTheme.colors.contentSecondary,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         result.board.forEach { card ->
@@ -250,12 +249,12 @@ internal fun BustDialog(
                 Text(
                     text = stringResource(Res.string.room_bust_title),
                     typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Text(
                     text = stringResource(Res.string.room_bust_body),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -290,30 +289,30 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R700)
-            .background(PokerPalette.ChipGold.copy(alpha = 0.18f))
+            .background(AppTheme.colors.poker.chipGold.color.copy(alpha = 0.18f))
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
             text = earned.achievement.icon,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(Res.string.room_achievement_callout_heading),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             Text(
                 text = earned.achievement.name,
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             if (earned.achievement.description.isNotBlank()) {
                 Text(
                     text = earned.achievement.description,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
             val rewardSummary = if (earned.achievement.chipReward > 0L) {
@@ -328,7 +327,7 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
             Text(
                 text = rewardSummary,
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             cosmeticRewardFor(earned.achievement.id)?.let { cosmetic ->
                 Spacer(modifier = Modifier.height(6.dp))
@@ -339,12 +338,12 @@ private fun AchievementUnlockedCallout(earned: EarnedAchievement) {
                     Text(
                         text = "🎁",
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.text,
+                        color = AppTheme.colors.content,
                     )
                     Text(
                         text = stringResource(Res.string.room_achievement_cosmetic_label, cosmetic.label),
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.text,
+                        color = AppTheme.colors.content,
                     )
                 }
             }
@@ -359,7 +358,7 @@ private fun XpEarnedBubble(amount: Int) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .clip(Radii.Round)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = 18.dp, vertical = 12.dp),
     ) {
         Box(
@@ -372,18 +371,18 @@ private fun XpEarnedBubble(amount: Int) {
             Text(
                 text = stringResource(Res.string.room_xp_bubble_glyph),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         Text(
             text = stringResource(Res.string.room_xp_bubble_amount, amount),
             typography = AppTheme.typography.Heading.H600,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         Text(
             text = stringResource(Res.string.room_xp_bubble_suffix),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -403,7 +402,7 @@ private fun ShowdownRow(
             HandEvaluator.evaluate(seat.holeCards + board).describe()
         } else null
     }
-    val goldText = remember { ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold") }
+    val goldText = AppTheme.colors.poker.chipGold
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -412,7 +411,7 @@ private fun ShowdownRow(
         Text(
             text = if (seat.isHuman) stringResource(Res.string.room_showdown_row_you) else seat.displayName,
             typography = AppTheme.typography.Body.B500,
-            color = if (isWinner) goldText else AppTheme.colors.text,
+            color = if (isWinner) goldText else AppTheme.colors.content,
             modifier = Modifier.width(64.dp),
         )
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -423,7 +422,7 @@ private fun ShowdownRow(
             Text(
                 text = handDescription ?: stringResource(Res.string.room_showdown_row_no_hand),
                 typography = AppTheme.typography.Body.B400,
-                color = if (isWinner) goldText else AppTheme.colors.onSurfaceSecondary,
+                color = if (isWinner) goldText else AppTheme.colors.contentSecondary,
                 textAlign = androidx.compose.ui.text.style.TextAlign.End,
             )
             if (isWinner && winAmount > 0) {

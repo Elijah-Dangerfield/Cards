@@ -37,7 +37,7 @@ fun SectionCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(AppTheme.colors.surfacePrimary.color, Radii.Card.shape)
+                .background(AppTheme.colors.surface.color, Radii.Card.shape)
                 .padding(Dimension.D600),
             verticalArrangement = Arrangement.spacedBy(contentSpacing)
         ) {
@@ -59,7 +59,7 @@ fun SummaryRow(
         Text(
             text = label,
             typography = AppTheme.typography.Caption.C400,
-            color = AppTheme.colors.textSecondary
+            color = AppTheme.colors.contentSecondary
         )
         VerticalSpacerD100()
         Text(

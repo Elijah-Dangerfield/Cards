@@ -71,12 +71,12 @@ internal fun HomeCtaCard(
                 Text(
                     text = title,
                     typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
                 Text(
                     text = subtitle,
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
             if (trailing != null) {
@@ -84,7 +84,7 @@ internal fun HomeCtaCard(
             } else {
                 Icon(
                     icon = Icons.ChevronRight("Open"),
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     size = IconSize.Small,
                 )
             }
@@ -105,7 +105,7 @@ private fun GlyphBadge(glyph: String, accent: Color) {
         Text(
             text = glyph,
             typography = AppTheme.typography.Heading.H1000,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -115,13 +115,13 @@ private fun TrailingChip(label: String) {
     Box(
         modifier = Modifier
             .clip(Radii.R500.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .padding(horizontal = Dimension.D400, vertical = Dimension.D200),
     ) {
         Text(
             text = label,
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }

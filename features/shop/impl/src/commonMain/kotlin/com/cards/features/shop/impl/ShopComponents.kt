@@ -59,9 +59,9 @@ internal fun ProductIcon(
     modifier: Modifier = Modifier,
 ) {
     val bg = when (tone) {
-        IconTone.Gold -> ColorResource.Amber600.color.copy(alpha = 0.18f)
+        IconTone.Gold -> AppTheme.colors.accentPrimary.color.copy(alpha = 0.18f)
         IconTone.Accent -> AppTheme.colors.accentPrimary.color.copy(alpha = 0.18f)
-        IconTone.Neutral -> AppTheme.colors.surfaceSecondary.color
+        IconTone.Neutral -> AppTheme.colors.surfaceRaised.color
     }
     Box(
         modifier = modifier
@@ -73,7 +73,7 @@ internal fun ProductIcon(
         Text(
             text = emoji,
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -146,7 +146,7 @@ internal fun productBubbleSurface(product: Product): BubbleSurface = when (produ
             ),
         )
     } else {
-        BubbleSurface.Solid(color = ColorResource.Amber600, alpha = 0.18f)
+        BubbleSurface.Solid(color = AppTheme.colors.accentPrimary, alpha = 0.18f)
     }
     is Product.ChipOffer -> BubbleSurface.Solid(
         color = AppTheme.colors.accentPrimary,
@@ -195,7 +195,7 @@ private fun BadgePillPreview() {
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
         ) {
             BadgePill(text = "NEW", accent = AppTheme.colors.accentPrimary)
-            BadgePill(text = "+20% BONUS", accent = ColorResource.Amber600)
+            BadgePill(text = "+20% BONUS", accent = AppTheme.colors.accentPrimary)
         }
     }
 }
@@ -208,7 +208,7 @@ private fun OverhangBadgePreview() {
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
         ) {
             OverhangBadge(text = "BEST VALUE", accent = AppTheme.colors.accentPrimary)
-            OverhangBadge(text = "LIMITED", accent = ColorResource.Amber600)
+            OverhangBadge(text = "LIMITED", accent = AppTheme.colors.accentPrimary)
         }
     }
 }

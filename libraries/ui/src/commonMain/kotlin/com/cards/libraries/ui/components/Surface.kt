@@ -179,7 +179,7 @@ private fun SurfacePreview() {
     PreviewContent {
         Surface(
             color = AppTheme.colors.background,
-            contentColor = AppTheme.colors.text,
+            contentColor = AppTheme.colors.content,
             contentPadding = PaddingValues(Dimension.D900)
         ) {
             Text("Hello")
@@ -193,7 +193,7 @@ private fun ClickableSurfacePreview() {
     PreviewContent {
         Surface(
             color = AppTheme.colors.background,
-            contentColor = AppTheme.colors.text,
+            contentColor = AppTheme.colors.content,
             radius = Radii.Banner,
             contentPadding = PaddingValues(Dimension.D900)
         ) {
@@ -208,7 +208,7 @@ private fun ClickableSurfacePreviewNoColor() {
     PreviewContent(backgroundColor = null) {
         Surface(
             color = null,
-            contentColor = AppTheme.colors.text,
+            contentColor = AppTheme.colors.content,
             radius = Radii.Banner,
             contentPadding = PaddingValues(Dimension.D900)
         ) {

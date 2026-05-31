@@ -78,7 +78,7 @@ fun SelectableCard(
                 Text(
                     text = badge,
                     modifier = Modifier
-                        .background(AppTheme.colors.surfaceTertiary.color, Radii.R300.shape)
+                        .background(AppTheme.colors.surfaceHigh.color, Radii.R300.shape)
                         .padding(horizontal = Dimension.D300, vertical = Dimension.D100),
                     typography = AppTheme.typography.Caption.C300
                 )

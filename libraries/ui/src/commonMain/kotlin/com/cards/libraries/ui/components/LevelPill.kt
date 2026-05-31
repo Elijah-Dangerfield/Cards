@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components
 
+import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -27,7 +29,6 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_level_pill_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -117,7 +118,7 @@ fun XpBadge(
         anim
     }
     val ringColor = RING_HUE
-    val trackColor = AppTheme.colors.surfaceTertiary.color
+    val trackColor = AppTheme.colors.surfaceHigh.color
     val circleSize = size * (12f / 18f)
     val sparkleSize = size * (7f / 18f)
     val strokeWidth = size * (2f / 18f)
@@ -161,7 +162,7 @@ fun XpBadge(
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
-                        listOf(PokerPalette.ProgressionCyan, PokerPalette.ProgressionGreen),
+                        listOf(AppTheme.colors.poker.progressionCyan.color, AppTheme.colors.poker.progressionGreen.color),
                     ),
                 ),
             contentAlignment = Alignment.Center,
@@ -173,7 +174,7 @@ fun XpBadge(
             // bounds exactly under our control.
             SparkleGlyph(
                 size = sparkleSize,
-                color = AppTheme.colors.text.color,
+                color = AppTheme.colors.content.color,
             )
         }
     }
@@ -213,7 +214,7 @@ private val RING_SIZE = 18.dp
 
 /** Matches the cyan start of the inner gradient so the ring reads as
  *  the same family of colour as the fill it surrounds. */
-private val RING_HUE = PokerPalette.ProgressionCyan
+private val RING_HUE = ColorResource.PokerProgressionCyan.color
 
 // ---------------------------------------------------------------------------
 // Previews — pin the visual across the states the pill will actually render:

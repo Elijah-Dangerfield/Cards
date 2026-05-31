@@ -31,7 +31,7 @@ fun PullToRefreshBox(
     state: PullToRefreshState = rememberPullToRefreshState(),
     contentAlignment: Alignment = Alignment.TopStart,
     indicatorColor: Color = LocalColors.current.accentPrimary.color,
-    indicatorContainerColor: Color = LocalColors.current.surfacePrimary.color,
+    indicatorContainerColor: Color = LocalColors.current.surface.color,
     indicator: @Composable BoxScope.() -> Unit = {
         PullToRefreshDefaults.Indicator(
             modifier = Modifier.align(Alignment.TopCenter),

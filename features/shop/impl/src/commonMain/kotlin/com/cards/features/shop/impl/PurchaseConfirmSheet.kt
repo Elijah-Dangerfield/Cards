@@ -108,7 +108,7 @@ internal fun PurchaseConfirmSheet(
             // initiated dismissals where neither button was tapped.
             (pendingTerminalAction ?: onDismiss).invoke()
         },
-        backgroundColor = AppTheme.colors.surfacePrimary,
+        backgroundColor = AppTheme.colors.surface,
         dragHandle = handle,
     ) {
         val animatedConfirm: () -> Unit = {
@@ -166,29 +166,29 @@ private fun IapPackConfirmContent(
         Text(
             text = pack.title,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         VerticalSpacerD100()
         Text(
             text = pack.subtitle,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         pack.badge?.let {
             VerticalSpacerD300()
-            BadgePill(text = it, accent = ColorResource.Amber600)
+            BadgePill(text = it, accent = AppTheme.colors.accentPrimary)
         }
         VerticalSpacerD500()
         Text(
             text = pack.store.fallbackPriceDisplay,
             typography = AppTheme.typography.Heading.H900,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         VerticalSpacerD200()
         Text(
             text = "Charged via your ${platformStoreName()}.",
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         VerticalSpacerD500()
         SheetButtons(
@@ -245,17 +245,17 @@ private fun ChipOfferConfirmContent(
         Text(
             text = offer.title,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         VerticalSpacerD100()
         Text(
             text = offer.subtitle,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         offer.badge?.let {
             VerticalSpacerD300()
-            BadgePill(text = it, accent = ColorResource.Red400)
+            BadgePill(text = it, accent = AppTheme.colors.danger)
         }
         // Hero preview of the cosmetic itself — felts paint as a tinted
         // swatch, card backs render the real PlayingCardBack. The user
@@ -280,8 +280,8 @@ private fun ChipOfferConfirmContent(
             VerticalSpacerD400()
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = AppTheme.colors.surfaceSecondary,
-                contentColor = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.surfaceRaised,
+                contentColor = AppTheme.colors.contentSecondary,
                 radius = Radii.Card,
                 elevation = Elevation.None,
                 onClick = {},
@@ -291,7 +291,7 @@ private fun ChipOfferConfirmContent(
                 Text(
                     text = description,
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -305,7 +305,7 @@ private fun ChipOfferConfirmContent(
                     amount = offer.costChips,
                     coinSize = 32.dp,
                     typography = AppTheme.typography.Heading.H900,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     gap = 10.dp,
                 )
                 VerticalSpacerD500()
@@ -374,8 +374,8 @@ private fun StatusPrompt(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = AppTheme.colors.surfaceSecondary,
-        contentColor = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.surfaceRaised,
+        contentColor = AppTheme.colors.contentSecondary,
         radius = Radii.Card,
         elevation = Elevation.None,
         onClick = {},
@@ -386,20 +386,20 @@ private fun StatusPrompt(
             Text(
                 text = emoji,
                 typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD200()
             Text(
                 text = title,
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             VerticalSpacerD100()
             Text(
                 text = body,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -411,8 +411,8 @@ private fun BalancePreview(currentBalance: Long, cost: Long, canAfford: Boolean)
     val newBalance = (currentBalance - cost).coerceAtLeast(0)
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = AppTheme.colors.surfaceSecondary,
-        contentColor = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.surfaceRaised,
+        contentColor = AppTheme.colors.contentSecondary,
         radius = Radii.Card,
         elevation = Elevation.None,
         onClick = {},
@@ -425,7 +425,7 @@ private fun BalancePreview(currentBalance: Long, cost: Long, canAfford: Boolean)
             BalanceRow(
                 label = "After purchase",
                 amount = newBalance,
-                amountColor = if (canAfford) AppTheme.colors.text else AppTheme.colors.danger,
+                amountColor = if (canAfford) AppTheme.colors.content else AppTheme.colors.danger,
             )
         }
     }
@@ -435,7 +435,7 @@ private fun BalancePreview(currentBalance: Long, cost: Long, canAfford: Boolean)
 private fun BalanceRow(
     label: String,
     amount: Long,
-    amountColor: ColorResource = AppTheme.colors.text,
+    amountColor: ColorResource = AppTheme.colors.content,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -444,7 +444,7 @@ private fun BalanceRow(
         Text(
             text = label,
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             modifier = Modifier.weight(1f),
         )
         ChipCoinAmount(

@@ -53,7 +53,6 @@ import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
-import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -288,7 +287,7 @@ private fun CoachMarkBanner(
         modifier = modifier
             .fillMaxWidth()
             .clip(Radii.Card.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape)
             // Listen on the whole banner so the user can grab anywhere
             // non-interactive (gaps, text, bullets). The CTA button
@@ -310,7 +309,7 @@ private fun CoachMarkBanner(
                 .width(36.dp)
                 .height(4.dp)
                 .clip(Radii.Round.shape)
-                .background(AppTheme.colors.borderSecondary.color),
+                .background(AppTheme.colors.borderStrong.color),
         )
         VerticalSpacerD200()
         val titleRes = coach.title
@@ -318,14 +317,14 @@ private fun CoachMarkBanner(
             Text(
                 text = stringResource(titleRes),
                 typography = AppTheme.typography.Heading.H500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD200()
         }
         Text(
             text = stringResource(coach.body),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         if (coach.bullets.isNotEmpty()) {
             VerticalSpacerD200()
@@ -367,7 +366,7 @@ internal fun StepCounterPill(
     Box(
         modifier = modifier
             .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .border(1.dp, AppTheme.colors.border.color, Radii.Round.shape)
             .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
@@ -379,7 +378,7 @@ internal fun StepCounterPill(
                 stringResource(section.displayName),
             ),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -401,13 +400,13 @@ private fun BulletList(
                 Text(
                     text = "•",
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     modifier = Modifier.padding(end = Dimension.D300),
                 )
                 Text(
                     text = stringResource(bullet),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }

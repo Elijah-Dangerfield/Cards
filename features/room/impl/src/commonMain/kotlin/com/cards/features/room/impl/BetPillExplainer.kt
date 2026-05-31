@@ -33,7 +33,7 @@ internal fun BetPillExplainer(
         Text(
             text = stringResource(Res.string.room_bet_pill_explainer_body),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }

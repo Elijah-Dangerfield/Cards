@@ -66,7 +66,6 @@ import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -100,9 +99,11 @@ import cards.libraries.resources.generated.resources.onboarding_identity_section
 import cards.libraries.resources.generated.resources.onboarding_identity_skip_button
 import cards.libraries.resources.generated.resources.onboarding_identity_subtitle
 import cards.libraries.resources.generated.resources.onboarding_identity_title
+import cards.libraries.resources.generated.resources.onboarding_nav_back_button
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest_progress
 import cards.libraries.resources.generated.resources.onboarding_welcome_footer
+import cards.libraries.resources.generated.resources.onboarding_welcome_sign_in
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_in_flight
@@ -227,13 +228,13 @@ private fun WelcomeStep(
             Text(
                 text = stringResource(Res.string.onboarding_welcome_title),
                 typography = AppTheme.typography.Display.D1300,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(Dimension.D500))
             Text(
                 text = stringResource(Res.string.onboarding_welcome_subtitle),
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -314,9 +315,18 @@ private fun WelcomeStep(
             Text(
                 text = stringResource(Res.string.onboarding_welcome_footer),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
+            Spacer(modifier = Modifier.height(Dimension.D300))
+            Button(
+                onClick = { onAction(OnboardingAction.SignIn) },
+                type = ButtonType.Ghost,
+                style = ButtonStyle.Text,
+                enabled = !state.isAuthing && state.oauthInFlight == null,
+            ) {
+                Text(stringResource(Res.string.onboarding_welcome_sign_in))
+            }
             Spacer(modifier = Modifier.height(Dimension.D700))
         }
     }
@@ -341,8 +351,12 @@ private fun PickIdentityStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = Dimension.D300),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            ButtonGhost(onClick = { onAction(OnboardingAction.Back) }) {
+                Text(stringResource(Res.string.onboarding_nav_back_button))
+            }
             ButtonGhost(onClick = { onAction(OnboardingAction.Skip) }) {
                 Text(stringResource(Res.string.onboarding_identity_skip_button))
             }
@@ -366,14 +380,14 @@ private fun PickIdentityStep(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(CircleShape)
-                        .background(AppTheme.colors.surfaceSecondary.color)
+                        .background(AppTheme.colors.surfaceRaised.color)
                         .border(2.dp, AppTheme.colors.background.color, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         icon = Icons.Pencil(null),
                         size = IconSize.Smallest,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = AppTheme.colors.contentSecondary,
                     )
                 }
             }
@@ -383,7 +397,7 @@ private fun PickIdentityStep(
         Text(
             text = stringResource(Res.string.onboarding_identity_title),
             typography = AppTheme.typography.Heading.H800,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -391,7 +405,7 @@ private fun PickIdentityStep(
         Text(
             text = stringResource(Res.string.onboarding_identity_subtitle),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -414,7 +428,7 @@ private fun PickIdentityStep(
                 Icon(
                     icon = Icons.Pencil(editNameIconDesc),
                     size = IconSize.Small,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             },
             isError = state.saveError != null,
@@ -456,13 +470,13 @@ private fun PickIdentityStep(
             Icon(
                 icon = Icons.Lock(null),
                 size = IconSize.Smallest,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             Spacer(modifier = Modifier.width(Dimension.D300))
             Text(
                 text = stringResource(Res.string.onboarding_identity_more_packs_hint),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
 
@@ -548,7 +562,7 @@ private fun SectionLabel(text: String) {
     Text(
         text = text,
         typography = AppTheme.typography.Label.L400,
-        color = AppTheme.colors.onSurfaceSecondary,
+        color = AppTheme.colors.contentSecondary,
     )
 }
 
@@ -563,17 +577,27 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
             .fillMaxSize()
             .padding(screenHorizontalInsets),
     ) {
-        Spacer(modifier = Modifier.height(Dimension.D900))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Dimension.D300),
+            horizontalArrangement = Arrangement.Start,
+        ) {
+            ButtonGhost(onClick = { onAction(OnboardingAction.Back) }) {
+                Text(stringResource(Res.string.onboarding_nav_back_button))
+            }
+        }
+        Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
             text = stringResource(Res.string.onboarding_how_eyebrow),
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(Dimension.D300))
         Text(
             text = stringResource(Res.string.onboarding_how_title),
             typography = AppTheme.typography.Display.D1000,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -582,7 +606,7 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
             title = stringResource(Res.string.onboarding_how_card_play_title),
             subtitle = stringResource(Res.string.onboarding_how_card_play_subtitle),
         ) {
-            EmojiTile(glyph = "🎴", tint = PokerPalette.FeltGreen)
+            EmojiTile(glyph = "🎴", tint = AppTheme.colors.poker.feltGreen.color)
         }
         Spacer(modifier = Modifier.height(Dimension.D500))
         InfoCard(
@@ -634,13 +658,13 @@ private fun InfoCard(
                 Text(
                     text = title,
                     typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.onSurfacePrimary,
+                    color = AppTheme.colors.content,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D100))
                 Text(
                     text = subtitle,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }
@@ -659,7 +683,7 @@ private fun EmojiTile(glyph: String, tint: Color) {
         Text(
             text = glyph,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -720,6 +744,20 @@ private fun OnboardingScreenPreview_Welcome() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         OnboardingScreen(
             state = OnboardingState(step = OnboardingStep.Welcome),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun OnboardingScreenPreview_Landscape() {
+    // Phone-landscape lens on the HowItWorks step — the tallest onboarding
+    // content, most at risk of clipping on a short, wide canvas. Pins it for
+    // review before any landscape layout work lands.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(step = OnboardingStep.HowItWorks),
             onAction = {},
         )
     }

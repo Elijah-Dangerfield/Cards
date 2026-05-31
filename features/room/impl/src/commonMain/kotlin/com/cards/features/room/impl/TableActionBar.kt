@@ -36,7 +36,6 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -106,7 +105,7 @@ internal fun QuickActionBar(
                             Text(
                                 text = stringResource(Res.string.room_quick_action_raise_hint_no_chips),
                                 typography = AppTheme.typography.Body.B400,
-                                color = AppTheme.colors.textSecondary,
+                                color = AppTheme.colors.contentSecondary,
                             )
                         }
                     }
@@ -178,7 +177,7 @@ internal fun QuickActionBar(
                         IconButton(
                             icon = Icons.ArrowUp(stringResource(Res.string.room_quick_action_more_options_a11y)),
                             onClick = onExpandRaise,
-                            backgroundColor = if (feltAccent != null) null else AppTheme.colors.surfaceSecondary,
+                            backgroundColor = if (feltAccent != null) null else AppTheme.colors.surfaceRaised,
                             backgroundOverride = feltAccent,
                             size = IconButton.Size.Largest,
                         )

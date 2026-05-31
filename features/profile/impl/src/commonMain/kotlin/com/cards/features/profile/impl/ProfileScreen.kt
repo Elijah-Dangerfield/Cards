@@ -327,7 +327,7 @@ fun ProfileScreen(
             Text(
                 text = stringResource(Res.string.profile_app_version_footer, settings.appVersion),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -395,13 +395,13 @@ private fun SignOutConfirmDialog(
             Text(
                 text = title,
                 typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = body,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             Spacer(modifier = Modifier.height(20.dp))
             com.dangerfield.cards.libraries.ui.components.button.Button(
@@ -521,7 +521,7 @@ private fun <T> DropdownAccessory(
         Text(
             text = text,
             typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
         DropdownMenu(
             expanded = expanded,
@@ -575,7 +575,7 @@ private fun ProfileHeader(
                     .align(Alignment.BottomEnd)
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .background(AppTheme.colors.surfaceRaised.color)
                     .border(
                         width = 2.dp,
                         color = AppTheme.colors.background.color,
@@ -586,7 +586,7 @@ private fun ProfileHeader(
                 Icon(
                     icon = Icons.Pencil(stringResource(Res.string.profile_avatar_edit_a11y)),
                     size = IconSize.Small,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                 )
             }
         }
@@ -594,7 +594,7 @@ private fun ProfileHeader(
         Text(
             text = settings.displayName,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
         )
         settings.memberSince?.let { createdAt ->
@@ -602,7 +602,7 @@ private fun ProfileHeader(
             Text(
                 text = formatMemberSince(createdAt),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -664,7 +664,7 @@ private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier)
                 formatThousands(progress.totalXp),
             ),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         LevelProgressBar(
             fraction = progress.fraction,
@@ -677,7 +677,7 @@ private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier)
                 progress.level + 1,
             ),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -687,7 +687,7 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
     com.dangerfield.cards.libraries.ui.components.Surface(
         modifier = Modifier.fillMaxWidth(),
         color = AppTheme.colors.accentPrimary,
-        contentColor = AppTheme.colors.text,
+        contentColor = AppTheme.colors.content,
         radius = Radii.Card,
         onClick = onClaimAccount,
         bounceScale = 0.97f,
@@ -697,26 +697,26 @@ private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
             Text(
                 text = stringResource(Res.string.profile_claim_card_title),
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             Text(
                 text = stringResource(Res.string.profile_claim_card_body),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD100()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(Radii.R500.shape)
-                    .background(AppTheme.colors.surfaceSecondary.color)
+                    .background(AppTheme.colors.surfaceRaised.color)
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = stringResource(Res.string.profile_claim_card_cta),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
             }
         }
@@ -848,6 +848,46 @@ private fun ProfileScreenPreview_WithUnreadNotifications() {
                 appVersion = "0.1.0",
                 unreadNotificationCount = 5,
                 showQaMenu = false,
+            ),
+            onClaimAccount = {},
+            onEditProfile = {},
+            onOpenMyItems = {},
+            onOpenNotifications = {},
+            onBotSpeedChange = {},
+            onTurnFeedbackChange = {},
+            onTapRank = {},
+            onTapXp = {},
+            onSendFeedback = {},
+            onReportBug = {},
+            onPrivacyPolicy = {},
+            onTermsOfService = {},
+            onDeleteAccount = {},
+            onSignOut = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
+@androidx.compose.runtime.Composable
+private fun ProfileScreenPreview_Landscape() {
+    // Landscape lens: the profile is a single vertical scroll, so sideways
+    // it shows the header + first section above the fold. Surfaces whether
+    // the list rows stretch too wide before any layout tuning lands.
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
+        ProfileScreen(
+            settings = ProfileSettings(
+                displayName = "Elijah",
+                avatarEmoji = "🦄",
+                avatarBackgroundColor = "#7555ff",
+                rank = 1820,
+                xp = 12_400,
+                isAnonymous = false,
+                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
+                appVersion = "0.1.0",
+                showQaMenu = false,
+                memberSince = kotlin.time.Instant.parse("2026-03-12T00:00:00Z"),
+                isFoundingMember = true,
             ),
             onClaimAccount = {},
             onEditProfile = {},

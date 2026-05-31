@@ -6,32 +6,12 @@ import androidx.compose.animation.core.AnimationVector4D
 import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.unit.dp
-import com.dangerfield.cards.system.Dimension
-import com.dangerfield.cards.system.Radii
-import com.dangerfield.cards.system.VerticalSpacerD100
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.roundToInt
 
 @Suppress("ClassNaming")
@@ -40,70 +20,82 @@ import kotlin.math.roundToInt
 sealed class ColorResource(val color: Color, val designSystemName: String) {
     object Unspecified : ColorResource(Color.Unspecified, "unspecified")
 
-    // Gray - Neutral scale
-    object Gray50 : ColorResource(Color(0xFFFAFAFA), "gray-50")
-    object Gray100 : ColorResource(Color(0xFFF5F5F5), "gray-100")
-    object Gray200 : ColorResource(Color(0xFFEEEEEE), "gray-200")
-    object Gray300 : ColorResource(Color(0xFFE0E0E0), "gray-300")
-    object Gray400 : ColorResource(Color(0xFFBDBDBD), "gray-400")
-    object Gray500 : ColorResource(Color(0xFF9E9E9E), "gray-500")
-    object Gray600 : ColorResource(Color(0xFF757575), "gray-600")
-    object Gray700 : ColorResource(Color(0xFF3E3E3E), "gray-700")
-    object Gray800 : ColorResource(Color(0xFF2D2D2D), "gray-800")
-    object Gray900 : ColorResource(Color(0xFF1A1A1A), "gray-900")
-
-    // Blue - Primary accent
-    object Blue50 : ColorResource(Color(0xFFE3F2FD), "blue-50")
-    object Blue100 : ColorResource(Color(0xFFBBDEFB), "blue-100")
-    object Blue200 : ColorResource(Color(0xFF90CAF9), "blue-200")
-    object Blue300 : ColorResource(Color(0xFF64B5F6), "blue-300")
-    object Blue400 : ColorResource(Color(0xFF42A5F5), "blue-400")
-    object Blue500 : ColorResource(Color(0xFF2196F3), "blue-500")
-    object Blue600 : ColorResource(Color(0xFF1E88E5), "blue-600")
-    object Blue700 : ColorResource(Color(0xFF1976D2), "blue-700")
-    object Blue800 : ColorResource(Color(0xFF1565C0), "blue-800")
-    object Blue900 : ColorResource(Color(0xFF0D47A1), "blue-900")
-
-    // Green - Success states
-    object Green50 : ColorResource(Color(0xFFE8F5E9), "green-50")
-    object Green100 : ColorResource(Color(0xFFC8E6C9), "green-100")
-    object Green400 : ColorResource(Color(0xFF66BB6A), "green-400")
-    object Green500 : ColorResource(Color(0xFF4CAF50), "green-500")
-    object Green600 : ColorResource(Color(0xFF43A047), "green-600")
-    object Green700 : ColorResource(Color(0xFF388E3C), "green-700")
-
-    // Red - Error/danger states
-    object Red50 : ColorResource(Color(0xFFFFEBEE), "red-50")
-    object Red100 : ColorResource(Color(0xFFFFCDD2), "red-100")
-    object Red400 : ColorResource(Color(0xFFEF5350), "red-400")
-    object Red500 : ColorResource(Color(0xFFF44336), "red-500")
-    object Red600 : ColorResource(Color(0xFFE53935), "red-600")
-    object Red700 : ColorResource(Color(0xFFD32F2F), "red-700")
-
-    // Orange/Amber - Warning states
-    object Orange400 : ColorResource(Color(0xFFFFA726), "orange-400")
-    object Orange500 : ColorResource(Color(0xFFFF9800), "orange-500")
-    object Orange600 : ColorResource(Color(0xFFFB8C00), "orange-600")
-    object Amber500 : ColorResource(Color(0xFFFFC107), "amber-500")
-    object Amber600 : ColorResource(Color(0xFFFFB300), "amber-600")
-
-    // Purple - Secondary accent
-    object Purple50 : ColorResource(Color(0xFFF3E5F5), "purple-50")
-    object Purple100 : ColorResource(Color(0xFFE1BEE7), "purple-100")
-    object Purple400 : ColorResource(Color(0xFFAB47BC), "purple-400")
-    object Purple500 : ColorResource(Color(0xFF9C27B0), "purple-500")
-    object Purple600 : ColorResource(Color(0xFF8E24AA), "purple-600")
-    object Purple700 : ColorResource(Color(0xFF7B1FA2), "purple-700")
-
-    // Utility colors
+    // Utility colors — pure black/white + the scrim/shadow alphas.
     object Black : ColorResource(Color(0xFF000000), "black")
     object Black_A70 : ColorResource(Color(0xFF000000).copy(alpha = 0.7f), "black-a-70")
     object Black_A30 : ColorResource(Color(0xFF000000).copy(alpha = 0.3f), "black-a-30")
-    object Black_A10 : ColorResource(Color(0xFF000000).copy(alpha = 0.1f), "black-a-10")
-
     object White : ColorResource(Color(0xFFFFFFFF), "white")
-    object White_A70 : ColorResource(Color(0xFFFFFFFF).copy(alpha = 0.7f), "white-a-70")
-    object White_A30 : ColorResource(Color(0xFFFFFFFF).copy(alpha = 0.3f), "white-a-30")
+
+    // ── Warm felt theme ──────────────────────────────────────────
+    // Espresso neutrals (warm charcoal elevation ladder)
+    object Espresso950 : ColorResource(Color(0xFF121110), "espresso-950") // background
+    object Espresso900 : ColorResource(Color(0xFF1C1A18), "espresso-900") // surface
+    object Espresso850 : ColorResource(Color(0xFF211F1C), "espresso-850") // (spare)
+    object Espresso800 : ColorResource(Color(0xFF262320), "espresso-800") // surfaceRaised / surfaceDisabled
+    object Espresso700 : ColorResource(Color(0xFF322E2A), "espresso-700") // surfaceHigh
+
+    // Warm-white foreground ramp
+    object WarmWhite : ColorResource(Color(0xFFFFFAF4), "warm-white")                            // content
+    object WarmWhite_A64 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.64f), "warm-white-a-64") // contentSecondary
+    object WarmWhite_A44 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.44f), "warm-white-a-44") // contentTertiary
+    object WarmWhite_A30 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.30f), "warm-white-a-30") // contentDisabled
+
+    // Hairlines (warm white, low alpha)
+    object Hairline_09 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.09f), "hairline-09") // border
+    object Hairline_22 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.22f), "hairline-22") // borderStrong
+    object Hairline_06 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.06f), "hairline-06") // borderDisabled
+
+    // Accents (solid / deep for the 3D lip / ink)
+    object Gold500 : ColorResource(Color(0xFFE0BC52), "gold-500")
+    object Gold800 : ColorResource(Color(0xFF8A6916), "gold-800")
+    object GoldInk : ColorResource(Color(0xFF241B07), "gold-ink")
+    object Teal500 : ColorResource(Color(0xFF4DBAB0), "teal-500")
+    object Teal800 : ColorResource(Color(0xFF2C7E76), "teal-800")
+    object TealInk : ColorResource(Color(0xFF08312D), "teal-ink")
+    object Coral500 : ColorResource(Color(0xFFFF8A5B), "coral-500")
+    object Coral800 : ColorResource(Color(0xFFB85A33), "coral-800")
+    object CoralInk : ColorResource(Color(0xFF2A0C0C), "coral-ink")
+
+    // Status (warm variants, suffixed W to avoid clashing with the legacy scale)
+    object Blue500W : ColorResource(Color(0xFF3E7BD0), "blue-500-w")   // info
+    object BlueInk : ColorResource(Color(0xFF08182E), "blue-ink")
+    object Green500W : ColorResource(Color(0xFF5FB67A), "green-500-w") // success
+    object GreenInk : ColorResource(Color(0xFF06210F), "green-ink")
+    object Amber500W : ColorResource(Color(0xFFE6A23C), "amber-500-w") // warning
+    object AmberInk : ColorResource(Color(0xFF2A1C06), "amber-ink")
+    object Red500W : ColorResource(Color(0xFFE26B6B), "red-500-w")     // danger
+    object Red800W : ColorResource(Color(0xFF7E2A2A), "red-800-w")     // dangerDeep (button lip)
+    object RedInk : ColorResource(Color(0xFF2A0C0C), "red-ink")
+
+    // Categorical (NOT accents) — colors.league.*
+    object LeagueAmethyst : ColorResource(Color(0xFF8E7CC3), "league-amethyst") // current purple
+
+    // ── Poker · physical-object colors (colors.poker.*) ──────────
+    // Theme-independent by design: a chip is gold, a card back is blue, under any theme.
+    object PokerChipGold : ColorResource(Color(0xFFE0B863), "poker-chip-gold")
+    object PokerChipGoldOutline : ColorResource(Color(0xFF765F2D), "poker-chip-gold-outline")
+    object PokerCardWhite : ColorResource(Color(0xFFF4F1E8), "poker-card-white")
+    object PokerCardBackBlue : ColorResource(Color(0xFF2E4A9E), "poker-card-back-blue")
+    object PokerSeatActive : ColorResource(Color(0xFFFFD66E), "poker-seat-active")
+    object PokerBlindRed : ColorResource(Color(0xFFC42E2E), "poker-blind-red")
+    object PokerCardSlot : ColorResource(Color(0x14F4F1E8), "poker-card-slot")
+    object PokerCardSlotOutline : ColorResource(Color(0x1AFFFFFF), "poker-card-slot-outline")
+    object PokerProgressionCyan : ColorResource(Color(0xFF4FC3F7), "poker-progression-cyan")
+    object PokerProgressionGreen : ColorResource(Color(0xFF66BB6A), "poker-progression-green")
+    object PokerSparkleGold : ColorResource(Color(0xFFE5B946), "poker-sparkle-gold")
+    object PokerCoinGradientStart : ColorResource(Color(0xFFFFD66B), "poker-coin-gradient-start")
+    object PokerCoinGradientEnd : ColorResource(Color(0xFFD9A933), "poker-coin-gradient-end")
+    object PokerCoinOutline : ColorResource(Color(0xFFB68721), "poker-coin-outline")
+    object PokerCoinGlyph : ColorResource(Color(0xFF3D2A0A), "poker-coin-glyph")
+    object PokerRankBadgePurple : ColorResource(Color(0xFF8E7CC3), "poker-rank-badge-purple")
+    object PokerRankBadgePink : ColorResource(Color(0xFFE07AB1), "poker-rank-badge-pink")
+    object PokerFeltGreen : ColorResource(Color(0xFF3F5B45), "poker-felt-green")
+
+    // ── Achievement rarity tiers (colors.rarity.*) ───────────────
+    // Fixed identity per tier; Epic intentionally reuses the chip gold.
+    object RarityCommon : ColorResource(Color(0xFFB08D57), "rarity-common")
+    object RarityRare : ColorResource(Color(0xFFB0B0B8), "rarity-rare")
+    object RarityLegendary : ColorResource(Color(0xFFE07AB1), "rarity-legendary")
 
     class FromColor(color: Color, name: String) : ColorResource(color, name)
 
@@ -141,125 +133,6 @@ fun animateColorResourceAsState(
         label = label,
         finishedListener = finishedListener
     )
-}
-
-private val colors = listOf(
-    // Gray scale
-    ColorResource.Gray50,
-    ColorResource.Gray100,
-    ColorResource.Gray200,
-    ColorResource.Gray300,
-    ColorResource.Gray400,
-    ColorResource.Gray500,
-    ColorResource.Gray600,
-    ColorResource.Gray700,
-    ColorResource.Gray800,
-    ColorResource.Gray900,
-    // Blue
-    ColorResource.Blue50,
-    ColorResource.Blue100,
-    ColorResource.Blue200,
-    ColorResource.Blue300,
-    ColorResource.Blue400,
-    ColorResource.Blue500,
-    ColorResource.Blue600,
-    ColorResource.Blue700,
-    ColorResource.Blue800,
-    ColorResource.Blue900,
-    // Green
-    ColorResource.Green50,
-    ColorResource.Green100,
-    ColorResource.Green400,
-    ColorResource.Green500,
-    ColorResource.Green600,
-    ColorResource.Green700,
-    // Red
-    ColorResource.Red50,
-    ColorResource.Red100,
-    ColorResource.Red400,
-    ColorResource.Red500,
-    ColorResource.Red600,
-    ColorResource.Red700,
-    // Orange/Amber
-    ColorResource.Orange400,
-    ColorResource.Orange500,
-    ColorResource.Orange600,
-    ColorResource.Amber500,
-    ColorResource.Amber600,
-    // Purple
-    ColorResource.Purple50,
-    ColorResource.Purple100,
-    ColorResource.Purple400,
-    ColorResource.Purple500,
-    ColorResource.Purple600,
-    ColorResource.Purple700,
-    // Utilities
-    ColorResource.Black,
-    ColorResource.White
-)
-
-@Preview(widthDp = 2000, heightDp = 10000, showBackground = false)
-@Composable
-private fun PreviewColorSwatch() {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(10)
-    ) {
-        items(colors) { colorResource ->
-            ColorCard(
-                colorResource,
-                title = colorResource.designSystemName,
-                description = colorResource.toHexString()
-            )
-        }
-    }
-}
-
-
-@Composable
-internal fun ColorCard(
-    colorResource: ColorResource,
-    title: String,
-    description: String
-) {
-    Box(
-        modifier = Modifier.Companion.padding(Dimension.D100)
-            .background(colorResource.color, shape = Radii.Card.shape)
-            .height(150.dp)
-            .width(120.dp)
-            .clip(Radii.Card.shape),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-
-
-        Column {
-            if (colorResource.color.luminance() > 0.5f) {
-                HorizontalDivider(
-                    color = Color.DarkGray,
-                )
-            }
-
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(Dimension.D500)
-            ) {
-
-                Text(
-                    text = title,
-                    color = Color.Black
-                )
-
-                VerticalSpacerD100()
-
-                Text(
-                    text = description,
-                    color = Color.Black
-                )
-            }
-        }
-
-    }
 }
 
 /**

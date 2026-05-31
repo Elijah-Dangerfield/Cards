@@ -24,8 +24,8 @@ fun CircleIcon(
     iconSize: IconSize,
     modifier: Modifier = Modifier,
     padding: Dp = 0.dp,
-    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
-    contentColor: ColorResource = AppTheme.colors.onSurfacePrimary,
+    backgroundColor: ColorResource = AppTheme.colors.surface,
+    contentColor: ColorResource = AppTheme.colors.content,
     elevation: Elevation = Elevation.None,
     onClick: (() -> Unit)? = null
 ) {
@@ -58,7 +58,7 @@ private fun CircularIconPreview() {
             iconSize = IconSize.Large,
             padding = Dimension.D400,
             backgroundColor = AppTheme.colors.background,
-            contentColor = AppTheme.colors.onBackground
+            contentColor = AppTheme.colors.content
         )
     }
 }

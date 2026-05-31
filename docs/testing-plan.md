@@ -48,34 +48,34 @@ All fakes are hand-rolled (no Mockito/MockK). No mock-library smell anywhere.
 
 Add to [`LobbyViewModelTest`](../features/lobby/impl/src/commonTest/kotlin/com/cards/features/lobby/impl/LobbyViewModelTest.kt):
 
-- [ ] `startGame_hostInRoomWith2Members_sendsStartHandFrame_andEmitsNavigateEvent` — assert `handle.send(ClientFrame.StartHand(...))` was called and `LobbyEvent.NavigateToMultiplayer(code)` fired.
-- [ ] `startGame_nonHost_isNoOp` — non-host taps Start (shouldn't normally render the button, but assertion guards against state desync); no frame sent, no event.
-- [ ] `startGame_hostAlone_isNoOp` — `canStart` false (members < 2); no frame, no event.
-- [ ] `gameplaySnapshotReceived_nonHost_emitsNavigateEvent` — fire the action; assert `NavigateToMultiplayer` event.
-- [ ] `gameplaySnapshotReceived_host_doesNotEmitNavigateAgain` — host already navigated on tap; second navigation would push twice in the back stack.
-- [ ] `gameplaySnapshotReceived_secondCall_doesNotReEmit` — `hasReceivedGameplaySnapshot` guards against re-fire on subsequent snapshots.
-- [ ] `effectiveHostUserId_allConnected_isFirstMember` — base case.
-- [ ] `effectiveHostUserId_firstMemberDisconnected_promotesNextConnected` — auto-promotion case.
-- [ ] `effectiveHostUserId_noConnectedMembers_isNull` — degenerate; guards the null-host branch.
-- [ ] `effectiveHostUserId_originalHostReconnects_returnsToOriginal` — reconnect mid-session.
-- [ ] `connectionUpdated_hostChanges_emitsHostPromotedEvent` — fire `ConnectionUpdated` with a snapshot where the effective host shifted; assert `HostPromoted` event with correct name + `isLocalUser` flag.
-- [ ] `connectionUpdated_hostUnchanged_doesNotEmitPromotion` — same host on subsequent snapshot; no event.
-- [ ] `connectionUpdated_initialSetup_doesNotEmitPromotion` — first Connected emission; no event (we'd false-positive on every join).
+- [x] `startGame_hostInRoomWith2Members_sendsStartHandFrame_andEmitsNavigateEvent` — assert `handle.send(ClientFrame.StartHand(...))` was called and `LobbyEvent.NavigateToMultiplayer(code)` fired.
+- [x] `startGame_nonHost_isNoOp` — non-host taps Start (shouldn't normally render the button, but assertion guards against state desync); no frame sent, no event.
+- [x] `startGame_hostAlone_isNoOp` — `canStart` false (members < 2); no frame, no event.
+- [x] `gameplaySnapshotReceived_nonHost_emitsNavigateEvent` — fire the action; assert `NavigateToMultiplayer` event.
+- [x] `gameplaySnapshotReceived_host_doesNotEmitNavigateAgain` — host already navigated on tap; second navigation would push twice in the back stack.
+- [x] `gameplaySnapshotReceived_secondCall_doesNotReEmit` — `hasReceivedGameplaySnapshot` guards against re-fire on subsequent snapshots.
+- [x] `effectiveHostUserId_allConnected_isFirstMember` — base case.
+- [x] `effectiveHostUserId_firstMemberDisconnected_promotesNextConnected` — auto-promotion case.
+- [x] `effectiveHostUserId_noConnectedMembers_isNull` — degenerate; guards the null-host branch.
+- [x] `effectiveHostUserId_originalHostReconnects_returnsToOriginal` — reconnect mid-session.
+- [x] `connectionUpdated_hostChanges_emitsHostPromotedEvent` — fire `ConnectionUpdated` with a snapshot where the effective host shifted; assert `HostPromoted` event with correct name + `isLocalUser` flag. **Surfaced + fixed a latent bug: the promotion check re-read the lagging derived `stateFlow` for the new host, so the banner never fired; now keyed off the applied snapshot.**
+- [x] `connectionUpdated_hostUnchanged_doesNotEmitPromotion` — same host on subsequent snapshot; no event.
+- [x] `connectionUpdated_initialSetup_doesNotEmitPromotion` — first Connected emission; no event (we'd false-positive on every join).
 
 ### `RemotePokerSessionFactory` — projection logic
 
 Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/kotlin/com/cards/features/room/impl/RemotePokerSessionFactoryTest.kt) — **this is the most critical addition** because the `humanSeatIndex` lookup keying off `localUserId` is load-bearing for every action submission:
 
-- [ ] `occupantsFor_emptyState_returnsEmptyList` — pre-snapshot case.
-- [ ] `occupantsFor_filledSeats_derivesHumanBotEmpty` — three-seat state with each variant; assert exact `SeatOccupant` shapes.
-- [ ] `occupantsFor_humanSeat_carriesPlayerIdAndDisplayName` — pin the data on the Human variant.
-- [ ] `tableFor_emptyState_returnsLoading` — Loading sentinel before first snapshot.
-- [ ] `tableFor_localUserAtSeat0_humanSeatIndexIs0` — base lookup.
-- [ ] `tableFor_localUserAtSeat3_humanSeatIndexIs3` — non-zero seat.
-- [ ] `tableFor_localUserNotInRoom_humanSeatIndexIsMinusOne` — observer/spectator case; assert it doesn't crash and renders correctly.
-- [ ] `tableFor_userReseats_pickedUpInNextProjection` — V1 forbids re-seating but the dynamic lookup should still work; tests the invariant.
-- [ ] `difficultyName_and_xpMode_areMultiplayer` — pin the labels.
-- [ ] `bootstrap_callsSessionRun` — verify bootstrap actually drives the session loop.
+- [x] `occupantsFor_emptyState_returnsEmptyList` — pre-snapshot case.
+- [x] `occupantsFor_filledSeats_derivesHumanBotEmpty` — three-seat state with each variant; assert exact `SeatOccupant` shapes.
+- [x] `occupantsFor_humanSeat_carriesPlayerIdAndDisplayName` — pin the data on the Human variant.
+- [x] `tableFor_emptyState_returnsLoading` — Loading sentinel before first snapshot.
+- [x] `tableFor_localUserAtSeat0_humanSeatIndexIs0` — base lookup.
+- [x] `tableFor_localUserAtSeat3_humanSeatIndexIs3` — non-zero seat.
+- [x] `tableFor_localUserNotInRoom_humanSeatIndexIsMinusOne` — observer/spectator case; assert it doesn't crash and renders correctly.
+- [x] `tableFor_userReseats_pickedUpInNextProjection` — V1 forbids re-seating but the dynamic lookup should still work; tests the invariant.
+- [x] `difficultyName_and_xpMode_areMultiplayer` — pin the labels.
+- [x] `bootstrap_callsSessionRun` — verify bootstrap actually drives the session loop.
 
 ---
 
@@ -136,42 +136,44 @@ integration/
 
 ### Property-based tests
 
-Adopt [`kotest-property`](https://kotest.io/docs/proptest/property-based-testing.html) for the engine tests (JVM-only is fine; engine's deterministic given a seed). Pin these invariants:
+Landed in [`GameEnginePropertyTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEnginePropertyTest.kt). Rather than add a `kotest-property` dependency (and a JVM-only test split), these run a deterministic random-legal-action driver over 300 seeds × varying seat counts / stacks / button positions in plain `kotlin.test` — multiplatform-safe, and a failure reproduces from the printed seed. Invariants pinned:
 
-- [ ] **Stack conservation** — for any sequence of legal actions, `sum(seat.stack) + sum(pot.amount) == sum(starting stacks)`. No chip created or destroyed.
-- [ ] **Pot eligibility correctness** — for any all-in distribution, every pot's `eligibleSeatIndexes` contains exactly the seats that contributed to that pot tier.
-- [ ] **Hand monotonicity** — `lastSequence` strictly increases across emitted events within a hand.
-- [ ] **Acting seat rotation** — `actingSeatIndex` always points to a seat with `canAct = true`, or is null at street end.
-- [ ] **Settlement equals winnings** — sum of `PotAwarded.amount` across all pots == `pot.amount` before settlement.
-- [ ] **Hole-card scrub correctness** — `state.scrubbedFor(viewerSeat)` never reveals a non-viewer seat's hole cards unless that seat is at showdown.
+- [x] **Stack conservation** — for any sequence of legal actions, `sum(seat.stack) + chips-on-table == sum(starting stacks)` mid-hand, and `sum(seat.stack) == starting total` once Complete. No chip created or destroyed.
+- [x] **Pot eligibility correctness** — pot conservation (`sum(pot.amount) == total contributed`), eligible seats are always in-hand, and side-pot eligibility nests monotonically (each pot ⊆ the prior). Exact per-tier eligibility for the 3-way all-in case is pinned by `GameEngineAdvancedTest`.
+- [x] **Hand monotonicity** — `lastSequence` strictly increases across emitted events within a hand and matches the final state's `lastSequence`.
+- [x] **Acting seat rotation** — `actingSeatIndex` always points to a seat with `canAct = true`, or is null exactly when the hand is Complete.
+- [x] **Settlement equals winnings** — sum of `PotAwarded.amount` == sum of pot amounts before settlement == total contributed.
+- [x] **Hole-card scrub correctness** — `state.scrubbedFor(viewerSeat)` (and `-1` spectator) never reveals a non-viewer seat's hole cards unless that seat is in-hand at showdown; the viewer always sees their own.
 
 ### Cross-product table tests
 
-For every `(street, action, seatStatus, handParticipation)` combo, assert the engine's response (accept / reject / specific reason):
+Landed in [`GameEngineActionTableTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEngineActionTableTest.kt), with the raise/min-raise boundary and BB-option rows already pinned by [`GameEngineAdvancedTest`]. Each row asserts the engine's response (accept with the right accounting / reject):
 
-- [ ] **Preflop blinds posted correctly for 2..9 seats.**
-- [ ] **Heads-up button = SB**, multi-way SB = first after button.
-- [ ] **Action sequence preflop:** UTG → … → BB has option to raise.
-- [ ] **Postflop action sequence:** SB-left first (or first remaining left of button if SB folded).
-- [ ] **Raise must be at least previous raise size** — table all "min-raise" boundary cases.
-- [ ] **All-in for less than min-raise** — does NOT reopen action.
-- [ ] **All-in for more than min-raise** — DOES reopen action.
-- [ ] **Check when bet is 0**: legal. **Check when bet > 0**: illegal.
-- [ ] **Call when stack ≥ bet**: full call. **Call when stack < bet**: all-in for stack.
-- [ ] **Fold any time you can act**: legal.
-- [ ] **Bet ≤ stack required**: illegal otherwise.
+- [x] **Preflop blinds posted correctly for 2..9 seats.**
+- [x] **Heads-up button = SB**, multi-way SB = first after button.
+- [x] **Action sequence preflop:** UTG → … → BB has option to raise. (`GameEngineAdvancedTest.bbOption_*`, `raise_reopensActionForAllPriorCallers`.)
+- [x] **Postflop action sequence:** SB-left first (or first remaining left of button if SB folded). (`GameEngineAdvancedTest.headsUp_postflopFirstToAct` + the `orderFromAfter` button helper.)
+- [x] **Raise must be at least previous raise size** — table all "min-raise" boundary cases. (`GameEngineAdvancedTest.raise_belowMinIncrementRefused`, `minRaise_afterRaise_*`.)
+- [x] **All-in for less than min-raise** — does NOT reopen action.
+- [x] **All-in for more than min-raise** — DOES reopen action.
+- [x] **Check when bet is 0**: legal. **Check when bet > 0**: illegal.
+- [x] **Call when stack ≥ bet**: full call. **Call when stack < bet**: all-in for stack.
+- [x] **Fold any time you can act**: legal.
+- [x] **Bet ≤ stack required**: illegal otherwise.
 
 ### Edge-case scenarios
 
-- [ ] **Fold around to BB** — BB wins SB + own posted blind.
-- [ ] **All seats all-in preflop, run-out to showdown** — no further action; engine deals all streets in one go.
-- [ ] **Side pot with three different all-in stacks** — pot 1 has all three, pot 2 has two, pot 3 has remaining.
-- [ ] **Showdown ties on the board (board plays)** — chops the pot.
-- [ ] **Showdown three-way tie with one short-stack** — sidepot math + tie split simultaneously.
-- [ ] **Stack of 0 starts hand** — that seat is sat-out, not dealt.
-- [ ] **Single contender after folds** — engine fast-forwards to PotAwarded without dealing remaining streets.
-- [ ] **Hand ends mid-street on fold-around** — community cards stop being dealt.
-- [ ] **Bot vs human seat parity** — engine behavior identical regardless of `isBot` flag (the flag is metadata only at the engine layer).
+Landed in [`GameEngineEdgeCaseTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEngineEdgeCaseTest.kt) (board-plays chop and zero-stack-sat-out were already pinned by `GameEngineAdvancedTest`):
+
+- [x] **Fold around to BB** — BB wins SB + own posted blind.
+- [x] **All seats all-in preflop, run-out to showdown** — no further action; engine deals all streets in one go.
+- [x] **Side pot with three different all-in stacks** — pot 1 has all three, pot 2 has two, pot 3 has remaining.
+- [x] **Showdown ties on the board (board plays)** — chops the pot. (`GameEngineAdvancedTest.showdown_splitPotOnTie`.)
+- [x] **Showdown three-way tie with one short-stack** — sidepot math + tie split simultaneously.
+- [x] **Stack of 0 starts hand** — that seat is sat-out, not dealt. (`GameEngineAdvancedTest.startHand_skipsSeatsWithZeroStack`.)
+- [x] **Single contender after folds** — engine fast-forwards to PotAwarded without dealing remaining streets.
+- [x] **Hand ends mid-street on fold-around** — community cards stop being dealt.
+- [x] **Bot vs human seat parity** — engine behavior identical regardless of `isBot` flag (the flag is metadata only at the engine layer).
 
 ### Hand history regression tests
 
@@ -183,17 +185,17 @@ For every `(street, action, seatStatus, handParticipation)` combo, assert the en
 
 **Cost:** ~3-4 hours, ~8-10 tests. **Why:** `GameSessionTest` covers the engine wrapper. `RoomSocketRoutesTest` covers the lobby/presence flow. Nothing covers the plumbing between them — and that's where wire-level regressions hide.
 
-Add to [`RoomSocketRoutesTest`](../apps/server/src/test/kotlin/com/cards/server/routes/RoomSocketRoutesTest.kt) or a new `RoomSocketGameplayRoutesTest`:
+Landed in a new [`RoomSocketGameplayRoutesTest`](../apps/server/src/test/kotlin/com/cards/server/routes/RoomSocketGameplayRoutesTest.kt) (kept separate from `RoomSocketRoutesTest`'s lobby/presence focus):
 
-- [ ] **`submitIntent_validIntent_appliesToEngine_andBroadcastsGameStateSnapshot`** — full route → session → broadcast cycle.
-- [ ] **`submitIntent_invalidIntent_repliesIntentAckRejected_doesNotBroadcastSnapshot`** — wrong-seat / illegal action.
-- [ ] **`submitIntent_duplicateNonce_processedOnce_acksTwice`** — server idempotency.
-- [ ] **`startHand_fromNonHost_isRejected`** — host-only gating server-side (defense-in-depth even though client gates).
-- [ ] **`startHand_whenHandInProgress_isRejected`** — can't restart mid-hand.
-- [ ] **`requestNextHand_anyPlayer_advances`** — any seated player can advance.
-- [ ] **`gameStateSnapshot_isScrubbedPerRecipient`** — viewer doesn't see other seats' hole cards in the broadcast.
-- [ ] **`gameEventOccurred_carriesSequence`** — sequence numbers are monotonic per-session.
-- [ ] **`socketDisconnect_midHand_engineContinues`** — the engine isn't tied to a single WS connection; other players' actions still process.
+- [x] **`submitIntent_validIntent_appliesToEngine_andBroadcastsGameStateSnapshot`** — full route → session → broadcast cycle.
+- [x] **`submitIntent_invalidIntent_repliesIntentAckRejected_doesNotBroadcastSnapshot`** — wrong-seat / illegal action.
+- [x] **`submitIntent_duplicateNonce_processedOnce_acksTwice`** — server idempotency.
+- [x] **`startHand_fromNonHost_isRejected`** — host-only gating server-side (defense-in-depth even though client gates).
+- [x] **`startHand_whenHandInProgress_isRejected`** — can't restart mid-hand.
+- [x] **`requestNextHand_anyPlayer_advances`** — any seated player can advance.
+- [x] **`gameStateSnapshot_isScrubbedPerRecipient`** — viewer doesn't see other seats' hole cards in the broadcast.
+- [x] **`gameEventOccurred_carriesSequence`** — sequence numbers are monotonic per-session.
+- [x] **`socketDisconnect_midHand_engineContinues`** — the engine isn't tied to a single WS connection; other players' actions still process.
 
 ---
 
@@ -305,10 +307,10 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 | Round | Status | Notes |
 |---|---|---|
 | 0 — baseline | shipped | The MP-feature stack ([`cea38b18`](https://github.com/Elijah-Dangerfield/Cards/commit/cea38b18) through [`a59ea74d`](https://github.com/Elijah-Dangerfield/Cards/commit/a59ea74d)) shipped with the coverage in the snapshot. Round 1 closes its gaps. |
-| 1 — close MP gaps | not started | Highest priority. ~15 tests, ~3-4h. |
+| 1 — close MP gaps | shipped | `RemotePokerSessionFactoryTest` (10) + `LobbyViewModelTest` new MP paths (13). Also caught + fixed a latent `HostPromoted` non-firing bug. |
 | 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
-| 3 — engine SUPER tests | not started | Property tests + invariant pins + edge cases. ~20-30 tests, ~6-8h. |
-| 4 — server gameplay flow | not started | ~8-10 tests, ~3-4h. |
+| 3 — engine SUPER tests | shipped (bar hand-history) | Property invariants (`GameEnginePropertyTest`), edge-case scenarios (`GameEngineEdgeCaseTest`), and cross-product action tables (`GameEngineActionTableTest`) all landed. Only the 50-hand history fixtures remain — gated on a real production playtest. |
+| 4 — server gameplay flow | shipped | `RoomSocketGameplayRoutesTest` — 9 tests pinning the WS route → registry → per-recipient broadcast cycle. |
 | 5 — chaos / fault injection | not started | Lives in `:integration`. ~10 tests, ~4-6h. |
 | 6 — Compose UI tests | not started | `:features:room:impl` androidUnitTest. ~15 tests, ~6-8h. |
 | Deferred — emulator UI | not planned | Device-smoke checklist covers this for V1. |

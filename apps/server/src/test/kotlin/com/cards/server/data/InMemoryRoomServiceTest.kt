@@ -262,7 +262,7 @@ class InMemoryRoomServiceTest {
         assertEquals(false, member.isConnected)
         assertNotNull(member.disconnectedAt)
         assertTrue(
-            member.disconnectedAt!! >= before,
+            member.disconnectedAt >= before,
             "disconnectedAt stamped at-or-after the disconnect",
         )
     }

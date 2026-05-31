@@ -133,6 +133,8 @@
     <string name="onboarding_welcome_oauth_google">G  Google</string>
     <string name="onboarding_welcome_oauth_in_flight">…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
+    <string name="onboarding_welcome_sign_in">Already have an account? Sign in</string>
+    <string name="onboarding_nav_back_button">‹ Back</string>
 
     <!-- Onboarding — PickIdentity step (name + starter-pack avatar picker). -->
     <string name="onboarding_identity_skip_button">Skip ›</string>
@@ -744,6 +746,7 @@
     <string name="room_top_bar_back_a11y">Back</string>
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
+    <string name="room_practice_tier_bots_present">Practice tier · bots present</string>
 
     <!-- Tutorial — section labels (basics narration block vs. tableau hands). -->
     <string name="tutorial_section_basics">Basics</string>

@@ -15,5 +15,5 @@ import androidx.compose.ui.graphics.Brush
  * any future light/dark theme.
  */
 val RankBadgeGradient: Brush = Brush.linearGradient(
-    listOf(PokerPalette.RankBadgePurple, PokerPalette.RankBadgePink),
+    listOf(ColorResource.PokerRankBadgePurple.color, ColorResource.PokerRankBadgePink.color),
 )

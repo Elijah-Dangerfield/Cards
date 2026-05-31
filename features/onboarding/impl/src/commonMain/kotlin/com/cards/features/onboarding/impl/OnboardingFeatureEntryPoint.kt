@@ -40,6 +40,7 @@ class OnboardingFeatureEntryPoint(
             viewModel.ObserveEvents { event ->
                 when (event) {
                     OnboardingEvent.NavigateToHome -> router.enterTab(HomeRoute())
+                    OnboardingEvent.NavigateToSignIn -> router.navigate(SignInRoute())
                 }
             }
 

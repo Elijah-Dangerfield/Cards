@@ -169,7 +169,7 @@ fun BottomBarTabIcon(icon: IconResource, selected: Boolean) {
     Icon(
         size = BottomBarSizes._IconSize,
         icon = icon,
-        color = if (selected) AppTheme.colors.text else AppTheme.colors.textDisabled,
+        color = if (selected) AppTheme.colors.content else AppTheme.colors.contentDisabled,
     )
 }
 
@@ -185,7 +185,7 @@ private fun ProfileAvatarTab(
     backgroundColorHex: String?,
     selected: Boolean,
 ) {
-    val ringColor = if (selected) AppTheme.colors.text else AppTheme.colors.textDisabled
+    val ringColor = if (selected) AppTheme.colors.content else AppTheme.colors.contentDisabled
     AvatarCircle(
         name = displayName,
         emoji = emoji,
@@ -205,7 +205,7 @@ fun AppBottomBar(
     items: List<BottomBarItem>,
     onItemClick: (BottomBarItem) -> Unit
 ) {
-    val shadowColor = AppTheme.colors.backgroundOverlay.withAlpha(0.25f).color
+    val shadowColor = AppTheme.colors.scrim.withAlpha(0.25f).color
 
     val selectedIndex = items.indexOfFirst { it.isSelected }.coerceAtLeast(0)
     Surface(
@@ -216,8 +216,8 @@ fun AppBottomBar(
                 this.color = shadowColor
             },
         elevation = Elevation.BottomBar,
-        color = AppTheme.colors.surfacePrimary,
-        contentColor = AppTheme.colors.onBackground,
+        color = AppTheme.colors.surface,
+        contentColor = AppTheme.colors.content,
         border = null,
         radius = Radii.None,
     ) {
@@ -332,7 +332,7 @@ fun BottomBarBadge(
     Badge(
         modifier = modifier,
         containerColor = AppTheme.colors.accentPrimary.color,
-        contentColor = AppTheme.colors.onSurfacePrimary.color
+        contentColor = AppTheme.colors.content.color
     ) {
         Box(
             modifier = Modifier.padding(

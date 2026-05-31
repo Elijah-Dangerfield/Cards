@@ -15,5 +15,5 @@ import androidx.compose.ui.graphics.Brush
  * identically under any future light/dark theme.
  */
 val LevelProgressGradient: Brush = Brush.linearGradient(
-    listOf(PokerPalette.ProgressionCyan, PokerPalette.ProgressionGreen),
+    listOf(ColorResource.PokerProgressionCyan.color, ColorResource.PokerProgressionGreen.color),
 )

@@ -50,8 +50,8 @@ fun RadarChart(
     modifier: Modifier = Modifier,
     chartSize: Dp = 112.dp,
     foregroundColor: Color = AppTheme.colors.accentPrimary.color,
-    gridColor: Color = AppTheme.colors.borderSecondary.color,
-    labelColor: Color = AppTheme.colors.textDisabled.color,
+    gridColor: Color = AppTheme.colors.borderStrong.color,
+    labelColor: Color = AppTheme.colors.contentDisabled.color,
     labelStyle: TextStyle = AppTheme.typography.Caption.C300.style,
     fillAlpha: Float = 0.30f,
 ) {

@@ -84,7 +84,7 @@ fun AvatarCircle(
             Text(
                 text = content.text,
                 typography = if (content.isEmoji) emojiTypography else typography,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             return@Box
         }
@@ -116,7 +116,7 @@ fun AvatarCircle(
             Text(
                 text = current.text,
                 typography = if (current.isEmoji) emojiTypography else typography,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
     }
@@ -139,7 +139,7 @@ private data class AvatarContent(val text: String, val isEmoji: Boolean)
 @Composable
 fun resolveAvatarBackground(hex: String?): Color {
     val parsed = hex?.let { Catching { parseHexColor(it) }.getOrNull() }
-    return parsed ?: AppTheme.colors.surfaceSecondary.color
+    return parsed ?: AppTheme.colors.surfaceRaised.color
 }
 
 /**

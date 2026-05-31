@@ -27,8 +27,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun ModalContent(
     modifier: Modifier = Modifier,
-    backgroundColor: ColorResource = AppTheme.colors.surfacePrimary,
-    contentColor: ColorResource = AppTheme.colors.onSurfacePrimary,
+    backgroundColor: ColorResource = AppTheme.colors.surface,
+    contentColor: ColorResource = AppTheme.colors.content,
     topContent: @Composable () -> Unit = {},
     content: @Composable () -> Unit = {},
     bottomContent: @Composable (() -> Unit)? = null,
@@ -40,13 +40,14 @@ fun ModalContent(
 
         ProvideContentColor(color = contentColor) {
 
-            ProvideTextConfig(AppTheme.typography.Display.D1000) {
+            // Serif felt-signature headline — a bare Text in topContent is correct by default.
+            ProvideTextConfig(AppTheme.typography.Display.D900.Italic) {
                 topContent()
             }
 
             Spacer(modifier = Modifier.height(Dimension.D600))
 
-            ProvideTextConfig(AppTheme.typography.Body.B700) {
+            ProvideTextConfig(AppTheme.typography.Body.B500) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -41,6 +41,13 @@ sealed interface TableUiState {
          * style. Null for MP tables where bots aren't seated.
          */
         val botDifficultyLabel: String? = null,
+        /**
+         * True when this MP table is bot-stacked / under-filled enough that
+         * the hand earns only practice-tier credit (product-spec.md §5.4),
+         * so the screen renders a visible "Practice tier · bots present"
+         * label. Always false for solo bot sessions — solo is its own flow.
+         */
+        val practiceTierBotsPresent: Boolean = false,
     ) : TableUiState
 
     companion object {
@@ -65,6 +72,12 @@ sealed interface TableUiState {
              * just "Bot".
              */
             botDifficultyLabel: String? = null,
+            /**
+             * Whether to surface the "Practice tier · bots present" label —
+             * set by [RemotePokerSessionFactory] for bot-stacked MP tables
+             * (product-spec.md §5.4). Defaults false for solo sessions.
+             */
+            practiceTierBotsPresent: Boolean = false,
         ): Active {
             val committedThisStreet = gameState.seats.sumOf { it.contributedThisStreet }
             val pot = committedThisStreet + gameState.pots.sumOf { it.amount }
@@ -122,6 +135,7 @@ sealed interface TableUiState {
                 smallBlindSeatIndex = sbIndex,
                 bigBlindSeatIndex = bbIndex,
                 botDifficultyLabel = botDifficultyLabel,
+                practiceTierBotsPresent = practiceTierBotsPresent,
             )
         }
 

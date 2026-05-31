@@ -225,8 +225,8 @@ private fun PreviewTopAccessoryBubble_Emoji_Circle() {
     PreviewContent {
         TopAccessoryBubble(
             accessory = TopAccessory.Emoji(emoji = "🎉"),
-            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
-            contentColor = AppTheme.colors.onSurfacePrimary,
+            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
+            contentColor = AppTheme.colors.content,
         )
     }
 }
@@ -240,8 +240,8 @@ private fun PreviewTopAccessoryBubble_Emoji_Squircle() {
                 emoji = "💃",
                 style = AccessoryShape.Squircle,
             ),
-            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
-            contentColor = AppTheme.colors.onSurfacePrimary,
+            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
+            contentColor = AppTheme.colors.content,
         )
     }
 }
@@ -255,7 +255,7 @@ private fun PreviewTopAccessoryBubble_Emoji_AccentSurface() {
                 emoji = "$",
                 surface = BubbleSurface.Solid(AppTheme.colors.accentPrimary),
             ),
-            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
+            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
             contentColor = AppTheme.colors.onAccentPrimary,
         )
     }
@@ -270,7 +270,7 @@ private fun PreviewTopAccessoryBubble_Icon_Circle() {
                 icon = Icons.Check("check"),
                 surface = BubbleSurface.Solid(AppTheme.colors.accentPrimary),
             ),
-            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
+            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
             contentColor = AppTheme.colors.onAccentPrimary,
         )
     }
@@ -283,7 +283,7 @@ private fun PreviewTopAccessoryBubble_Custom() {
         TopAccessoryBubble(
             accessory = TopAccessory.Custom(
                 style = AccessoryShape.Squircle,
-                surface = BubbleSurface.Solid(AppTheme.colors.surfaceTertiary),
+                surface = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
                 render = {
                     Text(
                         text = "🃏♣",
@@ -291,8 +291,8 @@ private fun PreviewTopAccessoryBubble_Custom() {
                     )
                 },
             ),
-            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surfacePrimary),
-            contentColor = AppTheme.colors.onSurfacePrimary,
+            fallbackSurface = BubbleSurface.Solid(AppTheme.colors.surface),
+            contentColor = AppTheme.colors.content,
         )
     }
 }

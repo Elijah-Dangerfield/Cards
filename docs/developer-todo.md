@@ -8,6 +8,14 @@ Check items off as you do them; delete when the whole section is empty.
 
 ---
 
+## Parked engineering (worker-pickable, deferred by choice)
+
+Normal engineering tasks pulled out of [todo.md](./todo.md) on purpose — to pick up later rather than hand to a worker.
+
+- [ ] **Integration test module (testing-plan Round 2).** Stand up a new `:integration` JVM module that boots a real Ktor server in-process and points real KMP clients at it — same-repo server + KMP makes this feasible where most codebases can't. Round 2 of [`testing-plan.md`](./testing-plan.md); per-round detail lives there.
+
+---
+
 ## Device QA
 
 - [ ] **App-store review prompt smoke test (Android + iOS).** Engineering is wired end-to-end (`ReviewPromptCoordinator`, `AndroidReviewPrompter`, `SKStoreReviewController`); meet the install-age + cooldown floors, then leave a bots table on a release build. Either outcome — Play Core / `SKStoreReviewController` showing the dialog or suppressing it — is correct per [spec §2.6](./product/product-spec.md#26-app-store-review-prompts). Never build a self-rolled fallback dialog.

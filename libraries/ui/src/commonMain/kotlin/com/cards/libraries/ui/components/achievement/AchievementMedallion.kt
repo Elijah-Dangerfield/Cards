@@ -141,8 +141,8 @@ private fun MedallionFront(
     val bgBrush = when {
         isMysteryLocked -> Brush.linearGradient(
             listOf(
-                AppTheme.colors.surfaceSecondary.color,
-                AppTheme.colors.surfacePrimary.color,
+                AppTheme.colors.surfaceRaised.color,
+                AppTheme.colors.surface.color,
             ),
         )
         else -> Brush.linearGradient(
@@ -168,13 +168,13 @@ private fun MedallionFront(
             Text(
                 text = if (isMysteryLocked) "?" else achievement.icon,
                 typography = AppTheme.typography.Display.D1100,
-                color = if (isMysteryLocked) AppTheme.colors.textSecondary else AppTheme.colors.text,
+                color = if (isMysteryLocked) AppTheme.colors.contentSecondary else AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = if (isMysteryLocked) stringResource(Res.string.ui_achievement_medallion_locked_label) else achievement.name,
                 typography = AppTheme.typography.Body.B500,
-                color = if (isMysteryLocked) AppTheme.colors.textSecondary else AppTheme.colors.text,
+                color = if (isMysteryLocked) AppTheme.colors.contentSecondary else AppTheme.colors.content,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
             )
@@ -206,7 +206,7 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(AppTheme.colors.surfaceSecondary.color),
+            .background(AppTheme.colors.surfaceRaised.color),
     ) {
         Column(
             modifier = Modifier
@@ -225,14 +225,14 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
                     }
                     ?: stringResource(Res.string.ui_achievement_medallion_how_to_earn),
                 typography = AppTheme.typography.Label.L400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = achievement.description,
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
                 maxLines = 4,
             )
@@ -249,7 +249,7 @@ private fun MedallionBack(achievement: Achievement, earnedAtEpochMs: Long?) {
                 Text(
                     text = stringResource(Res.string.ui_achievement_medallion_unlocks, cosmetic.label),
                     typography = AppTheme.typography.Label.L400,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                 )

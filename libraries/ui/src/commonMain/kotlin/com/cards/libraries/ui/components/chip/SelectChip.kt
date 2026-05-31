@@ -32,9 +32,9 @@ fun SelectChip(
         modifier = modifier
             .background(
                 color = if (selected) {
-                    AppTheme.colors.surfaceSecondary.color
+                    AppTheme.colors.surfaceRaised.color
                 } else {
-                    AppTheme.colors.surfacePrimary.color
+                    AppTheme.colors.surface.color
                 },
                 shape = Radii.Round.shape
             )

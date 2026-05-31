@@ -279,13 +279,13 @@ private fun ShopHeader(chips: Long) {
             Text(
                 text = stringResource(Res.string.shop_header_title),
                 typography = AppTheme.typography.Heading.H1000,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             VerticalSpacerD100()
             Text(
                 text = stringResource(Res.string.shop_header_subtitle),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
     }
@@ -297,14 +297,14 @@ private fun SectionHeader(title: String, subtitle: String? = null) {
         Text(
             text = title,
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         subtitle?.let {
             VerticalSpacerD100()
             Text(
                 text = it,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
     }
@@ -453,8 +453,8 @@ private fun ChipPackCard(
     val card: @Composable () -> Unit = {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-            color = AppTheme.colors.surfacePrimary,
-            contentColor = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.surface,
+            contentColor = AppTheme.colors.content,
             radius = Radii.Card,
             elevation = Elevation.Card,
             onClick = onClick,
@@ -470,14 +470,14 @@ private fun ChipPackCard(
                 Text(
                     text = pack.title,
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                 )
                 VerticalSpacerD100()
                 Text(
                     text = pack.subtitle,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                 )
                 // Spacer-with-weight pushes the price to the bottom edge so
@@ -489,7 +489,7 @@ private fun ChipPackCard(
                 Text(
                     text = pack.store.fallbackPriceDisplay,
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
             }
         }
@@ -512,7 +512,7 @@ private fun ChipPackCard(
             }
         }
         packBadge != null -> {
-            { OverhangBadge(text = packBadge, accent = ColorResource.Amber600) }
+            { OverhangBadge(text = packBadge, accent = AppTheme.colors.accentPrimary) }
         }
         else -> null
     }
@@ -575,8 +575,8 @@ private fun ChipOfferCard(
     val card: @Composable () -> Unit = {
         Surface(
             modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-            color = AppTheme.colors.surfacePrimary,
-            contentColor = AppTheme.colors.onSurfacePrimary,
+            color = AppTheme.colors.surface,
+            contentColor = AppTheme.colors.content,
             radius = Radii.Card,
             elevation = Elevation.Card,
             onClick = onClick,
@@ -616,7 +616,7 @@ private fun ChipOfferCard(
                 Text(
                     text = offer.title,
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.alpha(dimmableAlpha),
                 )
@@ -624,7 +624,7 @@ private fun ChipOfferCard(
                 Text(
                     text = offer.subtitle,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.textSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.alpha(dimmableAlpha),
                 )
@@ -638,7 +638,7 @@ private fun ChipOfferCard(
                     Text(
                         text = stringResource(Res.string.shop_personal_cosmetic_hint),
                         typography = AppTheme.typography.Label.L300,
-                        color = AppTheme.colors.textSecondary,
+                        color = AppTheme.colors.contentSecondary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.alpha(dimmableAlpha),
                     )
@@ -648,7 +648,7 @@ private fun ChipOfferCard(
                     Text(
                         text = "🏆 " + stringResource(Res.string.shop_also_earnable_hint),
                         typography = AppTheme.typography.Label.L300,
-                        color = AppTheme.colors.accentEarned,
+                        color = AppTheme.colors.league.amethyst,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.alpha(dimmableAlpha),
                     )
@@ -697,7 +697,7 @@ private fun ChipOfferCard(
             }
         }
         offerBadge != null -> {
-            { OverhangBadge(text = offerBadge, accent = ColorResource.Red400) }
+            { OverhangBadge(text = offerBadge, accent = AppTheme.colors.danger) }
         }
         else -> null
     }
@@ -732,7 +732,7 @@ private fun LockIconOverlay() {
         Text(
             text = "🔒",
             typography = AppTheme.typography.Heading.H600,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -746,13 +746,13 @@ private fun LockedFooter(requiredLevel: Int) {
     Box(
         modifier = Modifier
             .clip(Radii.Round.shape)
-            .background(AppTheme.colors.surfaceTertiary.color)
+            .background(AppTheme.colors.surfaceHigh.color)
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
             text = stringResource(Res.string.shop_unlocks_at_level, requiredLevel),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -800,13 +800,13 @@ private fun OwnedCheck(modifier: Modifier = Modifier) {
         modifier = modifier
             .size(28.dp)
             .clip(CircleShape)
-            .background(AppTheme.colors.status.okay.color),
+            .background(AppTheme.colors.success.color),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = "✓",
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -816,20 +816,20 @@ private fun OwnedFooter() {
     Box(
         modifier = Modifier
             .clip(Radii.Round.shape)
-            .background(AppTheme.colors.status.okay.color.copy(alpha = 0.18f))
+            .background(AppTheme.colors.success.color.copy(alpha = 0.18f))
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
             text = stringResource(Res.string.shop_owned_badge),
             typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.status.okay,
+            color = AppTheme.colors.success,
         )
     }
 }
 
 @Composable
 private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
-    val bg = if (canAfford) AppTheme.colors.surfaceTertiary.color else AppTheme.colors.surfaceDisabled.color
+    val bg = if (canAfford) AppTheme.colors.surfaceHigh.color else AppTheme.colors.surfaceDisabled.color
     Box(
         modifier = Modifier
             .clip(Radii.Round.shape)
@@ -842,7 +842,7 @@ private fun ChipCostFooter(cost: Long, canAfford: Boolean) {
             amount = cost,
             coinSize = 16.dp,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             formatter = ::formatChips,
         )
     }
@@ -870,26 +870,26 @@ private fun EmptyState() {
             modifier = Modifier
                 .size(96.dp)
                 .clip(CircleShape)
-                .background(AppTheme.colors.surfaceSecondary.color),
+                .background(AppTheme.colors.surfaceRaised.color),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = "🛍️",
                 typography = AppTheme.typography.Heading.H1100,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
         }
         VerticalSpacerD700()
         Text(
             text = stringResource(Res.string.shop_empty_title),
             typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
         VerticalSpacerD200()
         Text(
             text = stringResource(Res.string.shop_empty_subtitle),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }
@@ -905,7 +905,7 @@ private fun ErrorBanner(
     Surface(
         modifier = modifier,
         color = AppTheme.colors.danger,
-        contentColor = AppTheme.colors.text,
+        contentColor = AppTheme.colors.content,
         radius = Radii.Card,
         elevation = Elevation.Card,
         onClick = onDismiss,
@@ -917,13 +917,13 @@ private fun ErrorBanner(
                 Text(
                     text = stringResource(Res.string.shop_error_title),
                     typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                 )
                 VerticalSpacerD100()
                 Text(
                     text = message,
                     typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     modifier = Modifier.alpha(0.85f),
                 )
             }
@@ -968,6 +968,25 @@ private fun ShopScreenPreview_Empty() {
 @Preview
 @Composable
 private fun ShopScreenPreview_FullCatalog() {
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
+        ShopScreen(
+            state = ShopState(
+                hasLoaded = true,
+                chipBalance = 12_450,
+                catalog = previewFullCatalog(),
+            ),
+            onAction = {},
+            onProductTap = {},
+            onIdeaTap = {},
+        )
+    }
+}
+
+@Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun ShopScreenPreview_Landscape() {
+    // Landscape lens on the full catalog — surfaces how the product grid
+    // and chip header reflow on a wide canvas before any layout tuning.
     PreviewContent(bottomBar = PreviewBottomBar.Shop) {
         ShopScreen(
             state = ShopState(

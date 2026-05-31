@@ -52,7 +52,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHa
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -83,7 +82,7 @@ internal fun AchievementCelebrationSheet(
 ) {
     if (earned.isEmpty()) return
 
-    val goldBubble = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold")
+    val goldBubble = AppTheme.colors.poker.chipGold
     val handle: BottomSheetDragHandle = topAccessoryEmoji(
         emoji = "🎉",
         surface = BubbleSurface.Solid(goldBubble),
@@ -102,13 +101,13 @@ internal fun AchievementCelebrationSheet(
 
     BottomSheet(
         onDismissRequest = onContinue,
-        backgroundColor = AppTheme.colors.surfacePrimary,
+        backgroundColor = AppTheme.colors.surface,
         dragHandle = handle,
         stickyTopContent = {
             Text(
                 text = title,
                 typography = AppTheme.typography.Heading.H800,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -116,7 +115,7 @@ internal fun AchievementCelebrationSheet(
             Text(
                 text = titleSubtitle,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -208,7 +207,7 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: B
                     Text(
                         text = achievement.name,
                         typography = AppTheme.typography.Heading.H700,
-                        color = AppTheme.colors.onSurfacePrimary,
+                        color = AppTheme.colors.content,
                         textAlign = TextAlign.Center,
                     )
                     if (achievement.description.isNotBlank()) {
@@ -216,7 +215,7 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: B
                         Text(
                             text = achievement.description,
                             typography = AppTheme.typography.Body.B500,
-                            color = AppTheme.colors.onSurfaceSecondary,
+                            color = AppTheme.colors.contentSecondary,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -233,7 +232,7 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: B
                     Text(
                         text = rewardText,
                         typography = AppTheme.typography.Body.B600,
-                        color = ColorResource.FromColor(PokerPalette.ChipGold, "chip-gold"),
+                        color = AppTheme.colors.poker.chipGold,
                         textAlign = TextAlign.Center,
                     )
                     cosmetic?.let { reward ->
@@ -245,19 +244,19 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: B
                             Text(
                                 text = "🎁",
                                 typography = AppTheme.typography.Body.B600,
-                                color = AppTheme.colors.text,
+                                color = AppTheme.colors.content,
                             )
                             Text(
                                 text = stringResource(Res.string.room_achievement_cosmetic_label, reward.label),
                                 typography = AppTheme.typography.Body.B500,
-                                color = AppTheme.colors.onSurfacePrimary,
+                                color = AppTheme.colors.content,
                             )
                         }
                         VerticalSpacerD200()
                         Text(
                             text = stringResource(Res.string.room_celebration_cosmetic_attribution, achievement.name),
                             typography = AppTheme.typography.Body.B400,
-                            color = AppTheme.colors.onSurfaceSecondary,
+                            color = AppTheme.colors.contentSecondary,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -275,7 +274,7 @@ private fun CelebrationCard(earned: EarnedAchievement, index: Int, autoReveal: B
                     Text(
                         text = stringResource(Res.string.room_celebration_tap_to_reveal),
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.onSurfaceSecondary,
+                        color = AppTheme.colors.contentSecondary,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -291,7 +290,7 @@ private fun MysteryRevealTrigger(onTap: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .clip(Radii.Card.shape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -302,7 +301,7 @@ private fun MysteryRevealTrigger(onTap: () -> Unit) {
         Text(
             text = "?",
             typography = AppTheme.typography.Display.D1400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }

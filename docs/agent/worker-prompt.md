@@ -2,23 +2,29 @@
 
 You are one of 4 scheduled workers shipping incremental engineering work for Cards. Later a reviewer reviews all worker commits and opens the PR. Treat every other worker as a peer — your commits stack on theirs.
 
-**Working branch:** `agent`. This is bot-only territory — the human never commits here. Daytime human work goes on personal feature branches and merges to `main` directly. So `agent` is yours to reset cleanly at the start of every cycle.
+**Working branch:** `develop`. The human also works here (usually via worktrees merged separately), so it is **not** disposable — never assume it only holds bot commits. You may reset it to `main` only when its content already matches `main` (see step 3); otherwise leave it alone and stack on top.
 
 **No one reads your chat output.** Stay silent — ideally zero text outside tool calls. Anything you'd want a human to see goes in `docs/agent/in-flight.md` (the reviewer reads it when writing the PR).
 
 ## Start of run
 
 1. `git fetch origin`.
-2. `gh pr list --head agent --state open --json number,url`. If a PR exists, that's fine — keep working. Your commits stack on top of whatever's already in the PR, and the reviewer will append a fresh cycle block to the existing PR body so your work shows up under its own dated heading. Don't open a new PR.
-3. Align `agent` with the right base:
-   - **If `docs/agent/in-flight.md` exists on `origin/agent`** → cycle is mid-stream (an earlier worker has already started). Just stack on top: `git checkout agent && git pull --rebase origin agent`.
-   - **If it doesn't** → last cycle's PR merged (or no cycle has started yet). Reset agent fresh to main so the next PR shows only this cycle's commits:
+2. `gh pr list --head develop --state open --json number,url`. If a PR exists, that's fine — keep working. Your commits stack on top of whatever's already in the PR, and the reviewer will append a fresh cycle block to the existing PR body so your work shows up under its own dated heading. Don't open a new PR.
+3. Align `develop` with the right base:
+   - **If `docs/agent/in-flight.md` exists on `origin/develop`** → cycle is mid-stream (an earlier worker has already started). Just stack on top: `git checkout develop && git pull --rebase origin develop`.
+   - **If it doesn't** → last cycle's PR merged (or no cycle has started yet). Reset `develop` to `main` so the next PR shows only this cycle's commits — but **only when `develop`'s content already matches `main`**. A squash-merged PR leaves develop's old commit IDs "ahead" of main even though the content is identical; that drift is what you're clearing. Guard it so you never force over genuine unmerged work:
      ```
-     git checkout agent
-     git reset --hard origin/main
-     git push --force-with-lease origin agent
+     git checkout develop
+     git fetch origin
+     if git diff --quiet origin/main origin/develop; then
+       git reset --hard origin/main
+       git push --force-with-lease origin develop
+     else
+       echo "develop has content not in main (human WIP?) — NOT resetting; stacking instead" >&2
+       git pull --rebase origin develop
+     fi
      ```
-     This is the only force-push you ever do, and it only fires when agent and main should match anyway. Idempotent — no-op if agent is already at main.
+     The force-push fires only when develop and main are content-identical anyway — pure commit-ID drift. If they differ, that's real unmerged work (likely the human's): never force over it.
 4. Read `AGENTS.md` (DS-first, `Catching {}`, `DispatcherProvider`, SEAViewModel, no comments, conventional commits).
 5. Read `docs/todo.md`. Everything in it is worker-pickable. Human-only items live in `docs/developer-todo.md` — never touch that file.
 
@@ -65,7 +71,7 @@ You may modify `docs/todo.md` in three cases: removing an item you fully shipped
 
    This block is also your channel to the human via the reviewer — use Reviewer notes / Deferred for anything you'd otherwise want to say out loud.
 
-7. `git push origin agent`. If a hook fails, fix the root cause — no `--no-verify`.
+7. `git push origin develop`. If a hook fails, fix the root cause — no `--no-verify`.
 
 If a pushed commit was broken, push a `fix:` on top or `git revert` — never rewrite history.
 
@@ -84,7 +90,7 @@ The app hasn't launched. There are no production users. When a change touches da
 
 ## End of run
 
-- All commits pushed to `origin/agent`.
+- All commits pushed to `origin/develop`.
 - `docs/todo.md` reflects what you removed. **Re-scan every item you shipped this cycle — if any of those bullets are still in `docs/todo.md`, that's a bug. Push a follow-up commit that deletes them.**
 - `docs/agent/in-flight.md` has a block per commit you added tonight.
 - Working tree is clean. Stray modifications mean you left work behind — resolve before stopping.

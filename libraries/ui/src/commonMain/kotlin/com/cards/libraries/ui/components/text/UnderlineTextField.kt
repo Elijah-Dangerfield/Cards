@@ -45,7 +45,7 @@ fun UnderlineTextField(
     trailingIcon: @Composable (() -> Unit)? = null,
     supportingText: @Composable (() -> Unit)? = null,
     isError: Boolean = false,
-    color: Color = AppTheme.colors.onBackground.color,
+    color: Color = AppTheme.colors.content.color,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
@@ -91,7 +91,7 @@ fun UnderlineTextField(
                                 typography = typographyToken.copy(
                                     fontWeight = FontWeight.ExtraLight
                                 ),
-                                color = AppTheme.colors.textDisabled,
+                                color = AppTheme.colors.contentDisabled,
                                 textDecoration = TextDecoration.Underline,
                                 textAlign = TextAlign.Start,
                                 maxLines = 1,

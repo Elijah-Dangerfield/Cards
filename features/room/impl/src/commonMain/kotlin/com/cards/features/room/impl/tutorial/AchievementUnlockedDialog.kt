@@ -27,7 +27,6 @@ import com.dangerfield.cards.libraries.ui.components.dialog.DialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.VerticalSpacerD1000
 import com.dangerfield.cards.system.VerticalSpacerD500
@@ -74,7 +73,7 @@ internal fun AchievementUnlockedDialog(
             Text(
                 text = stringResource(Res.string.achievement_unlocked_dialog_heading),
                 typography = AppTheme.typography.Display.D1100,
-                color = ColorResource.Amber500,
+                color = AppTheme.colors.accentPrimary,
                 textAlign = TextAlign.Center,
             )
             VerticalSpacerD500()
@@ -85,7 +84,7 @@ internal fun AchievementUnlockedDialog(
                 Text(
                     text = stringResource(Res.string.achievement_unlocked_dialog_registry_drift_fallback),
                     typography = AppTheme.typography.Heading.H700,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                 )
             } else {
@@ -96,7 +95,7 @@ internal fun AchievementUnlockedDialog(
                 Text(
                     text = achievement.name,
                     typography = AppTheme.typography.Heading.H800.Italic,
-                    color = AppTheme.colors.text,
+                    color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
                 )
                 if (achievement.description.isNotBlank()) {
@@ -104,7 +103,7 @@ internal fun AchievementUnlockedDialog(
                     Text(
                         text = achievement.description,
                         typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.textSecondary,
+                        color = AppTheme.colors.contentSecondary,
                         textAlign = TextAlign.Center,
                     )
                 }

@@ -30,6 +30,16 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
   **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
 
+- `[P2]` **Onboarding: step-progress chip + system-back consistency.** The Welcome sign-in entry and per-step Back buttons already ship; what's missing is (1) a "Step N of 3" chip at the top of each step so users have a sense of place, and (2) the OS back gesture (Android back / iOS swipe) stepping back through the flow the way the in-UI Back button does — there's no `BackHandler` today, so a hardware back likely exits onboarding instead of returning a step. *(proposed 2026-05-31)*
+  **Acceptance:** each step shows a step-of-N indicator; OS back from PickIdentity/HowItWorks returns to the prior step (matching the `Back` button) and only exits from Welcome.
+  **Hints:** [`OnboardingScreen.kt`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt) — the host owns the `Screen` shell + `AnimatedContent`; add the chip there and a `BackHandler` routing to `OnboardingAction.Back`. Steps are Welcome → PickIdentity → HowItWorks (3, not 4).
+
+### Layout & responsiveness
+
+- `[P2]` **Landscape/horizontal layouts — improve the screens that read poorly.** Every main screen (Home, Profile, Shop, PlayPoker, Lobby, Onboarding) now has a landscape `@Preview`; single-column screens stretch edge-to-edge on a wide canvas and the table needs bespoke short/wide seating. Judge each against its landscape preview and improve the layouts that read poorly (e.g. cap readable content width on wide layouts). *(proposed 2026-05-30)*
+  **Acceptance:** screens that read poorly horizontally get an improved layout.
+  **Hints:** landscape previews use `@Preview(widthDp = 800, heightDp = 380)`. **Worker note:** the layout-tuning half needs Studio to render the previews — pair with a visual pass.
+
 ### Gameplay & table UX
 
 - `[P2]` **Hand-end XP/coin particle overlay.** When the hand-result / celebration overlay dismisses, fly an XP particle up to the `LevelPill` and a coin particle down to the chip stack, tied to the moment the gated values release. Polish on top of the existing deferred-animation gating.
@@ -39,6 +49,14 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Hints:** `:libraries:storage`; achievement counter logic is precedent. **Out of scope:** the heat-map visual; bot tracking. **Worker note:** sketch the architecture in the in-flight Approach line before coding — direction is ambiguous.
 
 - `[P1]` **Tap-an-opponent sheet — remaining affordances.** Add the human-variant "Add friend" affordance (pairs with the friend graph) and "view full profile" tap-through once profile-of-a-stranger is a real route.
+
+- `[P2]` **Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint (the KDoc already notes the vertical half). *(proposed 2026-05-31)*
+  **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
+  **Hints:** the `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
+
+- `[P1]` **Don't let players silently abandon an active game.** Two gaps: (1) the lobby's top-bar back ([`LobbyScreen.kt`](../features/lobby/impl/src/commonMain/kotlin/com/cards/features/lobby/impl/LobbyScreen.kt)) just calls `onBack` (gated only by `isBusy`), so back — or the OS back gesture — drops the seat with no confirmation while a hand is live. (2) Home's "you're in a game" signal is a one-shot fetch (`HomeViewModel` `LoadActiveRooms` → `getActiveRooms()` on init/refresh), so it's stale until something re-triggers it. Make active-room presence a reactive flow off the durable room state — always current, no manual trigger — so Home reflects it the instant you land there. *(proposed 2026-05-31)*
+  **Acceptance:** backing out of the lobby mid-game confirms/blocks instead of silently leaving; Home shows the active-game banner immediately on arrival with no refresh and updates live as room state changes.
+  **Hints:** back wiring in `LobbyScreen.kt`; [`HomeViewModel.kt`](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/HomeViewModel.kt) `LoadActiveRooms` + `RoomRepositoryImpl.getActiveRooms` (`GET /v1/me/active-rooms`) — needs an `observe*` flow. Pairs with [B3](#b3--gameplay-items)'s active-rooms banner; the flow's durable source is [B2](#b2--persisted-room-membership).
 
 ### Social graph + friends — load-bearing for V1.x
 
@@ -91,8 +109,6 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 - `[P1]` **Buy-in / stack / re-buy mechanic.** Spec [§4.1](./product/product-spec.md#wallet-stack--buy-ins). Mutate `room_sessions.state_jsonb` inside the per-session mutex; wallet ledger stays a separate write. Anti-smurf gate rejects sit-down if buy-in > 25% of wallet. Client: re-buy dialog at stack 0 + sit-out toggle. **Depends on:** B0.
 
-- `[P1]` **MP credit by table composition** ([§5.4](./product/product-spec.md#mp-credit-by-table-composition)). Grant MP XP / league / achievements only when ≥2 humans AND humans ≥ bots, read from `state_jsonb` at `HandComplete`. Client shows a "Practice tier · bots present" label from the same source. **Depends on:** B0.
-
 - `[P1]` **Per-turn time limit in multiplayer.** A player shouldn't be able to stall the table by sitting on their action. Give each turn a deadline; on expiry, auto-check if checking is legal, otherwise auto-fold. Surface the countdown to the table. *(proposed 2026-05-30)*
   **Acceptance:** a seat that doesn't act within the limit is auto-checked/folded and play continues; the active seat shows a visible countdown.
   **Hints:** turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
@@ -108,7 +124,7 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 - `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
   **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
-  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — start with Round 1 (highest impact-per-hour); subsequent rounds are independent and can be picked up in any order. **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
+  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — Rounds 1, 3 (engine property invariants + edge-case scenarios + cross-product action tables), and 4 are shipped; only Round 3's hand-history fixtures remain, gated on a real production playtest. Round 5 (chaos / fault injection) is the open round here; Round 2 (the `:integration` module) is parked in [`developer-todo.md`](./developer-todo.md). **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
 
 ### B5 — Parked
 

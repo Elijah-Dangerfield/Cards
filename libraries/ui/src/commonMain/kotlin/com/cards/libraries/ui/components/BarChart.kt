@@ -92,7 +92,7 @@ fun <ID, Payload> BarChart(
     selectedEntryId: ID? = null,
     onEntryClick: ((BarChartEntry<ID, Payload>) -> Unit)? = null,
     drawGuides: Boolean = true,
-    guideColor: Color = AppTheme.colors.surfaceSecondary.color.copy(alpha = 0.4f),
+    guideColor: Color = AppTheme.colors.surfaceRaised.color.copy(alpha = 0.4f),
     axisContent: @Composable (BarChartAxis) -> Unit = { BarChartDefaults.Axis(it) },
     labelsContent: @Composable (
         leadingOffset: Dp,
@@ -271,7 +271,7 @@ object BarChartDefaults {
                     modifier = Modifier.padding(end = Dimension.D200),
                     text = axis.labelFormatter(value),
                     typography = AppTheme.typography.Caption.C300,
-                    color = AppTheme.colors.textDisabled
+                    color = AppTheme.colors.contentDisabled
                 )
             }
         }
@@ -299,9 +299,9 @@ object BarChartDefaults {
                     val label = entry.label ?: return@forEach
                     val isSelected = selectedEntryId != null && entry.id == selectedEntryId
                     val color = if (isSelected) {
-                        AppTheme.colors.text
+                        AppTheme.colors.content
                     } else {
-                        AppTheme.colors.textDisabled
+                        AppTheme.colors.contentDisabled
                     }
 
                     Column(
@@ -376,7 +376,7 @@ private fun BarChartPreviewAutoAxis() {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(AppTheme.colors.surfacePrimary.color)
+                .background(AppTheme.colors.surface.color)
                 .padding(Dimension.D500)
         ) {
             BarChart(
@@ -402,7 +402,7 @@ private fun BarChartPreviewCustomAxisAndLabels() {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfaceRaised.color)
                 .padding(Dimension.D500)
         ) {
             BarChart(
@@ -419,7 +419,7 @@ private fun BarChartPreviewCustomAxisAndLabels() {
                             Text(
                                 text = "${customAxis.labelFormatter(tick)} USD",
                                 typography = AppTheme.typography.Caption.C300,
-                                color = AppTheme.colors.textDisabled
+                                color = AppTheme.colors.contentDisabled
                             )
                         }
                     }
@@ -443,7 +443,7 @@ private fun BarChartPreviewCustomAxisAndLabels() {
                                     Text(
                                         text = entry.label.orEmpty(),
                                         typography = AppTheme.typography.Caption.C400,
-                                        color = AppTheme.colors.textDisabled
+                                        color = AppTheme.colors.contentDisabled
                                     )
 
                                     VerticalSpacerD200()
@@ -451,7 +451,7 @@ private fun BarChartPreviewCustomAxisAndLabels() {
                                     Text(
                                         text = "$${entry.value.roundToInt()}",
                                         typography = AppTheme.typography.Caption.C400,
-                                        color = AppTheme.colors.text
+                                        color = AppTheme.colors.content
                                     )
                                 }
                             }
@@ -472,7 +472,7 @@ private fun BarChartPreviewCustomBars() {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(AppTheme.colors.surfacePrimary.color)
+                .background(AppTheme.colors.surface.color)
                 .padding(Dimension.D500)
         ) {
             BarChart(
@@ -492,8 +492,8 @@ private fun BarChartPreviewCustomBars() {
                     } else {
                         Brush.verticalGradient(
                             colors = listOf(
-                                AppTheme.colors.surfaceSecondary.color,
-                                AppTheme.colors.surfaceSecondary.color.copy(alpha = 0.2f)
+                                AppTheme.colors.surfaceRaised.color,
+                                AppTheme.colors.surfaceRaised.color.copy(alpha = 0.2f)
                             )
                         )
                     }
@@ -508,7 +508,7 @@ private fun BarChartPreviewCustomBars() {
                             modifier = Modifier.padding(top = Dimension.D200),
                             text = "${entry.value.roundToInt()}m",
                             typography = AppTheme.typography.Caption.C300,
-                            color = AppTheme.colors.text
+                            color = AppTheme.colors.content
                         )
                     }
                 },
@@ -529,7 +529,7 @@ private fun BarChartPreviewDenseData() {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(AppTheme.colors.surfacePrimary.color)
+                .background(AppTheme.colors.surface.color)
                 .padding(Dimension.D500)
         ) {
             BarChart(
@@ -556,7 +556,7 @@ private fun BarChartPreviewDenseData() {
                                     modifier = Modifier.weight(1f),
                                     text = entry.label.orEmpty(),
                                     typography = AppTheme.typography.Caption.C300,
-                                    color = AppTheme.colors.textDisabled
+                                    color = AppTheme.colors.contentDisabled
                                 )
                             }
                         }

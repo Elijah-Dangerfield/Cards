@@ -17,7 +17,7 @@ import cards.libraries.resources.generated.resources.room_leave_bots_stay_button
 import cards.libraries.resources.generated.resources.room_leave_bots_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -50,20 +50,20 @@ internal fun LeaveBotsConfirmDialog(
             Text(
                 text = stringResource(Res.string.room_leave_bots_title),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             Text(
                 text = stringResource(Res.string.room_leave_bots_body),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ButtonTertiary(
+                ButtonSecondary(
                     onClick = onStay,
                     modifier = Modifier.weight(1f),
                 ) { Text(text = stringResource(Res.string.room_leave_bots_stay_button)) }

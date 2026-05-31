@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.ui.components.poker
 
+import com.dangerfield.cards.system.AppTheme
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -9,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -22,7 +23,7 @@ fun WinnerGlow(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(PokerPalette.ChipGold.copy(alpha = 0.7f)),
+            .background(AppTheme.colors.poker.chipGold.color.copy(alpha = 0.7f)),
     )
 }
 

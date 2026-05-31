@@ -90,7 +90,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSlot
 import com.dangerfield.cards.libraries.ui.components.poker.WinnerGlow
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
@@ -128,8 +127,8 @@ internal fun PlayerArea(
     // This replaces the dropped "Your turn" text banner.
     val pulseAlpha = if (human.isActing) pulseAlpha(low = 0.30f, high = 0.85f) else 0f
     val borderColor = when {
-        isWinner -> PokerPalette.ChipGold
-        human.isActing -> PokerPalette.SeatActive.copy(alpha = pulseAlpha)
+        isWinner -> AppTheme.colors.poker.chipGold.color
+        human.isActing -> AppTheme.colors.poker.seatActive.color.copy(alpha = pulseAlpha)
         else -> Color.Transparent
     }
     val borderWidth = if (isWinner || human.isActing) 2.dp else 0.dp
@@ -512,7 +511,7 @@ private fun PlayerInfoTile(
     Column(
         modifier = modifier
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .border(
                 width = 1.dp,
                 color = AppTheme.colors.border.color,
@@ -526,7 +525,7 @@ private fun PlayerInfoTile(
             Text(
                 text = handLabel,
                 typography = AppTheme.typography.Body.B500.Bold,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 softWrap = false,
@@ -578,7 +577,7 @@ private fun PlayerInfoTile(
             buildAnnotatedString {
                 append(seat.displayName)
                 append(" · ")
-                withStyle(SpanStyle(color = PokerPalette.ChipGold)) { append(title) }
+                withStyle(SpanStyle(color = AppTheme.colors.poker.chipGold.color)) { append(title) }
             }
         } else {
             buildAnnotatedString { append(seat.displayName) }
@@ -586,7 +585,7 @@ private fun PlayerInfoTile(
         Text(
             text = nameText,
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Ellipsis,
@@ -596,7 +595,7 @@ private fun PlayerInfoTile(
             amount = stackOverride ?: seat.stack,
             coinSize = 14.dp,
             typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             gap = 5.dp,
             formatter = ::formatCompactChips,
             animated = stackOverride != null,
@@ -767,7 +766,7 @@ private fun PlayerInfoTileBack(
     Column(
         modifier = modifier
             .clip(Radii.R700.shape)
-            .background(AppTheme.colors.surfacePrimary.color)
+            .background(AppTheme.colors.surface.color)
             .border(
                 width = 1.dp,
                 color = AppTheme.colors.border.color,
@@ -781,7 +780,7 @@ private fun PlayerInfoTileBack(
         Text(
             text = stringResource(Res.string.room_player_odds_heading),
             typography = AppTheme.typography.Body.B400.Bold,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             maxLines = 1,
         )
         VerticalSpacerD100()
@@ -806,7 +805,7 @@ private fun PlayerInfoTileBack(
             Text(
                 text = stringResource(Res.string.room_player_odds_dial_tie_label, winOdds.tiePct),
                 typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 maxLines = 1,
             )
         }
@@ -822,7 +821,7 @@ private fun OddsDial(
     tone: OddsDialTone,
 ) {
     val accent = when (tone) {
-        OddsDialTone.Win -> AppTheme.colors.status.okay
+        OddsDialTone.Win -> AppTheme.colors.success
         OddsDialTone.Lose -> AppTheme.colors.danger
     }
     val displayPct = percent ?: 0
@@ -831,7 +830,7 @@ private fun OddsDial(
             modifier = Modifier
                 .size(44.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(AppTheme.colors.surfaceSecondary.color)
+                .background(AppTheme.colors.surfaceRaised.color)
                 .border(
                     width = 2.dp,
                     color = accent.color,
@@ -854,7 +853,7 @@ private fun OddsDial(
         Text(
             text = stringResource(label),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             maxLines = 1,
         )
     }
@@ -874,14 +873,14 @@ private fun FlipAffordance(
         modifier = modifier
             .size(20.dp)
             .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(AppTheme.colors.surfaceSecondary.color)
+            .background(AppTheme.colors.surfaceRaised.color)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon = Icons.Refresh(stringResource(Res.string.room_player_odds_flip_a11y)),
             size = IconSize.Smallest,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }

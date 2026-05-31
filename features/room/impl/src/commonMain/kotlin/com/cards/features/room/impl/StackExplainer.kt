@@ -29,13 +29,13 @@ internal fun StackExplainer(stack: Long, onDismiss: () -> Unit) {
         Text(
             text = stringResource(Res.string.room_stack_explainer_body),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
         Text(
             text = stringResource(Res.string.room_stack_explainer_practice_note),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.onSurfaceSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
     }

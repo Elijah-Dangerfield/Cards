@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -29,7 +28,7 @@ fun ChipPill(amount: Long, modifier: Modifier = Modifier, onClick: (() -> Unit)?
     Box(
         modifier = modifier
             .clip(Radii.Round.shape)
-            .background(PokerPalette.ChipGold)
+            .background(AppTheme.colors.poker.chipGold.color)
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {

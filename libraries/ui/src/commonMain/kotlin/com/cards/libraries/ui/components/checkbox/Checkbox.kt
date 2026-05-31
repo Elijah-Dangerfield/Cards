@@ -7,8 +7,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.CHECKBOX_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.CheckboxCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.libraries.ui.PreviewContent
 
 @Composable
 fun Checkbox(
@@ -30,46 +32,6 @@ fun Checkbox(
     )
 }
 
-@Composable
-@Preview
-private fun Unchecked() {
-    PreviewContent {
-        Checkbox(checked = false, onCheckedChange = {})
-    }
-}
-
-@Composable
-@Preview
-private fun Checked() {
-    PreviewContent {
-        Checkbox(checked = true, onCheckedChange = {})
-    }
-}
-
-@Composable
-@Preview
-private fun DisabledChecked() {
-    PreviewContent {
-        Checkbox(
-            checked = true,
-            enabled = false,
-            onCheckedChange = {}
-        )
-    }
-}
-
-@Composable
-@Preview
-private fun DisabledUnChecked() {
-    PreviewContent {
-        Checkbox(
-            checked = false,
-            enabled = false,
-            onCheckedChange = {}
-        )
-    }
-}
-
 
 object CheckboxDefaults {
     @Composable
@@ -77,7 +39,7 @@ object CheckboxDefaults {
         checkedCheckmarkColor = AppTheme.colors.onAccentPrimary.color,
         uncheckedCheckmarkColor = Color.Transparent,
         checkedBoxColor = AppTheme.colors.accentPrimary.color,
-        uncheckedBoxColor = AppTheme.colors.surfaceSecondary.color,
+        uncheckedBoxColor = AppTheme.colors.surfaceRaised.color,
         disabledCheckedBoxColor = AppTheme.colors.surfaceDisabled.color,
         disabledUncheckedBoxColor = AppTheme.colors.surfaceDisabled.color,
         disabledIndeterminateBoxColor = AppTheme.colors.surfaceDisabled.color,
@@ -119,3 +81,9 @@ internal fun CheckboxColors.toMaterial() = androidx.compose.material3.CheckboxCo
     disabledUncheckedBorderColor = disabledUncheckedBorderColor,
     disabledIndeterminateBorderColor = disabledIndeterminateBorderColor
 )
+
+@Preview(widthDp = 560, heightDp = 320)
+@Composable
+private fun CheckboxPreview() {
+    CatalogPage(title = "Checkbox", subtitle = CHECKBOX_SUBTITLE) { CheckboxCatalogBody() }
+}

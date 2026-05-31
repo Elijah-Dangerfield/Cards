@@ -54,7 +54,7 @@ fun AchievementsScreen(
             Text(
                 text = "$earned of $total earned",
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
             Spacer(modifier = Modifier.height(16.dp))
             LazyVerticalGrid(

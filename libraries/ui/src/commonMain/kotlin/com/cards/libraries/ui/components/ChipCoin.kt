@@ -20,7 +20,6 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.border
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
-import com.dangerfield.cards.libraries.ui.system.color.PokerPalette
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.typography.TypographyResource
@@ -28,7 +27,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Gold casino-chip icon — the one canonical way to render "this is chips" in
- * UI. Solid [PokerPalette.ChipGold] circle with a "$" sigil inside.
+ * UI. Solid [PokerColors.chipGold] circle with a "$" sigil inside.
  *
  * Use this anywhere a chip count, balance, or cost is rendered next to a
  * number. The whole point is that **the chip icon looks identical** on the
@@ -55,14 +54,14 @@ fun ChipCoin(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(PokerPalette.ChipGold)
+            .background(AppTheme.colors.poker.chipGold.color)
             .border(
                 when (size) {
                     18.dp -> 1.dp
                     28.dp -> 2.dp
                     48.dp -> 3.dp
                     else -> 0.dp
-                }, PokerPalette.ChipGoldOutline, CircleShape)
+                }, AppTheme.colors.poker.chipGoldOutline.color, CircleShape)
         ,
         contentAlignment = Alignment.Center,
     ) {
@@ -90,7 +89,7 @@ fun ChipCoinAmount(
     modifier: Modifier = Modifier,
     coinSize: Dp = 18.dp,
     typography: TypographyResource = AppTheme.typography.Body.B500,
-    color: ColorResource = AppTheme.colors.text,
+    color: ColorResource = AppTheme.colors.content,
     gap: Dp = 6.dp,
     coinSymbolTypography: TypographyResource = coinSymbolTypographyFor(coinSize),
     formatter: (Long) -> String = ::formatThousands,

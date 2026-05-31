@@ -10,8 +10,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.RADIO_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.RadioCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.libraries.ui.PreviewContent
 
 @Composable
 fun RadioButton(
@@ -32,64 +34,13 @@ fun RadioButton(
         interactionSource = interactionSource
     )
 }
-
-@Preview
-@Composable
-private fun PreviewButton() {
-    PreviewContent {
-        var selected by remember { mutableStateOf(false) }
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(
-            selected = selected,
-            onClick = { selected = !selected })
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonUnselected() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(selected = false, onClick = { })
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonSelected() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(selected = true, onClick = { })
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonUnselectedDisabled() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(
-            selected = false,
-            onClick = { },
-            enabled = false
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PreviewButtonSelectedDisabled() {
-    PreviewContent {
-        com.dangerfield.cards.libraries.ui.components.radio.RadioButton(
-            selected = true,
-            onClick = { },
-            enabled = false
-        )
-    }
-}
 object RadioButtonDefaults {
     @Composable
     fun colors(
-        selectedColor: Color = AppTheme.colors.onBackground.color,
-        unselectedColor: Color = AppTheme.colors.onBackground.color,
-        disabledSelectedColor: Color = AppTheme.colors.textDisabled.color,
-        disabledUnselectedColor: Color = AppTheme.colors.textDisabled.color
+        selectedColor: Color = AppTheme.colors.accentPrimary.color,    // was onBackground — THE change
+        unselectedColor: Color = AppTheme.colors.borderStrong.color,   // was onBackground — too loud for a rest ring
+        disabledSelectedColor: Color = AppTheme.colors.contentDisabled.color,
+        disabledUnselectedColor: Color = AppTheme.colors.contentDisabled.color
     ): com.dangerfield.cards.libraries.ui.components.radio.RadioButtonColors =
         com.dangerfield.cards.libraries.ui.components.radio.RadioButtonColors(
             selectedColor,
@@ -113,3 +64,9 @@ private fun com.dangerfield.cards.libraries.ui.components.radio.RadioButtonColor
     disabledSelectedColor = disabledSelectedColor,
     disabledUnselectedColor = disabledUnselectedColor
 )
+
+@Preview(widthDp = 600, heightDp = 320)
+@Composable
+private fun RadioPreview() {
+    CatalogPage(title = "Radio", subtitle = RADIO_SUBTITLE) { RadioCatalogBody() }
+}

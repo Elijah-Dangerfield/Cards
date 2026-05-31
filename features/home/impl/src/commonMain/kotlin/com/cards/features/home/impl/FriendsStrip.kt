@@ -79,7 +79,7 @@ internal fun FriendsStrip(
             Text(
                 text = stringResource(Res.string.home_friends_empty_state),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
     }
@@ -107,7 +107,7 @@ private fun FriendTile(friend: FriendOnline, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(PRESENCE_DOT_SIZE)
                     .clip(CircleShape)
-                    .background(AppTheme.colors.status.okay.color)
+                    .background(AppTheme.colors.success.color)
                     .border(
                         width = 2.dp,
                         color = AppTheme.colors.background.color,
@@ -119,7 +119,7 @@ private fun FriendTile(friend: FriendOnline, onClick: () -> Unit) {
         Text(
             text = friend.displayName,
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -127,7 +127,7 @@ private fun FriendTile(friend: FriendOnline, onClick: () -> Unit) {
         Text(
             text = friend.tableLabel,
             typography = AppTheme.typography.Label.L300,
-            color = AppTheme.colors.textSecondary,
+            color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

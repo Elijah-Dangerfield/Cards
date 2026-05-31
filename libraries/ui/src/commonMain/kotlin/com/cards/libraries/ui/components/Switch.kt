@@ -6,8 +6,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.libraries.ui.PreviewContent
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.dangerfield.cards.libraries.ui.catalog.SWITCH_SUBTITLE
+import com.dangerfield.cards.libraries.ui.catalog.SwitchCatalogBody
+import com.dangerfield.cards.libraries.ui.catalog.CatalogPage
 
 @Composable
 fun Switch(
@@ -24,59 +26,24 @@ fun Switch(
         enabled = enabled,
         interactionSource = interactionSource,
         colors = SwitchDefaults.colors(
-            uncheckedThumbColor = AppTheme.colors.onSurfacePrimary.color,
-            uncheckedTrackColor = AppTheme.colors.surfacePrimary.color,
-            uncheckedBorderColor = AppTheme.colors.onSurfacePrimary.color,
+            uncheckedThumbColor = AppTheme.colors.content.color,
+            uncheckedTrackColor = AppTheme.colors.surfaceHigh.color,   // was surfacePrimary — too dark on a card
+            uncheckedBorderColor = AppTheme.colors.surfaceHigh.color,  // drop the bright white ring
             checkedThumbColor = AppTheme.colors.onAccentPrimary.color,
             checkedTrackColor = AppTheme.colors.accentPrimary.color,
             checkedBorderColor = AppTheme.colors.accentPrimary.color,
-            disabledCheckedBorderColor = AppTheme.colors.onSurfaceDisabled.color,
-            disabledUncheckedBorderColor = AppTheme.colors.onSurfaceDisabled.color,
-            disabledCheckedThumbColor = AppTheme.colors.onSurfaceDisabled.color,
-            disabledUncheckedThumbColor = AppTheme.colors.onSurfaceDisabled.color,
+            disabledCheckedBorderColor = AppTheme.colors.contentDisabled.color,
+            disabledUncheckedBorderColor = AppTheme.colors.contentDisabled.color,
+            disabledCheckedThumbColor = AppTheme.colors.contentDisabled.color,
+            disabledUncheckedThumbColor = AppTheme.colors.contentDisabled.color,
             disabledCheckedTrackColor = AppTheme.colors.surfaceDisabled.color,
             disabledUncheckedTrackColor = AppTheme.colors.surfaceDisabled.color
         )
     )
 }
 
+@Preview(widthDp = 520, heightDp = 320)
 @Composable
-@Preview
-private fun Unchecked() {
-    PreviewContent {
-        Switch(checked = false, onCheckedChange = {})
-    }
+private fun SwitchPreview() {
+    CatalogPage(title = "Switch", subtitle = SWITCH_SUBTITLE) { SwitchCatalogBody() }
 }
-
-@Composable
-@Preview
-private fun Checked() {
-    PreviewContent {
-        Switch(checked = true, onCheckedChange = {})
-    }
-}
-
-@Composable
-@Preview
-private fun CheckedDisabled() {
-    PreviewContent {
-        Switch(
-            checked = true,
-            onCheckedChange = {},
-            enabled = false
-        )
-    }
-}
-
-@Composable
-@Preview
-private fun UncheckedDisabled() {
-    PreviewContent {
-        Switch(
-            checked = false,
-            onCheckedChange = {},
-            enabled = false
-        )
-    }
-}
-

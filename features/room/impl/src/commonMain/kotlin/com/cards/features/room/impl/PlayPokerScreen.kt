@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_connection_lost_banner
 import cards.libraries.resources.generated.resources.room_loading_dealing_in
+import cards.libraries.resources.generated.resources.room_practice_tier_bots_present
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
@@ -208,6 +209,10 @@ fun PlayPokerScreen(
                     },
                 )
 
+                if (active?.practiceTierBotsPresent == true) {
+                    PracticeTierLabel()
+                }
+
                 if (active == null) {
                     LoadingTable()
                 } else {
@@ -255,7 +260,7 @@ fun PlayPokerScreen(
         if (actionSheetOpen && active?.isHumanTurn == true && legal != null) {
             BottomSheet(
                 onDismissRequest = { actionSheetOpen = false },
-                backgroundColor = AppTheme.colors.surfacePrimary,
+                backgroundColor = AppTheme.colors.surface,
                 showCloseButton = true,
             ) {
                 PlayerActionSheet(
@@ -455,8 +460,34 @@ private fun ConnectionBanner(connection: ConnectionState) {
         Text(
             text = stringResource(Res.string.room_connection_lost_banner),
             typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * Table-side notice that this MP hand earns only practice-tier credit
+ * because the table is bot-stacked (product-spec.md §5.4). Surfaced under
+ * the top bar so the player understands why their XP / achievements read
+ * "practice" rather than full multiplayer — never a silent downgrade.
+ */
+@Composable
+private fun PracticeTierLabel() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(Res.string.room_practice_tier_bots_present),
+            typography = AppTheme.typography.Caption.C400,
+            color = AppTheme.colors.contentSecondary,
+            modifier = Modifier
+                .clip(Radii.Callout.shape)
+                .background(AppTheme.colors.surface.color)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
         )
     }
 }
@@ -517,7 +548,7 @@ private fun TopBar(
                 HorizontalSpacerD200()
             }
             IconButton(
-                backgroundColor = AppTheme.colors.surfacePrimary,
+                backgroundColor = AppTheme.colors.surface,
                 icon = Icons.Question(
                     stringResource(Res.string.room_top_bar_hand_info_a11y),
                 ),
@@ -534,7 +565,7 @@ private fun LoadingTable() {
         Text(
             text = stringResource(Res.string.room_loading_dealing_in),
             typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.text,
+            color = AppTheme.colors.content,
         )
     }
 }
@@ -714,6 +745,7 @@ private fun previewActive(
     buttonSeatIndex: Int = 0,
     smallBlindSeatIndex: Int? = 1,
     bigBlindSeatIndex: Int? = 2,
+    practiceTierBotsPresent: Boolean = false,
 ): TableUiState.Active = TableUiState.Active(
     street = street,
     communityCards = communityCards,
@@ -731,6 +763,7 @@ private fun previewActive(
     buttonSeatIndex = buttonSeatIndex,
     smallBlindSeatIndex = smallBlindSeatIndex,
     bigBlindSeatIndex = bigBlindSeatIndex,
+    practiceTierBotsPresent = practiceTierBotsPresent,
 )
 
 private fun previewDefaultSeats(): List<SeatView> = listOf(
@@ -768,6 +801,36 @@ private fun PlayPokerScreenPreview_YourTurnPreflop() {
     PreviewContent {
         PlayPokerScreen(
             state = PlayPokerState(table = previewActive()),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun PlayPokerScreenPreview_Landscape() {
+    // The table is the screen most likely to need bespoke landscape work —
+    // seats, board, and the action bar all compete for a short, wide canvas.
+    // This pins that state for review before any landscape layout lands.
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(table = previewActive()),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PlayPokerScreenPreview_PracticeTier() {
+    // Bot-stacked MP table (2 humans + 4 bots) — the "Practice tier · bots
+    // present" label renders under the top bar so the credit downgrade is
+    // never silent (product-spec.md §5.4).
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(table = previewActive(practiceTierBotsPresent = true)),
             onAction = {},
             onBack = {},
         )

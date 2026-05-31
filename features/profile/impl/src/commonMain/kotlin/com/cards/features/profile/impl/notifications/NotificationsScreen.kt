@@ -145,14 +145,14 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             Text(
                 text = stringResource(Res.string.profile_notifications_empty_title),
                 typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(Dimension.D200))
             Text(
                 text = stringResource(Res.string.profile_notifications_empty_subtitle),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -168,7 +168,7 @@ private fun NotificationCard(
     val baseModifier = Modifier
         .fillMaxWidth()
         .background(
-            color = AppTheme.colors.surfaceSecondary.color,
+            color = AppTheme.colors.surfaceRaised.color,
             shape = Radii.Card.shape,
         )
     val rowModifier = if (isTappable) {
@@ -185,7 +185,7 @@ private fun NotificationCard(
                 modifier = Modifier
                     .size(Dimension.D1200)
                     .background(
-                        color = AppTheme.colors.surfaceTertiary.color,
+                        color = AppTheme.colors.surfaceHigh.color,
                         shape = Radii.Round.shape,
                     ),
                 contentAlignment = Alignment.Center,
@@ -201,13 +201,13 @@ private fun NotificationCard(
             Text(
                 text = message.title,
                 typography = AppTheme.typography.Heading.H500,
-                color = AppTheme.colors.text,
+                color = AppTheme.colors.content,
             )
             Spacer(Modifier.height(Dimension.D200))
             Text(
                 text = message.body,
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.textSecondary,
+                color = AppTheme.colors.contentSecondary,
             )
         }
     }

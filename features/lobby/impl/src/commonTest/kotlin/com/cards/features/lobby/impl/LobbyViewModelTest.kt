@@ -39,7 +39,10 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Pins [LobbyViewModel]'s state machine. Heavy use of in-memory fakes
@@ -60,6 +63,7 @@ import kotlin.test.assertIs
  *  - Leave returns to Idle and cancels the WS subscription.
  *  - prefilledCode auto-triggers a join on init.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class LobbyViewModelTest : CoroutineTest() {
 
     @Test
@@ -245,7 +249,6 @@ class LobbyViewModelTest : CoroutineTest() {
         }
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun leave_serverCallSurvivesViewModelTeardown() = runUnitTest {
         // Fire-and-forget contract: the server-side `leaveRoom` POST must
@@ -304,6 +307,305 @@ class LobbyViewModelTest : CoroutineTest() {
         }
     }
 
+    // ---------- new MP paths (B6 Round 1) ----------
+
+    @Test
+    fun startGame_hostInRoomWith2Members_sendsStartHandFrame_andEmitsNavigateEvent() = runUnitTest {
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(
+                    members = listOf(
+                        member(LOCAL_USER, "You", isConnected = true),
+                        member("peer", "Peer", isConnected = true, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertTrue(vm.state.canStart, "host with 2 connected members should be able to start")
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.StartGame)
+            val event = assertIs<LobbyEvent.NavigateToMultiplayer>(awaitItem())
+            assertEquals("ABC123", event.roomCode)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, rooms.handle.sent.count { it is ClientFrame.StartHand })
+    }
+
+    @Test
+    fun startGame_nonHost_isNoOp() = runUnitTest {
+        // Effective host is the first connected member ("peer"), not the
+        // local user, so canStart is false and Start must do nothing.
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(
+                    members = listOf(
+                        member("peer", "Peer", isConnected = true),
+                        member(LOCAL_USER, "You", isConnected = true, seatIndex = 1),
+                    ),
+                ),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertFalse(vm.state.canStart)
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.StartGame)
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(rooms.handle.sent.none { it is ClientFrame.StartHand })
+    }
+
+    @Test
+    fun startGame_hostAlone_isNoOp() = runUnitTest {
+        val rooms = RecordingRoomRepository(
+            createOutcome = CreateRoomOutcome.Success(
+                roomOf(members = listOf(member(LOCAL_USER, "You", isConnected = true))),
+            ),
+        )
+        val vm = buildVm(rooms = rooms)
+        vm.takeAction(LobbyAction.CreateRoom)
+        runCurrent()
+        assertFalse(vm.state.canStart, "a lone host (members < 2) cannot start")
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.StartGame)
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(rooms.handle.sent.none { it is ClientFrame.StartHand })
+    }
+
+    @Test
+    fun gameplaySnapshotReceived_nonHost_emitsNavigateEvent() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(
+            LobbyAction.ConnectionUpdated(
+                RoomConnection.Connected(
+                    roomOf(
+                        members = listOf(
+                            member("peer", "Peer", isConnected = true),
+                            member(LOCAL_USER, "You", isConnected = true, seatIndex = 1),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.GameplaySnapshotReceived)
+            val event = assertIs<LobbyEvent.NavigateToMultiplayer>(awaitItem())
+            assertEquals("ABC123", event.roomCode)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(vm.state.hasReceivedGameplaySnapshot)
+    }
+
+    @Test
+    fun gameplaySnapshotReceived_host_doesNotEmitNavigateAgain() = runUnitTest {
+        // The host already navigated when they tapped Start; the first
+        // snapshot must not push them onto the play screen a second time.
+        val vm = buildVm()
+        vm.takeAction(
+            LobbyAction.ConnectionUpdated(
+                RoomConnection.Connected(
+                    roomOf(
+                        members = listOf(
+                            member(LOCAL_USER, "You", isConnected = true),
+                            member("peer", "Peer", isConnected = true, seatIndex = 1),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+        assertTrue(vm.state.isHost)
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.GameplaySnapshotReceived)
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertTrue(vm.state.hasReceivedGameplaySnapshot)
+    }
+
+    @Test
+    fun gameplaySnapshotReceived_secondCall_doesNotReEmit() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(
+            LobbyAction.ConnectionUpdated(
+                RoomConnection.Connected(
+                    roomOf(
+                        members = listOf(
+                            member("peer", "Peer", isConnected = true),
+                            member(LOCAL_USER, "You", isConnected = true, seatIndex = 1),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.GameplaySnapshotReceived)
+            assertIs<LobbyEvent.NavigateToMultiplayer>(awaitItem())
+            vm.takeAction(LobbyAction.GameplaySnapshotReceived)
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun effectiveHostUserId_allConnected_isFirstMember() = runUnitTest {
+        val state = LobbyState(
+            room = roomOf(
+                members = listOf(
+                    member("a", "A", isConnected = true),
+                    member("b", "B", isConnected = true, seatIndex = 1),
+                ),
+            ),
+        )
+        assertEquals("a", state.effectiveHostUserId)
+    }
+
+    @Test
+    fun effectiveHostUserId_firstMemberDisconnected_promotesNextConnected() = runUnitTest {
+        val state = LobbyState(
+            room = roomOf(
+                members = listOf(
+                    member("a", "A", isConnected = false),
+                    member("b", "B", isConnected = true, seatIndex = 1),
+                ),
+            ),
+        )
+        assertEquals("b", state.effectiveHostUserId)
+    }
+
+    @Test
+    fun effectiveHostUserId_noConnectedMembers_isNull() = runUnitTest {
+        val state = LobbyState(
+            room = roomOf(
+                members = listOf(
+                    member("a", "A", isConnected = false),
+                    member("b", "B", isConnected = false, seatIndex = 1),
+                ),
+            ),
+        )
+        assertNull(state.effectiveHostUserId)
+    }
+
+    @Test
+    fun effectiveHostUserId_originalHostReconnects_returnsToOriginal() = runUnitTest {
+        // While "a" was down, "b" was effective host; once "a" reconnects
+        // it reclaims host because it sits first in the member list.
+        val promoted = LobbyState(
+            room = roomOf(
+                members = listOf(
+                    member("a", "A", isConnected = false),
+                    member("b", "B", isConnected = true, seatIndex = 1),
+                ),
+            ),
+        )
+        assertEquals("b", promoted.effectiveHostUserId)
+
+        val reconnected = promoted.copy(
+            room = roomOf(
+                members = listOf(
+                    member("a", "A", isConnected = true),
+                    member("b", "B", isConnected = true, seatIndex = 1),
+                ),
+            ),
+        )
+        assertEquals("a", reconnected.effectiveHostUserId)
+    }
+
+    @Test
+    fun connectionUpdated_hostChanges_emitsHostPromotedEvent() = runUnitTest {
+        val vm = buildVm()
+        // First snapshot seeds the room with the local user as host —
+        // no promotion event (previous host was null).
+        vm.takeAction(
+            LobbyAction.ConnectionUpdated(
+                RoomConnection.Connected(
+                    roomOf(
+                        members = listOf(
+                            member(LOCAL_USER, "You", isConnected = true),
+                            member("peer", "Peer", isConnected = true, seatIndex = 1),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        runCurrent()
+
+        vm.eventFlow.test {
+            // Local user drops; "Peer" becomes effective host.
+            vm.takeAction(
+                LobbyAction.ConnectionUpdated(
+                    RoomConnection.Connected(
+                        roomOf(
+                            members = listOf(
+                                member(LOCAL_USER, "You", isConnected = false),
+                                member("peer", "Peer", isConnected = true, seatIndex = 1),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+            val event = assertIs<LobbyEvent.HostPromoted>(awaitItem())
+            assertEquals("Peer", event.newHostDisplayName)
+            assertFalse(event.isLocalUser)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun connectionUpdated_hostUnchanged_doesNotEmitPromotion() = runUnitTest {
+        val room = roomOf(
+            members = listOf(
+                member(LOCAL_USER, "You", isConnected = true),
+                member("peer", "Peer", isConnected = true, seatIndex = 1),
+            ),
+        )
+        val vm = buildVm()
+        vm.takeAction(LobbyAction.ConnectionUpdated(RoomConnection.Connected(room)))
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(LobbyAction.ConnectionUpdated(RoomConnection.Connected(room)))
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun connectionUpdated_initialSetup_doesNotEmitPromotion() = runUnitTest {
+        val vm = buildVm()
+        vm.eventFlow.test {
+            vm.takeAction(
+                LobbyAction.ConnectionUpdated(
+                    RoomConnection.Connected(
+                        roomOf(
+                            members = listOf(
+                                member(LOCAL_USER, "You", isConnected = true),
+                                member("peer", "Peer", isConnected = true, seatIndex = 1),
+                            ),
+                        ),
+                    ),
+                ),
+            )
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     // ---------- scaffolding ----------
 
     private fun buildVm(
@@ -316,6 +618,58 @@ class LobbyViewModelTest : CoroutineTest() {
         auth = identity,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private val LOCAL_USER = "11111111-1111-1111-1111-111111111111"
+
+    private fun member(
+        userId: String,
+        displayName: String,
+        isConnected: Boolean,
+        seatIndex: Int = 0,
+    ) = RoomMember(
+        userId = userId,
+        displayName = displayName,
+        seatIndex = seatIndex,
+        joinedAtEpochMs = 1_700_000_000_000,
+        isConnected = isConnected,
+    )
+
+    private fun roomOf(
+        code: String = "ABC123",
+        members: List<RoomMember>,
+    ) = Room(
+        code = code,
+        hostUserId = members.first().userId,
+        createdAtEpochMs = 1_700_000_000_000,
+        maxSeats = 4,
+        status = RoomStatus.Lobby,
+        members = members,
+    )
+
+    /**
+     * [RoomRepository] whose [connect] hands back a [RecordingHandle] so
+     * the StartGame tests can assert the outbound [ClientFrame.StartHand]
+     * actually reached the socket.
+     */
+    private class RecordingRoomRepository(
+        private val createOutcome: CreateRoomOutcome,
+        val handle: RecordingHandle = RecordingHandle(),
+    ) : RoomRepository {
+        override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome = createOutcome
+        override suspend fun joinRoom(code: String): JoinRoomOutcome =
+            JoinRoomOutcome.NetworkError(RuntimeException("not used"))
+        override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
+        override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
+            GetActiveRoomsOutcome.Success(emptyList())
+        override fun connect(code: String): RoomConnectionHandle = handle
+    }
+
+    private class RecordingHandle : RoomConnectionHandle {
+        val sent: MutableList<ClientFrame> = mutableListOf()
+        override val connection: Flow<RoomConnection> = flow { }
+        override val gameplayFrames: Flow<GameplayFrame> = flow { }
+        override suspend fun send(frame: ClientFrame) { sent += frame }
+    }
 
     private fun sampleRoom(code: String = "ABC123") = Room(
         code = code,

@@ -23,7 +23,7 @@ import cards.libraries.resources.generated.resources.room_swipe_fold_dont_show_a
 import cards.libraries.resources.generated.resources.room_swipe_fold_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonTertiary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.checkbox.Checkbox
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -52,13 +52,13 @@ internal fun SwipeFoldConfirmDialog(
             Text(
                 text = stringResource(Res.string.room_swipe_fold_title),
                 typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.onSurfacePrimary,
+                color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
             Text(
                 text = stringResource(Res.string.room_swipe_fold_body),
                 typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.onSurfaceSecondary,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
             Row(
@@ -76,7 +76,7 @@ internal fun SwipeFoldConfirmDialog(
                 Text(
                     text = stringResource(Res.string.room_swipe_fold_dont_show_again),
                     typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.onSurfaceSecondary,
+                    color = AppTheme.colors.contentSecondary,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
@@ -84,7 +84,7 @@ internal fun SwipeFoldConfirmDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                ButtonTertiary(
+                ButtonSecondary(
                     onClick = onCancel,
                     modifier = Modifier.weight(1f),
                 ) { Text(text = stringResource(Res.string.room_swipe_fold_cancel_button)) }
