@@ -92,6 +92,8 @@ class OnboardingViewModel(
                 action.kickOffProfileLoad()
             }
             OnboardingAction.ContinueAsGuest -> action.handleContinueAsGuest()
+            OnboardingAction.SignIn -> sendEvent(OnboardingEvent.NavigateToSignIn)
+            OnboardingAction.Back -> action.handleBack()
             is OnboardingAction.SignInWithOAuth -> action.handleOAuth(action.provider)
             is OnboardingAction.DisplayNameChanged -> action.updateState {
                 it.copy(displayName = action.value, userEditedName = true)
@@ -220,6 +222,24 @@ class OnboardingViewModel(
         }
     }
 
+    /**
+     * Steps back through the flow: HowItWorks → PickIdentity → Welcome.
+     * The control isn't rendered on Welcome (the entry step has nothing
+     * before it; system back exits the app), so the Welcome branch is a
+     * defensive no-op. Clears any inline error so a stale message from
+     * the step we're leaving doesn't linger.
+     */
+    private suspend fun OnboardingAction.handleBack() {
+        updateState {
+            val previous = when (it.step) {
+                OnboardingStep.HowItWorks -> OnboardingStep.PickIdentity
+                OnboardingStep.PickIdentity -> OnboardingStep.Welcome
+                OnboardingStep.Welcome -> OnboardingStep.Welcome
+            }
+            it.copy(step = previous, authError = null, saveError = null)
+        }
+    }
+
     private suspend fun OnboardingAction.handleSkip() {
         appCache.update { it.copy(hasUserOnboarded = true) }
         sendEvent(OnboardingEvent.NavigateToHome)
@@ -336,6 +356,7 @@ data class AvatarOption(
 
 sealed interface OnboardingEvent {
     data object NavigateToHome : OnboardingEvent
+    data object NavigateToSignIn : OnboardingEvent
 }
 
 /**
@@ -379,6 +400,10 @@ sealed interface OnboardingAction {
     /** Self-dispatched at VM init to warm up the profile load. */
     data object WarmUp : OnboardingAction
     data object ContinueAsGuest : OnboardingAction
+    /** Welcome-step entry into the email/password sign-in flow. */
+    data object SignIn : OnboardingAction
+    /** Steps back to the previous onboarding step (steps 2 & 3 only). */
+    data object Back : OnboardingAction
     data class SignInWithOAuth(val provider: OAuthProvider) : OnboardingAction
     data class DisplayNameChanged(val value: String) : OnboardingAction
     data object RegenerateDisplayName : OnboardingAction

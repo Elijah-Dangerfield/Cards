@@ -397,6 +397,70 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun signIn_emitsNavigateToSignInEvent() = runUnitTest {
+        val vm = newVm()
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(OnboardingAction.SignIn)
+        runCurrent()
+
+        assertEquals(OnboardingEvent.NavigateToSignIn, received.firstOrNull())
+        assertEquals(OnboardingStep.Welcome, vm.state.step)
+    }
+
+    @Test
+    fun back_fromHowItWorks_returnsToPickIdentity() = runUnitTest {
+        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
+        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
+        val vm = newVm(auth = auth, profile = profile)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
+
+        vm.takeAction(OnboardingAction.Back)
+        runCurrent()
+
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+    }
+
+    @Test
+    fun back_fromPickIdentity_returnsToWelcome_andClearsSaveError() = runUnitTest {
+        val profile = FakeProfileRepository(
+            initial = Profile.Fallback(id = "f"),
+            updateOutcome = UpdateProfileOutcome.DisplayNameTaken,
+        )
+        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
+        val vm = newVm(auth = auth, profile = profile)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.DisplayNameChanged("Taken"))
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+        assertNotNull(vm.state.saveError)
+
+        vm.takeAction(OnboardingAction.Back)
+        runCurrent()
+
+        assertEquals(OnboardingStep.Welcome, vm.state.step)
+        assertNull(vm.state.saveError)
+    }
+
+    @Test
+    fun back_fromWelcome_isNoOp() = runUnitTest {
+        val vm = newVm()
+        assertEquals(OnboardingStep.Welcome, vm.state.step)
+
+        vm.takeAction(OnboardingAction.Back)
+        runCurrent()
+
+        assertEquals(OnboardingStep.Welcome, vm.state.step)
+    }
+
+    @Test
     fun dismissError_clearsErrors() = runUnitTest {
         val auth = FakeAuthRepository(
             initialAuthState = AuthState.Unauthenticated(RuntimeException("boom")),

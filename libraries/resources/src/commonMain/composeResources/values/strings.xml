@@ -133,6 +133,8 @@
     <string name="onboarding_welcome_oauth_google">G  Google</string>
     <string name="onboarding_welcome_oauth_in_flight">…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
+    <string name="onboarding_welcome_sign_in">Already have an account? Sign in</string>
+    <string name="onboarding_nav_back_button">‹ Back</string>
 
     <!-- Onboarding — PickIdentity step (name + starter-pack avatar picker). -->
     <string name="onboarding_identity_skip_button">Skip ›</string>

@@ -99,9 +99,11 @@ import cards.libraries.resources.generated.resources.onboarding_identity_section
 import cards.libraries.resources.generated.resources.onboarding_identity_skip_button
 import cards.libraries.resources.generated.resources.onboarding_identity_subtitle
 import cards.libraries.resources.generated.resources.onboarding_identity_title
+import cards.libraries.resources.generated.resources.onboarding_nav_back_button
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest_progress
 import cards.libraries.resources.generated.resources.onboarding_welcome_footer
+import cards.libraries.resources.generated.resources.onboarding_welcome_sign_in
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_apple
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_google
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_in_flight
@@ -316,6 +318,15 @@ private fun WelcomeStep(
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
+            Spacer(modifier = Modifier.height(Dimension.D300))
+            Button(
+                onClick = { onAction(OnboardingAction.SignIn) },
+                type = ButtonType.Ghost,
+                style = ButtonStyle.Text,
+                enabled = !state.isAuthing && state.oauthInFlight == null,
+            ) {
+                Text(stringResource(Res.string.onboarding_welcome_sign_in))
+            }
             Spacer(modifier = Modifier.height(Dimension.D700))
         }
     }
@@ -340,8 +351,12 @@ private fun PickIdentityStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = Dimension.D300),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            ButtonGhost(onClick = { onAction(OnboardingAction.Back) }) {
+                Text(stringResource(Res.string.onboarding_nav_back_button))
+            }
             ButtonGhost(onClick = { onAction(OnboardingAction.Skip) }) {
                 Text(stringResource(Res.string.onboarding_identity_skip_button))
             }
@@ -562,7 +577,17 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
             .fillMaxSize()
             .padding(screenHorizontalInsets),
     ) {
-        Spacer(modifier = Modifier.height(Dimension.D900))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = Dimension.D300),
+            horizontalArrangement = Arrangement.Start,
+        ) {
+            ButtonGhost(onClick = { onAction(OnboardingAction.Back) }) {
+                Text(stringResource(Res.string.onboarding_nav_back_button))
+            }
+        }
+        Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
             text = stringResource(Res.string.onboarding_how_eyebrow),
             typography = AppTheme.typography.Label.L400,

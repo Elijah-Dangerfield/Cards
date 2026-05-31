@@ -30,10 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
   **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
 
-- `[P1]` **Onboarding screens have no sign-in button and no back button.** Existing users can't reach the sign-in path from onboarding, and there's no way to step back through the flow once you've advanced. *(proposed 2026-05-30)*
-  **Acceptance:** onboarding exposes a visible sign-in entry point and a back control that returns to the previous step (and exits cleanly from the first step).
-  **Hints:** [`OnboardingScreen.kt`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt).
-
 ### Layout & responsiveness
 
 - `[P2]` **Landscape/horizontal layouts + previews across screens.** Many screens aren't laid out well horizontally, and there are no landscape previews to judge whether a given screen even makes sense that way. *(proposed 2026-05-30)*
