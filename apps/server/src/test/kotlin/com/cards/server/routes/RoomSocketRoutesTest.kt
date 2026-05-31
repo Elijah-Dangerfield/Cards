@@ -1,47 +1,20 @@
 package com.dangerfield.cards.server.routes
 
-import com.auth0.jwt.JWT
-import com.auth0.jwt.algorithms.Algorithm
-import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.UserId
-import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
-import com.dangerfield.cards.server.plugins.installSerialization
-import com.dangerfield.cards.server.plugins.installStatusPages
-import com.dangerfield.cards.server.plugins.installWebSockets
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.websocket.ClientWebSocketSession
-import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
-import io.ktor.client.plugins.websocket.webSocketSession
-import io.ktor.client.request.header
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpMethod
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.routing.routing
-import io.ktor.server.testing.testApplication
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.Frame
-import io.ktor.websocket.close
-import io.ktor.websocket.readText
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.channels.ClosedReceiveChannelException
+import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
+import com.dangerfield.cards.server.game.SeatOccupant
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeout
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
-import kotlinx.serialization.json.Json
-import java.util.Date
 import java.util.UUID
-import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 /**
  * End-to-end tests for the per-room WebSocket. Spins up a real Ktor
@@ -67,17 +40,14 @@ import kotlin.time.Instant
 @OptIn(ExperimentalTime::class)
 class RoomSocketRoutesTest {
 
-    private val testIssuer = "https://test-project.supabase.co/auth/v1"
-    private val testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef"
     private val host = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
-    private val json = Json { classDiscriminator = "type"; ignoreUnknownKeys = true }
 
     @Test
     fun connect_firstFrameIsSnapshot_andMarksMemberConnected() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host")
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             client.openSocket(room.code, asUser = host) { session ->
                 val event = session.receiveOne()
                 val snap = assertIs<RoomSocketEventDto.Snapshot>(event)
@@ -97,11 +67,11 @@ class RoomSocketRoutesTest {
     fun nonMember_socketIsRejected() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host")
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             client.openSocket(room.code, asUser = alice) { session ->
                 // We expect the server to close the socket immediately.
                 // Receiving from a closed channel throws.
-                assertTrue(receiveClosed(session))
+                assertTrue(session.expectClosed())
             }
         }
     }
@@ -109,9 +79,9 @@ class RoomSocketRoutesTest {
     @Test
     fun unknownRoom_socketIsRejected() = runTest {
         val rooms = newRoomService()
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             client.openSocket("ZZZZZZ", asUser = host) { session ->
-                assertTrue(receiveClosed(session))
+                assertTrue(session.expectClosed())
             }
         }
     }
@@ -120,7 +90,7 @@ class RoomSocketRoutesTest {
     fun secondJoin_broadcastsToFirstSocket() = runTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             client.openSocket(room.code, asUser = host) { hostSession ->
                 // Drain the initial snapshot.
                 hostSession.receiveOne()
@@ -148,7 +118,7 @@ class RoomSocketRoutesTest {
         val rooms = newRoomService()
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             client.openSocket(room.code, asUser = host) { hostSession ->
                 hostSession.receiveOne() // host snapshot
 
@@ -179,7 +149,7 @@ class RoomSocketRoutesTest {
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
         // Tight grace so the test doesn't sit on a real timer.
-        withApp(rooms, reaperGrace = 50.milliseconds) { client ->
+        withRoomSocketTestApp(rooms, reaperGrace = 50.milliseconds) { client ->
             client.openSocket(room.code, asUser = alice) { aliceSession ->
                 aliceSession.receiveOne() // drain the snapshot
             }
@@ -200,7 +170,7 @@ class RoomSocketRoutesTest {
         // First disconnect schedules a reaper with stamp1; the reconnect
         // clears that stamp before the grace elapses, so the original
         // reaper must short-circuit and alice stays seated.
-        withApp(rooms, reaperGrace = 250.milliseconds) { client ->
+        withRoomSocketTestApp(rooms, reaperGrace = 250.milliseconds) { client ->
             client.openSocket(room.code, asUser = alice) { first ->
                 first.receiveOne()
             }
@@ -234,28 +204,15 @@ class RoomSocketRoutesTest {
 
         // Seed the durable store via a throwaway registry — equivalent
         // to "the previous server process started a hand here."
-        val seedRegistry = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
-            snapshotStore = store,
-            clock = Clock.System,
-        )
+        val seedRegistry = DefaultGameSessionRegistry(snapshotStore = store, clock = Clock.System)
         val occupants = listOf(
-            com.dangerfield.cards.server.game.SeatOccupant(
-                seatIndex = 0,
-                userId = host.value.toString(),
-                displayName = "Host",
-                isBot = false,
-            ),
-            com.dangerfield.cards.server.game.SeatOccupant(
-                seatIndex = 1,
-                userId = alice.value.toString(),
-                displayName = "Alice",
-                isBot = false,
-            ),
+            SeatOccupant(seatIndex = 0, userId = host.value.toString(), displayName = "Host", isBot = false),
+            SeatOccupant(seatIndex = 1, userId = alice.value.toString(), displayName = "Alice", isBot = false),
         )
         seedRegistry.startHand(
             code = room.code,
             occupants = occupants,
-            settings = com.dangerfield.cards.libraries.gameplay.RoomSettings(
+            settings = RoomSettings(
                 smallBlind = 5,
                 bigBlind = 10,
                 startingStack = 1_000,
@@ -266,26 +223,15 @@ class RoomSocketRoutesTest {
         val seededHandNumber = seedRegistry.peek(room.code)!!.state.value!!.handNumber
 
         // Fresh registry against the same store — nothing in-memory.
-        val freshRegistry = com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
-            snapshotStore = store,
-            clock = Clock.System,
-        )
+        val freshRegistry = DefaultGameSessionRegistry(snapshotStore = store, clock = Clock.System)
 
-        withApp(rooms, gameSessions = freshRegistry) { client ->
+        withRoomSocketTestApp(rooms, gameSessions = freshRegistry) { client ->
             client.openSocket(room.code, asUser = host) { session ->
-                // Drain frames until we see the GameStateSnapshot. The
-                // lobby Snapshot is always first; the game frame
-                // arrives once findOrHydrate populates the in-memory
-                // registry and the publisher subscribes.
-                var gameSnapshot: RoomSocketEventDto.GameStateSnapshot? = null
-                for (attempt in 0 until 8) {
-                    val event = session.receiveOne()
-                    if (event is RoomSocketEventDto.GameStateSnapshot) {
-                        gameSnapshot = event
-                        break
-                    }
-                }
-                assertNotNull(gameSnapshot, "expected GameStateSnapshot after hydrate")
+                // The lobby Snapshot is always first; the GameStateSnapshot
+                // arrives once findOrHydrate populates the in-memory registry
+                // and the publisher subscribes. receiveUntilGameState skips
+                // (and keeps) the intervening frames.
+                val gameSnapshot = session.receiveUntilGameState()
                 assertEquals(seededHandNumber, gameSnapshot.state.handNumber)
                 assertEquals(2, gameSnapshot.state.seats.size)
             }
@@ -299,7 +245,7 @@ class RoomSocketRoutesTest {
         rooms.join(room.code, alice, "Alice")
         val originalSeatIndex = rooms.find(room.code)!!.memberFor(alice)!!.seatIndex
 
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             // Connect, then close.
             client.openSocket(room.code, asUser = alice) { aliceSession ->
                 aliceSession.receiveOne()
@@ -315,160 +261,4 @@ class RoomSocketRoutesTest {
         }
     }
 
-    // ---------- scaffolding ----------
-
-    private fun newRoomService() = InMemoryRoomService(
-        clock = FixedClock(),
-        random = Random(0L),
-    )
-
-    private fun jwt(forUserId: UserId): String = JWT.create()
-        .withIssuer(testIssuer)
-        .withAudience("authenticated")
-        .withSubject(forUserId.value.toString())
-        .withIssuedAt(Date())
-        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
-        .sign(Algorithm.HMAC256(testSecret))
-
-    private val testVerifier = JWT.require(Algorithm.HMAC256(testSecret))
-        .withIssuer(testIssuer)
-        .withAudience("authenticated")
-        .build()
-
-    private suspend fun withApp(
-        rooms: InMemoryRoomService,
-        reaperGrace: kotlin.time.Duration = 5.minutes,
-        gameSessions: com.dangerfield.cards.server.game.GameSessionRegistry =
-            com.dangerfield.cards.server.game.DefaultGameSessionRegistry(
-                snapshotStore = com.dangerfield.cards.server.game.NoOpSessionSnapshotStore(),
-                clock = kotlin.time.Clock.System,
-            ),
-        block: suspend (SocketClient) -> Unit,
-    ) {
-        testApplication {
-            application {
-                installSerialization()
-                installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
-                installWebSockets()
-                routing {
-                    roomSocketRoutes(
-                        rooms = rooms,
-                        gameSessions = gameSessions,
-                        reaperGrace = reaperGrace,
-                    )
-                }
-            }
-            val raw = createClient {
-                install(ClientWebSockets)
-                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-            }
-            block(SocketClient(raw))
-        }
-    }
-
-    private suspend fun awaitReaped(
-        rooms: InMemoryRoomService,
-        code: String,
-        userId: UserId,
-        timeoutMs: Long = 2_000,
-    ) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            val member = rooms.find(code)?.memberFor(userId)
-            if (member == null) return
-            delay(20)
-        }
-        error("Member $userId still seated after ${timeoutMs}ms — reaper didn't fire")
-    }
-
-    private inner class SocketClient(private val raw: io.ktor.client.HttpClient) {
-        suspend fun openSocket(
-            code: String,
-            asUser: UserId,
-            block: suspend (ClientWebSocketSession) -> Unit,
-        ) {
-            val session = raw.webSocketSession(
-                method = HttpMethod.Get,
-                host = "localhost",
-                port = 80,
-                path = "/v1/rooms/$code/socket",
-            ) {
-                header(HttpHeaders.Authorization, "Bearer ${jwt(asUser)}")
-            }
-            try {
-                block(session)
-            } finally {
-                runCatching {
-                    session.close(CloseReason(CloseReason.Codes.NORMAL, "test done"))
-                }
-            }
-        }
-    }
-
-    /**
-     * Pull the next event off the socket. Times out fast so a hung test
-     * fails loudly instead of hanging the suite.
-     */
-    private suspend fun ClientWebSocketSession.receiveOne(): RoomSocketEventDto = withTimeout(2_000) {
-        val frame = incoming.receive()
-        val text = (frame as Frame.Text).readText()
-        json.decodeFromString(RoomSocketEventDto.serializer(), text)
-    }
-
-    /** True if the socket closed before yielding any non-close frame. */
-    private suspend fun receiveClosed(session: ClientWebSocketSession): Boolean = try {
-        withTimeout(2_000) {
-            val frame = session.incoming.receive()
-            // Close frame counts as "closed" — the server sent it and
-            // the client surfaced it as the first frame.
-            frame is Frame.Close
-        }
-    } catch (_: ClosedReceiveChannelException) {
-        true
-    } catch (_: Throwable) {
-        // Any other failure also counts — server-side close.
-        true
-    }
-
-    /**
-     * Polls the room service until the given member's isConnected flag
-     * flips to false. Necessary because the server's onClose handler
-     * runs in a separate coroutine; without polling, the assertion
-     * races the flip.
-     */
-    private suspend fun awaitDisconnected(
-        rooms: InMemoryRoomService,
-        code: String,
-        userId: UserId,
-        timeoutMs: Long = 2_000,
-    ) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            val member = rooms.find(code)?.memberFor(userId) ?: return
-            if (!member.isConnected) return
-            delay(20)
-        }
-        error("Member $userId stayed isConnected=true beyond ${timeoutMs}ms")
-    }
-
-    private class FixedClock(private val ms: Long = 1_700_000_000_000) : Clock {
-        override fun now(): Instant = Instant.fromEpochMilliseconds(ms)
-    }
-
-    private class InMemoryTestSnapshotStore : com.dangerfield.cards.server.game.SessionSnapshotStore {
-        private val rows = mutableMapOf<String, com.dangerfield.cards.server.game.SessionSnapshot>()
-        private val mutex = kotlinx.coroutines.sync.Mutex()
-
-        override suspend fun upsert(snapshot: com.dangerfield.cards.server.game.SessionSnapshot) {
-            mutex.withLock { rows[snapshot.code] = snapshot }
-        }
-
-        override suspend fun readByCode(code: String): com.dangerfield.cards.server.game.SessionSnapshot? =
-            mutex.withLock { rows[code] }
-
-        override suspend fun deleteByCode(code: String) {
-            mutex.withLock { rows.remove(code) }
-        }
-    }
 }

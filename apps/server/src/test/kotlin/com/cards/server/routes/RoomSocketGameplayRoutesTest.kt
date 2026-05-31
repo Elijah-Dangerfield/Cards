@@ -1,50 +1,15 @@
 package com.dangerfield.cards.server.routes
 
-import com.auth0.jwt.JWT
-import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.libraries.gameplay.BettingRound
-import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
-import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.data.createOrFail
 import com.dangerfield.cards.server.domain.UserId
-import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
-import com.dangerfield.cards.server.game.GameSessionRegistry
-import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
-import com.dangerfield.cards.server.plugins.installAuthenticationWithVerifier
-import com.dangerfield.cards.server.plugins.installSerialization
-import com.dangerfield.cards.server.plugins.installStatusPages
-import com.dangerfield.cards.server.plugins.installWebSockets
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.websocket.ClientWebSocketSession
-import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
-import io.ktor.client.plugins.websocket.webSocketSession
-import io.ktor.client.request.header
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpMethod
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.routing.routing
-import io.ktor.server.testing.testApplication
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.Frame
-import io.ktor.websocket.close
-import io.ktor.websocket.readText
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.json.Json
-import java.util.Date
 import java.util.UUID
-import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Clock
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
 /**
  * End-to-end tests for the **gameplay** leg of the per-room WebSocket —
@@ -80,33 +45,15 @@ import kotlin.time.Instant
  * NOT covered here: engine rule correctness (`:libraries:gameplay`),
  * reconnect/hydration (covered in [RoomSocketRoutesTest]), and the
  * client-side frame projection ([RemotePokerSessionTest]).
+ *
+ * Server bring-up, auth, the client socket wrapper and the order-
+ * independent frame readers all live in [RoomSocketTestClient] /
+ * [withRoomSocketTestApp] (see RoomSocketTestSupport.kt).
  */
-@OptIn(ExperimentalTime::class)
 class RoomSocketGameplayRoutesTest {
 
-    private val testIssuer = "https://test-project.supabase.co/auth/v1"
-    private val testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef"
     private val host = UserId(UUID.fromString("11111111-1111-1111-1111-111111111111"))
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
-    private val json = Json { classDiscriminator = "type"; ignoreUnknownKeys = true }
-
-    /**
-     * Per-socket FIFO buffer of frames pulled off the wire while
-     * [receiveUntil] was looking for a *different* frame.
-     *
-     * A single socket multiplexes three independent server coroutines —
-     * the room publisher, the game publisher and the intent-ack drain
-     * loop — and there's no ordering guarantee *between* them. A
-     * `StartHand`'s `GameStateSnapshot` (game publisher) routinely races
-     * its `IntentAck` (drain loop) and can land first. Without buffering, a
-     * `receiveUntilAck` that ran first would *discard* the snapshot, and
-     * the following `receiveUntilGameState` would then block to its timeout
-     * on a frame that had already been consumed — the root cause of this
-     * suite's CI flakiness. Stashing skipped frames here keeps every
-     * `receiveUntil*` assertion order-independent.
-     */
-    private val pendingFrames =
-        java.util.IdentityHashMap<ClientWebSocketSession, ArrayDeque<RoomSocketEventDto>>()
 
     // ===================================================================
     // StartHand
@@ -118,10 +65,10 @@ class RoomSocketGameplayRoutesTest {
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
 
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             val socket = client.connect(room.code, host)
             try {
-                socket.drainLobbySnapshot()
+                socket.drainSnapshot()
                 socket.sendFrame(RoomClientFrame.StartHand(clientNonce = "start-1"))
 
                 val ack = socket.receiveUntilAck("start-1")
@@ -143,10 +90,10 @@ class RoomSocketGameplayRoutesTest {
         rooms.join(room.code, alice, "Alice")
         val registry = newRegistry()
 
-        withApp(rooms, registry) { client ->
+        withRoomSocketTestApp(rooms, registry) { client ->
             val socket = client.connect(room.code, alice)
             try {
-                socket.drainLobbySnapshot()
+                socket.drainSnapshot()
                 socket.sendFrame(RoomClientFrame.StartHand(clientNonce = "nh-1"))
 
                 val ack = socket.receiveUntilAck("nh-1")
@@ -169,10 +116,10 @@ class RoomSocketGameplayRoutesTest {
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
 
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             val socket = client.connect(room.code, host)
             try {
-                socket.drainLobbySnapshot()
+                socket.drainSnapshot()
                 socket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s1"))
                 assertTrue(socket.receiveUntilAck("s1").accepted)
                 socket.receiveUntilGameState() // hand is now live
@@ -200,12 +147,12 @@ class RoomSocketGameplayRoutesTest {
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
 
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             val hostSocket = client.connect(room.code, host)
             val aliceSocket = client.connect(room.code, alice)
             try {
-                hostSocket.drainLobbySnapshot()
-                aliceSocket.drainLobbySnapshot()
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
 
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
                 assertTrue(hostSocket.receiveUntilAck("s").accepted)
@@ -242,12 +189,12 @@ class RoomSocketGameplayRoutesTest {
         rooms.join(room.code, alice, "Alice")
         val registry = newRegistry()
 
-        withApp(rooms, registry) { client ->
+        withRoomSocketTestApp(rooms, registry) { client ->
             val hostSocket = client.connect(room.code, host)
             val aliceSocket = client.connect(room.code, alice)
             try {
-                hostSocket.drainLobbySnapshot()
-                aliceSocket.drainLobbySnapshot()
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
                 assertTrue(hostSocket.receiveUntilAck("s").accepted)
                 val opening = hostSocket.receiveUntilGameState()
@@ -293,12 +240,12 @@ class RoomSocketGameplayRoutesTest {
         rooms.join(room.code, alice, "Alice")
         val registry = newRegistry()
 
-        withApp(rooms, registry) { client ->
+        withRoomSocketTestApp(rooms, registry) { client ->
             val hostSocket = client.connect(room.code, host)
             val aliceSocket = client.connect(room.code, alice)
             try {
-                hostSocket.drainLobbySnapshot()
-                aliceSocket.drainLobbySnapshot()
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
                 assertTrue(hostSocket.receiveUntilAck("s").accepted)
                 val opening = hostSocket.receiveUntilGameState()
@@ -346,12 +293,12 @@ class RoomSocketGameplayRoutesTest {
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
 
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             val hostSocket = client.connect(room.code, host)
             val aliceSocket = client.connect(room.code, alice)
             try {
-                hostSocket.drainLobbySnapshot()
-                aliceSocket.drainLobbySnapshot()
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
                 assertTrue(hostSocket.receiveUntilAck("s").accepted)
                 val opening = hostSocket.receiveUntilGameState()
@@ -391,10 +338,10 @@ class RoomSocketGameplayRoutesTest {
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
 
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             val hostSocket = client.connect(room.code, host)
             try {
-                hostSocket.drainLobbySnapshot()
+                hostSocket.drainSnapshot()
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
                 assertTrue(hostSocket.receiveUntilAck("s").accepted)
 
@@ -419,10 +366,10 @@ class RoomSocketGameplayRoutesTest {
         val room = rooms.createOrFail(host, "Host", maxSeats = 4)
         rooms.join(room.code, alice, "Alice")
 
-        withApp(rooms) { client ->
+        withRoomSocketTestApp(rooms) { client ->
             val hostSocket = client.connect(room.code, host)
             try {
-                hostSocket.drainLobbySnapshot()
+                hostSocket.drainSnapshot()
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
                 assertTrue(hostSocket.receiveUntilAck("s").accepted)
 
@@ -458,12 +405,12 @@ class RoomSocketGameplayRoutesTest {
         rooms.join(room.code, alice, "Alice")
         val registry = newRegistry()
 
-        withApp(rooms, registry) { client ->
+        withRoomSocketTestApp(rooms, registry) { client ->
             val hostSocket = client.connect(room.code, host)
             val aliceSocket = client.connect(room.code, alice)
             try {
-                hostSocket.drainLobbySnapshot()
-                aliceSocket.drainLobbySnapshot()
+                hostSocket.drainSnapshot()
+                aliceSocket.drainSnapshot()
                 hostSocket.sendFrame(RoomClientFrame.StartHand(clientNonce = "s"))
                 assertTrue(hostSocket.receiveUntilAck("s").accepted)
                 val opening = hostSocket.receiveUntilGameState()
@@ -496,148 +443,4 @@ class RoomSocketGameplayRoutesTest {
         }
     }
 
-    // ===================================================================
-    // Scaffolding
-    // ===================================================================
-
-    private fun newRoomService() = InMemoryRoomService(
-        clock = FixedClock(),
-        random = Random(0L),
-    )
-
-    private fun newRegistry(): GameSessionRegistry = DefaultGameSessionRegistry(
-        snapshotStore = NoOpSessionSnapshotStore(),
-        clock = Clock.System,
-    )
-
-    private fun jwt(forUserId: UserId): String = JWT.create()
-        .withIssuer(testIssuer)
-        .withAudience("authenticated")
-        .withSubject(forUserId.value.toString())
-        .withIssuedAt(Date())
-        .withExpiresAt(Date(System.currentTimeMillis() + 60_000))
-        .sign(Algorithm.HMAC256(testSecret))
-
-    private val testVerifier = JWT.require(Algorithm.HMAC256(testSecret))
-        .withIssuer(testIssuer)
-        .withAudience("authenticated")
-        .build()
-
-    private suspend fun withApp(
-        rooms: InMemoryRoomService,
-        gameSessions: GameSessionRegistry = newRegistry(),
-        block: suspend (HttpClient) -> Unit,
-    ) {
-        testApplication {
-            application {
-                installSerialization()
-                installStatusPages()
-                installAuthenticationWithVerifier(testVerifier)
-                installWebSockets()
-                routing {
-                    roomSocketRoutes(
-                        rooms = rooms,
-                        gameSessions = gameSessions,
-                        reaperGrace = 5.minutes,
-                    )
-                }
-            }
-            val raw = createClient {
-                install(ClientWebSockets)
-                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-            }
-            block(raw)
-        }
-    }
-
-    private suspend fun HttpClient.connect(code: String, asUser: UserId): ClientWebSocketSession =
-        webSocketSession(
-            method = HttpMethod.Get,
-            host = "localhost",
-            port = 80,
-            path = "/v1/rooms/$code/socket",
-        ) {
-            header(HttpHeaders.Authorization, "Bearer ${jwt(asUser)}")
-        }
-
-    private suspend fun ClientWebSocketSession.closeQuietly() {
-        runCatching { close(CloseReason(CloseReason.Codes.NORMAL, "test done")) }
-    }
-
-    private suspend fun ClientWebSocketSession.sendFrame(frame: RoomClientFrame) {
-        send(Frame.Text(json.encodeToString(RoomClientFrame.serializer(), frame)))
-    }
-
-    private suspend fun ClientWebSocketSession.receiveOne(): RoomSocketEventDto = withTimeout(10_000) {
-        val frame = incoming.receive()
-        val text = (frame as Frame.Text).readText()
-        json.decodeFromString(RoomSocketEventDto.serializer(), text)
-    }
-
-    /** The lobby Snapshot is always the first frame after connect. */
-    private suspend fun ClientWebSocketSession.drainLobbySnapshot() {
-        receiveUntil<RoomSocketEventDto.Snapshot>()
-    }
-
-    private suspend fun ClientWebSocketSession.receiveUntilAck(
-        nonce: String,
-    ): RoomSocketEventDto.IntentAck = receiveUntil { it.clientNonce == nonce }
-
-    private suspend fun ClientWebSocketSession.receiveUntilGameState(
-        predicate: (GameState) -> Boolean = { true },
-    ): RoomSocketEventDto.GameStateSnapshot = receiveUntil { predicate(it.state) }
-
-    private suspend fun ClientWebSocketSession.receiveUntilEvent(): RoomSocketEventDto.GameEventOccurred =
-        receiveUntil()
-
-    /**
-     * Return the next frame of type [T] matching [predicate], whether it's
-     * already waiting in this socket's [pendingFrames] buffer or still on
-     * the wire. Frames that don't match are *kept* (in arrival order) in
-     * the buffer for later waits rather than discarded — see [pendingFrames]
-     * for why that matters. Bounded on fresh reads so a genuinely missing
-     * frame fails the test instead of hanging forever.
-     */
-    private suspend inline fun <reified T : RoomSocketEventDto> ClientWebSocketSession.receiveUntil(
-        predicate: (T) -> Boolean = { true },
-    ): T {
-        val buffered = pendingFrames.getOrPut(this) { ArrayDeque() }
-        val iterator = buffered.iterator()
-        while (iterator.hasNext()) {
-            val event = iterator.next()
-            if (event is T && predicate(event)) {
-                iterator.remove()
-                return event
-            }
-        }
-        repeat(MAX_FRAMES_PER_WAIT) {
-            val event = receiveOne()
-            if (event is T && predicate(event)) return event
-            buffered.addLast(event)
-        }
-        error("did not receive a matching ${T::class.simpleName} within $MAX_FRAMES_PER_WAIT frames")
-    }
-
-    private suspend fun awaitDisconnected(
-        rooms: InMemoryRoomService,
-        code: String,
-        userId: UserId,
-        timeoutMs: Long = 2_000,
-    ) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            val member = rooms.find(code)?.memberFor(userId) ?: return
-            if (!member.isConnected) return
-            delay(20)
-        }
-        error("Member $userId stayed isConnected=true beyond ${timeoutMs}ms")
-    }
-
-    private class FixedClock(private val ms: Long = 1_700_000_000_000) : Clock {
-        override fun now(): Instant = Instant.fromEpochMilliseconds(ms)
-    }
-
-    private companion object {
-        const val MAX_FRAMES_PER_WAIT = 60
-    }
 }
