@@ -35,7 +35,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -52,6 +54,7 @@ import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.CardsFan
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
@@ -78,6 +81,7 @@ import cards.libraries.resources.generated.resources.onboarding_auth_error_guest
 import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_failed
 import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_network
 import cards.libraries.resources.generated.resources.onboarding_auth_error_oauth_provider_not_enabled
+import cards.libraries.resources.generated.resources.onboarding_step_progress
 import cards.libraries.resources.generated.resources.onboarding_save_error_display_name_taken
 import cards.libraries.resources.generated.resources.onboarding_save_error_invalid_display_name
 import cards.libraries.resources.generated.resources.onboarding_how_card_chips_subtitle
@@ -120,11 +124,18 @@ import org.jetbrains.compose.resources.stringResource
  * The host owns the [Screen] shell + insets; each step is a pure
  * composable rendered inside it.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun OnboardingScreen(
     state: OnboardingState,
     onAction: (OnboardingAction) -> Unit,
 ) {
+    // System back (Android hardware/gesture, iOS swipe) mirrors the in-UI
+    // Back button: it steps back through the flow and only falls through to
+    // exit on the entry step, where there's nothing before it.
+    BackHandler(enabled = state.step != OnboardingStep.Welcome) {
+        onAction(OnboardingAction.Back)
+    }
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
@@ -165,9 +176,36 @@ fun OnboardingScreen(
                     OnboardingStep.HowItWorks -> HowItWorksStep(onAction)
                 }
             }
+
+            StepProgressChip(
+                step = state.step,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = Dimension.D300),
+            )
         }
     }
 }
+
+@Composable
+private fun StepProgressChip(
+    step: OnboardingStep,
+    modifier: Modifier = Modifier,
+) {
+    StatusPill(
+        text = stringResource(
+            Res.string.onboarding_step_progress,
+            stepIndex(step) + 1,
+            ONBOARDING_STEP_COUNT,
+        ),
+        background = AppTheme.colors.surfaceHigh,
+        foreground = AppTheme.colors.contentSecondary,
+        typography = AppTheme.typography.Label.L300,
+        modifier = modifier,
+    )
+}
+
+private const val ONBOARDING_STEP_COUNT = 3
 
 // ---------------------------------------------------------------------------
 // Step 1 — Welcome

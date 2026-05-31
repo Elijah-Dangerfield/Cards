@@ -30,10 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
   **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
 
-- `[P2]` **Onboarding: step-progress chip + system-back consistency.** The Welcome sign-in entry and per-step Back buttons already ship; what's missing is (1) a "Step N of 3" chip at the top of each step so users have a sense of place, and (2) the OS back gesture (Android back / iOS swipe) stepping back through the flow the way the in-UI Back button does — there's no `BackHandler` today, so a hardware back likely exits onboarding instead of returning a step. *(proposed 2026-05-31)*
-  **Acceptance:** each step shows a step-of-N indicator; OS back from PickIdentity/HowItWorks returns to the prior step (matching the `Back` button) and only exits from Welcome.
-  **Hints:** [`OnboardingScreen.kt`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt) — the host owns the `Screen` shell + `AnimatedContent`; add the chip there and a `BackHandler` routing to `OnboardingAction.Back`. Steps are Welcome → PickIdentity → HowItWorks (3, not 4).
-
 ### Layout & responsiveness
 
 - `[P2]` **Landscape/horizontal layouts — improve the screens that read poorly.** Every main screen (Home, Profile, Shop, PlayPoker, Lobby, Onboarding) now has a landscape `@Preview`; single-column screens stretch edge-to-edge on a wide canvas and the table needs bespoke short/wide seating. Judge each against its landscape preview and improve the layouts that read poorly (e.g. cap readable content width on wide layouts). *(proposed 2026-05-30)*
