@@ -30,6 +30,16 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
   **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
 
+- `[P1]` **Onboarding screens have no sign-in button and no back button.** Existing users can't reach the sign-in path from onboarding, and there's no way to step back through the flow once you've advanced. *(proposed 2026-05-30)*
+  **Acceptance:** onboarding exposes a visible sign-in entry point and a back control that returns to the previous step (and exits cleanly from the first step).
+  **Hints:** [`OnboardingScreen.kt`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt).
+
+### Layout & responsiveness
+
+- `[P2]` **Landscape/horizontal layouts + previews across screens.** Many screens aren't laid out well horizontally, and there are no landscape previews to judge whether a given screen even makes sense that way. *(proposed 2026-05-30)*
+  **Acceptance:** the main screens gain landscape `@Preview`s; screens that read poorly in horizontal orientation get an improved layout.
+  **Worker note:** directional — add the previews first, then improve a few high-traffic screens as a slice and let the reviewer course-correct.
+
 ### Gameplay & table UX
 
 - `[P2]` **Hand-end XP/coin particle overlay.** When the hand-result / celebration overlay dismisses, fly an XP particle up to the `LevelPill` and a coin particle down to the chip stack, tied to the moment the gated values release. Polish on top of the existing deferred-animation gating.
