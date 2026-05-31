@@ -36,6 +36,7 @@ import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.navigation.AnimationType
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Route
@@ -53,6 +54,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.dangerfield.cards.features.home.HomeRoute
@@ -191,6 +193,7 @@ fun App(appComponent: AppComponent) {
                             userMessageRepository = appComponent.userMessageRepository,
                             profileRepository = appComponent.profileRepository,
                             shopBadgeStateRepository = appComponent.shopBadgeStateRepository,
+                            telemetry = appComponent.telemetry,
                         )
                     }
                 }
@@ -226,6 +229,23 @@ fun App(appComponent: AppComponent) {
     }
 }
 
+/**
+ * The simple class name of a destination's route, for telemetry tagging.
+ *
+ * Type-safe nav stores the route as its serializer name — the fully-qualified
+ * class name followed by argument placeholders, e.g.
+ * `com.dangerfield.cards.features.shop.ShopProductSheetRoute/{enter}/{exit}`
+ * or `...HomeRoute?tab={tab}`. We strip the args and the package to get just
+ * `ShopProductSheetRoute`, keeping the tag low-cardinality and readable.
+ * Returns null for unnamed/graph destinations.
+ */
+private fun NavDestination.routeClassNameOrNull(): String? =
+    route
+        ?.substringBefore('/')
+        ?.substringBefore('?')
+        ?.substringAfterLast('.')
+        ?.takeIf { it.isNotBlank() }
+
 @Composable
 private fun AppNavigation(
     navController: NavHostController,
@@ -236,11 +256,23 @@ private fun AppNavigation(
     userMessageRepository: com.dangerfield.cards.libraries.cards.UserMessageRepository,
     profileRepository: ProfileRepository,
     shopBadgeStateRepository: com.dangerfield.cards.libraries.products.ShopBadgeStateRepository,
+    telemetry: Telemetry,
     topBar: @Composable () -> Unit = {},
 ) {
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navController.currentDestination
+
+    // Tag every crash/error with the route the user is currently on. Sheets
+    // and dialogs are real destinations on this same back stack (see
+    // `bottomSheet`/`dialog` nav builders), so an open sheet wins over the
+    // screen beneath it — exactly the granularity we want for triage. Pushed
+    // from a LaunchedEffect keyed on the name so we only touch the Sentry
+    // scope when the route actually changes, not on every recomposition.
+    val currentRouteName = currentBackStackEntry?.destination?.routeClassNameOrNull()
+    LaunchedEffect(currentRouteName) {
+        currentRouteName?.let { telemetry.setCurrentRoute(it) }
+    }
     val shouldHideBottomBar = currentBackStackEntry?.tabString() == null
     val unreadNotifications by userMessageRepository.observeUnreadInboxCount()
         .collectAsState(initial = 0)

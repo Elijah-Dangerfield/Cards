@@ -122,6 +122,19 @@ private class ConfiguredTelemetry(
         )
     }
 
+    override fun setCurrentRoute(route: String) {
+        // Best-effort: when Sentry isn't initialized (e.g. disabled
+        // environment) configureScope has no scope to mutate, so skip quietly
+        // rather than logging on every navigation.
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope {
+            // Tag = searchable/filterable in the issues list; extra = shown on
+            // the event detail. The user asked for both.
+            it.setTag(ROUTE_KEY, route)
+            it.setExtra(ROUTE_KEY, route)
+        }
+    }
+
     override fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
@@ -173,6 +186,10 @@ private class ConfiguredTelemetry(
         }
     }
 }
+
+// Scope key for the current navigation route (set via [Telemetry.setCurrentRoute]).
+// Shared by the tag and the extra so they read identically in Sentry.
+private const val ROUTE_KEY = "route"
 
 // All platforms / build types report to the single `cards` Sentry project.
 // The `environment` tag (releaseChannel-platform-buildType) and the

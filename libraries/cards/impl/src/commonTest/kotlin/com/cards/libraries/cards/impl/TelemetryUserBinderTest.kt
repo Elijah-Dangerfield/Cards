@@ -177,10 +177,15 @@ class TelemetryUserBinderTest : CoroutineTest() {
         data class SetUserCall(val email: String?, val name: String?, val id: String?)
 
         val setUserCalls = mutableListOf<SetUserCall>()
+        val setRouteCalls = mutableListOf<String>()
 
         override fun initialize() = Unit
         override fun setUser(email: String?, name: String?, id: String?) {
             setUserCalls += SetUserCall(email, name, id)
+        }
+
+        override fun setCurrentRoute(route: String) {
+            setRouteCalls += route
         }
 
         override fun captureUserFeedback(
