@@ -774,6 +774,21 @@ private fun PlayPokerScreenPreview_YourTurnPreflop() {
     }
 }
 
+@Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun PlayPokerScreenPreview_Landscape() {
+    // The table is the screen most likely to need bespoke landscape work —
+    // seats, board, and the action bar all compete for a short, wide canvas.
+    // This pins that state for review before any landscape layout lands.
+    PreviewContent {
+        PlayPokerScreen(
+            state = PlayPokerState(table = previewActive()),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 @Preview
 @Composable
 private fun PlayPokerScreenPreview_Emoji() {

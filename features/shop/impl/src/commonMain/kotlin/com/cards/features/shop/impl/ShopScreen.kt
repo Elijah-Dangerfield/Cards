@@ -982,6 +982,25 @@ private fun ShopScreenPreview_FullCatalog() {
     }
 }
 
+@Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun ShopScreenPreview_Landscape() {
+    // Landscape lens on the full catalog — surfaces how the product grid
+    // and chip header reflow on a wide canvas before any layout tuning.
+    PreviewContent(bottomBar = PreviewBottomBar.Shop) {
+        ShopScreen(
+            state = ShopState(
+                hasLoaded = true,
+                chipBalance = 12_450,
+                catalog = previewFullCatalog(),
+            ),
+            onAction = {},
+            onProductTap = {},
+            onIdeaTap = {},
+        )
+    }
+}
+
 @Preview
 @Composable
 private fun ShopScreenPreview_MixedOwnedAndDisabled() {

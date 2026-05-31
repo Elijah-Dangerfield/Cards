@@ -399,6 +399,34 @@ private fun HomeScreenPreview_NoSocialState() {
     }
 }
 
+@Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun HomeScreenPreview_Landscape() {
+    // Landscape lens on the hydrated home: a phone held sideways shows the
+    // top band (level / chips / CTAs) above the fold. Surfaces whether the
+    // single column stretches uncomfortably wide before any layout tuning.
+    PreviewContent(bottomBar = PreviewBottomBar.Home) {
+        HomeScreenContent(
+            levelProgress = levelProgressFor(totalXp = 1_140),
+            chips = 12_300,
+            activeRooms = emptyList(),
+            showTutorialBanner = true,
+            onPlayBots = {},
+            onQuickMatch = {},
+            onFriendGame = {},
+            onTapLevel = {},
+            onTapCash = {},
+            onRejoinRoom = {},
+            onForfeitRoom = {},
+            onTapFriends = {},
+            onTapAchievements = {},
+            onAddRecentOpponent = {},
+            onSeeAllRecentOpponents = {},
+            recentAchievements = previewRecentAchievements(),
+        )
+    }
+}
+
 /**
  * Build a preview set by picking a few real achievements from the
  * registry — keeps the medallion's rarity / icon / criterion math

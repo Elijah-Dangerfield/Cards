@@ -867,6 +867,46 @@ private fun ProfileScreenPreview_WithUnreadNotifications() {
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
+@androidx.compose.runtime.Composable
+private fun ProfileScreenPreview_Landscape() {
+    // Landscape lens: the profile is a single vertical scroll, so sideways
+    // it shows the header + first section above the fold. Surfaces whether
+    // the list rows stretch too wide before any layout tuning lands.
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
+        ProfileScreen(
+            settings = ProfileSettings(
+                displayName = "Elijah",
+                avatarEmoji = "🦄",
+                avatarBackgroundColor = "#7555ff",
+                rank = 1820,
+                xp = 12_400,
+                isAnonymous = false,
+                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
+                appVersion = "0.1.0",
+                showQaMenu = false,
+                memberSince = kotlin.time.Instant.parse("2026-03-12T00:00:00Z"),
+                isFoundingMember = true,
+            ),
+            onClaimAccount = {},
+            onEditProfile = {},
+            onOpenMyItems = {},
+            onOpenNotifications = {},
+            onBotSpeedChange = {},
+            onTurnFeedbackChange = {},
+            onTapRank = {},
+            onTapXp = {},
+            onSendFeedback = {},
+            onReportBug = {},
+            onPrivacyPolicy = {},
+            onTermsOfService = {},
+            onDeleteAccount = {},
+            onSignOut = {},
+        )
+    }
+}
+
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @androidx.compose.runtime.Composable
 private fun ProfileScreenPreview_DebugBuild() {
