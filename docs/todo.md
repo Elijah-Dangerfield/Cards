@@ -32,8 +32,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Layout & responsiveness
 
-- `[P2]` **Landscape/horizontal layouts — improve the screens that read poorly.** Core screens (Home, Profile, Shop, PlayPoker) now have landscape `@Preview`s; single-column screens stretch edge-to-edge on a wide canvas and the table needs bespoke short/wide seating. Judge each against its landscape preview and improve the layouts that read poorly (e.g. cap readable content width on wide layouts). *(proposed 2026-05-30)*
-  **Acceptance:** screens that read poorly horizontally get an improved layout; remaining main screens (Lobby, Onboarding) gain landscape previews too.
+- `[P2]` **Landscape/horizontal layouts — improve the screens that read poorly.** Every main screen (Home, Profile, Shop, PlayPoker, Lobby, Onboarding) now has a landscape `@Preview`; single-column screens stretch edge-to-edge on a wide canvas and the table needs bespoke short/wide seating. Judge each against its landscape preview and improve the layouts that read poorly (e.g. cap readable content width on wide layouts). *(proposed 2026-05-30)*
+  **Acceptance:** screens that read poorly horizontally get an improved layout.
   **Hints:** landscape previews use `@Preview(widthDp = 800, heightDp = 380)`. **Worker note:** the layout-tuning half needs Studio to render the previews — pair with a visual pass.
 
 ### Gameplay & table UX

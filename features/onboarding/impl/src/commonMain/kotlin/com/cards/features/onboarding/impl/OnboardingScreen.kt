@@ -749,6 +749,20 @@ private fun OnboardingScreenPreview_Welcome() {
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun OnboardingScreenPreview_Landscape() {
+    // Phone-landscape lens on the HowItWorks step — the tallest onboarding
+    // content, most at risk of clipping on a short, wide canvas. Pins it for
+    // review before any landscape layout work lands.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(step = OnboardingStep.HowItWorks),
+            onAction = {},
+        )
+    }
+}
+
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun OnboardingScreenPreview_Welcome_OAuthEnabled() {

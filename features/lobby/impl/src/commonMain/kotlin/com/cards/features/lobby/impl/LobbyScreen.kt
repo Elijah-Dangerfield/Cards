@@ -347,6 +347,36 @@ private fun LobbyScreenPreview_Idle() {
     }
 }
 
+@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
+@Composable
+private fun LobbyScreenPreview_Landscape() {
+    // Phone-landscape lens on the most content-rich lobby state (seated room
+    // with a member list). Pins it for review before any landscape layout
+    // work — the seat list + action buttons compete for a short, wide canvas.
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        LobbyScreen(
+            state = LobbyState(
+                currentUserId = "u1",
+                room = com.dangerfield.cards.libraries.rooms.Room(
+                    code = "ABC123",
+                    hostUserId = "u1",
+                    createdAtEpochMs = 1_700_000_000_000,
+                    maxSeats = 4,
+                    status = com.dangerfield.cards.libraries.rooms.RoomStatus.Lobby,
+                    members = listOf(
+                        RoomMember("u1", "Elijah", seatIndex = 0, joinedAtEpochMs = 0, isConnected = true),
+                        RoomMember("u2", "Jane", seatIndex = 1, joinedAtEpochMs = 0, isConnected = true),
+                        RoomMember("u3", "Marcus", seatIndex = 2, joinedAtEpochMs = 0, isConnected = false),
+                    ),
+                ),
+                connectionStatus = ConnectionStatus.Connected,
+            ),
+            onAction = {},
+            onBack = {},
+        )
+    }
+}
+
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun LobbyScreenPreview_Idle_WithCode() {
