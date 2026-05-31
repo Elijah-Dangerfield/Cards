@@ -21,28 +21,44 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /*
  * # Design-system catalog — grouped previews
  *
- * The whole system is too tall for one preview, so it's split into logical groups you can open
- * side by side in the IDE preview pane:
+ * The system is too big for one preview (a single combined page exceeds the IDE's max render size),
+ * so it's split into small, focused group previews you can open in the IDE preview pane. Each is a
+ * wide, two-column page so it spreads horizontally instead of running tall:
  *
- *   • [ColorPreview]      — the palette: surfaces, content, accents | status, borders, gradient, categorical.
- *   • [TypographyPreview] — the type scale: Display + Heading | Body + Label + Caption.
- *   • [ComponentsPreview] — built from the tokens: Buttons · Banner · Forms · Radii (+ Overlays pointer).
+ *   • [ColorPrimaryPreview] — surfaces + content | accents.
+ *   • [ColorSupportPreview] — status + borders + gradient | categorical (poker / rarity / league).
+ *   • [TypographyPreview]   — Display + Heading | Body + Label + Caption.
  *
- * Each is a wide, two-column page so it spreads horizontally instead of running tall. For a single
- * area, every catalog file (ColorCatalog, …) and component file (Button.kt, …) has its own focused
- * @Preview. Add a token/component to the matching *CatalogBody() and it shows up in the right group.
+ * Components don't have a combined preview on purpose — each one (Button, Switch, Banner, …) has its
+ * own catalog-style @Preview in its component file, and Radii in RadiiCatalog.kt. Keeping them
+ * separate is what keeps every preview under the render cap. Add a token/component to the matching
+ * *CatalogBody() / section composable and it shows up in the right place.
  */
 
-@Preview(widthDp = 2400, heightDp = 7000)
+@Preview(widthDp = 2400, heightDp = 4500)
 @Composable
-private fun ColorPreview() {
+private fun ColorPrimaryPreview() {
     CatalogScaffold(
-        title = "Color",
-        subtitle = "Warm felt, dark-only. Tokens name a role, never a literal color. Reach for a role — never a raw ColorResource.",
+        title = "Color · core",
+        subtitle = "The everyday tokens: surfaces, the content ramp, and the accent triads. Reach for a role, never a raw color.",
     ) {
         TwoColumn(
-            left = { ColorCatalogBodyPrimary() },
-            right = { ColorCatalogBodySupport() },
+            left = { ColorSurfacesContent() },
+            right = { ColorAccents() },
+        )
+    }
+}
+
+@Preview(widthDp = 2400, heightDp = 4500)
+@Composable
+private fun ColorSupportPreview() {
+    CatalogScaffold(
+        title = "Color · status & categorical",
+        subtitle = "Status states, borders, the one gradient, and the categorical game / rarity / league groups.",
+    ) {
+        TwoColumn(
+            left = { ColorStatusBordersGradient() },
+            right = { ColorCategorical() },
         )
     }
 }
@@ -61,44 +77,6 @@ private fun TypographyPreview() {
     }
 }
 
-@Preview(widthDp = 2400, heightDp = 5000)
-@Composable
-private fun ComponentsPreview() {
-    CatalogScaffold(
-        title = "Components",
-        subtitle = "Built from the tokens — opinionated and congruent by default.",
-    ) {
-        TwoColumn(
-            left = {
-                Area("Buttons", "Emphasis × treatment × state, the accent recolor, and the size ramp.") {
-                    ButtonCatalogBody()
-                }
-                Area("Banner", "Inline non-modal messages in every tone.") {
-                    BannerCatalogBody()
-                }
-            },
-            right = {
-                Area("Forms", "Text field, switch, checkbox, radio — every state.") {
-                    FormCatalogBody()
-                }
-                Area("Radii", "Semantic corner radii and the raw scale behind them.") {
-                    RadiiCatalogBody()
-                }
-                // Overlays don't render inline (they host as full-screen scrims) — point to their previews.
-                Area("Overlays", "Dialog & BottomSheet host as full-screen scrims, so they can't render inline here.") {
-                    Text(
-                        text = "See the focused previews in Dialog.kt and BottomSheet.kt. Both own the typography " +
-                            "of their title/body slots: a bare Text in a title slot becomes the serif felt headline, " +
-                            "body text becomes Body.B500 in contentSecondary.",
-                        typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.contentSecondary,
-                    )
-                }
-            },
-        )
-    }
-}
-
 /** Themed, scrollable page with a cover header — the shell every group preview shares. */
 @Composable
 private fun CatalogScaffold(
@@ -112,10 +90,10 @@ private fun CatalogScaffold(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(Dimension.D1000),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D900),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(Dimension.D300)) {
-                Text(text = title, typography = AppTheme.typography.Display.D1500)
+                Text(text = title, typography = AppTheme.typography.Display.D1300)
                 Text(
                     text = subtitle,
                     typography = AppTheme.typography.Body.B600,
@@ -140,23 +118,13 @@ private fun TwoColumn(
     ) {
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D900),
             content = left,
         )
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D1100),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D900),
             content = right,
         )
-    }
-}
-
-/** One titled area in a column: a divider, the area header, then its body. */
-@Composable
-private fun ColumnScope.Area(title: String, intro: String, body: @Composable () -> Unit) {
-    CatalogDivider()
-    Column(verticalArrangement = Arrangement.spacedBy(Dimension.D900)) {
-        CatalogHeader(title, intro)
-        body()
     }
 }

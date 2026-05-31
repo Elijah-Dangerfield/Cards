@@ -14,26 +14,37 @@ import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private const val COLOR_SUBTITLE =
-    "Warm felt, dark-only. Tokens name a role, never a literal color. Status is flat; accents come " +
-        "in solid / on / deep (3D lip) / subtle (tint). Reach for a role — never a raw ColorResource."
+/*
+ * Color catalog content. Broken into four granular section-group composables so the (large) color
+ * area can be spread across columns and split across multiple previews — a single combined preview
+ * of all of color is past the IDE's max render size. The previews themselves live in
+ * DesignSystemPreview.kt (ColorPrimaryPreview / ColorSupportPreview).
+ */
 
-/** The color page body: a documentation ladder of every semantic token + its usage, then the
- *  categorical groups as swatch grids. Split into two halves so [DesignSystemPreview] can lay it
- *  out in two columns; call this combined version for a single-column page. */
+/** Everything, single column. Kept for completeness; the live previews use the granular pieces. */
 @Composable
 internal fun ColorCatalogBody() {
     ColorCatalogBodyPrimary()
     ColorCatalogBodySupport()
 }
 
-/** First half — the everyday tokens: surfaces, the content ramp, and the accent triads. */
 @Composable
 internal fun ColorCatalogBodyPrimary() {
-    val c = AppTheme.colors
+    ColorSurfacesContent()
+    ColorAccents()
+}
 
+@Composable
+internal fun ColorCatalogBodySupport() {
+    ColorStatusBordersGradient()
+    ColorCategorical()
+}
+
+/** Surfaces + the content ramp. */
+@Composable
+internal fun ColorSurfacesContent() {
+    val c = AppTheme.colors
     CatalogSection(
         "Surfaces",
         "The neutral elevation ladder. Each step sits visually 'on top of' the one before it.",
@@ -60,7 +71,12 @@ internal fun ColorCatalogBodyPrimary() {
             ColorRow("contentDisabled", c.contentDisabled, c.background, "Disabled text and icons.")
         }
     }
+}
 
+/** The three accent triads. */
+@Composable
+internal fun ColorAccents() {
+    val c = AppTheme.colors
     CatalogSection(
         "Accent · Primary (gold)",
         "The brand. The main CTA, focus rings, selected states. solid → fill, on → text on it, deep → 3D lip, subtle → tint.",
@@ -98,11 +114,10 @@ internal fun ColorCatalogBodyPrimary() {
     }
 }
 
-/** Second half — status, borders, the one gradient, and the categorical groups. */
+/** Status states, borders, and the one gradient. */
 @Composable
-internal fun ColorCatalogBodySupport() {
+internal fun ColorStatusBordersGradient() {
     val c = AppTheme.colors
-
     CatalogSection(
         "Status",
         "Universal state meaning, same shape as Material's error roles: solid fill + on-color + subtle tint.",
@@ -147,7 +162,12 @@ internal fun ColorCatalogBodySupport() {
             Text(text = "accentPrimaryGradient", typography = AppTheme.typography.Label.L600)
         }
     }
+}
 
+/** The categorical (non-semantic) groups: poker, rarity, league. */
+@Composable
+internal fun ColorCategorical() {
+    val c = AppTheme.colors
     CatalogSection(
         "Categorical · colors.poker",
         "Physical-object game colors — a chip is gold, a card back is blue, regardless of theme. NOT semantic; use only on a literal game element.",
@@ -187,10 +207,4 @@ internal fun ColorCatalogBodySupport() {
             ColorSwatch("league.amethyst", c.league.amethyst, c.background)
         }
     }
-}
-
-@Preview(widthDp = 1100, heightDp = 2600)
-@Composable
-private fun ColorCatalog() {
-    CatalogPage(title = "Color", subtitle = COLOR_SUBTITLE) { ColorCatalogBody() }
 }
