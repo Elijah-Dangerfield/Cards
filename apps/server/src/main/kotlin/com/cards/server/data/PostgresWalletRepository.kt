@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.db.toJavaInstant
 import com.dangerfield.cards.server.db.toKotlinInstant
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
@@ -51,8 +52,18 @@ class PostgresWalletRepository(
     private val clock: Clock,
 ) : WalletRepository {
 
-    override suspend fun findOrCreate(userId: UserId): Wallet = database.transaction {
-        readWallet(userId) ?: createWithStarter(userId, clock.now())
+    override suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult = database.transaction {
+        val existing = readWallet(userId)
+        if (existing != null) {
+            FindOrCreateResult(wallet = existing, created = false)
+        } else {
+            // Note: if a concurrent writer wins the insert race,
+            // createWithStarter re-reads their row but we still report
+            // created = true here. Both callers are brand-new in the same
+            // instant, so over-reporting created to the loser is harmless —
+            // the worst case is two reveal attempts for one fresh account.
+            FindOrCreateResult(wallet = createWithStarter(userId, clock.now()), created = true)
+        }
     }
 
     override suspend fun find(userId: UserId): Wallet? = database.transaction {

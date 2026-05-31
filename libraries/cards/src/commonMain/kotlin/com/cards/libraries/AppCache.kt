@@ -78,13 +78,18 @@ data class AppData(
     val winOddsFlipHintSeen: Boolean = false,
 
     /**
-     * Whether the user has seen the starter-grant welcome dialog. False on
-     * a fresh install; flips to true the first time the dialog is dismissed.
-     * Gates a one-shot UI that introduces the chip economy and steers new
-     * users toward the no-risk bot tables. Combined with [isFirstEverSession]
-     * the welcome is gated to brand-new accounts only.
+     * Whether we still owe this user the starter-grant reveal. Set true by
+     * [com.dangerfield.cards.libraries.cards.ChipsRepository]'s sync when the
+     * server reports a wallet was *just created* (`walletCreated`) — i.e. a
+     * brand-new account whose starter grant was seeded this instant. Flipped
+     * false once we've shown the number (the onboarding StarterGrant page, or
+     * the Home welcome dialog as a fallback).
+     *
+     * Default false is self-migrating and fixes the old re-fire bug: a
+     * returning user on a fresh install already has a server wallet, so
+     * `walletCreated` never comes back true and the reveal stays suppressed.
      */
-    val hasSeenStarterWelcome: Boolean = false,
+    val requiresGrantInfo: Boolean = false,
 
     /**
      * Whether the user has dismissed the Home-screen tutorial banner.

@@ -21,6 +21,7 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
+import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
@@ -564,7 +565,7 @@ class MeRoutesTest {
     }
 
     private object EmptyWallet : WalletRepository {
-        override suspend fun findOrCreate(userId: UserId): Wallet = error("unused")
+        override suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult = error("unused")
         override suspend fun find(userId: UserId): Wallet? = null
         override suspend fun apply(
             userId: UserId,

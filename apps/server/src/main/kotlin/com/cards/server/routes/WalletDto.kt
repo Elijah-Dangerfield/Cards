@@ -26,6 +26,10 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class WalletResponse(
     val balance: Long,
+    /** True only on the response that lazy-created the wallet (brand-new
+     *  account, starter grant just seeded). Gates the client's one-shot
+     *  starter-grant reveal. */
+    val walletCreated: Boolean = false,
 )
 
 @Serializable
@@ -52,6 +56,10 @@ data class WalletSyncResponse(
     /** Post-sync authoritative balance, after every Applied event ran. */
     val balance: Long,
     val results: List<WalletEventResultDto>,
+    /** True only on the response that lazy-created the wallet (brand-new
+     *  account, starter grant just seeded). Gates the client's one-shot
+     *  starter-grant reveal. */
+    val walletCreated: Boolean = false,
 )
 
 @Serializable

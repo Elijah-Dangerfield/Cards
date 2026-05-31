@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
@@ -68,6 +70,31 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
         assertEquals(1, hitCount, "empty batch still triggers the sync (hydrate)")
         assertEquals(12_345L, chipsDao.getChips()?.balance)
         assertTrue(walletDao.getAll().isEmpty())
+    }
+
+    @Test
+    fun sync_walletCreatedTrue_setsRequiresGrantInfo() = runUnitTest {
+        val appCache = FakeAppCache()
+        val repo = buildRepo(FakeChipsDao(seedBalance = 0L), FakeWalletEventDao(), appCache) {
+            respondJson("""{"schemaVersion":1,"balance":10500,"results":[],"walletCreated":true}""")
+        }
+
+        repo.sync()
+
+        assertTrue(appCache.get().requiresGrantInfo, "walletCreated=true must set requiresGrantInfo")
+    }
+
+    @Test
+    fun sync_walletCreatedFalseOrAbsent_leavesFlagUntouched() = runUnitTest {
+        val appCache = FakeAppCache()
+        // No walletCreated field at all (older/returning-user response).
+        val repo = buildRepo(FakeChipsDao(seedBalance = 0L), FakeWalletEventDao(), appCache) {
+            respondJson("""{"schemaVersion":1,"balance":10000,"results":[]}""")
+        }
+
+        repo.sync()
+
+        assertEquals(false, appCache.get().requiresGrantInfo)
     }
 
     @Test
@@ -359,11 +386,13 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
     private fun buildRepo(
         chipsDao: FakeChipsDao,
         walletDao: FakeWalletEventDao,
+        appCache: FakeAppCache = FakeAppCache(),
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): ChipsRepositoryImpl = buildRepoWithScope(
         chipsDao = chipsDao,
         walletDao = walletDao,
         appScope = AppCoroutineScope(dispatchers),
+        appCache = appCache,
         handler = handler,
     )
 
@@ -371,6 +400,7 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
         chipsDao: FakeChipsDao,
         walletDao: FakeWalletEventDao,
         appScope: AppCoroutineScope,
+        appCache: FakeAppCache = FakeAppCache(),
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): ChipsRepositoryImpl {
         val mockEngine = MockEngine(handler)
@@ -400,6 +430,7 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             networkClient = networkClient,
             appScope = appScope,
             clock = FixedClock,
+            appCache = appCache,
         )
     }
 
@@ -426,6 +457,14 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
 
     private object FixedClock : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(1_700_000_000_000)
+    }
+
+    private class FakeAppCache(initial: AppData = AppData()) : AppCache {
+        private val state = MutableStateFlow(initial)
+        override val updates: Flow<AppData> = state
+        override suspend fun get(): AppData = state.value
+        override suspend fun set(value: AppData) { state.value = value }
+        override suspend fun clear() { state.value = AppData() }
     }
 
     private class FakeWalletEventDao : WalletEventDao {

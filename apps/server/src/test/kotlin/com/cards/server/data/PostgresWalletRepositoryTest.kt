@@ -66,6 +66,28 @@ class PostgresWalletRepositoryTest : DatabaseTest() {
     }
 
     @Test
+    fun findOrCreateResult_firstCall_createdTrue() = runTest {
+        val repo = newRepo()
+        val userId = newUser()
+
+        val result = repo.findOrCreateResult(userId)
+
+        assertTrue(result.created)
+        assertEquals(Wallet.STARTER_GRANT, result.wallet.balance)
+    }
+
+    @Test
+    fun findOrCreateResult_secondCall_createdFalse() = runTest {
+        val repo = newRepo()
+        val userId = newUser()
+        repo.findOrCreateResult(userId)
+
+        val result = repo.findOrCreateResult(userId)
+
+        assertFalse(result.created)
+    }
+
+    @Test
     fun find_returnsNull_whenWalletDoesNotExistYet() = runTest {
         val repo = newRepo()
         assertNull(repo.find(newUser()))

@@ -69,11 +69,11 @@ fun Route.walletRoutes(
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me/wallet") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
-            val initial = repository.findOrCreate(userId)
+            val initial = repository.findOrCreateResult(userId)
             val afterWelcome = maybeApplyWelcomeWeek(
                 userId = userId,
-                walletCreatedAt = initial.createdAt,
-                currentBalance = initial.balance,
+                walletCreatedAt = initial.wallet.createdAt,
+                currentBalance = initial.wallet.balance,
                 wallets = repository,
                 messages = messages,
                 clock = clock,
@@ -84,7 +84,10 @@ fun Route.walletRoutes(
                 wallets = repository,
                 messages = messages,
             )
-            call.respond(HttpStatusCode.OK, WalletResponse(balance = balance))
+            call.respond(
+                HttpStatusCode.OK,
+                WalletResponse(balance = balance, walletCreated = initial.created),
+            )
         }
 
         rateLimit(RateLimitName(WALLET_WRITE_LIMIT)) {
@@ -92,11 +95,11 @@ fun Route.walletRoutes(
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val body = call.receive<WalletSyncRequest>()
 
-                val initial = repository.findOrCreate(userId)
+                val initial = repository.findOrCreateResult(userId)
                 var lastBalance = maybeApplyWelcomeWeek(
                     userId = userId,
-                    walletCreatedAt = initial.createdAt,
-                    currentBalance = initial.balance,
+                    walletCreatedAt = initial.wallet.createdAt,
+                    currentBalance = initial.wallet.balance,
                     wallets = repository,
                     messages = messages,
                     clock = clock,
@@ -138,7 +141,11 @@ fun Route.walletRoutes(
 
                 call.respond(
                     HttpStatusCode.OK,
-                    WalletSyncResponse(balance = lastBalance, results = results),
+                    WalletSyncResponse(
+                        balance = lastBalance,
+                        results = results,
+                        walletCreated = initial.created,
+                    ),
                 )
             }
         }
