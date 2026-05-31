@@ -62,7 +62,12 @@ internal fun PlayerActionSheet(
     humanSeatIndex: Int,
     onIntent: (PlayerIntent) -> Unit,
 ) {
-    val presets = remember(legal) { BetPresets.from(legal) }
+    // Only build presets when a raise is actually legal. When the seat is too
+    // short to make a full min-raise, `canRaise` is false and `maxRaiseTotal`
+    // sits *below* `minRaiseTotal` — computing presets in that state would feed
+    // an inverted range into `coerceIn` and crash. The raise UI below is gated
+    // on `canRaise` anyway, so there is nothing to show.
+    val presets = remember(legal) { if (legal.canRaise) BetPresets.from(legal) else emptyList() }
     var selectedPreset by remember(legal) { mutableStateOf(presets.firstOrNull()) }
     var raiseTotal by remember(legal.minRaiseTotal, legal.maxRaiseTotal) {
         mutableStateOf(selectedPreset?.amount ?: legal.minRaiseTotal)
@@ -169,12 +174,16 @@ internal fun PlayerActionSheet(
  * round below the legal min — collapsing those into a single Min keeps the
  * row clean instead of showing three pills that all submit the same value.
  */
-private data class BetPreset(val labelResource: StringResource, val amount: Long)
+internal data class BetPreset(val labelResource: StringResource, val amount: Long)
 
-private object BetPresets {
+internal object BetPresets {
     fun from(legal: LegalActions): List<BetPreset> {
         val min = legal.minRaiseTotal
         val max = legal.maxRaiseTotal
+        // A seat too short to make a full min-raise has `max < min` (an empty
+        // range). `coerceIn(min, max)` throws on that, so bail before clamping.
+        // Callers should already gate on `canRaise`; this is the backstop.
+        if (max < min) return emptyList()
         val pot = legal.potIfYouCall
         val raw = listOfNotNull(
             BetPreset(Res.string.room_action_preset_min, min),

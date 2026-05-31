@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.plugins
 
 import com.dangerfield.cards.server.config.SentryConfig
+import io.opentelemetry.api.trace.Span
 import io.sentry.Sentry
 import io.sentry.SentryOptions
 import org.slf4j.LoggerFactory
@@ -60,11 +61,27 @@ fun installSentry(config: SentryConfig) {
  * Use this from places that want to add server-side breadcrumbs without
  * relying on the StatusPages-driven unhandled-exception path (e.g. when
  * a 503 is intentionally returned but still worth investigating).
+ *
+ * The [context] tag and the OTel `trace_id`/`span_id` are set on a **local**
+ * scope (the `captureException` lambda overload) rather than via
+ * `Sentry.configureScope`, which mutates the global scope and would leak the
+ * tags onto every subsequent event on the thread.
+ *
+ * Stamping the active OpenTelemetry span's IDs as tags is what links this
+ * Sentry issue to its trace in Tempo/Honeycomb (and lets you paste a trace ID
+ * into Sentry search to find the matching error). `Span.current()` is live
+ * here because [withSpan] propagates the span across suspend boundaries via
+ * `asContextElement`, and the Ktor OTel plugin opens a request span for every
+ * inbound call. When no span is active the context is invalid and we skip it.
  */
 fun captureToSentry(throwable: Throwable, context: String? = null) {
     if (!Sentry.isEnabled()) return
-    if (context != null) {
-        Sentry.configureScope { scope -> scope.setTag("context", context) }
+    val spanContext = Span.current().spanContext
+    Sentry.captureException(throwable) { scope ->
+        if (context != null) scope.setTag("context", context)
+        if (spanContext.isValid) {
+            scope.setTag("trace_id", spanContext.traceId)
+            scope.setTag("span_id", spanContext.spanId)
+        }
     }
-    Sentry.captureException(throwable)
 }
