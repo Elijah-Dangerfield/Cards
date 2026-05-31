@@ -48,19 +48,19 @@ All fakes are hand-rolled (no Mockito/MockK). No mock-library smell anywhere.
 
 Add to [`LobbyViewModelTest`](../features/lobby/impl/src/commonTest/kotlin/com/cards/features/lobby/impl/LobbyViewModelTest.kt):
 
-- [ ] `startGame_hostInRoomWith2Members_sendsStartHandFrame_andEmitsNavigateEvent` — assert `handle.send(ClientFrame.StartHand(...))` was called and `LobbyEvent.NavigateToMultiplayer(code)` fired.
-- [ ] `startGame_nonHost_isNoOp` — non-host taps Start (shouldn't normally render the button, but assertion guards against state desync); no frame sent, no event.
-- [ ] `startGame_hostAlone_isNoOp` — `canStart` false (members < 2); no frame, no event.
-- [ ] `gameplaySnapshotReceived_nonHost_emitsNavigateEvent` — fire the action; assert `NavigateToMultiplayer` event.
-- [ ] `gameplaySnapshotReceived_host_doesNotEmitNavigateAgain` — host already navigated on tap; second navigation would push twice in the back stack.
-- [ ] `gameplaySnapshotReceived_secondCall_doesNotReEmit` — `hasReceivedGameplaySnapshot` guards against re-fire on subsequent snapshots.
-- [ ] `effectiveHostUserId_allConnected_isFirstMember` — base case.
-- [ ] `effectiveHostUserId_firstMemberDisconnected_promotesNextConnected` — auto-promotion case.
-- [ ] `effectiveHostUserId_noConnectedMembers_isNull` — degenerate; guards the null-host branch.
-- [ ] `effectiveHostUserId_originalHostReconnects_returnsToOriginal` — reconnect mid-session.
-- [ ] `connectionUpdated_hostChanges_emitsHostPromotedEvent` — fire `ConnectionUpdated` with a snapshot where the effective host shifted; assert `HostPromoted` event with correct name + `isLocalUser` flag.
-- [ ] `connectionUpdated_hostUnchanged_doesNotEmitPromotion` — same host on subsequent snapshot; no event.
-- [ ] `connectionUpdated_initialSetup_doesNotEmitPromotion` — first Connected emission; no event (we'd false-positive on every join).
+- [x] `startGame_hostInRoomWith2Members_sendsStartHandFrame_andEmitsNavigateEvent` — assert `handle.send(ClientFrame.StartHand(...))` was called and `LobbyEvent.NavigateToMultiplayer(code)` fired.
+- [x] `startGame_nonHost_isNoOp` — non-host taps Start (shouldn't normally render the button, but assertion guards against state desync); no frame sent, no event.
+- [x] `startGame_hostAlone_isNoOp` — `canStart` false (members < 2); no frame, no event.
+- [x] `gameplaySnapshotReceived_nonHost_emitsNavigateEvent` — fire the action; assert `NavigateToMultiplayer` event.
+- [x] `gameplaySnapshotReceived_host_doesNotEmitNavigateAgain` — host already navigated on tap; second navigation would push twice in the back stack.
+- [x] `gameplaySnapshotReceived_secondCall_doesNotReEmit` — `hasReceivedGameplaySnapshot` guards against re-fire on subsequent snapshots.
+- [x] `effectiveHostUserId_allConnected_isFirstMember` — base case.
+- [x] `effectiveHostUserId_firstMemberDisconnected_promotesNextConnected` — auto-promotion case.
+- [x] `effectiveHostUserId_noConnectedMembers_isNull` — degenerate; guards the null-host branch.
+- [x] `effectiveHostUserId_originalHostReconnects_returnsToOriginal` — reconnect mid-session.
+- [x] `connectionUpdated_hostChanges_emitsHostPromotedEvent` — fire `ConnectionUpdated` with a snapshot where the effective host shifted; assert `HostPromoted` event with correct name + `isLocalUser` flag. **Surfaced + fixed a latent bug: the promotion check re-read the lagging derived `stateFlow` for the new host, so the banner never fired; now keyed off the applied snapshot.**
+- [x] `connectionUpdated_hostUnchanged_doesNotEmitPromotion` — same host on subsequent snapshot; no event.
+- [x] `connectionUpdated_initialSetup_doesNotEmitPromotion` — first Connected emission; no event (we'd false-positive on every join).
 
 ### `RemotePokerSessionFactory` — projection logic
 
@@ -305,7 +305,7 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 | Round | Status | Notes |
 |---|---|---|
 | 0 — baseline | shipped | The MP-feature stack ([`cea38b18`](https://github.com/Elijah-Dangerfield/Cards/commit/cea38b18) through [`a59ea74d`](https://github.com/Elijah-Dangerfield/Cards/commit/a59ea74d)) shipped with the coverage in the snapshot. Round 1 closes its gaps. |
-| 1 — close MP gaps | not started | Highest priority. ~15 tests, ~3-4h. |
+| 1 — close MP gaps | shipped | `RemotePokerSessionFactoryTest` (10) + `LobbyViewModelTest` new MP paths (13). Also caught + fixed a latent `HostPromoted` non-firing bug. |
 | 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
 | 3 — engine SUPER tests | not started | Property tests + invariant pins + edge cases. ~20-30 tests, ~6-8h. |
 | 4 — server gameplay flow | not started | ~8-10 tests, ~3-4h. |
