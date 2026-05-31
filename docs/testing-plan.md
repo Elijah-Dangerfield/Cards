@@ -183,17 +183,17 @@ For every `(street, action, seatStatus, handParticipation)` combo, assert the en
 
 **Cost:** ~3-4 hours, ~8-10 tests. **Why:** `GameSessionTest` covers the engine wrapper. `RoomSocketRoutesTest` covers the lobby/presence flow. Nothing covers the plumbing between them — and that's where wire-level regressions hide.
 
-Add to [`RoomSocketRoutesTest`](../apps/server/src/test/kotlin/com/cards/server/routes/RoomSocketRoutesTest.kt) or a new `RoomSocketGameplayRoutesTest`:
+Landed in a new [`RoomSocketGameplayRoutesTest`](../apps/server/src/test/kotlin/com/cards/server/routes/RoomSocketGameplayRoutesTest.kt) (kept separate from `RoomSocketRoutesTest`'s lobby/presence focus):
 
-- [ ] **`submitIntent_validIntent_appliesToEngine_andBroadcastsGameStateSnapshot`** — full route → session → broadcast cycle.
-- [ ] **`submitIntent_invalidIntent_repliesIntentAckRejected_doesNotBroadcastSnapshot`** — wrong-seat / illegal action.
-- [ ] **`submitIntent_duplicateNonce_processedOnce_acksTwice`** — server idempotency.
-- [ ] **`startHand_fromNonHost_isRejected`** — host-only gating server-side (defense-in-depth even though client gates).
-- [ ] **`startHand_whenHandInProgress_isRejected`** — can't restart mid-hand.
-- [ ] **`requestNextHand_anyPlayer_advances`** — any seated player can advance.
-- [ ] **`gameStateSnapshot_isScrubbedPerRecipient`** — viewer doesn't see other seats' hole cards in the broadcast.
-- [ ] **`gameEventOccurred_carriesSequence`** — sequence numbers are monotonic per-session.
-- [ ] **`socketDisconnect_midHand_engineContinues`** — the engine isn't tied to a single WS connection; other players' actions still process.
+- [x] **`submitIntent_validIntent_appliesToEngine_andBroadcastsGameStateSnapshot`** — full route → session → broadcast cycle.
+- [x] **`submitIntent_invalidIntent_repliesIntentAckRejected_doesNotBroadcastSnapshot`** — wrong-seat / illegal action.
+- [x] **`submitIntent_duplicateNonce_processedOnce_acksTwice`** — server idempotency.
+- [x] **`startHand_fromNonHost_isRejected`** — host-only gating server-side (defense-in-depth even though client gates).
+- [x] **`startHand_whenHandInProgress_isRejected`** — can't restart mid-hand.
+- [x] **`requestNextHand_anyPlayer_advances`** — any seated player can advance.
+- [x] **`gameStateSnapshot_isScrubbedPerRecipient`** — viewer doesn't see other seats' hole cards in the broadcast.
+- [x] **`gameEventOccurred_carriesSequence`** — sequence numbers are monotonic per-session.
+- [x] **`socketDisconnect_midHand_engineContinues`** — the engine isn't tied to a single WS connection; other players' actions still process.
 
 ---
 
@@ -308,7 +308,7 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 | 1 — close MP gaps | shipped | `RemotePokerSessionFactoryTest` (10) + `LobbyViewModelTest` new MP paths (13). Also caught + fixed a latent `HostPromoted` non-firing bug. |
 | 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
 | 3 — engine SUPER tests | not started | Property tests + invariant pins + edge cases. ~20-30 tests, ~6-8h. |
-| 4 — server gameplay flow | not started | ~8-10 tests, ~3-4h. |
+| 4 — server gameplay flow | shipped | `RoomSocketGameplayRoutesTest` — 9 tests pinning the WS route → registry → per-recipient broadcast cycle. |
 | 5 — chaos / fault injection | not started | Lives in `:integration`. ~10 tests, ~4-6h. |
 | 6 — Compose UI tests | not started | `:features:room:impl` androidUnitTest. ~15 tests, ~6-8h. |
 | Deferred — emulator UI | not planned | Device-smoke checklist covers this for V1. |
