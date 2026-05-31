@@ -35,7 +35,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * *CatalogBody() / section composable and it shows up in the right place.
  */
 
-@Preview(widthDp = 2400, heightDp = 4500)
+@Preview(widthDp = 2400, heightDp = 1200)
 @Composable
 private fun ColorPrimaryPreview() {
     CatalogScaffold(
@@ -49,7 +49,7 @@ private fun ColorPrimaryPreview() {
     }
 }
 
-@Preview(widthDp = 2400, heightDp = 4500)
+@Preview(widthDp = 2400, heightDp = 1500)
 @Composable
 private fun ColorSupportPreview() {
     CatalogScaffold(
@@ -63,7 +63,7 @@ private fun ColorSupportPreview() {
     }
 }
 
-@Preview(widthDp = 2400, heightDp = 4000)
+@Preview(widthDp = 2400, heightDp = 1000)
 @Composable
 private fun TypographyPreview() {
     CatalogScaffold(
