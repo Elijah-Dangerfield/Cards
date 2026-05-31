@@ -301,7 +301,7 @@ Why 6 weeks: Marvel Snap's 4 weeks generates review-bombs from casual players wh
 
 Cards uses a **single-currency** model. There is one wallet, one set of earn paths, one set of spend paths. Chips. (Two-currency designs were considered and rejected — see Appendix C.)
 
-**Starting grant:** 10,000 chips. **One per device fingerprint**, not one per account — closes the "uninstall → reinstall → fresh chips" exploit. See §6.1.
+**Starting grant:** 10,000 chips, **once per account** — seeded server-side the first time a new account's wallet is touched. A reinstall that mints a fresh anonymous account therefore gets a fresh starter grant; that "starter-farm" loop is intentionally accepted in V1 (the disincentive is intrinsic — the farmer loses their old account's full progress every loop). See §6.1.
 
 **Earn paths:**
 - Game wins (gameplay)

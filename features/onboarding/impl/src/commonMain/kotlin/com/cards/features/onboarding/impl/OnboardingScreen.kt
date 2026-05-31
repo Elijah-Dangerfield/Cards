@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.ui.components.AnimatedChipReveal
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.CardsFan
@@ -54,18 +55,19 @@ import com.dangerfield.cards.libraries.ui.components.ChipCoin
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.XpBadge
 import com.dangerfield.cards.libraries.ui.components.button.Button
-import com.dangerfield.cards.libraries.ui.components.button.ButtonGhost
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
+import com.dangerfield.cards.libraries.ui.bounceClick
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -86,20 +88,21 @@ import cards.libraries.resources.generated.resources.onboarding_how_card_league_
 import cards.libraries.resources.generated.resources.onboarding_how_card_league_title
 import cards.libraries.resources.generated.resources.onboarding_how_card_play_subtitle
 import cards.libraries.resources.generated.resources.onboarding_how_card_play_title
+import cards.libraries.resources.generated.resources.onboarding_grant_cta
+import cards.libraries.resources.generated.resources.onboarding_grant_offline_subtitle
+import cards.libraries.resources.generated.resources.onboarding_grant_revealed_subtitle
+import cards.libraries.resources.generated.resources.onboarding_grant_title
 import cards.libraries.resources.generated.resources.onboarding_how_continue_button
 import cards.libraries.resources.generated.resources.onboarding_how_eyebrow
 import cards.libraries.resources.generated.resources.onboarding_how_title
 import cards.libraries.resources.generated.resources.onboarding_identity_avatar_placeholder
 import cards.libraries.resources.generated.resources.onboarding_identity_continue_button
-import cards.libraries.resources.generated.resources.onboarding_identity_continue_button_progress
 import cards.libraries.resources.generated.resources.onboarding_identity_edit_name_icon_desc
 import cards.libraries.resources.generated.resources.onboarding_identity_more_packs_hint
 import cards.libraries.resources.generated.resources.onboarding_identity_section_name
 import cards.libraries.resources.generated.resources.onboarding_identity_section_pack
-import cards.libraries.resources.generated.resources.onboarding_identity_skip_button
 import cards.libraries.resources.generated.resources.onboarding_identity_subtitle
 import cards.libraries.resources.generated.resources.onboarding_identity_title
-import cards.libraries.resources.generated.resources.onboarding_nav_back_button
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest
 import cards.libraries.resources.generated.resources.onboarding_welcome_continue_guest_progress
 import cards.libraries.resources.generated.resources.onboarding_welcome_footer
@@ -109,6 +112,7 @@ import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_go
 import cards.libraries.resources.generated.resources.onboarding_welcome_oauth_in_flight
 import cards.libraries.resources.generated.resources.onboarding_welcome_subtitle
 import cards.libraries.resources.generated.resources.onboarding_welcome_title
+import cards.libraries.resources.generated.resources.ui_top_bar_back_a11y
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -163,6 +167,7 @@ fun OnboardingScreen(
                     OnboardingStep.Welcome -> WelcomeStep(state, onAction)
                     OnboardingStep.PickIdentity -> PickIdentityStep(state, onAction)
                     OnboardingStep.HowItWorks -> HowItWorksStep(onAction)
+                    OnboardingStep.StarterGrant -> StarterGrantStep(state, onAction)
                 }
             }
         }
@@ -347,20 +352,12 @@ private fun PickIdentityStep(
             .verticalScroll(rememberScrollState())
             .padding(screenHorizontalInsets),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Dimension.D300),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ButtonGhost(onClick = { onAction(OnboardingAction.Back) }) {
-                Text(stringResource(Res.string.onboarding_nav_back_button))
-            }
-            ButtonGhost(onClick = { onAction(OnboardingAction.Skip) }) {
-                Text(stringResource(Res.string.onboarding_identity_skip_button))
-            }
-        }
+        IconButton(
+            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+            onClick = { onAction(OnboardingAction.Back) },
+            iconColor = AppTheme.colors.content,
+            modifier = Modifier.padding(top = Dimension.D300),
+        )
 
         Spacer(modifier = Modifier.height(Dimension.D300))
 
@@ -484,15 +481,10 @@ private fun PickIdentityStep(
 
         ButtonPrimary(
             onClick = { onAction(OnboardingAction.ContinueFromPickIdentity) },
-            enabled = !state.isSavingProfile && state.displayName.isNotBlank(),
+            enabled = state.displayName.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(
-                stringResource(
-                    if (state.isSavingProfile) Res.string.onboarding_identity_continue_button_progress
-                    else Res.string.onboarding_identity_continue_button,
-                ),
-            )
+            Text(stringResource(Res.string.onboarding_identity_continue_button))
         }
         Spacer(modifier = Modifier.height(Dimension.D700))
     }
@@ -539,15 +531,10 @@ private fun AvatarTile(
         modifier = Modifier
             .size(64.dp)
             .clip(CircleShape)
-            .border(width = 3.dp, color = ringColor, shape = CircleShape),
+            .border(width = 3.dp, color = ringColor, shape = CircleShape)
+            .bounceClick(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Button(
-            onClick = onClick,
-            type = ButtonType.Ghost,
-            style = ButtonStyle.Text,
-            modifier = Modifier.fillMaxSize(),
-        ) {}
         AvatarCircle(
             name = option.emoji,
             emoji = option.emoji,
@@ -577,16 +564,12 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
             .fillMaxSize()
             .padding(screenHorizontalInsets),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Dimension.D300),
-            horizontalArrangement = Arrangement.Start,
-        ) {
-            ButtonGhost(onClick = { onAction(OnboardingAction.Back) }) {
-                Text(stringResource(Res.string.onboarding_nav_back_button))
-            }
-        }
+        IconButton(
+            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+            onClick = { onAction(OnboardingAction.Back) },
+            iconColor = AppTheme.colors.content,
+            modifier = Modifier.padding(top = Dimension.D300),
+        )
         Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
             text = stringResource(Res.string.onboarding_how_eyebrow),
@@ -630,7 +613,7 @@ private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
         Spacer(modifier = Modifier.weight(1f))
 
         ButtonPrimary(
-            onClick = { onAction(OnboardingAction.Finish) },
+            onClick = { onAction(OnboardingAction.ContinueFromHowItWorks) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(Res.string.onboarding_how_continue_button))
@@ -688,10 +671,100 @@ private fun EmojiTile(glyph: String, tint: Color) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Step 4 — StarterGrant
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun StarterGrantStep(
+    state: OnboardingState,
+    onAction: (OnboardingAction) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(screenHorizontalInsets),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        IconButton(
+            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+            onClick = { onAction(OnboardingAction.Back) },
+            iconColor = AppTheme.colors.content,
+            modifier = Modifier
+                .align(Alignment.Start)
+                .padding(top = Dimension.D300),
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Text(
+            text = "🎉",
+            typography = AppTheme.typography.Display.D1000,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D500))
+        Text(
+            text = stringResource(Res.string.onboarding_grant_title),
+            typography = AppTheme.typography.Display.D1000,
+            color = AppTheme.colors.content,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(Dimension.D700))
+
+        // The chip slot: reveal the real, server-authoritative number once it
+        // hydrates; show the "lands when you reconnect" line if the grace
+        // window elapsed offline; keep a quiet fixed-height placeholder while
+        // resolving so the layout doesn't jump. We never render a number we
+        // didn't get from the server.
+        Box(
+            modifier = Modifier.height(56.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            val revealed = state.revealedChips
+            when {
+                revealed != null -> AnimatedChipReveal(
+                    amount = revealed,
+                    color = AppTheme.colors.poker.chipGold,
+                )
+                state.grantRevealTimedOut -> Text(
+                    text = stringResource(Res.string.onboarding_grant_offline_subtitle),
+                    typography = AppTheme.typography.Body.B600,
+                    color = AppTheme.colors.contentSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        if (state.revealedChips != null) {
+            Spacer(modifier = Modifier.height(Dimension.D500))
+            Text(
+                text = stringResource(Res.string.onboarding_grant_revealed_subtitle),
+                typography = AppTheme.typography.Body.B600,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        // Always enabled — never block the user on the wallet round-trip.
+        ButtonPrimary(
+            onClick = { onAction(OnboardingAction.Finish) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(Res.string.onboarding_grant_cta))
+        }
+        Spacer(modifier = Modifier.height(Dimension.D700))
+    }
+}
+
 private fun stepIndex(step: OnboardingStep): Int = when (step) {
     OnboardingStep.Welcome -> 0
     OnboardingStep.PickIdentity -> 1
     OnboardingStep.HowItWorks -> 2
+    OnboardingStep.StarterGrant -> 3
 }
 
 @Composable
@@ -808,6 +881,28 @@ private fun OnboardingScreenPreview_HowItWorks() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
+private fun OnboardingScreenPreview_StarterGrant_Revealed() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(step = OnboardingStep.StarterGrant, revealedChips = 10_500L),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun OnboardingScreenPreview_StarterGrant_Offline() {
+    com.dangerfield.cards.libraries.ui.PreviewContent {
+        OnboardingScreen(
+            state = OnboardingState(step = OnboardingStep.StarterGrant, grantRevealTimedOut = true),
+            onAction = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
 private fun OnboardingScreenPreview_Welcome_OAuthInFlight() {
     com.dangerfield.cards.libraries.ui.PreviewContent {
         OnboardingScreen(
@@ -833,23 +928,6 @@ private fun OnboardingScreenPreview_Welcome_AuthError() {
                 googleEnabled = true,
                 appleEnabled = true,
                 authError = OnboardingAuthError.GuestSignInFailed(debugDetails = null),
-            ),
-            onAction = {},
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@Composable
-private fun OnboardingScreenPreview_PickIdentity_Saving() {
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        OnboardingScreen(
-            state = OnboardingState(
-                step = OnboardingStep.PickIdentity,
-                displayName = "QuietAce72",
-                selectedEmoji = "🦊",
-                selectedBackgroundColor = "#ff6b35",
-                isSavingProfile = true,
             ),
             onAction = {},
         )

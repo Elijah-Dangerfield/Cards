@@ -12,6 +12,7 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
+import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.Wallet
 import com.dangerfield.cards.server.domain.WalletEvent
 import com.dangerfield.cards.server.domain.WalletRepository
@@ -739,13 +740,17 @@ class AdminRoutesTest {
         private val keys = mutableMapOf<UserId, MutableSet<String>>()
         val applyCalls: MutableList<AppliedCall> = mutableListOf()
 
-        override suspend fun findOrCreate(userId: UserId): Wallet {
+        override suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult {
+            val isNew = userId !in balances
             val balance = balances.getOrPut(userId) { Wallet.STARTER_GRANT }
-            return Wallet(
-                userId = userId,
-                balance = balance,
-                createdAt = Instant.fromEpochMilliseconds(0),
-                updatedAt = Instant.fromEpochMilliseconds(0),
+            return FindOrCreateResult(
+                wallet = Wallet(
+                    userId = userId,
+                    balance = balance,
+                    createdAt = Instant.fromEpochMilliseconds(0),
+                    updatedAt = Instant.fromEpochMilliseconds(0),
+                ),
+                created = isNew,
             )
         }
 

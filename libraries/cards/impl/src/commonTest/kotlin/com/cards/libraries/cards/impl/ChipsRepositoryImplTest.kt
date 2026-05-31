@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.cards.impl
 
 import app.cash.turbine.test
+import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsDao
 import com.dangerfield.cards.libraries.cards.storage.db.ChipsEntity
 import com.dangerfield.cards.libraries.cards.storage.db.WalletEventDao
@@ -319,6 +321,13 @@ class ChipsRepositoryImplTest : CoroutineTest() {
             networkClient = networkClient,
             appScope = AppCoroutineScope(dispatchers),
             clock = FixedClock,
+            appCache = object : AppCache {
+                private val state = MutableStateFlow(AppData())
+                override val updates: Flow<AppData> = state
+                override suspend fun get(): AppData = state.value
+                override suspend fun set(value: AppData) { state.value = value }
+                override suspend fun clear() { state.value = AppData() }
+            },
         )
     }
 

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
@@ -13,6 +14,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -33,11 +35,10 @@ import kotlin.time.Instant
  *    silently clears the in-flight flag; failures surface a message.
  *  - DisplayName: user-edit gates profile prefill; Regenerate re-rolls.
  *  - SelectAvatar: stores emoji + background hex.
- *  - ContinueFromPickIdentity: profile.update is called; success
- *    advances to HowItWorks; name-taken stays + shows error; other
- *    failures advance anyway (we don't dead-end on a save hiccup).
- *  - Skip: marks onboarded + Navigates Home with no profile mutation.
- *  - Finish: same as Skip from the HowItWorks step.
+ *  - ContinueFromPickIdentity: advances to HowItWorks immediately and
+ *    persists the profile in the background (optimistic); a taken name
+ *    surfaces on the name field without blocking the flow.
+ *  - Finish: marks onboarded + Navigates Home from the HowItWorks step.
  *  - Profile + avatar-pack timeouts fall back gracefully.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -330,7 +331,10 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun continueFromPickIdentity_displayNameTaken_staysAndSurfacesError() = runUnitTest {
+    fun continueFromPickIdentity_displayNameTaken_advancesOptimistically_andSurfacesError() = runUnitTest {
+        // Optimistic: we jump to HowItWorks immediately and persist in the
+        // background. A taken name still surfaces on the name field so it's
+        // visible if the user steps back, but it no longer blocks the flow.
         val profile = FakeProfileRepository(
             initial = Profile.Fallback(id = "f"),
             updateOutcome = UpdateProfileOutcome.DisplayNameTaken,
@@ -344,7 +348,7 @@ class OnboardingViewModelTest : CoroutineTest() {
         vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
         runCurrent()
 
-        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
         assertEquals(OnboardingSaveError.DisplayNameTaken, vm.state.saveError)
     }
 
@@ -366,20 +370,6 @@ class OnboardingViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-    }
-
-    @Test
-    fun skip_marksOnboarded_andNavigatesHome() = runUnitTest {
-        val cache = FakeAppCache()
-        val vm = newVm(cache = cache)
-        val received = mutableListOf<OnboardingEvent>()
-        backgroundScope.launch { vm.eventFlow.collect { received += it } }
-
-        vm.takeAction(OnboardingAction.Skip)
-        runCurrent()
-
-        assertTrue(cache.get().hasUserOnboarded)
-        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
     }
 
     @Test
@@ -427,7 +417,10 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun back_fromPickIdentity_returnsToWelcome_andClearsSaveError() = runUnitTest {
+    fun back_keepsSaveErrorOnPickIdentity_thenClearsItAtWelcome() = runUnitTest {
+        // Optimistic save advanced us to HowItWorks and set a name error in
+        // the background. Stepping back onto PickIdentity keeps that error
+        // visible on the name field; stepping back again to Welcome clears it.
         val profile = FakeProfileRepository(
             initial = Profile.Fallback(id = "f"),
             updateOutcome = UpdateProfileOutcome.DisplayNameTaken,
@@ -439,14 +432,88 @@ class OnboardingViewModelTest : CoroutineTest() {
         vm.takeAction(OnboardingAction.DisplayNameChanged("Taken"))
         vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
         runCurrent()
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
+        assertNotNull(vm.state.saveError)
+
+        vm.takeAction(OnboardingAction.Back)
+        runCurrent()
         assertEquals(OnboardingStep.PickIdentity, vm.state.step)
         assertNotNull(vm.state.saveError)
 
         vm.takeAction(OnboardingAction.Back)
         runCurrent()
-
         assertEquals(OnboardingStep.Welcome, vm.state.step)
         assertNull(vm.state.saveError)
+    }
+
+    @Test
+    fun continueFromHowItWorks_advancesToStarterGrant_andRevealsBalance() = runUnitTest {
+        // Wallet already hydrated (cold-boot sync landed) → the StarterGrant
+        // page reveals the real number and clears requiresGrantInfo so the
+        // Home dialog won't re-reveal.
+        val cache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
+        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
+        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
+        val chips = FakeChipsRepository(initial = 10_500L)
+        val vm = newVm(cache = cache, auth = auth, profile = profile, chips = chips)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+
+        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
+        runCurrent()
+
+        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
+        assertEquals(10_500L, vm.state.revealedChips)
+        assertFalse(vm.state.grantRevealTimedOut)
+        assertFalse(cache.get().requiresGrantInfo)
+    }
+
+    @Test
+    fun starterGrant_offline_showsNoNumber_andLeavesFlag() = runUnitTest {
+        // Balance never hydrates → after the grace window we show the
+        // "reconnect" copy (no number) and leave requiresGrantInfo set so
+        // the Home dialog reveals the grant once the wallet syncs.
+        val cache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
+        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
+        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
+        val chips = FakeChipsRepository(initial = null)
+        val vm = newVm(cache = cache, auth = auth, profile = profile, chips = chips)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+
+        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
+        // Push past the 1.5s grace window on virtual time.
+        advanceTimeBy(2_000)
+        runCurrent()
+
+        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
+        assertNull(vm.state.revealedChips)
+        assertTrue(vm.state.grantRevealTimedOut)
+        assertTrue(cache.get().requiresGrantInfo)
+    }
+
+    @Test
+    fun back_fromStarterGrant_returnsToHowItWorks() = runUnitTest {
+        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
+        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
+        val chips = FakeChipsRepository(initial = 10_000L)
+        val vm = newVm(auth = auth, profile = profile, chips = chips)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
+        runCurrent()
+        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
+
+        vm.takeAction(OnboardingAction.Back)
+        runCurrent()
+
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
     }
 
     @Test
@@ -482,10 +549,12 @@ class OnboardingViewModelTest : CoroutineTest() {
         cache: FakeAppCache = FakeAppCache(),
         auth: FakeAuthRepository = FakeAuthRepository(),
         profile: FakeProfileRepository = FakeProfileRepository(),
+        chips: FakeChipsRepository = FakeChipsRepository(),
     ): OnboardingViewModel = OnboardingViewModel(
         appCache = cache,
         authRepository = auth,
         profileRepository = profile,
+        chipsRepository = chips,
         appConfigMap = EmptyAppConfigMap(),
     )
 
@@ -542,4 +611,27 @@ internal class FakeProfileRepository(
     // Stub satisfies the contract; nobody on this path calls it.
     override suspend fun fetchAvatarPack(): AvatarPackOutcome =
         AvatarPackOutcome.Success(packs = emptyList(), palette = emptyList())
+}
+
+internal class FakeChipsRepository(initial: Long? = null) : ChipsRepository {
+    val balance = MutableStateFlow(initial)
+    var syncCalls: Int = 0
+        private set
+
+    override fun observeBalance(): Flow<Long?> = balance
+    override suspend fun getBalance(): Long? = balance.value
+    override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {
+        balance.value = (balance.value ?: 0L) + amount
+    }
+    override suspend fun subtractChips(amount: Long, reason: String, idempotencyKey: String?) {
+        balance.value = (balance.value ?: 0L) - amount
+    }
+    override suspend fun setBalance(authoritativeBalance: Long) {
+        balance.value = authoritativeBalance
+    }
+    override suspend fun deleteAll() { balance.value = null }
+    override suspend fun sync(): Result<Unit> {
+        syncCalls++
+        return Result.success(Unit)
+    }
 }

@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.ChipsRepository
@@ -59,6 +60,7 @@ class ChipsRepositoryImpl(
     private val networkClient: NetworkClient,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
+    private val appCache: AppCache,
 ) : ChipsRepository, AppEventListener {
 
     private val syncLogger = KLog.withTag("ChipsSync")
@@ -185,6 +187,15 @@ class ChipsRepositoryImpl(
             // grant), this is also where we pick it up. setBalance
             // handles the no-local-row case by inserting directly.
             setBalance(response.balance)
+
+            // Brand-new account: the server just lazy-created the wallet, so
+            // we still owe the user the starter-grant reveal. `walletCreated`
+            // is true only on this first-contact response; later syncs report
+            // false. Onboarding (or the Home dialog) clears the flag once the
+            // number is shown.
+            if (response.walletCreated) {
+                appCache.update { if (it.requiresGrantInfo) it else it.copy(requiresGrantInfo = true) }
+            }
 
             syncLogger.d {
                 "Sync complete: ${pending.size} sent, " +
