@@ -198,6 +198,39 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     }
 
     @Test
+    fun tableFor_botStackedTable_marksPracticeTier() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, isBot = false, playerId = "local-user"),
+                testSeat(index = 1, isBot = false, playerId = "peer"),
+                testSeat(index = 2, isBot = true, playerId = "bot-1"),
+                testSeat(index = 3, isBot = true, playerId = "bot-2"),
+                testSeat(index = 4, isBot = true, playerId = "bot-3"),
+            ),
+        )
+
+        val table = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user"))
+
+        assertTrue(table.practiceTierBotsPresent)
+    }
+
+    @Test
+    fun tableFor_majorityHumanTable_noPracticeTier() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, isBot = false, playerId = "local-user"),
+                testSeat(index = 1, isBot = false, playerId = "peer"),
+                testSeat(index = 2, isBot = true, playerId = "bot-1"),
+                testSeat(index = 3, isBot = true, playerId = "bot-2"),
+            ),
+        )
+
+        val table = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user"))
+
+        assertFalse(table.practiceTierBotsPresent)
+    }
+
+    @Test
     fun difficultyName_and_xpMode_areMultiplayer() = runUnitTest {
         val factory = factory()
         assertEquals("Multiplayer", factory.difficultyName)

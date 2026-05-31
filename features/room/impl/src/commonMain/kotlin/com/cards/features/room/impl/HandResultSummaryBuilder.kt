@@ -71,9 +71,20 @@ internal object HandResultSummaryBuilder {
         val humanWasAllIn = humanSeat?.handParticipation == HandParticipation.AllIn ||
             (humanSeat != null && humanSeat.stack <= 0L && humanSeat.contributedThisHand > 0L)
 
+        // Table-composition gate (product-spec.md §5.4). A multiplayer hand
+        // on a bot-stacked or solo table is credited at the practice tier —
+        // downgrading the mode to BOTS routes it through the halved XP
+        // multiplier and drops MP-mode achievements, both of which already
+        // key off `summary.mode` downstream. Solo (already BOTS) is untouched.
+        val creditMode = if (mode == XpMode.MULTIPLAYER && !MultiplayerCredit.qualifies(state)) {
+            XpMode.BOTS
+        } else {
+            mode
+        }
+
         return HandResultSummary(
             handId = state.handNumber.toString(),
-            mode = mode,
+            mode = creditMode,
             wasFold = wasFold,
             reachedShowdown = reachedShowdown,
             wonPot = wonPot,
