@@ -21,7 +21,7 @@ never be applied twice no matter how many times the client retries.
 
 | Grant | Amount | When it fires | How often |
 |-------|--------|---------------|-----------|
-| **Starter grant** | 10,000 | The first time the wallet is touched after signup (it's created on demand). | Once per wallet. |
+| **Starter grant** | 10,000 | The first time the wallet is touched after signup (it's created on demand). | Once per account (its wallet). |
 | **Welcome-week** | 500 / day | Each of the 7 days *after* signup day, applied the first time the wallet is contacted that day. Signup day itself gets only the starter grant. | Once per (user, day). Missed days are granted on the next open — no streak, no expiry. |
 | **Bust protection** | 1,000 | When the balance hits 0 ("Welcome back to the table"). | Lifetime-once per user. |
 
@@ -68,9 +68,15 @@ the server's "I just created this wallet" signal as the trigger:
    to Home), still get the reveal exactly once, with the true number.
 
 Because the trigger is "the server created the wallet," a **returning player
-who reinstalls** does **not** see the starter reveal again — their wallet
-already exists, so `walletCreated` is false. (This previously misfired; it's
-now fixed.)
+who reinstalls and signs back into a claimed account** does **not** see the
+starter reveal again — that account's wallet already exists, so `walletCreated`
+is false. (This previously misfired and re-showed the reveal; it's now fixed.)
+
+A reinstalled **anonymous** player is a different story: with no account
+revival in V1, the reinstall creates a *brand-new* account and wallet, so they
+genuinely get a fresh starter grant and reveal. That "starter-farm" loop is an
+accepted V1 tradeoff — see [product-spec §6.1](../product/product-spec.md#61-anonymous-by-default).
+Claiming an account (Apple / Google) is the durable path.
 
 ## What this deliberately avoids
 
