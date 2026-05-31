@@ -127,15 +127,31 @@ sealed interface ApplyOutcome {
     ) : ApplyOutcome
 }
 
+/**
+ * Result of [WalletRepository.findOrCreateResult]. [created] is `true`
+ * only on the call that actually inserted the wallet row (a brand-new
+ * account whose starter grant was just seeded) — every later call for the
+ * same user reads the existing row and returns `false`. The client uses
+ * this to gate a once-per-account starter-grant reveal.
+ */
+data class FindOrCreateResult(val wallet: Wallet, val created: Boolean)
+
 @OptIn(ExperimentalTime::class)
 interface WalletRepository {
 
     /**
      * Lazy-creates the wallet row with [Wallet.STARTER_GRANT] if missing,
-     * then returns it. Idempotent — the second call for the same user is a
-     * pure read.
+     * then returns it along with whether this call created it. Idempotent —
+     * the second call for the same user is a pure read with
+     * `created = false`.
      */
-    suspend fun findOrCreate(userId: UserId): Wallet
+    suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult
+
+    /**
+     * Convenience wrapper around [findOrCreateResult] for callers that
+     * don't care whether the row was just created.
+     */
+    suspend fun findOrCreate(userId: UserId): Wallet = findOrCreateResult(userId).wallet
 
     /**
      * Read-only lookup; returns null when no wallet row exists yet (the
