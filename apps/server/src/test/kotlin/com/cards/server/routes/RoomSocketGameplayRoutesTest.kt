@@ -90,6 +90,24 @@ class RoomSocketGameplayRoutesTest {
     private val alice = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
     private val json = Json { classDiscriminator = "type"; ignoreUnknownKeys = true }
 
+    /**
+     * Per-socket FIFO buffer of frames pulled off the wire while
+     * [receiveUntil] was looking for a *different* frame.
+     *
+     * A single socket multiplexes three independent server coroutines —
+     * the room publisher, the game publisher and the intent-ack drain
+     * loop — and there's no ordering guarantee *between* them. A
+     * `StartHand`'s `GameStateSnapshot` (game publisher) routinely races
+     * its `IntentAck` (drain loop) and can land first. Without buffering, a
+     * `receiveUntilAck` that ran first would *discard* the snapshot, and
+     * the following `receiveUntilGameState` would then block to its timeout
+     * on a frame that had already been consumed — the root cause of this
+     * suite's CI flakiness. Stashing skipped frames here keeps every
+     * `receiveUntil*` assertion order-independent.
+     */
+    private val pendingFrames =
+        java.util.IdentityHashMap<ClientWebSocketSession, ArrayDeque<RoomSocketEventDto>>()
+
     // ===================================================================
     // StartHand
     // ===================================================================
@@ -573,18 +591,29 @@ class RoomSocketGameplayRoutesTest {
         receiveUntil()
 
     /**
-     * Drain-and-discard frames until one of type [T] matching [predicate]
-     * arrives. A single socket multiplexes room-publisher, game-publisher
-     * and ack frames in coroutine-scheduling order, so tests assert on
-     * the frame they care about and skip the rest. Bounded so a missing
-     * frame fails the test instead of hanging.
+     * Return the next frame of type [T] matching [predicate], whether it's
+     * already waiting in this socket's [pendingFrames] buffer or still on
+     * the wire. Frames that don't match are *kept* (in arrival order) in
+     * the buffer for later waits rather than discarded — see [pendingFrames]
+     * for why that matters. Bounded on fresh reads so a genuinely missing
+     * frame fails the test instead of hanging forever.
      */
     private suspend inline fun <reified T : RoomSocketEventDto> ClientWebSocketSession.receiveUntil(
         predicate: (T) -> Boolean = { true },
     ): T {
+        val buffered = pendingFrames.getOrPut(this) { ArrayDeque() }
+        val iterator = buffered.iterator()
+        while (iterator.hasNext()) {
+            val event = iterator.next()
+            if (event is T && predicate(event)) {
+                iterator.remove()
+                return event
+            }
+        }
         repeat(MAX_FRAMES_PER_WAIT) {
             val event = receiveOne()
             if (event is T && predicate(event)) return event
+            buffered.addLast(event)
         }
         error("did not receive a matching ${T::class.simpleName} within $MAX_FRAMES_PER_WAIT frames")
     }

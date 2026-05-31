@@ -100,7 +100,7 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
 
         val felt = catalog.chipOffers.single { it.id == "felt_royal_red" }
         assertNotNull(felt.descriptionByLocale)
-        val englishDescription = felt.descriptionByLocale?.get("en")
+        val englishDescription = felt.descriptionByLocale.get("en")
         assertNotNull(englishDescription)
         assertTrue(
             englishDescription.contains("Deep red felt"),
