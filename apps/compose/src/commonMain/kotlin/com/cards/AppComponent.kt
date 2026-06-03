@@ -7,6 +7,7 @@ import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
+import com.dangerfield.cards.libraries.config.QaConfigValue
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.navigation.DeepLinkBridge
 import com.dangerfield.cards.libraries.products.ShopBadgeStateRepository
@@ -53,6 +54,14 @@ interface AppComponent {
      * etc.
      */
     val autoInits: Set<AutoInit>
+
+    /**
+     * Every configured value in the app, populated by anvil via the
+     * `@ContributesBinding(AppScope::class, QaConfigValue::class, multibinding = true)`
+     * annotation on each value. The QA menu iterates this set to list and
+     * override config without any per-value wiring.
+     */
+    val configuredValues: Set<QaConfigValue>
 
     @Provides
     fun provideClock(): Clock = Clock.System

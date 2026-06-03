@@ -2,6 +2,8 @@ package com.dangerfield.cards.features.profile.impl.account
 
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
+import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
@@ -479,6 +481,7 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         config: TestAppConfigMap = TestAppConfigMap.withOAuthEnabled(),
     ): ClaimAccountViewModel = ClaimAccountViewModel(
         authRepository = identity,
-        appConfigMap = config,
+        googleSignInEnabled = GoogleSignInEnabled(config),
+        appleSignInEnabled = AppleSignInEnabled(config),
     )
 }

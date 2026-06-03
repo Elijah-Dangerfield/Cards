@@ -21,7 +21,7 @@ class DeleteAccountRoute : Route()
 
 /**
  * Apple/Google claim flow on top of the current anonymous Supabase session.
- * Providers are gated by IdentityFeatureConfig flags — when OAuth creds
+ * Providers are gated by the identity config flags — when OAuth creds
  * aren't provisioned, the screen surfaces email/password + a coming-soon
  * notice for the social buttons.
  */

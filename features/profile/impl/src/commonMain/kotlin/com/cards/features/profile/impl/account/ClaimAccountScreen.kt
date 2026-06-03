@@ -63,7 +63,7 @@ import org.jetbrains.compose.resources.stringResource
  * three-button menu + separate email screen with a single canvas.
  *
  * Provider gating still hides OAuth buttons until their Supabase
- * dashboard credentials exist (`IdentityFeatureConfig`); the email form
+ * dashboard credentials exist (the `identity.*` config flags); the email form
  * is the always-available path. The conflicting-OAuth-identity state
  * shows the same destructive-style confirm button as before — per the
  * 2026-05-18 Identity pivot decision we don't auto-merge anonymous

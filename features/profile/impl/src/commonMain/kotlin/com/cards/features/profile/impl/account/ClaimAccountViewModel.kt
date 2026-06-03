@@ -1,8 +1,8 @@
 package com.dangerfield.cards.features.profile.impl.account
 
-import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
+import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
+import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
@@ -16,8 +16,8 @@ import me.tatarka.inject.annotations.Inject
  * top, OAuth (Google/Apple) below an "or" divider. Same VM owns both:
  * one screen, one decision point, no second hop through SignUp.
  *
- * Provider buttons are gated by [IdentityFeatureConfig] flags so the UI
- * hides anything that isn't enabled in the Supabase dashboard yet —
+ * Provider buttons are gated by the [GoogleSignInEnabled] / [AppleSignInEnabled]
+ * config flags so the UI hides anything that isn't enabled in the Supabase dashboard yet —
  * nothing worse than a "Sign in with Apple" button that does nothing
  * because the provider hasn't been provisioned. Once the dashboard's
  * Providers tab gets credentials, flipping the AppConfig flag turns the
@@ -38,15 +38,13 @@ import me.tatarka.inject.annotations.Inject
 @Inject
 class ClaimAccountViewModel(
     private val authRepository: AuthRepository,
-    appConfigMap: AppConfigMap,
+    googleSignInEnabled: GoogleSignInEnabled,
+    appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<ClaimAccountState, ClaimAccountEvent, ClaimAccountAction>(
-    initialStateArg = run {
-        val config = IdentityFeatureConfig(appConfigMap)
-        ClaimAccountState(
-            googleEnabled = config.googleSignInEnabled,
-            appleEnabled = config.appleSignInEnabled,
-        )
-    },
+    initialStateArg = ClaimAccountState(
+        googleEnabled = googleSignInEnabled(),
+        appleEnabled = appleSignInEnabled(),
+    ),
 ) {
 
     override suspend fun handleAction(action: ClaimAccountAction) {

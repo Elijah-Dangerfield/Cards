@@ -182,8 +182,8 @@ internal class TestAppConfigMap(
 
     companion object {
         /** OAuth-enabled map used by ClaimAccountViewModel tests that exercise
-         *  provider buttons. Keys must match `FeatureConfig`'s `featureName +
-         *  propertyName` path resolution. */
+         *  provider buttons. Keys must match each ConfiguredValue's dotted
+         *  `path` (`identity.googleSignInEnabled`, …) resolution. */
         fun withOAuthEnabled(google: Boolean = true, apple: Boolean = true) = TestAppConfigMap(
             backing = mapOf(
                 "identity" to buildMap {

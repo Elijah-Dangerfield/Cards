@@ -77,7 +77,6 @@ private class ConfiguredTelemetry(
                 options.sendDefaultPii = config.sendDefaultPii
                 options.attachStackTrace = config.attachStacktrace
                 options.enableAutoSessionTracking = config.enableAutoSessionTracking
-                options.debug = config.isDebugLoggingEnabled
                 config.tracesSampleRate?.let { options.tracesSampleRate = it }
                 config.profilesSampleRate?.let { options.sampleRate = it }
             }
@@ -208,7 +207,6 @@ data class SentryRuntimeConfig(
     val profilesSampleRate: Double?,
     val platformTag: String,
     val buildTypeTag: String,
-    val isDebugLoggingEnabled: Boolean,
     val logPolicy: LogPolicy,
     val enableAutoSessionTracking: Boolean
 ) {
@@ -242,7 +240,6 @@ data class SentryRuntimeConfig(
                 profilesSampleRate = profilesSampleRate,
                 platformTag = platformTag,
                 buildTypeTag = buildTypeTag,
-                isDebugLoggingEnabled = false, // TODO link this to a QA option
                 logPolicy = LogPolicy(
                     minBreadcrumbLevel = breadcrumbLevel,
                     minEventLevel = LogLevel.Error
