@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.CreateMessageOutcome
+import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.MessageSweepResult
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessage
@@ -35,6 +36,7 @@ import java.util.Date
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
@@ -64,6 +66,20 @@ class WalletRoutesTest {
             val body = resp.body<WalletResponse>()
             assertEquals(Wallet.STARTER_GRANT, body.balance)
             assertEquals(1, repo.findOrCreateCalls)
+            assertTrue(body.walletCreated, "first contact must report walletCreated")
+        }
+    }
+
+    @Test
+    fun get_secondCall_walletCreatedFalse() = runTest {
+        // Same repo instance across two GETs → the wallet already exists on
+        // the second call, so walletCreated flips false (returning user).
+        val repo = FakeWalletRepo()
+        callGet(repo, bearer = validJwt()) { resp ->
+            assertTrue(resp.body<WalletResponse>().walletCreated)
+        }
+        callGet(repo, bearer = validJwt()) { resp ->
+            assertFalse(resp.body<WalletResponse>().walletCreated)
         }
     }
 
@@ -94,6 +110,7 @@ class WalletRoutesTest {
             assertEquals(Wallet.STARTER_GRANT + 350, body.balance)
             assertEquals(2, body.results.size)
             assertTrue(body.results.all { it.outcome == WalletEventOutcomeDto.Applied })
+            assertTrue(body.walletCreated, "first sync contact must report walletCreated")
         }
     }
 
@@ -312,14 +329,18 @@ class WalletRoutesTest {
             }
         }
 
-        override suspend fun findOrCreate(userId: UserId): Wallet {
+        override suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult {
             findOrCreateCalls++
+            val isNew = userId !in balances
             val balance = balances.getOrPut(userId) { Wallet.STARTER_GRANT }
-            return Wallet(
-                userId = userId,
-                balance = balance,
-                createdAt = walletCreatedAt,
-                updatedAt = walletCreatedAt,
+            return FindOrCreateResult(
+                wallet = Wallet(
+                    userId = userId,
+                    balance = balance,
+                    createdAt = walletCreatedAt,
+                    updatedAt = walletCreatedAt,
+                ),
+                created = isNew,
             )
         }
 

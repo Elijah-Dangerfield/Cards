@@ -133,7 +133,7 @@ internal class FakeAppCache(initial: AppData = AppData()) : AppCache {
     override suspend fun clear() { state.value = AppData() }
 }
 
-/** Empty [AppConfigMap] — keeps IdentityFeatureConfig at its defaults
+/** Empty [AppConfigMap] — keeps the identity config flags at their defaults
  *  (both OAuth flags off) so the SignIn ViewModel's initial state has
  *  predictable values across tests. */
 internal class EmptyAppConfigMap : AppConfigMap() {

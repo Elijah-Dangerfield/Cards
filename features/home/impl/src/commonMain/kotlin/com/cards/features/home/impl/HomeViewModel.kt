@@ -135,26 +135,27 @@ class HomeViewModel(
                 WelcomeGate(
                     chips = chips,
                     profile = profile,
-                    hasSeenStarterWelcome = appData.hasSeenStarterWelcome,
+                    requiresGrantInfo = appData.requiresGrantInfo,
                 )
             }
                 .distinctUntilChanged()
                 .onEach { gate ->
                     homeLogger.i {
                         "welcomeGates: resolved=${gate.payload() != null} " +
-                            "hasSeenStarterWelcome=${gate.hasSeenStarterWelcome} " +
+                            "requiresGrantInfo=${gate.requiresGrantInfo} " +
                             "profile=${gate.profile.debugKind()} " +
                             "chips=${gate.chips}"
                     }
                 }
-                // Suspends until the first emission whose non-chip gates
-                // align. No state churn after — the cache flip below makes
-                // the predicate unsatisfiable for the rest of this VM's
-                // life.
+                // Suspends until the first emission whose gates all align —
+                // including a hydrated balance, since the dialog's whole job
+                // is to reveal the authoritative number. No state churn
+                // after — the cache flip below makes the predicate
+                // unsatisfiable for the rest of this VM's life.
                 .first { it.payload() != null }
                 .let { gate ->
                     val payload = gate.payload()!!
-                    appCache.update { it.copy(hasSeenStarterWelcome = true) }
+                    appCache.update { it.copy(requiresGrantInfo = false) }
                     // Beat between Home rendering and the welcome popping;
                     // without it the dialog grabs focus before the user has
                     // oriented on the new screen. See `DialogIntroDelay`.
@@ -244,11 +245,15 @@ class HomeViewModel(
 private data class WelcomeGate(
     val chips: Long?,
     val profile: Profile?,
-    val hasSeenStarterWelcome: Boolean,
+    val requiresGrantInfo: Boolean,
 ) {
     fun payload(): WelcomePayload? {
-        if (hasSeenStarterWelcome) return null
+        if (!requiresGrantInfo) return null
         val auth = profile as? Profile.Authenticated ?: return null
+        // Require a hydrated balance — the dialog's whole purpose is to
+        // reveal the authoritative number, so we wait for it rather than
+        // flashing a placeholder.
+        val chips = chips ?: return null
         return WelcomePayload(
             displayName = auth.displayName,
             avatarEmoji = auth.avatarEmoji,
@@ -259,16 +264,15 @@ private data class WelcomeGate(
 }
 
 /**
- * Eager payload for the welcome route — the non-chip fields have resolved
- * by gate-fire time so the dialog paints on first frame. Chips ride along
- * as a snapshot and may be null on slow networks; the dialog falls back to
- * a placeholder rather than blocking the welcome on the wallet round-trip.
+ * Eager payload for the welcome route. All fields — including the
+ * authoritative chip balance — have resolved by gate-fire time, so the
+ * dialog paints the real number on first frame.
  */
 data class WelcomePayload(
     val displayName: String,
     val avatarEmoji: String,
     val avatarBackgroundColorHex: String?,
-    val chips: Long?,
+    val chips: Long,
 )
 
 data class HomeState(

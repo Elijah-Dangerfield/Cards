@@ -35,14 +35,16 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
-import com.dangerfield.cards.features.upgrade.UpgradeConfig
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.cards.xpToLevelUpFrom
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.ConfigOverride
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.ConfiguredValue
-import com.dangerfield.cards.libraries.config.FeatureConfig
+import com.dangerfield.cards.libraries.config.FlagConfigValue
+import com.dangerfield.cards.libraries.config.IntConfigValue
+import com.dangerfield.cards.libraries.config.QaConfigValue
+import com.dangerfield.cards.libraries.config.StringConfigValue
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Switch
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
@@ -58,6 +60,7 @@ import kotlinx.coroutines.launch
 fun QaMenuScreen(
     configStream: Flow<AppConfigMap>,
     initialConfig: AppConfigMap,
+    configuredValues: Set<QaConfigValue>,
     overrideRepository: ConfigOverrideRepository,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -68,8 +71,7 @@ fun QaMenuScreen(
     val scope = rememberCoroutineScope()
     val configMap by configStream.collectAsState(initial = initialConfig)
 
-    val featureConfigs = remember(configMap) { knownFeatureConfigs(configMap) }
-    val rows = remember(featureConfigs) { collectRows(featureConfigs) }
+    val rows = remember(configMap, configuredValues) { buildRows(configuredValues, configMap) }
 
     val drafts = remember { mutableStateMapOf<String, String>() }
     LaunchedEffect(rows) {
@@ -126,11 +128,9 @@ fun QaMenuScreen(
                 )
             }
 
-            featureConfigs.forEach { feature ->
-                val featureRows = rows.filter { it.featureName == feature.featureName }
-                if (featureRows.isEmpty()) return@forEach
-                QaSection(title = feature.featureName) {
-                    featureRows.forEach { row ->
+            rows.groupBy { it.group }.forEach { (group, groupRows) ->
+                QaSection(title = group) {
+                    groupRows.forEach { row ->
                         QaRow(
                             row = row,
                             draft = drafts[row.path] ?: row.currentValue.toString(),
@@ -484,7 +484,7 @@ private fun typeLabelFor(default: Any): String = when (default) {
 }
 
 private data class QaRowData(
-    val featureName: String,
+    val group: String,
     val name: String,
     val path: String,
     val default: Any,
@@ -492,32 +492,29 @@ private data class QaRowData(
     val allowedValues: List<Any>?,
 )
 
-private fun knownFeatureConfigs(configMap: AppConfigMap): List<FeatureConfig> = listOf(
-    UpgradeConfig(configMap),
-)
-
-private fun collectRows(featureConfigs: List<FeatureConfig>): List<QaRowData> {
-    // Touch each property so FeatureConfig.values populates.
-    featureConfigs.forEach { fc ->
-        if (fc is UpgradeConfig) {
-            fc.minSupportedVersionCode
-            fc.maintenanceMode
-            fc.maintenanceMessage
-        }
+/**
+ * Turns the injected [ConfiguredValue] set into displayable rows. Metadata
+ * (name/path/default/allowedValues/group) comes off each value; the *current*
+ * value is resolved against the streamed [configMap] so overrides applied this
+ * session show up live. Sorted by group then name for a stable layout.
+ */
+private fun buildRows(
+    configuredValues: Set<QaConfigValue>,
+    configMap: AppConfigMap,
+): List<QaRowData> = configuredValues
+    .filterIsInstance<ConfiguredValue<*>>()
+    .filter { it.showInQADashboard }
+    .map { value ->
+        QaRowData(
+            group = value.group,
+            name = value.name,
+            path = value.path,
+            default = value.default,
+            currentValue = resolveCurrent(value, configMap),
+            allowedValues = value.allowedValues,
+        )
     }
-    return featureConfigs.flatMap { fc ->
-        fc.values.map { value ->
-            QaRowData(
-                featureName = fc.featureName,
-                name = value.name,
-                path = value.path,
-                default = value.default,
-                currentValue = resolveCurrent(value, fc.configMap),
-                allowedValues = value.allowedValues,
-            )
-        }
-    }
-}
+    .sortedWith(compareBy({ it.group }, { it.name }))
 
 private fun resolveCurrent(value: ConfiguredValue<*>, configMap: AppConfigMap): Any {
     return when (val d = value.default) {
@@ -565,6 +562,37 @@ private class PreviewConfigOverrideRepository(
 
 private class PreviewAppConfigMap(override val map: Map<String, *>) : AppConfigMap()
 
+/** A representative spread of values (int, enum string, free string, flags)
+ *  across two groups so the preview mirrors what the real injected set looks like. */
+private fun previewConfiguredValues(map: AppConfigMap): Set<QaConfigValue> = setOf(
+    object : IntConfigValue(map) {
+        override val name = "Min supported version code"
+        override val path = "upgrade.minSupportedVersionCode"
+        override val default = 1
+    },
+    object : StringConfigValue(map) {
+        override val name = "Maintenance mode"
+        override val path = "upgrade.maintenanceMode"
+        override val default = "off"
+        override val allowedValues = listOf("off", "banner", "blocking")
+    },
+    object : StringConfigValue(map) {
+        override val name = "Maintenance message"
+        override val path = "upgrade.maintenanceMessage"
+        override val default = "We're updating the servers, back in a moment."
+    },
+    object : FlagConfigValue(map) {
+        override val name = "Google sign-in enabled"
+        override val path = "identity.googleSignInEnabled"
+        override val default = false
+    },
+    object : FlagConfigValue(map) {
+        override val name = "Apple sign-in enabled"
+        override val path = "identity.appleSignInEnabled"
+        override val default = false
+    },
+)
+
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 private fun QaMenuScreenPreview_SignedIn() {
@@ -573,6 +601,7 @@ private fun QaMenuScreenPreview_SignedIn() {
         QaMenuScreen(
             configStream = kotlinx.coroutines.flow.flowOf(configMap),
             initialConfig = configMap,
+            configuredValues = previewConfiguredValues(configMap),
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
             userId = "00000000-0000-4000-8000-000000000000",
@@ -588,6 +617,7 @@ private fun QaMenuScreenPreview_UnresolvedIdentity() {
         QaMenuScreen(
             configStream = kotlinx.coroutines.flow.flowOf(configMap),
             initialConfig = configMap,
+            configuredValues = previewConfiguredValues(configMap),
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
             userId = null,
@@ -611,6 +641,7 @@ private fun QaMenuScreenPreview_OverridesActive() {
         QaMenuScreen(
             configStream = kotlinx.coroutines.flow.flowOf(configMap),
             initialConfig = configMap,
+            configuredValues = previewConfiguredValues(configMap),
             overrideRepository = PreviewConfigOverrideRepository(),
             onBack = {},
             userId = "00000000-0000-4000-8000-000000000000",

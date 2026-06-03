@@ -77,7 +77,6 @@ private class ConfiguredTelemetry(
                 options.sendDefaultPii = config.sendDefaultPii
                 options.attachStackTrace = config.attachStacktrace
                 options.enableAutoSessionTracking = config.enableAutoSessionTracking
-                options.debug = config.isDebugLoggingEnabled
                 config.tracesSampleRate?.let { options.tracesSampleRate = it }
                 config.profilesSampleRate?.let { options.sampleRate = it }
             }
@@ -120,6 +119,19 @@ private class ConfiguredTelemetry(
                 username = name
             )
         )
+    }
+
+    override fun setCurrentRoute(route: String) {
+        // Best-effort: when Sentry isn't initialized (e.g. disabled
+        // environment) configureScope has no scope to mutate, so skip quietly
+        // rather than logging on every navigation.
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope {
+            // Tag = searchable/filterable in the issues list; extra = shown on
+            // the event detail. The user asked for both.
+            it.setTag(ROUTE_KEY, route)
+            it.setExtra(ROUTE_KEY, route)
+        }
     }
 
     override fun captureUserFeedback(
@@ -174,6 +186,10 @@ private class ConfiguredTelemetry(
     }
 }
 
+// Scope key for the current navigation route (set via [Telemetry.setCurrentRoute]).
+// Shared by the tag and the extra so they read identically in Sentry.
+private const val ROUTE_KEY = "route"
+
 // All platforms / build types report to the single `cards` Sentry project.
 // The `environment` tag (releaseChannel-platform-buildType) and the
 // `platform` extra separate debug vs release and iOS vs Android within it,
@@ -191,7 +207,6 @@ data class SentryRuntimeConfig(
     val profilesSampleRate: Double?,
     val platformTag: String,
     val buildTypeTag: String,
-    val isDebugLoggingEnabled: Boolean,
     val logPolicy: LogPolicy,
     val enableAutoSessionTracking: Boolean
 ) {
@@ -225,7 +240,6 @@ data class SentryRuntimeConfig(
                 profilesSampleRate = profilesSampleRate,
                 platformTag = platformTag,
                 buildTypeTag = buildTypeTag,
-                isDebugLoggingEnabled = false, // TODO link this to a QA option
                 logPolicy = LogPolicy(
                     minBreadcrumbLevel = breadcrumbLevel,
                     minEventLevel = LogLevel.Error

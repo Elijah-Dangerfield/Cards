@@ -133,11 +133,6 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 ## C. Engineering / structural
 
-### Config plumbing
-
-- `[P2]` **Replace `FeatureConfig`'s `by featureValue(...)` with DI-bound `ConfiguredValue<T>` singletons.** Today the QA menu must know each tunable field by name to render an override row. Make callsites read injected `ConfiguredValue<T>` singletons contributed into a multibinding `Set`; QA menu enumerates the set and renders the right widget per type; delete the old delegate; test the override path.
-  **Hints:** `:libraries:config`; `QaMenuScreen.kt`. **Out of scope:** `AppConfig` (server-driven); non-tunable flags.
-
 ### Module sprawl
 
 - `[P2]` **Audit and split `libraries/cards`.** It's become a dumping ground overlapping `libraries/gameplay` (engine types) and `libraries/game` (session abstraction). Audit what's truly cross-feature primitive vs. what landed there for lack of a home; capture as a deliberate refactor pass. Don't entangle with feature work.
@@ -160,5 +155,5 @@ For completeness; don't re-derive these here.
 - **Known sharp edges** — [project memory](~/.claude/projects/-Users-elijahdangerfield-Workspace-Cards/memory/project_known_sharp_edges.md) (auto-loaded).
 - **Phase 4.2 server-authoritative gameplay** — out of scope until we choose to start it. See [decisions.md](./decisions.md) and the `:libraries:gameplay` JVM-target blocker in memory.
 - **Real platform billing impls (Play Billing / StoreKit 2)** — scaffold + `FakeBillingClient` in place; provisioning store listings is the gate, not engineering.
-- **OAuth UI gated by `IdentityFeatureConfig`** — Apple/Google buttons wired but flagged off until dashboard credentials exist.
+- **OAuth UI gated by the `identity.*` config flags** (`GoogleSignInEnabled` / `AppleSignInEnabled`) — Apple/Google buttons wired but flagged off until dashboard credentials exist.
 - **Username / bot-name localization** — V1.x / V2.

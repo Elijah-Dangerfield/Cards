@@ -261,39 +261,43 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_neverSeen_firesEvenWhenChipsHaventHydrated() = runUnitTest {
-        // hasSeenStarterWelcome=false + Profile.Authenticated → fire, even if
-        // chips are still loading. The dialog renders a placeholder for the
-        // chip reveal until the wallet sync lands.
+    fun welcomeGate_requiresGrantInfo_waitsForChips_thenFires() = runUnitTest {
+        // requiresGrantInfo=true + Profile.Authenticated, but chips not yet
+        // hydrated → don't fire. The dialog's job is to reveal the real
+        // number, so the gate waits for the balance before firing.
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "FreshInstall", isAnonymous = true),
         )
         val chips = FakeChipsRepository(initial = null)
-        val appCache = FakeAppCache(initial = AppData(hasSeenStarterWelcome = false))
+        val appCache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
         vm.eventFlow.test {
+            expectNoEvents()
+            // Wallet sync lands with the authoritative balance.
+            chips.balance.value = 10_500L
             val event = awaitItem()
             assertTrue(event is HomeEvent.OpenWelcomeDialog)
-            assertEquals(null, event.payload.chips)
+            assertEquals(10_500L, event.payload.chips)
             assertEquals("FreshInstall", event.payload.displayName)
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(
-            true, appCache.get().hasSeenStarterWelcome,
-            "gate must persist hasSeenStarterWelcome at emit time so it doesn't re-fire",
+            false, appCache.get().requiresGrantInfo,
+            "gate must clear requiresGrantInfo at emit time so it doesn't re-fire",
         )
     }
 
     @Test
-    fun welcomeGate_alreadySeen_doesNotFire() = runUnitTest {
-        // hasSeenStarterWelcome=true → don't fire, even on a fresh session
-        // (lastSessionEndedAt is now irrelevant to the gate).
+    fun welcomeGate_requiresGrantInfoFalse_doesNotFire() = runUnitTest {
+        // Returning user (or a user who already saw the reveal in onboarding):
+        // requiresGrantInfo=false → never fire, even with a hydrated balance.
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "Returning", isAnonymous = false),
         )
-        val appCache = FakeAppCache(initial = AppData(hasSeenStarterWelcome = true))
-        val vm = buildVm(profile = profile, appCache = appCache)
+        val chips = FakeChipsRepository(initial = 250_000L)
+        val appCache = FakeAppCache(initial = AppData(requiresGrantInfo = false))
+        val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
         vm.eventFlow.test {
             expectNoEvents()
@@ -307,10 +311,11 @@ class HomeViewModelTest : CoroutineTest() {
         // first time the app backgrounded, which permanently locked a user
         // out of the welcome if the /v1/me call failed (Fly cold-boot timeout
         // → Profile.Fallback). Now the gate just waits for an Authenticated
-        // profile — when it eventually arrives, the welcome fires.
+        // profile + hydrated chips — when both arrive, the welcome fires.
         val profile = FakeProfileRepository(initial = Profile.Fallback(id = "anon"))
-        val appCache = FakeAppCache(initial = AppData(hasSeenStarterWelcome = false))
-        val vm = buildVm(profile = profile, appCache = appCache)
+        val chips = FakeChipsRepository(initial = 10_000L)
+        val appCache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
+        val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
         vm.eventFlow.test {
             expectNoEvents()

@@ -50,6 +50,7 @@ import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
+import com.dangerfield.cards.libraries.config.QaConfigValue
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
@@ -78,6 +79,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 class ProfileFeatureEntryPoint(
     private val appConfigRepository: AppConfigRepository,
     private val configOverrideRepository: ConfigOverrideRepository,
+    private val configuredValues: Set<QaConfigValue>,
     private val progressionRepository: ProgressionRepository,
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
     private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
@@ -187,6 +189,7 @@ class ProfileFeatureEntryPoint(
             QaMenuScreen(
                 configStream = appConfigRepository.configStream(),
                 initialConfig = appConfigRepository.config(),
+                configuredValues = configuredValues,
                 overrideRepository = configOverrideRepository,
                 onBack = { router.goBack() },
                 userId = userId,

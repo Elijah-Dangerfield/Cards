@@ -1,9 +1,9 @@
 package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
-import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
+import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
+import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
@@ -25,15 +25,13 @@ import me.tatarka.inject.annotations.Inject
 class SignInViewModel(
     private val authRepository: AuthRepository,
     private val appCache: AppCache,
-    appConfigMap: AppConfigMap,
+    googleSignInEnabled: GoogleSignInEnabled,
+    appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<SignInState, SignInEvent, SignInAction>(
-    initialStateArg = run {
-        val config = IdentityFeatureConfig(appConfigMap)
-        SignInState(
-            googleEnabled = config.googleSignInEnabled,
-            appleEnabled = config.appleSignInEnabled,
-        )
-    },
+    initialStateArg = SignInState(
+        googleEnabled = googleSignInEnabled(),
+        appleEnabled = appleSignInEnabled(),
+    ),
 ) {
 
     override suspend fun handleAction(action: SignInAction) {

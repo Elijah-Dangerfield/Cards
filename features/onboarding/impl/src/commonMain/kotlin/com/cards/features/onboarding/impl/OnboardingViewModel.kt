@@ -2,13 +2,14 @@ package com.dangerfield.cards.features.onboarding.impl
 
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AppCache
-import com.dangerfield.cards.libraries.config.AppConfigMap
+import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
-import com.dangerfield.cards.libraries.identity.IdentityFeatureConfig
+import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
+import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
@@ -17,20 +18,28 @@ import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import me.tatarka.inject.annotations.Inject
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Drives the three-step onboarding flow:
+ * Drives the four-step onboarding flow:
  *   1. **Welcome** — "Continue as guest" anon-signs-in then advances to step 2;
  *      "Apple"/"Google" OAuth shortcuts straight to Home.
  *   2. **PickIdentity** — edit display name, pick avatar from the server-issued
- *      starter pack. "Continue" patches the profile then advances to step 3.
- *      "Skip" marks onboarded and navigates Home with no profile mutation.
- *   3. **HowItWorks** — informational; "Take a seat" marks onboarded and goes Home.
+ *      starter pack. "Continue" advances to step 3 immediately and patches the
+ *      profile in the background (optimistic — no spinner).
+ *   3. **HowItWorks** — informational; "Continue" advances to step 4.
+ *   4. **StarterGrant** — celebratory chip-grant reveal. Observes the wallet
+ *      with a short grace window: if the authoritative balance has hydrated we
+ *      reveal the real number and clear [AppData.requiresGrantInfo] (so the
+ *      Home dialog won't re-reveal); otherwise we show "lands when you
+ *      reconnect" and leave the flag for the Home dialog to reveal later.
+ *      "Take a seat" marks onboarded and goes Home.
  *
  * **Why auth fires on step 1, not the last step:** step 2 needs a real
  * profile + the authed `/v1/avatars` endpoint. So we anon-auth on guest-tap
@@ -43,9 +52,11 @@ import kotlin.time.Duration.Companion.seconds
  *    server profile arrives within 3s and the user hasn't typed, we
  *    overwrite with `profile.displayName`. After that, user input wins.
  *  - Avatar pack: 3s timeout → hardcoded V1 starter list.
- *  - Profile save on Continue: any failure other than name-taken /
- *    invalid-name is swallowed and we advance anyway — we don't want a
- *    server hiccup to dead-end the user on the last step before Home.
+ *  - Profile save on Continue: fired in the background *after* we've already
+ *    advanced. A taken / invalid name surfaces on the name field (seen only
+ *    if the user steps back); every other failure is swallowed. Either way
+ *    the server's generated default keeps the profile usable and the user
+ *    can rename later from Profile.
  *
  * Hard guard on init: if `AppData.hasUserOnboarded` is already true, fire
  * [OnboardingEvent.NavigateToHome] immediately so a returning user that
@@ -56,16 +67,15 @@ class OnboardingViewModel(
     private val appCache: AppCache,
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
-    appConfigMap: AppConfigMap,
+    private val chipsRepository: ChipsRepository,
+    googleSignInEnabled: GoogleSignInEnabled,
+    appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<OnboardingState, OnboardingEvent, OnboardingAction>(
-    initialStateArg = run {
-        val cfg = IdentityFeatureConfig(appConfigMap)
-        OnboardingState(
-            displayName = DisplayNameSuggester.next(),
-            googleEnabled = cfg.googleSignInEnabled,
-            appleEnabled = cfg.appleSignInEnabled && BuildInfo.isiOS(),
-        )
-    },
+    initialStateArg = OnboardingState(
+        displayName = DisplayNameSuggester.next(),
+        googleEnabled = googleSignInEnabled(),
+        appleEnabled = appleSignInEnabled() && BuildInfo.isiOS(),
+    ),
 ) {
 
     init {
@@ -96,7 +106,9 @@ class OnboardingViewModel(
             OnboardingAction.Back -> action.handleBack()
             is OnboardingAction.SignInWithOAuth -> action.handleOAuth(action.provider)
             is OnboardingAction.DisplayNameChanged -> action.updateState {
-                it.copy(displayName = action.value, userEditedName = true)
+                // Editing the name dismisses any stale "taken / invalid"
+                // notice from the optimistic background save.
+                it.copy(displayName = action.value, userEditedName = true, saveError = null)
             }
             OnboardingAction.RegenerateDisplayName -> action.updateState {
                 it.copy(displayName = DisplayNameSuggester.next(), userEditedName = true)
@@ -108,7 +120,7 @@ class OnboardingViewModel(
                 )
             }
             OnboardingAction.ContinueFromPickIdentity -> action.handleContinueFromPickIdentity()
-            OnboardingAction.Skip -> action.handleSkip()
+            OnboardingAction.ContinueFromHowItWorks -> action.handleContinueFromHowItWorks()
             OnboardingAction.Finish -> action.handleFinish()
             OnboardingAction.DismissError -> action.updateState {
                 it.copy(authError = null, saveError = null)
@@ -191,58 +203,101 @@ class OnboardingViewModel(
     }
 
     private suspend fun OnboardingAction.handleContinueFromPickIdentity() {
+        val action = this
         val current = state
-        updateState { it.copy(isSavingProfile = true, saveError = null) }
+        // Optimistic: jump to the last step immediately and persist in the
+        // background. The avatar always validates (it mirrors the server
+        // starter pack) and we don't want a network round-trip to stall the
+        // most fragile bit of the first-time flow. If the name turns out to
+        // be taken / invalid we surface it on the name field — visible only
+        // if the user steps back — and otherwise let the server's generated
+        // default stand (they can rename later from Profile).
+        updateState { it.copy(step = OnboardingStep.HowItWorks, saveError = null) }
         val name = current.displayName.trim().takeIf { it.isNotEmpty() }
-        val outcome = profileRepository.update(
-            displayName = name,
-            avatarEmoji = current.selectedEmoji,
-            avatarBackgroundColor = current.selectedBackgroundColor,
-        )
-        when (outcome) {
-            is UpdateProfileOutcome.Success -> updateState {
-                it.copy(isSavingProfile = false, step = OnboardingStep.HowItWorks)
-            }
-            UpdateProfileOutcome.DisplayNameTaken -> updateState {
-                it.copy(isSavingProfile = false, saveError = OnboardingSaveError.DisplayNameTaken)
-            }
-            UpdateProfileOutcome.InvalidDisplayName -> updateState {
-                it.copy(
-                    isSavingProfile = false,
-                    saveError = OnboardingSaveError.InvalidDisplayName,
+        viewModelScope.launch {
+            val outcome = Catching {
+                profileRepository.update(
+                    displayName = name,
+                    avatarEmoji = current.selectedEmoji,
+                    avatarBackgroundColor = current.selectedBackgroundColor,
                 )
-            }
-            // For everything else (NotSignedIn / NetworkError / Unknown / etc.)
-            // we'd rather move forward than dead-end the user on the last form
-            // step before Home. Server-side default values keep the profile
-            // usable; the user can fix their name later from Profile.
-            else -> updateState {
-                it.copy(isSavingProfile = false, step = OnboardingStep.HowItWorks)
+            }.logOnFailure { "Optimistic onboarding profile update failed" }.getOrNull()
+            when (outcome) {
+                UpdateProfileOutcome.DisplayNameTaken -> action.updateState {
+                    it.copy(saveError = OnboardingSaveError.DisplayNameTaken)
+                }
+                UpdateProfileOutcome.InvalidDisplayName -> action.updateState {
+                    it.copy(saveError = OnboardingSaveError.InvalidDisplayName)
+                }
+                else -> Unit
             }
         }
     }
 
     /**
-     * Steps back through the flow: HowItWorks → PickIdentity → Welcome.
-     * The control isn't rendered on Welcome (the entry step has nothing
-     * before it; system back exits the app), so the Welcome branch is a
-     * defensive no-op. Clears any inline error so a stale message from
-     * the step we're leaving doesn't linger.
+     * Advances HowItWorks → StarterGrant and kicks off the grant reveal.
+     */
+    private suspend fun OnboardingAction.handleContinueFromHowItWorks() {
+        updateState { it.copy(step = OnboardingStep.StarterGrant) }
+        kickOffGrantReveal()
+    }
+
+    /**
+     * Reveal the starter grant truthfully. Cold-boot sync already runs at
+     * launch (AppEventDispatcher → ChipsRepository.onColdBoot), so for a new
+     * account the wallet is usually hydrated by the time the user reaches
+     * this step; we kick another [ChipsRepository.sync] as a belt-and-
+     * suspenders nudge and observe the balance with a short grace window.
+     *
+     *  - Balance hydrated within the window → reveal the real number and
+     *    clear [AppData.requiresGrantInfo] (we've informed them; the Home
+     *    welcome dialog won't re-reveal).
+     *  - Timed out / offline → show "lands when you reconnect" copy and
+     *    leave the flag set — the Home dialog reveals it once the wallet
+     *    syncs. We never display a number we didn't get from the server.
+     */
+    private fun OnboardingAction.kickOffGrantReveal() {
+        val action = this
+        viewModelScope.launch {
+            launch { Catching { chipsRepository.sync() }.logOnFailure { "Onboarding grant sync failed" } }
+            val balance = Catching {
+                withTimeoutOrNull(GRANT_REVEAL_TIMEOUT) {
+                    chipsRepository.observeBalance().filterNotNull().first()
+                }
+            }.getOrNull()
+            if (balance != null) {
+                action.updateState { it.copy(revealedChips = balance, grantRevealTimedOut = false) }
+                appCache.update { it.copy(requiresGrantInfo = false) }
+            } else {
+                action.updateState { it.copy(grantRevealTimedOut = true) }
+            }
+        }
+    }
+
+    /**
+     * Steps back through the flow: StarterGrant → HowItWorks → PickIdentity
+     * → Welcome. The control isn't rendered on Welcome (the entry step has
+     * nothing before it; system back exits the app), so the Welcome branch
+     * is a defensive no-op. Always clears the Welcome-step [authError]. Keeps
+     * a [saveError] when we land back on PickIdentity — that's where the
+     * name field lives, so the optimistic save's "taken / invalid" notice
+     * stays visible for the user to fix; it clears once we leave the
+     * identity step entirely.
      */
     private suspend fun OnboardingAction.handleBack() {
         updateState {
             val previous = when (it.step) {
+                OnboardingStep.StarterGrant -> OnboardingStep.HowItWorks
                 OnboardingStep.HowItWorks -> OnboardingStep.PickIdentity
                 OnboardingStep.PickIdentity -> OnboardingStep.Welcome
                 OnboardingStep.Welcome -> OnboardingStep.Welcome
             }
-            it.copy(step = previous, authError = null, saveError = null)
+            it.copy(
+                step = previous,
+                authError = null,
+                saveError = if (previous == OnboardingStep.PickIdentity) it.saveError else null,
+            )
         }
-    }
-
-    private suspend fun OnboardingAction.handleSkip() {
-        appCache.update { it.copy(hasUserOnboarded = true) }
-        sendEvent(OnboardingEvent.NavigateToHome)
     }
 
     private suspend fun OnboardingAction.handleFinish() {
@@ -278,6 +333,14 @@ class OnboardingViewModel(
     companion object {
         internal const val STARTER_TILE_COUNT = 8
         private val PROFILE_TIMEOUT = 3.seconds
+
+        /**
+         * How long the StarterGrant page waits for the authoritative wallet
+         * balance before falling back to the "lands when you reconnect" copy.
+         * Short — the cold-boot sync has usually landed by now; this only
+         * bites on a slow/offline first run.
+         */
+        private val GRANT_REVEAL_TIMEOUT = 1_500.milliseconds
 
         /**
          * The starter pack onboarding shows. Deliberately basic —
@@ -334,8 +397,21 @@ data class OnboardingState(
      */
     val starterPack: List<AvatarOption> = OnboardingViewModel.STARTER_PACK,
 
-    val isSavingProfile: Boolean = false,
     val saveError: OnboardingSaveError? = null,
+
+    /**
+     * The authoritative starter-grant balance revealed on the StarterGrant
+     * step, or null until the wallet hydrates. Only ever set from a real
+     * server balance — we never show a number we didn't get from the server.
+     */
+    val revealedChips: Long? = null,
+    /**
+     * True once the grant-reveal grace window elapsed without a balance
+     * (slow / offline first run). The StarterGrant step then shows the
+     * "lands when you reconnect" copy and the Home dialog reveals the real
+     * number later.
+     */
+    val grantRevealTimedOut: Boolean = false,
 
     val googleEnabled: Boolean = false,
     val appleEnabled: Boolean = false,
@@ -347,6 +423,7 @@ sealed interface OnboardingStep {
     data object Welcome : OnboardingStep
     data object PickIdentity : OnboardingStep
     data object HowItWorks : OnboardingStep
+    data object StarterGrant : OnboardingStep
 }
 
 data class AvatarOption(
@@ -402,14 +479,15 @@ sealed interface OnboardingAction {
     data object ContinueAsGuest : OnboardingAction
     /** Welcome-step entry into the email/password sign-in flow. */
     data object SignIn : OnboardingAction
-    /** Steps back to the previous onboarding step (steps 2 & 3 only). */
+    /** Steps back to the previous onboarding step (steps 2–4 only). */
     data object Back : OnboardingAction
     data class SignInWithOAuth(val provider: OAuthProvider) : OnboardingAction
     data class DisplayNameChanged(val value: String) : OnboardingAction
     data object RegenerateDisplayName : OnboardingAction
     data class SelectAvatar(val emoji: String, val backgroundColorHex: String?) : OnboardingAction
     data object ContinueFromPickIdentity : OnboardingAction
-    data object Skip : OnboardingAction
+    /** HowItWorks → StarterGrant; kicks off the grant reveal. */
+    data object ContinueFromHowItWorks : OnboardingAction
     data object Finish : OnboardingAction
     data object DismissError : OnboardingAction
 }
