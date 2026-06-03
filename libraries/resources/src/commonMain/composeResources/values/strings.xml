@@ -82,7 +82,7 @@
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>
     <string name="lobby_leave_dialog_title">Leave the room?</string>
-    <string name="lobby_leave_dialog_body">You\'ll give up your seat and won\'t be in this game anymore.</string>
+    <string name="lobby_leave_dialog_body">You'll give up your seat and won't be in this game anymore.</string>
     <string name="lobby_leave_dialog_primary">Leave</string>
     <string name="lobby_leave_dialog_secondary">Stay</string>
     <string name="lobby_in_room_member_seat_label">Seat %1$d</string>
@@ -117,13 +117,13 @@
     <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update — invite your friends and stand by.</string>
 
     <!-- Onboarding — inline error states surfaced by the VM (sealed OnboardingAuthError + OnboardingSaveError → resource). -->
-    <string name="onboarding_auth_error_oauth_provider_not_enabled">That sign-in option isn\'t available yet.</string>
-    <string name="onboarding_auth_error_oauth_network">Couldn\'t reach the server. Check your connection.</string>
+    <string name="onboarding_auth_error_oauth_provider_not_enabled">That sign-in option isn't available yet.</string>
+    <string name="onboarding_auth_error_oauth_network">Couldn't reach the server. Check your connection.</string>
     <string name="onboarding_auth_error_oauth_failed">Sign in failed. Please try again.</string>
-    <string name="onboarding_auth_error_guest_anonymous_disabled">Anonymous sign-in isn\'t enabled in this Supabase project. Enable it in Authentication → Providers → Email (Allow anonymous sign-ins).</string>
+    <string name="onboarding_auth_error_guest_anonymous_disabled">Anonymous sign-in isn't enabled in this Supabase project. Enable it in Authentication → Providers → Email (Allow anonymous sign-ins).</string>
     <string name="onboarding_auth_error_guest_captcha">Captcha is required by this Supabase project. Disable it in dev or wire a token.</string>
     <string name="onboarding_auth_error_guest_invalid_config">The Supabase anon key looks wrong or expired. Check IdentityConfig.</string>
-    <string name="onboarding_auth_error_guest_failed">Couldn\'t reach the server. Check your connection and try again.</string>
+    <string name="onboarding_auth_error_guest_failed">Couldn't reach the server. Check your connection and try again.</string>
     <string name="onboarding_auth_error_debug_suffix">\n\nDEBUG: %1$s</string>
     <string name="onboarding_save_error_display_name_taken">That name is taken. Try another.</string>
     <string name="onboarding_save_error_invalid_display_name">Try a different name — letters and numbers only.</string>
@@ -253,24 +253,24 @@
     <string name="auth_sign_up_to_sign_in_button">Already have an account? Sign in</string>
 
     <!-- Sign-up — inline error states surfaced by the VM (sealed SignUpError → resource). -->
-    <string name="auth_sign_up_error_passwords_dont_match">Passwords don\'t match.</string>
+    <string name="auth_sign_up_error_passwords_dont_match">Passwords don't match.</string>
     <string name="auth_sign_up_error_email_already_registered">That email is already in use. Try signing in instead.</string>
     <string name="auth_sign_up_error_weak_password">Pick a stronger password (at least %1$d characters).</string>
-    <string name="auth_sign_up_error_invalid_email">That email doesn\'t look right.</string>
-    <string name="auth_sign_up_error_network">Couldn\'t reach the server. Check your connection.</string>
+    <string name="auth_sign_up_error_invalid_email">That email doesn't look right.</string>
+    <string name="auth_sign_up_error_network">Couldn't reach the server. Check your connection.</string>
     <string name="auth_sign_up_error_unknown">Sign up failed. Please try again.</string>
 
     <!-- Claim account — inline error states surfaced by the VM (sealed ClaimAccountError → resource). -->
-    <string name="auth_claim_error_passwords_dont_match">Passwords don\'t match.</string>
-    <string name="auth_claim_error_already_on_another_account">That account is already in use. You can switch to it, but your current guest progress (chips, XP, achievements) won\'t carry over.</string>
+    <string name="auth_claim_error_passwords_dont_match">Passwords don't match.</string>
+    <string name="auth_claim_error_already_on_another_account">That account is already in use. You can switch to it, but your current guest progress (chips, XP, achievements) won't carry over.</string>
     <string name="auth_claim_error_not_signed_in">Sign in first, then claim your account.</string>
-    <string name="auth_claim_error_provider_not_enabled">%1$s sign-in isn\'t available yet. Please try again later.</string>
-    <string name="auth_claim_error_network">Couldn\'t reach the server. Check your connection.</string>
-    <string name="auth_claim_error_unknown">Couldn\'t claim your account. Please try again.</string>
-    <string name="auth_claim_error_switch_failed">Couldn\'t sign in. Please try again.</string>
+    <string name="auth_claim_error_provider_not_enabled">%1$s sign-in isn't available yet. Please try again later.</string>
+    <string name="auth_claim_error_network">Couldn't reach the server. Check your connection.</string>
+    <string name="auth_claim_error_unknown">Couldn't claim your account. Please try again.</string>
+    <string name="auth_claim_error_switch_failed">Couldn't sign in. Please try again.</string>
     <string name="auth_claim_error_email_already_registered">That email is already in use. Try signing in instead.</string>
     <string name="auth_claim_error_weak_password">Pick a stronger password (at least %1$d characters).</string>
-    <string name="auth_claim_error_invalid_email">That email doesn\'t look right.</string>
+    <string name="auth_claim_error_invalid_email">That email doesn't look right.</string>
 
     <!-- Auth — Forgot password screen. -->
     <string name="auth_forgot_password_link">Forgot password?</string>
@@ -371,8 +371,8 @@
     <string name="profile_claim_card_cta">Get started</string>
 
     <!-- Stats — Anonymous-only "don't lose your progress" disclosure, shown past level 1. -->
-    <string name="stats_claim_disclosure_title">Don\'t lose your progress</string>
-    <string name="stats_claim_disclosure_body">You\'re playing as a guest. Claim your account to keep your level, chips, and achievements.</string>
+    <string name="stats_claim_disclosure_title">Don't lose your progress</string>
+    <string name="stats_claim_disclosure_body">You're playing as a guest. Claim your account to keep your level, chips, and achievements.</string>
     <string name="stats_claim_disclosure_cta">Claim</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
@@ -396,7 +396,7 @@
 
     <!-- Edit profile — inline display-name error states surfaced by the VM (sealed EditProfileDisplayNameError → resource). -->
     <string name="profile_edit_display_name_error_taken">That name is taken. Try another.</string>
-    <string name="profile_edit_display_name_error_invalid">That name isn\'t allowed. Use letters and numbers.</string>
+    <string name="profile_edit_display_name_error_invalid">That name isn't allowed. Use letters and numbers.</string>
 
     <!-- Profile — Claim account hero (anonymous → claimed flow). -->
     <string name="profile_claim_back_a11y">Back</string>
@@ -476,11 +476,16 @@
     <string name="onboarding_how_card_league_subtitle">Top 7 of 30 promote each week.</string>
     <string name="onboarding_how_continue_button">Continue</string>
 
-    <!-- Onboarding — StarterGrant step (celebratory chip-grant reveal). -->
-    <string name="onboarding_grant_title">You\'re all set!</string>
-    <string name="onboarding_grant_revealed_subtitle">Here are your chips to get the table started.</string>
-    <string name="onboarding_grant_offline_subtitle">Your starter chips land the moment you\'re back online.</string>
-    <string name="onboarding_grant_cta">Take a seat</string>
+    <!-- Onboarding — StarterGrant step (final celebratory chip-grant reveal). -->
+    <string name="onboarding_grant_eyebrow">WELCOME TO CARDS</string>
+    <string name="onboarding_grant_chips_label">chips</string>
+    <string name="onboarding_grant_subtitle">On the house. Real poker, real strategy — with people who actually want to play.</string>
+    <string name="onboarding_grant_offline_subtitle">Your starter chips land the moment you're back online.</string>
+    <string name="onboarding_grant_feature_play_money">Play money only</string>
+    <string name="onboarding_grant_feature_friends_bots">Friends &amp; bots</string>
+    <string name="onboarding_grant_feature_tournaments">Real tournaments</string>
+    <string name="onboarding_grant_footer">No real-money gambling. No account needed to start.</string>
+    <string name="onboarding_grant_cta">Claim &amp; play</string>
 
     <!-- Room — Leave-bots confirm dialog (back-press while a hand is in progress). -->
     <string name="room_leave_bots_title">Leave the table?</string>
