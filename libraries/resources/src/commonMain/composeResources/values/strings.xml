@@ -81,6 +81,10 @@
     <string name="lobby_in_room_waiting_for_host">Waiting for the host to start the game…</string>
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>
+    <string name="lobby_leave_dialog_title">Leave the room?</string>
+    <string name="lobby_leave_dialog_body">You\'ll give up your seat and won\'t be in this game anymore.</string>
+    <string name="lobby_leave_dialog_primary">Leave</string>
+    <string name="lobby_leave_dialog_secondary">Stay</string>
     <string name="lobby_in_room_member_seat_label">Seat %1$d</string>
     <string name="lobby_in_room_host_badge">Host</string>
 
@@ -134,6 +138,7 @@
     <string name="onboarding_welcome_oauth_in_flight">…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
     <string name="onboarding_welcome_sign_in">Already have an account? Sign in</string>
+    <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding — PickIdentity step (name + starter-pack avatar picker). -->
     <string name="onboarding_identity_avatar_placeholder">?</string>

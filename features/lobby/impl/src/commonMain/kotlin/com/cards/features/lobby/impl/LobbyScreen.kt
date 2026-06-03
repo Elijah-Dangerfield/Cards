@@ -21,8 +21,14 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -58,6 +64,10 @@ import cards.libraries.resources.generated.resources.lobby_in_room_host_badge
 import cards.libraries.resources.generated.resources.lobby_in_room_code_share_hint
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button_progress
+import cards.libraries.resources.generated.resources.lobby_leave_dialog_body
+import cards.libraries.resources.generated.resources.lobby_leave_dialog_primary
+import cards.libraries.resources.generated.resources.lobby_leave_dialog_secondary
+import cards.libraries.resources.generated.resources.lobby_leave_dialog_title
 import cards.libraries.resources.generated.resources.lobby_in_room_member_seat_label
 import cards.libraries.resources.generated.resources.lobby_in_room_players_count
 import cards.libraries.resources.generated.resources.lobby_in_room_start_button
@@ -70,6 +80,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -91,11 +102,22 @@ import org.jetbrains.compose.resources.stringResource
  * surfaced as a "Game in progress" badge until the handoff exists.
  */
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 fun LobbyScreen(
     state: LobbyState,
     onAction: (LobbyAction) -> Unit,
     onBack: () -> Unit,
 ) {
+    // Leaving via the in-room Leave button notifies the server and drops
+    // the seat cleanly. Backing out (top-bar or OS back) used to do the
+    // same drop silently, so once seated we intercept back with a confirm
+    // and route the confirmed exit through Leave so the server is told.
+    var confirmingLeave by remember { mutableStateOf(false) }
+    val requestBack: () -> Unit = {
+        if (state.isInRoom) confirmingLeave = true else onBack()
+    }
+    BackHandler(enabled = state.isInRoom && !state.leaving) { confirmingLeave = true }
+
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
@@ -105,7 +127,7 @@ fun LobbyScreen(
                     if (state.isInRoom) Res.string.lobby_topbar_title_in_room
                     else Res.string.lobby_topbar_title_idle,
                 ),
-                onNavigateBack = onBack,
+                onNavigateBack = requestBack,
                 backEnabled = !state.isBusy,
             )
         },
@@ -134,6 +156,22 @@ fun LobbyScreen(
             }
             Spacer(modifier = Modifier.height(Dimension.D900))
         }
+    }
+
+    if (confirmingLeave) {
+        Dialog(
+            title = stringResource(Res.string.lobby_leave_dialog_title),
+            description = stringResource(Res.string.lobby_leave_dialog_body),
+            primaryButtonText = stringResource(Res.string.lobby_leave_dialog_primary),
+            secondaryButtonText = stringResource(Res.string.lobby_leave_dialog_secondary),
+            onDismissRequest = { confirmingLeave = false },
+            onPrimaryButtonClicked = {
+                confirmingLeave = false
+                onAction(LobbyAction.Leave)
+                onBack()
+            },
+            onSecondaryButtonClicked = { confirmingLeave = false },
+        )
     }
 }
 
