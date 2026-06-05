@@ -28,21 +28,24 @@ import com.dangerfield.cards.features.profile.impl.edit.EditProfileScreen
 import com.dangerfield.cards.features.profile.impl.edit.EditProfileViewModel
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackScreen
 import com.dangerfield.cards.features.profile.impl.feedback.FeedbackViewModel
-import com.dangerfield.cards.features.profile.impl.items.MyItemsScreen
+import com.dangerfield.cards.features.profile.impl.items.MyItemsAction
 import com.dangerfield.cards.features.profile.impl.items.MyItemsViewModel
 import com.dangerfield.cards.features.profile.impl.notifications.NotificationsScreen
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
-import com.dangerfield.cards.features.profile.MyItemsRoute
 import com.dangerfield.cards.features.profile.NotificationsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
-import com.dangerfield.cards.features.progression.RankDetailSheetRoute
+import com.dangerfield.cards.features.profile.SettingsRoute
+import com.dangerfield.cards.features.profile.impl.settings.SettingsScreen
+import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.TutorialRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
+import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.InventoryRepository
@@ -81,6 +84,7 @@ class ProfileFeatureEntryPoint(
     private val configOverrideRepository: ConfigOverrideRepository,
     private val configuredValues: Set<QaConfigValue>,
     private val progressionRepository: ProgressionRepository,
+    private val achievementRepository: AchievementRepository,
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
     private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
     private val accountActionsViewModelFactory: () -> AccountActionsViewModel,
@@ -98,8 +102,8 @@ class ProfileFeatureEntryPoint(
         screen<ProfileRoute> {
             val progression by progressionRepository.observeProgression()
                 .collectAsStateWithLifecycle(initialValue = Progression.Empty)
-            val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
-                .collectAsStateWithLifecycle(initialValue = 0)
+            val achievementProgress by achievementRepository.observeProgress()
+                .collectAsStateWithLifecycle(initialValue = AchievementProgress.Empty)
             // Profile (display name + avatar + anon flag) is the canonical
             // source. `null` while ProfileRepository's first emission is
             // still resolving — the header renders with safe defaults
@@ -108,7 +112,6 @@ class ProfileFeatureEntryPoint(
                 .collectAsStateWithLifecycle(initialValue = null)
             val authenticated = profile as? Profile.Authenticated
             val isAnon = authenticated?.isAnonymous ?: true
-            val appData by appCache.updates.collectAsState(initial = AppData())
             // Founding-member badge is server-granted at profile creation
             // (`PostgresProfileRepository.grantFoundingMemberBadge`) when the
             // user lands inside the first-1k window. Ownership of the badge
@@ -117,23 +120,30 @@ class ProfileFeatureEntryPoint(
             val inventory by inventoryRepository.observeInventory()
                 .collectAsStateWithLifecycle(initialValue = emptyList())
             val isFoundingMember = inventory.any { it.productId == FOUNDING_MEMBER_PRODUCT_ID }
+
+            // Owned cosmetics (inventory ∩ catalog) for the grouped item
+            // shelves. Reuses MyItemsViewModel so the catalog join + display
+            // metadata logic lives in exactly one place.
+            val myItemsVm: MyItemsViewModel = viewModel { myItemsViewModelFactory() }
+            val myItemsState by myItemsVm.stateFlow.collectAsStateWithLifecycle()
+
+            // One-shot "spotlight a just-bought item" signal set by the Shop
+            // when its post-purchase snackbar action switches to this tab.
+            val appData by appCache.updates.collectAsState(initial = AppData())
+
             val scope = rememberCoroutineScope()
             val scrollState = rememberScrollState()
             router.OnTabReselected(ProfileRoute()) {
                 scope.launch { scrollState.animateScrollTo(0) }
             }
 
-            val accountActionsVm: AccountActionsViewModel =
-                androidx.lifecycle.viewmodel.compose.viewModel { accountActionsViewModelFactory() }
-            val accountActionsState by accountActionsVm.stateFlow.collectAsStateWithLifecycle()
-
-            accountActionsVm.ObserveEvents { event ->
-                when (event) {
-                    AccountActionsEvent.SignedOut -> router.navigate(
-                        OnboardingRoute(),
-                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
-                    )
-                }
+            // Real win-rate from the progression ledger; null until the user
+            // has played a hand so the banner can show a "play to see stats"
+            // line instead of "0% win".
+            val winRatePercent = if (progression.handsPlayed > 0L) {
+                ((progression.handsWon * 100L) / progression.handsPlayed).toInt()
+            } else {
+                null
             }
 
             ProfileScreen(
@@ -146,17 +156,70 @@ class ProfileFeatureEntryPoint(
                     rank = if (isAnon) 0 else 1200,
                     xp = progression.totalXp,
                     isAnonymous = isAnon,
+                    botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+                    turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
+                    appVersion = "0.1.0",
+                    showQaMenu = BuildInfo.isDebug,
+                    memberSince = authenticated?.createdAt,
+                    isFoundingMember = isFoundingMember,
+                ),
+                achievementProgress = achievementProgress,
+                ownedItems = myItemsState.ownedItems,
+                buyableItems = myItemsState.buyableItems,
+                winRatePercent = winRatePercent,
+                onOpenSettings = { router.navigate(SettingsRoute()) },
+                onEditProfile = { router.navigate(EditProfileRoute()) },
+                onTapStats = { router.navigate(StatsRoute()) },
+                onSeeAllAchievements = { router.navigate(AchievementsRoute()) },
+                onToggleEquip = { myItemsVm.takeAction(MyItemsAction.ToggleEquipped(it)) },
+                onOpenShop = { router.batch { switchTab(ShopGraph) } },
+                onSignIn = { router.navigate(ClaimAccountRoute()) },
+                highlightProductId = appData.pendingProfileHighlight,
+                onHighlightConsumed = {
+                    scope.launch { appCache.update { it.copy(pendingProfileHighlight = null) } }
+                },
+                scrollState = scrollState,
+            )
+        }
+
+        screen<SettingsRoute> {
+            val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
+                .collectAsStateWithLifecycle(initialValue = 0)
+            val profile by profileRepository.observe()
+                .collectAsStateWithLifecycle(initialValue = null)
+            val authenticated = profile as? Profile.Authenticated
+            val isAnon = authenticated?.isAnonymous ?: true
+            val appData by appCache.updates.collectAsState(initial = AppData())
+            val scope = rememberCoroutineScope()
+
+            val accountActionsVm: AccountActionsViewModel =
+                androidx.lifecycle.viewmodel.compose.viewModel { accountActionsViewModelFactory() }
+            val accountActionsState by accountActionsVm.stateFlow.collectAsStateWithLifecycle()
+            accountActionsVm.ObserveEvents { event ->
+                when (event) {
+                    AccountActionsEvent.SignedOut -> router.navigate(
+                        OnboardingRoute(),
+                        NavigationOptions(launchSingleTop = true, clearBackStack = true),
+                    )
+                }
+            }
+
+            SettingsScreen(
+                settings = ProfileSettings(
+                    displayName = authenticated?.displayName ?: "You",
+                    avatarEmoji = authenticated?.avatarEmoji,
+                    avatarBackgroundColor = authenticated?.avatarBackgroundColor,
+                    rank = if (isAnon) 0 else 1200,
+                    xp = 0,
+                    isAnonymous = isAnon,
                     botSpeed = appData.botSpeed,
                     turnFeedback = appData.turnFeedback,
                     appVersion = "0.1.0",
                     unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
-                    memberSince = authenticated?.createdAt,
-                    isFoundingMember = isFoundingMember,
                 ),
+                onBack = { router.goBack() },
                 onClaimAccount = { router.navigate(ClaimAccountRoute()) },
-                onEditProfile = { router.navigate(EditProfileRoute()) },
-                onOpenMyItems = { router.navigate(MyItemsRoute()) },
                 onOpenNotifications = { router.navigate(NotificationsRoute()) },
                 onBotSpeedChange = { speed ->
                     scope.launch { appCache.update { it.copy(botSpeed = speed) } }
@@ -164,8 +227,6 @@ class ProfileFeatureEntryPoint(
                 onTurnFeedbackChange = { feedback ->
                     scope.launch { appCache.update { it.copy(turnFeedback = feedback) } }
                 },
-                onTapRank = { router.navigate(RankDetailSheetRoute()) },
-                onTapXp = { router.navigate(StatsRoute()) },
                 onSendFeedback = { router.navigate(FeedbackRoute()) },
                 onReportBug = { router.navigate(BugReportRoute()) },
                 onPrivacyPolicy = { router.openWebLink(PRIVACY_POLICY_URL) },
@@ -175,7 +236,6 @@ class ProfileFeatureEntryPoint(
                 isSigningOut = accountActionsState.isSigningOut,
                 onOpenQaMenu = { router.navigate(QaMenuRoute()) },
                 onOpenTutorial = { router.navigate(TutorialRoute()) },
-                scrollState = scrollState,
             )
         }
 
@@ -251,18 +311,6 @@ class ProfileFeatureEntryPoint(
                 repository = userMessageRepository,
                 onBack = { router.goBack() },
                 onDeepLinkTap = { url -> router.openWebLink(url) },
-            )
-        }
-
-        screen<MyItemsRoute> { backStackEntry ->
-            val route = backStackEntry.toRoute<MyItemsRoute>()
-            val viewModel: MyItemsViewModel = viewModel { myItemsViewModelFactory() }
-            val state by viewModel.stateFlow.collectAsStateWithLifecycle()
-            MyItemsScreen(
-                state = state,
-                highlightProductId = route.highlightProductId,
-                onAction = viewModel::takeAction,
-                onBack = { router.goBack() },
             )
         }
 

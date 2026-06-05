@@ -11,6 +11,10 @@ import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.products.CatalogTimeAnchor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
@@ -126,10 +130,12 @@ class MyItemsViewModelTest : CoroutineTest() {
         inventoryRepository: FakeInventoryRepository = FakeInventoryRepository(),
         productsRepository: FakeProductsRepository = FakeProductsRepository(),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
+        profileRepository: FakeProfileRepository = FakeProfileRepository(),
     ): MyItemsViewModel = MyItemsViewModel(
         inventoryRepository = inventoryRepository,
         productsRepository = productsRepository,
         equipmentRepository = equipmentRepository,
+        profileRepository = profileRepository,
     )
 
     private fun equippedEntry(productId: String): EquipmentEntry = EquipmentEntry(
@@ -173,6 +179,20 @@ class MyItemsViewModelTest : CoroutineTest() {
         override fun observeTimeAnchor(): Flow<CatalogTimeAnchor?> = anchor.asStateFlow()
         override fun observeIsRefreshing(): Flow<Boolean> = refreshing.asStateFlow()
         override suspend fun refresh(force: Boolean): Result<ProductCatalog> = Result.success(catalog.value)
+    }
+
+    private class FakeProfileRepository : ProfileRepository {
+        override suspend fun current(): Profile = Profile.Fallback(id = "test")
+        override fun observe(): Flow<Profile> = MutableStateFlow(Profile.Fallback(id = "test")).asStateFlow()
+        override suspend fun update(
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ): UpdateProfileOutcome = error("not used")
+        // No avatar packs in unit tests — pack-emoji enrichment just stays empty.
+        override suspend fun fetchAvatarPack(): AvatarPackOutcome =
+            AvatarPackOutcome.Success(packs = emptyList())
     }
 
     private class FakeEquipmentRepository(
