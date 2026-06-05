@@ -58,10 +58,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Profile, cosmetics & sheets
 
-- `[P1]` **Cosmetic shelves: single scrolling row, bigger tiles, equipped indicator.** Card backs / felts / emote packs should render in ONE horizontally-scrolling row (not the current 2-row grid), padded with buyable tiles only when the user owns too few to fill it; go to 2 rows once they own ~8+. Tiles a bit larger. Equipped items get a ring or an equipped badge. *(proposed 2026-06-05)*
-  **Acceptance:** each shelf is a single horizontally-scrolling row (2 rows at ~8+ owned) with larger tiles and a clear equipped indicator.
-  **Hints:** `OwnedItemsSections` in [`ProfileScreen.kt`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt); `EdgeToEdgeRow` is the home strip's scroll-row precedent.
-
 - `[P1]` **Cosmetic detail/purchase sheets: buyable tap → purchase sheet + richer felt/emote preview.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Felts + emote packs should get a richer preview to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)* (Slot-aware equip already ships: card back / felt are swap-only with no "unequip".)
   **Acceptance:** buyable tap → purchase sheet; felt/emote-pack sheets show a richer (animated) preview.
   **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`; reuse the shop purchase-sheet route for the buyable tap.

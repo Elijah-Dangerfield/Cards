@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -86,6 +87,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.DecorativeBlob
+import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
@@ -547,7 +549,7 @@ private const val AchievementDisplayCount = 8
 
 // ---- Owned items grouped by type --------------------------------------
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun OwnedItemsSections(
     ownedItems: List<OwnedItem>,
@@ -598,9 +600,11 @@ private fun OwnedItemsSections(
     ShelfOrder.forEach { shelf ->
         val owned = ownedByShelf[shelf].orEmpty()
         val isShoppable = shelf in ShoppableShelves
-        // Fill the shelf out to a comfortable size with not-yet-owned items so
-        // even a shelf the user has barely touched shows "here's what's next."
-        val buyable = if (isShoppable) {
+        // Once the user owns enough to warrant two rows, the shelf is full on
+        // its own — drop the "next to buy" filler. Below that, pad the single
+        // row out so even a barely-touched shelf shows "here's what's next."
+        val useTwoRows = owned.size >= TwoRowShelfThreshold
+        val buyable = if (isShoppable && !useTwoRows) {
             buyableByShelf[shelf].orEmpty()
                 .take((ShelfFillTarget - owned.size).coerceAtLeast(0))
         } else {
@@ -614,26 +618,35 @@ private fun OwnedItemsSections(
             onClick = if (isShoppable) onOpenShop else null,
         )
         VerticalSpacerD200()
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
-        ) {
-            owned.forEach { item ->
-                val isPulsing = item.productId == pulseId
-                OwnedCosmeticTile(
-                    item = item,
-                    isPulsing = isPulsing,
-                    onClick = { selectedId = item.productId },
-                    modifier = if (isPulsing) {
-                        Modifier.bringIntoViewRequester(highlightRequester)
-                    } else {
-                        Modifier
-                    },
-                )
-            }
-            buyable.forEach { item ->
-                BuyableCosmeticTile(item = item, onClick = onOpenShop)
+        // One horizontally-scrolling row by default; column-chunked into two
+        // rows once the shelf is well-stocked. Each LazyRow item is a column of
+        // up to [rowCount] tiles, so both shapes share one scroll container.
+        val tiles: List<ShelfTile> = owned.map(::ShelfTileOwned) + buyable.map(::ShelfTileBuyable)
+        val rowCount = if (useTwoRows) 2 else 1
+        EdgeToEdgeRow {
+            items(tiles.chunked(rowCount), key = { column -> column.first().key }) { column ->
+                Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+                    column.forEach { tile ->
+                        when (tile) {
+                            is ShelfTileOwned -> {
+                                val isPulsing = tile.item.productId == pulseId
+                                OwnedCosmeticTile(
+                                    item = tile.item,
+                                    isPulsing = isPulsing,
+                                    onClick = { selectedId = tile.item.productId },
+                                    modifier = if (isPulsing) {
+                                        Modifier.bringIntoViewRequester(highlightRequester)
+                                    } else {
+                                        Modifier
+                                    },
+                                )
+                            }
+                            is ShelfTileBuyable -> {
+                                BuyableCosmeticTile(item = tile.item, onClick = onOpenShop)
+                            }
+                        }
+                    }
+                }
             }
         }
         VerticalSpacerD800()
@@ -653,8 +666,28 @@ private fun OwnedItemsSections(
 
 private const val HighlightPulseDurationMillis = 1_800L
 
-/** Owned + buyable tiles a shoppable shelf grows to before it stops filling. */
+/** Owned + buyable tiles a single-row shelf grows to before it stops filling. */
 private const val ShelfFillTarget = 8
+
+/** Owned-item count at which a shelf splits from one scrolling row into two. */
+private const val TwoRowShelfThreshold = 8
+
+/**
+ * A tile on a cosmetic shelf — owned (real, tappable, equip-aware) or a dimmed
+ * buyable nudge. Unifying both into one list lets the shelf chunk tiles into
+ * columns for the one-vs-two-row layout without branching the scroll container.
+ */
+private sealed interface ShelfTile {
+    val key: String
+}
+
+private data class ShelfTileOwned(val item: OwnedItem) : ShelfTile {
+    override val key: String get() = item.productId
+}
+
+private data class ShelfTileBuyable(val item: BuyableCosmetic) : ShelfTile {
+    override val key: String get() = "buy_${item.productId}"
+}
 
 /**
  * Shelves on the profile bookshelf. Card backs, felts, avatar packs and emote
@@ -746,17 +779,21 @@ private fun OwnedCosmeticTile(
         animationSpec = tween(durationMillis = 600, easing = LinearEasing),
         label = "OwnedCosmeticTilePulse",
     )
+    // Equipped tiles carry a persistent accent ring so the active pick reads at
+    // a glance; the pulse reuses the same ring at a higher transient alpha when
+    // a just-bought tile is spotlighted.
+    val ringAlpha = maxOf(pulseAlpha, if (item.isEquipped) 1f else 0f)
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
                 .clip(Radii.R500.shape)
-                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R500.shape)
+                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = ringAlpha), Radii.R500.shape)
                 .clickable(onClick = onClick),
         ) {
             CosmeticPreview(
                 productId = item.productId,
                 emoji = displayEmojiFor(item),
-                size = 64.dp,
+                size = CosmeticTileSize,
                 packEmojis = item.packEmojis,
             )
         }
@@ -765,6 +802,9 @@ private fun OwnedCosmeticTile(
         }
     }
 }
+
+/** Cosmetic shelf tile preview edge — a touch larger than the old grid tiles. */
+private val CosmeticTileSize = 80.dp
 
 @Composable
 private fun EquippedBadge(modifier: Modifier = Modifier) {
@@ -801,7 +841,7 @@ private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
         CosmeticPreview(
             productId = item.productId,
             emoji = item.iconEmoji,
-            size = 64.dp,
+            size = CosmeticTileSize,
             packEmojis = item.packEmojis,
         )
     }
@@ -921,6 +961,41 @@ private fun ProfileScreenPreview_FreshUser() {
             achievementProgress = AchievementProgress.Empty,
             ownedItems = emptyList(),
             winRatePercent = null,
+            onOpenSettings = {},
+            onEditProfile = {},
+            onTapStats = {},
+            onSeeAllAchievements = {},
+            onToggleEquip = {},
+            onOpenShop = {},
+            onSignIn = {},
+        )
+    }
+}
+
+@org.jetbrains.compose.ui.tooling.preview.Preview
+@Composable
+private fun ProfileScreenPreview_StockedShelf() {
+    // A well-stocked card-backs shelf (9 owned) exercises the two-row split and
+    // the equipped ring; other shelves stay single-row with buyable fill.
+    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
+        ProfileScreen(
+            settings = previewSettings(isAnonymous = false),
+            achievementProgress = AchievementProgress.Empty,
+            ownedItems = List(9) { i ->
+                OwnedItem(
+                    productId = "cardback_$i",
+                    title = "Card back $i",
+                    subtitle = "",
+                    description = null,
+                    iconEmoji = "🂠",
+                    isEquipped = i == 0,
+                    isEquippable = true,
+                )
+            },
+            buyableItems = listOf(
+                BuyableCosmetic(productId = "felt_royal_red", iconEmoji = "🟥"),
+            ),
+            winRatePercent = 58,
             onOpenSettings = {},
             onEditProfile = {},
             onTapStats = {},
