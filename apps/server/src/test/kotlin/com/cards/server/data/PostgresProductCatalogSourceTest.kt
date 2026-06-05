@@ -81,7 +81,7 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
 
         val medium = catalog.chipPacks.single { it.id == "chip_pack_medium" }
         assertTrue(medium.featured)
-        assertEquals("BEST VALUE", medium.badgeByLocale?.get("en"))
+        assertEquals("POPULAR", medium.badgeByLocale?.get("en"))
     }
 
     @Test
