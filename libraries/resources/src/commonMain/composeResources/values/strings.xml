@@ -404,7 +404,7 @@
     <string name="profile_items_shop_link">Shop ›</string>
     <string name="profile_items_felt">Felts</string>
     <string name="profile_items_card_back">Card backs</string>
-    <string name="profile_items_avatars">Avatars</string>
+    <string name="profile_items_avatars">Avatar packs</string>
     <string name="profile_items_emotes">Emotes</string>
     <string name="profile_items_title">Titles</string>
     <string name="profile_items_tool">Tools</string>
@@ -417,6 +417,7 @@
     <!-- Pack (avatar / emote) detail sheet — contents grid + emote preview CTA. -->
     <string name="profile_item_sheet_in_pack">In this pack</string>
     <string name="profile_item_sheet_try_emote">Try it out</string>
+    <string name="profile_item_sheet_avatar_edit_hint">Edit your avatar from the pencil button on your profile.</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
     <string name="profile_notifications_title">Notifications</string>

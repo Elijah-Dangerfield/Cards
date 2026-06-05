@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought
+import cards.libraries.resources.generated.resources.profile_item_sheet_avatar_edit_hint
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought_free
 import cards.libraries.resources.generated.resources.profile_item_sheet_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_in_pack
@@ -72,6 +73,7 @@ fun CosmeticDetailSheet(
     onTryEmote: (String) -> Unit = {},
 ) {
     val isEmotePack = item.productId.startsWith("emotes_") && item.packEmojis.isNotEmpty()
+    val isAvatarPack = item.productId.startsWith("avatars_") && item.packEmojis.isNotEmpty()
     BottomSheet(
         onDismissRequest = onDismiss,
         showCloseButton = true,
@@ -109,6 +111,18 @@ fun CosmeticDetailSheet(
                 PackContents(emojis = item.packEmojis)
             }
 
+            if (isAvatarPack) {
+                // Avatar packs aren't equipped from this sheet — you pick one
+                // option as your avatar in Edit profile. Point there.
+                VerticalSpacerD300()
+                Text(
+                    text = stringResource(Res.string.profile_item_sheet_avatar_edit_hint),
+                    typography = AppTheme.typography.Label.L400,
+                    color = AppTheme.colors.contentTertiary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+
             acquisitionLine(item)?.let { line ->
                 VerticalSpacerD300()
                 Text(
@@ -144,7 +158,7 @@ fun CosmeticDetailSheet(
                 ) {
                     Text(stringResource(Res.string.profile_item_sheet_try_emote))
                 }
-            } else if (item.isEquippable) {
+            } else if (item.isEquippable && !isAvatarPack) {
                 VerticalSpacerD800()
                 Button(
                     onClick = { onToggleEquip(item.productId) },
