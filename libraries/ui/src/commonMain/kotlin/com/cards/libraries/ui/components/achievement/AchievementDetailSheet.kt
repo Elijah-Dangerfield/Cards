@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_achievement_medallion_earned_back
@@ -53,12 +54,16 @@ fun AchievementMedalWithDetail(
     earnedAtEpochMs: Long?,
     progress: Int,
     modifier: Modifier = Modifier,
+    size: MedalSize? = null,
 ) {
     var showSheet by remember { mutableStateOf(false) }
     AchievementMedal(
         achievement = achievement,
         earned = earnedAtEpochMs != null,
-        modifier = modifier,
+        // A preset [size] pins a fixed footprint (Home strip); otherwise the
+        // caller's modifier governs (the profile / Achievements grids fill
+        // their column).
+        modifier = if (size != null) modifier.size(size.dp) else modifier,
         onClick = { showSheet = true },
     )
     if (showSheet) {
@@ -69,6 +74,17 @@ fun AchievementMedalWithDetail(
             onDismiss = { showSheet = false },
         )
     }
+}
+
+/**
+ * Preset medal footprints for surfaces that want a fixed size rather than
+ * filling their column. Home's recent-achievements strip uses [Small]; the
+ * profile / Achievements grids keep filling their column (pass no size).
+ */
+enum class MedalSize(val dp: Dp) {
+    Small(100.dp),
+    Medium(112.dp),
+    Large(128.dp),
 }
 
 /**

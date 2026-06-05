@@ -212,13 +212,21 @@ private fun CatalogContent(
         )
         VerticalSpacerD800()
 
-        if (state.catalog.chipOffers.isNotEmpty()) {
-            SectionHeader(
-                title = "Build your style",
-                subtitle = "Emotes, table themes, and titles.",
-            )
+        // Cosmetics grouped by product type so the shop reads as organized
+        // shelves (Card backs, Felts, Table themes, Emote packs, …) rather
+        // than one undifferentiated grid. Catalog sort order is preserved
+        // within each group.
+        val offerSections = ShopSectionOrder.mapNotNull { section ->
+            state.catalog.chipOffers
+                .filter { shopSectionFor(it.id) == section }
+                .takeIf { it.isNotEmpty() }
+                ?.let { section to it }
+        }
+        offerSections.forEachIndexed { index, (section, items) ->
+            if (index > 0) VerticalSpacerD800()
+            SectionHeader(title = section.title)
             VerticalSpacerD400()
-            ProductGrid(items = state.catalog.chipOffers) { offer ->
+            ProductGrid(items = items) { offer ->
                 ChipOfferCard(
                     offer = offer,
                     cardState = state.classify(offer),
@@ -272,6 +280,42 @@ private fun ShopHeader(chips: Long) {
             )
         }
     }
+}
+
+/**
+ * Storefront shelves for the chip-offer catalog, keyed off the product-id
+ * prefix convention (`cardback_`, `felt_`, `table_`, `emotes_`, `avatars_`,
+ * `tool_`). Titles are unlock-only (earned, not bought) so they never reach
+ * the shop and get no shelf here.
+ */
+private enum class ShopSection(val title: String) {
+    CardBacks("Card backs"),
+    Felts("Felts"),
+    Tables("Table themes"),
+    Emotes("Emote packs"),
+    Avatars("Avatar packs"),
+    Tools("Tools"),
+    Other("More"),
+}
+
+private val ShopSectionOrder = listOf(
+    ShopSection.CardBacks,
+    ShopSection.Felts,
+    ShopSection.Tables,
+    ShopSection.Emotes,
+    ShopSection.Avatars,
+    ShopSection.Tools,
+    ShopSection.Other,
+)
+
+private fun shopSectionFor(productId: String): ShopSection = when {
+    productId.startsWith("cardback_") -> ShopSection.CardBacks
+    productId.startsWith("felt_") -> ShopSection.Felts
+    productId.startsWith("table_") -> ShopSection.Tables
+    productId.startsWith("emotes_") -> ShopSection.Emotes
+    productId.startsWith("avatars_") -> ShopSection.Avatars
+    productId.startsWith("tool_") -> ShopSection.Tools
+    else -> ShopSection.Other
 }
 
 @Composable

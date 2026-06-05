@@ -3,7 +3,6 @@ package com.dangerfield.cards.features.home.impl
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -17,6 +16,7 @@ import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
+import com.dangerfield.cards.libraries.ui.components.achievement.MedalSize
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
@@ -56,7 +56,7 @@ internal fun RecentAchievementsStrip(
                     achievement = item.achievement,
                     earnedAtEpochMs = item.earnedAtEpochMs,
                     progress = item.achievement.criterion.target,
-                    modifier = Modifier.size(TILE_SIZE),
+                    size = MedalSize.Small,
                 )
             }
         }
@@ -74,8 +74,6 @@ data class RecentAchievement(
     val achievement: Achievement,
     val earnedAtEpochMs: Long,
 )
-
-private val TILE_SIZE = 110.dp
 
 // ---------------------------------------------------------------------------
 // Previews — empty state (auto-hide), a small ribbon of earned tiles, and

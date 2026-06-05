@@ -59,8 +59,6 @@ import cards.libraries.resources.generated.resources.profile_support_feedback_su
 import cards.libraries.resources.generated.resources.profile_turn_feedback_mute
 import cards.libraries.resources.generated.resources.profile_turn_feedback_sound
 import cards.libraries.resources.generated.resources.profile_turn_feedback_vibrate
-import cards.libraries.resources.generated.resources.settings_about_headline
-import cards.libraries.resources.generated.resources.settings_legal_footer
 import cards.libraries.resources.generated.resources.settings_section_account_support
 import cards.libraries.resources.generated.resources.settings_title
 import com.dangerfield.cards.features.profile.impl.ProfileSettings
@@ -192,12 +190,6 @@ fun SettingsScreen(
                         leadingContent = { EmojiLeading("📄") },
                         onClick = onTermsOfService,
                     ),
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.settings_about_headline),
-                        leadingContent = { EmojiLeading("ℹ️") },
-                        accessory = ListItemAccessory.Text(text = settings.appVersion),
-                        onClick = null,
-                    ),
                 ),
             )
 
@@ -245,8 +237,10 @@ fun SettingsScreen(
             }
 
             VerticalSpacerD1100()
+            // App version stands in for the old "About Cards" row + legal
+            // footer — a quiet build stamp at the foot of Settings.
             Text(
-                text = stringResource(Res.string.settings_legal_footer),
+                text = settings.appVersion,
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,

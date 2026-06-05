@@ -800,8 +800,13 @@
     <string name="tutorial_section_basics">Basics</string>
     <string name="tutorial_section_at_the_table">At the table</string>
 
-    <!-- Tutorial — step-counter pill format, rendered above the gold headline on narration steps and as a top overlay on tableau steps. -->
+    <!-- Tutorial — step-counter pill format, rendered at the top of narration steps and as a top overlay on tableau steps. -->
     <string name="tutorial_step_counter">Step %1$d of %2$d · %3$s</string>
+
+    <!-- Tutorial — eyebrow/kicker above the gold headline on basics narration steps. -->
+    <string name="tutorial_eyebrow_goal">Your goal</string>
+    <string name="tutorial_eyebrow_hand">Your hand</string>
+    <string name="tutorial_eyebrow_move">Your move</string>
 
     <!-- Tutorial — narration step inline buttons. -->
     <string name="tutorial_narration_default_cta">Next</string>
