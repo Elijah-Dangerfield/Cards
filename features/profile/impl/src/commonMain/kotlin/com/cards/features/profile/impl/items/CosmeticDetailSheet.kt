@@ -26,6 +26,7 @@ import cards.libraries.resources.generated.resources.profile_item_sheet_how_earn
 import cards.libraries.resources.generated.resources.profile_item_sheet_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_in_pack
 import cards.libraries.resources.generated.resources.profile_item_sheet_try_emote
+import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
 import cards.libraries.resources.generated.resources.profile_my_items_button_unequip
 import cards.libraries.resources.generated.resources.profile_my_items_personal_cosmetic_tag
@@ -171,22 +172,48 @@ fun CosmeticDetailSheet(
                 }
             } else if (item.isEquippable && !isAvatarPack) {
                 VerticalSpacerD800()
-                Button(
-                    onClick = { onToggleEquip(item.productId) },
-                    modifier = Modifier.fillMaxWidth(),
-                    size = ButtonSize.Medium,
-                    style = if (item.isEquipped) ButtonStyle.Outlined else ButtonStyle.Filled,
-                ) {
-                    Text(
-                        if (item.isEquipped) {
-                            stringResource(Res.string.profile_my_items_button_unequip)
-                        } else {
-                            stringResource(Res.string.profile_my_items_button_equip)
-                        },
-                    )
-                }
+                EquipButton(item = item, onToggleEquip = onToggleEquip)
             }
         }
+    }
+}
+
+/**
+ * The equip CTA. Card backs and felts are *swap-only* — there's always one
+ * equipped and you change it by equipping a different one, so an equipped
+ * one shows a disabled "Equipped" state rather than an "Unequip" button that
+ * would leave the slot empty. Slots that can legitimately sit empty (titles)
+ * keep the unequip affordance.
+ */
+@Composable
+private fun EquipButton(item: OwnedItem, onToggleEquip: (String) -> Unit) {
+    val swapOnly = cosmeticSlotFor(item.productId)
+        .let { it == CosmeticSlot.CardBack || it == CosmeticSlot.Felt }
+    if (item.isEquipped && swapOnly) {
+        Button(
+            onClick = {},
+            modifier = Modifier.fillMaxWidth(),
+            size = ButtonSize.Medium,
+            style = ButtonStyle.Outlined,
+            enabled = false,
+        ) {
+            Text(stringResource(Res.string.profile_items_equipped))
+        }
+        return
+    }
+    Button(
+        onClick = { onToggleEquip(item.productId) },
+        modifier = Modifier.fillMaxWidth(),
+        size = ButtonSize.Medium,
+        style = if (item.isEquipped) ButtonStyle.Outlined else ButtonStyle.Filled,
+    ) {
+        Text(
+            if (item.isEquipped) {
+                stringResource(Res.string.profile_my_items_button_unequip)
+            } else {
+                stringResource(Res.string.profile_my_items_button_equip)
+            },
+        )
     }
 }
 

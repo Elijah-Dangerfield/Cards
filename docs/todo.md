@@ -66,9 +66,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** each shelf is a single horizontally-scrolling row (2 rows at ~8+ owned) with larger tiles and a clear equipped indicator.
   **Hints:** `OwnedItemsSections` in [`ProfileScreen.kt`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt); `EdgeToEdgeRow` is the home strip's scroll-row precedent.
 
-- `[P1]` **Cosmetic detail/purchase sheets: rich preview + slot-aware equip.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Card-back sheets (shop + profile) should use the flip-over/spin preview the profile detail sheet already has; same for felts + emote packs. Profile detail sheets need an equip/unequip button that respects slot rules — single-equip slots (card back, felt) have no "unequip"; you equip a different one instead. *(proposed 2026-06-05)*
-  **Acceptance:** buyable tap → purchase sheet; card-back/felt sheets show the flippable preview; equip present, unequip hidden for single-slot cosmetics (swap-only).
-  **Hints:** `FlippableCard` already used in `CosmeticDetailSheet`; `cosmeticSlotFor` marks single-equip slots; reuse the shop purchase-sheet route.
+- `[P1]` **Cosmetic detail/purchase sheets: buyable tap → purchase sheet + richer felt/emote preview.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Felts + emote packs should get a richer preview to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)* (Slot-aware equip already ships: card back / felt are swap-only with no "unequip".)
+  **Acceptance:** buyable tap → purchase sheet; felt/emote-pack sheets show a richer (animated) preview.
+  **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`; reuse the shop purchase-sheet route for the buyable tap.
 
 ### Cross-app consistency
 
