@@ -70,10 +70,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** buyable tap → purchase sheet; card-back/felt sheets show the flippable preview; equip present, unequip hidden for single-slot cosmetics (swap-only).
   **Hints:** `FlippableCard` already used in `CosmeticDetailSheet`; `cosmeticSlotFor` marks single-equip slots; reuse the shop purchase-sheet route.
 
-- `[P1]` **Ceremonial sheets for earned/prestige items.** Earned items (e.g. Founding member) render a bare 🎁 and say nothing. Give earned items a real moment: what they earned, how/why, and a thank-you for prestige grants. Likely needs a metadata source for the unlock-only products the catalog drops (a client map, or server-supplied earned-item copy). *(proposed 2026-06-05)*
-  **Acceptance:** the Founding-member (and other earned) sheet shows a name + description + how-earned + a thanks line, not a fallback glyph.
-  **Hints:** unlock-only products arrive without catalog metadata (`CosmeticDetailSheet` falls back to 🎁 via `KnownItemEmoji`); needs an earned-item metadata layer. **Worker note:** sketch the model change (client map vs. server field) in the Approach line before coding — direction is ambiguous.
-
 ### Cross-app consistency
 
 ### Social graph + friends — load-bearing for V1.x

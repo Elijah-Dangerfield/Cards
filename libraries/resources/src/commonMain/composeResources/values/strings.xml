@@ -418,6 +418,12 @@
     <string name="profile_item_sheet_in_pack">In this pack</string>
     <string name="profile_item_sheet_try_emote">Try it out</string>
     <string name="profile_item_sheet_avatar_edit_hint">Edit your avatar from the pencil button on your profile.</string>
+    <!-- Earned / prestige item detail sheet — "How you earned it" heading + per-item copy. -->
+    <string name="profile_item_sheet_how_earned">How you earned it</string>
+    <string name="earned_founding_member_title">Founding Member</string>
+    <string name="earned_founding_member_description">A badge for the players who were here at the very beginning.</string>
+    <string name="earned_founding_member_how">Granted to early players who pulled up a seat during launch — it can\'t be bought.</string>
+    <string name="earned_founding_member_thanks">Thank you for betting on us from the start. It means the world.</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
     <string name="profile_notifications_title">Notifications</string>

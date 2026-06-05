@@ -71,6 +71,7 @@ import cards.libraries.resources.generated.resources.profile_achievements_title
 import cards.libraries.resources.generated.resources.ui_achievement_medallion_locked_label
 import com.dangerfield.cards.features.profile.impl.items.BuyableCosmetic
 import com.dangerfield.cards.features.profile.impl.items.CosmeticDetailSheet
+import com.dangerfield.cards.features.profile.impl.items.KnownEarnedItems
 import com.dangerfield.cards.features.profile.impl.items.OwnedItem
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
@@ -714,14 +715,13 @@ private fun shoppableShelfFor(productId: String): Shelf? = when {
 /**
  * The product catalog the client syncs (`GET /v1/products`) omits
  * `unlock_only` items, so the founding-member badge arrives with no display
- * metadata (OwnedItem falls back to "🎁"). Map the known stable ids to a
- * sensible glyph so the Specialty shelf reads intentionally. Card backs and
- * felts render their real cosmetic via [CosmeticPreview], so they don't need
- * an entry here.
+ * metadata (OwnedItem falls back to "🎁"). Reuse the known-earned-item glyphs
+ * so the Specialty shelf tile and the detail sheet stay in lockstep. Card
+ * backs and felts render their real cosmetic via [CosmeticPreview], so they
+ * don't need an entry here.
  */
-private val KnownItemEmoji: Map<String, String> = mapOf(
-    "badge_founding_member_1000" to "🏛",
-)
+private val KnownItemEmoji: Map<String, String> =
+    KnownEarnedItems.mapValues { it.value.emoji }
 
 private fun displayEmojiFor(item: OwnedItem): String =
     KnownItemEmoji[item.productId] ?: item.iconEmoji
