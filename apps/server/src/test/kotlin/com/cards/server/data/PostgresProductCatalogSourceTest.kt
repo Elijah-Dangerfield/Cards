@@ -132,14 +132,22 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
     }
 
     @Test
-    fun read_seededFlashSale_hasNullAvailability() = runTest {
-        // The migration intentionally drops the synthetic startup-relative
-        // expiry from the old in-memory source: time-limited offers are
-        // admin-controlled now.
+    fun read_chipPacks_areTheThreeTierLadder() = runTest {
+        // V50 collapsed the lineup to exactly three tiers. Pin the ids,
+        // chip amounts, and the single featured ("POPULAR") middle tier so
+        // a future catalog edit breaks loudly.
         val catalog = newSource().read(androidContext)
 
-        val flashSale = catalog.chipPacks.single { it.id == "chip_pack_flash_sale" }
-        assertNull(flashSale.availableUntilEpochMs)
+        val packs = catalog.chipPacks.sortedBy { it.grantsChips }
+        assertEquals(
+            listOf("chip_pack_small", "chip_pack_medium", "chip_pack_large"),
+            packs.map { it.id },
+        )
+        assertEquals(listOf(5_000L, 30_000L, 120_000L), packs.map { it.grantsChips })
+        assertEquals(
+            listOf("chip_pack_medium"),
+            catalog.chipPacks.filter { it.featured }.map { it.id },
+        )
     }
 
     @Test

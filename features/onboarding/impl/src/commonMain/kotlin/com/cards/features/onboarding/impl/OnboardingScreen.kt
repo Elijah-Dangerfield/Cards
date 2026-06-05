@@ -151,6 +151,7 @@ fun OnboardingScreen(
     BackHandler(enabled = state.step != OnboardingStep.Welcome) {
         onAction(OnboardingAction.Back)
     }
+    
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
@@ -193,11 +194,11 @@ fun OnboardingScreen(
                 }
             }
 
-            // The progress chip only rides the two interactive setup steps
-            // (PickIdentity, HowItWorks). The Welcome landing is the entry —
-            // "not technically onboarding" — and the StarterGrant page is the
-            // celebratory payoff; both read better without a "step N of N".
-            if (state.step == OnboardingStep.PickIdentity || state.step == OnboardingStep.HowItWorks) {
+            // The progress chip rides every counted step (see
+            // CountedOnboardingSteps). The Welcome landing is the entry —
+            // "not technically onboarding" — so it's the only step without a
+            // "step N of N".
+            if (state.step in CountedOnboardingSteps) {
                 StepProgressChip(
                     step = state.step,
                     modifier = Modifier
@@ -214,11 +215,15 @@ private fun StepProgressChip(
     step: OnboardingStep,
     modifier: Modifier = Modifier,
 ) {
+    // Position within the counted steps, 1-based. A step not in the list
+    // never renders the chip (guarded at the call site), so the -1/+1 here
+    // is only ever reached for a real member.
+    val position = CountedOnboardingSteps.indexOf(step) + 1
     StatusPill(
         text = stringResource(
             Res.string.onboarding_step_progress,
-            stepIndex(step),
-            ONBOARDING_STEP_COUNT,
+            position,
+            CountedOnboardingSteps.size,
         ),
         background = AppTheme.colors.surfaceHigh,
         foreground = AppTheme.colors.contentSecondary,
@@ -227,9 +232,16 @@ private fun StepProgressChip(
     )
 }
 
-// Counted steps = the two interactive ones. stepIndex() maps PickIdentity→1
-// and HowItWorks→2, so the chip reads "1 of 2" / "2 of 2" directly.
-private const val ONBOARDING_STEP_COUNT = 2
+// Single source of truth for the "step N of N" chip — both the denominator
+// and each step's position derive from this list, so adding a page here
+// keeps the counter accurate with no other edits. Ordered to match the
+// flow. Welcome is the entry landing and is intentionally excluded; every
+// other step (including the StarterGrant payoff) is counted.
+private val CountedOnboardingSteps: List<OnboardingStep> = listOf(
+    OnboardingStep.PickIdentity,
+    OnboardingStep.HowItWorks,
+    OnboardingStep.StarterGrant,
+)
 
 // ---------------------------------------------------------------------------
 // Step 1 — Welcome

@@ -278,8 +278,8 @@ class ShopViewModel @Inject constructor(
         )
         when (result) {
             is RedeemResult.Success -> {
-                autoEquipIfSlotFree(offer.id)
-                sendEvent(ShopEvent.RedeemSucceeded(offer))
+                val autoEquipped = autoEquipIfSlotFree(offer.id)
+                sendEvent(ShopEvent.RedeemSucceeded(offer, wasAutoEquipped = autoEquipped))
                 // Fire-and-forget server reconcile so the Pending row flips
                 // to Confirmed before the user closes the app. Failures
                 // here are non-fatal — next launch retries.
@@ -301,20 +301,28 @@ class ShopViewModel @Inject constructor(
         }
     }
 
-    private suspend fun autoEquipIfSlotFree(productId: String) {
+    /**
+     * Equips [productId] iff it's a slot cosmetic whose slot is currently
+     * free. Returns true when it actually equipped — the caller uses this
+     * to tell the success toast "we equipped this for you" (with a "My
+     * items" button) instead of offering an "Equip" action that would be a
+     * no-op.
+     */
+    private suspend fun autoEquipIfSlotFree(productId: String): Boolean {
         // Skip non-slot products (avatar packs, emote packs, anything the
         // helper doesn't classify) — those don't have a "currently
         // equipped" notion and equipping them on purchase doesn't change
         // a render-layer pick.
-        val slot = cosmeticSlotFor(productId) ?: return
+        val slot = cosmeticSlotFor(productId) ?: return false
         // Honor any cosmetic the user has *already* picked in this slot;
         // we don't want a fresh purchase to silently steal an in-use felt
         // / card back. The user can flip later from My Items.
         val occupied = equipmentRepository.getAll()
             .any { entry -> entry.isEquipped && cosmeticSlotFor(entry.productId) == slot }
-        if (occupied) return
+        if (occupied) return false
         equipmentRepository.equip(productId)
         viewModelScope.launch { equipmentRepository.sync() }
+        return true
     }
 }
 
@@ -505,8 +513,19 @@ sealed interface ShopEvent {
      */
     data class PurchaseFinished(val outcome: IapPurchaseOutcome) : ShopEvent
 
-    /** Chip-funded redemption confirmed. Screen plays a celebration cue. */
-    data class RedeemSucceeded(val offer: Product.ChipOffer) : ShopEvent
+    /**
+     * Chip-funded redemption confirmed. Screen plays a celebration cue.
+     *
+     * [wasAutoEquipped] is true when the purchase landed in a free cosmetic
+     * slot and we equipped it right away. The toast uses this to swap its
+     * action: an offer-an-"Equip" button when the user still needs to equip
+     * it, vs. a plain "My items" button (and "already equipped" copy) when
+     * there's nothing left to do.
+     */
+    data class RedeemSucceeded(
+        val offer: Product.ChipOffer,
+        val wasAutoEquipped: Boolean,
+    ) : ShopEvent
 
     /**
      * An anonymous user tapped buy on a real-money pack. The screen routes

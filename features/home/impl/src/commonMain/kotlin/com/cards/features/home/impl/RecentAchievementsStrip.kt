@@ -16,7 +16,7 @@ import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
-import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
@@ -25,14 +25,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /**
  * Horizontal scroll of the user's most recent achievement unlocks
  * with a header chevron to the full Achievements grid. Renders the
- * same [AchievementMedallion] the Stats / Achievements pages use so
- * the brag-shelf reads as a window into those surfaces, not its own
+ * same [AchievementMedal] the Stats / Achievements pages use so the
+ * brag-shelf reads as a window into those surfaces, not its own
  * bespoke treatment.
  *
  * Returns nothing when [items] is empty — Home doesn't push an empty
- * "go earn one!" state. Tap routes to the full Achievements grid
- * rather than flipping the medallion in place (the Stats / Achievements
- * page treatment) — Home is a launcher, not a viewer.
+ * "go earn one!" state. Tap routes to the full Achievements grid —
+ * Home is a launcher, not a viewer.
  */
 @Composable
 internal fun RecentAchievementsStrip(
@@ -50,12 +49,14 @@ internal fun RecentAchievementsStrip(
         VerticalSpacerD500()
         EdgeToEdgeRow {
             items(items = items, key = { it.achievement.id.name }) { item ->
-                AchievementMedallion(
+                // Tapping a recent achievement opens the same detail sheet the
+                // Profile / Achievements grids use (it's a shared DS component);
+                // the header chevron still routes to the full grid.
+                AchievementMedalWithDetail(
                     achievement = item.achievement,
                     earnedAtEpochMs = item.earnedAtEpochMs,
                     progress = item.achievement.criterion.target,
                     modifier = Modifier.size(TILE_SIZE),
-                    onClick = onSeeAll,
                 )
             }
         }
@@ -65,8 +66,8 @@ internal fun RecentAchievementsStrip(
 /**
  * Home-shelf carrier for a recently-earned achievement. Holds the full
  * [Achievement] so the rendering can reuse the shared
- * [AchievementMedallion] (which needs the criterion, rarity, icon,
- * etc.) instead of a stripped-down UI model.
+ * [AchievementMedal] (which needs the rarity, icon, etc.) instead of a
+ * stripped-down UI model.
  */
 @Immutable
 data class RecentAchievement(

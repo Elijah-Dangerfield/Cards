@@ -126,9 +126,9 @@ private val SHOP_PILL_PADDING = PaddingValues(horizontal = 10.dp, vertical = 4.d
  * sheet's bubble matches the visual treatment of the product's grid card.
  * Three branches mirror the three card looks:
  *
- *  - Featured chip pack → the gradient backdrop from [FeaturedPackHero].
+ *  - Chip pack → the accent gradient backdrop (every chip tier wears it now,
+ *    not just the featured one, matching the gradient chip cards in the grid).
  *    Keeps the visual line continuous from tap → sheet.
- *  - Regular chip pack → gold tint (matches the [IconTone.Gold] tile).
  *  - Chip-purchasable offer → accent tint (matches [IconTone.Accent]).
  *
  * Tint alpha matches [ProductIcon] so the bubble reads as the same chip
@@ -136,18 +136,14 @@ private val SHOP_PILL_PADDING = PaddingValues(horizontal = 10.dp, vertical = 4.d
  */
 @Composable
 internal fun productBubbleSurface(product: Product): BubbleSurface = when (product) {
-    is Product.ChipPack -> if (product.featured) {
-        BubbleSurface.Gradient(
-            Brush.linearGradient(
-                colors = listOf(
-                    AppTheme.colors.accentSecondary.color,
-                    AppTheme.colors.accentPrimary.color,
-                ),
+    is Product.ChipPack -> BubbleSurface.Gradient(
+        Brush.linearGradient(
+            colors = listOf(
+                AppTheme.colors.accentSecondary.color,
+                AppTheme.colors.accentPrimary.color,
             ),
-        )
-    } else {
-        BubbleSurface.Solid(color = AppTheme.colors.accentPrimary, alpha = 0.18f)
-    }
+        ),
+    )
     is Product.ChipOffer -> BubbleSurface.Solid(
         color = AppTheme.colors.accentPrimary,
         alpha = 0.18f,

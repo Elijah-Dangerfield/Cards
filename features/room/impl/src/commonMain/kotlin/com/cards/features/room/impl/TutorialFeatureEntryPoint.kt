@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
@@ -11,6 +10,7 @@ import com.dangerfield.cards.features.room.impl.tutorial.AchievementUnlockedDial
 import com.dangerfield.cards.features.room.impl.tutorial.TutorialPokerScreen
 import com.dangerfield.cards.features.room.impl.tutorial.TutorialViewModel
 import com.dangerfield.cards.libraries.cards.AchievementId
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
@@ -43,13 +43,13 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class TutorialFeatureEntryPoint(
     private val tutorialViewModelFactory: () -> TutorialViewModel,
+    private val appScope: AppCoroutineScope,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<TutorialRoute> {
             val viewModel: TutorialViewModel = viewModel { tutorialViewModelFactory() }
             val state by viewModel.state.collectAsStateWithLifecycle()
-            val scope = rememberCoroutineScope()
             TutorialPokerScreen(
                 state = state,
                 onIntent = viewModel::submit,
@@ -63,9 +63,15 @@ class TutorialFeatureEntryPoint(
                 // celebration dialog — the dialog reads as a beat on
                 // top of home instead of an instant overlay swap. See
                 // `DialogIntroDelay`.
+                //
+                // The delayed navigate MUST run on the app scope, not a
+                // composition-scoped `rememberCoroutineScope()`: the
+                // `popBackTo` above disposes this very composition, which
+                // would cancel a composition-scoped coroutine mid-`delay`
+                // and swallow the navigate — the dialog would never fire.
                 onAchievementUnlocked = {
                     router.popBackTo(TutorialRoute(), inclusive = true)
-                    scope.launch {
+                    appScope.launch {
                         delay(DialogIntroDelay)
                         router.navigate(
                             AchievementUnlockedRoute(

@@ -7,10 +7,11 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import com.dangerfield.cards.features.profile.FeedbackRoute
-import com.dangerfield.cards.features.profile.MyItemsRoute
+import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
+import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
@@ -32,6 +33,8 @@ import cards.libraries.resources.generated.resources.shop_snackbar_not_signed_in
 import cards.libraries.resources.generated.resources.shop_snackbar_offer_expired_message
 import cards.libraries.resources.generated.resources.shop_snackbar_offer_expired_title
 import cards.libraries.resources.generated.resources.shop_snackbar_purchase_failed_title
+import cards.libraries.resources.generated.resources.shop_snackbar_redeem_auto_equipped_message
+import cards.libraries.resources.generated.resources.shop_snackbar_redeem_auto_equipped_title
 import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_action_equip
 import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_action_view
 import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succeeded_message
@@ -52,6 +55,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class ShopFeatureEntryPoint(
     private val shopVmFactory: () -> ShopViewModel,
+    private val appCache: AppCache,
 ) : FeatureEntryPoint {
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         // Nested graph so the grid + purchase sheet share a single
@@ -75,32 +79,55 @@ class ShopFeatureEntryPoint(
                     when (event) {
                         is ShopEvent.PurchaseFinished -> showPurchaseSnackbar(event.outcome)
                         is ShopEvent.RedeemSucceeded -> {
-                            // Equippable cosmetics get an "Equip" jump so
-                            // the user lands on the row's toggle. Unlock-
-                            // style products (avatar / emote packs) get a
-                            // "View" action that drops them on the same
-                            // row but without an equip target — the row
-                            // shows the "Unlocked" badge instead.
-                            val actionLabel = getString(
-                                if (event.offer.isEquippable) {
-                                    Res.string.shop_snackbar_redeem_succeeded_action_equip
-                                } else {
-                                    Res.string.shop_snackbar_redeem_succeeded_action_view
-                                },
-                            )
-                            showSnackBar(
-                                title = getString(Res.string.shop_snackbar_redeem_succeeded_title),
+                            // The snackbar action jumps to the Profile tab and
+                            // spotlights the new item on the bookshelf. When the
+                            // slot was free we auto-equipped it, so we tell the
+                            // user it's already equipped and give a plain "View"
+                            // jump; otherwise equippable cosmetics get an "Equip"
+                            // label (they can equip from the item's detail sheet)
+                            // and unlock-style products (avatar / emote packs) get
+                            // a "View" jump.
+                            val title: String
+                            val message: String
+                            val actionLabel: String
+                            if (event.wasAutoEquipped) {
+                                title = getString(Res.string.shop_snackbar_redeem_auto_equipped_title)
+                                message = getString(
+                                    Res.string.shop_snackbar_redeem_auto_equipped_message,
+                                    event.offer.title,
+                                )
+                                actionLabel =
+                                    getString(Res.string.shop_snackbar_redeem_succeeded_action_view)
+                            } else {
+                                title = getString(Res.string.shop_snackbar_redeem_succeeded_title)
                                 message = getString(
                                     Res.string.shop_snackbar_redeem_succeeded_message,
                                     event.offer.title,
-                                ),
+                                )
+                                actionLabel = getString(
+                                    if (event.offer.isEquippable) {
+                                        Res.string.shop_snackbar_redeem_succeeded_action_equip
+                                    } else {
+                                        Res.string.shop_snackbar_redeem_succeeded_action_view
+                                    },
+                                )
+                            }
+                            showSnackBar(
+                                title = title,
+                                message = message,
                                 emoji = event.offer.iconEmoji,
                                 duration = SnackbarDuration.Short,
                                 actionLabel = actionLabel,
                                 onAction = {
-                                    router.navigate(
-                                        MyItemsRoute(highlightProductId = event.offer.id),
-                                    )
+                                    // Tab-root args don't survive restoreState,
+                                    // so carry the "spotlight this" signal through
+                                    // the shared cache, then switch to Profile.
+                                    scope.launch {
+                                        appCache.update {
+                                            it.copy(pendingProfileHighlight = event.offer.id)
+                                        }
+                                        router.switchTab(ProfileRoute())
+                                    }
                                 },
                             )
                         }

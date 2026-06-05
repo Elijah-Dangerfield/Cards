@@ -47,13 +47,21 @@ fun RotatingDial(
     modifier: Modifier = Modifier,
     size: Dp = 220.dp,
     rayColor: ColorResource = AppTheme.colors.poker.chipGold,
+    oddRayColor: ColorResource = AppTheme.colors.poker.chipGoldOutline,
     glowColor: ColorResource = AppTheme.colors.poker.seatActive,
     rayCount: Int = 12,
     periodMillis: Int = 28_000,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     val rays = rayColor.color
+    val oddRays = oddRayColor.color
     val glow = glowColor.color
+
+    // Rays alternate between full-width primary rays and slightly thinner,
+    // darker secondary rays. That alternation only reads evenly around the
+    // circle when the count is even — an odd count lands two primaries
+    // side-by-side at the wrap seam — so round up to the next even number.
+    val evenRayCount = if (rayCount % 2 == 0) rayCount else rayCount + 1
     val angle = if (LocalInspectionMode.current) {
         0f
     } else {
@@ -90,18 +98,22 @@ fun RotatingDial(
             )
 
             // Rays: round-capped strokes from just outside the content slot to
-            // near the edge, fanned evenly and spun as one rigid wheel.
+            // near the edge, fanned evenly and spun as one rigid wheel. Odd
+            // rays are thinner and use the darker [oddRayColor] so the burst
+            // reads as alternating bold / fine spokes.
             val innerRadius = radius * 0.56f
             val outerRadius = radius * 0.94f
             val rayWidth = radius * 0.045f
+            val oddRayWidth = rayWidth * 0.6f
             rotate(degrees = angle, pivot = center) {
-                repeat(rayCount) { i ->
-                    rotate(degrees = i * (360f / rayCount), pivot = center) {
+                repeat(evenRayCount) { i ->
+                    val isOdd = i % 2 == 1
+                    rotate(degrees = i * (360f / evenRayCount), pivot = center) {
                         drawLine(
-                            color = rays,
+                            color = if (isOdd) oddRays else rays,
                             start = Offset(center.x, center.y - innerRadius),
                             end = Offset(center.x, center.y - outerRadius),
-                            strokeWidth = rayWidth,
+                            strokeWidth = if (isOdd) oddRayWidth else rayWidth,
                             cap = StrokeCap.Round,
                         )
                     }
