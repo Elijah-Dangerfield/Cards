@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.components.text.ProvideTextConfig
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.ui.system.color.SaveProgressGradient
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
@@ -83,10 +84,12 @@ fun Banner(
     val container = Modifier
         .clip(shape)
         .then(
-            if (type == BannerType.Promo) {
-                Modifier.background(AppTheme.colors.accentPrimaryGradient)
-            } else {
-                Modifier.background(palette.fill.color)
+            when (type) {
+                // Promo rides the gold accent gradient; Trust (the guest
+                // "Save your progress" sign-in card) the cool blue one.
+                BannerType.Promo -> Modifier.background(AppTheme.colors.accentPrimaryGradient)
+                BannerType.Trust -> Modifier.background(SaveProgressGradient)
+                else -> Modifier.background(palette.fill.color)
             }
         )
         .border(1.dp, palette.edge.color, shape)
@@ -142,8 +145,13 @@ private fun BannerType.palette(): BannerPalette = with(AppTheme.colors) {
         BannerType.Danger -> BannerPalette(dangerSubtle, danger, dangerSubtle)
         // Promo: gold gradient fill (handled in Banner), gold edge, translucent gold well
         BannerType.Promo -> BannerPalette(accentPrimarySubtle, accentPrimary, accentPrimarySubtle)
-        // Trust: flat infoSubtle surface for the secure/sign-in moment
-        BannerType.Trust -> BannerPalette(infoSubtle, info, infoSubtle)
+        // Trust: blue gradient fill (handled in Banner). A faint white rim +
+        // a lighter white well so the lock tile reads as raised on the gradient.
+        BannerType.Trust -> BannerPalette(
+            fill = infoSubtle,
+            edge = ColorResource.White.withAlpha(0.12f),
+            iconWell = ColorResource.White.withAlpha(0.16f),
+        )
     }
 }
 

@@ -25,6 +25,8 @@
     <string name="shop_snackbar_redeem_succeeded_message">%1$s is yours.</string>
     <string name="shop_snackbar_redeem_succeeded_action_equip">Equip</string>
     <string name="shop_snackbar_redeem_succeeded_action_view">View</string>
+    <string name="shop_snackbar_redeem_auto_equipped_title">Equipped!</string>
+    <string name="shop_snackbar_redeem_auto_equipped_message">%1$s is equipped and ready to use.</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>
@@ -47,6 +49,8 @@
     <!-- Shop — header + footer chrome on the main grid screen. -->
     <string name="shop_header_title">Shop</string>
     <string name="shop_header_subtitle">Spend chips. Stock up. Flex.</string>
+    <string name="shop_get_chips_title">Get chips</string>
+    <string name="shop_get_chips_footnote">Or earn them free at the table, every day.</string>
     <string name="shop_idea_footer_button">Got an idea? Tell us</string>
     <string name="shop_personal_cosmetic_hint">Only you see this</string>
     <string name="shop_also_earnable_hint">Also earnable</string>
@@ -360,20 +364,49 @@
 
     <!-- Profile — Header (avatar + level summary). -->
     <string name="profile_avatar_edit_a11y">Edit profile</string>
-    <string name="profile_level_summary_level_xp">Level %1$d · %2$s XP</string>
-    <string name="profile_level_summary_to_next_level">%1$s XP to level %2$d</string>
+    <string name="profile_level_summary_level">Level %1$d</string>
+    <string name="profile_level_summary_xp_breakdown">%1$s / %2$s XP to Lv %3$d</string>
     <string name="profile_header_member_since">Member since %1$s %2$d</string>
     <string name="profile_header_founding_member_chip">Founding member</string>
 
     <!-- Profile — Anonymous-only "claim your account" hero card. -->
-    <string name="profile_claim_card_title">Claim your account</string>
-    <string name="profile_claim_card_body">Save your chips and unlock leaderboards. Sign in with Apple or Google in seconds.</string>
-    <string name="profile_claim_card_cta">Get started</string>
+    <!-- Shared "Save your progress" guest sign-in banner (Profile, Stats, Settings). -->
+    <string name="save_progress_title">Save your progress</string>
+    <string name="save_progress_subtitle">Playing as guest · sync across devices</string>
+    <string name="save_progress_cta">Sign in</string>
 
-    <!-- Stats — Anonymous-only "don't lose your progress" disclosure, shown past level 1. -->
-    <string name="stats_claim_disclosure_title">Don't lose your progress</string>
-    <string name="stats_claim_disclosure_body">You're playing as a guest. Claim your account to keep your level, chips, and achievements.</string>
-    <string name="stats_claim_disclosure_cta">Claim</string>
+    <!-- Settings — screen reached from the Profile gear. -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_account_support">Account &amp; support</string>
+    <string name="settings_about_headline">About Cards</string>
+    <string name="settings_legal_footer">Play money only · no real-money gambling</string>
+
+    <!-- Profile v2 — gear, header subtitle, stats banner, trophies, owned items. -->
+    <string name="profile_settings_a11y">Settings</string>
+    <string name="profile_header_joined">Joined %1$s %2$d</string>
+    <string name="profile_play_style_example">Sharp &amp; Steady</string>
+    <string name="profile_stats_banner_title">Your stats &amp; style</string>
+    <string name="profile_stats_banner_subtitle">%1$s · %2$d%% win · %3$s won</string>
+    <string name="profile_stats_banner_subtitle_no_games">%1$s · Play a few hands to see your stats</string>
+    <string name="profile_achievements_title">Achievements</string>
+    <string name="profile_achievements_count">%1$d / %2$d</string>
+    <string name="profile_achievements_see_all">See all</string>
+    <string name="profile_items_shop_link">Shop ›</string>
+    <string name="profile_items_felt">Felts</string>
+    <string name="profile_items_card_back">Card backs</string>
+    <string name="profile_items_avatars">Avatars</string>
+    <string name="profile_items_emotes">Emotes</string>
+    <string name="profile_items_title">Titles</string>
+    <string name="profile_items_tool">Tools</string>
+    <string name="profile_items_specialty">Specialty items</string>
+    <string name="profile_items_equipped">Equipped</string>
+    <!-- Owned-item detail sheet. %1$s is a relative time ("3d ago"); %2$s is a chip count. -->
+    <string name="profile_item_sheet_earned">Earned %1$s</string>
+    <string name="profile_item_sheet_bought">Bought %1$s for %2$s chips</string>
+    <string name="profile_item_sheet_bought_free">Bought %1$s</string>
+    <!-- Pack (avatar / emote) detail sheet — contents grid + emote preview CTA. -->
+    <string name="profile_item_sheet_in_pack">In this pack</string>
+    <string name="profile_item_sheet_try_emote">Try it out</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
     <string name="profile_notifications_title">Notifications</string>
@@ -454,16 +487,10 @@
     <string name="profile_bug_snackbar_thanks">Thanks for reporting this!</string>
 
     <!-- Profile — My items inventory screen. -->
-    <string name="profile_my_items_title">My items</string>
-    <string name="profile_my_items_subtitle_empty">Pick up card backs, felts, and emotes in the shop.</string>
-    <string name="profile_my_items_subtitle_populated">%1$d unlocked — tap to equip.</string>
-    <string name="profile_my_items_badge_earned">Earned</string>
-    <string name="profile_my_items_badge_unlocked">Unlocked</string>
+    <!-- Reused by the profile owned-item detail sheet (CosmeticDetailSheet). -->
     <string name="profile_my_items_personal_cosmetic_tag">Only you see this</string>
     <string name="profile_my_items_button_equip">Equip</string>
     <string name="profile_my_items_button_unequip">Unequip</string>
-    <string name="profile_my_items_empty_title">No items yet</string>
-    <string name="profile_my_items_empty_body">Pick up card backs, felts, and emote packs from the shop. Once you own them, they'll show up here.</string>
 
     <!-- Onboarding — HowItWorks step (explainer). -->
     <string name="onboarding_how_eyebrow">ALMOST THERE</string>
@@ -472,14 +499,14 @@
     <string name="onboarding_how_card_play_subtitle">Bots, strangers, or friends.</string>
     <string name="onboarding_how_card_chips_title">Chips fund the table</string>
     <string name="onboarding_how_card_chips_subtitle">Earn at play. Spend in the shop.</string>
-    <string name="onboarding_how_card_league_title">Climb the league</string>
-    <string name="onboarding_how_card_league_subtitle">Top 7 of 30 promote each week.</string>
+    <string name="onboarding_how_card_league_title">Earn XP and complete challenges</string>
+    <string name="onboarding_how_card_league_subtitle">The more you play, the more fun you have.</string>
     <string name="onboarding_how_continue_button">Continue</string>
 
     <!-- Onboarding — StarterGrant step (final celebratory chip-grant reveal). -->
     <string name="onboarding_grant_eyebrow">WELCOME TO CARDS</string>
     <string name="onboarding_grant_chips_label">chips</string>
-    <string name="onboarding_grant_subtitle">On the house. Real poker, real strategy — with people who actually want to play.</string>
+    <string name="onboarding_grant_subtitle">Chips are the currency you play with. Here's a starter stack, on us.</string>
     <string name="onboarding_grant_offline_subtitle">Your starter chips land the moment you're back online.</string>
     <string name="onboarding_grant_feature_play_money">Play money only</string>
     <string name="onboarding_grant_feature_friends_bots">Friends &amp; bots</string>
@@ -861,6 +888,13 @@
     <string name="ui_achievement_medallion_earned_back">Earned · %1$s</string>
     <string name="ui_achievement_medallion_how_to_earn">How to earn</string>
     <string name="ui_achievement_medallion_unlocks">Unlocks · %1$s</string>
+
+    <!-- UI library — Achievement detail bottom sheet (tap a medal to read it). -->
+    <string name="ui_achievement_sheet_mystery_title">Mystery achievement</string>
+    <string name="ui_achievement_sheet_mystery_body">Keep playing to discover this one.</string>
+    <string name="ui_achievement_sheet_progress">%1$d / %2$d</string>
+    <string name="ui_achievement_sheet_reward_xp">Reward · +%1$d XP</string>
+    <string name="ui_achievement_sheet_reward_xp_chips">Reward · +%1$d XP · +%2$s chips</string>
 
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>
