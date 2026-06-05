@@ -54,10 +54,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the banner reflects room changes made off-device without a manual refresh.
   **Hints:** [`RoomRepositoryImpl.observeActiveRooms`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/RoomRepositoryImpl.kt) holds the in-memory `MutableStateFlow` today; the durable source is [B2](#b2--persisted-room-membership) (persisted membership), and presence pushes pair with the [online-presence WS signal](#social-graph--friends--load-bearing-for-v1x).
 
-- `[P1]` **Redesign the in-game "What beats what" hand-rankings dialog.** The hand-help dialog should match the new mock (`docs/todo-assets/hand-rankings.png`, right phone): a top **"YOU HAVE / <hand>"** banner showing the player's hole + board cards, **tighter** per-row card rendering, the player's current-hand row **highlighted green**, and a plain **"What beats what"** heading. Today's dialog is close but looser and unbannered. *(proposed 2026-06-05)*
-  **Acceptance:** the dialog leads with the you-have banner, renders compact cards per row, highlights the current hand, and titles the list "What beats what".
-  **Hints:** the existing hand-rankings dialog in `:features:room:impl`; reuse `PlayingCard` / `PlayingCardSize.Mini` for the tight rows.
-
 ### Stats & progression
 
 ### Profile, cosmetics & sheets

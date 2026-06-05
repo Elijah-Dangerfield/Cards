@@ -662,8 +662,8 @@
     <string name="room_cheat_sheet_action_fold_description">Give up the hand. Any chips already in the pot stay.</string>
     <string name="room_cheat_sheet_action_all_in_title">All in</string>
     <string name="room_cheat_sheet_action_all_in_description">Push your entire stack. If you win, you win up to what everyone matched.</string>
-    <string name="room_cheat_sheet_rankings_heading">Hand rankings</string>
-    <string name="room_cheat_sheet_rankings_subtitle">Strongest on top.</string>
+    <string name="room_cheat_sheet_rankings_heading">What beats what</string>
+    <string name="room_cheat_sheet_you_have_label">You have</string>
     <string name="room_cheat_sheet_ranking_royal_flush_name">Royal Flush</string>
     <string name="room_cheat_sheet_ranking_royal_flush_tagline">10, J, Q, K, A — all same suit</string>
     <string name="room_cheat_sheet_ranking_straight_flush_name">Straight Flush</string>

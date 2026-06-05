@@ -276,11 +276,14 @@ fun PlayPokerScreen(
         }
 
         if (state.cheatSheetOpen) {
+            val humanSeat = active?.seats?.firstOrNull { it.isHuman }
             HandRankingsCheatSheet(
                 onDismiss = { onAction(PlayPokerAction.ToggleCheatSheet) },
                 handNumber = active?.handNumber,
                 street = active?.street,
                 pot = active?.pot,
+                holeCards = humanSeat?.holeCards.orEmpty(),
+                boardCards = active?.communityCards.orEmpty(),
             )
         }
 

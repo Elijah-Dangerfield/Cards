@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,7 +54,6 @@ import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_th
 import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_two_pair_name
 import cards.libraries.resources.generated.resources.room_cheat_sheet_ranking_two_pair_tagline
 import cards.libraries.resources.generated.resources.room_cheat_sheet_rankings_heading
-import cards.libraries.resources.generated.resources.room_cheat_sheet_rankings_subtitle
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_complete
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_flop
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_explainer_preflop
@@ -65,8 +66,11 @@ import cards.libraries.resources.generated.resources.room_cheat_sheet_street_lab
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_river
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_showdown
 import cards.libraries.resources.generated.resources.room_cheat_sheet_street_label_turn
+import cards.libraries.resources.generated.resources.room_cheat_sheet_you_have_label
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
+import com.dangerfield.cards.libraries.gameplay.HandCategory
+import com.dangerfield.cards.libraries.gameplay.HandEvaluator
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.system.LowLevelDSComponent
@@ -80,10 +84,8 @@ import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD1000
-import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD300
 import com.dangerfield.cards.system.VerticalSpacerD50
-import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
@@ -91,6 +93,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 private data class RankingEntry(
+    val category: HandCategory,
     val name: StringResource,
     val tagline: StringResource,
     val cards: List<Card>,
@@ -98,6 +101,7 @@ private data class RankingEntry(
 
 private val rankings: List<RankingEntry> = listOf(
     RankingEntry(
+        category = HandCategory.RoyalFlush,
         name = Res.string.room_cheat_sheet_ranking_royal_flush_name,
         tagline = Res.string.room_cheat_sheet_ranking_royal_flush_tagline,
         cards = listOf(
@@ -109,6 +113,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.StraightFlush,
         name = Res.string.room_cheat_sheet_ranking_straight_flush_name,
         tagline = Res.string.room_cheat_sheet_ranking_straight_flush_tagline,
         cards = listOf(
@@ -120,6 +125,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.FourOfAKind,
         name = Res.string.room_cheat_sheet_ranking_four_of_a_kind_name,
         tagline = Res.string.room_cheat_sheet_ranking_four_of_a_kind_tagline,
         cards = listOf(
@@ -131,6 +137,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.FullHouse,
         name = Res.string.room_cheat_sheet_ranking_full_house_name,
         tagline = Res.string.room_cheat_sheet_ranking_full_house_tagline,
         cards = listOf(
@@ -142,6 +149,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.Flush,
         name = Res.string.room_cheat_sheet_ranking_flush_name,
         tagline = Res.string.room_cheat_sheet_ranking_flush_tagline,
         cards = listOf(
@@ -153,6 +161,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.Straight,
         name = Res.string.room_cheat_sheet_ranking_straight_name,
         tagline = Res.string.room_cheat_sheet_ranking_straight_tagline,
         cards = listOf(
@@ -164,6 +173,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.ThreeOfAKind,
         name = Res.string.room_cheat_sheet_ranking_three_of_a_kind_name,
         tagline = Res.string.room_cheat_sheet_ranking_three_of_a_kind_tagline,
         cards = listOf(
@@ -175,6 +185,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.TwoPair,
         name = Res.string.room_cheat_sheet_ranking_two_pair_name,
         tagline = Res.string.room_cheat_sheet_ranking_two_pair_tagline,
         cards = listOf(
@@ -186,6 +197,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.Pair,
         name = Res.string.room_cheat_sheet_ranking_pair_name,
         tagline = Res.string.room_cheat_sheet_ranking_pair_tagline,
         cards = listOf(
@@ -197,6 +209,7 @@ private val rankings: List<RankingEntry> = listOf(
         ),
     ),
     RankingEntry(
+        category = HandCategory.HighCard,
         name = Res.string.room_cheat_sheet_ranking_high_card_name,
         tagline = Res.string.room_cheat_sheet_ranking_high_card_tagline,
         cards = listOf(
@@ -216,7 +229,12 @@ fun HandRankingsCheatSheet(
     handNumber: Int? = null,
     street: BettingRound? = null,
     pot: Long? = null,
+    holeCards: List<Card> = emptyList(),
+    boardCards: List<Card> = emptyList(),
 ) {
+    val currentCategory = remember(holeCards, boardCards) {
+        currentHandCategory(holeCards, boardCards)
+    }
     BaseBottomSheet(
         onDismissRequest = onDismiss,
         dragHandle = com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle.None,
@@ -228,6 +246,15 @@ fun HandRankingsCheatSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
+            if (holeCards.isNotEmpty()) {
+                YouHaveBanner(
+                    category = currentCategory,
+                    holeCards = holeCards,
+                    boardCards = boardCards,
+                )
+                VerticalSpacerD800()
+            }
+
             if (street != null) {
                 CurrentHandCard(
                     handNumber = handNumber,
@@ -284,19 +311,53 @@ fun HandRankingsCheatSheet(
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.content,
             )
-            VerticalSpacerD200()
-            Text(
-                text = stringResource(Res.string.room_cheat_sheet_rankings_subtitle),
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.contentSecondary,
-            )
-            VerticalSpacerD800()
+            VerticalSpacerD600()
 
             rankings.forEach { entry ->
-                RankingCard(entry = entry)
-                VerticalSpacerD500()
+                RankingCard(entry = entry, isCurrent = entry.category == currentCategory)
+                VerticalSpacerD300()
             }
             VerticalSpacerD300()
+        }
+    }
+}
+
+@Composable
+private fun YouHaveBanner(
+    category: HandCategory?,
+    holeCards: List<Card>,
+    boardCards: List<Card>,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(Radii.R1000.shape)
+            .background(AppTheme.colors.success.color.copy(alpha = 0.14f))
+            .padding(Dimension.D850),
+        verticalArrangement = Arrangement.spacedBy(Dimension.D300),
+    ) {
+        Text(
+            text = stringResource(Res.string.room_cheat_sheet_you_have_label),
+            typography = AppTheme.typography.Label.L500,
+            color = AppTheme.colors.contentSecondary,
+        )
+        category?.let {
+            Text(
+                text = stringResource(categoryNameResource(it)),
+                typography = AppTheme.typography.Heading.H800,
+                color = AppTheme.colors.success,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                holeCards.forEach { PlayingCard(card = it, size = PlayingCardSize.Mini) }
+            }
+            if (boardCards.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(Dimension.D400))
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    boardCards.forEach { PlayingCard(card = it, size = PlayingCardSize.Mini) }
+                }
+            }
         }
     }
 }
@@ -454,20 +515,33 @@ private fun ActionRow(
 }
 
 @Composable
-private fun RankingCard(entry: RankingEntry) {
+private fun RankingCard(entry: RankingEntry, isCurrent: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R800.shape)
-            .background(AppTheme.colors.surfaceRaised.color)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .background(
+                if (isCurrent) {
+                    AppTheme.colors.success.color.copy(alpha = 0.14f)
+                } else {
+                    AppTheme.colors.surfaceRaised.color
+                },
+            )
+            .then(
+                if (isCurrent) {
+                    Modifier.border(2.dp, AppTheme.colors.success.color, Radii.R800.shape)
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column {
             Text(
                 text = stringResource(entry.name),
                 typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.content,
+                color = if (isCurrent) AppTheme.colors.success else AppTheme.colors.content,
             )
             Text(
                 text = stringResource(entry.tagline),
@@ -475,10 +549,31 @@ private fun RankingCard(entry: RankingEntry) {
                 color = AppTheme.colors.contentSecondary,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             entry.cards.forEach { PlayingCard(card = it, size = PlayingCardSize.Mini) }
         }
     }
+}
+
+private fun currentHandCategory(holeCards: List<Card>, boardCards: List<Card>): HandCategory? {
+    if (holeCards.size != 2) return null
+    val all = holeCards + boardCards
+    if (all.size !in 5..7) return null
+    if (all.distinct().size != all.size) return null
+    return HandEvaluator.evaluate(all).category
+}
+
+private fun categoryNameResource(category: HandCategory): StringResource = when (category) {
+    HandCategory.RoyalFlush -> Res.string.room_cheat_sheet_ranking_royal_flush_name
+    HandCategory.StraightFlush -> Res.string.room_cheat_sheet_ranking_straight_flush_name
+    HandCategory.FourOfAKind -> Res.string.room_cheat_sheet_ranking_four_of_a_kind_name
+    HandCategory.FullHouse -> Res.string.room_cheat_sheet_ranking_full_house_name
+    HandCategory.Flush -> Res.string.room_cheat_sheet_ranking_flush_name
+    HandCategory.Straight -> Res.string.room_cheat_sheet_ranking_straight_name
+    HandCategory.ThreeOfAKind -> Res.string.room_cheat_sheet_ranking_three_of_a_kind_name
+    HandCategory.TwoPair -> Res.string.room_cheat_sheet_ranking_two_pair_name
+    HandCategory.Pair -> Res.string.room_cheat_sheet_ranking_pair_name
+    HandCategory.HighCard -> Res.string.room_cheat_sheet_ranking_high_card_name
 }
 
 private fun streetLabelResourceFor(street: BettingRound): StringResource = when (street) {
@@ -499,6 +594,15 @@ private fun HandRankingsCheatSheetPreview_MidHand() {
             handNumber = 3,
             street = BettingRound.Flop,
             pot = 240,
+            holeCards = listOf(
+                Card(Rank.Ace, Suit.Hearts),
+                Card(Rank.King, Suit.Hearts),
+            ),
+            boardCards = listOf(
+                Card(Rank.Queen, Suit.Hearts),
+                Card(Rank.Five, Suit.Hearts),
+                Card(Rank.Two, Suit.Hearts),
+            ),
         )
     }
 }
@@ -520,6 +624,17 @@ private fun HandRankingsCheatSheetPreview_River() {
             handNumber = 17,
             street = BettingRound.River,
             pot = 1_240,
+            holeCards = listOf(
+                Card(Rank.Nine, Suit.Clubs),
+                Card(Rank.Nine, Suit.Spades),
+            ),
+            boardCards = listOf(
+                Card(Rank.Nine, Suit.Diamonds),
+                Card(Rank.King, Suit.Hearts),
+                Card(Rank.Four, Suit.Clubs),
+                Card(Rank.Jack, Suit.Spades),
+                Card(Rank.Two, Suit.Hearts),
+            ),
         )
     }
 }
