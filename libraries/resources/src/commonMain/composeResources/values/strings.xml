@@ -393,6 +393,9 @@
     <string name="profile_settings_a11y">Settings</string>
     <string name="profile_header_joined">Joined %1$s %2$d</string>
     <string name="profile_play_style_example">Sharp &amp; Steady</string>
+    <string name="stats_play_style_section">Play style</string>
+    <string name="stats_play_style_name">Tight-Aggressive</string>
+    <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
     <string name="profile_stats_banner_title">Your stats &amp; style</string>
     <string name="profile_stats_banner_subtitle">%1$s · %2$d%% win · %3$s won</string>
     <string name="profile_stats_banner_subtitle_no_games">%1$s · Play a few hands to see your stats</string>
@@ -915,6 +918,12 @@
     <string name="ui_earned_ago_weeks">%1$dw ago</string>
     <string name="ui_earned_ago_months">%1$dmo ago</string>
     <string name="ui_earned_ago_years">%1$dy ago</string>
+
+    <!-- UI library — Axis labels for the play-style quadrant (PlayStyleBlob). -->
+    <string name="ui_play_style_axis_tight">Tight</string>
+    <string name="ui_play_style_axis_loose">Loose</string>
+    <string name="ui_play_style_axis_aggressive">Aggressive</string>
+    <string name="ui_play_style_axis_passive">Passive</string>
 
     <!-- Upgrade-required overlay — fires when the client version is below the
          server's minimum supported version. Body is generic so it covers both

@@ -23,6 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.stats_play_style_blurb
+import cards.libraries.resources.generated.resources.stats_play_style_name
+import cards.libraries.resources.generated.resources.stats_play_style_section
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
@@ -36,6 +39,7 @@ import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
+import com.dangerfield.cards.libraries.ui.components.PlayStyleBlob
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.cards.currentProgress
@@ -98,6 +102,21 @@ fun StatsScreen(
             SectionTitle("Lifetime")
             Spacer(modifier = Modifier.height(8.dp))
             LifetimeStatsGrid(progression = state.progression)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            SectionTitle(stringResource(Res.string.stats_play_style_section))
+            Spacer(modifier = Modifier.height(8.dp))
+            PlayStyleBlob(
+                tightness = 0.74f,
+                aggression = 0.78f,
+                styleName = stringResource(Res.string.stats_play_style_name),
+                description = stringResource(Res.string.stats_play_style_blurb),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(Radii.R700.shape)
+                    .background(AppTheme.colors.surface.color)
+                    .padding(vertical = 20.dp),
+            )
             Spacer(modifier = Modifier.height(24.dp))
 
             AchievementsHighlights(

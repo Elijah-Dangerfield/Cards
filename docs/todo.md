@@ -60,10 +60,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P1]` **Player play-style "blob" on Stats — and promote it to the DS.** Render the user's style as a soft radar/blob on a TIGHT↔LOOSE × PASSIVE↔AGGRESSIVE grid, with the style name in a pill ("Tight-Aggressive") + a one-line description (`docs/todo-assets/stats-style.png`). It'll appear in many places (Stats, profile, seat-tap sheet), so build it as a reusable `:libraries:ui` component. Ignore the mock's "Equipped ✓". *(proposed 2026-06-05)*
-  **Acceptance:** Stats shows the style blob + name + blurb; the blob is a DS component (reused by at least Stats).
-  **Hints:** play-style is still an example string (`profile_play_style_example`); ship the blob against the example until a real metric exists. **Out of scope:** computing the real tightness/aggression metric (separate data item).
-
 ### Profile, cosmetics & sheets
 
 - `[P1]` **Cosmetic shelves: single scrolling row, bigger tiles, equipped indicator.** Card backs / felts / emote packs should render in ONE horizontally-scrolling row (not the current 2-row grid), padded with buyable tiles only when the user owns too few to fill it; go to 2 rows once they own ~8+. Tiles a bit larger. Equipped items get a ring or an equipped badge. *(proposed 2026-06-05)*
