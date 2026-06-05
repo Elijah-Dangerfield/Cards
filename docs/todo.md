@@ -64,10 +64,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** Stats shows the style blob + name + blurb; the blob is a DS component (reused by at least Stats).
   **Hints:** play-style is still an example string (`profile_play_style_example`); ship the blob against the example until a real metric exists. **Out of scope:** computing the real tightness/aggression metric (separate data item).
 
-- `[P2]` **Recent-XP rows: source emoji, type-colored points, relative time.** Each recent-XP row should lead with an emoji for the XP source (hand won 🏆, achievement 🎯, …), color the `+N` by source, and show when it was earned (relative time) (`docs/todo-assets/recent-xp.png`). *(proposed 2026-06-05)*
-  **Acceptance:** rows show a source emoji + relative timestamp; the `+N` is colored by `XpSource`.
-  **Hints:** `XpEvent` ([`Progression.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/Progression.kt)) already carries `source: XpSource` + `createdAtEpochMs` — the gap is purely rendering (emoji/color map + an `earnedAgo`-style relative format).
-
 ### Profile, cosmetics & sheets
 
 - `[P1]` **Cosmetic shelves: single scrolling row, bigger tiles, equipped indicator.** Card backs / felts / emote packs should render in ONE horizontally-scrolling row (not the current 2-row grid), padded with buyable tiles only when the user owns too few to fill it; go to 2 rows once they own ~8+. Tiles a bit larger. Equipped items get a ring or an equipped badge. *(proposed 2026-06-05)*

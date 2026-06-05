@@ -40,13 +40,17 @@ import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
+import com.dangerfield.cards.libraries.ui.components.achievement.earnedAgo
+import com.dangerfield.cards.libraries.ui.components.achievement.label
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
+import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -240,6 +244,11 @@ private fun EventRow(event: XpEvent) {
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Text(
+            text = sourceEmoji(event.source),
+            typography = AppTheme.typography.Body.B500,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = sourceLabel(event.source),
@@ -265,11 +274,23 @@ private fun EventRow(event: XpEvent) {
             }
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = "+${event.deltaXp}",
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.content,
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = "+${event.deltaXp}",
+                typography = AppTheme.typography.Body.B600,
+                color = sourceColor(event.source),
+            )
+            val ago = earnedAgo(
+                event.createdAtEpochMs,
+                Clock.System.now().toEpochMilliseconds(),
+            ).label()
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = ago,
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentTertiary,
+            )
+        }
     }
 }
 
@@ -359,6 +380,23 @@ private fun sourceLabel(source: XpSource): String = when (source) {
     XpSource.ACHIEVEMENT -> "Achievement unlocked"
 }
 
+private fun sourceEmoji(source: XpSource): String = when (source) {
+    XpSource.BASE -> "🃏"
+    XpSource.INVESTMENT -> "🪙"
+    XpSource.SHOWDOWN -> "👀"
+    XpSource.HAND_STRENGTH -> "💪"
+    XpSource.ACHIEVEMENT -> "🎯"
+}
+
+@Composable
+private fun sourceColor(source: XpSource): ColorResource = when (source) {
+    XpSource.BASE -> AppTheme.colors.content
+    XpSource.INVESTMENT -> AppTheme.colors.accentSecondary
+    XpSource.SHOWDOWN -> AppTheme.colors.accentTertiary
+    XpSource.HAND_STRENGTH -> AppTheme.colors.info
+    XpSource.ACHIEVEMENT -> AppTheme.colors.success
+}
+
 private fun modeLabel(mode: XpMode): String = when (mode) {
     XpMode.BOTS -> "Bots"
     XpMode.MULTIPLAYER -> "Multiplayer"
@@ -390,6 +428,8 @@ private fun StatsScreenPreview_Empty() {
 @Preview
 @Composable
 private fun StatsScreenPreview_Populated() {
+    val now = Clock.System.now().toEpochMilliseconds()
+    val dayMs = 24L * 60L * 60L * 1000L
     PreviewContent {
         StatsScreen(
             state = StatsState(
@@ -404,10 +444,11 @@ private fun StatsScreenPreview_Populated() {
                     updatedAtEpochMs = 0,
                 ),
                 recentEvents = listOf(
-                    XpEvent(id = 1, deltaXp = 5, source = XpSource.BASE, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
-                    XpEvent(id = 2, deltaXp = 3, source = XpSource.INVESTMENT, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
-                    XpEvent(id = 3, deltaXp = 5, source = XpSource.SHOWDOWN, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
-                    XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = 0L),
+                    XpEvent(id = 1, deltaXp = 5, source = XpSource.ACHIEVEMENT, mode = XpMode.BOTS, handId = null, description = "First win", createdAtEpochMs = now),
+                    XpEvent(id = 2, deltaXp = 3, source = XpSource.INVESTMENT, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = now - 2L * 60L * 60L * 1000L),
+                    XpEvent(id = 3, deltaXp = 5, source = XpSource.SHOWDOWN, mode = XpMode.BOTS, handId = "42", createdAtEpochMs = now - dayMs),
+                    XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "41", createdAtEpochMs = now - 3L * dayMs),
+                    XpEvent(id = 5, deltaXp = 2, source = XpSource.BASE, mode = XpMode.BOTS, handId = "40", createdAtEpochMs = now - 9L * dayMs),
                 ),
             ),
             onBack = {},
