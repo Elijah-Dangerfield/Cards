@@ -521,3 +521,11 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - Without this, the only safety net is the engine validator rejecting actions that don't fit the current state. That's a real (if ugly) backstop.
 
 **Status:** Backlog. Pick up when MP playtests show the symptom or when the engine validator's rejection messaging is verified non-confusing for end users. Pairs with [Lobby host-promotion banner](./decisions.md) — anything that gates on "did my last action go through?" wants this fixed.
+
+---
+
+## PlayStyleBlob reuse — Profile's style banner + seat-tap sheet
+
+**Idea:** The new `PlayStyleBlob` in `:libraries:ui` is the canonical TIGHT/LOOSE × PASSIVE/AGGRESSIVE visual. Profile still renders its own `StatsStyleBanner` with a `DecorativeBlob` for the "Sharp & Steady" example; the in-game seat-tap sheet would also benefit from the same quadrant. Once a real tightness/aggression metric exists, fold both surfaces onto `PlayStyleBlob` so the visual reads identically everywhere and the example/placeholder names line up.
+
+**Status:** Backlog. Pick up alongside the data work for a real play-style metric — same diff.
