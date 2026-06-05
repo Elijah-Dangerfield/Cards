@@ -3,14 +3,19 @@ package com.dangerfield.cards.features.profile.impl.items
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
 import com.dangerfield.cards.libraries.cards.CosmeticTier
+import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.tierForProductId
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
+import com.dangerfield.cards.libraries.identity.profile.AvatarPack
+import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.products.ProductsRepository
@@ -43,6 +48,7 @@ class MyItemsViewModel(
     private val inventoryRepository: InventoryRepository,
     private val productsRepository: ProductsRepository,
     private val equipmentRepository: EquipmentRepository,
+    private val profileRepository: ProfileRepository,
 ) : SEAViewModel<MyItemsState, MyItemsEvent, MyItemsAction>(initialStateArg = MyItemsState()) {
 
     private val logger = KLog.withTag("MyItemsViewModel")
@@ -63,6 +69,18 @@ class MyItemsViewModel(
                 takeAction(MyItemsAction.EquipmentChanged(entries))
             }
         }
+        // Pack contents (avatar packs) so the bookshelf can render a pack's
+        // emojis + the detail sheet's "In this pack" grid. Best-effort: a
+        // failure just leaves avatar packs rendering their fallback glyph.
+        viewModelScope.launch {
+            Catching { profileRepository.fetchAvatarPack() }
+                .getOrNull()
+                ?.let { outcome ->
+                    if (outcome is AvatarPackOutcome.Success) {
+                        takeAction(MyItemsAction.AvatarPacksLoaded(outcome.packs))
+                    }
+                }
+        }
         // Best-effort fetches on entry. Both gracefully no-op when offline.
         viewModelScope.launch { productsRepository.refresh() }
         viewModelScope.launch { equipmentRepository.sync() }
@@ -75,6 +93,9 @@ class MyItemsViewModel(
             }
             is MyItemsAction.CatalogChanged -> action.updateState {
                 it.copy(catalog = action.catalog)
+            }
+            is MyItemsAction.AvatarPacksLoaded -> action.updateState {
+                it.copy(avatarPacks = action.packs)
             }
             is MyItemsAction.EquipmentChanged -> action.updateState {
                 it.copy(
@@ -159,12 +180,37 @@ data class OwnedItem(
      * gating".
      */
     val tier: CosmeticTier? = null,
+    /** Wall-clock at acquisition, from [InventoryItem.purchasedAtEpochMs].
+     *  Feeds the detail sheet's "Earned/Bought … ago" line. */
+    val acquiredAtEpochMs: Long = 0L,
+    /** Chip cost paid at purchase ([InventoryItem.costChipsAtPurchase]); 0
+     *  for IAP and earned grants. Feeds the detail sheet's price line. */
+    val costChipsAtPurchase: Long = 0L,
+    /**
+     * For "pack" products (avatar packs, emote packs) — the emojis the pack
+     * bundles. Empty for single cosmetics. Drives the overlapping-emoji pack
+     * thumbnail on the shelf and the "In this pack" grid in the detail sheet.
+     */
+    val packEmojis: List<String> = emptyList(),
+)
+
+/**
+ * A not-yet-owned cosmetic the user could buy, surfaced as a dimmed tile
+ * after the owned items on a shoppable shelf (card backs, felts, avatar /
+ * emote packs). Tapping routes to the shop. Price is intentionally omitted —
+ * the tile is a "there's more in the shop" nudge, not a purchase surface.
+ */
+data class BuyableCosmetic(
+    val productId: String,
+    val iconEmoji: String,
+    val packEmojis: List<String> = emptyList(),
 )
 
 data class MyItemsState(
     val inventory: List<InventoryItem> = emptyList(),
     val catalog: ProductCatalog = ProductCatalog.Empty,
     val equippedIds: Set<String> = emptySet(),
+    val avatarPacks: List<AvatarPack> = emptyList(),
 ) {
     /** Owned items, newest purchase first, with catalog metadata folded in. */
     val ownedItems: List<OwnedItem>
@@ -182,9 +228,45 @@ data class MyItemsState(
                     isEquippable = product?.isEquippable ?: false,
                     acquisitionSource = item.acquisitionSource,
                     tier = tierForProductId(item.productId),
+                    acquiredAtEpochMs = item.purchasedAtEpochMs,
+                    costChipsAtPurchase = item.costChipsAtPurchase,
+                    packEmojis = packEmojisFor(item.productId),
                 )
             }
         }
+
+    /**
+     * Catalog cosmetics the user doesn't own yet, as dimmed "buy me" tiles
+     * the shelves render after the owned items. Drawn from chip-offers (the
+     * cosmetic side of the catalog) minus everything already in inventory.
+     * The shelves themselves decide which categories get a buyable fill.
+     */
+    val buyableItems: List<BuyableCosmetic>
+        get() {
+            val ownedIds = inventory.map { it.productId }.toSet()
+            return catalog.chipOffers
+                .filter { it.id !in ownedIds }
+                .map { offer ->
+                    BuyableCosmetic(
+                        productId = offer.id,
+                        iconEmoji = offer.iconEmoji,
+                        packEmojis = packEmojisFor(offer.id),
+                    )
+                }
+        }
+
+    /**
+     * The emojis a "pack" product bundles, for the overlapping-emoji
+     * thumbnail + detail grid. Emote packs read from the shared
+     * [EmotePackCatalog]; avatar packs from the server-fetched [avatarPacks].
+     * Empty for single cosmetics (felts, card backs, titles, tools, badges).
+     */
+    private fun packEmojisFor(productId: String): List<String> = when {
+        productId.startsWith("emotes_") -> EmotePackCatalog.emojisForPack(productId)
+        productId.startsWith("avatars_") ->
+            avatarPacks.firstOrNull { it.id == productId }?.emojis.orEmpty()
+        else -> emptyList()
+    }
 
     private fun prettifyMissingId(productId: String): String =
         productId.substringAfterLast('.', productId)
@@ -197,6 +279,7 @@ sealed interface MyItemsEvent
 sealed interface MyItemsAction {
     data class InventoryChanged(val items: List<InventoryItem>) : MyItemsAction
     data class CatalogChanged(val catalog: ProductCatalog) : MyItemsAction
+    data class AvatarPacksLoaded(val packs: List<AvatarPack>) : MyItemsAction
     data class EquipmentChanged(val entries: List<EquipmentEntry>) : MyItemsAction
     data class ToggleEquipped(val productId: String) : MyItemsAction
 }

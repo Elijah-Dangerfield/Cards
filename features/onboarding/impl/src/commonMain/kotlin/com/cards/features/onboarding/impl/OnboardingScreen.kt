@@ -16,6 +16,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -33,7 +34,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -49,11 +53,12 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
-import com.dangerfield.cards.libraries.ui.components.AnimatedChipReveal
+import com.dangerfield.cards.libraries.ui.components.AnimatedCountUpText
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
 import com.dangerfield.cards.libraries.ui.components.CardsFan
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.XpBadge
@@ -92,10 +97,15 @@ import cards.libraries.resources.generated.resources.onboarding_how_card_league_
 import cards.libraries.resources.generated.resources.onboarding_how_card_league_title
 import cards.libraries.resources.generated.resources.onboarding_how_card_play_subtitle
 import cards.libraries.resources.generated.resources.onboarding_how_card_play_title
+import cards.libraries.resources.generated.resources.onboarding_grant_chips_label
 import cards.libraries.resources.generated.resources.onboarding_grant_cta
+import cards.libraries.resources.generated.resources.onboarding_grant_eyebrow
+import cards.libraries.resources.generated.resources.onboarding_grant_feature_friends_bots
+import cards.libraries.resources.generated.resources.onboarding_grant_feature_play_money
+import cards.libraries.resources.generated.resources.onboarding_grant_feature_tournaments
+import cards.libraries.resources.generated.resources.onboarding_grant_footer
 import cards.libraries.resources.generated.resources.onboarding_grant_offline_subtitle
-import cards.libraries.resources.generated.resources.onboarding_grant_revealed_subtitle
-import cards.libraries.resources.generated.resources.onboarding_grant_title
+import cards.libraries.resources.generated.resources.onboarding_grant_subtitle
 import cards.libraries.resources.generated.resources.onboarding_how_continue_button
 import cards.libraries.resources.generated.resources.onboarding_how_eyebrow
 import cards.libraries.resources.generated.resources.onboarding_how_title
@@ -141,6 +151,7 @@ fun OnboardingScreen(
     BackHandler(enabled = state.step != OnboardingStep.Welcome) {
         onAction(OnboardingAction.Back)
     }
+    
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
@@ -183,12 +194,18 @@ fun OnboardingScreen(
                 }
             }
 
-            StepProgressChip(
-                step = state.step,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = Dimension.D300),
-            )
+            // The progress chip rides every counted step (see
+            // CountedOnboardingSteps). The Welcome landing is the entry —
+            // "not technically onboarding" — so it's the only step without a
+            // "step N of N".
+            if (state.step in CountedOnboardingSteps) {
+                StepProgressChip(
+                    step = state.step,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = Dimension.D300),
+                )
+            }
         }
     }
 }
@@ -198,11 +215,15 @@ private fun StepProgressChip(
     step: OnboardingStep,
     modifier: Modifier = Modifier,
 ) {
+    // Position within the counted steps, 1-based. A step not in the list
+    // never renders the chip (guarded at the call site), so the -1/+1 here
+    // is only ever reached for a real member.
+    val position = CountedOnboardingSteps.indexOf(step) + 1
     StatusPill(
         text = stringResource(
             Res.string.onboarding_step_progress,
-            stepIndex(step) + 1,
-            ONBOARDING_STEP_COUNT,
+            position,
+            CountedOnboardingSteps.size,
         ),
         background = AppTheme.colors.surfaceHigh,
         foreground = AppTheme.colors.contentSecondary,
@@ -211,7 +232,16 @@ private fun StepProgressChip(
     )
 }
 
-private const val ONBOARDING_STEP_COUNT = 4
+// Single source of truth for the "step N of N" chip — both the denominator
+// and each step's position derive from this list, so adding a page here
+// keeps the counter accurate with no other edits. Ordered to match the
+// flow. Welcome is the entry landing and is intentionally excluded; every
+// other step (including the StarterGrant payoff) is counted.
+private val CountedOnboardingSteps: List<OnboardingStep> = listOf(
+    OnboardingStep.PickIdentity,
+    OnboardingStep.HowItWorks,
+    OnboardingStep.StarterGrant,
+)
 
 // ---------------------------------------------------------------------------
 // Step 1 — Welcome
@@ -228,12 +258,18 @@ private fun WelcomeStep(
     // skip the animation entirely and render the resting state so @Preview
     // pins are useful for design review.
     val inPreview = LocalInspectionMode.current
-    val initialFanProgress = if (inPreview || BuildInfo.isiOS()) 1f else 0f
-    val initialReveal = if (inPreview) 1f else 0f
+    // The intro reveal is a one-shot. Navigating to Sign in and back tears
+    // this composable down and rebuilds it, so without a retained flag the
+    // fan + content would re-animate from zero every return — the bottom
+    // buttons vanishing for a beat before sliding back in. rememberSaveable
+    // survives the nav round-trip, so on return we render the resting state.
+    var hasRevealed by rememberSaveable { mutableStateOf(inPreview) }
+    val initialFanProgress = if (hasRevealed || BuildInfo.isiOS()) 1f else 0f
+    val initialReveal = if (hasRevealed) 1f else 0f
     val fanProgress = remember { Animatable(initialFanProgress) }
     val contentReveal = remember { Animatable(initialReveal) }
     LaunchedEffect(Unit) {
-        if (inPreview) return@LaunchedEffect
+        if (hasRevealed) return@LaunchedEffect
         fanProgress.animateTo(
             targetValue = 1f,
             animationSpec = tween(durationMillis = 700, easing = EaseOutCubic),
@@ -242,6 +278,7 @@ private fun WelcomeStep(
             targetValue = 1f,
             animationSpec = tween(durationMillis = 450, easing = EaseOutCubic),
         )
+        hasRevealed = true
     }
 
     Column(
@@ -734,59 +771,89 @@ private fun StarterGrantStep(
                 .padding(top = Dimension.D300),
         )
 
-        Spacer(modifier = Modifier.weight(1f))
-
-        Text(
-            text = "🎉",
-            typography = AppTheme.typography.Display.D1000,
-        )
-        Spacer(modifier = Modifier.height(Dimension.D500))
-        Text(
-            text = stringResource(Res.string.onboarding_grant_title),
-            typography = AppTheme.typography.Display.D1000,
-            color = AppTheme.colors.content,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.height(Dimension.D700))
-
-        // The chip slot: reveal the real, server-authoritative number once it
-        // hydrates; show the "lands when you reconnect" line if the grace
-        // window elapsed offline; keep a quiet fixed-height placeholder while
-        // resolving so the layout doesn't jump. We never render a number we
-        // didn't get from the server.
-        Box(
-            modifier = Modifier.height(56.dp),
-            contentAlignment = Alignment.Center,
+        // The hero sits in the space between the fixed back button and the
+        // pinned CTA: centered when it fits, scrollable on short screens so
+        // the dial + pills never clip and the CTA stays reachable.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            val revealed = state.revealedChips
-            when {
-                revealed != null -> AnimatedChipReveal(
-                    amount = revealed,
-                    color = AppTheme.colors.poker.chipGold,
-                )
-                state.grantRevealTimedOut -> Text(
-                    text = stringResource(Res.string.onboarding_grant_offline_subtitle),
-                    typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.contentSecondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
+            Spacer(modifier = Modifier.height(Dimension.D700))
+
+            Text(
+                text = stringResource(Res.string.onboarding_grant_eyebrow),
+                typography = AppTheme.typography.Label.L500,
+                color = AppTheme.colors.poker.chipGold,
+                textAlign = TextAlign.Center,
+            )
+
+            Spacer(modifier = Modifier.height(Dimension.D700))
+
+            // The radiant centerpiece — a slow sun dial framing the chip coin.
+            RotatingDial {
+                ChipCoin(
+                    size = 96.dp,
+                    textTypography = AppTheme.typography.Display.D1100,
                 )
             }
-        }
 
-        if (state.revealedChips != null) {
+            Spacer(modifier = Modifier.height(Dimension.D700))
+
+            // The chip slot: reveal the real, server-authoritative number once
+            // it hydrates; show the "lands when you reconnect" line if the
+            // grace window elapsed offline; keep a quiet fixed-height
+            // placeholder while resolving so the layout doesn't jump. We never
+            // render a number we didn't get from the server.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                val revealed = state.revealedChips
+                when {
+                    revealed != null -> Row(verticalAlignment = Alignment.Bottom) {
+                        AnimatedCountUpText(
+                            amount = revealed,
+                            typography = AppTheme.typography.Display.D1300.Italic,
+                            color = AppTheme.colors.poker.chipGold,
+                        )
+                        Spacer(modifier = Modifier.width(Dimension.D300))
+                        Text(
+                            text = stringResource(Res.string.onboarding_grant_chips_label),
+                            typography = AppTheme.typography.Heading.H800,
+                            color = AppTheme.colors.contentSecondary,
+                            modifier = Modifier.padding(bottom = Dimension.D200),
+                        )
+                    }
+                    state.grantRevealTimedOut -> Text(
+                        text = stringResource(Res.string.onboarding_grant_offline_subtitle),
+                        typography = AppTheme.typography.Body.B600,
+                        color = AppTheme.colors.contentSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(Dimension.D500))
             Text(
-                text = stringResource(Res.string.onboarding_grant_revealed_subtitle),
+                text = stringResource(Res.string.onboarding_grant_subtitle),
                 typography = AppTheme.typography.Body.B600,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
-        }
 
-        Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(Dimension.D700))
+            GrantFeaturePills()
+
+            Spacer(modifier = Modifier.height(Dimension.D700))
+        }
 
         // Always enabled — never block the user on the wallet round-trip.
         ButtonPrimary(
@@ -795,7 +862,53 @@ private fun StarterGrantStep(
         ) {
             Text(stringResource(Res.string.onboarding_grant_cta))
         }
+        Spacer(modifier = Modifier.height(Dimension.D400))
+        Text(
+            text = stringResource(Res.string.onboarding_grant_footer),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(modifier = Modifier.height(Dimension.D700))
+    }
+}
+
+/**
+ * The three positioning pills on the starter-grant page — two on top, one
+ * centered below, mirroring the marketing layout. Static; purely a value-prop
+ * reminder while the chip reveal plays.
+ */
+@Composable
+private fun GrantFeaturePills() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Dimension.D400),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
+            GrantFeaturePill("🃏", stringResource(Res.string.onboarding_grant_feature_play_money))
+            GrantFeaturePill("👥", stringResource(Res.string.onboarding_grant_feature_friends_bots))
+        }
+        GrantFeaturePill("🏆", stringResource(Res.string.onboarding_grant_feature_tournaments))
+    }
+}
+
+@Composable
+private fun GrantFeaturePill(emoji: String, label: String) {
+    StatusPill(
+        background = AppTheme.colors.surfaceHigh,
+        contentPadding = PaddingValues(
+            horizontal = Dimension.D500,
+            vertical = Dimension.D300,
+        ),
+        horizontalSpacing = Dimension.D200,
+    ) {
+        Text(text = emoji, typography = AppTheme.typography.Body.B600)
+        Text(
+            text = label,
+            typography = AppTheme.typography.Label.L500,
+            color = AppTheme.colors.content,
+        )
     }
 }
 

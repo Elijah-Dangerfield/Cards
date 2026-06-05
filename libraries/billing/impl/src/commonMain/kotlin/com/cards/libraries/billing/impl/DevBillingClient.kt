@@ -68,12 +68,8 @@ private val DEV_FAKE_CATALOG: Map<String, BillingProduct> = listOf(
     devProduct(sku = "chips_small", price = "$0.99", micros = 990_000),
     devProduct(sku = "com.cards.iap.chips.medium", price = "$4.99", micros = 4_990_000),
     devProduct(sku = "chips_medium", price = "$4.99", micros = 4_990_000),
-    devProduct(sku = "com.cards.iap.chips.large", price = "$9.99", micros = 9_990_000),
-    devProduct(sku = "chips_large", price = "$9.99", micros = 9_990_000),
-    devProduct(sku = "com.cards.iap.chips.mega", price = "$19.99", micros = 19_990_000),
-    devProduct(sku = "chips_mega", price = "$19.99", micros = 19_990_000),
-    devProduct(sku = "com.cards.iap.chips.flash_sale", price = "$0.99", micros = 990_000),
-    devProduct(sku = "chips_flash_sale", price = "$0.99", micros = 990_000),
+    devProduct(sku = "com.cards.iap.chips.large", price = "$14.99", micros = 14_990_000),
+    devProduct(sku = "chips_large", price = "$14.99", micros = 14_990_000),
 ).associateBy { it.sku }
 
 private fun devProduct(sku: String, price: String, micros: Long): BillingProduct = BillingProduct(

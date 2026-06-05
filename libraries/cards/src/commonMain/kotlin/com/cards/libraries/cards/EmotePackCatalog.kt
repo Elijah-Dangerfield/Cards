@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.room.impl
+package com.dangerfield.cards.libraries.cards
 
 /**
  * Client-side mapping from owned emote-pack product IDs to the emojis those
@@ -16,14 +16,18 @@ package com.dangerfield.cards.features.room.impl
  * Emoji blasts are a paid surface — a user with no `emotes_*` pack gets
  * nothing back from [availableEmojisFor], which is what the screen uses
  * to decide whether to render the tray at all.
+ *
+ * Lives in `:libraries:cards` (not the room feature) so the Profile bookshelf
+ * can render a pack's contents + the "Try it out" blast alongside the in-game
+ * tray.
  */
-internal object EmojiPackCatalog {
+object EmotePackCatalog {
 
     /**
      * `productId` → emoji list. Keys match `apps/server/.../V5__products.sql`;
      * values match the localized "Unlocks ..." copy in `V14__emote_pack_copy.sql`.
      */
-    private val PackEmojis: Map<String, List<String>> = mapOf(
+    val PackEmojis: Map<String, List<String>> = mapOf(
         "emotes_drama" to listOf("💃", "🧂", "🎭", "🤦"),
         "emotes_cute" to listOf("🥺", "🥰", "😇", "🤗"),
         "emotes_fierce" to listOf("😤", "🔥", "💀", "😎"),
@@ -58,6 +62,12 @@ internal object EmojiPackCatalog {
         }
         return result.toList()
     }
+
+    /**
+     * The emojis bundled in a single pack, or empty if [productId] isn't a
+     * known emote pack. Feeds the Profile detail sheet's "In this pack" grid.
+     */
+    fun emojisForPack(productId: String): List<String> = PackEmojis[productId].orEmpty()
 
     /**
      * Curated four-emoji sample rendered greyed-out in the empty-state

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,9 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.stats_claim_disclosure_body
-import cards.libraries.resources.generated.resources.stats_claim_disclosure_cta
-import cards.libraries.resources.generated.resources.stats_claim_disclosure_title
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.AllAchievementsById
@@ -40,9 +36,10 @@ import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
+import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.Surface
-import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
+import com.dangerfield.cards.libraries.cards.currentProgress
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -89,8 +86,8 @@ fun StatsScreen(
             XpHero(progress = levelProgress)
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (state.isAnonymous && levelProgress.level > 1) {
-                ClaimDisclosureCard(onClaimAccount = onClaimAccount)
+            if (state.isAnonymous) {
+                SaveProgressBanner(onSignIn = onClaimAccount)
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
@@ -147,7 +144,7 @@ private fun XpHero(progress: LevelProgress) {
             color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        LevelProgressBar(fraction = progress.fraction, height = 10.dp)
+        LevelProgressBar(fraction = progress.fraction)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",
@@ -283,8 +280,8 @@ private fun AchievementsHighlights(
 ) {
     // Always fill 3 slots. Lead with most-recently-earned, then back-fill
     // with locked achievements as a "what's next" preview — otherwise the
-    // medallion's aspectRatio(1f) blows it up to full-row width when only
-    // one is earned. See [AchievementMedallion].
+    // medal's aspectRatio(1f) blows it up to full-row width when only
+    // one is earned. See [AchievementMedal].
     val slotCount = 3
     val earnedOrdered: List<Pair<com.dangerfield.cards.libraries.cards.Achievement, Long?>> =
         progress.earned.entries
@@ -318,10 +315,10 @@ private fun AchievementsHighlights(
         Spacer(modifier = Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             toShow.forEach { (achievement, earnedAt) ->
-                AchievementMedallion(
+                AchievementMedalWithDetail(
                     achievement = achievement,
                     earnedAtEpochMs = earnedAt,
-                    progress = progress.counters[achievement.id] ?: 0,
+                    progress = achievement.currentProgress(progress),
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -340,43 +337,6 @@ private fun AchievementsHighlights(
                 text = "See all $total achievements",
                 typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.content,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ClaimDisclosureCard(onClaimAccount: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = AppTheme.colors.surface,
-        contentColor = AppTheme.colors.content,
-        radius = Radii.Card,
-        onClick = onClaimAccount,
-        bounceScale = 0.98f,
-        contentPadding = PaddingValues(16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.stats_claim_disclosure_title),
-                    typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.content,
-                )
-                Text(
-                    text = stringResource(Res.string.stats_claim_disclosure_body),
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.contentSecondary,
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = stringResource(Res.string.stats_claim_disclosure_cta),
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.accentPrimary,
             )
         }
     }

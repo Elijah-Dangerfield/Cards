@@ -40,6 +40,9 @@ import cards.libraries.resources.generated.resources.tutorial_actions_fold_descr
 import cards.libraries.resources.generated.resources.tutorial_actions_fold_label
 import cards.libraries.resources.generated.resources.tutorial_actions_raise_description
 import cards.libraries.resources.generated.resources.tutorial_actions_raise_label
+import cards.libraries.resources.generated.resources.tutorial_eyebrow_goal
+import cards.libraries.resources.generated.resources.tutorial_eyebrow_hand
+import cards.libraries.resources.generated.resources.tutorial_eyebrow_move
 import cards.libraries.resources.generated.resources.tutorial_handranks_row1_subtitle
 import cards.libraries.resources.generated.resources.tutorial_handranks_row1_title
 import cards.libraries.resources.generated.resources.tutorial_handranks_row2_subtitle
@@ -70,6 +73,7 @@ import com.dangerfield.cards.system.Dimension.D1000
 import com.dangerfield.cards.system.Dimension.D500
 import com.dangerfield.cards.system.DimensionResource
 import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD400
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
@@ -146,7 +150,15 @@ internal fun NarrationStep(
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                VerticalSpacerD800()
+                // Step counter pinned to the top (matching the tableau
+                // steps' top overlay), so progress reads consistently across
+                // the whole tutorial.
+                VerticalSpacerD400()
+                StepCounterPill(
+                    section = section,
+                    sectionStep = sectionStepIndex + 1,
+                    sectionTotal = sectionTotalSteps,
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -155,12 +167,20 @@ internal fun NarrationStep(
                 ) {
                     NarrationHeroBlock(hero = animatedStep.hero)
                 }
-                StepCounterPill(
-                    section = section,
-                    sectionStep = sectionStepIndex + 1,
-                    sectionTotal = sectionTotalSteps,
-                )
-                VerticalSpacerD400()
+                // Eyebrow/kicker categorising the gold headline — "Your goal"
+                // / "Your hand" / "Your move" — so each basics card states
+                // what the headline is teaching before the headline itself.
+                val eyebrowRes = eyebrowFor(animatedStep.hero)
+                if (eyebrowRes != null) {
+                    Text(
+                        text = stringResource(eyebrowRes).uppercase(),
+                        typography = AppTheme.typography.Caption.C200.SemiBold,
+                        color = AppTheme.colors.contentSecondary,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    VerticalSpacerD200()
+                }
                 val titleRes = animatedStep.coach.title
                 if (titleRes != null) {
                     Text(
@@ -216,6 +236,18 @@ internal fun NarrationStep(
  * just be visual noise. No-op when [hero] is null so callers can
  * size unconditionally without branching on presence.
  */
+/**
+ * The eyebrow label that categorises each basics headline: the goal, the
+ * hand-ranking idea, or the available moves. Null for narration steps without
+ * a hero (no headline to caption).
+ */
+private fun eyebrowFor(hero: NarrationHero?): StringResource? = when (hero) {
+    NarrationHero.Pot -> Res.string.tutorial_eyebrow_goal
+    NarrationHero.HandRanks -> Res.string.tutorial_eyebrow_hand
+    NarrationHero.Actions -> Res.string.tutorial_eyebrow_move
+    null -> null
+}
+
 @Composable
 private fun NarrationHeroBlock(hero: NarrationHero?) {
     if (hero == null) return

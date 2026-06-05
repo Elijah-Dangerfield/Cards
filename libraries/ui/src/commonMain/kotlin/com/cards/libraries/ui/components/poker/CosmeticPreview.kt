@@ -11,7 +11,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.CosmeticSlot
@@ -35,9 +37,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *  - **Card back** — renders a small [PlayingCardBack] in the resolved
  *    style. The card's shadow + border + brush all come from the DS,
  *    matching what shows up at the table.
- *  - **Emoji fallback** — for everything else (emote packs, avatar
- *    packs, utilities), draws the product's [emoji] inside a circle so
- *    the row never looks empty.
+ *  - **Pack** — when [packEmojis] holds 2+ glyphs (an avatar or emote
+ *    pack whose contents are known), renders a [CosmeticPackThumbnail]:
+ *    two overlapping emoji tiles that read as a "pack" rather than a lone
+ *    glyph.
+ *  - **Emoji fallback** — for everything else (utilities, or a pack whose
+ *    contents we don't have), draws the product's [emoji] inside a circle
+ *    so the row never looks empty.
  *
  * The component is *intentionally* a chooser, not a sealed type — the
  * single decision point keeps callsites tight (`CosmeticPreview(productId
@@ -52,11 +58,56 @@ fun CosmeticPreview(
     emoji: String,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
+    packEmojis: List<String> = emptyList(),
 ) {
     when (cosmeticSlotFor(productId)) {
         CosmeticSlot.Felt -> FeltSwatch(productId = productId, size = size, modifier = modifier)
         CosmeticSlot.CardBack -> CardBackPreview(productId = productId, size = size, modifier = modifier)
-        else -> EmojiTile(emoji = emoji, size = size, modifier = modifier)
+        else -> if (packEmojis.size >= 2) {
+            CosmeticPackThumbnail(emojis = packEmojis, size = size, modifier = modifier)
+        } else {
+            EmojiTile(emoji = emoji, size = size, modifier = modifier)
+        }
+    }
+}
+
+/**
+ * A "pack" swatch: two of the pack's emoji tiles stacked with a slight
+ * offset so a bundle (avatar pack, emote pack) reads as a stack of things
+ * rather than a single glyph. The front tile carries a background-colored
+ * ring so it stays legible where it overlaps the back tile.
+ *
+ * Falls back to a single tile if fewer than two emojis are supplied.
+ */
+@Composable
+fun CosmeticPackThumbnail(
+    emojis: List<String>,
+    modifier: Modifier = Modifier,
+    size: Dp = 48.dp,
+) {
+    val front = emojis.firstOrNull() ?: "🎁"
+    val back = emojis.getOrNull(1)
+    if (back == null) {
+        EmojiTile(emoji = front, size = size, modifier = modifier)
+        return
+    }
+    // Each tile is a bit smaller than the footprint so the two fit on the
+    // diagonal with a visible offset.
+    val tile = size * 0.72f
+    Box(modifier = modifier.size(size)) {
+        EmojiTile(
+            emoji = back,
+            size = tile,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .alpha(0.75f),
+        )
+        EmojiTile(
+            emoji = front,
+            size = tile,
+            ringColor = AppTheme.colors.background.color,
+            modifier = Modifier.align(Alignment.BottomEnd),
+        )
     }
 }
 
@@ -93,12 +144,24 @@ private fun CardBackPreview(productId: String, size: Dp, modifier: Modifier = Mo
 }
 
 @Composable
-private fun EmojiTile(emoji: String, size: Dp, modifier: Modifier = Modifier) {
+private fun EmojiTile(
+    emoji: String,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    ringColor: Color? = null,
+) {
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(AppTheme.colors.surfaceRaised.color),
+            .background(AppTheme.colors.surfaceRaised.color)
+            .then(
+                if (ringColor != null) {
+                    Modifier.border(2.dp, ringColor, CircleShape)
+                } else {
+                    Modifier
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -192,6 +255,30 @@ private fun PreviewCosmeticPreview_EmojiFallback() {
             CosmeticPreview(productId = "emotes_drama", emoji = "💃")
             CosmeticPreview(productId = "avatars_animals", emoji = "🐶")
             CosmeticPreview(productId = "title_bluff_master", emoji = "🎯")
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewCosmeticPreview_Packs() {
+    PreviewContent {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(8.dp),
+        ) {
+            CosmeticPreview(
+                productId = "avatars_animals",
+                emoji = "🐶",
+                packEmojis = listOf("🐶", "🐻", "🐰", "🐨"),
+            )
+            CosmeticPreview(
+                productId = "emotes_baller",
+                emoji = "💸",
+                packEmojis = listOf("💸", "💎", "🤑", "📈"),
+            )
+            CosmeticPackThumbnail(emojis = listOf("👑", "🃏"), size = 64.dp)
         }
     }
 }

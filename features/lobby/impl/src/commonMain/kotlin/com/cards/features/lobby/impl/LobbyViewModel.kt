@@ -47,6 +47,7 @@ import kotlin.uuid.Uuid
 @Inject
 class LobbyViewModel(
     @Assisted private val prefilledCode: String?,
+    @Assisted private val autoCreate: Boolean,
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val appScope: AppCoroutineScope,
@@ -79,6 +80,10 @@ class LobbyViewModel(
         // doesn't have to tap twice.
         if (!prefilledCode.isNullOrBlank()) {
             takeAction(LobbyAction.SubmitJoin)
+        } else if (autoCreate) {
+            // Friend Game "Create a room" path: spin up the room on entry
+            // so the user lands seated with a shareable code.
+            takeAction(LobbyAction.CreateRoom)
         }
     }
 

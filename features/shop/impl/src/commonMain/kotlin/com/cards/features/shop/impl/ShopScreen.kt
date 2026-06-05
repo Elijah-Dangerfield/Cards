@@ -6,6 +6,8 @@ import cards.libraries.resources.generated.resources.shop_empty_subtitle
 import cards.libraries.resources.generated.resources.shop_empty_title
 import cards.libraries.resources.generated.resources.shop_error_retry
 import cards.libraries.resources.generated.resources.shop_error_title
+import cards.libraries.resources.generated.resources.shop_get_chips_footnote
+import cards.libraries.resources.generated.resources.shop_get_chips_title
 import cards.libraries.resources.generated.resources.shop_header_subtitle
 import cards.libraries.resources.generated.resources.shop_header_title
 import cards.libraries.resources.generated.resources.shop_idea_footer_button
@@ -18,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -45,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.CosmeticTier
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.isPersonalCosmetic
@@ -76,6 +80,7 @@ import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
+import com.dangerfield.cards.system.thenIf
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD400
@@ -187,9 +192,6 @@ private fun CatalogContent(
     onIdeaTap: () -> Unit,
     scrollState: ScrollState = rememberScrollState(),
 ) {
-    val featured = state.catalog.chipPacks.firstOrNull { it.featured }
-    val otherPacks = state.catalog.chipPacks.filterNot { it.id == featured?.id }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -204,38 +206,27 @@ private fun CatalogContent(
         ShopHeader(chips = state.chipBalance ?: 0L)
         VerticalSpacerD700()
 
-        featured?.let {
-            FeaturedPackHero(
-                pack = it,
-                onClick = { onProductTap(it.id) },
-            )
-            VerticalSpacerD800()
-        }
+        GetChipsSection(
+            packs = state.catalog.chipPacks,
+            onProductTap = onProductTap,
+        )
+        VerticalSpacerD800()
 
-        if (otherPacks.isNotEmpty()) {
-            SectionHeader(
-                title = "Buy chips",
-                subtitle = "Stock up — every game uses chips.",
-            )
-            VerticalSpacerD400()
-            ProductGrid(items = otherPacks) { pack ->
-                ChipPackCard(
-                    pack = pack,
-                    timeAnchor = state.timeAnchor,
-                    onExpired = { onAction(ShopAction.Refresh(force = true)) },
-                    onClick = { onProductTap(pack.id) },
-                )
-            }
-            VerticalSpacerD800()
+        // Cosmetics grouped by product type so the shop reads as organized
+        // shelves (Card backs, Felts, Table themes, Emote packs, …) rather
+        // than one undifferentiated grid. Catalog sort order is preserved
+        // within each group.
+        val offerSections = ShopSectionOrder.mapNotNull { section ->
+            state.catalog.chipOffers
+                .filter { shopSectionFor(it.id) == section }
+                .takeIf { it.isNotEmpty() }
+                ?.let { section to it }
         }
-
-        if (state.catalog.chipOffers.isNotEmpty()) {
-            SectionHeader(
-                title = "Build your style",
-                subtitle = "Emotes, table themes, and titles.",
-            )
+        offerSections.forEachIndexed { index, (section, items) ->
+            if (index > 0) VerticalSpacerD800()
+            SectionHeader(title = section.title)
             VerticalSpacerD400()
-            ProductGrid(items = state.catalog.chipOffers) { offer ->
+            ProductGrid(items = items) { offer ->
                 ChipOfferCard(
                     offer = offer,
                     cardState = state.classify(offer),
@@ -291,6 +282,42 @@ private fun ShopHeader(chips: Long) {
     }
 }
 
+/**
+ * Storefront shelves for the chip-offer catalog, keyed off the product-id
+ * prefix convention (`cardback_`, `felt_`, `table_`, `emotes_`, `avatars_`,
+ * `tool_`). Titles are unlock-only (earned, not bought) so they never reach
+ * the shop and get no shelf here.
+ */
+private enum class ShopSection(val title: String) {
+    CardBacks("Card backs"),
+    Felts("Felts"),
+    Tables("Table themes"),
+    Emotes("Emote packs"),
+    Avatars("Avatar packs"),
+    Tools("Tools"),
+    Other("More"),
+}
+
+private val ShopSectionOrder = listOf(
+    ShopSection.CardBacks,
+    ShopSection.Felts,
+    ShopSection.Tables,
+    ShopSection.Emotes,
+    ShopSection.Avatars,
+    ShopSection.Tools,
+    ShopSection.Other,
+)
+
+private fun shopSectionFor(productId: String): ShopSection = when {
+    productId.startsWith("cardback_") -> ShopSection.CardBacks
+    productId.startsWith("felt_") -> ShopSection.Felts
+    productId.startsWith("table_") -> ShopSection.Tables
+    productId.startsWith("emotes_") -> ShopSection.Emotes
+    productId.startsWith("avatars_") -> ShopSection.Avatars
+    productId.startsWith("tool_") -> ShopSection.Tools
+    else -> ShopSection.Other
+}
+
 @Composable
 private fun SectionHeader(title: String, subtitle: String? = null) {
     Column {
@@ -344,188 +371,227 @@ private fun <T> ProductGrid(
 }
 
 // ---------------------------------------------------------------------------
-// Featured hero card
+// Get chips — responsive 3-tier chip-pack section
 // ---------------------------------------------------------------------------
 
+/**
+ * The "Get chips" section: a responsive chip-pack ladder with the featured
+ * pack highlighted as the middle "POPULAR" tier. On wide-enough screens the
+ * three packs render side-by-side (the popular one raised + gold); on thin
+ * screens they stack into roomy full-width rows so nothing gets cramped.
+ *
+ * A "best value" / promo hero banner can slot in directly above the three
+ * options (see the marker below) without disturbing this layout.
+ */
 @Composable
-private fun FeaturedPackHero(pack: Product.ChipPack, onClick: () -> Unit) {
-    // Gradient backdrop — accentSecondary (purple) → accentPrimary (blue),
-    // giving the hero its own visual zone vs. the neutral cards below.
-    val gradient = Brush.linearGradient(
-        colors = listOf(
-            AppTheme.colors.accentSecondary.color,
-            AppTheme.colors.accentPrimary.color,
-        ),
-    )
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = null,
-        contentColor = AppTheme.colors.onAccentPrimary,
-        radius = Radii.Card,
-        elevation = Elevation.Card,
-        onClick = onClick,
-        bounceScale = 0.97f,
-        contentPadding = PaddingValues(0.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(gradient)
-                .padding(horizontal = Dimension.D850, vertical = Dimension.D850),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                HeroProductIcon(emoji = pack.iconEmoji)
-                Spacer(modifier = Modifier.size(Dimension.D700))
-                Column(modifier = Modifier.weight(1f)) {
-                    pack.badge?.let {
-                        BadgePill(text = it, accent = ColorResource.White)
-                        VerticalSpacerD200()
-                    }
-                    Text(
-                        text = pack.title,
-                        typography = AppTheme.typography.Heading.H800,
-                        color = AppTheme.colors.onAccentPrimary,
+private fun GetChipsSection(
+    packs: List<Product.ChipPack>,
+    onProductTap: (productId: String) -> Unit,
+) {
+    if (packs.isEmpty()) return
+    SectionHeader(title = stringResource(Res.string.shop_get_chips_title))
+    VerticalSpacerD500()
+
+    // Hero banner slot — intentionally empty for now. Drop a promo/best-value
+    // banner here when one exists; it sits above the main three options.
+
+    BoxWithConstraints {
+        // Three side-by-side cards only read well with enough width; below the
+        // breakpoint we stack into full-width rows.
+        if (maxWidth >= ThreeUpMinWidth) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                packs.forEach { pack ->
+                    ChipTierCard(
+                        pack = pack,
+                        isPopular = pack.featured,
+                        onClick = { onProductTap(pack.id) },
+                        modifier = Modifier.weight(1f),
                     )
-                    VerticalSpacerD100()
-                    Text(
-                        text = pack.subtitle,
-                        typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.onAccentPrimary,
-                        modifier = Modifier.alpha(0.85f),
-                    )
-                    VerticalSpacerD400()
-                    Text(
-                        text = pack.store.fallbackPriceDisplay,
-                        typography = AppTheme.typography.Heading.H700,
-                        color = AppTheme.colors.onAccentPrimary,
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(Dimension.D400)) {
+                packs.forEach { pack ->
+                    ChipTierRowCard(
+                        pack = pack,
+                        isPopular = pack.featured,
+                        onClick = { onProductTap(pack.id) },
                     )
                 }
             }
         }
     }
+
+    VerticalSpacerD500()
+    Text(
+        text = stringResource(Res.string.shop_get_chips_footnote),
+        typography = AppTheme.typography.Body.B400,
+        color = AppTheme.colors.contentSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
+/**
+ * Below this usable width the three-up row gets cramped, so we stack into
+ * full-width rows instead. Tuned so normal phones (~320dp+ usable) keep the
+ * side-by-side ladder and only genuinely thin / split-screen cases stack.
+ */
+private val ThreeUpMinWidth = 300.dp
+
+/**
+ * Soft gold wash for chip-pack cards — every buyable chip tier wears it so
+ * the grid reads as one warm "chips" family (was POPULAR-only). The popular
+ * tier still stands apart via its accent border + overhang badge + taller
+ * card, not a unique fill.
+ */
 @Composable
-private fun HeroProductIcon(emoji: String) {
+private fun chipPackGradient(): Brush = Brush.verticalGradient(
+    colors = listOf(
+        AppTheme.colors.accentPrimary.color.copy(alpha = 0.30f),
+        AppTheme.colors.accentPrimary.color.copy(alpha = 0.10f),
+    ),
+)
+
+@Composable
+private fun PricePill(text: String) {
     Box(
         modifier = Modifier
-            .size(86.dp)
-            .clip(Radii.R850.shape)
-            .background(AppTheme.colors.background.color.copy(alpha = 0.18f))
-            .border(
-                width = 2.dp,
-                color = AppTheme.colors.onAccentPrimary.color.copy(alpha = 0.25f),
-                shape = Radii.R850.shape,
-            ),
-        contentAlignment = Alignment.Center,
+            .clip(Radii.Round.shape)
+            .background(AppTheme.colors.background.color)
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D200),
     ) {
         Text(
-            text = emoji,
-            typography = AppTheme.typography.Heading.H1100,
-            color = AppTheme.colors.onAccentPrimary,
+            text = text,
+            typography = AppTheme.typography.Body.B600,
+            color = AppTheme.colors.content,
         )
     }
 }
 
-// ---------------------------------------------------------------------------
-// Chip pack card (grid item)
-// ---------------------------------------------------------------------------
-
-/**
- * Cards with a [Product.badge] wrap their Surface in a [BadgedBox] so the
- * badge can hang off the top-right corner without disturbing the card's
- * interior layout. The translation nudges the badge in toward the card
- * just enough that it can't get clipped by the screen's horizontal padding
- * on the rightmost column.
- *
- * Without [BadgedBox] we had a hand-rolled `CornerBadge` that used a flat
- * `offset(x = 6, y = -6)` — works for centered cards but the right column's
- * badge crept under the parent Column's padding. Letting the DS primitive
- * handle the math means the same call site works on any grid.
- */
+/** Vertical tier card for the wide (3-up) layout. */
 @Composable
-private fun ChipPackCard(
+private fun ChipTierCard(
     pack: Product.ChipPack,
-    timeAnchor: com.dangerfield.cards.libraries.products.CatalogTimeAnchor?,
-    onExpired: () -> Unit,
+    isPopular: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val card: @Composable () -> Unit = {
+    val gradient = chipPackGradient()
+    val inner: @Composable () -> Unit = {
         Surface(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .thenIf(isPopular) {
+                    border(2.dp, AppTheme.colors.accentPrimary.color, Radii.Card.shape)
+                },
             color = AppTheme.colors.surface,
             contentColor = AppTheme.colors.content,
             radius = Radii.Card,
             elevation = Elevation.Card,
             onClick = onClick,
             bounceScale = 0.95f,
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(0.dp),
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(gradient)
+                    // The popular tier is taller (more vertical breathing room)
+                    // so it visibly rises above its neighbors in the row.
+                    .padding(
+                        horizontal = Dimension.D400,
+                        vertical = if (isPopular) Dimension.D850 else Dimension.D600,
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 ProductIcon(emoji = pack.iconEmoji, tone = IconTone.Gold)
                 VerticalSpacerD400()
                 Text(
-                    text = pack.title,
-                    typography = AppTheme.typography.Body.B600,
+                    text = formatThousands(pack.grantsChips),
+                    // H700 (vs H800) so the widest amount ("120,000") fits a
+                    // narrow ~100dp column without wrapping in the 3-up layout.
+                    typography = AppTheme.typography.Heading.H700,
                     color = AppTheme.colors.content,
                     textAlign = TextAlign.Center,
+                    maxLines = 1,
                 )
-                VerticalSpacerD100()
-                Text(
-                    text = pack.subtitle,
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.contentSecondary,
-                    textAlign = TextAlign.Center,
-                )
-                // Spacer-with-weight pushes the price to the bottom edge so
-                // every card in the row aligns regardless of how much
-                // content sits above. Works in concert with the parent grid's
-                // IntrinsicSize.Max + fillMaxHeight chain.
-                Spacer(modifier = Modifier.weight(1f, fill = true))
-                Spacer(modifier = Modifier.height(Dimension.D400))
-                Text(
-                    text = pack.store.fallbackPriceDisplay,
-                    typography = AppTheme.typography.Body.B600,
-                    color = AppTheme.colors.content,
-                )
+                VerticalSpacerD400()
+                PricePill(text = pack.store.fallbackPriceDisplay)
             }
         }
     }
-
-    // Badge slot priority:
-    //   1. Sale-window countdown — most urgent info, beats marketing badges.
-    //   2. Marketing badge (e.g. "BEST VALUE").
-    //   3. No badge.
-    val saleEpochMs = pack.availableUntilEpochMs
     val packBadge = pack.badge
-    val badgeContent: @Composable (() -> Unit)? = when {
-        saleEpochMs != null && timeAnchor != null -> {
-            {
-                CountdownBadge(
-                    timeAnchor = timeAnchor,
-                    availableUntilEpochMs = saleEpochMs,
-                    onExpired = onExpired,
-                )
-            }
-        }
-        packBadge != null -> {
-            { OverhangBadge(text = packBadge, accent = AppTheme.colors.accentPrimary) }
-        }
-        else -> null
-    }
-    if (badgeContent == null) {
-        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) { card() }
-    } else {
+    if (isPopular && packBadge != null) {
         BadgedBox(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+            modifier = modifier.fillMaxWidth(),
             contentRadius = Radii.Card,
             placement = BadgePlacement.EdgeAlignedTop,
-            badge = { badgeContent() },
-            content = { card() },
+            badge = { OverhangBadge(text = packBadge, accent = AppTheme.colors.accentPrimary) },
+            content = { inner() },
         )
+    } else {
+        Box(modifier = modifier.fillMaxWidth()) { inner() }
+    }
+}
+
+/** Full-width horizontal tier card for the narrow (stacked) layout. */
+@Composable
+private fun ChipTierRowCard(
+    pack: Product.ChipPack,
+    isPopular: Boolean,
+    onClick: () -> Unit,
+) {
+    val gradient = chipPackGradient()
+    val inner: @Composable () -> Unit = {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .thenIf(isPopular) {
+                    border(2.dp, AppTheme.colors.accentPrimary.color, Radii.Card.shape)
+                },
+            color = AppTheme.colors.surface,
+            contentColor = AppTheme.colors.content,
+            radius = Radii.Card,
+            elevation = Elevation.Card,
+            onClick = onClick,
+            bounceScale = 0.97f,
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(gradient)
+                    .padding(Dimension.D600),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ProductIcon(emoji = pack.iconEmoji, tone = IconTone.Gold)
+                Spacer(modifier = Modifier.size(Dimension.D500))
+                Text(
+                    text = formatThousands(pack.grantsChips),
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.content,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                PricePill(text = pack.store.fallbackPriceDisplay)
+            }
+        }
+    }
+    val packBadge = pack.badge
+    if (isPopular && packBadge != null) {
+        BadgedBox(
+            modifier = Modifier.fillMaxWidth(),
+            contentRadius = Radii.Card,
+            placement = BadgePlacement.EdgeAlignedTop,
+            badge = { OverhangBadge(text = packBadge, accent = AppTheme.colors.accentPrimary) },
+            content = { inner() },
+        )
+    } else {
+        inner()
     }
 }
 
@@ -653,8 +719,8 @@ private fun ChipOfferCard(
                         modifier = Modifier.alpha(dimmableAlpha),
                     )
                 }
-                // Push the footer to the bottom edge — see ChipPackCard
-                // for the rationale.
+                // Push the footer to the bottom edge so every card in the
+                // row aligns regardless of how much content sits above.
                 Spacer(modifier = Modifier.weight(1f, fill = true))
                 Spacer(modifier = Modifier.height(Dimension.D400))
                 // Footers render at full opacity regardless of card state
@@ -1080,16 +1146,6 @@ private fun ShopScreenPreview_ErrorWithPriorCatalog() {
 private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
     chipPacks = listOf(
         Product.ChipPack(
-            id = "chip_pack_medium",
-            title = "Tall Stack",
-            subtitle = "30,000 chips",
-            iconEmoji = "💰",
-            featured = true,
-            badge = "BEST VALUE",
-            grantsChips = 30_000,
-            store = StoreSku("chips_medium", "$4.99"),
-        ),
-        Product.ChipPack(
             id = "chip_pack_small",
             title = "Pocket Stack",
             subtitle = "5,000 chips",
@@ -1098,21 +1154,22 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
             store = StoreSku("chips_small", "$0.99"),
         ),
         Product.ChipPack(
-            id = "chip_pack_large",
-            title = "Whale Stack",
-            subtitle = "80,000 chips",
-            iconEmoji = "🐋",
-            badge = "+20%",
-            grantsChips = 80_000,
-            store = StoreSku("chips_large", "$9.99"),
+            id = "chip_pack_medium",
+            title = "Tall Stack",
+            subtitle = "30,000 chips",
+            iconEmoji = "💰",
+            featured = true,
+            badge = "POPULAR",
+            grantsChips = 30_000,
+            store = StoreSku("chips_medium", "$4.99"),
         ),
         Product.ChipPack(
-            id = "chip_pack_mega",
-            title = "High Roller",
-            subtitle = "250,000 chips",
-            iconEmoji = "👑",
-            grantsChips = 250_000,
-            store = StoreSku("chips_mega", "$19.99"),
+            id = "chip_pack_large",
+            title = "Whale Stack",
+            subtitle = "120,000 chips",
+            iconEmoji = "🐋",
+            grantsChips = 120_000,
+            store = StoreSku("chips_large", "$14.99"),
         ),
     ),
     chipOffers = listOf(

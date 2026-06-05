@@ -9,6 +9,8 @@ import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
+import com.dangerfield.cards.libraries.cards.EmojiBlast
+import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -168,7 +170,7 @@ class PlayPokerViewModel @Inject constructor(
                 val ownedIds = items.map { it.productId }.toSet()
                 takeAction(
                     PlayPokerAction.AvailableEmojisChanged(
-                        EmojiPackCatalog.availableEmojisFor(ownedIds),
+                        EmotePackCatalog.availableEmojisFor(ownedIds),
                     ),
                 )
             }
@@ -545,16 +547,6 @@ class PlayPokerViewModel @Inject constructor(
     }
 
 }
-
-/**
- * One-shot blast event the screen renders as a full-screen 1.5s animation.
- * `emittedAtEpochMs` doubles as the identity used by [PlayPokerAction.EmojiBlastConsumed]
- * to clear the state without racing the next blast.
- */
-data class EmojiBlast(
-    val emoji: String,
-    val emittedAtEpochMs: Long,
-)
 
 /**
  * Stable identity key used for muting a seat's table-side emoji. Returns

@@ -143,6 +143,20 @@ data class AppData(
      * doesn't need a Uuid-aware adapter on every cache read.
      */
     val installId: String? = null,
+
+    /**
+     * Product id of an item the Profile tab should scroll to and pulse on
+     * next composition — a one-shot, cross-tab "spotlight this" signal. Set
+     * by the Shop after a successful redeem (the snackbar action switches to
+     * the Profile tab), consumed + cleared by the Profile bookshelf. Null
+     * when there's nothing to highlight.
+     *
+     * Tab-root route args don't survive `restoreState`, so the signal rides
+     * this shared cache instead of a navigation argument. It persists, so
+     * the Profile clears it immediately on consume to avoid re-pulsing on a
+     * later cold start.
+     */
+    val pendingProfileHighlight: String? = null,
 )
 
 /**

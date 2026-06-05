@@ -612,8 +612,10 @@ class LobbyViewModelTest : CoroutineTest() {
         rooms: RoomRepository = FakeRoomRepository(),
         identity: AuthRepository = AlwaysSignedInAuth(),
         prefilledCode: String? = null,
+        autoCreate: Boolean = false,
     ): LobbyViewModel = LobbyViewModel(
         prefilledCode = prefilledCode,
+        autoCreate = autoCreate,
         rooms = rooms,
         auth = identity,
         appScope = AppCoroutineScope(dispatchers),

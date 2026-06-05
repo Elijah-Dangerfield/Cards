@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-05-30 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-05 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 > **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
@@ -26,7 +26,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & account onboarding
 
-- `[P1]` **Wire the native Apple sign-in button into the onboarding/claim flow.** The `createAppleSignInButton` primitive (`NativeViewFactory.kt`) + its Swift `ASAuthorizationAppleIDButton` impl exist, but the Apple slot still renders a custom `ButtonSecondary` ([`OnboardingScreen.kt:283`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt)) that App Review rejects. Render the native button there, capture the authorization, and exchange the ID token for a Supabase session — no id-token sign-in path exists today (`RealSupabaseAuthGateway` only runs the web OAuth flow).
+- `[P1]` **Wire the native Apple sign-in button into the onboarding/claim flow.** The `createAppleSignInButton` primitive (`NativeViewFactory.kt`) + its Swift `ASAuthorizationAppleIDButton` impl exist, but the Apple slot still renders a custom `ButtonSecondary` ([`OnboardingScreen.kt:365`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt)) that App Review rejects. Render the native button there, capture the authorization, and exchange the ID token for a Supabase session — no id-token sign-in path exists today (`RealSupabaseAuthGateway` only runs the web OAuth flow).
   **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
   **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
 
@@ -53,6 +53,44 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **Home "you're in a game" signal should be reactive, not a one-shot fetch.** Home's active-room banner reads from a one-shot fetch (`HomeViewModel` `LoadActiveRooms` → `getActiveRooms()` on init/refresh), so it's stale until something re-triggers it. Make active-room presence a reactive flow off the durable room state — always current, no manual trigger — so Home reflects it the instant you land there. (Lobby back-out confirmation already ships.) *(proposed 2026-05-31)*
   **Acceptance:** Home shows the active-game banner immediately on arrival with no refresh and updates live as room state changes.
   **Hints:** [`HomeViewModel.kt`](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/HomeViewModel.kt) `LoadActiveRooms` + `RoomRepositoryImpl.getActiveRooms` (`GET /v1/me/active-rooms`) — needs an `observe*` flow. Pairs with [B3](#b3--gameplay-items)'s active-rooms banner; the flow's durable source is [B2](#b2--persisted-room-membership).
+
+- `[P1]` **Redesign the in-game "What beats what" hand-rankings dialog.** The hand-help dialog should match the new mock (`docs/todo-assets/hand-rankings.png`, right phone): a top **"YOU HAVE / <hand>"** banner showing the player's hole + board cards, **tighter** per-row card rendering, the player's current-hand row **highlighted green**, and a plain **"What beats what"** heading. Today's dialog is close but looser and unbannered. *(proposed 2026-06-05)*
+  **Acceptance:** the dialog leads with the you-have banner, renders compact cards per row, highlights the current hand, and titles the list "What beats what".
+  **Hints:** the existing hand-rankings dialog in `:features:room:impl`; reuse `PlayingCard` / `PlayingCardSize.Mini` for the tight rows.
+
+### Stats & progression
+
+- `[P1]` **Player play-style "blob" on Stats — and promote it to the DS.** Render the user's style as a soft radar/blob on a TIGHT↔LOOSE × PASSIVE↔AGGRESSIVE grid, with the style name in a pill ("Tight-Aggressive") + a one-line description (`docs/todo-assets/stats-style.png`). It'll appear in many places (Stats, profile, seat-tap sheet), so build it as a reusable `:libraries:ui` component. Ignore the mock's "Equipped ✓". *(proposed 2026-06-05)*
+  **Acceptance:** Stats shows the style blob + name + blurb; the blob is a DS component (reused by at least Stats).
+  **Hints:** play-style is still an example string (`profile_play_style_example`); ship the blob against the example until a real metric exists. **Out of scope:** computing the real tightness/aggression metric (separate data item).
+
+- `[P2]` **Recent-XP rows: source emoji, type-colored points, relative time.** Each recent-XP row should lead with an emoji for the XP source (hand won 🏆, achievement 🎯, …), color the `+N` by source, and show when it was earned (relative time) (`docs/todo-assets/recent-xp.png`). *(proposed 2026-06-05)*
+  **Acceptance:** rows show a source emoji + relative timestamp; the `+N` is colored by `XpSource`.
+  **Hints:** `XpEvent` ([`Progression.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/Progression.kt)) already carries `source: XpSource` + `createdAtEpochMs` — the gap is purely rendering (emoji/color map + an `earnedAgo`-style relative format).
+
+### Profile, cosmetics & sheets
+
+- `[P1]` **Cosmetic shelves: single scrolling row, bigger tiles, equipped indicator.** Card backs / felts / emote packs should render in ONE horizontally-scrolling row (not the current 2-row grid), padded with buyable tiles only when the user owns too few to fill it; go to 2 rows once they own ~8+. Tiles a bit larger. Equipped items get a ring or an equipped badge. *(proposed 2026-06-05)*
+  **Acceptance:** each shelf is a single horizontally-scrolling row (2 rows at ~8+ owned) with larger tiles and a clear equipped indicator.
+  **Hints:** `OwnedItemsSections` in [`ProfileScreen.kt`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt); `EdgeToEdgeRow` is the home strip's scroll-row precedent.
+
+- `[P1]` **Cosmetic detail/purchase sheets: rich preview + slot-aware equip.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Card-back sheets (shop + profile) should use the flip-over/spin preview the profile detail sheet already has; same for felts + emote packs. Profile detail sheets need an equip/unequip button that respects slot rules — single-equip slots (card back, felt) have no "unequip"; you equip a different one instead. *(proposed 2026-06-05)*
+  **Acceptance:** buyable tap → purchase sheet; card-back/felt sheets show the flippable preview; equip present, unequip hidden for single-slot cosmetics (swap-only).
+  **Hints:** `FlippableCard` already used in `CosmeticDetailSheet`; `cosmeticSlotFor` marks single-equip slots; reuse the shop purchase-sheet route.
+
+- `[P2]` **Profile "Avatars" → "Avatar packs"; sheet shows contents + edit pointer.** Relabel the shelf to "Avatar packs". The avatar-pack detail sheet should render the pack's avatar options plus a note like "Edit your avatar from the pencil button on your profile." *(proposed 2026-06-05)*
+  **Acceptance:** shelf reads "Avatar packs"; the sheet renders the pack's emojis + the edit-pointer note.
+  **Hints:** shelf label in `ProfileScreen.kt`; `packEmojis` already plumbed into `CosmeticDetailSheet`.
+
+- `[P1]` **Ceremonial sheets for earned/prestige items.** Earned items (e.g. Founding member) render a bare 🎁 and say nothing. Give earned items a real moment: what they earned, how/why, and a thank-you for prestige grants. Likely needs a metadata source for the unlock-only products the catalog drops (a client map, or server-supplied earned-item copy). *(proposed 2026-06-05)*
+  **Acceptance:** the Founding-member (and other earned) sheet shows a name + description + how-earned + a thanks line, not a fallback glyph.
+  **Hints:** unlock-only products arrive without catalog metadata (`CosmeticDetailSheet` falls back to 🎁 via `KnownItemEmoji`); needs an earned-item metadata layer. **Worker note:** sketch the model change (client map vs. server field) in the Approach line before coding — direction is ambiguous.
+
+### Cross-app consistency
+
+- `[P2]` **Unify the "scrollable shelf + see-all" affordance.** Home shelves use a "See all" header link; Profile shelves use a "Shop ›" link — same pattern, different chrome. Converge on one section-header + see-all/CTA treatment so horizontally-scrolling shelves read consistently app-wide. *(proposed 2026-06-05)*
+  **Acceptance:** Home + Profile (+ any other scroll-row shelves) share one section-header + see-all/CTA treatment.
+  **Hints:** `SectionHeader` (`:libraries:ui`) already supports a trailing label + `onClick`; reconcile the profile shop-link variant against it.
 
 ### Social graph + friends — load-bearing for V1.x
 

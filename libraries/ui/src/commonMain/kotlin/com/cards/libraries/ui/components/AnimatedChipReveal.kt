@@ -20,6 +20,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.typography.TypographyResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -39,13 +40,41 @@ fun AnimatedChipReveal(
     modifier: Modifier = Modifier,
     coinSize: Dp = 40.dp,
 ) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        ChipCoin(
+            size = coinSize,
+            textTypography = AppTheme.typography.Heading.H700,
+        )
+        Spacer(Modifier.width(12.dp))
+        AnimatedCountUpText(
+            amount = amount,
+            typography = AppTheme.typography.Display.D1100,
+            color = color,
+        )
+    }
+}
+
+/**
+ * The bare odometer count-up — a thousands-separated number tweening from 0
+ * to [amount] on first composition. Powers [AnimatedChipReveal]'s number,
+ * and stands alone wherever a celebratory reveal wants the count-up without
+ * the gold coin (e.g. a big "10,000 chips" headline that draws its own coin).
+ */
+@Composable
+fun AnimatedCountUpText(
+    amount: Long,
+    typography: TypographyResource,
+    color: ColorResource,
+    modifier: Modifier = Modifier,
+    durationMillis: Int = 1_100,
+) {
     val animated = remember { Animatable(initialValue = 0f) }
     var displayed by remember { mutableStateOf(0L) }
     LaunchedEffect(amount) {
         animated.animateTo(
             targetValue = amount.toFloat(),
             animationSpec = tween(
-                durationMillis = 1_100,
+                durationMillis = durationMillis,
                 easing = FastOutSlowInEasing,
             ),
         ) {
@@ -55,18 +84,12 @@ fun AnimatedChipReveal(
         // hair short of the target due to float→long truncation.
         displayed = amount
     }
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        ChipCoin(
-            size = coinSize,
-            textTypography = AppTheme.typography.Heading.H700,
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = formatWithThousands(displayed),
-            typography = AppTheme.typography.Display.D1100,
-            color = color,
-        )
-    }
+    Text(
+        text = formatWithThousands(displayed),
+        typography = typography,
+        color = color,
+        modifier = modifier,
+    )
 }
 
 private fun formatWithThousands(value: Long): String {

@@ -234,12 +234,17 @@ class ShopViewModelTest : CoroutineTest() {
     fun confirmChipOffer_success_autoEquipsCosmetic_whenSlotEmpty() = runUnitTest {
         val equipment = FakeEquipmentRepository()
         val vm = buildVm(equipmentRepository = equipment)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val felt = SAMPLE_CATALOG.chipOffers.first { it.id == "felt_royal_red" }
 
         vm.takeAction(ShopAction.ConfirmPurchase(felt))
 
         assertEquals(listOf("felt_royal_red"), equipment.equipCalls)
         assertTrue(equipment.syncCalls >= 1, "equipment sync should fire after auto-equip")
+        val event = received.firstOrNull { it is ShopEvent.RedeemSucceeded } as? ShopEvent.RedeemSucceeded
+        assertNotNull(event, "RedeemSucceeded should fire")
+        assertTrue(event.wasAutoEquipped, "event should report the item was auto-equipped")
     }
 
     @Test
@@ -258,11 +263,16 @@ class ShopViewModelTest : CoroutineTest() {
             ),
         )
         val vm = buildVm(equipmentRepository = equipment)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val felt = SAMPLE_CATALOG.chipOffers.first { it.id == "felt_royal_red" }
 
         vm.takeAction(ShopAction.ConfirmPurchase(felt))
 
         assertTrue(equipment.equipCalls.isEmpty(), "should not auto-equip when slot already occupied")
+        val event = received.firstOrNull { it is ShopEvent.RedeemSucceeded } as? ShopEvent.RedeemSucceeded
+        assertNotNull(event, "RedeemSucceeded should fire")
+        assertFalse(event.wasAutoEquipped, "event should report no auto-equip when slot occupied")
     }
 
     @Test

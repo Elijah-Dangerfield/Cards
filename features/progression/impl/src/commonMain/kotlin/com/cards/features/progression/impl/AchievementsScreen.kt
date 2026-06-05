@@ -4,20 +4,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AllAchievements
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
@@ -64,11 +67,28 @@ fun AchievementsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(AllAchievements, key = { it.id }) { achievement ->
-                    AchievementMedallion(
-                        achievement = achievement,
-                        earnedAtEpochMs = state.progress.earned[achievement.id],
-                        progress = achievement.currentProgress(state.progress),
-                    )
+                    val earned = state.progress.isEarned(achievement.id)
+                    val isMystery = achievement.isMystery && !earned
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        AchievementMedalWithDetail(
+                            achievement = achievement,
+                            earnedAtEpochMs = state.progress.earned[achievement.id],
+                            progress = achievement.currentProgress(state.progress),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (isMystery) "Locked" else achievement.name,
+                            typography = AppTheme.typography.Label.L400,
+                            color = if (earned) {
+                                AppTheme.colors.content
+                            } else {
+                                AppTheme.colors.contentSecondary
+                            },
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                        )
+                    }
                 }
             }
         }

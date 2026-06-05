@@ -22,13 +22,15 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class LobbyFeatureEntryPoint(
-    private val viewModelFactory: (prefilledCode: String?) -> LobbyViewModel,
+    private val viewModelFactory: (prefilledCode: String?, autoCreate: Boolean) -> LobbyViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<LobbyRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<LobbyRoute>()
-            val viewModel: LobbyViewModel = viewModel { viewModelFactory(route.prefilledCode) }
+            val viewModel: LobbyViewModel = viewModel {
+                viewModelFactory(route.prefilledCode, route.autoCreate)
+            }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 
             // Route lobby events: NavigateToMultiplayer hands off to

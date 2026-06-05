@@ -1,30 +1,37 @@
 package com.dangerfield.cards.features.profile.impl
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,77 +49,56 @@ import cards.libraries.resources.generated.resources.month_november
 import cards.libraries.resources.generated.resources.month_october
 import cards.libraries.resources.generated.resources.month_september
 import cards.libraries.resources.generated.resources.month_unknown
-import cards.libraries.resources.generated.resources.profile_about_privacy
-import cards.libraries.resources.generated.resources.profile_about_terms
-import cards.libraries.resources.generated.resources.profile_account_my_items_headline
-import cards.libraries.resources.generated.resources.profile_account_my_items_supporting
-import cards.libraries.resources.generated.resources.profile_account_notifications_headline
-import cards.libraries.resources.generated.resources.profile_account_notifications_supporting_default
-import cards.libraries.resources.generated.resources.profile_account_notifications_supporting_unread
-import cards.libraries.resources.generated.resources.profile_account_rank_headline
-import cards.libraries.resources.generated.resources.profile_account_rank_supporting
-import cards.libraries.resources.generated.resources.profile_account_rank_unranked
-import cards.libraries.resources.generated.resources.profile_account_stats_headline
-import cards.libraries.resources.generated.resources.profile_account_stats_supporting
-import cards.libraries.resources.generated.resources.profile_app_version_footer
 import cards.libraries.resources.generated.resources.profile_avatar_edit_a11y
-import cards.libraries.resources.generated.resources.profile_bot_speed_fast
-import cards.libraries.resources.generated.resources.profile_bot_speed_normal
-import cards.libraries.resources.generated.resources.profile_bot_speed_slow
-import cards.libraries.resources.generated.resources.profile_claim_card_body
-import cards.libraries.resources.generated.resources.profile_claim_card_cta
-import cards.libraries.resources.generated.resources.profile_claim_card_title
-import cards.libraries.resources.generated.resources.profile_debug_qa_headline
-import cards.libraries.resources.generated.resources.profile_debug_qa_supporting
-import cards.libraries.resources.generated.resources.profile_delete_account_button
-import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_headline
-import cards.libraries.resources.generated.resources.profile_gameplay_bot_speed_supporting
-import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_headline
-import cards.libraries.resources.generated.resources.profile_gameplay_turn_feedback_supporting
-import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_headline
-import cards.libraries.resources.generated.resources.profile_gameplay_tutorial_supporting
 import cards.libraries.resources.generated.resources.profile_header_founding_member_chip
-import cards.libraries.resources.generated.resources.profile_header_member_since
-import cards.libraries.resources.generated.resources.profile_level_summary_level_xp
-import cards.libraries.resources.generated.resources.profile_level_summary_to_next_level
-import cards.libraries.resources.generated.resources.profile_section_about
-import cards.libraries.resources.generated.resources.profile_section_account
-import cards.libraries.resources.generated.resources.profile_section_debug
-import cards.libraries.resources.generated.resources.profile_section_gameplay
-import cards.libraries.resources.generated.resources.profile_section_support
-import cards.libraries.resources.generated.resources.profile_sign_out_button
-import cards.libraries.resources.generated.resources.profile_sign_out_button_progress
-import cards.libraries.resources.generated.resources.profile_sign_out_dialog_anonymous_body
-import cards.libraries.resources.generated.resources.profile_sign_out_dialog_anonymous_title
-import cards.libraries.resources.generated.resources.profile_sign_out_dialog_cancel_button
-import cards.libraries.resources.generated.resources.profile_sign_out_dialog_claimed_body
-import cards.libraries.resources.generated.resources.profile_sign_out_dialog_claimed_title
-import cards.libraries.resources.generated.resources.profile_sign_out_dialog_confirm_button
-import cards.libraries.resources.generated.resources.profile_support_bug_headline
-import cards.libraries.resources.generated.resources.profile_support_bug_supporting
-import cards.libraries.resources.generated.resources.profile_support_feedback_headline
-import cards.libraries.resources.generated.resources.profile_support_feedback_supporting
-import cards.libraries.resources.generated.resources.profile_turn_feedback_mute
-import cards.libraries.resources.generated.resources.profile_turn_feedback_sound
-import cards.libraries.resources.generated.resources.profile_turn_feedback_vibrate
+import cards.libraries.resources.generated.resources.profile_header_joined
+import cards.libraries.resources.generated.resources.profile_items_avatars
+import cards.libraries.resources.generated.resources.profile_items_card_back
+import cards.libraries.resources.generated.resources.profile_items_emotes
+import cards.libraries.resources.generated.resources.profile_items_equipped
+import cards.libraries.resources.generated.resources.profile_items_felt
+import cards.libraries.resources.generated.resources.profile_items_shop_link
+import cards.libraries.resources.generated.resources.profile_items_specialty
+import cards.libraries.resources.generated.resources.profile_level_summary_level
+import cards.libraries.resources.generated.resources.profile_level_summary_xp_breakdown
+import cards.libraries.resources.generated.resources.profile_play_style_example
+import cards.libraries.resources.generated.resources.profile_settings_a11y
+import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle
+import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_no_games
+import cards.libraries.resources.generated.resources.profile_stats_banner_title
+import cards.libraries.resources.generated.resources.profile_achievements_count
+import cards.libraries.resources.generated.resources.profile_achievements_see_all
+import cards.libraries.resources.generated.resources.profile_achievements_title
+import cards.libraries.resources.generated.resources.ui_achievement_medallion_locked_label
+import com.dangerfield.cards.features.profile.impl.items.BuyableCosmetic
+import com.dangerfield.cards.features.profile.impl.items.CosmeticDetailSheet
+import com.dangerfield.cards.features.profile.impl.items.OwnedItem
+import com.dangerfield.cards.libraries.cards.AchievementProgress
+import com.dangerfield.cards.libraries.cards.AcquisitionSource
+import com.dangerfield.cards.libraries.cards.EmojiBlast
+import com.dangerfield.cards.libraries.cards.AllAchievements
+import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
-import com.dangerfield.cards.libraries.ui.components.icon.Icon
-import com.dangerfield.cards.libraries.ui.components.icon.IconSize
-import com.dangerfield.cards.libraries.ui.components.icon.Icons
-import com.dangerfield.cards.libraries.ui.components.BasicDropdownMenuItem
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.DropdownMenu
-import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
+import com.dangerfield.cards.libraries.ui.components.DecorativeBlob
+import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
-import com.dangerfield.cards.libraries.ui.components.ListSection
-import com.dangerfield.cards.libraries.ui.components.ListSectionItem
+import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
+import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
+import com.dangerfield.cards.libraries.ui.components.Surface
+import com.dangerfield.cards.libraries.ui.components.header.TopBar
+import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
+import com.dangerfield.cards.libraries.ui.components.icon.Icons
+import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
@@ -120,10 +106,10 @@ import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
 import com.dangerfield.cards.system.VerticalSpacerD200
-import com.dangerfield.cards.system.VerticalSpacerD1100
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
+import kotlinx.coroutines.delay
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.StringResource
@@ -145,397 +131,118 @@ data class ProfileSettings(
     val isFoundingMember: Boolean = false,
 )
 
+/**
+ * The user's real profile (the Profile tab). Shows identity, level
+ * progress, a tappable stats & style banner, a circular achievements preview,
+ * and the cosmetics they own grouped by type. App settings live behind the
+ * gear in the top-right ([onOpenSettings] → SettingsScreen).
+ *
+ * Per the screen convention, this composable owns its [Screen] shell; the
+ * EntryPoint only wires the repos → params + the navigation callbacks.
+ *
+ * [winRatePercent] is the only real stat wired today (from Progression);
+ * the banner's play-style + chips-won are example values pending real
+ * data plumbing — see the TODO in [StatsStyleBanner].
+ */
 @Composable
 fun ProfileScreen(
     settings: ProfileSettings,
-    onClaimAccount: () -> Unit,
+    achievementProgress: AchievementProgress,
+    ownedItems: List<OwnedItem>,
+    winRatePercent: Int?,
+    onOpenSettings: () -> Unit,
     onEditProfile: () -> Unit,
-    onOpenMyItems: () -> Unit,
-    onOpenNotifications: () -> Unit,
-    onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
-    onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
-    onTapRank: () -> Unit,
-    onTapXp: () -> Unit,
-    onSendFeedback: () -> Unit,
-    onReportBug: () -> Unit,
-    onPrivacyPolicy: () -> Unit,
-    onTermsOfService: () -> Unit,
-    onDeleteAccount: () -> Unit,
-    onSignOut: () -> Unit,
-    isSigningOut: Boolean = false,
-    onOpenQaMenu: () -> Unit = {},
-    onOpenTutorial: () -> Unit = {},
+    onTapStats: () -> Unit,
+    onSeeAllAchievements: () -> Unit,
+    onToggleEquip: (String) -> Unit,
+    onOpenShop: () -> Unit,
+    onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
+    buyableItems: List<BuyableCosmetic> = emptyList(),
+    highlightProductId: String? = null,
+    onHighlightConsumed: () -> Unit = {},
     scrollState: ScrollState = rememberScrollState(),
 ) {
-    var showSignOutDialog by remember { mutableStateOf(false) }
-    Screen(modifier = modifier) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .screenContentPadding(paddingValues = padding)
-                .padding(vertical = 16.dp),
-        ) {
-            ProfileHeader(settings = settings, onEditProfile = onEditProfile)
-            VerticalSpacerD900()
+    // Ephemeral "Try it out" emote blast, fired from a pack's detail sheet and
+    // rendered over the whole screen — the same animation as the poker table.
+    var emojiBlast by remember { mutableStateOf<EmojiBlast?>(null) }
 
-            if (settings.isAnonymous) {
-                ClaimAccountCard(onClaimAccount = onClaimAccount)
-                VerticalSpacerD800()
-            }
-
-            ListSection(
-                title = stringResource(Res.string.profile_section_account),
-                items = listOf(
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_account_notifications_headline),
-                        supportingText = stringResource(Res.string.profile_account_notifications_supporting_default),
-                        accessory = if (settings.unreadNotificationCount > 0) {
-                            val chipText = stringResource(
-                                Res.string.profile_account_notifications_supporting_unread,
-                                settings.unreadNotificationCount,
-                            )
-                            ListItemAccessory.Custom {
-                                UnreadNotificationsChip(text = chipText)
-                            }
-                        } else {
-                            ListItemAccessory.Chevron
-                        },
-                        onClick = onOpenNotifications,
-                    ),
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_account_my_items_headline),
-                        supportingText = stringResource(Res.string.profile_account_my_items_supporting),
-                        onClick = onOpenMyItems,
-                    ),
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_account_rank_headline),
-                        supportingText = stringResource(Res.string.profile_account_rank_supporting),
-                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
-                            text = if (settings.rank <= 0) {
-                                stringResource(Res.string.profile_account_rank_unranked)
-                            } else {
-                                settings.rank.toString()
-                            },
-                        ),
-                        onClick = onTapRank,
-                    ),
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_account_stats_headline),
-                        supportingText = stringResource(Res.string.profile_account_stats_supporting),
-                        accessory = com.dangerfield.cards.libraries.ui.components.ListItemAccessory.Text(
-                            text = settings.xp.toString(),
-                        ),
-                        onClick = onTapXp,
-                    ),
-                ),
-            )
-
-            VerticalSpacerD800()
-
-            GameplaySection(
-                botSpeed = settings.botSpeed,
-                turnFeedback = settings.turnFeedback,
-                onBotSpeedChange = onBotSpeedChange,
-                onTurnFeedbackChange = onTurnFeedbackChange,
-                onOpenTutorial = onOpenTutorial,
-            )
-
-            VerticalSpacerD800()
-
-            ListSection(
-                title = stringResource(Res.string.profile_section_support),
-                items = listOf(
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_support_feedback_headline),
-                        supportingText = stringResource(Res.string.profile_support_feedback_supporting),
-                        onClick = onSendFeedback,
-                    ),
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_support_bug_headline),
-                        supportingText = stringResource(Res.string.profile_support_bug_supporting),
-                        onClick = onReportBug,
-                    ),
-                ),
-            )
-
-            VerticalSpacerD800()
-
-            ListSection(
-                title = stringResource(Res.string.profile_section_about),
-                items = listOf(
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_about_privacy),
-                        onClick = onPrivacyPolicy,
-                    ),
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.profile_about_terms),
-                        onClick = onTermsOfService,
-                    ),
-                ),
-            )
-
-            // Anonymous "sign out" is meaningless — there's no account to
-            // sign back into, and we don't want to dangle "abandon progress"
-            // as a primary action. The Claim Account card above is the right
-            // path forward for guests. Claimed accounts get the red button
-            // pair below.
-            if (!settings.isAnonymous) {
-                VerticalSpacerD1100()
-                com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
-                    onClick = { if (!isSigningOut) showSignOutDialog = true },
-                    style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Outlined,
-                    enabled = !isSigningOut,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        if (isSigningOut) {
-                            stringResource(Res.string.profile_sign_out_button_progress)
-                        } else {
-                            stringResource(Res.string.profile_sign_out_button)
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
-                    onClick = onDeleteAccount,
-                    style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Text,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(Res.string.profile_delete_account_button))
-                }
-            }
-
-            if (settings.showQaMenu) {
-                VerticalSpacerD800()
-                ListSection(
-                    title = stringResource(Res.string.profile_section_debug),
-                    items = listOf(
-                        ListSectionItem(
-                            headlineText = stringResource(Res.string.profile_debug_qa_headline),
-                            supportingText = stringResource(Res.string.profile_debug_qa_supporting),
-                            onClick = onOpenQaMenu,
-                        ),
-                    ),
-                )
-            }
-
-            VerticalSpacerD1100()
-            // App version as a quiet, centered footer rather than a table cell.
-            // It's a "where am I in the release cycle" reference, not an action.
-            Text(
-                text = stringResource(Res.string.profile_app_version_footer, settings.appVersion),
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.contentSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            BottomBarSpacer()
-        }
-    }
-
-    if (showSignOutDialog) {
-        SignOutConfirmDialog(
-            isAnonymous = settings.isAnonymous,
-            onConfirm = {
-                showSignOutDialog = false
-                onSignOut()
-            },
-            onDismiss = { showSignOutDialog = false },
-        )
-    }
-}
-
-@Composable
-private fun UnreadNotificationsChip(text: String) {
-    StatusPill(
-        text = text,
-        background = AppTheme.colors.accentPrimary,
-        foreground = AppTheme.colors.onAccentPrimary,
-    )
-}
-
-@Composable
-private fun FoundingMemberChip() {
-    StatusPill(background = AppTheme.colors.accentSecondary) {
-        Text(
-            text = "🏛",
-            typography = AppTheme.typography.Caption.C200,
-        )
-        Text(
-            text = stringResource(Res.string.profile_header_founding_member_chip),
-            typography = AppTheme.typography.Caption.C200.SemiBold,
-            color = AppTheme.colors.onAccentSecondary,
-        )
-    }
-}
-
-@Composable
-private fun SignOutConfirmDialog(
-    isAnonymous: Boolean,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val title = if (isAnonymous) {
-        stringResource(Res.string.profile_sign_out_dialog_anonymous_title)
-    } else {
-        stringResource(Res.string.profile_sign_out_dialog_claimed_title)
-    }
-    val body = if (isAnonymous) {
-        stringResource(Res.string.profile_sign_out_dialog_anonymous_body)
-    } else {
-        stringResource(Res.string.profile_sign_out_dialog_claimed_body)
-    }
-    com.dangerfield.cards.libraries.ui.components.dialog.Dialog(
-        onDismissRequest = onDismiss,
-        topAccessory = com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji(emoji = "👋"),
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = title,
-                typography = AppTheme.typography.Heading.H600,
-                color = AppTheme.colors.content,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = body,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            com.dangerfield.cards.libraries.ui.components.button.Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(Res.string.profile_sign_out_dialog_confirm_button))
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            com.dangerfield.cards.libraries.ui.components.button.Button(
-                onClick = onDismiss,
-                style = com.dangerfield.cards.libraries.ui.components.button.ButtonStyle.Text,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(Res.string.profile_sign_out_dialog_cancel_button))
-            }
-        }
-    }
-}
-
-private val turnFeedbackPickerOptions: List<com.dangerfield.cards.libraries.cards.TurnFeedback> =
-    com.dangerfield.cards.libraries.cards.TurnFeedback.entries
-        .filter { it != com.dangerfield.cards.libraries.cards.TurnFeedback.Sound }
-
-private fun com.dangerfield.cards.libraries.cards.TurnFeedback.pickerDisplayValue():
-    com.dangerfield.cards.libraries.cards.TurnFeedback =
-    if (this == com.dangerfield.cards.libraries.cards.TurnFeedback.Sound) {
-        com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate
-    } else {
-        this
-    }
-
-@Composable
-private fun GameplaySection(
-    botSpeed: com.dangerfield.cards.libraries.cards.BotSpeed,
-    turnFeedback: com.dangerfield.cards.libraries.cards.TurnFeedback,
-    onBotSpeedChange: (com.dangerfield.cards.libraries.cards.BotSpeed) -> Unit,
-    onTurnFeedbackChange: (com.dangerfield.cards.libraries.cards.TurnFeedback) -> Unit,
-    onOpenTutorial: () -> Unit = {},
-) {
-    var botSpeedExpanded by remember { mutableStateOf(false) }
-    var turnFeedbackExpanded by remember { mutableStateOf(false) }
-
-    ListSection(
-        title = stringResource(Res.string.profile_section_gameplay),
-        items = listOf(
-            ListSectionItem(
-                headlineText = stringResource(Res.string.profile_gameplay_tutorial_headline),
-                supportingText = stringResource(Res.string.profile_gameplay_tutorial_supporting),
-                onClick = onOpenTutorial,
-            ),
-            ListSectionItem(
-                headlineText = stringResource(Res.string.profile_gameplay_bot_speed_headline),
-                supportingText = stringResource(Res.string.profile_gameplay_bot_speed_supporting),
-                accessory = ListItemAccessory.Custom {
-                    DropdownAccessory(
-                        text = stringResource(botSpeed.labelResource()),
-                        expanded = botSpeedExpanded,
-                        onDismiss = { botSpeedExpanded = false },
-                        options = com.dangerfield.cards.libraries.cards.BotSpeed.entries.toList(),
-                        label = { stringResource(it.labelResource()) },
-                        onSelect = {
-                            botSpeedExpanded = false
-                            onBotSpeedChange(it)
-                        },
+    Screen(
+        modifier = modifier,
+        topBar = {
+            TopBar(
+                onNavigateBack = null,
+                scrollState = scrollState,
+                actions = {
+                    // Surface-backed icon button, mirroring the TopBar's
+                    // back button treatment.
+                    IconButton(
+                        icon = Icons.Settings(stringResource(Res.string.profile_settings_a11y)),
+                        onClick = onOpenSettings,
                     )
                 },
-                onClick = { botSpeedExpanded = true },
-            ),
-            ListSectionItem(
-                headlineText = stringResource(Res.string.profile_gameplay_turn_feedback_headline),
-                supportingText = stringResource(Res.string.profile_gameplay_turn_feedback_supporting),
-                accessory = ListItemAccessory.Custom {
-                    val displayed = turnFeedback.pickerDisplayValue()
-                    DropdownAccessory(
-                        text = stringResource(displayed.labelResource()),
-                        expanded = turnFeedbackExpanded,
-                        onDismiss = { turnFeedbackExpanded = false },
-                        options = turnFeedbackPickerOptions,
-                        label = { stringResource(it.labelResource()) },
-                        onSelect = {
-                            turnFeedbackExpanded = false
-                            onTurnFeedbackChange(it)
-                        },
-                    )
-                },
-                onClick = { turnFeedbackExpanded = true },
-            ),
-        ),
-    )
-}
+            )
+        },
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .screenContentPadding(paddingValues = padding)
+                    .padding(vertical = 16.dp),
+            ) {
+                ProfileHeader(settings = settings, onEditProfile = onEditProfile)
+                VerticalSpacerD900()
 
-private fun com.dangerfield.cards.libraries.cards.BotSpeed.labelResource(): StringResource =
-    when (this) {
-        com.dangerfield.cards.libraries.cards.BotSpeed.Slow -> Res.string.profile_bot_speed_slow
-        com.dangerfield.cards.libraries.cards.BotSpeed.Normal -> Res.string.profile_bot_speed_normal
-        com.dangerfield.cards.libraries.cards.BotSpeed.Fast -> Res.string.profile_bot_speed_fast
-    }
+                if (settings.isAnonymous) {
+                    SaveProgressBanner(onSignIn = onSignIn)
+                    VerticalSpacerD800()
+                }
 
-private fun com.dangerfield.cards.libraries.cards.TurnFeedback.labelResource(): StringResource =
-    when (this) {
-        com.dangerfield.cards.libraries.cards.TurnFeedback.Mute -> Res.string.profile_turn_feedback_mute
-        com.dangerfield.cards.libraries.cards.TurnFeedback.Sound -> Res.string.profile_turn_feedback_sound
-        com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate -> Res.string.profile_turn_feedback_vibrate
-    }
-
-@Composable
-private fun <T> DropdownAccessory(
-    text: String,
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    options: List<T>,
-    label: @Composable (T) -> String,
-    onSelect: (T) -> Unit,
-) {
-    Box {
-        Text(
-            text = text,
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.contentSecondary,
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = onDismiss,
-        ) {
-            options.forEach { option ->
-                BasicDropdownMenuItem(
-                    text = { Text(text = label(option)) },
-                    onClick = { onSelect(option) },
+                StatsStyleBanner(
+                    winRatePercent = winRatePercent,
+                    onClick = onTapStats,
                 )
+                VerticalSpacerD800()
+
+                AchievementsSection(
+                    progress = achievementProgress,
+                    onSeeAll = onSeeAllAchievements,
+                )
+
+                OwnedItemsSections(
+                    ownedItems = ownedItems,
+                    buyableItems = buyableItems,
+                    onToggleEquip = onToggleEquip,
+                    onOpenShop = onOpenShop,
+                    onTryEmote = { emoji ->
+                        emojiBlast = EmojiBlast(
+                            emoji = emoji,
+                            emittedAtEpochMs = kotlin.time.Clock.System.now().toEpochMilliseconds(),
+                        )
+                    },
+                    highlightProductId = highlightProductId,
+                    onHighlightConsumed = onHighlightConsumed,
+                )
+
+                BottomBarSpacer()
             }
+
+            // Above the scrolling content (and any dismissed sheet) so a
+            // "Try it out" blast reads as a full-screen reaction.
+            EmojiBlastOverlay(
+                blast = emojiBlast,
+                onAnimationComplete = { emojiBlast = null },
+                emitterName = settings.displayName,
+                emitterEmoji = settings.avatarEmoji,
+                emitterColorHex = settings.avatarBackgroundColor,
+            )
         }
     }
 }
+
+// ---- Header ------------------------------------------------------------
 
 @Composable
 private fun ProfileHeader(
@@ -546,9 +253,8 @@ private fun ProfileHeader(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // No .clip(CircleShape) on the wrapper — the badge tucks slightly
-        // outside the avatar disc and would otherwise be cut off by a
-        // circular clip on the bounding box.
+        // No .clip(CircleShape) on the wrapper — the pencil badge tucks
+        // slightly outside the avatar disc and would otherwise be clipped.
         Box(
             modifier = Modifier.clickable(onClick = onEditProfile),
             contentAlignment = Alignment.Center,
@@ -557,25 +263,18 @@ private fun ProfileHeader(
                 name = settings.displayName,
                 size = Dimension.D1900,
                 typography = AppTheme.typography.Heading.H1000,
-                // Avatar is server-authoritative — always prefer the user's
-                // picked emoji. Anonymous users still get an emoji from the
-                // starter pack at signup, so this should be present in both
-                // states; the null fallback covers the bootstrap window.
                 emoji = settings.avatarEmoji,
                 backgroundColorHex = settings.avatarBackgroundColor,
-                // Header rebuilds its profile flow on every navigation;
-                // the brief placeholder → emoji hand-off would otherwise
-                // replay the entrance scale on every visit.
                 animationsEnabled = false,
             )
-            // Border matches the page background so the badge reads as
-            // lifted off the avatar disc rather than embedded in it.
+            // The pencil edit affordance. We intentionally keep the pencil
+            // (the design's level bottom-badge is ignored per scope).
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(AppTheme.colors.surfaceRaised.color)
+                    .background(AppTheme.colors.surfaceHigh.color)
                     .border(
                         width = 2.dp,
                         color = AppTheme.colors.background.color,
@@ -593,14 +292,14 @@ private fun ProfileHeader(
         VerticalSpacerD500()
         Text(
             text = settings.displayName,
-            typography = AppTheme.typography.Heading.H700,
+            typography = AppTheme.typography.Display.D1100,
             color = AppTheme.colors.content,
             textAlign = TextAlign.Center,
         )
-        settings.memberSince?.let { createdAt ->
+        joinedLine(settings.memberSince)?.let { joined ->
             VerticalSpacerD100()
             Text(
-                text = formatMemberSince(createdAt),
+                text = joined,
                 typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
@@ -618,11 +317,20 @@ private fun ProfileHeader(
     }
 }
 
+/**
+ * "Joined Feb 2026". Null until [memberSince] hydrates — we'd rather show
+ * nothing than a placeholder. (The play-style descriptor that used to ride
+ * along here was an unwired example value, so it's dropped.)
+ */
 @Composable
-private fun formatMemberSince(createdAt: kotlin.time.Instant): String {
+private fun joinedLine(memberSince: kotlin.time.Instant?): String? =
+    memberSince?.let { formatJoined(it) }
+
+@Composable
+private fun formatJoined(createdAt: kotlin.time.Instant): String {
     val local = createdAt.toLocalDateTime(TimeZone.currentSystemDefault())
     return stringResource(
-        Res.string.profile_header_member_since,
+        Res.string.profile_header_joined,
         stringResource(monthResource(local.monthNumber)),
         local.year,
     )
@@ -644,301 +352,622 @@ private fun monthResource(monthNumber: Int): StringResource = when (monthNumber)
     else -> Res.string.month_unknown
 }
 
-/**
- * Compact level summary for the profile header: "Level N · X XP", a slim
- * progress bar, and "X XP to level N+1". Mirrors the visual treatment of
- * [com.dangerfield.cards.features.progression.impl.StatsScreen]'s hero
- * so the same level state reads identically across both surfaces.
- */
 @Composable
-private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
+private fun FoundingMemberChip() {
+    StatusPill(background = AppTheme.colors.accentSecondary) {
+        Text(text = "🏛", typography = AppTheme.typography.Caption.C200)
         Text(
-            text = stringResource(
-                Res.string.profile_level_summary_level_xp,
-                progress.level,
-                formatThousands(progress.totalXp),
-            ),
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.content,
-        )
-        LevelProgressBar(
-            fraction = progress.fraction,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
-            text = stringResource(
-                Res.string.profile_level_summary_to_next_level,
-                formatThousands(progress.xpToNextLevel),
-                progress.level + 1,
-            ),
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.contentSecondary,
+            text = stringResource(Res.string.profile_header_founding_member_chip),
+            typography = AppTheme.typography.Caption.C200.SemiBold,
+            color = AppTheme.colors.onAccentSecondary,
         )
     }
 }
 
 @Composable
-private fun ClaimAccountCard(onClaimAccount: () -> Unit) {
-    com.dangerfield.cards.libraries.ui.components.Surface(
+private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // Both labels ride above the bar: the level on the left in the
+        // teal accent, the "X / Y XP to Lv N+1" breakdown on the right.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                text = stringResource(
+                    Res.string.profile_level_summary_level,
+                    progress.level,
+                ),
+                typography = AppTheme.typography.Body.B500.SemiBold,
+                color = AppTheme.colors.accentSecondary,
+            )
+            Text(
+                text = stringResource(
+                    Res.string.profile_level_summary_xp_breakdown,
+                    formatThousands(progress.xpIntoLevel),
+                    formatThousands(progress.xpForNextLevel),
+                    progress.level + 1,
+                ),
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+            )
+        }
+        LevelProgressBar(
+            fraction = progress.fraction,
+            modifier = Modifier.fillMaxWidth(),
+            faceColor = AppTheme.colors.accentSecondary,
+            deepColor = AppTheme.colors.accentSecondaryDeep,
+        )
+    }
+}
+
+// ---- Stats & style banner ---------------------------------------------
+
+@Composable
+private fun StatsStyleBanner(
+    winRatePercent: Int?,
+    onClick: () -> Unit,
+) {
+    val style = stringResource(Res.string.profile_play_style_example)
+    // TODO: play-style and chips-won are example values — wire real data
+    // (server Progression.chipsWon + a human play-style derivation) later.
+    val exampleChipsWon = remember { formatThousands(1_284L) }
+    val subtitle = if (winRatePercent != null) {
+        stringResource(
+            Res.string.profile_stats_banner_subtitle,
+            style,
+            winRatePercent,
+            exampleChipsWon,
+        )
+    } else {
+        stringResource(Res.string.profile_stats_banner_subtitle_no_games, style)
+    }
+
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = AppTheme.colors.accentPrimary,
+        color = AppTheme.colors.surface,
         contentColor = AppTheme.colors.content,
         radius = Radii.Card,
-        onClick = onClaimAccount,
-        bounceScale = 0.97f,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
+        onClick = onClick,
+        bounceScale = 0.98f,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(Dimension.D600),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = stringResource(Res.string.profile_claim_card_title),
-                typography = AppTheme.typography.Body.B600,
-                color = AppTheme.colors.content,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+        ) {
+            // Example decorative blob, tinted from a DS accent token.
+            DecorativeBlob(
+                modifier = Modifier.size(44.dp),
+                color = AppTheme.colors.accentSecondary,
             )
-            Text(
-                text = stringResource(Res.string.profile_claim_card_body),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.content,
-            )
-            VerticalSpacerD100()
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(Radii.R500.shape)
-                    .background(AppTheme.colors.surfaceRaised.color)
-                    .padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(Res.string.profile_claim_card_cta),
-                    typography = AppTheme.typography.Body.B500,
+                    text = stringResource(Res.string.profile_stats_banner_title),
+                    typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.content,
                 )
+                Text(
+                    text = subtitle,
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.contentSecondary,
+                )
             }
+            Icon(
+                icon = Icons.ChevronRight(""),
+                size = IconSize.Small,
+                color = AppTheme.colors.contentSecondary,
+            )
         }
     }
 }
 
+// ---- Achievements ------------------------------------------------------
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AchievementsSection(
+    progress: AchievementProgress,
+    onSeeAll: () -> Unit,
+) {
+    // Earned achievements (newest first) lead, then locked ones fill the grid so
+    // the chase-goals stay visible — greyed out, but recognizable. Non-mystery
+    // locked achievements come before mystery ones so the greyed tiles show
+    // real icons (mystery stays a "?").
+    val display = remember(progress) {
+        val earnedList = AllAchievements
+            .filter { progress.isEarned(it.id) }
+            .sortedByDescending { progress.earned[it.id] ?: 0L }
+        val lockedList = AllAchievements
+            .filter { !progress.isEarned(it.id) }
+            .sortedBy { it.isMystery }
+        (earnedList + lockedList).take(AchievementDisplayCount)
+    }
+    val earnedCount = progress.earned.size
+    val total = AllAchievements.size
+
+    SectionHeader(
+        title = stringResource(Res.string.profile_achievements_title),
+        trailingText = stringResource(Res.string.profile_achievements_count, earnedCount, total),
+        actionText = stringResource(Res.string.profile_achievements_see_all),
+        onAction = onSeeAll,
+    )
+    VerticalSpacerD200()
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+        verticalArrangement = Arrangement.spacedBy(Dimension.D500),
+        maxItemsInEachRow = 4,
+    ) {
+        display.forEach { achievement ->
+            val isEarned = progress.isEarned(achievement.id)
+            val isMystery = achievement.isMystery && !isEarned
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                AchievementMedalWithDetail(
+                    achievement = achievement,
+                    earnedAtEpochMs = progress.earned[achievement.id],
+                    progress = achievement.currentProgress(progress),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                VerticalSpacerD100()
+                Text(
+                    text = if (isMystery) {
+                        stringResource(Res.string.ui_achievement_medallion_locked_label)
+                    } else {
+                        achievement.name
+                    },
+                    typography = AppTheme.typography.Label.L300,
+                    color = if (isEarned) {
+                        AppTheme.colors.content
+                    } else {
+                        AppTheme.colors.contentTertiary
+                    },
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                )
+            }
+        }
+        // Pad the final row so medals stay left-aligned in their columns.
+        val remainder = display.size % 4
+        if (remainder != 0) {
+            repeat(4 - remainder) { Box(modifier = Modifier.weight(1f)) }
+        }
+    }
+    VerticalSpacerD800()
+}
+
+private const val AchievementDisplayCount = 8
+
+// ---- Owned items grouped by type --------------------------------------
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
+@Composable
+private fun OwnedItemsSections(
+    ownedItems: List<OwnedItem>,
+    buyableItems: List<BuyableCosmetic>,
+    onToggleEquip: (String) -> Unit,
+    onOpenShop: () -> Unit,
+    onTryEmote: (String) -> Unit,
+    highlightProductId: String?,
+    onHighlightConsumed: () -> Unit,
+) {
+    // The "bookshelf": each cosmetic type gets its own shelf, reading like the
+    // Achievements grid — owned items first, then dimmed "next to buy" tiles
+    // fill out the row (tap → shop). Card backs, felts, avatar packs and emote
+    // packs each get a shoppable shelf; badges / titles / tools and other
+    // earned-prestige grants collapse into a final owned-only Earned shelf.
+    val ownedByShelf = remember(ownedItems) {
+        ownedItems.groupBy { shelfFor(it) }
+    }
+    val buyableByShelf = remember(buyableItems) {
+        buyableItems
+            .mapNotNull { b -> shoppableShelfFor(b.productId)?.let { it to b } }
+            .groupBy({ it.first }, { it.second })
+    }
+
+    // Tapping any tile opens its detail sheet. We track the selected product
+    // id (not the item) so the sheet re-reads fresh equipped state after a
+    // toggle re-derives the list — mirrors AchievementMedalWithDetail's
+    // per-medal sheet toggle, lifted to one slot for the whole bookshelf.
+    var selectedId by remember { mutableStateOf<String?>(null) }
+
+    // Cross-tab "spotlight a just-bought item" — scroll its tile into view and
+    // pulse a border. [pulseId] is local so clearing the cache signal (which
+    // we do immediately, to avoid a re-pulse on a later cold start) doesn't
+    // cut the animation short.
+    var pulseId by remember { mutableStateOf<String?>(null) }
+    val highlightRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(highlightProductId) {
+        val id = highlightProductId ?: return@LaunchedEffect
+        pulseId = id
+        onHighlightConsumed()
+        // Let the matching tile attach its requester before we scroll to it.
+        delay(100)
+        runCatching { highlightRequester.bringIntoView() }
+        delay(HighlightPulseDurationMillis)
+        pulseId = null
+    }
+
+    ShelfOrder.forEach { shelf ->
+        val owned = ownedByShelf[shelf].orEmpty()
+        val isShoppable = shelf in ShoppableShelves
+        // Fill the shelf out to a comfortable size with not-yet-owned items so
+        // even a shelf the user has barely touched shows "here's what's next."
+        val buyable = if (isShoppable) {
+            buyableByShelf[shelf].orEmpty()
+                .take((ShelfFillTarget - owned.size).coerceAtLeast(0))
+        } else {
+            emptyList()
+        }
+        if (owned.isEmpty() && buyable.isEmpty()) return@forEach
+
+        SectionHeader(
+            title = stringResource(shelf.labelResource()),
+            actionText = if (isShoppable) stringResource(Res.string.profile_items_shop_link) else "",
+            onAction = onOpenShop,
+            showAction = isShoppable,
+        )
+        VerticalSpacerD200()
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D500),
+        ) {
+            owned.forEach { item ->
+                val isPulsing = item.productId == pulseId
+                OwnedCosmeticTile(
+                    item = item,
+                    isPulsing = isPulsing,
+                    onClick = { selectedId = item.productId },
+                    modifier = if (isPulsing) {
+                        Modifier.bringIntoViewRequester(highlightRequester)
+                    } else {
+                        Modifier
+                    },
+                )
+            }
+            buyable.forEach { item ->
+                BuyableCosmeticTile(item = item, onClick = onOpenShop)
+            }
+        }
+        VerticalSpacerD800()
+    }
+
+    selectedId
+        ?.let { id -> ownedItems.firstOrNull { it.productId == id } }
+        ?.let { item ->
+            CosmeticDetailSheet(
+                item = item,
+                onToggleEquip = onToggleEquip,
+                onDismiss = { selectedId = null },
+                onTryEmote = onTryEmote,
+            )
+        }
+}
+
+private const val HighlightPulseDurationMillis = 1_800L
+
+/** Owned + buyable tiles a shoppable shelf grows to before it stops filling. */
+private const val ShelfFillTarget = 8
+
+/**
+ * Shelves on the profile bookshelf. Card backs, felts, avatar packs and emote
+ * packs each get their own shoppable shelf (owned first, then dimmed buyable
+ * tiles). Everything else the player owns — earned/prestige badges, titles,
+ * tools — collapses into the owned-only [Earned] shelf.
+ */
+private enum class Shelf {
+    CardBacks,
+    Felts,
+    Avatars,
+    Emotes,
+    Earned,
+}
+
+private val ShelfOrder = listOf(
+    Shelf.CardBacks,
+    Shelf.Felts,
+    Shelf.Avatars,
+    Shelf.Emotes,
+    Shelf.Earned,
+)
+
+/** Shelves that fill with "next to buy" tiles + show a "Shop ›" link. */
+private val ShoppableShelves = setOf(
+    Shelf.CardBacks,
+    Shelf.Felts,
+    Shelf.Avatars,
+    Shelf.Emotes,
+)
+
+private fun Shelf.labelResource(): StringResource = when (this) {
+    Shelf.CardBacks -> Res.string.profile_items_card_back
+    Shelf.Felts -> Res.string.profile_items_felt
+    Shelf.Avatars -> Res.string.profile_items_avatars
+    Shelf.Emotes -> Res.string.profile_items_emotes
+    Shelf.Earned -> Res.string.profile_items_specialty
+}
+
+/**
+ * Shelf for an owned item. Type-first by product-id prefix, so an earned card
+ * back still lives with the other card backs rather than getting exiled to the
+ * Earned shelf. Only non-slot prestige (badges) and the long tail (titles,
+ * tools, anything unrecognized) fall through to [Shelf.Earned].
+ */
+private fun shelfFor(item: OwnedItem): Shelf =
+    shoppableShelfFor(item.productId) ?: Shelf.Earned
+
+/** The shoppable shelf a product id belongs to, or null for the Earned tail. */
+private fun shoppableShelfFor(productId: String): Shelf? = when {
+    productId.startsWith("cardback_") -> Shelf.CardBacks
+    productId.startsWith("felt_") || productId.startsWith("table_") -> Shelf.Felts
+    productId.startsWith("avatars_") -> Shelf.Avatars
+    productId.startsWith("emotes_") -> Shelf.Emotes
+    else -> null
+}
+
+/**
+ * The product catalog the client syncs (`GET /v1/products`) omits
+ * `unlock_only` items, so the founding-member badge arrives with no display
+ * metadata (OwnedItem falls back to "🎁"). Map the known stable ids to a
+ * sensible glyph so the Specialty shelf reads intentionally. Card backs and
+ * felts render their real cosmetic via [CosmeticPreview], so they don't need
+ * an entry here.
+ */
+private val KnownItemEmoji: Map<String, String> = mapOf(
+    "badge_founding_member_1000" to "🏛",
+)
+
+private fun displayEmojiFor(item: OwnedItem): String =
+    KnownItemEmoji[item.productId] ?: item.iconEmoji
+
+/**
+ * A single owned cosmetic on the bookshelf — rendered for real via
+ * [CosmeticPreview] (a felt swatch, a face-down card, or its glyph) with an
+ * [EquippedBadge] in the corner when it's the active pick in its slot. Tapping
+ * opens the [CosmeticDetailSheet].
+ */
+@Composable
+private fun OwnedCosmeticTile(
+    item: OwnedItem,
+    isPulsing: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Accent border fades in then out to spotlight a just-acquired tile
+    // without nudging layout. Same treatment the old My Items list used.
+    val pulseAlpha by animateFloatAsState(
+        targetValue = if (isPulsing) 1f else 0f,
+        animationSpec = tween(durationMillis = 600, easing = LinearEasing),
+        label = "OwnedCosmeticTilePulse",
+    )
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .clip(Radii.R500.shape)
+                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R500.shape)
+                .clickable(onClick = onClick),
+        ) {
+            CosmeticPreview(
+                productId = item.productId,
+                emoji = displayEmojiFor(item),
+                size = 64.dp,
+                packEmojis = item.packEmojis,
+            )
+        }
+        if (item.isEquipped) {
+            EquippedBadge(modifier = Modifier.align(Alignment.TopEnd))
+        }
+    }
+}
+
+@Composable
+private fun EquippedBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(AppTheme.colors.accentPrimary.color)
+            .border(2.dp, AppTheme.colors.background.color, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon = Icons.Check(stringResource(Res.string.profile_items_equipped)),
+            size = IconSize.Smallest,
+            color = AppTheme.colors.onAccentPrimary,
+        )
+    }
+}
+
+/**
+ * A not-yet-owned cosmetic shown after the owned tiles on a shoppable shelf —
+ * the real preview, dimmed, so it reads as "available, not yours yet." Tapping
+ * routes to the shop. No equipped badge, no price; it's a nudge, not a
+ * purchase surface.
+ */
+@Composable
+private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(Radii.R500.shape)
+            .clickable(onClick = onClick)
+            .alpha(BuyableTileAlpha),
+    ) {
+        CosmeticPreview(
+            productId = item.productId,
+            emoji = item.iconEmoji,
+            size = 64.dp,
+            packEmojis = item.packEmojis,
+        )
+    }
+}
+
+private const val BuyableTileAlpha = 0.45f
+
+// ---- Shared bits -------------------------------------------------------
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    actionText: String,
+    onAction: () -> Unit,
+    trailingText: String? = null,
+    showAction: Boolean = true,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.content,
+        )
+        if (trailingText != null) {
+            Text(
+                text = "  $trailingText",
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+            )
+        }
+        Box(modifier = Modifier.weight(1f))
+        if (showAction) {
+            Text(
+                text = actionText,
+                typography = AppTheme.typography.Label.L400,
+                color = AppTheme.colors.accentPrimary,
+                modifier = Modifier.clickable(onClick = onAction),
+            )
+        }
+    }
+}
+
+// ---- Previews ----------------------------------------------------------
+
+private fun previewSettings(isAnonymous: Boolean) = ProfileSettings(
+    displayName = "QuietAce72",
+    avatarEmoji = "🦊",
+    avatarBackgroundColor = null,
+    rank = if (isAnonymous) 0 else 1200,
+    xp = 340,
+    isAnonymous = isAnonymous,
+    botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
+    turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
+    appVersion = "0.1.0",
+    isFoundingMember = !isAnonymous,
+)
+
 @org.jetbrains.compose.ui.tooling.preview.Preview
-@androidx.compose.runtime.Composable
-private fun ProfileScreenPreview_Anonymous() {
+@Composable
+private fun ProfileScreenPreview() {
+    val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
     PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
-            settings = ProfileSettings(
-                displayName = "Anon-1742",
-                avatarEmoji = "🦊",
-                avatarBackgroundColor = null,
-                rank = 1200,
-                xp = 60,
-                isAnonymous = true,
-                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
-                appVersion = "0.1.0",
-                showQaMenu = false,
+            settings = previewSettings(isAnonymous = false),
+            achievementProgress = AchievementProgress(
+                earned = mapOf(
+                    AllAchievements[0].id to now,
+                    AllAchievements[1].id to now,
+                    AllAchievements[2].id to now,
+                ),
+                counters = emptyMap(),
+                customCounters = emptyMap(),
             ),
-            onClaimAccount = {},
+            ownedItems = listOf(
+                OwnedItem(
+                    productId = "cardback_default",
+                    title = "Classic",
+                    subtitle = "",
+                    description = null,
+                    iconEmoji = "🂠",
+                    isEquipped = true,
+                    isEquippable = true,
+                ),
+                OwnedItem(
+                    productId = "felt_default",
+                    title = "Default felt",
+                    subtitle = "",
+                    description = null,
+                    iconEmoji = "🟩",
+                    isEquipped = true,
+                    isEquippable = true,
+                ),
+                OwnedItem(
+                    productId = "avatars_starter",
+                    title = "Starter pack",
+                    subtitle = "",
+                    description = null,
+                    iconEmoji = "🦊",
+                    isEquipped = false,
+                    isEquippable = false,
+                    packEmojis = listOf("🦊", "🐻", "🐰", "🐨"),
+                ),
+                OwnedItem(
+                    productId = "emotes_baller",
+                    title = "Baller pack",
+                    subtitle = "",
+                    description = null,
+                    iconEmoji = "💸",
+                    isEquipped = false,
+                    isEquippable = false,
+                    packEmojis = listOf("💸", "💎", "🤑", "📈"),
+                ),
+                OwnedItem(
+                    productId = "badge_founding_member_1000",
+                    title = "Founding member",
+                    subtitle = "",
+                    description = null,
+                    iconEmoji = "🏛",
+                    isEquipped = true,
+                    isEquippable = true,
+                    acquisitionSource = AcquisitionSource.Earned,
+                ),
+            ),
+            buyableItems = listOf(
+                BuyableCosmetic(productId = "cardback_neon", iconEmoji = "🃏"),
+                BuyableCosmetic(productId = "cardback_galaxy", iconEmoji = "✨"),
+                BuyableCosmetic(productId = "felt_royal_red", iconEmoji = "🟥"),
+                BuyableCosmetic(
+                    productId = "emotes_royal",
+                    iconEmoji = "👑",
+                    packEmojis = listOf("👑", "🃏", "♠️", "♥️"),
+                ),
+            ),
+            winRatePercent = 58,
+            onOpenSettings = {},
             onEditProfile = {},
-            onOpenMyItems = {},
-            onOpenNotifications = {},
-            onBotSpeedChange = {},
-            onTurnFeedbackChange = {},
-            onTapRank = {},
-            onTapXp = {},
-            onSendFeedback = {},
-            onReportBug = {},
-            onPrivacyPolicy = {},
-            onTermsOfService = {},
-            onDeleteAccount = {},
-            onSignOut = {},
+            onTapStats = {},
+            onSeeAllAchievements = {},
+            onToggleEquip = {},
+            onOpenShop = {},
+            onSignIn = {},
         )
     }
 }
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
-@androidx.compose.runtime.Composable
-private fun ProfileScreenPreview_Claimed() {
+@Composable
+private fun ProfileScreenPreview_FreshUser() {
     PreviewContent(bottomBar = PreviewBottomBar.Profile) {
         ProfileScreen(
-            settings = ProfileSettings(
-                displayName = "Elijah",
-                avatarEmoji = "🦄",
-                avatarBackgroundColor = "#7555ff",
-                rank = 1820,
-                xp = 12_400,
-                isAnonymous = false,
-                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Fast,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
-                appVersion = "0.1.0",
-                showQaMenu = false,
-                memberSince = kotlin.time.Instant.parse("2026-03-12T00:00:00Z"),
-                isFoundingMember = true,
-            ),
-            onClaimAccount = {},
+            settings = previewSettings(isAnonymous = true),
+            achievementProgress = AchievementProgress.Empty,
+            ownedItems = emptyList(),
+            winRatePercent = null,
+            onOpenSettings = {},
             onEditProfile = {},
-            onOpenMyItems = {},
-            onOpenNotifications = {},
-            onBotSpeedChange = {},
-            onTurnFeedbackChange = {},
-            onTapRank = {},
-            onTapXp = {},
-            onSendFeedback = {},
-            onReportBug = {},
-            onPrivacyPolicy = {},
-            onTermsOfService = {},
-            onDeleteAccount = {},
-            onSignOut = {},
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@androidx.compose.runtime.Composable
-private fun ProfileScreenPreview_SigningOut() {
-    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
-        ProfileScreen(
-            settings = ProfileSettings(
-                displayName = "Elijah",
-                avatarEmoji = "🦄",
-                avatarBackgroundColor = "#7555ff",
-                rank = 1820,
-                xp = 12_400,
-                isAnonymous = false,
-                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
-                appVersion = "0.1.0",
-                showQaMenu = false,
-            ),
-            onClaimAccount = {},
-            onEditProfile = {},
-            onOpenMyItems = {},
-            onOpenNotifications = {},
-            onBotSpeedChange = {},
-            onTurnFeedbackChange = {},
-            onTapRank = {},
-            onTapXp = {},
-            onSendFeedback = {},
-            onReportBug = {},
-            onPrivacyPolicy = {},
-            onTermsOfService = {},
-            onDeleteAccount = {},
-            onSignOut = {},
-            isSigningOut = true,
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@androidx.compose.runtime.Composable
-private fun ProfileScreenPreview_WithUnreadNotifications() {
-    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
-        ProfileScreen(
-            settings = ProfileSettings(
-                displayName = "Elijah",
-                avatarEmoji = "🦄",
-                avatarBackgroundColor = "#7555ff",
-                rank = 1820,
-                xp = 12_400,
-                isAnonymous = false,
-                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
-                appVersion = "0.1.0",
-                unreadNotificationCount = 5,
-                showQaMenu = false,
-            ),
-            onClaimAccount = {},
-            onEditProfile = {},
-            onOpenMyItems = {},
-            onOpenNotifications = {},
-            onBotSpeedChange = {},
-            onTurnFeedbackChange = {},
-            onTapRank = {},
-            onTapXp = {},
-            onSendFeedback = {},
-            onReportBug = {},
-            onPrivacyPolicy = {},
-            onTermsOfService = {},
-            onDeleteAccount = {},
-            onSignOut = {},
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview(widthDp = 800, heightDp = 380)
-@androidx.compose.runtime.Composable
-private fun ProfileScreenPreview_Landscape() {
-    // Landscape lens: the profile is a single vertical scroll, so sideways
-    // it shows the header + first section above the fold. Surfaces whether
-    // the list rows stretch too wide before any layout tuning lands.
-    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
-        ProfileScreen(
-            settings = ProfileSettings(
-                displayName = "Elijah",
-                avatarEmoji = "🦄",
-                avatarBackgroundColor = "#7555ff",
-                rank = 1820,
-                xp = 12_400,
-                isAnonymous = false,
-                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
-                appVersion = "0.1.0",
-                showQaMenu = false,
-                memberSince = kotlin.time.Instant.parse("2026-03-12T00:00:00Z"),
-                isFoundingMember = true,
-            ),
-            onClaimAccount = {},
-            onEditProfile = {},
-            onOpenMyItems = {},
-            onOpenNotifications = {},
-            onBotSpeedChange = {},
-            onTurnFeedbackChange = {},
-            onTapRank = {},
-            onTapXp = {},
-            onSendFeedback = {},
-            onReportBug = {},
-            onPrivacyPolicy = {},
-            onTermsOfService = {},
-            onDeleteAccount = {},
-            onSignOut = {},
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@androidx.compose.runtime.Composable
-private fun ProfileScreenPreview_DebugBuild() {
-    PreviewContent(bottomBar = PreviewBottomBar.Profile) {
-        ProfileScreen(
-            settings = ProfileSettings(
-                displayName = "Elijah",
-                avatarEmoji = "🦄",
-                avatarBackgroundColor = "#7555ff",
-                rank = 1820,
-                xp = 12_400,
-                isAnonymous = false,
-                botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
-                turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Mute,
-                appVersion = "0.1.0-debug",
-                showQaMenu = true,
-            ),
-            onClaimAccount = {},
-            onEditProfile = {},
-            onOpenMyItems = {},
-            onOpenNotifications = {},
-            onBotSpeedChange = {},
-            onTurnFeedbackChange = {},
-            onTapRank = {},
-            onTapXp = {},
-            onSendFeedback = {},
-            onReportBug = {},
-            onPrivacyPolicy = {},
-            onTermsOfService = {},
-            onDeleteAccount = {},
-            onSignOut = {},
-            onOpenQaMenu = {},
+            onTapStats = {},
+            onSeeAllAchievements = {},
+            onToggleEquip = {},
+            onOpenShop = {},
+            onSignIn = {},
         )
     }
 }

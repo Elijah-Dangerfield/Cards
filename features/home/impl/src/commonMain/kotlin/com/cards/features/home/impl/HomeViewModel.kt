@@ -314,7 +314,7 @@ data class HomeState(
  * Pluck the most-recently-earned achievements from [AchievementProgress]
  * and shape them for the Home shelf. Carries the full [Achievement] so
  * the rendering can reuse the shared
- * [com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedallion].
+ * [com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedal].
  * Unknown ids (would only happen if a row in the local DB references an
  * id we no longer ship) are dropped.
  */
