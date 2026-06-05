@@ -6,7 +6,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
@@ -18,14 +20,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.home_cta_friend_game_subtitle
 import cards.libraries.resources.generated.resources.home_cta_friend_game_title
-import cards.libraries.resources.generated.resources.home_cta_practice_subtitle
 import cards.libraries.resources.generated.resources.home_cta_practice_title
-import cards.libraries.resources.generated.resources.home_cta_quick_match_subtitle
 import cards.libraries.resources.generated.resources.home_cta_quick_match_title
-import cards.libraries.resources.generated.resources.home_cta_quick_match_trailing
-import cards.libraries.resources.generated.resources.home_section_take_a_seat
+import cards.libraries.resources.generated.resources.home_play_button
+import cards.libraries.resources.generated.resources.home_play_friend_subtitle
+import cards.libraries.resources.generated.resources.home_play_practice_subtitle
+import cards.libraries.resources.generated.resources.home_play_quick_match_subtitle
+import cards.libraries.resources.generated.resources.home_section_play
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
@@ -35,6 +37,7 @@ import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.libraries.ui.screenContentPadding
+import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD600
 import com.dangerfield.cards.system.VerticalSpacerD800
@@ -74,6 +77,9 @@ fun HomeScreen(
         }
     HomeScreenContent(
         levelProgress = state.levelProgress,
+        displayName = state.userName ?: "You",
+        avatarEmoji = state.avatarEmoji,
+        avatarBackgroundColorHex = state.avatarBackgroundColorHex,
         // Nullable on purpose: null = "local DB hasn't emitted yet"
         // (first launch or post-wipe). The chip pill renders a
         // placeholder ("—") in that state rather than flashing "0"
@@ -104,6 +110,11 @@ fun HomeScreen(
 private fun HomeScreenContent(
     levelProgress: LevelProgress,
     chips: Long?,
+    // Identity defaults keep the many previews terse; production always
+    // passes the real values from HomeState.
+    displayName: String = "QuietAce72",
+    avatarEmoji: String? = "🦊",
+    avatarBackgroundColorHex: String? = "#E48A58",
     activeRooms: List<ActiveRoomSummary>,
     showTutorialBanner: Boolean = false,
     onStartTutorial: () -> Unit = {},
@@ -141,12 +152,14 @@ private fun HomeScreenContent(
                 .screenContentPadding(paddingValues = paddingValues),
         ) {
             VerticalSpacerD500()
-            // Slim header — Level pill (left) + chip balance (right). No
-            // avatar; profile is the avatar's home via the bottom-nav
-            // tab. Same balance pill the shop uses so the wallet
-            // affordance reads identically across surfaces.
+            // Slim header — ringed avatar + name + level (left) + chip
+            // balance (right). The avatar's ring encodes XP progress; the
+            // chip pill matches the one the shop uses.
             HomeHeader(
                 levelProgress = levelProgress,
+                displayName = displayName,
+                avatarEmoji = avatarEmoji,
+                avatarBackgroundColorHex = avatarBackgroundColorHex,
                 chips = chips,
                 onTapLevel = onTapLevel,
                 onTapChips = onTapCash,
@@ -180,31 +193,37 @@ private fun HomeScreenContent(
             }
 
             VerticalSpacerD1100()
-            SectionHeader(title = stringResource(Res.string.home_section_take_a_seat))
+            SectionHeader(title = stringResource(Res.string.home_section_play))
             VerticalSpacerD600()
-            HomeCtaCard(
+            // Practice is the hero — it always works, unlike Quick Match
+            // (matchmaking not built yet). The two smaller options sit below.
+            PlayFeatureCard(
                 title = stringResource(Res.string.home_cta_practice_title),
-                subtitle = stringResource(Res.string.home_cta_practice_subtitle),
-                glyph = "🤖",
+                subtitle = stringResource(Res.string.home_play_practice_subtitle),
+                glyph = "♠",
                 accent = FeatureCardAccents.Green,
+                cta = stringResource(Res.string.home_play_button),
                 onClick = onPlayBots,
             )
-            HomeCtaCard(
-                title = stringResource(Res.string.home_cta_friend_game_title),
-                subtitle = stringResource(Res.string.home_cta_friend_game_subtitle),
-                glyph = "👯‍♂️",
-                accent = FeatureCardAccents.Gold,
-                onClick = onFriendGame,
-            )
-
-            HomeCtaCard(
-                title = stringResource(Res.string.home_cta_quick_match_title),
-                subtitle = stringResource(Res.string.home_cta_quick_match_subtitle),
-                glyph = "⏳",
-                accent = FeatureCardAccents.Blue,
-                onClick = onQuickMatch,
-                trailing = stringResource(Res.string.home_cta_quick_match_trailing),
-            )
+            VerticalSpacerD500()
+            Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+                PlayTileCard(
+                    title = stringResource(Res.string.home_cta_quick_match_title),
+                    subtitle = stringResource(Res.string.home_play_quick_match_subtitle),
+                    glyph = "✦",
+                    accent = FeatureCardAccents.Blue,
+                    onClick = onQuickMatch,
+                    modifier = Modifier.weight(1f),
+                )
+                PlayTileCard(
+                    title = stringResource(Res.string.home_cta_friend_game_title),
+                    subtitle = stringResource(Res.string.home_play_friend_subtitle),
+                    glyph = "♣",
+                    accent = FeatureCardAccents.Gold,
+                    onClick = onFriendGame,
+                    modifier = Modifier.weight(1f),
+                )
+            }
 
             VerticalSpacerD1100()
             FriendsStrip(

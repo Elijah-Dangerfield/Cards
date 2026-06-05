@@ -154,15 +154,23 @@
     <string name="onboarding_identity_more_packs_hint">More packs in the shop</string>
     <string name="onboarding_identity_continue_button">Continue</string>
 
-    <!-- Home — Take-a-seat section + HomeCtaCard copy. -->
-    <string name="home_section_take_a_seat">Take a seat</string>
+    <!-- Home — Play section (featured Practice card + Quick Match / Friend Game tiles). -->
+    <string name="home_section_play">Play</string>
     <string name="home_cta_practice_title">Practice</string>
-    <string name="home_cta_practice_subtitle">Solo vs. bots</string>
     <string name="home_cta_friend_game_title">Friend Game</string>
-    <string name="home_cta_friend_game_subtitle">Room code · just you and yours</string>
     <string name="home_cta_quick_match_title">Quick Match</string>
-    <string name="home_cta_quick_match_subtitle">Public seat · one tap</string>
-    <string name="home_cta_quick_match_trailing">Soon</string>
+    <string name="home_play_button">Play</string>
+    <string name="home_play_practice_subtitle">Sharpen up against bots</string>
+    <string name="home_play_quick_match_subtitle">Find a table</string>
+    <string name="home_play_friend_subtitle">Code or join</string>
+
+    <!-- Home — Friend Game "create or join" sheet. -->
+    <string name="friend_game_sheet_title">Friend game</string>
+    <string name="friend_game_sheet_subtitle">Start a private table, or hop into a friend's.</string>
+    <string name="friend_game_sheet_create_button">Create a room</string>
+    <string name="friend_game_sheet_join_label">Join with a code</string>
+    <string name="friend_game_sheet_code_label">Room code</string>
+    <string name="friend_game_sheet_join_button">Join</string>
 
     <!-- Home — Friends strip header + empty state + see-all label variants. -->
     <string name="home_friends_section_title">Friends</string>
@@ -206,8 +214,8 @@
     <string name="home_active_room_forfeit_dialog_secondary">Stay</string>
 
     <!-- Home — Tutorial banner (one-tap entry to the tutorial flow). -->
-    <string name="home_tutorial_banner_title">New here? Learn the basics</string>
-    <string name="home_tutorial_banner_subtitle">2-minute tutorial · hands, betting, suits</string>
+    <string name="home_tutorial_banner_title">New here?</string>
+    <string name="home_tutorial_banner_subtitle">Learn poker in 2 minutes — no chips at stake.</string>
     <string name="home_tutorial_banner_start_button">Start</string>
     <string name="home_tutorial_banner_dismiss_a11y">Dismiss tutorial banner</string>
 

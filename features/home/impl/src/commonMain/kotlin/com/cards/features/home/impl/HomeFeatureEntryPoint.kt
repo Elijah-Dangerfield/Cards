@@ -74,10 +74,13 @@ class HomeFeatureEntryPoint(
                     }
                 }
             }
-            // The bot-table setup dialog now picks difficulty *and*
-            // seat count in one place, so Home's single Practice CTA
-            // opens it directly — no intermediate difficulty picker.
+            // The bot-table setup sheet picks difficulty *and* seat count
+            // in one place, so Home's Practice hero opens it directly — no
+            // intermediate difficulty picker.
             var botSetupOpen by remember { mutableStateOf(false) }
+            // Friend Game "create or join" sheet. Both paths route into the
+            // lobby (auto-create on entry, or auto-join via prefilled code).
+            var friendGameOpen by remember { mutableStateOf(false) }
             // "Coming soon" sheet state, parameterized so the same
             // surface serves Quick Match (not built) and Tournament
             // (V2). Null = closed.
@@ -105,10 +108,9 @@ class HomeFeatureEntryPoint(
                         body = quickMatchBody,
                     )
                 },
-                // Friend Game = the existing lobby flow (create/join via
-                // room code). Spec §5.2 calls this the "Friend Game"
-                // entry point; the lobby screen is the actual surface.
-                onFriendGame = { router.navigate(LobbyRoute()) },
+                // Friend Game opens a "create or join" sheet; the choice
+                // then routes into the lobby (the seated surface).
+                onFriendGame = { friendGameOpen = true },
                 onStartTutorial = { router.navigate(TutorialRoute()) },
                 // Level pill → Stats — the screen-of-record for the
                 // full level / XP breakdown.
@@ -152,7 +154,7 @@ class HomeFeatureEntryPoint(
             )
 
             if (botSetupOpen) {
-                BotTableSetupDialog(
+                BotTableSetupSheet(
                     onStart = { difficulty, seatCount ->
                         botSetupOpen = false
                         router.navigate(
@@ -163,6 +165,20 @@ class HomeFeatureEntryPoint(
                         )
                     },
                     onDismiss = { botSetupOpen = false },
+                )
+            }
+
+            if (friendGameOpen) {
+                FriendGameSheet(
+                    onCreate = {
+                        friendGameOpen = false
+                        router.navigate(LobbyRoute(autoCreate = true))
+                    },
+                    onJoin = { code ->
+                        friendGameOpen = false
+                        router.navigate(LobbyRoute(prefilledCode = code))
+                    },
+                    onDismiss = { friendGameOpen = false },
                 )
             }
 

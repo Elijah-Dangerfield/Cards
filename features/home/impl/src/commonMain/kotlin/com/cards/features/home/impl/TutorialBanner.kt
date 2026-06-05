@@ -1,7 +1,6 @@
 package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,19 +17,14 @@ import cards.libraries.resources.generated.resources.home_tutorial_banner_dismis
 import cards.libraries.resources.generated.resources.home_tutorial_banner_start_button
 import cards.libraries.resources.generated.resources.home_tutorial_banner_subtitle
 import cards.libraries.resources.generated.resources.home_tutorial_banner_title
-import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.bounceClick
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
-import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
-import com.dangerfield.cards.libraries.ui.elevation
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
-import com.dangerfield.cards.system.HorizontalSpacerD200
 import com.dangerfield.cards.system.HorizontalSpacerD500
 import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD100
@@ -38,10 +32,10 @@ import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Compact one-row banner: gold icon tile, two-line title/subtitle, small
- * Start pill, subdued dismiss. Lives above the Home header until the user
- * dismisses it; the tutorial itself remains reachable from Settings →
- * "How to play".
+ * The "New here?" onboarding banner: a green gradient card with a mortarboard
+ * tile, two-line pitch, and a white "Start" pill — same gradient family as
+ * Home's Play cards. Lives above the Home header until dismissed (the subtle
+ * corner ✕); the tutorial stays reachable from Settings → "How to play".
  */
 @Composable
 internal fun TutorialBanner(
@@ -49,45 +43,62 @@ internal fun TutorialBanner(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(Radii.Card.shape)
-            .border(1.dp, AppTheme.colors.border.color, Radii.Card.shape)
-            .background(AppTheme.colors.surface.color)
-            .bounceClick(onClick = onStart)
-            .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconTile()
-        HorizontalSpacerD500()
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = stringResource(Res.string.home_tutorial_banner_title),
-                typography = AppTheme.typography.Body.B700.SemiBold,
-                color = AppTheme.colors.content,
-            )
-            VerticalSpacerD100()
-            Text(
-                text = stringResource(Res.string.home_tutorial_banner_subtitle),
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-        }
-        HorizontalSpacerD500()
-        ButtonSecondary(
-            onClick = onStart,
-            size = ButtonSize.Small,
+    Box(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(Radii.R900.shape)
+                .background(playGradient(FeatureCardAccents.Green))
+                .bounceClick(onClick = onStart)
+                .padding(horizontal = Dimension.D600, vertical = Dimension.D600),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(Res.string.home_tutorial_banner_start_button))
+            IconTile()
+            HorizontalSpacerD500()
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(Res.string.home_tutorial_banner_title),
+                    typography = AppTheme.typography.Body.B700.SemiBold,
+                    color = AppTheme.colors.content,
+                )
+                VerticalSpacerD100()
+                Text(
+                    text = stringResource(Res.string.home_tutorial_banner_subtitle),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.content.withAlpha(0.78f),
+                )
+            }
+            HorizontalSpacerD500()
+            StartPill(onClick = onStart)
         }
-        HorizontalSpacerD200()
+        // Low-emphasis dismiss tucked into the corner so the card reads clean.
         IconButton(
             icon = Icons.X(stringResource(Res.string.home_tutorial_banner_dismiss_a11y)),
             onClick = onDismiss,
             size = IconButton.Size.Small,
             backgroundColor = null,
-            iconColor = AppTheme.colors.contentSecondary,
+            iconColor = AppTheme.colors.content.withAlpha(0.6f),
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
+    }
+}
+
+/** White "Start" pill — composed from the inverse [content]-on-[background]
+ *  tokens since the DS has no light filled button. */
+@Composable
+private fun StartPill(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(Radii.Round.shape)
+            .background(AppTheme.colors.content.color)
+            .bounceClick(onClick = onClick)
+            .padding(horizontal = Dimension.D600, vertical = Dimension.D300),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(Res.string.home_tutorial_banner_start_button),
+            typography = AppTheme.typography.Body.B600,
+            color = AppTheme.colors.background,
         )
     }
 }
@@ -98,11 +109,11 @@ private fun IconTile() {
         modifier = Modifier
             .size(40.dp)
             .clip(Radii.R400.shape)
-            .background(FeatureCardAccents.Gold),
+            .background(AppTheme.colors.background.color.copy(alpha = 0.28f)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = "🔑",
+            text = "🎓",
             typography = AppTheme.typography.Heading.H500,
             color = AppTheme.colors.content,
         )
