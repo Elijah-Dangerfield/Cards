@@ -84,10 +84,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Cross-app consistency
 
-- `[P2]` **Unify the "scrollable shelf + see-all" affordance.** Home shelves use a "See all" header link; Profile shelves use a "Shop ›" link — same pattern, different chrome. Converge on one section-header + see-all/CTA treatment so horizontally-scrolling shelves read consistently app-wide. *(proposed 2026-06-05)*
-  **Acceptance:** Home + Profile (+ any other scroll-row shelves) share one section-header + see-all/CTA treatment.
-  **Hints:** `SectionHeader` (`:libraries:ui`) already supports a trailing label + `onClick`; reconcile the profile shop-link variant against it.
-
 ### Social graph + friends — load-bearing for V1.x
 
 Home exposes three surfaces that need this system to work: the friends strip with presence, the "recently played with" shelf with add-friend, and the friend-requests inbox on profile. All currently fake or no-op.

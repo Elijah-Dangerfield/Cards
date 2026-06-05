@@ -397,8 +397,7 @@
     <string name="profile_stats_banner_subtitle">%1$s · %2$d%% win · %3$s won</string>
     <string name="profile_stats_banner_subtitle_no_games">%1$s · Play a few hands to see your stats</string>
     <string name="profile_achievements_title">Achievements</string>
-    <string name="profile_achievements_count">%1$d / %2$d</string>
-    <string name="profile_achievements_see_all">See all</string>
+    <string name="profile_achievements_count_see_all">%1$d / %2$d · See all</string>
     <string name="profile_items_shop_link">Shop ›</string>
     <string name="profile_items_felt">Felts</string>
     <string name="profile_items_card_back">Card backs</string>

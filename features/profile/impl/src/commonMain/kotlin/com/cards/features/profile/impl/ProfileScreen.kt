@@ -66,8 +66,7 @@ import cards.libraries.resources.generated.resources.profile_settings_a11y
 import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle
 import cards.libraries.resources.generated.resources.profile_stats_banner_subtitle_no_games
 import cards.libraries.resources.generated.resources.profile_stats_banner_title
-import cards.libraries.resources.generated.resources.profile_achievements_count
-import cards.libraries.resources.generated.resources.profile_achievements_see_all
+import cards.libraries.resources.generated.resources.profile_achievements_count_see_all
 import cards.libraries.resources.generated.resources.profile_achievements_title
 import cards.libraries.resources.generated.resources.ui_achievement_medallion_locked_label
 import com.dangerfield.cards.features.profile.impl.items.BuyableCosmetic
@@ -93,6 +92,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.Surface
+import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
@@ -492,9 +492,8 @@ private fun AchievementsSection(
 
     SectionHeader(
         title = stringResource(Res.string.profile_achievements_title),
-        trailingText = stringResource(Res.string.profile_achievements_count, earnedCount, total),
-        actionText = stringResource(Res.string.profile_achievements_see_all),
-        onAction = onSeeAll,
+        trailingLabel = stringResource(Res.string.profile_achievements_count_see_all, earnedCount, total),
+        onClick = onSeeAll,
     )
     VerticalSpacerD200()
     FlowRow(
@@ -610,9 +609,8 @@ private fun OwnedItemsSections(
 
         SectionHeader(
             title = stringResource(shelf.labelResource()),
-            actionText = if (isShoppable) stringResource(Res.string.profile_items_shop_link) else "",
-            onAction = onOpenShop,
-            showAction = isShoppable,
+            trailingLabel = if (isShoppable) stringResource(Res.string.profile_items_shop_link) else null,
+            onClick = if (isShoppable) onOpenShop else null,
         )
         VerticalSpacerD200()
         FlowRow(
@@ -810,44 +808,6 @@ private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
 }
 
 private const val BuyableTileAlpha = 0.45f
-
-// ---- Shared bits -------------------------------------------------------
-
-@Composable
-private fun SectionHeader(
-    title: String,
-    actionText: String,
-    onAction: () -> Unit,
-    trailingText: String? = null,
-    showAction: Boolean = true,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.content,
-        )
-        if (trailingText != null) {
-            Text(
-                text = "  $trailingText",
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.contentSecondary,
-            )
-        }
-        Box(modifier = Modifier.weight(1f))
-        if (showAction) {
-            Text(
-                text = actionText,
-                typography = AppTheme.typography.Label.L400,
-                color = AppTheme.colors.accentPrimary,
-                modifier = Modifier.clickable(onClick = onAction),
-            )
-        }
-    }
-}
 
 // ---- Previews ----------------------------------------------------------
 
