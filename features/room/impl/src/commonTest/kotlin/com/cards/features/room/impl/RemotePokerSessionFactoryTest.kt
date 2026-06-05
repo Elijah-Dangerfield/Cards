@@ -8,9 +8,11 @@ import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
 import com.dangerfield.cards.libraries.rooms.JoinRoomOutcome
 import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
+import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
@@ -287,6 +289,7 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
         override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = error("unused")
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome = error("unused")
+        override fun observeActiveRooms(): Flow<List<Room>> = error("unused")
         override fun connect(code: String): RoomConnectionHandle {
             connectCalls += 1
             return handle

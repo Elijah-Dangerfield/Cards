@@ -663,6 +663,7 @@ class LobbyViewModelTest : CoroutineTest() {
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = LeaveRoomOutcome.Success
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
             GetActiveRoomsOutcome.Success(emptyList())
+        override fun observeActiveRooms(): Flow<List<Room>> = flow { }
         override fun connect(code: String): RoomConnectionHandle = handle
     }
 
@@ -715,6 +716,7 @@ class LobbyViewModelTest : CoroutineTest() {
         }
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome =
             GetActiveRoomsOutcome.Success(emptyList())
+        override fun observeActiveRooms(): Flow<List<Room>> = flow { }
         override fun connect(code: String): RoomConnectionHandle = EmptyHandle
     }
 
@@ -734,6 +736,7 @@ class LobbyViewModelTest : CoroutineTest() {
         }
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = leaveOutcome
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome = activeRoomsOutcome
+        override fun observeActiveRooms(): Flow<List<Room>> = flow { }
         override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {
             override val connection: Flow<RoomConnection> = observe(code)
             override val gameplayFrames: Flow<GameplayFrame> = flow { }

@@ -32,6 +32,7 @@ import com.dangerfield.cards.libraries.rooms.RoomStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -171,6 +172,34 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun activeRooms_liveUpdate_reflectsWithoutRefetch() = runUnitTest {
+        // The banner is reactive: a room appearing in the repository's
+        // observed set (e.g. a join landing) shows on Home with no explicit
+        // refresh, and a room leaving the set clears it.
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList()),
+        )
+        val vm = buildVm(rooms = rooms)
+        val callsAfterSeed = rooms.getActiveRoomsCalls
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (last.activeRooms.isNotEmpty()) last = awaitItem()
+
+            rooms.emitActiveRooms(listOf(sampleRoom(code = "JOIN99")))
+            while (last.activeRooms.isEmpty()) last = awaitItem()
+            assertEquals(listOf(ActiveRoomSummary("JOIN99")), last.activeRooms)
+
+            rooms.emitActiveRooms(emptyList())
+            while (last.activeRooms.isNotEmpty()) last = awaitItem()
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(
+            callsAfterSeed, rooms.getActiveRoomsCalls,
+            "live updates must not trigger a re-fetch",
+        )
+    }
+
+    @Test
     fun activeRooms_networkError_keepsEmpty() = runUnitTest {
         // The home banner must stay silent when /v1/me/active-rooms fails so
         // we don't pop a "you have an ongoing game" affordance keyed to nothing.
@@ -192,11 +221,11 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun activeRooms_multiple_keepsNewest_andLeavesOlderOnes() = runUnitTest {
-        // A healthy steady state is exactly one active room per user.
-        // Two means the previous session crashed / WS dropped without a clean
-        // tear-down; we should converge to a single room rather than render
-        // a stack of banners that all race when the user picks one.
+    fun activeRooms_multiple_bannerShowsNewest() = runUnitTest {
+        // A healthy steady state is exactly one active room per user. If more
+        // than one slips through (a prior session dropped without a clean
+        // tear-down) the banner surfaces the newest rather than a stack of
+        // racing banners. The server's seat-grace timer reaps the stale ones.
         val newer = sampleRoom(code = "NEW111", createdAtEpochMs = 1_700_000_002_000)
         val older = sampleRoom(code = "OLD000", createdAtEpochMs = 1_700_000_000_000)
         val middle = sampleRoom(code = "MID222", createdAtEpochMs = 1_700_000_001_000)
@@ -210,35 +239,10 @@ class HomeViewModelTest : CoroutineTest() {
             while (last.activeRooms.isEmpty()) last = awaitItem()
             assertEquals(
                 listOf(ActiveRoomSummary("NEW111")), last.activeRooms,
-                "newest active room (by createdAt) is the one the banner keeps",
+                "newest active room (by createdAt) is the one the banner shows",
             )
             cancelAndIgnoreRemainingEvents()
         }
-        assertEquals(
-            setOf("OLD000", "MID222"), rooms.leaveCalls.toSet(),
-            "every stale room is leave-queued; order doesn't matter",
-        )
-    }
-
-    @Test
-    fun activeRooms_singleRoom_doesNotIssueAnyLeave() = runUnitTest {
-        // Single active room is the steady state. No cleanup leave calls.
-        val only = sampleRoom(code = "ONLY11")
-        val rooms = FakeRoomRepository(
-            activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(only)),
-        )
-        val vm = buildVm(rooms = rooms)
-
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.activeRooms.isEmpty()) last = awaitItem()
-            assertEquals(listOf(ActiveRoomSummary("ONLY11")), last.activeRooms)
-            cancelAndIgnoreRemainingEvents()
-        }
-        assertTrue(
-            rooms.leaveCalls.isEmpty(),
-            "single-room steady state must not surface any cleanup leave",
-        )
     }
 
     @Test
@@ -329,9 +333,12 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun forfeit_networkError_rehydratesFromServer() = runUnitTest {
+    fun forfeit_networkError_keepsRoomVisible() = runUnitTest {
         // A leave that fails over the wire must NOT silently drop the room from
-        // the user's view — the server's truth is still "you're in." Reload.
+        // the user's view — the server's truth is still "you're in." The banner
+        // is now driven by the repository's observed room set, which a failed
+        // leave leaves untouched, so the room simply stays visible — no
+        // optimistic drop to undo, no re-query needed.
         val original = sampleRoom(code = "AAA111")
         val rooms = FakeRoomRepository(
             activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(original)),
@@ -343,14 +350,9 @@ class HomeViewModelTest : CoroutineTest() {
             while (last.activeRooms.isEmpty()) last = awaitItem()
 
             vm.takeAction(HomeAction.Forfeit(code = "AAA111"))
-
-            // The optimistic drop + rehydrate is conflated by StateFlow into the
-            // same end-state — so we assert the final value and that the leave
-            // failure triggered a second active-rooms fetch.
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(listOf(ActiveRoomSummary("AAA111")), vm.stateFlow.value.activeRooms)
-        assertTrue(rooms.getActiveRoomsCalls >= 2, "Failure must re-query active rooms")
         assertEquals(listOf("AAA111"), rooms.leaveCalls)
     }
 
@@ -429,6 +431,11 @@ class HomeViewModelTest : CoroutineTest() {
         var getActiveRoomsCalls: Int = 0
             private set
         val leaveCalls: MutableList<String> = mutableListOf()
+        private val activeRooms = MutableStateFlow<List<Room>>(emptyList())
+
+        fun emitActiveRooms(rooms: List<Room>) { activeRooms.value = rooms }
+
+        override fun observeActiveRooms(): Flow<List<Room>> = activeRooms
 
         override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome =
             CreateRoomOutcome.NetworkError(RuntimeException("not used"))
@@ -436,10 +443,26 @@ class HomeViewModelTest : CoroutineTest() {
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome {
             leaveCalls += code
+            // Yield before mutating the observed flow so the StateFlow update
+            // doesn't re-enter the collector synchronously — mirrors a real
+            // network round-trip and keeps the unconfined scheduler honest.
+            yield()
+            when (leaveOutcome) {
+                is LeaveRoomOutcome.Success,
+                is LeaveRoomOutcome.NotFound,
+                is LeaveRoomOutcome.NotInRoom ->
+                    activeRooms.value = activeRooms.value.filterNot { it.code == code }
+                is LeaveRoomOutcome.NetworkError,
+                is LeaveRoomOutcome.Unknown -> Unit
+            }
             return leaveOutcome
         }
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome {
             getActiveRoomsCalls += 1
+            yield()
+            if (activeRoomsOutcome is GetActiveRoomsOutcome.Success) {
+                activeRooms.value = activeRoomsOutcome.rooms
+            }
             return activeRoomsOutcome
         }
         override fun connect(code: String): RoomConnectionHandle = object : RoomConnectionHandle {

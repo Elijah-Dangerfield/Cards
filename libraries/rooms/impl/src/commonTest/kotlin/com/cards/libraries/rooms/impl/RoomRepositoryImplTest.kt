@@ -19,6 +19,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -164,6 +165,40 @@ class RoomRepositoryImplTest {
         val outcome = repo.getActiveRooms()
         val networkError = assertIs<GetActiveRoomsOutcome.NetworkError>(outcome)
         assertTrue(networkError.cause is SimulatedNetworkError)
+    }
+
+    @Test
+    fun observeActiveRooms_seededByGetActiveRooms() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_ONE_ROOM_JSON) })
+        assertTrue(repo.observeActiveRooms().first().isEmpty())
+        repo.getActiveRooms()
+        assertEquals(listOf("ABC123"), repo.observeActiveRooms().first().map { it.code })
+    }
+
+    @Test
+    fun observeActiveRooms_leaveRemovesRoom_live() = runTest {
+        val repo = newRepo(MockEngine { request ->
+            when {
+                request.url.encodedPath.endsWith("/active-rooms") ->
+                    respondJson(HttpStatusCode.OK, ACTIVE_ROOMS_ONE_ROOM_JSON)
+                else -> respond(content = "", status = HttpStatusCode.NoContent)
+            }
+        })
+        repo.getActiveRooms()
+        assertEquals(listOf("ABC123"), repo.observeActiveRooms().first().map { it.code })
+        repo.leaveRoom("ABC123")
+        assertTrue(
+            repo.observeActiveRooms().first().isEmpty(),
+            "a successful leave drops the room from the observed set with no re-fetch",
+        )
+    }
+
+    @Test
+    fun observeActiveRooms_joinUpsertsRoom_live() = runTest {
+        val repo = newRepo(MockEngine { respondJson(HttpStatusCode.OK, JOIN_RESPONSE_JSON_FRESH) })
+        assertTrue(repo.observeActiveRooms().first().isEmpty())
+        repo.joinRoom("ABC123")
+        assertEquals(listOf("ABC123"), repo.observeActiveRooms().first().map { it.code })
     }
 
     /**
