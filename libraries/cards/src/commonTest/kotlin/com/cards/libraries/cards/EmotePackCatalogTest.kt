@@ -1,17 +1,17 @@
-package com.dangerfield.cards.features.room.impl
+package com.dangerfield.cards.libraries.cards
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class EmojiPackCatalogTest {
+class EmotePackCatalogTest {
 
     @Test
     fun noOwnedPacks_returnsEmpty() {
         // Emoji blasts are a paid surface — no pack, no emojis. The tray's
         // empty-state popup (greyed-out preview + shop CTA) renders
-        // [EmojiPackCatalog.SamplePreview] when this list is empty.
-        val available = EmojiPackCatalog.availableEmojisFor(ownedProductIds = emptySet())
+        // [EmotePackCatalog.SamplePreview] when this list is empty.
+        val available = EmotePackCatalog.availableEmojisFor(ownedProductIds = emptySet())
         assertTrue(available.isEmpty())
     }
 
@@ -21,9 +21,9 @@ class EmojiPackCatalogTest {
         // so its layout is stable. Each glyph must be one we actually
         // ship (otherwise the user buys a pack and discovers a different
         // emoji set than the teaser implied).
-        val preview = EmojiPackCatalog.SamplePreview
+        val preview = EmotePackCatalog.SamplePreview
         assertEquals(4, preview.size)
-        val allShippingEmojis = EmojiPackCatalog
+        val allShippingEmojis = EmotePackCatalog
             .availableEmojisFor(setOf(
                 "emotes_drama", "emotes_cute", "emotes_fierce", "emotes_royal",
                 "emotes_eliminator", "emotes_baller", "emotes_iron_stack",
@@ -43,15 +43,21 @@ class EmojiPackCatalogTest {
 
     @Test
     fun unknownProductIds_areIgnored() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("not_a_pack", "tool_win_odds"),
         )
         assertTrue(available.isEmpty())
     }
 
     @Test
+    fun emojisForPack_returnsPackContents_orEmptyForUnknown() {
+        assertEquals(listOf("🥺", "🥰", "😇", "🤗"), EmotePackCatalog.emojisForPack("emotes_cute"))
+        assertTrue(EmotePackCatalog.emojisForPack("not_a_pack").isEmpty())
+    }
+
+    @Test
     fun ownedPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_cute"),
         )
         assertEquals(listOf("🥺", "🥰", "😇", "🤗"), available)
@@ -59,7 +65,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun eliminatorPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_eliminator"),
         )
         assertEquals(listOf("🪦", "⚰️", "👻", "🥀"), available)
@@ -67,7 +73,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun ballerPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_baller"),
         )
         assertEquals(listOf("💸", "💎", "🤑", "📈"), available)
@@ -75,7 +81,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun ironStackPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_iron_stack"),
         )
         assertEquals(listOf("🛡️", "🧱", "🗿", "🦾"), available)
@@ -83,7 +89,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun convincerPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_convincer"),
         )
         assertEquals(listOf("🪄", "🎩", "😏", "🤫"), available)
@@ -91,7 +97,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun disciplinedPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_disciplined"),
         )
         assertEquals(listOf("🧘", "🦉", "👁️", "🪞"), available)
@@ -99,7 +105,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun grinderPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_grinder"),
         )
         assertEquals(listOf("☕", "⛏️", "🛠️", "⌛"), available)
@@ -107,7 +113,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun doublerPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_doubler"),
         )
         assertEquals(listOf("🚀", "⏫", "🎯", "💰"), available)
@@ -115,7 +121,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun tacticianPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_tactician"),
         )
         assertEquals(listOf("♟️", "🦅", "🥷", "🏹"), available)
@@ -123,7 +129,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun inspectorPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_inspector"),
         )
         assertEquals(listOf("🔍", "📋", "🤓", "☝️"), available)
@@ -131,7 +137,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun showstopperPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_showstopper"),
         )
         assertEquals(listOf("🎤", "✨", "👏", "🎬"), available)
@@ -139,7 +145,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun outsmarterPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_outsmarter"),
         )
         assertEquals(listOf("💡", "🪤", "🕸️", "🔮"), available)
@@ -147,7 +153,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun marathonerPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_marathoner"),
         )
         assertEquals(listOf("🦥", "🐌", "🪨", "🌅"), available)
@@ -155,7 +161,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun tamerPack_unlocksItsEmojis() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             ownedProductIds = setOf("emotes_tamer"),
         )
         assertEquals(listOf("🦁", "🎪", "🤹", "🪅"), available)
@@ -163,7 +169,7 @@ class EmojiPackCatalogTest {
 
     @Test
     fun ownedMultiplePacks_appendInPackOrder_deduped() {
-        val available = EmojiPackCatalog.availableEmojisFor(
+        val available = EmotePackCatalog.availableEmojisFor(
             setOf("emotes_cute", "emotes_drama"),
         )
         // Drama comes first in PackEmojis insertion order regardless of
@@ -176,7 +182,7 @@ class EmojiPackCatalogTest {
         // Set ordering of input doesn't matter — the same packs always
         // produce the same available list regardless of which order the
         // caller iterates `ownedProductIds`.
-        val reordered = EmojiPackCatalog.availableEmojisFor(
+        val reordered = EmotePackCatalog.availableEmojisFor(
             setOf("emotes_drama", "emotes_cute"),
         )
         assertEquals(available, reordered)

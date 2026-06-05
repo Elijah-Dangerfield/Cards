@@ -1,4 +1,4 @@
-package com.dangerfield.cards.features.room.impl
+package com.dangerfield.cards.libraries.ui.components.poker
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
@@ -24,24 +25,27 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Renders a single "emoji blast" over the play surface — pop in, hold,
+ * Renders a single "emoji blast" over the whole screen — pop in, hold,
  * then drift up and fade. When [blast] becomes non-null the overlay
  * enters, animates, and reports completion via [onAnimationComplete]
- * with the original blast's `emittedAtEpochMs`. Caller clears VM state
+ * with the original blast's `emittedAtEpochMs`. Caller clears its state
  * on that callback; the overlay then leaves the tree.
  *
- * Total duration is ~2.8s — long enough for the table to register the
- * reaction without obstructing play for more than a beat. A
- * hold-at-peak between the pop and the drift gives the eye time to
- * read the emoji before it starts moving.
+ * Total duration is ~2.8s — long enough for the surface to register the
+ * reaction without obstructing it for more than a beat. A hold-at-peak
+ * between the pop and the drift gives the eye time to read the emoji
+ * before it starts moving.
  *
  * The optional emitter avatar (small circle below the emoji) signals
- * *who* blasted. In V1 only the human emits, but rendering the avatar
- * unconditionally keeps the visual identical to what MP / reactive-bot
- * blasts will look like when they ship (product-spec.md §5.5).
+ * *who* blasted. The poker table passes the human seat; the Profile
+ * "Try it out" preview passes the viewer's own avatar.
+ *
+ * Shared (in `:libraries:ui`) so the in-game emote tray and the Profile
+ * cosmetics "Try it out" affordance render the identical animation — a
+ * single tight contract for the blast visual.
  */
 @Composable
-internal fun EmojiBlastOverlay(
+fun EmojiBlastOverlay(
     blast: EmojiBlast?,
     onAnimationComplete: (emittedAtEpochMs: Long) -> Unit,
     modifier: Modifier = Modifier,

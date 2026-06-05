@@ -34,6 +34,7 @@ import androidx.compose.ui.window.PopupProperties
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_emoji_tray_cooldown
 import cards.libraries.resources.generated.resources.room_emoji_tray_empty_caption
+import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.icon.EmojiButton
@@ -234,7 +235,7 @@ private fun EmptyEmojiPopup(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.alpha(0.4f),
             ) {
-                EmojiPackCatalog.SamplePreview.forEach { emoji ->
+                EmotePackCatalog.SamplePreview.forEach { emoji ->
                     EmojiButton(
                         emoji = emoji,
                         size = CellSize,
