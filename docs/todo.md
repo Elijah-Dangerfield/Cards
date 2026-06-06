@@ -60,6 +60,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** appears **only on Home**, never at the table (bots or MP); triggered by a persisted `AppData.lastCelebratedLevel` watermark — on Home, if `levelProgressFor(progression.totalXp).level > lastCelebratedLevel`, show for the current level then advance the watermark; a multi-level jump shows **once** (net level); existing users are seeded to current level on first run with **no** celebration; haptics + entrance animation fire.
   **Hints:** reuse [`RotatingDial`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/RotatingDial.kt) (re-skinned teal via `rayColor`/`glowColor`) and the shake→burst+haptics pattern from `AchievementUnlockReveal`; watermark mirrors `pendingProfileHighlight` in [`AppCache.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/AppCache.kt); host overlay sits on Home like [`UserMessageOverlay`](../apps/compose/src/commonMain/kotlin/com/cards/UserMessageOverlay.kt). **Coexists with:** the at-table `AchievementCelebrationSheet` (different surface) and the server-dialog `InAppMessageManager` (level-up takes the Home foreground first). **Out of scope (need data — see [`backlog.md`](./backlog.md)):** per-level names ("Calculated"), the "better than N% of players" percentile, the level-gated "Unlocked" callout.
 
+- `[P2]` **Level-up rewards — `level → reward` table + idempotent grant.** The keystone that makes "certain level-ups give a prize" real: a static `level → reward` table (chips / cosmetic / XP boost / Pick-a-Card chest) and an idempotent grant **on level-cross** — keyed `levelup_<level>` with a `highestLevelRewarded` watermark **separate from** the celebration's `lastCelebratedLevel`. Existing users backfill per policy (grant-from-now, no retro spam). Grant the prize when earned (offline-OK), celebrate later on Home. Full call (XP is client-local; reuse the chip-ledger / achievement-reward paths; server-derive when stakes rise) is in [`decisions.md`](./decisions.md) 2026-06-06 (level-up addendum) + [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md). *(proposed 2026-06-06)*
+  **Acceptance:** crossing a rewarded level grants its prize exactly once (survives retries / reinstall / multi-level jump); existing users aren't blasted with historical rewards; rewards can be chips, a cosmetic, or a consumable.
+  **Hints:** chips → [`ChipsRepository.addChips(idempotencyKey=…)`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/ChipsRepository.kt); cosmetic → the achievement-reward grant path; consumables → see the Consumables items below. **Pairs with:** the level-up celebration (reveals what was granted).
+
 ### Consumables & rewards (V1.x / monetization)
 
 Buyable, level-up-giftable consumables. Product + grant-model call is in [`decisions.md`](./decisions.md) 2026-06-06 ("Consumable reward items"); both lean on the grant models in [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md), and the level→reward table from the level-up decision can grant either. *(proposed 2026-06-06)*
@@ -105,8 +109,6 @@ The owner-facing slice of the **Player Card** feature: the public at-the-table i
   **Hints:** the locked-pack grid + per-pack "Get in shop" buttons in `EditProfileScreen`. **Depends on / pairs with:** the shop category-anchor item below (until that lands, the link just opens the Shop tab).
 
 - `[P2]` **Shop — anchor/scroll to a category (e.g. avatars).** So the Edit Profile "Get more avatar packs" link can land on the avatar section. The shop grid is a flat list today; needs category grouping + an optional scroll-anchor arg on the shop route.
-
-### Cross-app consistency
 
 ### Social graph + friends — load-bearing for V1.x
 
