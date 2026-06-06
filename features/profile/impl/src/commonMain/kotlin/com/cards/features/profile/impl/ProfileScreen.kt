@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
@@ -89,7 +91,7 @@ import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.DecorativeBlob
+import com.dangerfield.cards.libraries.ui.components.PlayStyleBlobMark
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
@@ -426,6 +428,18 @@ private fun StatsStyleBanner(
     } else {
         stringResource(Res.string.profile_stats_banner_subtitle_no_games, style)
     }
+    // The play-style name reads in the accent (matching the blob); the rest of
+    // the line stays muted. Span-on-substring keeps the localized template whole.
+    val styleColor = AppTheme.colors.accentSecondary.color
+    val subtitleAnnotated = remember(subtitle, style, styleColor) {
+        buildAnnotatedString {
+            append(subtitle)
+            val start = subtitle.indexOf(style)
+            if (start >= 0) {
+                addStyle(SpanStyle(color = styleColor), start, start + style.length)
+            }
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -440,11 +454,20 @@ private fun StatsStyleBanner(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            // Example decorative blob, tinted from a DS accent token.
-            DecorativeBlob(
-                modifier = Modifier.size(44.dp),
-                color = AppTheme.colors.accentSecondary,
-            )
+            // Fake play-style preview — the same blob mark the Stats quadrant
+            // uses, framed in a tile so it reads as "your style at a glance".
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(Radii.R600.shape)
+                    .background(AppTheme.colors.surfaceRaised.color),
+                contentAlignment = Alignment.Center,
+            ) {
+                PlayStyleBlobMark(
+                    modifier = Modifier.size(36.dp),
+                    color = AppTheme.colors.accentSecondary,
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(Res.string.profile_stats_banner_title),
@@ -452,7 +475,7 @@ private fun StatsStyleBanner(
                     color = AppTheme.colors.content,
                 )
                 Text(
-                    text = subtitle,
+                    text = subtitleAnnotated,
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.contentSecondary,
                 )

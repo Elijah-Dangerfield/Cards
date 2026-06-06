@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -134,17 +136,7 @@ private fun PlayStyleQuadrant(
                 x = plotLeft + (1f - t) * plotW,
                 y = plotTop + (1f - a) * plotH,
             )
-            val blobRadius = plotW * 0.30f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(fill.copy(alpha = 0.85f), fill.copy(alpha = 0f)),
-                    center = point,
-                    radius = blobRadius,
-                ),
-                radius = blobRadius,
-                center = point,
-            )
-            drawCircle(color = fill, radius = 4.dp.toPx(), center = point)
+            drawStyleBlob(center = point, radius = plotW * 0.30f, color = fill)
 
             drawAxisLabel(textMeasurer, topLabel, Offset(cx, plotTop * 0.5f), labelColor, labelStyle)
             drawAxisLabel(
@@ -164,6 +156,72 @@ private fun PlayStyleQuadrant(
             )
         }
     }
+}
+
+/**
+ * Just the play-style blob mark, centered and filling its bounds — a compact
+ * preview that reads as the same shape used in the full [PlayStyleBlob]
+ * quadrant. Decorative: for surfaces (e.g. the profile stats-&-style banner)
+ * that want the blob without the quadrant + labels.
+ */
+@Composable
+fun PlayStyleBlobMark(
+    modifier: Modifier = Modifier,
+    color: ColorResource = AppTheme.colors.accentSecondary,
+) {
+    val fill = color.color
+    Canvas(modifier = modifier) {
+        drawStyleBlob(center = center, radius = size.minDimension * 0.4f, color = fill)
+    }
+}
+
+/**
+ * The play-style "blob": a soft, slightly oblong organic shape with a light
+ * nucleus — shared by the quadrant plot and the [PlayStyleBlobMark] preview so
+ * they read as the same thing (rather than a hard dot under a blurred circle).
+ */
+private fun DrawScope.drawStyleBlob(center: Offset, radius: Float, color: Color) {
+    val rx = radius * 1.18f // oblong: a touch wider than tall
+    val ry = radius * 0.92f
+    val path = Path().apply {
+        moveTo(center.x, center.y - ry)
+        cubicTo(
+            center.x + rx * 0.92f, center.y - ry * 0.78f,
+            center.x + rx, center.y + ry * 0.18f,
+            center.x + rx * 0.58f, center.y + ry * 0.88f,
+        )
+        cubicTo(
+            center.x + rx * 0.18f, center.y + ry * 1.04f,
+            center.x - rx * 0.52f, center.y + ry,
+            center.x - rx * 0.82f, center.y + ry * 0.38f,
+        )
+        cubicTo(
+            center.x - rx * 1.04f, center.y - ry * 0.12f,
+            center.x - rx * 0.68f, center.y - ry * 0.86f,
+            center.x, center.y - ry,
+        )
+        close()
+    }
+    // Light source offset up-left, so both the fill gradient and the nucleus
+    // catch from the same direction.
+    val highlight = Offset(center.x - rx * 0.18f, center.y - ry * 0.24f)
+    drawPath(
+        path = path,
+        brush = Brush.radialGradient(
+            colors = listOf(color.copy(alpha = 0.95f), color.copy(alpha = 0.6f)),
+            center = highlight,
+            radius = radius * 1.4f,
+        ),
+    )
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color.White.copy(alpha = 0.5f), Color.Transparent),
+            center = highlight,
+            radius = radius * 0.55f,
+        ),
+        radius = radius * 0.55f,
+        center = highlight,
+    )
 }
 
 private fun DrawScope.drawAxisLabel(
