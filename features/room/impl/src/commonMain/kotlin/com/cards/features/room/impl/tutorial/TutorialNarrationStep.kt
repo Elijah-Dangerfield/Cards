@@ -108,7 +108,20 @@ internal fun NarrationStep(
 ) {
     Screen(
         modifier = modifier,
-        topBar = { TopBar(onNavigateBack = onBack) },
+        topBar = {
+            TopBar(
+                onNavigateBack = onBack,
+                // Step counter lives in the top bar (matching the tableau
+                // steps' top overlay) so progress reads consistently.
+                actions = {
+                    StepCounterPill(
+                        section = section,
+                        sectionStep = sectionStepIndex + 1,
+                        sectionTotal = sectionTotalSteps,
+                    )
+                },
+            )
+        },
     ) { padding ->
         // Slide horizontally on advance and back-step. Direction is
         // inferred from the index delta: forward (target > initial)
@@ -150,15 +163,6 @@ internal fun NarrationStep(
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Step counter pinned to the top (matching the tableau
-                // steps' top overlay), so progress reads consistently across
-                // the whole tutorial.
-                VerticalSpacerD400()
-                StepCounterPill(
-                    section = section,
-                    sectionStep = sectionStepIndex + 1,
-                    sectionTotal = sectionTotalSteps,
-                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -174,7 +178,7 @@ internal fun NarrationStep(
                 if (eyebrowRes != null) {
                     Text(
                         text = stringResource(eyebrowRes).uppercase(),
-                        typography = AppTheme.typography.Caption.C200.SemiBold,
+                        typography = AppTheme.typography.Label.L600,
                         color = AppTheme.colors.contentSecondary,
                         textAlign = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
