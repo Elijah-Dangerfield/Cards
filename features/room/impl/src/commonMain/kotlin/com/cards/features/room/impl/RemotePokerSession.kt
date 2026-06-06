@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.rooms.ClientFrame
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
@@ -81,6 +82,14 @@ internal class RemotePokerSession(
     private val _connectionState = MutableStateFlow(ConnectionState.Disconnected)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    /**
+     * `extraBufferCapacity = 1` so the terminal reason is buffered even
+     * when the VM's collector attaches a beat after `run()` — a one-shot
+     * `tryEmit` from [collectConnection] never drops it.
+     */
+    private val _roomClosed = MutableSharedFlow<ClosedReason>(extraBufferCapacity = 1)
+    override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
+
     private val pendingAcks: MutableMap<String, CompletableDeferred<GameplayFrame.IntentAck>> =
         mutableMapOf()
     private val pendingAcksMutex = Mutex()
@@ -109,6 +118,14 @@ internal class RemotePokerSession(
                 is RoomConnection.Connected -> ConnectionState.Connected
                 is RoomConnection.Reconnecting -> ConnectionState.Reconnecting
                 is RoomConnection.Closed -> ConnectionState.Disconnected
+            }
+            // A terminal close (room GC'd / subscription rejected) collapses
+            // to Disconnected above, which the banner can't distinguish from
+            // a transient drop. Fan it out as a one-shot so the VM can pop
+            // the screen rather than leave the user spinning. Cancelled is
+            // our own teardown — the player is already leaving.
+            if (conn is RoomConnection.Closed && conn.reason != ClosedReason.Cancelled) {
+                _roomClosed.tryEmit(conn.reason)
             }
         }
     }

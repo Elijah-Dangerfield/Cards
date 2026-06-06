@@ -64,6 +64,14 @@ class PlayMultiplayerFeatureEntryPoint(
                 playPokerVmFactory(factory)
             }
             val state = viewModel.stateFlow.collectAsStateWithLifecycle().value
+            // Terminal room-close pops the screen — the room is gone, so
+            // there's nothing to reconnect to. The lobby/home it lands back
+            // on re-observes and surfaces the closed-room state itself.
+            LaunchedEffect(viewModel) {
+                viewModel.eventFlow.collect { event ->
+                    if (event is PlayPokerEvent.RoomClosed) router.goBack()
+                }
+            }
             PlayPokerScreen(
                 state = state,
                 onAction = viewModel::takeAction,

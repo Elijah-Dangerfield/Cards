@@ -151,6 +151,83 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     // ===================================================================
+    // roomClosed — terminal-close fan-out
+    // ===================================================================
+
+    @Test
+    fun roomClosed_emits_onTerminalRoomDeleted() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val closes = mutableListOf<ClosedReason>()
+        val runJob = launch { session.run() }
+        val collectJob = launch { session.roomClosed.collect { closes += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Closed(ClosedReason.RoomDeleted))
+        advanceUntilIdle()
+
+        assertEquals(listOf(ClosedReason.RoomDeleted), closes)
+        // Still collapses to Disconnected for the banner.
+        assertEquals(ConnectionState.Disconnected, session.connectionState.value)
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
+    fun roomClosed_emits_onRejected() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val closes = mutableListOf<ClosedReason>()
+        val runJob = launch { session.run() }
+        val collectJob = launch { session.roomClosed.collect { closes += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Closed(ClosedReason.Rejected))
+        advanceUntilIdle()
+
+        assertEquals(listOf(ClosedReason.Rejected), closes)
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
+    fun roomClosed_doesNotEmit_onCancelled() = runUnitTest {
+        // Cancelled is our own teardown — the user is already leaving, so
+        // popping the screen again would be a spurious double-navigation.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val closes = mutableListOf<ClosedReason>()
+        val runJob = launch { session.run() }
+        val collectJob = launch { session.roomClosed.collect { closes += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Closed(ClosedReason.Cancelled))
+        advanceUntilIdle()
+
+        assertTrue(closes.isEmpty(), "Cancelled is self-initiated; must not fan out a terminal close")
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
+    fun roomClosed_doesNotEmit_onTransientReconnecting() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val closes = mutableListOf<ClosedReason>()
+        val runJob = launch { session.run() }
+        val collectJob = launch { session.roomClosed.collect { closes += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Connecting)
+        handle.pushConnection(RoomConnection.Reconnecting(attempt = 2, cause = null))
+        advanceUntilIdle()
+
+        assertTrue(closes.isEmpty(), "a transient drop is recoverable; terminal-close must not fire")
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    // ===================================================================
     // submit() — accept, reject, timeout, cleanup
     // ===================================================================
 

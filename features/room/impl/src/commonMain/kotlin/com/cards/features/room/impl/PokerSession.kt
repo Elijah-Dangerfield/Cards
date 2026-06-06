@@ -4,6 +4,7 @@ import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -35,6 +36,18 @@ interface PokerSession {
      * the play-screen connection banner.
      */
     val connectionState: StateFlow<ConnectionState>
+
+    /**
+     * Terminal room-close signal. Emits exactly once when the server tells us the room
+     * is gone ([ClosedReason.RoomDeleted]) or refused the subscription
+     * ([ClosedReason.Rejected]) — both unrecoverable, so the play screen pops on it
+     * instead of spinning on the generic "reconnecting" banner forever. The user-
+     * initiated [ClosedReason.Cancelled] case never emits: that close is our own
+     * teardown when the player is already leaving.
+     *
+     * Local-bots sessions can't lose their room, so this never emits for solo.
+     */
+    val roomClosed: SharedFlow<ClosedReason>
 
     /**
      * Submit the local player's intent. Suspends because the local-bots implementation

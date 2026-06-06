@@ -42,6 +42,7 @@ import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.titleForProductId
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -144,6 +145,15 @@ class PlayPokerViewModel @Inject constructor(
         viewModelScope.launch {
             session.connectionState.collect { conn ->
                 takeAction(PlayPokerAction.ConnectionChanged(conn))
+            }
+        }
+        // Terminal room-close → one-shot exit event. A closed/rejected room
+        // collapses to [ConnectionState.Disconnected] above, which the banner
+        // can't tell apart from a transient drop; this is the signal that
+        // there's nothing to reconnect to, so the entry point pops the screen.
+        viewModelScope.launch {
+            session.roomClosed.collect { reason ->
+                sendEvent(PlayPokerEvent.RoomClosed(reason))
             }
         }
         // XP mirror
@@ -788,6 +798,14 @@ sealed interface PlayPokerEvent {
     data object NavigatedBack : PlayPokerEvent
     data class PlayHaptic(val kind: HapticKind) : PlayPokerEvent
     data class PlaySound(val kind: SoundKind) : PlayPokerEvent
+
+    /**
+     * The room was closed out from under us mid-session — the server GC'd
+     * it or refused the subscription. Terminal: the entry point pops the
+     * play screen so the user isn't stranded on a spinning "reconnecting"
+     * banner. Only ever fires for multiplayer; local-bots rooms can't close.
+     */
+    data class RoomClosed(val reason: ClosedReason) : PlayPokerEvent
 }
 
 enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp }

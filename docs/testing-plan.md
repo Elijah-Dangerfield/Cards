@@ -207,7 +207,7 @@ Landed in a new [`RoomSocketGameplayRoutesTest`](../apps/server/src/test/kotlin/
 - [ ] **Server restart mid-hand** — client reconnects, server has hydrated state from snapshot store, client's first `GameStateSnapshot` matches pre-restart state.
 - [ ] **Client backgrounded > 30s during opponent's turn** — on resume, client's `connection` collector reconnects, `gameplayFrames` flow re-syncs, no stale state shown.
 - [ ] **Two clients race the host role (host disconnects + reconnects fast)** — should not produce two effective hosts.
-- [ ] **Server sends `RoomClosed` mid-hand** — client surfaces ClosedReason.RoomDeleted; play screen exits gracefully.
+- [x] **Server sends `RoomClosed` mid-hand** — client surfaces ClosedReason.RoomDeleted; play screen exits gracefully. *(Built the behavior, not just the test: `RemotePokerSession.roomClosed` fans out terminal RoomDeleted/Rejected — collapsed-to-Disconnected before — and `PlayPokerViewModel` emits `PlayPokerEvent.RoomClosed`, which the MP entry point pops on. Pinned in `RemotePokerSessionTest` + `PlayPokerViewModelMultiplayerIntegrationTest`.)*
 - [ ] **High-latency network (200ms+ RTT)** — `submit()` ack arrives slowly; UI doesn't double-submit on accidental tap.
 - [ ] **WS handshake during auth refresh** — the auth bootstrap was the source of one real iOS bug; pin the race.
 - [x] **Outbound channel saturation** — fill the 32-slot buffer; assert `send()` suspends correctly. *(Landed as `ReconnectingRoomSocketTest.send_saturatesOutboundBuffer_thenSuspends` + `…drainsFifo_andResumesSuspendedSend_onConnect` — a pure client-socket unit test, no `:integration` server needed.)*
@@ -311,6 +311,6 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 | 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
 | 3 — engine SUPER tests | shipped (bar hand-history) | Property invariants (`GameEnginePropertyTest`), edge-case scenarios (`GameEngineEdgeCaseTest`), and cross-product action tables (`GameEngineActionTableTest`) all landed. Only the 50-hand history fixtures remain — gated on a real production playtest. |
 | 4 — server gameplay flow | shipped | `RoomSocketGameplayRoutesTest` — 9 tests pinning the WS route → registry → per-recipient broadcast cycle. |
-| 5 — chaos / fault injection | in progress | Outbound-saturation pinned at the client-socket unit seam (`ReconnectingRoomSocketTest`). The rest live in `:integration` (parked in `developer-todo.md`). ~9 tests, ~4-6h. |
+| 5 — chaos / fault injection | in progress | Outbound-saturation pinned at the client-socket unit seam (`ReconnectingRoomSocketTest`); terminal `RoomClosed` mid-hand now pops the play screen (`RemotePokerSession.roomClosed` → `PlayPokerEvent.RoomClosed`), tested at session + VM seams. Most of the rest live in `:integration` (parked in `developer-todo.md`). ~7 tests, ~4-6h. |
 | 6 — Compose UI tests | not started | `:features:room:impl` androidUnitTest. ~15 tests, ~6-8h. |
 | Deferred — emulator UI | not planned | Device-smoke checklist covers this for V1. |

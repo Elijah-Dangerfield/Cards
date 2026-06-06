@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.RoomStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
@@ -148,6 +149,75 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         handle.pushConnection(RoomConnection.Closed(ClosedReason.RoomDeleted))
         advanceUntilIdle()
         assertEquals(ConnectionState.Disconnected, vm.state.connection)
+    }
+
+    @Test
+    fun roomClosedMidSession_emitsRoomClosedEvent() = runUnitTest {
+        val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
+        val events = mutableListOf<PlayPokerEvent>()
+        val collectJob = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 1)))
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Closed(ClosedReason.RoomDeleted))
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf<PlayPokerEvent>(PlayPokerEvent.RoomClosed(ClosedReason.RoomDeleted)),
+            events,
+            "a terminal room close must fan out a one-shot exit event",
+        )
+        collectJob.cancel()
+    }
+
+    @Test
+    fun userInitiatedClose_doesNotEmitRoomClosedEvent() = runUnitTest {
+        // Cancelled = our own teardown when the player leaves; popping again
+        // would be a spurious double-navigation.
+        val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
+        val events = mutableListOf<PlayPokerEvent>()
+        val collectJob = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Closed(ClosedReason.Cancelled))
+        advanceUntilIdle()
+
+        assertTrue(events.isEmpty(), "self-initiated close must not pop the screen; got $events")
+        collectJob.cancel()
+    }
+
+    @Test
+    fun reconnectBlip_tablePersists_thenResyncsToFreshSnapshot() = runUnitTest {
+        val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Connected(sampleRoom()))
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 1)))
+        advanceUntilIdle()
+        assertEquals(ConnectionState.Connected, vm.state.connection)
+        assertFalse(assertIs<TableUiState.Active>(vm.state.table).isHumanTurn, "peer is acting")
+
+        // Network blips — the table state must survive the drop, not blank out.
+        handle.pushConnection(RoomConnection.Reconnecting(attempt = 1, cause = null))
+        advanceUntilIdle()
+        assertEquals(ConnectionState.Reconnecting, vm.state.connection)
+        assertIs<TableUiState.Active>(vm.state.table)
+        assertFalse(
+            assertIs<TableUiState.Active>(vm.state.table).isHumanTurn,
+            "state from before the drop persists through Reconnecting",
+        )
+
+        // On resume the socket re-syncs with a fresh snapshot — the VM
+        // re-converges to it rather than showing the pre-drop state.
+        handle.pushConnection(RoomConnection.Connected(sampleRoom()))
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 0)))
+        advanceUntilIdle()
+        assertEquals(ConnectionState.Connected, vm.state.connection)
+        assertTrue(
+            assertIs<TableUiState.Active>(vm.state.table).isHumanTurn,
+            "post-reconnect snapshot resynced — it's now the local user's turn",
+        )
     }
 
     @Test
