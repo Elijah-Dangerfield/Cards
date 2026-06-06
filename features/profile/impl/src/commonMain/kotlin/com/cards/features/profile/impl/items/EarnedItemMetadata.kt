@@ -29,8 +29,15 @@ data class EarnedItemInfo(
     val thanks: StringResource?,
 )
 
+/**
+ * Inventory product id for the founding-member badge. Mirrors
+ * `FoundingMemberCatalog.PRODUCT_ID` server-side. The profile's cosmetic
+ * detail sheet branches on this to show a dedicated ceremonial sheet.
+ */
+const val FOUNDING_MEMBER_PRODUCT_ID = "badge_founding_member_1000"
+
 val KnownEarnedItems: Map<String, EarnedItemInfo> = mapOf(
-    "badge_founding_member_1000" to EarnedItemInfo(
+    FOUNDING_MEMBER_PRODUCT_ID to EarnedItemInfo(
         emoji = "🏛",
         title = Res.string.earned_founding_member_title,
         description = Res.string.earned_founding_member_description,

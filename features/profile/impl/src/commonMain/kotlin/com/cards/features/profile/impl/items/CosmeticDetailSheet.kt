@@ -19,6 +19,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.earned_founding_member_thanks
+import cards.libraries.resources.generated.resources.earned_founding_member_title
+import cards.libraries.resources.generated.resources.founding_member_done
+import cards.libraries.resources.generated.resources.founding_member_tagline
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought
 import cards.libraries.resources.generated.resources.profile_item_sheet_avatar_edit_hint
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought_free
@@ -42,6 +46,7 @@ import com.dangerfield.cards.libraries.ui.components.achievement.label
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPackThumbnail
 import com.dangerfield.cards.libraries.ui.components.poker.FlippableCard
@@ -76,6 +81,12 @@ fun CosmeticDetailSheet(
     onDismiss: () -> Unit,
     onTryEmote: (String) -> Unit = {},
 ) {
+    // The founding-member badge gets its own ceremonial sheet rather than the
+    // generic earned-item layout — a rotating sun-dial behind the medallion.
+    if (item.productId == FOUNDING_MEMBER_PRODUCT_ID) {
+        FoundingMemberSheet(onDismiss = onDismiss)
+        return
+    }
     val isEmotePack = item.productId.startsWith("emotes_") && item.packEmojis.isNotEmpty()
     val isAvatarPack = item.productId.startsWith("avatars_") && item.packEmojis.isNotEmpty()
     // Earned / prestige grants arrive without catalog metadata; this client
@@ -180,6 +191,72 @@ fun CosmeticDetailSheet(
             } else if (item.isEquippable && !isAvatarPack) {
                 VerticalSpacerD800()
                 EquipButton(item = item, onToggleEquip = onToggleEquip)
+            }
+        }
+    }
+}
+
+/**
+ * The founding-member badge's one-off sheet. A slowly-rotating golden sun-dial
+ * frames the medallion, then a single tagline and a thank-you — deliberately
+ * lighter on copy than the generic earned-item layout so the badge reads as a
+ * moment rather than a spec sheet.
+ */
+@Composable
+private fun FoundingMemberSheet(onDismiss: () -> Unit) {
+    BottomSheet(
+        onDismissRequest = onDismiss,
+        showCloseButton = true,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            RotatingDial(size = 200.dp) {
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .background(AppTheme.colors.surfaceRaised.color),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = KnownEarnedItems[FOUNDING_MEMBER_PRODUCT_ID]?.emoji ?: "🏛",
+                        typography = AppTheme.typography.Display.D900,
+                    )
+                }
+            }
+            VerticalSpacerD500()
+            Text(
+                text = stringResource(Res.string.earned_founding_member_title),
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD200()
+            Text(
+                text = stringResource(Res.string.founding_member_tagline),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD300()
+            Text(
+                text = stringResource(Res.string.earned_founding_member_thanks),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD800()
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                size = ButtonSize.Medium,
+                style = ButtonStyle.Filled,
+            ) {
+                Text(stringResource(Res.string.founding_member_done))
             }
         }
     }
