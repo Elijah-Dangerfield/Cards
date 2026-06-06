@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,7 +114,10 @@ import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.StringResource
@@ -282,7 +287,7 @@ private fun ProfileHeader(
                     .align(Alignment.BottomEnd)
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(AppTheme.colors.surfaceHigh.color)
+                    .background(AppTheme.colors.accentPrimary.color)
                     .border(
                         width = 2.dp,
                         color = AppTheme.colors.background.color,
@@ -293,7 +298,7 @@ private fun ProfileHeader(
                 Icon(
                     icon = Icons.Pencil(stringResource(Res.string.profile_avatar_edit_a11y)),
                     size = IconSize.Small,
-                    color = AppTheme.colors.contentSecondary,
+                    color = AppTheme.colors.onAccentPrimary,
                 )
             }
         }
@@ -580,6 +585,19 @@ private fun OwnedItemsSections(
             .groupBy({ it.first }, { it.second })
     }
 
+    // Each shelf keeps its own horizontal scroll position. The Profile tab
+    // stays composed in the back stack, so without this a row the user
+    // scrolled on a prior visit would still be mid-scroll on return. Reset
+    // every shelf to its start on each resume so landing on the tab always
+    // shows item 0. Fixed-size, stable-order map → safe to remember per shelf.
+    val shelfStates = ShelfOrder.associateWith { rememberLazyListState() }
+    val scope = rememberCoroutineScope()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch {
+            shelfStates.values.forEach { it.scrollToItem(0) }
+        }
+    }
+
     // Tapping any tile opens its detail sheet. We track the selected product
     // id (not the item) so the sheet re-reads fresh equipped state after a
     // toggle re-derives the list — mirrors AchievementMedalWithDetail's
@@ -629,7 +647,7 @@ private fun OwnedItemsSections(
         // up to [rowCount] tiles, so both shapes share one scroll container.
         val tiles: List<ShelfTile> = owned.map(::ShelfTileOwned) + buyable.map(::ShelfTileBuyable)
         val rowCount = if (useTwoRows) 2 else 1
-        EdgeToEdgeRow {
+        EdgeToEdgeRow(state = shelfStates.getValue(shelf)) {
             items(tiles.chunked(rowCount), key = { column -> column.first().key }) { column ->
                 Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
                     column.forEach { tile ->
