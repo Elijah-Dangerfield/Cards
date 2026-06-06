@@ -44,7 +44,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** local capture on every resolved hand; batch fires on threshold or timer; endpoint returns a snapshot.
   **Hints:** `:libraries:storage`; achievement counter logic is precedent. **Out of scope:** the heat-map visual; bot tracking. **Worker note:** sketch the architecture in the in-flight Approach line before coding — direction is ambiguous.
 
-- `[P1]` **Tap-an-opponent sheet — remaining affordances.** Add the human-variant "Add friend" affordance (pairs with the friend graph) and "view full profile" tap-through once profile-of-a-stranger is a real route.
+- `[P1]` **Tap-an-opponent sheet — remaining affordances.** Add the human-variant "Add friend" affordance (pairs with the friend graph) and "view full profile" tap-through once profile-of-a-stranger is a real route. *(This sheet is the at-table **Player Card** surface — see the Player Card feature below + `decisions.md` 2026-06-06.)*
 
 - `[P2]` **Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint (the KDoc already notes the vertical half). *(proposed 2026-05-31)*
   **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
@@ -61,6 +61,32 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **Cosmetic detail sheets: richer felt/emote-pack preview.** Felts + emote packs should get a richer (animated) preview in `CosmeticDetailSheet` to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)*
   **Acceptance:** felt/emote-pack detail sheets show a richer (animated) preview.
   **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`. **Worker note:** the buyable-tap → purchase-sheet half already shipped.
+
+### Player Card — Phase 1 (V1)
+
+The owner-facing slice of the **Player Card** feature: the public at-the-table identity others see when they tap your avatar. Full product call (scope, phasing, terminology) is in [`decisions.md`](./decisions.md) 2026-06-06; Phase 2 (opponent cards over the wire) and Phase 3 (scouting-stats perk) are in [`backlog.md`](./backlog.md). Ship Phase 1 in dependency order — the shared component first, since everything else renders it. *(proposed 2026-06-06)*
+
+- `[P1]` **Shared `PlayerCard` DS component.** One composable — avatar (emoji + background), display name, equipped title, featured badges — used by both the at-table tap sheet and the editor/profile preview, so the preview can never drift from what others see.
+  **Acceptance:** a single `PlayerCard` in `:libraries:ui`; [`PlayerProfileSheet`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayerProfileSheet.kt) renders the owner's identity block through it.
+  **Hints:** avatar + badge primitives already exist (`AvatarCircle`, `AchievementMedal`). **Out of scope:** stats (Phase 3).
+
+- `[P1]` **Featured badges — selection + `/v1/me` persistence.** Owner picks up to 3 earned badges to feature on the card; persisted as an additive `featuredBadgeIds` profile field.
+  **Acceptance:** selection capped at 3, persists across launches + reinstall (server-owned), defaults to most-recent earned when unset.
+  **Hints:** earned set is `AchievementProgress.earned`; additive `/v1/me` field + a `ProfileRepository.update` path. **Out of scope:** surfacing other players' featured badges (Phase 2).
+
+- `[P1]` **Edit Profile → two tabs (Profile / Player Card).** Restructure [`EditProfileScreen`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/edit/EditProfileScreen.kt) into a **Profile** tab (name, avatar, background) and a **Player Card** tab (a "this is what other players see when they tap your avatar in a game" banner + featured-badge show/hide toggles + a live `PlayerCard` preview).
+  **Acceptance:** two tabs; the Player Card tab shows the banner, the toggles, and the shared preview reflecting current selection.
+
+- `[P1]` **Profile screen — live Player Card preview + edit entry.** A compact live `PlayerCard` preview on [`ProfileScreen`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt) with an "Edit" affordance that deep-links to the Player Card tab.
+  **Acceptance:** profile renders the live card; "Edit" opens Edit Profile on the Player Card tab.
+
+- `[P2]` **Tap your own avatar at the table → your Player Card.** The own seat is inert today; open the owner's `PlayerCard` (read-only) with an Edit affordance into the Player Card tab.
+  **Hints:** the human seat is suppressed in [`PlayPokerScreen`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerScreen.kt) because `seatMuteKey(seat)` returns null for `isHuman`.
+
+- `[P2]` **Edit Profile — drop the avatar-pack marketplace; link to Shop.** Avatar picker shows only owned/unlocked packs; replace the locked/for-sale packs with a single "Get more avatar packs in the Shop →" link.
+  **Hints:** the locked-pack grid + per-pack "Get in shop" buttons in `EditProfileScreen`. **Depends on / pairs with:** the shop category-anchor item below (until that lands, the link just opens the Shop tab).
+
+- `[P2]` **Shop — anchor/scroll to a category (e.g. avatars).** So the Edit Profile "Get more avatar packs" link can land on the avatar section. The shop grid is a flat list today; needs category grouping + an optional scroll-anchor arg on the shop route.
 
 ### Cross-app consistency
 

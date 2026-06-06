@@ -542,3 +542,29 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Why grouped:** both are the same shape — a server-side "no" the client currently absorbs without a word. A shared lightweight "transient game-event surface" (toast/snackbar bound to one-shot VM events) would cover both and any future case.
 
 **Status:** Backlog. Pick up when MP playtests show the silence is confusing; the intent-rejection half is the KDoc's outstanding promise.
+
+---
+
+## Player Card — Phase 2: opponent cards over the wire
+
+**Idea:** Make a tapped *human opponent's* Player Card show their real identity — equipped title, featured badges, and level — not just name + avatar. Today none of that flows to other seats: `SeatView` carries name/emoji/handsAtTable, `equippedTitle`/`equippedBadgeEmoji` exist only on the local human seat, and remote-human `seatBadge` (level) is null pre-fetch. Phase 1 (see [decisions.md](./decisions.md) 2026-06-06) ships the owner-facing card + the shared `PlayerCard` component; this is the cross-player half.
+
+**Sketch:**
+- Server: expose each table participant's public card fields (display name, avatar emoji + bg, equipped title, `featuredBadgeIds`, level) to other players in the room/seat snapshot. `featuredBadgeIds` already lands on `/v1/me` in Phase 1.
+- Client: carry those fields onto `SeatView` (`TableUiState.fromSeat`) and render the shared `PlayerCard` in `PlayerProfileSheet` for opponents, not just the owner.
+- Pairs with the existing `docs/todo.md` "Tap-an-opponent sheet — view full profile" item.
+
+**Status:** Backlog (V1.x). Do this when human-vs-human is common enough to matter — V1 is mostly bots, which already render their own info.
+
+---
+
+## Player Card — Phase 3: "scouting" — opponent stats behind an equipped ability
+
+**Idea:** Let a player see an opponent's *stats* (win rate / hands played, maybe richer reads later) on that opponent's Player Card — but only if the viewer has a "scouting" ability/cosmetic equipped. The original feature ask floated stats "if you have that ability equipped"; this is that gated perk. Deliberately out of the V1 card (see [decisions.md](./decisions.md) 2026-06-06) to keep V1 client-only.
+
+**Sketch:**
+- A new gating item (cosmetic/ability) the viewer equips; mint it as an earnable/buyable.
+- Per-opponent stats on the wire (Phase 2 plumbing extended with a stats block), gated server-side so stats only return to viewers who own the ability — don't trust the client to hide them.
+- `PlayerCard` grows an optional stats section, shown only when the viewer is entitled.
+
+**Status:** Backlog. Depends on Phase 2 plumbing + a decision on whether scouting is earned or bought. Revisit once the card itself is live and human play is common.

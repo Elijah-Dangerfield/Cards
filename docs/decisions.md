@@ -25,6 +25,35 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-06 — "Player Card" — the at-table identity surface (terminology, scope, phasing)
+
+**Decision:** Adopt **"Player Card"** as the name for a player's public, at-the-table identity — what someone sees when they tap an avatar at the poker table — and make it owner-editable.
+
+- **What the card shows (V1):** avatar (emoji + background), display name, the equipped **title** cosmetic (already a public slot), and up to **3 owner-chosen "featured" badges** from their earned achievements. **Stats are not on the V1 card.**
+- **One shared DS component.** A single `PlayerCard` composable renders identically (a) inside the at-table tap sheet and (b) as the live preview in the editor and on the Profile screen — the preview can't drift from what others see because it *is* the same component.
+- **Editing lives in Edit Profile as a second tab.** Edit Profile becomes two tabs: **Profile** (name, avatar, background) and **Player Card** (a banner — "this is what other players see when they tap your avatar in a game" — plus show/hide toggles for which earned badges are featured). Title is equipped via the existing cosmetics flow.
+- **Avatar-pack marketplace leaves Edit Profile.** The avatar picker shows only owned/unlocked packs; the for-sale/locked packs are replaced by a single "Get more avatar packs in the Shop →" link.
+- **Tapping your OWN avatar at the table** opens your Player Card (the own seat is inert today) with an Edit affordance into the Player Card tab.
+- **Featured-badge selection is server-owned** (additive `/v1/me.featuredBadgeIds`) even though only the owner sees their own card in V1 — so V1.x can surface it to opponents without reworking persistence.
+
+**Phasing:**
+ - **Phase 1 (V1 — client + one additive server field):** shared `PlayerCard` component; Profile-screen preview+edit entry; Edit Profile two-tab restructure + avatar-pack-marketplace removal; own-avatar-tap → your card; featured-badge picker persisted to `/v1/me`. Opponent taps in this phase show only what already reaches the table (bots show bot info; human opponents show name/avatar).
+ - **Phase 2 (V1.x — backend plumbing):** plumb each opponent's title + featured badges (+ level for remote humans) through the room/seat snapshot so tapping a human opponent shows their real card. Pairs with the existing "Tap-an-opponent sheet — view full profile" todo. See `backlog.md`.
+ - **Phase 3 (later — gated perk):** a **"scouting" ability** — see an opponent's *stats* on their card only if you have the relevant ability equipped. Needs per-opponent stats on the wire + the gating item. See `backlog.md`.
+
+**Why:** The card's value is what *others* see, but the expensive part (opponent cosmetics/stats over the wire) is backend plumbing that V1 — mostly bots — doesn't need yet. Splitting the owner-facing UX (editor + self card + shared component) from cross-player display lets the warm, visible 80% ship now on the client behind a single tiny additive `/v1/me` field, while the serialization work waits until human-vs-human is common. Folding the editor into Edit Profile keeps avatar + card editing (which users think of together) in one place, and the shared component removes drift between "preview" and "what they actually see."
+
+**Alternatives considered:**
+ - **(a) Separate Player Card editor screen** — more nav surface for closely-related editing; the two-tab restructure is tighter.
+ - **(b) Stats on the V1 card** — needs per-opponent stats plumbing + a gating story; deferred to the Phase 3 scouting perk so V1 stays client-only.
+ - **(c) Local-only featured-badge persistence, server later** — guarantees rework when Phase 2 surfaces it to others; do the additive `/v1/me` field once, up front.
+ - **(d) Keep the avatar marketplace in Edit Profile** — clutters the editing surface and competes with the Player Card tab; selling belongs in the Shop, so Edit Profile links out.
+ - **(e) Higher / unlimited featured-badge cap** — a wall of badges defeats "featured" and bloats the table render; 3 keeps it legible (tunable).
+
+**Status:** Locked for V1 (Phase 1). Phase 2/3 Tentative — tracked in `backlog.md`.
+
+---
+
 ## 2026-05-30 — Multiplayer host = first connected member (implicit auto-promotion)
 
 **Decision:** The lobby's "effective host" is computed client-side as `room.members.firstOrNull { it.isConnected }?.userId`, not the server-tagged `room.hostUserId`. The host badge, the "Start hand" CTA, and the snackbar promotion notification all key off this computed value. When the original host disconnects (`isConnected = false`), the next-listed connected member becomes effective host automatically with no server change.
