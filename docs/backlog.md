@@ -568,3 +568,15 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - `PlayerCard` grows an optional stats section, shown only when the viewer is entitled.
 
 **Status:** Backlog. Depends on Phase 2 plumbing + a decision on whether scouting is earned or bought. Revisit once the card itself is live and human play is common.
+
+---
+
+## Level-up screen — aspirational content (names, percentile, unlocks)
+
+**Idea:** The level-up mock (`docs/todo-assets/level-up-screen.png`) shows three things beyond the V1 celebration (see [decisions.md](./decisions.md) 2026-06-06), each needing data we don't have yet:
+
+- **Per-level names** — a title per level ("Calculated" at L7). Needs a curated level→name table (content) and a slot on the screen. Cheapest of the three; pure client content.
+- **"Better than N% of players" percentile** — needs a server-computed distribution of levels/XP across the player base + an endpoint to read the caller's percentile. Server work + a freshness story.
+- **Level-gated "Unlocked" callout** — "Ranked tournaments / Compete in the Royal Flush" implies a level→feature-unlock map *and* the gated features actually existing (ranked/tournaments/leagues aren't built). The callout slot should stay hidden until there's a real unlock at that level.
+
+**Status:** Backlog. Layer onto the V1 level-up screen as the data lands — names first (content-only), percentile + unlocks later (server + feature work). Keep the teal/progression identity.

@@ -37,6 +37,35 @@ dark rounded list-row:
 Takeaways: leading source emoji, `+N` colored by XP source, and a relative
 "when earned" timestamp in the subtitle.
 
+## `level-up-screen.png` — full-screen level-up celebration
+
+> **Note:** the PNG isn't in the repo yet — drop the screenshot here under this
+> filename. This transcription is the source of truth until it lands.
+
+A full-screen, dark celebration (no top bar):
+
+- Top: a small **teal uppercase eyebrow** — **"LEVEL UP"**.
+- Center hero: a **teal sunburst** (the DS `RotatingDial`, re-skinned teal)
+  radiating behind a **glowing teal coin/disc** with the new level number
+  (**"7"**) in white. Confetti flecks (teal / gold / coral) scattered around.
+- Below the hero: an **italic serif teal headline** = the level's *name*
+  (**"Calculated"**). *(Per-level names are future content — see backlog; V1
+  may omit this line.)*
+- Subtitle (muted): *"Level 7 reached. You read the table better than 88% of
+  players."* *(The percentile half needs server distribution data — future;
+  V1 uses a warm generic line.)*
+- An **"Unlocked" callout card** (dark rounded row): a small gold crown icon
+  tile, a teal **"UNLOCKED"** label, title **"Ranked tournaments"**, sub
+  *"Compete in the Royal Flush"*. *(Level-gated unlocks don't exist yet —
+  future; the slot is hidden when there's nothing to unlock.)*
+- Bottom: a full-width **teal "Continue"** button.
+
+Takeaways: keep the **teal / progression** color identity (level + XP already
+use `accentSecondary` / `LevelProgressGradient`); reuse `RotatingDial` for the
+burst; haptics + entrance animation on reveal. The name line, percentile, and
+unlock callout are aspirational (need data) — V1 ships the burst + level number
++ generic line + Continue.
+
 ## `hand-rankings.png` — in-game "What beats what" dialog (two mocks)
 
 Two phone frames. **The right frame is the target.**

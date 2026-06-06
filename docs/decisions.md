@@ -25,6 +25,31 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-06 — Full-screen level-up celebration — shown on Home, derived from a "last celebrated level" watermark
+
+**Decision:** Add a full-screen level-up celebration (teal `RotatingDial` burst + the new level number + a warm line + Continue, with haptics + an entrance animation). Two load-bearing calls:
+
+- **It only ever appears on a "safe" surface — Home — never at the poker table** (bots or multiplayer). No mid-game takeover.
+- **It's triggered by derivation, not by a table-side event.** Persist a `lastCelebratedLevel` watermark in `AppData`. When Home composes/foregrounds, compare the user's current level (from `levelProgressFor(progression.totalXp)`) against the watermark: if current > watermark, show the celebration for the *current* level, then set the watermark to current. On first run after this ships (watermark unset), seed it to the current level **without** showing — so existing users aren't blasted on update.
+
+**Why:** The whole point is to feel celebratory, which a full-screen takeover does — but a takeover mid-hand (especially a live MP hand) is hostile, and we don't want to stack it on top of the at-table achievement celebration. Pinning it to Home sidesteps all of that: it never interrupts a game, and it's spatially/temporally separated from the at-table achievement sheet so the two can't collide. Deriving from a persisted watermark (instead of firing an event at hand-end and carrying it across navigation) is robust by construction: it survives the table→home trip and process death, naturally shows **once** for a multi-level jump (you see "Level 7", not three screens), and can never double-fire or be missed. It mirrors the existing `pendingProfileHighlight` / `lastSessionEndedAt` `AppData` patterns.
+
+**Coordination with other surfaces:**
+ - **Achievement celebration stays where it is** — the at-table `AchievementCelebrationSheet` (bots) / inline callout (MP). It's contextual to the hand; the level-up is a separate Home moment. No shared queue needed for V1 because they live on different surfaces.
+ - **Server dialogs** (`InAppMessageManager`, 1-per-foreground) and the level-up both want the Home foreground. The level-up takes precedence; the server dialog waits for the next foreground (its gate already does this). If client celebrations multiply later (big-win, streaks), promote this into a shared client "celebration queue" modeled on `InAppMessageManager`.
+
+**Scope (V1 vs deferred):** V1 = burst + level number + a generic warm line + Continue, in the **teal / `LevelProgressGradient`** identity that level/XP already use. **Deferred (need data, see `backlog.md`):** per-level *names* ("Calculated"), the "better than N% of players" percentile, and the level-gated **Unlocked** callout ("Ranked tournaments") — all shown in the mock (`docs/todo-assets/level-up-screen.png`) but aspirational.
+
+**Alternatives considered:**
+ - **(a) Show it at the table between hands in bots mode** (the proposal floated this) — still interrupts the practice flow and risks stacking with the achievement sheet; Home-only is the simpler, unified rule.
+ - **(b) Fire a `LevelUpDetected` event at hand-end + carry a pending flag through navigation** — works, but needs MP-suppression logic and survives-process-death handling that the watermark gets for free.
+ - **(c) Sequence one screen per level on a multi-level jump** — spammy; show the net result once.
+ - **(d) Route through the existing `InAppMessageManager`** — that gate is for *server-scheduled* `UserMessage` dialogs; overloading it with a client-derived celebration muddies its contract. Keep separate until we have enough client celebrations to justify a shared queue.
+
+**Status:** Locked for V1 (Home-only + watermark + teal). Per-level names / percentile / unlock callout Tentative — `backlog.md`.
+
+---
+
 ## 2026-06-06 — "Player Card" — the at-table identity surface (terminology, scope, phasing)
 
 **Decision:** Adopt **"Player Card"** as the name for a player's public, at-the-table identity — what someone sees when they tap an avatar at the poker table — and make it owner-editable.

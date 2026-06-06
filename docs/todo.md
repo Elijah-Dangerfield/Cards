@@ -56,6 +56,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
+- `[P1]` **Full-screen level-up celebration.** A teal celebratory takeover — `RotatingDial` burst + the new level number + a warm line + Continue — with haptics + an entrance animation, in the level/XP teal identity (`accentSecondary` / `LevelProgressGradient`). Product call (when it shows, how it avoids spam) is in [`decisions.md`](./decisions.md) 2026-06-06; mock is [`level-up-screen.png`](./todo-assets/README.md). *(proposed 2026-06-06)*
+  **Acceptance:** appears **only on Home**, never at the table (bots or MP); triggered by a persisted `AppData.lastCelebratedLevel` watermark — on Home, if `levelProgressFor(progression.totalXp).level > lastCelebratedLevel`, show for the current level then advance the watermark; a multi-level jump shows **once** (net level); existing users are seeded to current level on first run with **no** celebration; haptics + entrance animation fire.
+  **Hints:** reuse [`RotatingDial`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/RotatingDial.kt) (re-skinned teal via `rayColor`/`glowColor`) and the shake→burst+haptics pattern from `AchievementUnlockReveal`; watermark mirrors `pendingProfileHighlight` in [`AppCache.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/AppCache.kt); host overlay sits on Home like [`UserMessageOverlay`](../apps/compose/src/commonMain/kotlin/com/cards/UserMessageOverlay.kt). **Coexists with:** the at-table `AchievementCelebrationSheet` (different surface) and the server-dialog `InAppMessageManager` (level-up takes the Home foreground first). **Out of scope (need data — see [`backlog.md`](./backlog.md)):** per-level names ("Calculated"), the "better than N% of players" percentile, the level-gated "Unlocked" callout.
+
 ### Profile, cosmetics & sheets
 
 - `[P1]` **Cosmetic detail sheets: richer felt/emote-pack preview.** Felts + emote packs should get a richer (animated) preview in `CosmeticDetailSheet` to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)*
