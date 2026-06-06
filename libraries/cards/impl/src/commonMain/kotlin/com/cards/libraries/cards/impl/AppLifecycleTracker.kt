@@ -46,4 +46,19 @@ class AppLifecycleTracker(
             logger.d { "lastSessionEndedAt = $now" }
         }
     }
+
+    override fun onForeground(event: AppEvent.OnForeground) {
+        if (!event.isColdBoot) return
+        // [AppData.pendingProfileHighlight] is an in-session "spotlight this
+        // item on the Profile tab" signal the Shop sets right before hopping
+        // to Profile. It's persisted only to survive tab restoreState within
+        // the session — but persistence means a value left over from a prior
+        // run would yank a cosmetic shelf to a non-first item on cold launch.
+        // Clear it on cold boot so shelves always open at the start; the
+        // in-session shop → profile spotlight still works (it's set after boot).
+        appScope.launch {
+            appCache.update { it.copy(pendingProfileHighlight = null) }
+            logger.d { "Cleared stale pendingProfileHighlight on cold boot" }
+        }
+    }
 }
