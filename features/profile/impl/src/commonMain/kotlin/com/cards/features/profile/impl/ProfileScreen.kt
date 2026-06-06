@@ -53,7 +53,6 @@ import cards.libraries.resources.generated.resources.month_october
 import cards.libraries.resources.generated.resources.month_september
 import cards.libraries.resources.generated.resources.month_unknown
 import cards.libraries.resources.generated.resources.profile_avatar_edit_a11y
-import cards.libraries.resources.generated.resources.profile_header_founding_member_chip
 import cards.libraries.resources.generated.resources.profile_header_joined
 import cards.libraries.resources.generated.resources.profile_items_avatars
 import cards.libraries.resources.generated.resources.profile_items_card_back
@@ -97,7 +96,6 @@ import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
@@ -320,10 +318,6 @@ private fun ProfileHeader(
                 textAlign = TextAlign.Center,
             )
         }
-        if (settings.isFoundingMember) {
-            VerticalSpacerD200()
-            FoundingMemberChip()
-        }
         VerticalSpacerD500()
         LevelSummary(
             progress = remember(settings.xp) { levelProgressFor(settings.xp) },
@@ -367,17 +361,6 @@ private fun monthResource(monthNumber: Int): StringResource = when (monthNumber)
     else -> Res.string.month_unknown
 }
 
-@Composable
-private fun FoundingMemberChip() {
-    StatusPill(background = AppTheme.colors.accentSecondary) {
-        Text(text = "🏛", typography = AppTheme.typography.Caption.C200)
-        Text(
-            text = stringResource(Res.string.profile_header_founding_member_chip),
-            typography = AppTheme.typography.Caption.C200.SemiBold,
-            color = AppTheme.colors.onAccentSecondary,
-        )
-    }
-}
 
 @Composable
 private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier) {
