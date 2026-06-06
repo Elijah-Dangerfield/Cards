@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_level_pill_label
@@ -53,8 +55,12 @@ internal fun HomeHeader(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The chips pill keeps its natural width (no weight); the name block
+        // takes the remaining space and the name ellipsizes, so a long name
+        // can never smush the wallet.
         Row(
             modifier = Modifier
+                .weight(1f)
                 .clip(Radii.R700.shape)
                 .clickable(onClick = onTapLevel)
                 .padding(end = Dimension.D300),
@@ -67,20 +73,24 @@ internal fun HomeHeader(
                 emoji = avatarEmoji,
                 backgroundColorHex = avatarBackgroundColorHex,
             )
-            Column {
+            Column(modifier = Modifier.weight(1f, fill = false)) {
                 Text(
                     text = displayName,
                     typography = AppTheme.typography.Body.B600,
                     color = AppTheme.colors.content,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = stringResource(Res.string.ui_level_pill_label, levelProgress.level),
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.contentSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.width(Dimension.D300))
         ChipBadge(amount = chips, onClick = onTapChips)
     }
 }
