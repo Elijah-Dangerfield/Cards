@@ -25,6 +25,8 @@ import cards.libraries.resources.generated.resources.profile_item_sheet_bought_f
 import cards.libraries.resources.generated.resources.profile_item_sheet_how_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_in_pack
+import cards.libraries.resources.generated.resources.profile_item_sheet_locked_not_owned
+import cards.libraries.resources.generated.resources.profile_item_sheet_open_in_shop
 import cards.libraries.resources.generated.resources.profile_item_sheet_try_emote
 import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
@@ -89,7 +91,12 @@ fun CosmeticDetailSheet(
                 .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CosmeticHero(item = item, emojiOverride = earnedInfo?.emoji)
+            CosmeticHero(
+                productId = item.productId,
+                emoji = item.iconEmoji,
+                packEmojis = item.packEmojis,
+                emojiOverride = earnedInfo?.emoji,
+            )
             VerticalSpacerD500()
 
             Text(
@@ -179,6 +186,70 @@ fun CosmeticDetailSheet(
 }
 
 /**
+ * The "you don't own this yet" sheet for a dimmed buyable tile on a shoppable
+ * shelf. Shows the same hero preview as [CosmeticDetailSheet] so the item reads
+ * as a real thing, a "not yours yet" line, the pack contents if it's a pack,
+ * and a single CTA into the shop's purchase flow for this product.
+ */
+@Composable
+fun LockedCosmeticSheet(
+    item: BuyableCosmetic,
+    onOpenInShop: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    BottomSheet(
+        onDismissRequest = onDismiss,
+        showCloseButton = true,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            CosmeticHero(
+                productId = item.productId,
+                emoji = item.iconEmoji,
+                packEmojis = item.packEmojis,
+            )
+            VerticalSpacerD500()
+
+            Text(
+                text = item.title,
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD200()
+            Text(
+                text = stringResource(Res.string.profile_item_sheet_locked_not_owned),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
+
+            if (item.packEmojis.isNotEmpty()) {
+                VerticalSpacerD500()
+                PackContents(emojis = item.packEmojis)
+            }
+
+            VerticalSpacerD800()
+            Button(
+                onClick = {
+                    onOpenInShop(item.productId)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                size = ButtonSize.Medium,
+                style = ButtonStyle.Filled,
+            ) {
+                Text(stringResource(Res.string.profile_item_sheet_open_in_shop))
+            }
+        }
+    }
+}
+
+/**
  * The equip CTA. Card backs and felts are *swap-only* — there's always one
  * equipped and you change it by equipping a different one, so an equipped
  * one shows a disabled "Equipped" state rather than an "Unequip" button that
@@ -260,18 +331,23 @@ private fun PackContents(emojis: List<String>) {
  * its glyph on a raised tile.
  */
 @Composable
-private fun CosmeticHero(item: OwnedItem, emojiOverride: String? = null) {
-    when (cosmeticSlotFor(item.productId)) {
+private fun CosmeticHero(
+    productId: String,
+    emoji: String,
+    packEmojis: List<String>,
+    emojiOverride: String? = null,
+) {
+    when (cosmeticSlotFor(productId)) {
         CosmeticSlot.CardBack -> FlippableCard(
-            style = cardBackForProductId(item.productId),
+            style = cardBackForProductId(productId),
             size = PlayingCardSize.Hole,
             flipOnInit = true,
             interactive = true,
         )
-        CosmeticSlot.Felt -> FeltVignette(item.productId)
+        CosmeticSlot.Felt -> FeltVignette(productId)
         // Packs (avatars / emotes) read as a stack of their contents.
-        else -> if (emojiOverride == null && item.packEmojis.size >= 2) {
-            CosmeticPackThumbnail(emojis = item.packEmojis, size = 120.dp)
+        else -> if (emojiOverride == null && packEmojis.size >= 2) {
+            CosmeticPackThumbnail(emojis = packEmojis, size = 120.dp)
         } else {
             Box(
                 modifier = Modifier
@@ -281,7 +357,7 @@ private fun CosmeticHero(item: OwnedItem, emojiOverride: String? = null) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = emojiOverride ?: item.iconEmoji,
+                    text = emojiOverride ?: emoji,
                     typography = AppTheme.typography.Display.D900,
                 )
             }

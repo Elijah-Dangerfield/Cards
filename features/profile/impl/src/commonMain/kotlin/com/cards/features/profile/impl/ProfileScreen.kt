@@ -60,6 +60,7 @@ import cards.libraries.resources.generated.resources.profile_items_card_back
 import cards.libraries.resources.generated.resources.profile_items_emotes
 import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_items_felt
+import cards.libraries.resources.generated.resources.profile_item_sheet_locked_a11y
 import cards.libraries.resources.generated.resources.profile_items_shop_link
 import cards.libraries.resources.generated.resources.profile_items_specialty
 import cards.libraries.resources.generated.resources.profile_level_summary_level
@@ -75,6 +76,7 @@ import cards.libraries.resources.generated.resources.ui_achievement_medallion_lo
 import com.dangerfield.cards.features.profile.impl.items.BuyableCosmetic
 import com.dangerfield.cards.features.profile.impl.items.CosmeticDetailSheet
 import com.dangerfield.cards.features.profile.impl.items.KnownEarnedItems
+import com.dangerfield.cards.features.profile.impl.items.LockedCosmeticSheet
 import com.dangerfield.cards.features.profile.impl.items.OwnedItem
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
@@ -604,6 +606,10 @@ private fun OwnedItemsSections(
     // per-medal sheet toggle, lifted to one slot for the whole bookshelf.
     var selectedId by remember { mutableStateOf<String?>(null) }
 
+    // A tapped buyable (locked) tile opens a preview sheet rather than jumping
+    // straight to the shop, so the user can see what they'd be buying first.
+    var lockedSelected by remember { mutableStateOf<BuyableCosmetic?>(null) }
+
     // Cross-tab "spotlight a just-bought item" — scroll its tile into view and
     // pulse a border. [pulseId] is local so clearing the cache signal (which
     // we do immediately, to avoid a re-pulse on a later cold start) doesn't
@@ -668,7 +674,7 @@ private fun OwnedItemsSections(
                             is ShelfTileBuyable -> {
                                 BuyableCosmeticTile(
                                     item = tile.item,
-                                    onClick = { onBuyableTap(tile.item.productId) },
+                                    onClick = { lockedSelected = tile.item },
                                 )
                             }
                         }
@@ -689,6 +695,14 @@ private fun OwnedItemsSections(
                 onTryEmote = onTryEmote,
             )
         }
+
+    lockedSelected?.let { item ->
+        LockedCosmeticSheet(
+            item = item,
+            onOpenInShop = onBuyableTap,
+            onDismiss = { lockedSelected = null },
+        )
+    }
 }
 
 private const val HighlightPulseDurationMillis = 1_800L
@@ -862,19 +876,42 @@ private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(Radii.R500.shape)
-            .clickable(onClick = onClick)
-            .alpha(BuyableTileAlpha),
+            .clickable(onClick = onClick),
     ) {
-        CosmeticPreview(
-            productId = item.productId,
-            emoji = item.iconEmoji,
-            size = CosmeticTileSize,
-            packEmojis = item.packEmojis,
-        )
+        // Only the preview dims — the lock badge stays full-opacity so
+        // "you don't own this" reads clearly rather than as a faded smudge.
+        Box(modifier = Modifier.alpha(BuyableTileAlpha)) {
+            CosmeticPreview(
+                productId = item.productId,
+                emoji = item.iconEmoji,
+                size = CosmeticTileSize,
+                packEmojis = item.packEmojis,
+            )
+        }
+        LockedBadge(modifier = Modifier.align(Alignment.BottomEnd))
     }
 }
 
 private const val BuyableTileAlpha = 0.45f
+
+/** Corner badge marking a shelf tile as locked / not-yet-owned. */
+@Composable
+private fun LockedBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(AppTheme.colors.surfaceHigh.color)
+            .border(2.dp, AppTheme.colors.background.color, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon = Icons.Lock(stringResource(Res.string.profile_item_sheet_locked_a11y)),
+            size = IconSize.Smallest,
+            color = AppTheme.colors.contentSecondary,
+        )
+    }
+}
 
 // ---- Previews ----------------------------------------------------------
 
@@ -959,11 +996,12 @@ private fun ProfileScreenPreview() {
                 ),
             ),
             buyableItems = listOf(
-                BuyableCosmetic(productId = "cardback_neon", iconEmoji = "🃏"),
-                BuyableCosmetic(productId = "cardback_galaxy", iconEmoji = "✨"),
-                BuyableCosmetic(productId = "felt_royal_red", iconEmoji = "🟥"),
+                BuyableCosmetic(productId = "cardback_neon", title = "Neon", iconEmoji = "🃏"),
+                BuyableCosmetic(productId = "cardback_galaxy", title = "Galaxy", iconEmoji = "✨"),
+                BuyableCosmetic(productId = "felt_royal_red", title = "Royal Red", iconEmoji = "🟥"),
                 BuyableCosmetic(
                     productId = "emotes_royal",
+                    title = "Royal emotes",
                     iconEmoji = "👑",
                     packEmojis = listOf("👑", "🃏", "♠️", "♥️"),
                 ),
@@ -1021,7 +1059,7 @@ private fun ProfileScreenPreview_StockedShelf() {
                 )
             },
             buyableItems = listOf(
-                BuyableCosmetic(productId = "felt_royal_red", iconEmoji = "🟥"),
+                BuyableCosmetic(productId = "felt_royal_red", title = "Royal Red", iconEmoji = "🟥"),
             ),
             winRatePercent = 58,
             onOpenSettings = {},

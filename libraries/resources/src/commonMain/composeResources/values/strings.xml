@@ -418,6 +418,10 @@
     <string name="profile_item_sheet_in_pack">In this pack</string>
     <string name="profile_item_sheet_try_emote">Try it out</string>
     <string name="profile_item_sheet_avatar_edit_hint">Edit your avatar from the pencil button on your profile.</string>
+    <!-- Locked / not-yet-owned cosmetic preview sheet. -->
+    <string name="profile_item_sheet_locked_a11y">Locked</string>
+    <string name="profile_item_sheet_locked_not_owned">Not in your collection yet.</string>
+    <string name="profile_item_sheet_open_in_shop">Open in shop</string>
     <!-- Earned / prestige item detail sheet — "How you earned it" heading + per-item copy. -->
     <string name="profile_item_sheet_how_earned">How you earned it</string>
     <string name="earned_founding_member_title">Founding Member</string>

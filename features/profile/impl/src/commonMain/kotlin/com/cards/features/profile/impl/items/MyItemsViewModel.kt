@@ -202,6 +202,7 @@ data class OwnedItem(
  */
 data class BuyableCosmetic(
     val productId: String,
+    val title: String,
     val iconEmoji: String,
     val packEmojis: List<String> = emptyList(),
 )
@@ -256,6 +257,7 @@ data class MyItemsState(
                 .map { offer ->
                     BuyableCosmetic(
                         productId = offer.id,
+                        title = offer.title,
                         iconEmoji = offer.iconEmoji,
                         packEmojis = packEmojisFor(offer.id),
                     )
