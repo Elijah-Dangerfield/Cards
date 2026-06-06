@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
 import com.dangerfield.cards.libraries.ui.components.AnimatedCountUpText
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
@@ -111,6 +112,7 @@ import cards.libraries.resources.generated.resources.onboarding_how_eyebrow
 import cards.libraries.resources.generated.resources.onboarding_how_title
 import cards.libraries.resources.generated.resources.onboarding_identity_avatar_placeholder
 import cards.libraries.resources.generated.resources.onboarding_identity_continue_button
+import cards.libraries.resources.generated.resources.onboarding_identity_name_requirements
 import cards.libraries.resources.generated.resources.onboarding_identity_edit_name_icon_desc
 import cards.libraries.resources.generated.resources.onboarding_identity_more_packs_hint
 import cards.libraries.resources.generated.resources.onboarding_identity_section_name
@@ -505,13 +507,35 @@ private fun PickIdentityStep(
                 )
             },
             isError = state.saveError != null,
-            supportingText = state.saveError?.let { error ->
-                {
-                    Text(
-                        text = error.message(),
-                        typography = AppTheme.typography.Body.B400,
-                        color = AppTheme.colors.danger,
-                    )
+            supportingText = run {
+                val saveError = state.saveError
+                val showRequirements = saveError == null &&
+                    state.displayName.isNotBlank() &&
+                    !DisplayNameRules.isValid(state.displayName)
+                when {
+                    saveError != null -> {
+                        {
+                            Text(
+                                text = saveError.message(),
+                                typography = AppTheme.typography.Body.B400,
+                                color = AppTheme.colors.danger,
+                            )
+                        }
+                    }
+                    showRequirements -> {
+                        {
+                            Text(
+                                text = stringResource(
+                                    Res.string.onboarding_identity_name_requirements,
+                                    DisplayNameRules.MIN_LENGTH,
+                                    DisplayNameRules.MAX_LENGTH,
+                                ),
+                                typography = AppTheme.typography.Body.B400,
+                                color = AppTheme.colors.contentSecondary,
+                            )
+                        }
+                    }
+                    else -> null
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -557,7 +581,7 @@ private fun PickIdentityStep(
 
         ButtonPrimary(
             onClick = { onAction(OnboardingAction.ContinueFromPickIdentity) },
-            enabled = state.displayName.isNotBlank(),
+            enabled = DisplayNameRules.isValid(state.displayName),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(Res.string.onboarding_identity_continue_button))

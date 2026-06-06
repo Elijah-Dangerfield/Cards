@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
+import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
@@ -291,10 +292,7 @@ data class EditProfileState(
             .sortedBy { it.isLocked }
 
     val isNameValid: Boolean
-        get() {
-            val trimmed = displayName.trim()
-            return trimmed.length in MIN_NAME_LENGTH..MAX_NAME_LENGTH
-        }
+        get() = DisplayNameRules.isValid(displayName)
 
     val isDirty: Boolean
         get() = displayName.trim() != initialDisplayName?.trim() ||
@@ -305,8 +303,10 @@ data class EditProfileState(
         get() = !isSubmitting && isNameValid && isDirty && selectedAvatarEmoji != null
 
     companion object {
-        const val MIN_NAME_LENGTH = 1
-        const val MAX_NAME_LENGTH = 16
+        // Mirror the shared rules so the range helper text and the input cap
+        // stay in lock-step with validation.
+        const val MIN_NAME_LENGTH = DisplayNameRules.MIN_LENGTH
+        const val MAX_NAME_LENGTH = DisplayNameRules.MAX_LENGTH
     }
 }
 

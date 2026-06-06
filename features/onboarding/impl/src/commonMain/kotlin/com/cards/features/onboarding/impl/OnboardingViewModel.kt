@@ -14,6 +14,7 @@ import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
@@ -339,7 +340,7 @@ class OnboardingViewModel(
 
         /** Max display-name length; mirrors EditProfile's cap so onboarding and
          *  edit-profile agree. Stricter than the server limit (UX clamp). */
-        internal const val MAX_DISPLAY_NAME_LENGTH = 16
+        internal const val MAX_DISPLAY_NAME_LENGTH = DisplayNameRules.MAX_LENGTH
         private val PROFILE_TIMEOUT = 3.seconds
 
         /**
