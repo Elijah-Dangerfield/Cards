@@ -30,15 +30,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
   **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
 
-### Layout & responsiveness
-
-- `[P2]` **Landscape/horizontal layouts — improve the screens that read poorly.** Every main screen (Home, Profile, Shop, PlayPoker, Lobby, Onboarding) now has a landscape `@Preview`; single-column screens stretch edge-to-edge on a wide canvas and the table needs bespoke short/wide seating. Judge each against its landscape preview and improve the layouts that read poorly (e.g. cap readable content width on wide layouts). *(proposed 2026-05-30)*
-  **Acceptance:** screens that read poorly horizontally get an improved layout.
-  **Hints:** landscape previews use `@Preview(widthDp = 800, heightDp = 380)`. **Worker note:** the layout-tuning half needs Studio to render the previews — pair with a visual pass.
-
 ### Gameplay & table UX
-
-- `[P2]` **Hand-end XP/coin particle overlay.** When the hand-result / celebration overlay dismisses, fly an XP particle up to the `LevelPill` and a coin particle down to the chip stack, tied to the moment the gated values release. Polish on top of the existing deferred-animation gating.
 
 - `[P2]` **Per-hand decision capture + batch upload (for a future heat-map).** Capture per-hand attributes (folded / called / raised / bluffed / showdown-won + outcome) to a local Room table at hand-end; batch-upload when 50 entries accumulate or 24h passes; server stores rows + exposes a snapshot endpoint.
   **Acceptance:** local capture on every resolved hand; batch fires on threshold or timer; endpoint returns a snapshot.
@@ -77,12 +69,6 @@ Buyable, level-up-giftable consumables. Product + grant-model call is in [`decis
   **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
   **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
   **Hints:** grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. **Interacts with:** wallet, inventory / my-items, shop, and level-up rewards.
-
-### Profile, cosmetics & sheets
-
-- `[P1]` **Cosmetic detail sheets: richer felt/emote-pack preview.** Felts + emote packs should get a richer (animated) preview in `CosmeticDetailSheet` to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)*
-  **Acceptance:** felt/emote-pack detail sheets show a richer (animated) preview.
-  **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`. **Worker note:** the buyable-tap → purchase-sheet half already shipped.
 
 ### Player Card — Phase 1 (V1)
 
