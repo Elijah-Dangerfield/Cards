@@ -10,5 +10,8 @@ fix the page.
 
 ## Pages
 
+- [State authority & sync](./state-authority-and-sync.md) — where a piece of state
+  lives and who's authoritative: client-local vs. optimistic-local-then-reconciled
+  vs. server-granted, and how to choose given Cards is offline-first.
 - [Chip grants](./chip-grants.md) — where chips come from (starter, welcome-week,
   bust protection), who's authoritative, and how the starter-grant reveal works.

@@ -260,6 +260,8 @@ Pick the read-path policy **per repository**, not globally. Consistency vs. avai
 
 Bias toward cache-first when in doubt, but never force this pattern onto a resource whose contract demands freshness. When extending a repo, write down which row above it falls in — the read-path-policy bullet in `docs/developer-todo.md` tracks the remaining unconverted reads.
 
+**Write-path / grants** are the counterpart: where a *mutation* (earning XP, granting a prize, spending chips) lives and who's authoritative. Cards is offline-first, so default to **grant locally + reconcile on sync** (idempotent) for valuable state, keep purely-local state client-side, and reserve **server-authoritative grants** (not offline-friendly) for values the client can't compute or that need real trust. The full model + how-to-choose is in [`docs/wiki/state-authority-and-sync.md`](docs/wiki/state-authority-and-sync.md).
+
 ### Boot-time construction: the `AutoInit` marker
 
 The session-aware cache only works if the repository is constructed before the user touches the screen that reads it. Kotlin-inject singletons are constructed lazily on first injection, so a repo that nobody touches until a deep nav target stays cold — the hydrate-from-disk and session-rollover observer don't run, defeating the point.

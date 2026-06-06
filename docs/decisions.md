@@ -48,6 +48,14 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 **Status:** Locked for V1 (Home-only + watermark + teal). Per-level names / percentile / unlock callout Tentative — `backlog.md`.
 
+**Addendum (2026-06-06) — if a level-up grants a *prize*, how the grant works.** XP/level is **client-local** today (no server XP in V1 — `ProgressionRepositoryImpl` computes it on-device; bots earn it offline). So a level-up prize must **not** invent server-authoritative XP; it reuses the existing offline-first grant paths:
+ - **Grant client-side, idempotent, on level-cross** (works offline; the prize is theirs the moment they level, independent of seeing the celebration). Idempotency key `levelup_<level>`; track a "highest level rewarded" watermark separate from the UI's `lastCelebratedLevel`.
+ - **Chips prize →** the chips wallet ledger (model 2, optimistic-local + server-reconciled). **Cosmetic prize →** the achievement-reward path (client self-grant + fire-and-forget server grant). Don't add a third grant mechanism.
+ - **Reward table (level → prize) is static client content** (mirrored server-side for the reconcile), so no pre-fetch — it works offline by construction. Make it remote-config (`:libraries:config`) only if rewards need tuning without a release.
+ - **Anti-cheat scales with stakes:** client-self-grant + server-notify is fine for V1 (play-money / free cosmetics); when a prize becomes IAP-equivalent or ranked-status, the server must *derive* the grant from synced facts + caps rather than trust the claim. This is the Phase-3 server-authoritative-ledger direction.
+
+ The durable version of this networking model (this addendum dies when the feature ships) lives in [`docs/wiki/state-authority-and-sync.md`](./wiki/state-authority-and-sync.md).
+
 ---
 
 ## 2026-06-06 — "Player Card" — the at-table identity surface (terminology, scope, phasing)
