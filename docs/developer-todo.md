@@ -89,6 +89,7 @@ Intended rules (already saved in the UI, just inert):
 - Block deletions
 
 - [ ] **Move repo into a GitHub Team org** (or wait for that to happen for other reasons) so the rulesets above start enforcing.
+- [ ] **Confirm CI compiles the Kotlin/Native (iOS) test target.** A test name with parentheses silently broke `:features:room:impl` `commonTest` for the iOS target on 2026-05-31 and went unnoticed for ~a month — which means the CI test job likely only runs the Android JVM target. Check the workflow runs `compileTestKotlinIosSimulatorArm64` (or equivalent) so native-only test breaks fail the build.
 
 ---
 
