@@ -51,7 +51,9 @@ fun BadgedIconButton(
             when {
                 badgeCount > 0 -> Badge(
                     containerColor = AppTheme.colors.accentPrimary.color,
-                    contentColor = AppTheme.colors.content.color,
+                    // Gold-ink, not warm-white: white on gold is ~1.8:1 (fails
+                    // WCAG AA); the on-accent ink lands ~8:1.
+                    contentColor = AppTheme.colors.onAccentPrimary.color,
                 ) {
                     Box(
                         modifier = Modifier.padding(
