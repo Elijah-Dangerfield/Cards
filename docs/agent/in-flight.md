@@ -28,3 +28,11 @@ Short cycle this run: two confident feature commits. I scoped several meatier it
 - **Social-graph P0s / B2 persisted membership / per-hand capture.** All carry schema migrations (friend_relations, rooms+room_members, a telemetry Room table) — the hard-to-undo category. Left for the human.
 
 No `docs/todo.md` items were touched for these — they remain as-written.
+
+---
+
+## test: cover PlayPokerViewModel driving a multiplayer session
+
+**Problem:** The MP testing plan's coverage snapshot flags the client-VM layer as having "No MP-session equivalent" — `PlayPokerViewModelIntegrationTest` exercises the VM against a real `LocalBotsSession`, but nothing drove it against a real `RemotePokerSessionFactory` + `RemotePokerSession`. That VM↔MP-session wiring is load-bearing and was untested end-to-end.
+**Approach:** Added `PlayPokerViewModelMultiplayerIntegrationTest` (7 tests) that wires a real `RemotePokerSessionFactory` (over a `FakeRoomConnectionHandle`, the proven frame-pumping pattern from `RemotePokerSessionTest`/`RemotePokerSessionFactoryTest`) into a real `PlayPokerViewModel`. Pumps server `GameplayFrame`s + `RoomConnection` transitions and asserts they propagate through session → factory projection → VM state (Loading-before-snapshot, local-user human-seat derivation, acting-seat → isHumanTurn, observer/not-seated, connection-state mirroring) and that `Submit`/`RequestNextHand` leave the VM as the right `ClientFrame` on the wire. Chose the existing fake-handle seam over building a `FakeRoomServer` (the testing-plan's "fake quality" idea) because the latter would duplicate the server's hand-state machine into test code — high maintenance, low marginal coverage over pumping frames directly.
+**Reviewer notes:** Verified via `:features:room:impl:testDebugUnitTest` (all 7 pass) and `compileTestKotlinIosSimulatorArm64` (native target compiles). No `docs/todo.md` bullet maps to this — it fills the gap named in `testing-plan.md`'s coverage snapshot, not a Round checkbox; left the doc's historical baseline table as-is.
