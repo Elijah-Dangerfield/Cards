@@ -117,7 +117,10 @@ class EditProfileViewModel(
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
-                it.copy(displayName = action.value, displayNameError = null)
+                it.copy(
+                    displayName = action.value.take(EditProfileState.MAX_NAME_LENGTH),
+                    displayNameError = null,
+                )
             }
 
             is EditProfileAction.AvatarSelected -> action.updateState {
@@ -303,7 +306,7 @@ data class EditProfileState(
 
     companion object {
         const val MIN_NAME_LENGTH = 1
-        const val MAX_NAME_LENGTH = 32
+        const val MAX_NAME_LENGTH = 16
     }
 }
 

@@ -108,7 +108,11 @@ class OnboardingViewModel(
             is OnboardingAction.DisplayNameChanged -> action.updateState {
                 // Editing the name dismisses any stale "taken / invalid"
                 // notice from the optimistic background save.
-                it.copy(displayName = action.value, userEditedName = true, saveError = null)
+                it.copy(
+                    displayName = action.value.take(MAX_DISPLAY_NAME_LENGTH),
+                    userEditedName = true,
+                    saveError = null,
+                )
             }
             OnboardingAction.RegenerateDisplayName -> action.updateState {
                 it.copy(displayName = DisplayNameSuggester.next(), userEditedName = true)
@@ -332,6 +336,10 @@ class OnboardingViewModel(
 
     companion object {
         internal const val STARTER_TILE_COUNT = 8
+
+        /** Max display-name length; mirrors EditProfile's cap so onboarding and
+         *  edit-profile agree. Stricter than the server limit (UX clamp). */
+        internal const val MAX_DISPLAY_NAME_LENGTH = 16
         private val PROFILE_TIMEOUT = 3.seconds
 
         /**
