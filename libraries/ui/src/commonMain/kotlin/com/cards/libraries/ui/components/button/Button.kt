@@ -136,10 +136,11 @@ enum class ButtonType {
 }
 
 /**
- * Which brand accent a *filled Primary* renders. Role-named, never a literal color, so dropping or
- * repointing an accent token never touches a button.
+ * Which accent a *filled Primary* renders. Role-named, never a literal color, so dropping or
+ * repointing an accent token never touches a button. [Inverse] is the odd one out — not a brand
+ * hue but the inverse surface (a near-white fill with dark ink), for the occasional "white button".
  */
-enum class ButtonAccent { Primary, Secondary, Tertiary }
+enum class ButtonAccent { Primary, Secondary, Tertiary, Inverse }
 
 enum class ButtonSize {
     Large,
@@ -335,6 +336,7 @@ private fun accentSolid(a: ButtonAccent) = when (a) {
     ButtonAccent.Primary -> AppTheme.colors.accentPrimary
     ButtonAccent.Secondary -> AppTheme.colors.accentSecondary
     ButtonAccent.Tertiary -> AppTheme.colors.accentTertiary
+    ButtonAccent.Inverse -> AppTheme.colors.surfaceInverse
 }
 
 @Composable
@@ -343,6 +345,7 @@ private fun accentDeep(a: ButtonAccent) = when (a) {
     ButtonAccent.Primary -> AppTheme.colors.accentPrimaryDeep
     ButtonAccent.Secondary -> AppTheme.colors.accentSecondaryDeep
     ButtonAccent.Tertiary -> AppTheme.colors.accentTertiaryDeep
+    ButtonAccent.Inverse -> AppTheme.colors.surfaceInverseDeep
 }
 
 @Composable
@@ -351,6 +354,7 @@ private fun onAccent(a: ButtonAccent) = when (a) {
     ButtonAccent.Primary -> AppTheme.colors.onAccentPrimary
     ButtonAccent.Secondary -> AppTheme.colors.onAccentSecondary
     ButtonAccent.Tertiary -> AppTheme.colors.onAccentTertiary
+    ButtonAccent.Inverse -> AppTheme.colors.onSurfaceInverse
 }
 
 @Composable
