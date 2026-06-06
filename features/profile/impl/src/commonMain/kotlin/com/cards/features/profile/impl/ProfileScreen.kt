@@ -161,6 +161,7 @@ fun ProfileScreen(
     onOpenShop: () -> Unit,
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
+    onBuyableTap: (String) -> Unit = {},
     buyableItems: List<BuyableCosmetic> = emptyList(),
     highlightProductId: String? = null,
     onHighlightConsumed: () -> Unit = {},
@@ -222,6 +223,7 @@ fun ProfileScreen(
                     buyableItems = buyableItems,
                     onToggleEquip = onToggleEquip,
                     onOpenShop = onOpenShop,
+                    onBuyableTap = onBuyableTap,
                     onTryEmote = { emoji ->
                         emojiBlast = EmojiBlast(
                             emoji = emoji,
@@ -559,6 +561,7 @@ private fun OwnedItemsSections(
     buyableItems: List<BuyableCosmetic>,
     onToggleEquip: (String) -> Unit,
     onOpenShop: () -> Unit,
+    onBuyableTap: (String) -> Unit,
     onTryEmote: (String) -> Unit,
     highlightProductId: String?,
     onHighlightConsumed: () -> Unit,
@@ -645,7 +648,10 @@ private fun OwnedItemsSections(
                                 )
                             }
                             is ShelfTileBuyable -> {
-                                BuyableCosmeticTile(item = tile.item, onClick = onOpenShop)
+                                BuyableCosmeticTile(
+                                    item = tile.item,
+                                    onClick = { onBuyableTap(tile.item.productId) },
+                                )
                             }
                         }
                     }
@@ -830,8 +836,8 @@ private fun EquippedBadge(modifier: Modifier = Modifier) {
 /**
  * A not-yet-owned cosmetic shown after the owned tiles on a shoppable shelf —
  * the real preview, dimmed, so it reads as "available, not yours yet." Tapping
- * routes to the shop. No equipped badge, no price; it's a nudge, not a
- * purchase surface.
+ * opens the shop's purchase sheet for this product. No equipped badge, no
+ * price on the tile itself; it's a nudge into the buy flow.
  */
 @Composable
 private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {

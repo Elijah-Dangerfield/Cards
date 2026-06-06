@@ -178,6 +178,17 @@ class ProfileFeatureEntryPoint(
                 onSeeAllAchievements = { router.navigate(AchievementsRoute()) },
                 onToggleEquip = { myItemsVm.takeAction(MyItemsAction.ToggleEquipped(it)) },
                 onOpenShop = { router.batch { switchTab(ShopGraph) } },
+                onBuyableTap = { productId ->
+                    // Cross-tab deep-link straight to the product's purchase
+                    // sheet rather than dumping the user in the shop grid.
+                    // Batched so the tab switch + sheet push run as one queued
+                    // unit (tab-root args get clobbered by restoreState — see
+                    // docs/decisions.md). Mirrors EditProfile's onNavigateToShop.
+                    router.batch {
+                        switchTab(ShopGraph)
+                        navigate(ShopProductSheetRoute(productId))
+                    }
+                },
                 onSignIn = { router.navigate(ClaimAccountRoute()) },
                 highlightProductId = appData.pendingProfileHighlight,
                 onHighlightConsumed = {

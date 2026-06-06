@@ -58,9 +58,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Profile, cosmetics & sheets
 
-- `[P1]` **Cosmetic detail/purchase sheets: buyable tap → purchase sheet + richer felt/emote preview.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Felts + emote packs should get a richer preview to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)* (Slot-aware equip already ships: card back / felt are swap-only with no "unequip".)
-  **Acceptance:** buyable tap → purchase sheet; felt/emote-pack sheets show a richer (animated) preview.
-  **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`; reuse the shop purchase-sheet route for the buyable tap.
+- `[P1]` **Cosmetic detail sheets: richer felt/emote-pack preview.** Felts + emote packs should get a richer (animated) preview in `CosmeticDetailSheet` to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)*
+  **Acceptance:** felt/emote-pack detail sheets show a richer (animated) preview.
+  **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`. **Worker note:** the buyable-tap → purchase-sheet half already shipped.
 
 ### Cross-app consistency
 
