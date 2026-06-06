@@ -210,7 +210,7 @@ Landed in a new [`RoomSocketGameplayRoutesTest`](../apps/server/src/test/kotlin/
 - [ ] **Server sends `RoomClosed` mid-hand** — client surfaces ClosedReason.RoomDeleted; play screen exits gracefully.
 - [ ] **High-latency network (200ms+ RTT)** — `submit()` ack arrives slowly; UI doesn't double-submit on accidental tap.
 - [ ] **WS handshake during auth refresh** — the auth bootstrap was the source of one real iOS bug; pin the race.
-- [ ] **Outbound channel saturation** — fill the 32-slot buffer; assert `send()` suspends correctly.
+- [x] **Outbound channel saturation** — fill the 32-slot buffer; assert `send()` suspends correctly. *(Landed as `ReconnectingRoomSocketTest.send_saturatesOutboundBuffer_thenSuspends` + `…drainsFifo_andResumesSuspendedSend_onConnect` — a pure client-socket unit test, no `:integration` server needed.)*
 - [ ] **Out-of-order frames** — server (per the existing decision log) doesn't guarantee order beyond `lastSequence`; engine state always resolves correctly.
 - [ ] **Concurrent intents from multiple clients on the same hand** — server's per-session mutex serializes; both clients' acks arrive in some order.
 
@@ -311,6 +311,6 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 | 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
 | 3 — engine SUPER tests | shipped (bar hand-history) | Property invariants (`GameEnginePropertyTest`), edge-case scenarios (`GameEngineEdgeCaseTest`), and cross-product action tables (`GameEngineActionTableTest`) all landed. Only the 50-hand history fixtures remain — gated on a real production playtest. |
 | 4 — server gameplay flow | shipped | `RoomSocketGameplayRoutesTest` — 9 tests pinning the WS route → registry → per-recipient broadcast cycle. |
-| 5 — chaos / fault injection | not started | Lives in `:integration`. ~10 tests, ~4-6h. |
+| 5 — chaos / fault injection | in progress | Outbound-saturation pinned at the client-socket unit seam (`ReconnectingRoomSocketTest`). The rest live in `:integration` (parked in `developer-todo.md`). ~9 tests, ~4-6h. |
 | 6 — Compose UI tests | not started | `:features:room:impl` androidUnitTest. ~15 tests, ~6-8h. |
 | Deferred — emulator UI | not planned | Device-smoke checklist covers this for V1. |

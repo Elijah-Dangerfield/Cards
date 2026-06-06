@@ -58,3 +58,11 @@ Honest short addition on top of the prior two feature commits. I scoped the rema
 - **Architecture-call items already deferred by the prior worker** (ban enforcement on the auth path, per-turn timer in the game loop, spectator role) — same reasoning holds; left for human-in-the-loop.
 
 So: one substantive test suite + one incidental native-compile fix. Stopped rather than reach for items I couldn't ship confidently.
+
+---
+
+## test: pin outbound-buffer saturation in ReconnectingRoomSocket
+
+**Problem:** `testing-plan.md` Round 5 (chaos) lists "Outbound channel saturation — fill the 32-slot buffer; assert `send()` suspends correctly" as an open P0 gap. The socket's `OUTBOUND_CAPACITY = 32` + `BufferOverflow.SUSPEND` contract (its KDoc: "the caller suspends rather than silently buffering an unbounded queue") was entirely untested.
+**Approach:** Added two tests to `ReconnectingRoomSocketTest` over the existing `FakeRoomSocketTransport`. (1) With no collector draining, 32 sends fit the buffer and the 33rd suspends. (2) After saturating, a subscriber opens the WS, the writer drains FIFO, and the parked send resumes — pinning both the suspend half and the "drains in FIFO order on reconnect" half of the KDoc. Chose the client-socket unit seam over the testing-plan's nominal `:integration` home because saturation is purely a client-channel property (no server needed), and `:integration` is parked in `developer-todo.md`. Stayed in `:libraries:rooms:impl` to avoid overlapping this cycle's earlier `:features:room:impl` MP-VM test commit.
+**Reviewer notes:** Verified `:libraries:rooms:impl:testDebugUnitTest` (both new tests run + pass) and `compileTestKotlinIosSimulatorArm64` (native target). The FIFO order assertion relies on standard `kotlinx.coroutines.channels.Channel` semantics (buffered elements drain before a suspended sender's element fills the freed slot); if that ever feels brittle, the load-bearing assertions are "all 33 sends complete" + "session received 33 frames" — the first/last ordering checks are the only ones leaning on channel internals. Ticked the single Round 5 checkbox and set the round to "in progress"; the remaining 9 chaos items genuinely need the parked `:integration` module.

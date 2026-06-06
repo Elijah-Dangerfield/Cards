@@ -53,7 +53,9 @@ import kotlin.test.assertTrue
  *  - **Replay cleanliness** — a stale `Reconnecting` from a prior
  *    session doesn't leak into a fresh state's replay buffer.
  *  - **Send** — outbound encodes correctly, multiple frames preserve
- *    order, frames queued during a disconnect re-drain on reconnect.
+ *    order, frames queued during a disconnect re-drain on reconnect, and
+ *    a saturated 32-slot outbound buffer suspends `send()` rather than
+ *    growing unbounded, then drains FIFO once a session connects.
  *
  * Uses [StandardTestDispatcher] (overrides the base
  * [UnconfinedTestDispatcher]) because the linger / backoff assertions
@@ -328,6 +330,60 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
             second.sent.any { it.contains("after-drop") },
             "buffered frame must re-send on the new session; got: ${second.sent}",
         )
+        connJob.cancel()
+    }
+
+    @Test
+    fun send_saturatesOutboundBuffer_thenSuspends() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val handle = socket.connect("SAT123")
+
+        // No collector → no live session → nothing drains the outbound
+        // buffer. The first 32 frames fit the bounded buffer; the 33rd
+        // must suspend rather than silently growing an unbounded queue.
+        val buffered = (0 until 32).map { i ->
+            launch { handle.send(ClientFrame.SubmitIntent(PlayerIntent.Fold(seatIndex = 0), "n$i")) }
+        }
+        runCurrent()
+        assertTrue(buffered.all { it.isCompleted }, "first 32 sends should fit the buffer")
+
+        val overflow = launch {
+            handle.send(ClientFrame.SubmitIntent(PlayerIntent.Fold(seatIndex = 0), "overflow"))
+        }
+        // runCurrent (not advanceUntilIdle) so the no-subscriber linger
+        // timer doesn't fire and evict the state out from under us.
+        runCurrent()
+        assertTrue(overflow.isActive, "33rd send must suspend on the full buffer")
+
+        overflow.cancel()
+        buffered.forEach { it.cancel() }
+    }
+
+    @Test
+    fun send_saturatedBuffer_drainsFifo_andResumesSuspendedSend_onConnect() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+        val handle = socket.connect("SAT123")
+
+        // Saturate the buffer (33 frames; the last parks on the full
+        // buffer) with no subscriber draining.
+        val sends = (0..32).map { i ->
+            launch { handle.send(ClientFrame.SubmitIntent(PlayerIntent.Fold(seatIndex = 0), "f$i")) }
+        }
+        runCurrent()
+        assertTrue(sends.any { it.isActive }, "one send should be parked on the full buffer")
+
+        // A subscriber opens the WS; the writer drains FIFO, freeing the
+        // slot the parked send is waiting on so it completes too.
+        val connJob = launch { handle.connection.collect { } }
+        advanceUntilIdle()
+
+        assertTrue(sends.all { it.isCompleted }, "draining must resume the parked send")
+        assertEquals(33, session.sent.size, "every buffered frame drains on connect")
+        assertTrue(session.sent.first().contains("\"f0\""), "FIFO: f0 ships first; got ${session.sent.first()}")
+        assertTrue(session.sent.last().contains("\"f32\""), "FIFO: parked f32 ships last; got ${session.sent.last()}")
         connJob.cancel()
     }
 
