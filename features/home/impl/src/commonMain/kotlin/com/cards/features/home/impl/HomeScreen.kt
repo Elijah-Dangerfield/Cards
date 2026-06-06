@@ -214,6 +214,7 @@ private fun HomeScreenContent(
                     accent = FeatureCardAccents.Blue,
                     onClick = onQuickMatch,
                     modifier = Modifier.weight(1f),
+                    tag = "Coming soon",
                 )
                 PlayTileCard(
                     title = stringResource(Res.string.home_cta_friend_game_title),
