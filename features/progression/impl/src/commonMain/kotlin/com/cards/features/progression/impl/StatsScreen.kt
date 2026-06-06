@@ -44,6 +44,7 @@ import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
+import com.dangerfield.cards.libraries.ui.components.achievement.MedalSize
 import com.dangerfield.cards.libraries.ui.components.achievement.earnedAgo
 import com.dangerfield.cards.libraries.ui.components.achievement.label
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
@@ -265,13 +266,13 @@ private fun EventRow(event: XpEvent) {
     ) {
         Text(
             text = sourceEmoji(event.source),
-            typography = AppTheme.typography.Body.B500,
+            typography = AppTheme.typography.Heading.H600,
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = sourceLabel(event.source),
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Body.B600.SemiBold,
                 color = AppTheme.colors.content,
             )
             // Subline disambiguates the row: hand id for hand-derived XP,
@@ -287,7 +288,7 @@ private fun EventRow(event: XpEvent) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = it,
-                    typography = AppTheme.typography.Body.B400,
+                    typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.contentSecondary,
                 )
             }
@@ -296,7 +297,7 @@ private fun EventRow(event: XpEvent) {
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = "+${event.deltaXp}",
-                typography = AppTheme.typography.Body.B600,
+                typography = AppTheme.typography.Heading.H600,
                 color = sourceColor(event.source),
             )
             val ago = earnedAgo(
@@ -306,7 +307,7 @@ private fun EventRow(event: XpEvent) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = ago,
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentTertiary,
             )
         }
@@ -342,25 +343,27 @@ private fun AchievementsHighlights(
         ) {
             Text(
                 text = "Achievements",
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Heading.H600,
                 color = AppTheme.colors.content,
             )
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "$earnedCount / $total",
-                typography = AppTheme.typography.Body.B400,
+                typography = AppTheme.typography.Body.B500,
                 color = AppTheme.colors.contentSecondary,
             )
         }
         Spacer(modifier = Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             toShow.forEach { (achievement, earnedAt) ->
-                AchievementMedalWithDetail(
-                    achievement = achievement,
-                    earnedAtEpochMs = earnedAt,
-                    progress = achievement.currentProgress(progress),
-                    modifier = Modifier.weight(1f),
-                )
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    AchievementMedalWithDetail(
+                        achievement = achievement,
+                        earnedAtEpochMs = earnedAt,
+                        progress = achievement.currentProgress(progress),
+                        size = MedalSize.Small,
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(10.dp))
@@ -375,7 +378,7 @@ private fun AchievementsHighlights(
         ) {
             Text(
                 text = "See all $total achievements",
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Body.B600.SemiBold,
                 color = AppTheme.colors.content,
             )
         }
@@ -386,7 +389,7 @@ private fun AchievementsHighlights(
 private fun SectionTitle(text: String) {
     Text(
         text = text,
-        typography = AppTheme.typography.Body.B500,
+        typography = AppTheme.typography.Heading.H600,
         color = AppTheme.colors.content,
     )
 }
