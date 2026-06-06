@@ -387,6 +387,7 @@ Top-edge emoji bubbles attach to both — dialogs via `emoji = dialogEmoji("🎉
 - No comments in code.
 - Custom UI components in `libraries/ui` — avoid Material directly.
 - **Every user-facing string lives in `:libraries:resources`** (`libraries/resources/src/commonMain/composeResources/values/strings.xml`). Read via `stringResource(Res.string.foo, args)` in a Composable or `getString(Res.string.foo, args)` in a suspend / non-Composable context. Naming convention: `{surface}_{role}_{specifier}` (e.g. `lobby_idle_create_button`). No inline `"…"` strings in Composables, dialogs, or VM-emitted user-visible copy. Exceptions: glyph-only typography (✓, —, emoji icons that *are* the affordance), preview-only sample data, error message keys that come from the server. New string → new XML entry, not an inline literal. Module needs `implementation(projects.libraries.resources)` if it's not already in there.
+- Don't backslash-escape apostrophes/quotes in `strings.xml` — unlike Android, Compose-MP resources render `\'` literally. Write `it's`, not `it\'s`. (`\n` for line breaks is fine.)
 - Check `ComposeApp.h` for Swift names of Kotlin types before using in Swift.
 
 ## iOS Notes

@@ -426,10 +426,10 @@
     <string name="profile_item_sheet_how_earned">How you earned it</string>
     <string name="earned_founding_member_title">Founding Member</string>
     <string name="earned_founding_member_description">A badge for the players who were here at the very beginning.</string>
-    <string name="earned_founding_member_how">Granted to early players who pulled up a seat during launch — it can\'t be bought.</string>
+    <string name="earned_founding_member_how">Granted to early players who pulled up a seat during launch — it can't be bought.</string>
     <string name="earned_founding_member_thanks">Thank you for betting on us from the start. It means the world.</string>
     <!-- Dedicated founding-member sheet (rotating-dial ceremony). Tighter copy. -->
-    <string name="founding_member_tagline">Here from the very first hand — a badge that can\'t be bought.</string>
+    <string name="founding_member_tagline">Here from the very first hand — a badge that can't be bought.</string>
     <string name="founding_member_done">Nice</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
