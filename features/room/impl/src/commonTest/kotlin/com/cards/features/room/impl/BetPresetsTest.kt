@@ -17,7 +17,7 @@ import kotlin.test.assertTrue
 class BetPresetsTest {
 
     @Test
-    fun `from returns empty when max is below min (short stack)`() {
+    fun `from returns empty when max is below min for a short stack`() {
         // Mirrors the crash: min legal raise 8200, but the seat can only put
         // in 4750 (all-in) — an empty range.
         val legal = legalActions(minRaiseTotal = 8200, maxRaiseTotal = 4750)

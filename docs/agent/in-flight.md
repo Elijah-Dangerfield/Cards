@@ -36,3 +36,25 @@ No `docs/todo.md` items were touched for these — they remain as-written.
 **Problem:** The MP testing plan's coverage snapshot flags the client-VM layer as having "No MP-session equivalent" — `PlayPokerViewModelIntegrationTest` exercises the VM against a real `LocalBotsSession`, but nothing drove it against a real `RemotePokerSessionFactory` + `RemotePokerSession`. That VM↔MP-session wiring is load-bearing and was untested end-to-end.
 **Approach:** Added `PlayPokerViewModelMultiplayerIntegrationTest` (7 tests) that wires a real `RemotePokerSessionFactory` (over a `FakeRoomConnectionHandle`, the proven frame-pumping pattern from `RemotePokerSessionTest`/`RemotePokerSessionFactoryTest`) into a real `PlayPokerViewModel`. Pumps server `GameplayFrame`s + `RoomConnection` transitions and asserts they propagate through session → factory projection → VM state (Loading-before-snapshot, local-user human-seat derivation, acting-seat → isHumanTurn, observer/not-seated, connection-state mirroring) and that `Submit`/`RequestNextHand` leave the VM as the right `ClientFrame` on the wire. Chose the existing fake-handle seam over building a `FakeRoomServer` (the testing-plan's "fake quality" idea) because the latter would duplicate the server's hand-state machine into test code — high maintenance, low marginal coverage over pumping frames directly.
 **Reviewer notes:** Verified via `:features:room:impl:testDebugUnitTest` (all 7 pass) and `compileTestKotlinIosSimulatorArm64` (native target compiles). No `docs/todo.md` bullet maps to this — it fills the gap named in `testing-plan.md`'s coverage snapshot, not a Round checkbox; left the doc's historical baseline table as-is.
+
+## fix: rename native-illegal backtick test name in BetPresetsTest
+
+**Problem:** `BetPresetsTest`'s `` `... (short stack)` `` test name contains `()`, which Kotlin/Native rejects ("Name contains illegal characters"). It silently broke the **entire** `:features:room:impl` `commonTest` compilation for the iOS/native target — the Android unit-test JVM target tolerates the name, so the breakage hid (present since 2026-05-31, commit `7ff3f8fe`).
+**Approach:** Renamed the single offending function to `from returns empty when max is below min for a short stack` (no parens). Grepped the module's `commonTest` — this was the only native-illegal name, so the rename fully restores `compileTestKotlinIosSimulatorArm64`.
+**Reviewer notes:** Confirmed before/after: the task failed on this name, passes after the rename (`--rerun-tasks`, 9s). Surfaced incidentally while validating the iOS compile of the test above. Worth checking whether CI actually runs the native test target — if it had, this would've been caught a month ago.
+**Deferred:** A detekt/lint rule banning `()` (and other native-illegal chars) in backtick test names would mechanically prevent recurrence — fits the `verifyStrings`-style framework in `docs/todo.md §C`. Noted here only; nothing added to a doc.
+
+---
+
+## Cycle notes (not a commit) — later worker, same cycle
+
+Honest short addition on top of the prior two feature commits. I scoped the remaining `docs/todo.md` + `testing-plan.md` items and most confident-and-substantive ones hit real skip-reasons for an autonomous headless run:
+
+- **Testing-plan Round 2 (integration module) + Round 5 (chaos)** both live in the `:integration` module, which is parked in `developer-todo.md` (human-only) — can't build it.
+- **Round 6 (Compose UI tests)** is greenfield harness setup: no `compose.ui.test`/robolectric infra exists in the catalog or anywhere in the repo. A half-built UI-test harness on `develop` blocks peers, and I can't validate rendering headlessly. Deferred to a focused session.
+- **Testing-plan "fake quality" items** are stale: `FakeRoomConnectionHandle` already backs `connection` with `replay = 1`, and `FakeRoomSocketTransport` already models close→reopen (`primeGated` + `closeFromPeer`). Nothing to fix; left the checkboxes for the reviewer to reconcile.
+- **MP achievement hand-count floor (§A)** is genuinely blocked: there is no server-side per-user hand count anywhere (`room_sessions` stores only the JSONB game state). A floor that trusts a client-reported count defeats the gate's own purpose — respected the blocked tag.
+- **Studio-gated items** (landscape layouts, emote-glyph centering, cosmetic richer preview, hand-end particles) need a visual pass I can't do headlessly.
+- **Architecture-call items already deferred by the prior worker** (ban enforcement on the auth path, per-turn timer in the game loop, spectator role) — same reasoning holds; left for human-in-the-loop.
+
+So: one substantive test suite + one incidental native-compile fix. Stopped rather than reach for items I couldn't ship confidently.
