@@ -86,6 +86,76 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     @Test
+    fun gameStateFlow_dropsSnapshotArrivingOutOfOrder_withinSameHand() = runUnitTest {
+        // The transport doesn't guarantee snapshot order beyond the
+        // engine's sequence numbers; an older snapshot landing after a
+        // newer one (e.g. a buffered frame from a dropped connection)
+        // must not clobber the live table.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        val newer = sampleGameStateWithSeats(handNumber = 1).copy(lastSequence = 10L)
+        handle.pushFrame(GameplayFrame.StateSnapshot(newer))
+        advanceUntilIdle()
+        assertEquals(newer, session.gameStateFlow.value)
+
+        val stale = sampleGameStateWithSeats(handNumber = 1).copy(lastSequence = 4L, actingSeatIndex = 1)
+        handle.pushFrame(GameplayFrame.StateSnapshot(stale))
+        advanceUntilIdle()
+
+        assertEquals(newer, session.gameStateFlow.value, "a lower-sequence snapshot must not overwrite the live state")
+        runJob.cancel()
+    }
+
+    @Test
+    fun gameStateFlow_appliesNewHand_evenThoughItsSequenceResets() = runUnitTest {
+        // lastSequence resets to 0 at the start of each hand, so the new
+        // hand's opening snapshot carries a *lower* sequence than the prior
+        // hand's final one. handNumber is the cross-hand ordering key — the
+        // new hand must apply despite the sequence dropping.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        val handOneFinal = sampleGameStateWithSeats(handNumber = 1).copy(lastSequence = 42L)
+        handle.pushFrame(GameplayFrame.StateSnapshot(handOneFinal))
+        advanceUntilIdle()
+        assertEquals(handOneFinal, session.gameStateFlow.value)
+
+        val handTwoOpen = sampleGameStateWithSeats(handNumber = 2).copy(lastSequence = 3L)
+        handle.pushFrame(GameplayFrame.StateSnapshot(handTwoOpen))
+        advanceUntilIdle()
+
+        assertEquals(handTwoOpen, session.gameStateFlow.value, "a fresh hand must apply even though its sequence reset")
+        runJob.cancel()
+    }
+
+    @Test
+    fun gameStateFlow_appliesEqualSequenceResync() = runUnitTest {
+        // A post-reconnect resync may re-send the same (handNumber, seq)
+        // with refreshed content; an equal key isn't strictly older, so it
+        // still applies — dropping it would swallow a legitimate re-send.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        val first = sampleGameStateWithSeats(handNumber = 1).copy(lastSequence = 7L, actingSeatIndex = 0)
+        handle.pushFrame(GameplayFrame.StateSnapshot(first))
+        advanceUntilIdle()
+
+        val resync = sampleGameStateWithSeats(handNumber = 1).copy(lastSequence = 7L, actingSeatIndex = 1)
+        handle.pushFrame(GameplayFrame.StateSnapshot(resync))
+        advanceUntilIdle()
+
+        assertEquals(resync, session.gameStateFlow.value, "equal-sequence resync must apply, not be dropped as stale")
+        runJob.cancel()
+    }
+
+    @Test
     fun events_replays_recentEventsToLateSubscriber() = runUnitTest {
         val handle = FakeRoomConnectionHandle()
         val session = RemotePokerSession(handle)
