@@ -85,6 +85,12 @@ fun PlayPokerScreen(
      *  this false so its own step-counter pill can occupy the centered
      *  slot without colliding. */
     showXpPill: Boolean = true,
+    /** Optional content for the centered top-bar slot, rendered in the
+     *  exact spot the Level pill occupies. The tutorial passes its
+     *  step-counter pill here so it sits *in* the top bar (vertically
+     *  centered with the back chevron) rather than floating above it.
+     *  Takes precedence over the Level pill when non-null. */
+    topBarCenterSlot: (@Composable () -> Unit)? = null,
     /** When false, the back button leaves immediately instead of opening
      *  the "you'll lose this hand" confirm dialog. Tutorial sets this
      *  false because there's no real hand or XP at stake. */
@@ -239,6 +245,7 @@ fun PlayPokerScreen(
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
                     showXpPill = showXpPill,
+                    centerSlot = topBarCenterSlot,
                     availableEmojis = state.availableEmojis,
                     emojiCooldownEndsAtEpochMs = state.emojiCooldownEndsAtMs,
                     onBlastEmoji = { emoji ->
@@ -547,6 +554,7 @@ private fun TopBar(
     onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
     showXpPill: Boolean = true,
+    centerSlot: (@Composable () -> Unit)? = null,
     availableEmojis: List<String> = emptyList(),
     emojiCooldownEndsAtEpochMs: Long = 0L,
     onBlastEmoji: ((String) -> Unit)? = null,
@@ -576,7 +584,12 @@ private fun TopBar(
             onClick = onBack,
             modifier = Modifier.align(Alignment.CenterStart),
         )
-        if (showXpPill) {
+        if (centerSlot != null) {
+            // Caller-supplied content (e.g. the tutorial's step counter) owns
+            // the centered slot — same spot the Level pill would sit, so it
+            // reads as part of the top bar rather than a floating overlay.
+            Box(modifier = Modifier.align(Alignment.Center)) { centerSlot() }
+        } else if (showXpPill) {
             // Publish the pill's on-screen bounds so the hand-end XP particle
             // knows where to fly. No-op when there's no anchor holder in scope.
             val anchors = LocalTableRewardAnchors.current
