@@ -50,7 +50,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
   **Hints:** the `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
-- `[P1]` **Home active-room banner — back the reactive flow with a server-pushed source.** `RoomRepository.observeActiveRooms()` now drives the Home banner reactively, seeded on arrival and kept current by this client's own create/join/leave mutations. The gap: it's a client-side projection, so room changes that don't originate on this device (host closes the room elsewhere, server-side forfeit/grace expiry, a second device) don't reflect until the next `getActiveRooms()`. Hang `observeActiveRooms()` off the durable membership source so it's authoritative regardless of who mutated the room. *(proposed 2026-05-31)*
+- `[P1]` **Home active-room banner — back the reactive flow with a server-pushed source.** `observeActiveRooms()` is a client-side projection: room changes that don't originate on this device (host closes the room elsewhere, server-side forfeit/grace expiry, a second device) don't reflect until the next `getActiveRooms()`. Hang it off the durable membership source so it's authoritative regardless of who mutated the room. *(proposed 2026-05-31)*
   **Acceptance:** the banner reflects room changes made off-device without a manual refresh.
   **Hints:** [`RoomRepositoryImpl.observeActiveRooms`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/RoomRepositoryImpl.kt) holds the in-memory `MutableStateFlow` today; the durable source is [B2](#b2--persisted-room-membership) (persisted membership), and presence pushes pair with the [online-presence WS signal](#social-graph--friends--load-bearing-for-v1x).
 
@@ -61,6 +61,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **Cosmetic detail/purchase sheets: buyable tap → purchase sheet + richer felt/emote preview.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Felts + emote packs should get a richer preview to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)* (Slot-aware equip already ships: card back / felt are swap-only with no "unequip".)
   **Acceptance:** buyable tap → purchase sheet; felt/emote-pack sheets show a richer (animated) preview.
   **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`; reuse the shop purchase-sheet route for the buyable tap.
+- `[P1]` **Unread-notifications badge on the Profile top-bar Settings icon.** Today the unread count only shows as a dot on the Profile bottom-bar tab and on the "Notifications" row inside Settings. The actual path to the inbox runs through the gear icon, so a user already on Profile sees no signal that there's something to read. Mirror the same badge on the Settings `IconButton` in `ProfileScreen.kt`. *(proposed 2026-06-05)*
+  **Acceptance:** non-zero `unreadNotificationCount` puts a small badge (count or dot) on the top-bar settings icon; clears when the inbox is opened.
+  **Hints:** count already flows into `ProfileSettings.unreadNotificationCount` (see `ProfileFeatureEntryPoint.kt:186` → `observeUnreadInboxCount`); badge primitive precedent is the bottom-tab dot. Lift a `BadgedIconButton` into `:libraries:ui` if there's no DS primitive yet.
 
 ### Cross-app consistency
 
