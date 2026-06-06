@@ -119,6 +119,53 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
     }
 
     @Test
+    fun submitRejectedByServer_isSwallowed_andVmKeepsProcessing() = runUnitTest {
+        // session.submit throws IntentRejectedException on a rejected ack;
+        // the VM must catch it (not let it escape the launched coroutine and
+        // crash the app) and keep handling subsequent frames.
+        val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
+        advanceUntilIdle()
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 0)))
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Fold(seatIndex = 0)))
+        runCurrent()
+        val frame = assertIs<ClientFrame.SubmitIntent>(handle.sent.single())
+        handle.pushFrame(
+            GameplayFrame.IntentAck(clientNonce = frame.clientNonce, accepted = false, error = "not-your-turn"),
+        )
+        advanceUntilIdle()
+
+        // The VM is still alive: a fresh snapshot still projects through.
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 1)))
+        advanceUntilIdle()
+        assertFalse(
+            assertIs<TableUiState.Active>(vm.state.table).isHumanTurn,
+            "VM kept processing snapshots after a rejected submit",
+        )
+    }
+
+    @Test
+    fun submitTimesOut_isSwallowed_andVmKeepsProcessing() = runUnitTest {
+        // No ack arrives → session.submit throws IntentTimeoutException after
+        // INTENT_TIMEOUT_MS; the VM must swallow it the same way.
+        val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
+        advanceUntilIdle()
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 0)))
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Fold(seatIndex = 0)))
+        advanceUntilIdle()
+
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = 1)))
+        advanceUntilIdle()
+        assertFalse(
+            assertIs<TableUiState.Active>(vm.state.table).isHumanTurn,
+            "VM kept processing snapshots after a submit timeout",
+        )
+    }
+
+    @Test
     fun requestNextHand_sendsRequestNextHandFrameOverWire() = runUnitTest {
         val (vm, handle) = buildMpVm(localUserId = LOCAL_USER)
         advanceUntilIdle()

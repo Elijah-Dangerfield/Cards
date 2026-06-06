@@ -411,7 +411,10 @@ class PlayPokerViewModel @Inject constructor(
 
             is PlayPokerAction.Submit -> {
                 logger.d { "VM received Submit ${action.intent}" }
-                viewModelScope.launch { session.submit(action.intent) }
+                viewModelScope.launch {
+                    Catching { session.submit(action.intent) }
+                        .onFailure { e -> logger.w(e) { "submit failed for ${action.intent}" } }
+                }
             }
             is PlayPokerAction.RequestNextHand -> {
                 session.requestNextHand()
