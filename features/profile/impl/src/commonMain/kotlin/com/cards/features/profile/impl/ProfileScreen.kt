@@ -191,6 +191,8 @@ fun ProfileScreen(
                         icon = Icons.Settings(stringResource(Res.string.profile_settings_a11y)),
                         onClick = onOpenSettings,
                         badgeCount = settings.unreadNotificationCount,
+                        // Nudge in from the screen edge so the badge isn't clipped.
+                        modifier = Modifier.padding(end = Dimension.D200),
                     )
                 },
             )
@@ -603,11 +605,18 @@ private fun OwnedItemsSections(
         val id = highlightProductId ?: return@LaunchedEffect
         pulseId = id
         onHighlightConsumed()
+    }
+    // The pulse lifecycle keys off [pulseId], NOT highlightProductId: consuming
+    // the highlight above flips highlightProductId to null, which would cancel
+    // this coroutine mid-delay and strand the ring on-screen until app restart.
+    // Keyed on pulseId, the scroll + fade-out always run to completion.
+    LaunchedEffect(pulseId) {
+        val id = pulseId ?: return@LaunchedEffect
         // Let the matching tile attach its requester before we scroll to it.
         delay(100)
         runCatching { highlightRequester.bringIntoView() }
         delay(HighlightPulseDurationMillis)
-        pulseId = null
+        if (pulseId == id) pulseId = null
     }
 
     ShelfOrder.forEach { shelf ->
@@ -805,8 +814,11 @@ private fun OwnedCosmeticTile(
     )
     // Equipped tiles carry a persistent accent ring so the active pick reads at
     // a glance; the pulse reuses the same ring at a higher transient alpha when
-    // a just-bought tile is spotlighted.
-    val ringAlpha = maxOf(pulseAlpha, if (item.isEquipped) 1f else 0f)
+    // a just-bought tile is spotlighted. Only genuinely equippable cosmetics
+    // (card backs / felts / titles) get the equipped ring — packs (emotes,
+    // avatars) are owned, not "equipped", so they never carry it.
+    val showEquippedRing = item.isEquipped && item.isEquippable
+    val ringAlpha = maxOf(pulseAlpha, if (showEquippedRing) 1f else 0f)
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
@@ -821,7 +833,7 @@ private fun OwnedCosmeticTile(
                 packEmojis = item.packEmojis,
             )
         }
-        if (item.isEquipped) {
+        if (showEquippedRing) {
             EquippedBadge(modifier = Modifier.align(Alignment.TopEnd))
         }
     }
