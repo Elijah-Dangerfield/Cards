@@ -61,9 +61,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P1]` **Cosmetic detail/purchase sheets: buyable tap → purchase sheet + richer felt/emote preview.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Felts + emote packs should get a richer preview to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)* (Slot-aware equip already ships: card back / felt are swap-only with no "unequip".)
   **Acceptance:** buyable tap → purchase sheet; felt/emote-pack sheets show a richer (animated) preview.
   **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`; reuse the shop purchase-sheet route for the buyable tap.
-- `[P1]` **Unread-notifications badge on the Profile top-bar Settings icon.** Today the unread count only shows as a dot on the Profile bottom-bar tab and on the "Notifications" row inside Settings. The actual path to the inbox runs through the gear icon, so a user already on Profile sees no signal that there's something to read. Mirror the same badge on the Settings `IconButton` in `ProfileScreen.kt`. *(proposed 2026-06-05)*
-  **Acceptance:** non-zero `unreadNotificationCount` puts a small badge (count or dot) on the top-bar settings icon; clears when the inbox is opened.
-  **Hints:** count already flows into `ProfileSettings.unreadNotificationCount` (see `ProfileFeatureEntryPoint.kt:186` → `observeUnreadInboxCount`); badge primitive precedent is the bottom-tab dot. Lift a `BadgedIconButton` into `:libraries:ui` if there's no DS primitive yet.
 
 ### Cross-app consistency
 

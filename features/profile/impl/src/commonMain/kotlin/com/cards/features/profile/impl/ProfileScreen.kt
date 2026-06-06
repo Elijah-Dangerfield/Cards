@@ -97,8 +97,8 @@ import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
+import com.dangerfield.cards.libraries.ui.components.icon.BadgedIconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
-import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
@@ -178,10 +178,13 @@ fun ProfileScreen(
                 scrollState = scrollState,
                 actions = {
                     // Surface-backed icon button, mirroring the TopBar's
-                    // back button treatment.
-                    IconButton(
+                    // back button treatment. The gear is the only path to the
+                    // inbox from here, so it carries the same unread badge the
+                    // bottom-tab and the in-Settings row already show.
+                    BadgedIconButton(
                         icon = Icons.Settings(stringResource(Res.string.profile_settings_a11y)),
                         onClick = onOpenSettings,
+                        badgeCount = settings.unreadNotificationCount,
                     )
                 },
             )
@@ -861,6 +864,7 @@ private fun previewSettings(isAnonymous: Boolean) = ProfileSettings(
     botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
     appVersion = "0.1.0",
+    unreadNotificationCount = if (isAnonymous) 0 else 3,
     isFoundingMember = !isAnonymous,
 )
 

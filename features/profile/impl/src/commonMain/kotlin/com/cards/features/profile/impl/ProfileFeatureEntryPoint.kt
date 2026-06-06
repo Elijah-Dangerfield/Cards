@@ -120,6 +120,10 @@ class ProfileFeatureEntryPoint(
             val inventory by inventoryRepository.observeInventory()
                 .collectAsStateWithLifecycle(initialValue = emptyList())
             val isFoundingMember = inventory.any { it.productId == FOUNDING_MEMBER_PRODUCT_ID }
+            // The gear is the only path to the inbox from Profile, so badge it
+            // with the same unread count the bottom-tab + Settings row show.
+            val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
+                .collectAsStateWithLifecycle(initialValue = 0)
 
             // Owned cosmetics (inventory ∩ catalog) for the grouped item
             // shelves. Reuses MyItemsViewModel so the catalog join + display
@@ -159,6 +163,7 @@ class ProfileFeatureEntryPoint(
                     botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
                     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                     appVersion = "0.1.0",
+                    unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
                     memberSince = authenticated?.createdAt,
                     isFoundingMember = isFoundingMember,
