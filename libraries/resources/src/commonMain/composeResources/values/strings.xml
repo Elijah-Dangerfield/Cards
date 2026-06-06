@@ -393,16 +393,18 @@
     <string name="profile_settings_a11y">Settings</string>
     <string name="profile_header_joined">Joined %1$s %2$d</string>
     <string name="profile_play_style_example">Sharp &amp; Steady</string>
+    <string name="stats_play_style_section">Play style</string>
+    <string name="stats_play_style_name">Tight-Aggressive</string>
+    <string name="stats_play_style_blurb">You wait for strong hands, then bet them hard.</string>
     <string name="profile_stats_banner_title">Your stats &amp; style</string>
     <string name="profile_stats_banner_subtitle">%1$s · %2$d%% win · %3$s won</string>
     <string name="profile_stats_banner_subtitle_no_games">%1$s · Play a few hands to see your stats</string>
     <string name="profile_achievements_title">Achievements</string>
-    <string name="profile_achievements_count">%1$d / %2$d</string>
-    <string name="profile_achievements_see_all">See all</string>
+    <string name="profile_achievements_count_see_all">%1$d / %2$d · See all</string>
     <string name="profile_items_shop_link">Shop ›</string>
     <string name="profile_items_felt">Felts</string>
     <string name="profile_items_card_back">Card backs</string>
-    <string name="profile_items_avatars">Avatars</string>
+    <string name="profile_items_avatars">Avatar packs</string>
     <string name="profile_items_emotes">Emotes</string>
     <string name="profile_items_title">Titles</string>
     <string name="profile_items_tool">Tools</string>
@@ -415,6 +417,13 @@
     <!-- Pack (avatar / emote) detail sheet — contents grid + emote preview CTA. -->
     <string name="profile_item_sheet_in_pack">In this pack</string>
     <string name="profile_item_sheet_try_emote">Try it out</string>
+    <string name="profile_item_sheet_avatar_edit_hint">Edit your avatar from the pencil button on your profile.</string>
+    <!-- Earned / prestige item detail sheet — "How you earned it" heading + per-item copy. -->
+    <string name="profile_item_sheet_how_earned">How you earned it</string>
+    <string name="earned_founding_member_title">Founding Member</string>
+    <string name="earned_founding_member_description">A badge for the players who were here at the very beginning.</string>
+    <string name="earned_founding_member_how">Granted to early players who pulled up a seat during launch — it can\'t be bought.</string>
+    <string name="earned_founding_member_thanks">Thank you for betting on us from the start. It means the world.</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
     <string name="profile_notifications_title">Notifications</string>
@@ -653,8 +662,8 @@
     <string name="room_cheat_sheet_action_fold_description">Give up the hand. Any chips already in the pot stay.</string>
     <string name="room_cheat_sheet_action_all_in_title">All in</string>
     <string name="room_cheat_sheet_action_all_in_description">Push your entire stack. If you win, you win up to what everyone matched.</string>
-    <string name="room_cheat_sheet_rankings_heading">Hand rankings</string>
-    <string name="room_cheat_sheet_rankings_subtitle">Strongest on top.</string>
+    <string name="room_cheat_sheet_rankings_heading">What beats what</string>
+    <string name="room_cheat_sheet_you_have_label">You have</string>
     <string name="room_cheat_sheet_ranking_royal_flush_name">Royal Flush</string>
     <string name="room_cheat_sheet_ranking_royal_flush_tagline">10, J, Q, K, A — all same suit</string>
     <string name="room_cheat_sheet_ranking_straight_flush_name">Straight Flush</string>
@@ -916,6 +925,12 @@
     <string name="ui_earned_ago_weeks">%1$dw ago</string>
     <string name="ui_earned_ago_months">%1$dmo ago</string>
     <string name="ui_earned_ago_years">%1$dy ago</string>
+
+    <!-- UI library — Axis labels for the play-style quadrant (PlayStyleBlob). -->
+    <string name="ui_play_style_axis_tight">Tight</string>
+    <string name="ui_play_style_axis_loose">Loose</string>
+    <string name="ui_play_style_axis_aggressive">Aggressive</string>
+    <string name="ui_play_style_axis_passive">Passive</string>
 
     <!-- Upgrade-required overlay — fires when the client version is below the
          server's minimum supported version. Body is generic so it covers both

@@ -14,8 +14,6 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
-import com.dangerfield.cards.libraries.rooms.GetActiveRoomsOutcome
-import com.dangerfield.cards.libraries.rooms.LeaveRoomOutcome
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
@@ -50,7 +48,22 @@ class HomeViewModel(
         // retained as expected and the delay you're seeing is downstream
         // of the VM.
         homeLogger.i { "[recent-achievements-delay] HomeViewModel init — instance=${this.hashCode()}" }
-        takeAction(HomeAction.LoadActiveRooms)
+        viewModelScope.launch {
+            // Reactive active-room presence: the banner reflects the room
+            // set the instant a join / forfeit lands, no manual refresh. The
+            // collector is a pure projection (newest room → banner).
+            roomRepository.observeActiveRooms().collect { rooms ->
+                takeAction(HomeAction.ActiveRoomsChanged(rooms))
+            }
+        }
+        viewModelScope.launch {
+            // Seed the observed set with the server's view on arrival. Runs in
+            // its own coroutine, NOT through the action pipeline — calling
+            // `getActiveRooms()` inside `handleAction` would drive the
+            // collector re-entrantly from the same consumer and strand the
+            // resulting emission.
+            roomRepository.getActiveRooms()
+        }
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
                 takeAction(HomeAction.ProgressionChanged(levelProgressFor(progression.totalXp)))
@@ -167,9 +180,9 @@ class HomeViewModel(
 
     override suspend fun handleAction(action: HomeAction) {
         when (action) {
-            is HomeAction.Refresh -> action.loadActiveRooms()
-            is HomeAction.LoadActiveRooms -> action.loadActiveRooms()
-            is HomeAction.Forfeit -> action.forfeit(action.code)
+            is HomeAction.Refresh -> roomRepository.getActiveRooms()
+            is HomeAction.ActiveRoomsChanged -> action.applyActiveRooms(action.rooms)
+            is HomeAction.Forfeit -> forfeit(action.code)
             is HomeAction.ProgressionChanged -> action.updateState {
                 it.copy(levelProgress = action.progress)
             }
@@ -199,41 +212,24 @@ class HomeViewModel(
         }
     }
 
-    private suspend fun HomeAction.loadActiveRooms() {
-        val rooms = when (val outcome = roomRepository.getActiveRooms()) {
-            is GetActiveRoomsOutcome.Success -> reconcileToSingleRoom(outcome.rooms)
-            is GetActiveRoomsOutcome.NotSignedIn,
-            is GetActiveRoomsOutcome.NetworkError,
-            is GetActiveRoomsOutcome.Unknown -> emptyList()
-        }
-        updateState { it.copy(activeRooms = rooms) }
+    /**
+     * Project the observed room set to the banner. A healthy steady state is
+     * exactly one active room; if more than one slips through (a prior session
+     * dropped without a clean tear-down) we surface the newest rather than a
+     * stack of racing banners. The server's seat-grace timer reaps the stale
+     * ones — we don't proactively leave them from here.
+     */
+    private suspend fun HomeAction.applyActiveRooms(rooms: List<Room>) {
+        val keep = rooms.maxByOrNull { it.createdAtEpochMs }
+        val summary = keep?.let { listOf(ActiveRoomSummary(it.code)) }.orEmpty()
+        updateState { it.copy(activeRooms = summary) }
     }
 
-    private fun reconcileToSingleRoom(rooms: List<Room>): List<ActiveRoomSummary> {
-        if (rooms.size <= 1) return rooms.map { ActiveRoomSummary(it.code) }
-        val sortedNewestFirst = rooms.sortedByDescending { it.createdAtEpochMs }
-        val keep = sortedNewestFirst.first()
-        val stale = sortedNewestFirst.drop(1)
-        homeLogger.w {
-            "Multi-active-room recovery: keeping ${keep.code}, leaving ${stale.size} stale room(s): " +
-                stale.joinToString { it.code }
-        }
-        stale.forEach { stale ->
-            appScope.launch { roomRepository.leaveRoom(stale.code) }
-        }
-        return listOf(ActiveRoomSummary(keep.code))
-    }
-
-    private suspend fun HomeAction.forfeit(code: String) {
-        updateState { it.copy(activeRooms = it.activeRooms.filterNot { room -> room.code == code }) }
-        val outcome = appScope.async { roomRepository.leaveRoom(code) }.await()
-        when (outcome) {
-            is LeaveRoomOutcome.Success,
-            is LeaveRoomOutcome.NotFound,
-            is LeaveRoomOutcome.NotInRoom -> Unit
-            is LeaveRoomOutcome.NetworkError,
-            is LeaveRoomOutcome.Unknown -> loadActiveRooms()
-        }
+    private suspend fun forfeit(code: String) {
+        // The leave removes the room from the observed flow on success,
+        // which clears the banner. On failure the flow is untouched, so the
+        // room correctly stays visible — no optimistic drop to undo.
+        appScope.async { roomRepository.leaveRoom(code) }.await()
     }
 }
 
@@ -348,7 +344,7 @@ sealed interface HomeEvent {
 
 sealed interface HomeAction {
     data object Refresh : HomeAction
-    data object LoadActiveRooms : HomeAction
+    data class ActiveRoomsChanged(val rooms: List<Room>) : HomeAction
     data class Forfeit(val code: String) : HomeAction
     data class ProgressionChanged(val progress: LevelProgress) : HomeAction
     data class ChipsChanged(val balance: Long?) : HomeAction

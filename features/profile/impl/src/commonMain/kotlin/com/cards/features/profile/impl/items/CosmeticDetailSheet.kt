@@ -20,10 +20,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought
+import cards.libraries.resources.generated.resources.profile_item_sheet_avatar_edit_hint
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought_free
+import cards.libraries.resources.generated.resources.profile_item_sheet_how_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_in_pack
 import cards.libraries.resources.generated.resources.profile_item_sheet_try_emote
+import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
 import cards.libraries.resources.generated.resources.profile_my_items_button_unequip
 import cards.libraries.resources.generated.resources.profile_my_items_personal_cosmetic_tag
@@ -72,6 +75,10 @@ fun CosmeticDetailSheet(
     onTryEmote: (String) -> Unit = {},
 ) {
     val isEmotePack = item.productId.startsWith("emotes_") && item.packEmojis.isNotEmpty()
+    val isAvatarPack = item.productId.startsWith("avatars_") && item.packEmojis.isNotEmpty()
+    // Earned / prestige grants arrive without catalog metadata; this client
+    // map gives the known ones a real name + ceremony instead of a bare 🎁.
+    val earnedInfo = KnownEarnedItems[item.productId]
     BottomSheet(
         onDismissRequest = onDismiss,
         showCloseButton = true,
@@ -82,17 +89,19 @@ fun CosmeticDetailSheet(
                 .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CosmeticHero(item = item)
+            CosmeticHero(item = item, emojiOverride = earnedInfo?.emoji)
             VerticalSpacerD500()
 
             Text(
-                text = item.title,
+                text = earnedInfo?.title?.let { stringResource(it) } ?: item.title,
                 typography = AppTheme.typography.Heading.H700,
                 color = AppTheme.colors.content,
                 textAlign = TextAlign.Center,
             )
 
-            item.description?.takeIf { it.isNotBlank() }?.let { desc ->
+            val description = earnedInfo?.description?.let { stringResource(it) }
+                ?: item.description?.takeIf { it.isNotBlank() }
+            description?.let { desc ->
                 VerticalSpacerD200()
                 Text(
                     text = desc,
@@ -102,11 +111,28 @@ fun CosmeticDetailSheet(
                 )
             }
 
+            if (earnedInfo != null) {
+                VerticalSpacerD500()
+                EarnedStory(info = earnedInfo)
+            }
+
             // For packs (avatars / emotes), show the bundled emojis so the
             // sheet says what the user actually got — not just a glyph.
             if (item.packEmojis.isNotEmpty()) {
                 VerticalSpacerD500()
                 PackContents(emojis = item.packEmojis)
+            }
+
+            if (isAvatarPack) {
+                // Avatar packs aren't equipped from this sheet — you pick one
+                // option as your avatar in Edit profile. Point there.
+                VerticalSpacerD300()
+                Text(
+                    text = stringResource(Res.string.profile_item_sheet_avatar_edit_hint),
+                    typography = AppTheme.typography.Label.L400,
+                    color = AppTheme.colors.contentTertiary,
+                    textAlign = TextAlign.Center,
+                )
             }
 
             acquisitionLine(item)?.let { line ->
@@ -144,24 +170,50 @@ fun CosmeticDetailSheet(
                 ) {
                     Text(stringResource(Res.string.profile_item_sheet_try_emote))
                 }
-            } else if (item.isEquippable) {
+            } else if (item.isEquippable && !isAvatarPack) {
                 VerticalSpacerD800()
-                Button(
-                    onClick = { onToggleEquip(item.productId) },
-                    modifier = Modifier.fillMaxWidth(),
-                    size = ButtonSize.Medium,
-                    style = if (item.isEquipped) ButtonStyle.Outlined else ButtonStyle.Filled,
-                ) {
-                    Text(
-                        if (item.isEquipped) {
-                            stringResource(Res.string.profile_my_items_button_unequip)
-                        } else {
-                            stringResource(Res.string.profile_my_items_button_equip)
-                        },
-                    )
-                }
+                EquipButton(item = item, onToggleEquip = onToggleEquip)
             }
         }
+    }
+}
+
+/**
+ * The equip CTA. Card backs and felts are *swap-only* — there's always one
+ * equipped and you change it by equipping a different one, so an equipped
+ * one shows a disabled "Equipped" state rather than an "Unequip" button that
+ * would leave the slot empty. Slots that can legitimately sit empty (titles)
+ * keep the unequip affordance.
+ */
+@Composable
+private fun EquipButton(item: OwnedItem, onToggleEquip: (String) -> Unit) {
+    val swapOnly = cosmeticSlotFor(item.productId)
+        .let { it == CosmeticSlot.CardBack || it == CosmeticSlot.Felt }
+    if (item.isEquipped && swapOnly) {
+        Button(
+            onClick = {},
+            modifier = Modifier.fillMaxWidth(),
+            size = ButtonSize.Medium,
+            style = ButtonStyle.Outlined,
+            enabled = false,
+        ) {
+            Text(stringResource(Res.string.profile_items_equipped))
+        }
+        return
+    }
+    Button(
+        onClick = { onToggleEquip(item.productId) },
+        modifier = Modifier.fillMaxWidth(),
+        size = ButtonSize.Medium,
+        style = if (item.isEquipped) ButtonStyle.Outlined else ButtonStyle.Filled,
+    ) {
+        Text(
+            if (item.isEquipped) {
+                stringResource(Res.string.profile_my_items_button_unequip)
+            } else {
+                stringResource(Res.string.profile_my_items_button_equip)
+            },
+        )
     }
 }
 
@@ -208,7 +260,7 @@ private fun PackContents(emojis: List<String>) {
  * its glyph on a raised tile.
  */
 @Composable
-private fun CosmeticHero(item: OwnedItem) {
+private fun CosmeticHero(item: OwnedItem, emojiOverride: String? = null) {
     when (cosmeticSlotFor(item.productId)) {
         CosmeticSlot.CardBack -> FlippableCard(
             style = cardBackForProductId(item.productId),
@@ -218,7 +270,7 @@ private fun CosmeticHero(item: OwnedItem) {
         )
         CosmeticSlot.Felt -> FeltVignette(item.productId)
         // Packs (avatars / emotes) read as a stack of their contents.
-        else -> if (item.packEmojis.size >= 2) {
+        else -> if (emojiOverride == null && item.packEmojis.size >= 2) {
             CosmeticPackThumbnail(emojis = item.packEmojis, size = 120.dp)
         } else {
             Box(
@@ -228,8 +280,46 @@ private fun CosmeticHero(item: OwnedItem) {
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = item.iconEmoji, typography = AppTheme.typography.Display.D900)
+                Text(
+                    text = emojiOverride ?: item.iconEmoji,
+                    typography = AppTheme.typography.Display.D900,
+                )
             }
+        }
+    }
+}
+
+/**
+ * The ceremonial "how you earned it" block for prestige grants — a small
+ * heading, the earn story, and an optional thank-you line so an earned item
+ * reads as a moment rather than a bare glyph.
+ */
+@Composable
+private fun EarnedStory(info: EarnedItemInfo) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(Res.string.profile_item_sheet_how_earned),
+            typography = AppTheme.typography.Label.L400,
+            color = AppTheme.colors.contentTertiary,
+        )
+        VerticalSpacerD200()
+        Text(
+            text = stringResource(info.howEarned),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+        )
+        info.thanks?.let { thanks ->
+            VerticalSpacerD300()
+            Text(
+                text = stringResource(thanks),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

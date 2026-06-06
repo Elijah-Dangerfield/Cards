@@ -1,5 +1,7 @@
 package com.dangerfield.cards.libraries.rooms
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Single client surface for the multiplayer room lifecycle.
  * Wraps the HTTP routes (create / join / leave) and the per-room
@@ -38,8 +40,27 @@ interface RoomRepository {
      * launch by the home/launch flow so we can offer "rejoin / forfeit"
      * before silently stranding a player whose previous session left a
      * seat warm via the `disconnectedAt` grace timer.
+     *
+     * A successful response replays through [observeActiveRooms] so any
+     * live subscriber (the Home banner) reflects the refreshed set without
+     * its own re-query.
      */
     suspend fun getActiveRooms(): GetActiveRoomsOutcome
+
+    /**
+     * Live view of the rooms the user is a member of, as known to this
+     * client. Seeded by [getActiveRooms] and kept current by the local
+     * room mutations ([createRoom] / [joinRoom] / [leaveRoom]) — so a join
+     * or a forfeit reflects on the Home banner the instant it lands, with
+     * no manual refresh. Starts empty until the first [getActiveRooms]
+     * call hydrates it; the Home flow kicks that on arrival.
+     *
+     * This is a client-side projection, not a durable server stream — it
+     * stays accurate for mutations this client makes, which is the case
+     * Home cares about. A server-pushed source lands with persisted room
+     * membership (todo B2).
+     */
+    fun observeActiveRooms(): Flow<List<Room>>
 
     /**
      * Open a live handle to the room's WebSocket. Auto-reconnects on
