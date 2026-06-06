@@ -516,7 +516,7 @@ private fun ActionRow(
 
 @Composable
 private fun RankingCard(entry: RankingEntry, isCurrent: Boolean) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(Radii.R800.shape)
@@ -535,9 +535,12 @@ private fun RankingCard(entry: RankingEntry, isCurrent: Boolean) {
                 },
             )
             .padding(horizontal = 14.dp, vertical = 11.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column {
+        // Name + a short tagline on the left; the example cards do the heavy
+        // lifting on the right, so both sit on one row.
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(entry.name),
                 typography = AppTheme.typography.Body.B600,
@@ -545,7 +548,7 @@ private fun RankingCard(entry: RankingEntry, isCurrent: Boolean) {
             )
             Text(
                 text = stringResource(entry.tagline),
-                typography = AppTheme.typography.Body.B500,
+                typography = AppTheme.typography.Body.B400,
                 color = AppTheme.colors.contentSecondary,
             )
         }
