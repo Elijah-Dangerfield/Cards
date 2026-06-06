@@ -27,6 +27,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
@@ -129,6 +131,39 @@ fun PlayPokerScreen(
     LaunchedEffect(humanStack, xpFrozen) {
         if (!xpFrozen) displayedHumanStack = humanStack
     }
+    // Hand-end reward particles. When the gate above releases (both overlays
+    // dismissed), fly an XP badge up to the LevelPill and — if the hand was a
+    // win — a coin down to the chip stack, so the freshly-unfrozen ring fill
+    // and stack count-up read as "this is where that reward landed". Anchors
+    // are published by the LevelPill / chip-stack call sites into this holder;
+    // the overlay reads them when it fires.
+    val rewardAnchors = remember { TableRewardAnchors() }
+    var rewardBurst by remember { mutableStateOf<RewardBurst?>(null) }
+    var burstSeq by remember { mutableStateOf(0) }
+    var wasXpFrozen by remember { mutableStateOf(xpFrozen) }
+    // Baselines snapped the instant the gate freezes (the held displayed
+    // values are still the pre-hand numbers at that point), so the release
+    // branch can diff against them without racing the displayed-value effects.
+    var frozenXpBaseline by remember { mutableStateOf(state.xp) }
+    var frozenStackBaseline by remember { mutableStateOf(humanStack) }
+    LaunchedEffect(xpFrozen) {
+        if (xpFrozen && !wasXpFrozen) {
+            frozenXpBaseline = displayedXp
+            frozenStackBaseline = displayedHumanStack
+        } else if (!xpFrozen && wasXpFrozen) {
+            val xpGained = state.xp - frozenXpBaseline
+            val coinGained = humanStack - frozenStackBaseline
+            if (xpGained > 0 || coinGained > 0) {
+                burstSeq += 1
+                rewardBurst = RewardBurst(
+                    id = burstSeq,
+                    flyXp = xpGained > 0,
+                    flyCoin = coinGained > 0,
+                )
+            }
+        }
+        wasXpFrozen = xpFrozen
+    }
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     LaunchedEffect(active?.isHumanTurn) {
         if (active?.isHumanTurn != true) {
@@ -185,6 +220,7 @@ fun PlayPokerScreen(
     CompositionLocalProvider(
         LocalCardBackStyle provides state.equippedCardBack,
         LocalFeltAccentSurface provides feltAccent,
+        LocalTableRewardAnchors provides rewardAnchors,
     ) {
     Screen(modifier = modifier, containerColor = tableSurface) { padding ->
         Box(
@@ -438,6 +474,14 @@ fun PlayPokerScreen(
                 },
             )
         }
+
+        // Sits last in the Box so the flying tokens draw over the table after
+        // the result overlays have cleared.
+        HandRewardParticleOverlay(
+            burst = rewardBurst,
+            anchors = rewardAnchors,
+            onComplete = { rewardBurst = null },
+        )
     }
     } // close CompositionLocalProvider
 }
@@ -533,10 +577,21 @@ private fun TopBar(
             modifier = Modifier.align(Alignment.CenterStart),
         )
         if (showXpPill) {
+            // Publish the pill's on-screen bounds so the hand-end XP particle
+            // knows where to fly. No-op when there's no anchor holder in scope.
+            val anchors = LocalTableRewardAnchors.current
             LevelPill(
                 xp = xp,
                 onClick = onTapXp,
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .then(
+                        if (anchors != null) {
+                            Modifier.onGloballyPositioned { anchors.levelPillBounds = it.boundsInRoot() }
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
         }
         Row(
