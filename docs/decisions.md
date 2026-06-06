@@ -25,6 +25,30 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-06 — Consumable reward items: XP Boost + Pick-a-Card chest
+
+**Decision:** Add two buyable (and level-up-giftable) consumables, each mapped onto the right grant model (see [`docs/wiki/state-authority-and-sync.md`](./wiki/state-authority-and-sync.md)):
+
+- **XP Boost** — 2× XP for 30 min. Modeled as a **time window, not an owned count**: buying or being gifted one **sets/extends a persisted `boostExpiresAt`**; `XpCalculator` doubles awards while `now < boostExpiresAt`. The *purchase* (chip spend) rides the chips ledger (model 2, server-reconciled); the *effect* is client-local math (model 1), so it works fully offline (XP is client-local today). Re-buying while active extends the window; a "2× XP" countdown indicator shows near the level/XP UI. No server roll, no inventory quantity, low stakes (play-money XP) → client-authoritative is fine for V1.
+
+- **Pick-a-Card chest** — open → a card-shuffle/reveal animation → a prize (chips / card back / felt / maybe a boost) from a **weighted, server-owned loot table**. This is a **server-rolled, model-3 grant**: the server rolls + grants on open (idempotent), the client only animates and reveals what the server returned. The "pick" is theatrical — the outcome is the roll, not which card is tapped.
+  - **Online to open; ownable offline.** Unopened chests sit in inventory offline, but opening needs a round-trip ("opens when you reconnect") — exactly the model-3 reserve case (a value the client shouldn't compute, for fairness + anti-reroll). Prizes land via existing paths: chips → wallet ledger (idempotent), cosmetic → inventory grant.
+  - **Net-new infra (the bigger lift):** a consumable product kind, inventory **quantity + consume** (chests stockpile; today inventory is one permanent row per product), a server `open chest` endpoint + loot table + idempotent roll, and the pick/shuffle screen + reveal animation.
+
+- **Level-up tie-in:** the level→reward table (from the level-up decision below) can grant either consumable — gifting a boost extends `boostExpiresAt`; gifting a chest grants an unopened chest into inventory. This is the "certain level-ups gift a pick-a-card or an XP boost" idea.
+
+**Why:** Both are item-economy features, so they sit apart from the level-up *celebration* (a UI moment) but share its reward plumbing — which is why they're planned together. Mapping each to the existing grant models keeps them honest: the boost is cheap and offline-friendly because its value is just local XP math; the chest is the one place a real server-authoritative roll is warranted (fairness + anti-reroll), and gating its *open* on connectivity is acceptable because opening is a deliberate one-off, not passive offline accrual.
+
+**Alternatives considered:**
+ - **(a) Client-rolled chest (offline-openable)** — exploitable (re-roll until rare); the roll is precisely the value model 3 reserves for the server. Rejected despite being offline-friendlier.
+ - **(b) XP Boost as an inventory item with quantity** — forces the inventory quantity/consume work onto the simple feature; the time-window model needs none of it. Reserve quantity for chests.
+ - **(c) Boost as a server entitlement** — unnecessary while XP is client-local; revisit when XP moves server-side (Phase 3).
+ - **(d) Fold these into the level-up plan** — they're a distinct item-economy area (shop, wallet, inventory, my-items); cross-linked instead.
+
+**Status:** Tentative (V1.x / monetization). XP Boost is the small, mostly-reuse half; Pick-a-Card is the bigger lift. Sequence per `todo.md`.
+
+---
+
 ## 2026-06-06 — Full-screen level-up celebration — shown on Home, derived from a "last celebrated level" watermark
 
 **Decision:** Add a full-screen level-up celebration (teal `RotatingDial` burst + the new level number + a warm line + Continue, with haptics + an entrance animation). Two load-bearing calls:
@@ -51,6 +75,7 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 **Addendum (2026-06-06) — if a level-up grants a *prize*, how the grant works.** XP/level is **client-local** today (no server XP in V1 — `ProgressionRepositoryImpl` computes it on-device; bots earn it offline). So a level-up prize must **not** invent server-authoritative XP; it reuses the existing offline-first grant paths:
  - **Grant client-side, idempotent, on level-cross** (works offline; the prize is theirs the moment they level, independent of seeing the celebration). Idempotency key `levelup_<level>`; track a "highest level rewarded" watermark separate from the UI's `lastCelebratedLevel`.
  - **Chips prize →** the chips wallet ledger (model 2, optimistic-local + server-reconciled). **Cosmetic prize →** the achievement-reward path (client self-grant + fire-and-forget server grant). Don't add a third grant mechanism.
+ - A reward can also be a **consumable** — an XP Boost (extend `boostExpiresAt`) or a Pick-a-Card chest (grant an unopened chest into inventory). See the Consumable reward items decision above.
  - **Reward table (level → prize) is static client content** (mirrored server-side for the reconcile), so no pre-fetch — it works offline by construction. Make it remote-config (`:libraries:config`) only if rewards need tuning without a release.
  - **Anti-cheat scales with stakes:** client-self-grant + server-notify is fine for V1 (play-money / free cosmetics); when a prize becomes IAP-equivalent or ranked-status, the server must *derive* the grant from synced facts + caps rather than trust the claim. This is the Phase-3 server-authoritative-ledger direction.
 

@@ -38,6 +38,7 @@ The **server decides and issues**; the client displays. The client cannot
 proceed correctly without the server's answer.
 
 - **Examples (today):** the starter chip grant (server-issued on first `/v1/me`), the server-side cosmetic-reward mapping that grants an item into inventory when the client reports an earned achievement.
+- **Canonical example (planned):** a **reward-chest / loot-box open** — the server rolls a weighted table and grants the prize; the client only animates the reveal. A roll is exactly the value the client must not compute (fairness + anti-reroll), so "open" requires connectivity even though the unopened chest is owned offline.
 - **Not offline-friendly** — that's the whole tradeoff. Reserve it for:
   - values the client genuinely **can't or shouldn't compute** (a server-issued amount, anything secret/server-only),
   - cases where **trust or cross-device correctness outweighs offline UX**.
