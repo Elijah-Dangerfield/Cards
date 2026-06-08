@@ -12,6 +12,7 @@ import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential
+import com.dangerfield.cards.libraries.identity.auth.awaitCredential
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
@@ -222,7 +223,7 @@ class OnboardingViewModel(
      */
     private suspend fun OnboardingAction.handleAppleSignIn() {
         updateState { it.copy(oauthInFlight = OAuthProvider.Apple, authError = null) }
-        Catching { appleSignInCoordinator.requestCredential() }
+        Catching { appleSignInCoordinator.awaitCredential() }
             .logOnFailure { "Apple credential request failed" }
             .fold(
                 onSuccess = { credential ->

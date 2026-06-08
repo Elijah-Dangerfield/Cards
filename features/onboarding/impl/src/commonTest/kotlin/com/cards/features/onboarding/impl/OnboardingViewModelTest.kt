@@ -568,7 +568,9 @@ class OnboardingViewModelTest : CoroutineTest() {
     /** No test here exercises the iOS-only Apple flow; the coordinator is a no-op. */
     private object NoopAppleSignInCoordinator :
         com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator {
-        override suspend fun requestCredential() = null
+        override fun requestCredential(
+            onComplete: (com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential?, String?) -> Unit,
+        ) = onComplete(null, null)
     }
 
     private fun authenticatedProfile(

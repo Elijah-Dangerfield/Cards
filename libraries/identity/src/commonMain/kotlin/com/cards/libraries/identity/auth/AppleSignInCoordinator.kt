@@ -1,5 +1,9 @@
 package com.dangerfield.cards.libraries.identity.auth
 
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
+
 /**
  * The id token + raw nonce captured from a native "Sign in with Apple" flow,
  * handed to [AuthRepository.signInWithApple] / [AuthRepository.linkAppleIdentity]
@@ -22,21 +26,46 @@ data class AppleSignInCredential(
         .takeIf { it.isNotEmpty() }
 }
 
+/** Raised by [awaitCredential] when the native flow reports a hard failure. */
+class AppleSignInException(message: String) : Throwable(message)
+
 /**
  * Runs the platform-native "Sign in with Apple" flow.
  *
  * The iOS implementation is a Swift `ASAuthorizationController` coordinator
- * injected from `iOSApp.swift` (conforms to the framework-exported
- * `ComposeAppAppleSignInCoordinator` protocol). Android binds a no-op
+ * injected from `iOSApp.swift` (conforms to the SKIE-exported
+ * `IdentityAppleSignInCoordinator`). Android binds a no-op
  * ([com.dangerfield.cards.libraries.identity.impl.auth.AndroidAppleSignInCoordinator])
  * because Apple sign-in is iOS-only (see `docs/decisions.md`, "Apple sign-in").
  *
- * Cancellation is signalled by returning `null` rather than throwing — a clean
- * value crosses the Kotlin/Native boundary far more reliably than matching an
- * exception type does, and a user dismissing the sheet isn't really an error.
- * A genuine failure (network, malformed token) still throws.
+ * Deliberately a **plain callback, not `suspend`**, with plain parameter types:
+ * a Swift class can satisfy it as a trivial protocol conformance (exactly like
+ * `NativeViewFactory`'s `onTap` callbacks), with no `suspend`/`Throwable`
+ * bridging across the Kotlin/Native boundary. Call sites use [awaitCredential]
+ * for a coroutine-friendly view.
  */
 interface AppleSignInCoordinator {
-    /** Returns the credential, or `null` if the user dismissed the sheet. Throws on real failure. */
-    suspend fun requestCredential(): AppleSignInCredential?
+    /**
+     * Runs the native sheet and reports the result via [onComplete]:
+     *  - a credential on success,
+     *  - `(null, null)` if the user dismissed the sheet,
+     *  - `(null, errorMessage)` on a genuine failure.
+     */
+    fun requestCredential(onComplete: (credential: AppleSignInCredential?, errorMessage: String?) -> Unit)
 }
+
+/**
+ * Suspend view over [AppleSignInCoordinator.requestCredential]: returns the
+ * credential, `null` if the user cancelled, or throws [AppleSignInException] on
+ * a real failure.
+ */
+suspend fun AppleSignInCoordinator.awaitCredential(): AppleSignInCredential? =
+    suspendCancellableCoroutine { continuation ->
+        requestCredential { credential, errorMessage ->
+            if (errorMessage != null) {
+                continuation.resumeWithException(AppleSignInException(errorMessage))
+            } else {
+                continuation.resume(credential)
+            }
+        }
+    }
