@@ -430,6 +430,12 @@ class SupabaseAuthRepositoryImpl(
             }
             Catching {
                 gateway.linkAppleIdToken(credential.identityToken, credential.nonce)
+                // Linking attaches the Apple identity server-side but leaves the
+                // local session/JWT stale (still is_anonymous=true, no
+                // identities), so the app would keep showing "save your
+                // progress". Refresh so the emitted state AND the bearer token
+                // used for /v1/me reflect the now-claimed account.
+                gateway.refreshSession()
                 emitAuthenticatedFromGatewayLocked()
             }.fold(
                 onSuccess = {

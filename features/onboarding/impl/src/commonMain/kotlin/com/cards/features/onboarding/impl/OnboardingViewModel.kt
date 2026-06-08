@@ -245,33 +245,38 @@ class OnboardingViewModel(
     private suspend fun OnboardingAction.finishAppleSignIn(credential: AppleSignInCredential) {
         // We always hold an anonymous session here (anon sign-in runs on app
         // init). Two cases for "Continue with Apple":
-        //   1. Brand-new Apple identity → LINK it to this guest, keeping the
-        //      chips/XP earned so far.
+        //   1. Brand-new Apple identity → LINK it to this guest (keeps chips/XP)
+        //      and carry on through the rest of onboarding like any new signup.
         //   2. The Apple identity already belongs to an existing account → the
-        //      link is rejected, so SIGN IN to that account instead. The
-        //      throwaway anon is orphaned by design — the real account wins.
+        //      link is rejected, so SIGN IN to that account and skip onboarding
+        //      (it already has a profile). The throwaway anon is orphaned.
         val isAnonymousGuest =
             (authRepository.current() as? AuthState.Authenticated)?.isAnonymous == true
-        val succeeded = if (isAnonymousGuest) {
+        if (isAnonymousGuest) {
             when (authRepository.linkAppleIdentity(credential)) {
-                LinkIdentityOutcome.Success -> true
-                LinkIdentityOutcome.AlreadyOnAnotherAccount ->
-                    authRepository.signInWithApple(credential) is SignInOutcome.Success
-                else -> false
+                LinkIdentityOutcome.Success ->
+                    updateState { it.copy(oauthInFlight = null, step = OnboardingStep.PickIdentity) }
+                LinkIdentityOutcome.AlreadyOnAnotherAccount -> enterExistingAppleAccount(credential)
+                else -> failAppleSignIn()
             }
         } else {
-            authRepository.signInWithApple(credential) is SignInOutcome.Success
+            enterExistingAppleAccount(credential)
         }
-        if (succeeded) {
+    }
+
+    /** Existing-account path: switch sessions, mark onboarded, jump to Home. */
+    private suspend fun OnboardingAction.enterExistingAppleAccount(credential: AppleSignInCredential) {
+        if (authRepository.signInWithApple(credential) is SignInOutcome.Success) {
             appCache.update { it.copy(hasUserOnboarded = true) }
             updateState { it.copy(oauthInFlight = null) }
             sendEvent(OnboardingEvent.NavigateToHome)
         } else {
-            updateState {
-                it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthFailed)
-            }
+            failAppleSignIn()
         }
     }
+
+    private suspend fun OnboardingAction.failAppleSignIn() =
+        updateState { it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthFailed) }
 
     private suspend fun OnboardingAction.handleContinueFromPickIdentity() {
         val action = this
