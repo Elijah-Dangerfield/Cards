@@ -242,10 +242,22 @@ class OnboardingViewModel(
     }
 
     private suspend fun OnboardingAction.finishAppleSignIn(credential: AppleSignInCredential) {
+        // We always hold an anonymous session here (anon sign-in runs on app
+        // init). Two cases for "Continue with Apple":
+        //   1. Brand-new Apple identity → LINK it to this guest, keeping the
+        //      chips/XP earned so far.
+        //   2. The Apple identity already belongs to an existing account → the
+        //      link is rejected, so SIGN IN to that account instead. The
+        //      throwaway anon is orphaned by design — the real account wins.
         val isAnonymousGuest =
             (authRepository.current() as? AuthState.Authenticated)?.isAnonymous == true
         val succeeded = if (isAnonymousGuest) {
-            authRepository.linkAppleIdentity(credential) is LinkIdentityOutcome.Success
+            when (authRepository.linkAppleIdentity(credential)) {
+                LinkIdentityOutcome.Success -> true
+                LinkIdentityOutcome.AlreadyOnAnotherAccount ->
+                    authRepository.signInWithApple(credential) is SignInOutcome.Success
+                else -> false
+            }
         } else {
             authRepository.signInWithApple(credential) is SignInOutcome.Success
         }
