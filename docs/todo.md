@@ -188,6 +188,18 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
   **Acceptance:** adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
   **Hints:** convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations (`PurchaseConfirmSheet.kt`, `AppGuardLayer.kt`, …) — separate cleanup once the gate exists.
 
+### Remote config / feature flags
+
+- `[P2]` **`PostgresAppConfigSource` + a targeted flag/rollout engine + a local admin UI.** Today app config is hardcoded in `InMemoryAppConfigSource` — every change is a server redeploy, and a value is all-or-nothing for every user. Replace it with a DB-backed source that can serve **different values to different audiences** and ramp rollouts, plus a small local UI to drive it. Big item; ship in slices. *(proposed 2026-06-08)*
+  - **Phase 1 — DB-backed source (small, high value):** implement `PostgresAppConfigSource` bound to `ServerScope` (drops in for `InMemoryAppConfigSource` via the same `@ContributesBinding`); read the `key → value` tree from a Postgres table with a short in-memory TTL cache. Editable in the Supabase table editor → flags flip with **no redeploy**, live on the next client config refresh. This alone kills the redeploy pain.
+  - **Phase 2 — targeting + rollout:** per-flag **rules** evaluated **server-side** in `GET /v1/app-config` (the endpoint already returns *resolved* values, so the client `ConfiguredValue` model is untouched — it just receives the resolved value). Rules match on an **evaluation context** in a defined order (first-match / priority wins), with an always-available **kill-switch** override.
+    - **Axes:** platform (iOS/Android), **app version** (≥ / range), user id (allow/deny lists), location (country/region), locale, OS version, release channel (internal/beta/prod), account type (anon vs claimed), install/cohort date (new vs existing user), device class (phone/tablet). *(Decide each input's source — JWT claims (user id, anon), client headers (platform, app version, install id, locale — see `ClientHeaders`), IP-geo or a profile field (location).)*
+    - **% rollout / A/B:** deterministic bucketing via a stable hash (`hash(userId + flagKey) % 100 < rolloutPct`) so a user keeps the same bucket across sessions and you can ramp 1% → 100%; optionally mutually-exclusive experiment variants.
+    - **Audit:** a who/what/when change log.
+  - **Phase 3 — local admin UI:** a small local web app (run on demand) that shows **(a)** every flag that exists (from the `ConfiguredValue` registry), **(b)** the value currently served per app version / audience, and **(c)** an editor to set values + rules along the axes and dial rollout %. Talks to an authenticated admin write-path (or directly to the config table).
+  **Acceptance:** flipping a flag for "iOS, app version ≥ N, 10% of users" takes effect with no client release and no server redeploy; everyone else reads the client default; the admin UI lists flags + per-version served values and can edit rules.
+  **Hints:** the seam already exists — `AppConfigSource` (server) + `ConfiguredValue` / `AppConfigMap` (client); some eval inputs live in `ClientHeaders` (install id, platform, app version) + the JWT. **Out of scope / decide first:** buy-vs-build — a hosted service (PostHog / Statsig / LaunchDarkly) may beat hand-rolling the rule engine before Phase 2; this todo is the thin in-house version over the existing seam.
+
 ---
 
 ## D. Already on the books elsewhere
