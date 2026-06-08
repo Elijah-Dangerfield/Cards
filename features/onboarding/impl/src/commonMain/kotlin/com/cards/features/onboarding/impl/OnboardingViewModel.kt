@@ -424,9 +424,7 @@ data class OnboardingState(
 
     val googleEnabled: Boolean = false,
     val appleEnabled: Boolean = false,
-) {
-    val showOAuthRow: Boolean get() = googleEnabled || appleEnabled
-}
+)
 
 sealed interface OnboardingStep {
     data object Welcome : OnboardingStep

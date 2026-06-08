@@ -137,11 +137,11 @@
     <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
-    <string name="onboarding_welcome_oauth_apple"> Apple</string>
-    <string name="onboarding_welcome_oauth_google">G  Google</string>
-    <string name="onboarding_welcome_oauth_in_flight">…</string>
+    <string name="onboarding_welcome_oauth_apple">Continue with Apple</string>
+    <string name="onboarding_welcome_oauth_google">Continue with Google</string>
+    <string name="onboarding_welcome_oauth_in_flight">One moment…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
-    <string name="onboarding_welcome_sign_in">Already have an account? Sign in</string>
+    <string name="onboarding_welcome_sign_in">Sign in with email</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding — PickIdentity step (name + starter-pack avatar picker). -->

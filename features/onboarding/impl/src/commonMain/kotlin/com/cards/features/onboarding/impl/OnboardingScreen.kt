@@ -344,6 +344,44 @@ private fun WelcomeStep(
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
 
+            // Social-forward: the OAuth options sit on top as full-width
+            // buttons, then the always-available no-friction guest path, then
+            // a quiet "use email instead" link for the minority who want it.
+            // Each OAuth button only appears when its provider flag is on
+            // (off until the Supabase provider is provisioned); with both off
+            // the screen gracefully collapses to guest + email link.
+            val oauthBusy = state.oauthInFlight != null || state.isAuthing
+            if (state.appleEnabled) {
+                ButtonSecondary(
+                    onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Apple)) },
+                    enabled = !oauthBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        stringResource(
+                            if (state.oauthInFlight == OAuthProvider.Apple) Res.string.onboarding_welcome_oauth_in_flight
+                            else Res.string.onboarding_welcome_oauth_apple,
+                        ),
+                    )
+                }
+                Spacer(modifier = Modifier.height(Dimension.D400))
+            }
+            if (state.googleEnabled) {
+                ButtonSecondary(
+                    onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
+                    enabled = !oauthBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        stringResource(
+                            if (state.oauthInFlight == OAuthProvider.Google) Res.string.onboarding_welcome_oauth_in_flight
+                            else Res.string.onboarding_welcome_oauth_google,
+                        ),
+                    )
+                }
+                Spacer(modifier = Modifier.height(Dimension.D400))
+            }
+
             ButtonPrimary(
                 onClick = { onAction(OnboardingAction.ContinueAsGuest) },
                 enabled = !state.isAuthing && state.oauthInFlight == null,
@@ -355,43 +393,6 @@ private fun WelcomeStep(
                         else Res.string.onboarding_welcome_continue_guest,
                     ),
                 )
-            }
-
-            if (state.showOAuthRow) {
-                Spacer(modifier = Modifier.height(Dimension.D400))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
-                ) {
-                    if (state.appleEnabled) {
-                        ButtonSecondary(
-                            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Apple)) },
-                            enabled = state.oauthInFlight == null && !state.isAuthing,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (state.oauthInFlight == OAuthProvider.Apple) Res.string.onboarding_welcome_oauth_in_flight
-                                    else Res.string.onboarding_welcome_oauth_apple,
-                                ),
-                            )
-                        }
-                    }
-                    if (state.googleEnabled) {
-                        ButtonSecondary(
-                            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
-                            enabled = state.oauthInFlight == null && !state.isAuthing,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (state.oauthInFlight == OAuthProvider.Google) Res.string.onboarding_welcome_oauth_in_flight
-                                    else Res.string.onboarding_welcome_oauth_google,
-                                ),
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(Dimension.D500))
