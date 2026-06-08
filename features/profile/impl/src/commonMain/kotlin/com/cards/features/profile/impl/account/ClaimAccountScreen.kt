@@ -44,6 +44,8 @@ import cards.libraries.resources.generated.resources.profile_claim_provider_goog
 import cards.libraries.resources.generated.resources.profile_claim_subtitle
 import cards.libraries.resources.generated.resources.profile_claim_title
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
@@ -202,12 +204,14 @@ fun ClaimAccountScreen(
                         Spacer(modifier = Modifier.height(Dimension.D400))
                     }
                     if (state.appleEnabled) {
-                        ProviderButton(
-                            label = stringResource(Res.string.profile_claim_provider_apple),
+                        // Native ASAuthorizationAppleIDButton (iOS-only slot) —
+                        // runs the system sheet via the coordinator, not the web flow.
+                        AppleSignInButton(
+                            onClick = { onAction(ClaimAccountAction.ClaimWithApple) },
                             enabled = !state.isSubmitting,
-                            onClick = {
-                                onAction(ClaimAccountAction.ClaimWith(OAuthProvider.Apple))
-                            },
+                            isLoading = state.isSubmitting,
+                            kind = AppleSignInButtonKind.ContinueFlow,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
