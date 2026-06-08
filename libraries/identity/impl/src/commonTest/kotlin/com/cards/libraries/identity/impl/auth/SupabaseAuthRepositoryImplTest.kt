@@ -331,8 +331,14 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         authBootstrap = AuthBootstrap(gateway),
         profileApi = UnusedProfileApi,
         appEventBus = appEventBus,
+        tokenInvalidator = NoOpTokenInvalidator,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private object NoOpTokenInvalidator :
+        com.dangerfield.cards.libraries.networking.AuthTokenInvalidator {
+        override fun invalidate() = Unit
+    }
 
     private fun anonymousSession(
         userId: String = "anon-user",

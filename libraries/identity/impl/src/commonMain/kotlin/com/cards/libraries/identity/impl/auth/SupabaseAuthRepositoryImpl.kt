@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.identity.auth.SendResetOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
+import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
 import kotlinx.coroutines.flow.Flow
@@ -62,6 +63,7 @@ class SupabaseAuthRepositoryImpl(
     private val authBootstrap: AuthBootstrap,
     private val profileApi: ProfileApi,
     private val appEventBus: AppEventBus,
+    private val tokenInvalidator: AuthTokenInvalidator,
     appScope: AppCoroutineScope,
 ) : AuthRepository {
 
@@ -131,6 +133,10 @@ class SupabaseAuthRepositoryImpl(
             // gateway already nulls supabase's placeholder address.
             email = session.email,
         )
+        // Drop the cached bearer before anyone observing this emission fires a
+        // request — a session switch (e.g. anon → real via sign-in-with-Apple)
+        // leaves the old token valid, so Ktor would otherwise keep sending it.
+        tokenInvalidator.invalidate()
         state.emit(next)
         // Info-level so this lands in production diagnostic dumps — auth
         // state transitions are the load-bearing observability moment.
@@ -142,6 +148,9 @@ class SupabaseAuthRepositoryImpl(
 
     private suspend fun emitUnauthenticatedLocked(cause: Throwable?): AuthState.Unauthenticated {
         val next = AuthState.Unauthenticated(cause = cause)
+        // Sign-out / lost session — drop the cached bearer so no stale token
+        // rides along on the next request.
+        tokenInvalidator.invalidate()
         state.emit(next)
         if (cause != null) {
             logger.w(cause) { "Emitted Unauthenticated with cause" }
