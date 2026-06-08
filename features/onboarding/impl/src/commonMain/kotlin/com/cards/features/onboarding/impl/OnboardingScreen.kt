@@ -54,6 +54,8 @@ import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.components.AnimatedCountUpText
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
@@ -352,18 +354,16 @@ private fun WelcomeStep(
             // the screen gracefully collapses to guest + email link.
             val oauthBusy = state.oauthInFlight != null || state.isAuthing
             if (state.appleEnabled) {
-                ButtonSecondary(
-                    onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Apple)) },
+                // Native ASAuthorizationAppleIDButton on iOS (the only place the
+                // Apple slot shows — appleEnabled is iOS-gated). Tapping it runs
+                // the native sheet via the injected coordinator, not the web flow.
+                AppleSignInButton(
+                    onClick = { onAction(OnboardingAction.SignInWithApple) },
                     enabled = !oauthBusy,
+                    isLoading = state.oauthInFlight == OAuthProvider.Apple,
+                    kind = AppleSignInButtonKind.ContinueFlow,
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        stringResource(
-                            if (state.oauthInFlight == OAuthProvider.Apple) Res.string.onboarding_welcome_oauth_in_flight
-                            else Res.string.onboarding_welcome_oauth_apple,
-                        ),
-                    )
-                }
+                )
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
             if (state.googleEnabled) {

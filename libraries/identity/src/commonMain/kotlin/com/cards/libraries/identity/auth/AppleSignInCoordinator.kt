@@ -22,21 +22,21 @@ data class AppleSignInCredential(
         .takeIf { it.isNotEmpty() }
 }
 
-/** Thrown when the user dismisses the native Apple sheet — callers treat it as a quiet no-op. */
-class AppleSignInCancelled : Throwable()
-
 /**
- * Runs the platform-native "Sign in with Apple" flow and returns the resulting
- * credential. The iOS implementation is a Swift `ASAuthorizationController`
- * coordinator injected from `iOSApp.swift`; Android binds a no-op
- * ([com.dangerfield.cards.libraries.identity.impl.auth.AndroidAppleSignInCoordinator])
- * because Apple sign-in is iOS-only.
+ * Runs the platform-native "Sign in with Apple" flow.
  *
- * Lives in `commonMain` (no `@ObjCName` — that annotation is native-only), so
- * the Swift-visible name is the framework's default export prefix. The Swift
- * coordinator conforms to that generated protocol name.
+ * The iOS implementation is a Swift `ASAuthorizationController` coordinator
+ * injected from `iOSApp.swift` (conforms to the framework-exported
+ * `ComposeAppAppleSignInCoordinator` protocol). Android binds a no-op
+ * ([com.dangerfield.cards.libraries.identity.impl.auth.AndroidAppleSignInCoordinator])
+ * because Apple sign-in is iOS-only (see `docs/decisions.md`, "Apple sign-in").
+ *
+ * Cancellation is signalled by returning `null` rather than throwing — a clean
+ * value crosses the Kotlin/Native boundary far more reliably than matching an
+ * exception type does, and a user dismissing the sheet isn't really an error.
+ * A genuine failure (network, malformed token) still throws.
  */
 interface AppleSignInCoordinator {
-    /** Suspends until the user completes the sheet. Throws [AppleSignInCancelled] on dismissal. */
-    suspend fun requestCredential(): AppleSignInCredential
+    /** Returns the credential, or `null` if the user dismissed the sheet. Throws on real failure. */
+    suspend fun requestCredential(): AppleSignInCredential?
 }

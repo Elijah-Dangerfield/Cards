@@ -1981,3 +1981,17 @@ path) without committing to any of them today.
 **Status:** Decided 2026-05-27, migration sliced into `docs/todo.md` §B
 sub-items (B0–B6). Eval kept in [`multiplayer-architecture-eval.md`](./multiplayer-architecture-eval.md)
 as supporting context.
+
+## 2026-06-08 — Sign in with Apple: native on iOS, web-on-Android deferred
+
+**Decision:** Offer "Sign in with Apple" via the **native** `ASAuthorizationController` flow on **iOS only**. Android gets Google + guest; the Apple button is hidden there (onboarding gates it with `BuildInfo.isiOS()`). The web-OAuth Apple path stays in the codebase (`AuthRepository.signInWithOAuth(Apple)` → `supabase.auth.signInWith(Apple)`) but dormant.
+
+**Why:** There is no native Sign-in-with-Apple SDK on Android — the only way to offer Apple there is the web/OAuth flow, which carries a real maintenance cost (an Apple **Services ID** + a **client-secret JWT that expires every ≤6 months** and must be rotated, plus a redirect/deep-link callback). Android users overwhelmingly have Google accounts, which we already offer, so Apple-on-Android only serves the small slice who created an Apple account on iOS and later moved to Android. Native-iOS-Apple + Google-everywhere captures ~95% of the value with none of the secret-rotation burden. The native flow needs no client secret — Supabase validates the id token against the bundle ID.
+
+**Shape:** Two distinct auth-layer methods keep the split clean: `signInWithApple(credential)` (native id-token → `signInWith(IDToken)`) vs `signInWithOAuth(Apple)` (web). The native credential comes from a Swift `IOSAppleSignInCoordinator` (ASAuthorizationController + SHA-256 nonce) injected through `IosAppComponent`, surfaced via the `AppleSignInButton` DS primitive (native UIKit button on iOS, Compose fallback elsewhere). Onboarding links the Apple identity to the current anonymous guest when one exists (preserves chips/XP), else signs in. Cancellation crosses the K/N boundary as a `null` return, not an exception.
+
+**Setup still required (human/external):** enable the Apple provider in each Supabase project (dev + prod are independent) with the iOS bundle ID; the `com.apple.developer.applesignin` entitlement is already in the repo. Provider config + flipping `identity.appleSignInEnabled` on is dashboard work.
+
+**Alternatives considered:** (1) Web Apple on both platforms — rejected: worse iOS UX, App-Review-rejected button, and the secret-rotation burden for no iOS benefit. (2) Native iOS + web Android now — deferred, not rejected: the web path already exists, so turning it on later is just flipping the iOS-only gate + the Supabase Services-ID/secret/redirect config. (3) No Apple at all — rejected: Apple sign-in is expected on iOS and App-Store-required once you offer any third-party login (Google).
+
+**Status:** Locked (native iOS). Web-Apple-on-Android: Tentative / deferred.

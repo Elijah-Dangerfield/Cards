@@ -559,9 +559,16 @@ class OnboardingViewModelTest : CoroutineTest() {
             authRepository = auth,
             profileRepository = profile,
             chipsRepository = chips,
+            appleSignInCoordinator = NoopAppleSignInCoordinator,
             googleSignInEnabled = GoogleSignInEnabled(config),
             appleSignInEnabled = AppleSignInEnabled(config),
         )
+    }
+
+    /** No test here exercises the iOS-only Apple flow; the coordinator is a no-op. */
+    private object NoopAppleSignInCoordinator :
+        com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator {
+        override suspend fun requestCredential() = null
     }
 
     private fun authenticatedProfile(

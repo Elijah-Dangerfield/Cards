@@ -10,8 +10,11 @@ import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
@@ -69,6 +72,7 @@ class OnboardingViewModel(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val chipsRepository: ChipsRepository,
+    private val appleSignInCoordinator: AppleSignInCoordinator,
     googleSignInEnabled: GoogleSignInEnabled,
     appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<OnboardingState, OnboardingEvent, OnboardingAction>(
@@ -106,6 +110,7 @@ class OnboardingViewModel(
             OnboardingAction.SignIn -> sendEvent(OnboardingEvent.NavigateToSignIn)
             OnboardingAction.Back -> action.handleBack()
             is OnboardingAction.SignInWithOAuth -> action.handleOAuth(action.provider)
+            OnboardingAction.SignInWithApple -> action.handleAppleSignIn()
             is OnboardingAction.DisplayNameChanged -> action.updateState {
                 // Editing the name dismisses any stale "taken / invalid"
                 // notice from the optimistic background save.
@@ -202,6 +207,54 @@ class OnboardingViewModel(
             is SignInOutcome.EmailNotConfirmed,
             is SignInOutcome.Unknown,
             -> updateState {
+                it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthFailed)
+            }
+        }
+    }
+
+    /**
+     * Native "Sign in with Apple". Runs the iOS coordinator for the id token,
+     * then either **links** the Apple identity to the current anonymous guest
+     * (preserving any chips / XP earned as a guest) or, if there's no anonymous
+     * session, signs in fresh. A dismissed sheet (`null` credential) is a quiet
+     * no-op; only a real failure surfaces an error. Reuses [oauthInFlight] so
+     * the button shows the in-flight state like the OAuth buttons.
+     */
+    private suspend fun OnboardingAction.handleAppleSignIn() {
+        updateState { it.copy(oauthInFlight = OAuthProvider.Apple, authError = null) }
+        Catching { appleSignInCoordinator.requestCredential() }
+            .logOnFailure { "Apple credential request failed" }
+            .fold(
+                onSuccess = { credential ->
+                    if (credential == null) {
+                        // User dismissed the sheet — quiet no-op.
+                        updateState { it.copy(oauthInFlight = null) }
+                    } else {
+                        finishAppleSignIn(credential)
+                    }
+                },
+                onFailure = {
+                    updateState {
+                        it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthFailed)
+                    }
+                },
+            )
+    }
+
+    private suspend fun OnboardingAction.finishAppleSignIn(credential: AppleSignInCredential) {
+        val isAnonymousGuest =
+            (authRepository.current() as? AuthState.Authenticated)?.isAnonymous == true
+        val succeeded = if (isAnonymousGuest) {
+            authRepository.linkAppleIdentity(credential) is LinkIdentityOutcome.Success
+        } else {
+            authRepository.signInWithApple(credential) is SignInOutcome.Success
+        }
+        if (succeeded) {
+            appCache.update { it.copy(hasUserOnboarded = true) }
+            updateState { it.copy(oauthInFlight = null) }
+            sendEvent(OnboardingEvent.NavigateToHome)
+        } else {
+            updateState {
                 it.copy(oauthInFlight = null, authError = OnboardingAuthError.OAuthFailed)
             }
         }
@@ -489,6 +542,8 @@ sealed interface OnboardingAction {
     /** Steps back to the previous onboarding step (steps 2–4 only). */
     data object Back : OnboardingAction
     data class SignInWithOAuth(val provider: OAuthProvider) : OnboardingAction
+    /** Welcome-step native "Sign in with Apple" (iOS only). */
+    data object SignInWithApple : OnboardingAction
     data class DisplayNameChanged(val value: String) : OnboardingAction
     data object RegenerateDisplayName : OnboardingAction
     data class SelectAvatar(val emoji: String, val backgroundColorHex: String?) : OnboardingAction

@@ -17,6 +17,6 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
 class AndroidAppleSignInCoordinator : AppleSignInCoordinator {
-    override suspend fun requestCredential(): AppleSignInCredential =
+    override suspend fun requestCredential(): AppleSignInCredential? =
         throw UnsupportedOperationException("Sign in with Apple is available on iOS only")
 }
