@@ -178,7 +178,16 @@ class OnboardingViewModel(
                         current
                     } else {
                         current.copy(
-                            displayName = profile.displayName,
+                            // Only adopt the server's name if it satisfies the
+                            // display rules. A server-generated name can exceed
+                            // the client's max length; jamming it in would leave
+                            // the field invalid and disable Continue (soft-lock).
+                            // Falling back to the already-valid suggestion keeps
+                            // the user un-stuck with a clean name, not a
+                            // mid-word truncation.
+                            displayName = profile.displayName
+                                .takeIf { DisplayNameRules.isValid(it) }
+                                ?: current.displayName,
                             selectedEmoji = current.selectedEmoji ?: profile.avatarEmoji,
                             selectedBackgroundColor = current.selectedBackgroundColor
                                 ?: profile.avatarBackgroundColor,
