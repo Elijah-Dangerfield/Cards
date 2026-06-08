@@ -255,7 +255,13 @@ class OnboardingViewModel(
         if (isAnonymousGuest) {
             when (authRepository.linkAppleIdentity(credential)) {
                 LinkIdentityOutcome.Success ->
-                    updateState { it.copy(oauthInFlight = null, step = OnboardingStep.PickIdentity) }
+                    updateState {
+                        it.copy(
+                            oauthInFlight = null,
+                            step = OnboardingStep.PickIdentity,
+                            identityClaimed = true,
+                        )
+                    }
                 LinkIdentityOutcome.AlreadyOnAnotherAccount -> enterExistingAppleAccount(credential)
                 else -> failAppleSignIn()
             }
@@ -365,7 +371,10 @@ class OnboardingViewModel(
             val previous = when (it.step) {
                 OnboardingStep.StarterGrant -> OnboardingStep.HowItWorks
                 OnboardingStep.HowItWorks -> OnboardingStep.PickIdentity
-                OnboardingStep.PickIdentity -> OnboardingStep.Welcome
+                // A claimed user can't go back to the landing page — there's no
+                // un-signing-in, so back just keeps them on identity setup.
+                OnboardingStep.PickIdentity ->
+                    if (it.identityClaimed) OnboardingStep.PickIdentity else OnboardingStep.Welcome
                 OnboardingStep.Welcome -> OnboardingStep.Welcome
             }
             it.copy(
@@ -461,6 +470,14 @@ data class OnboardingState(
     val isAuthing: Boolean = false,
     val oauthInFlight: OAuthProvider? = null,
     val authError: OnboardingAuthError? = null,
+
+    /**
+     * True once the user has claimed a real identity mid-onboarding (e.g. a new
+     * Apple account) and is finishing setup. Suppresses the "back to landing
+     * page" affordance — the Welcome sign-in options are meaningless once you're
+     * signed in, and re-running them would be confusing.
+     */
+    val identityClaimed: Boolean = false,
 
     val displayName: String = "",
     /** True once the user has typed in the name field — gates profile prefill. */

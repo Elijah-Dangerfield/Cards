@@ -431,14 +431,17 @@ private fun PickIdentityStep(
             .verticalScroll(rememberScrollState())
             .padding(screenHorizontalInsets),
     ) {
-        IconButton(
-            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-            onClick = { onAction(OnboardingAction.Back) },
-            iconColor = AppTheme.colors.content,
-            modifier = Modifier.padding(top = Dimension.D300),
-        )
-
-        Spacer(modifier = Modifier.height(Dimension.D300))
+        // No back affordance once the user has claimed a real identity — the
+        // Welcome page's sign-in options don't apply to a signed-in user.
+        if (!state.identityClaimed) {
+            IconButton(
+                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+                onClick = { onAction(OnboardingAction.Back) },
+                iconColor = AppTheme.colors.content,
+                modifier = Modifier.padding(top = Dimension.D300),
+            )
+            Spacer(modifier = Modifier.height(Dimension.D300))
+        }
 
         val avatarPlaceholder = stringResource(Res.string.onboarding_identity_avatar_placeholder)
         Box(
