@@ -94,7 +94,10 @@ class SignInViewModel(
     private suspend fun SignInAction.handleSignInOutcome(outcome: SignInOutcome) {
         when (outcome) {
             is SignInOutcome.Success -> {
-                appCache.update { it.copy(hasUserOnboarded = true) }
+                // Signing in is "I have an account" — drop any starter-grant
+                // reveal a throwaway guest queued, so the Home welcome dialog
+                // doesn't fire for a pre-existing account.
+                appCache.update { it.copy(hasUserOnboarded = true, requiresGrantInfo = false) }
                 updateState { it.copy(isSubmitting = false) }
                 sendEvent(SignInEvent.NavigateToHome)
             }

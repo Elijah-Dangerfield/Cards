@@ -282,7 +282,10 @@ class OnboardingViewModel(
     /** Existing-account path: switch sessions, mark onboarded, jump to Home. */
     private suspend fun OnboardingAction.enterExistingAppleAccount(credential: AppleSignInCredential) {
         if (authRepository.signInWithApple(credential) is SignInOutcome.Success) {
-            appCache.update { it.copy(hasUserOnboarded = true) }
+            // Switched to a pre-existing account — drop any starter-grant reveal
+            // the throwaway guest queued (its wallet was just created), or the
+            // Home welcome dialog would fire for an account that isn't new.
+            appCache.update { it.copy(hasUserOnboarded = true, requiresGrantInfo = false) }
             updateState { it.copy(oauthInFlight = null) }
             sendEvent(OnboardingEvent.NavigateToHome)
         } else {

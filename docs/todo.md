@@ -26,9 +26,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & account onboarding
 
-- `[P1]` **Wire the native Apple sign-in button into the onboarding/claim flow.** The `createAppleSignInButton` primitive (`NativeViewFactory.kt`) + its Swift `ASAuthorizationAppleIDButton` impl exist, but the Apple slot still renders a custom `ButtonSecondary` ([`OnboardingScreen.kt:365`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt)) that App Review rejects. Render the native button there, capture the authorization, and exchange the ID token for a Supabase session — no id-token sign-in path exists today (`RealSupabaseAuthGateway` only runs the web OAuth flow).
-  **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
-  **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
+- `[P2]` **Make the starter-grant "seen" state server-authoritative (per account).** `AppData.requiresGrantInfo` is an install-scoped boolean — "have we revealed the grant" is really an *account* fact. Today it's set by the wallet sync (`walletCreated`) and cleared on the onboarding StarterGrant reveal, the Home welcome dialog, and explicitly on every sign-in-into-an-existing-account path (so the throwaway-guest flag can't leak onto a switched-in account). That clear-on-switch covers the real cases, but the airtight version is a server flag (e.g. `welcome_seen_at` on the profile) the client checks + sets — then it's correct across devices/reinstalls without per-call-site clears. *(proposed 2026-06-08)*
+  **Hints:** `requiresGrantInfo` setter in `ChipsRepositoryImpl`; consumers in `HomeViewModel.observeWelcomeGate` + `OnboardingViewModel.kickOffGrantReveal`; clear-on-switch lives in the Sign-In / claim / onboarding-existing-account paths. **Out of scope:** founding-member inbox message — already server-read-tracked (acked via message sync), so it's once-per-account by design.
 
 ### Gameplay & table UX
 
