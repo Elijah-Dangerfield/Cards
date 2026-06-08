@@ -478,6 +478,15 @@ internal class FakeSupabaseAuthGateway(
     override suspend fun signInWithOAuth(provider: OAuthProvider): Unit =
         error("signInWithOAuth not stubbed for these tests")
 
+    override suspend fun signInWithAppleIdToken(idToken: String, nonce: String): Unit =
+        error("signInWithAppleIdToken not stubbed for these tests")
+
+    override suspend fun linkAppleIdToken(idToken: String, nonce: String): Unit =
+        error("linkAppleIdToken not stubbed for these tests")
+
+    override suspend fun signInWithGoogleIdToken(idToken: String, nonce: String?): Unit =
+        error("signInWithGoogleIdToken not stubbed for these tests")
+
     override suspend fun linkEmailIdentity(email: String, password: String): Unit =
         error("linkEmailIdentity not stubbed for these tests")
 }

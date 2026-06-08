@@ -6,6 +6,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome
@@ -400,6 +401,88 @@ class SupabaseAuthRepositoryImpl(
                 },
             )
         }
+
+    override suspend fun signInWithApple(credential: AppleSignInCredential): SignInOutcome =
+        mutex.withLock {
+            logger.d { "signInWithApple: attempting" }
+            Catching {
+                gateway.signInWithAppleIdToken(credential.identityToken, credential.nonce)
+                emitAuthenticatedFromGatewayLocked()
+            }.fold(
+                onSuccess = {
+                    logger.i { "signInWithApple: Success" }
+                    SignInOutcome.Success
+                },
+                onFailure = { e ->
+                    val outcome = mapNativeSignInFailure(e)
+                    logger.w(e) { "signInWithApple: ${outcome::class.simpleName}" }
+                    outcome
+                },
+            )
+        }
+
+    override suspend fun linkAppleIdentity(credential: AppleSignInCredential): LinkIdentityOutcome =
+        mutex.withLock {
+            logger.d { "linkAppleIdentity: attempting" }
+            if (gateway.currentSession() == null) {
+                logger.w { "linkAppleIdentity: NotSignedIn (no supabase session)" }
+                return@withLock LinkIdentityOutcome.NotSignedIn
+            }
+            Catching {
+                gateway.linkAppleIdToken(credential.identityToken, credential.nonce)
+                emitAuthenticatedFromGatewayLocked()
+            }.fold(
+                onSuccess = {
+                    logger.i { "linkAppleIdentity: Success" }
+                    LinkIdentityOutcome.Success
+                },
+                onFailure = { e ->
+                    val outcome = when (e) {
+                        is RestException ->
+                            if (e.statusCode == 422) LinkIdentityOutcome.AlreadyOnAnotherAccount
+                            else LinkIdentityOutcome.Unknown(e)
+                        is HttpRequestException -> LinkIdentityOutcome.NetworkError(e)
+                        else ->
+                            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                                LinkIdentityOutcome.Cancelled
+                            } else LinkIdentityOutcome.Unknown(e)
+                    }
+                    logger.w(e) { "linkAppleIdentity: ${outcome::class.simpleName}" }
+                    outcome
+                },
+            )
+        }
+
+    override suspend fun signInWithGoogleIdToken(idToken: String, nonce: String?): SignInOutcome =
+        mutex.withLock {
+            logger.d { "signInWithGoogleIdToken: attempting" }
+            Catching {
+                gateway.signInWithGoogleIdToken(idToken, nonce)
+                emitAuthenticatedFromGatewayLocked()
+            }.fold(
+                onSuccess = {
+                    logger.i { "signInWithGoogleIdToken: Success" }
+                    SignInOutcome.Success
+                },
+                onFailure = { e ->
+                    val outcome = mapNativeSignInFailure(e)
+                    logger.w(e) { "signInWithGoogleIdToken: ${outcome::class.simpleName}" }
+                    outcome
+                },
+            )
+        }
+
+    /** Shared failure mapping for the native id-token sign-in paths (Apple / Google). */
+    private fun mapNativeSignInFailure(e: Throwable): SignInOutcome = when (e) {
+        is RestException -> mapOAuthSignInRestException(e)
+        is HttpRequestException -> SignInOutcome.NetworkError(e)
+        else ->
+            if ((e.message ?: "").contains("cancel", ignoreCase = true)) {
+                SignInOutcome.Cancelled
+            } else {
+                SignInOutcome.Unknown(e)
+            }
+    }
 
     override suspend fun linkEmailIdentity(
         email: String,

@@ -7,6 +7,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Apple
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.signInAnonymously
 import io.github.jan.supabase.auth.status.SessionStatus
 import me.tatarka.inject.annotations.Inject
@@ -96,6 +97,28 @@ class RealSupabaseAuthGateway(
 
     override suspend fun signInWithOAuth(provider: OAuthProvider) {
         supabase.auth.signInWith(provider.toSupabaseProvider())
+    }
+
+    override suspend fun signInWithAppleIdToken(idToken: String, nonce: String) {
+        supabase.auth.signInWith(IDToken) {
+            provider = Apple
+            this.idToken = idToken
+            this.nonce = nonce
+        }
+    }
+
+    override suspend fun linkAppleIdToken(idToken: String, nonce: String) {
+        supabase.auth.linkIdentityWithIdToken(provider = Apple, idToken = idToken) {
+            this.nonce = nonce
+        }
+    }
+
+    override suspend fun signInWithGoogleIdToken(idToken: String, nonce: String?) {
+        supabase.auth.signInWith(IDToken) {
+            provider = Google
+            this.idToken = idToken
+            if (nonce != null) this.nonce = nonce
+        }
     }
 
     override suspend fun linkEmailIdentity(email: String, password: String) {
