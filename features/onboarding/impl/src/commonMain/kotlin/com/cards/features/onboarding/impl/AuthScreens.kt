@@ -79,6 +79,8 @@ import cards.libraries.resources.generated.resources.auth_verify_email_title
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
@@ -172,11 +174,15 @@ fun SignInScreen(
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
             if (state.appleEnabled) {
-                Button(
-                    onClick = { onAction(SignInAction.SignInWithOAuth(OAuthProvider.Apple)) },
+                // Native ASAuthorizationAppleIDButton (iOS-only slot) — runs the
+                // system sheet via the coordinator, not the web flow.
+                AppleSignInButton(
+                    onClick = { onAction(SignInAction.SignInWithApple) },
                     enabled = !state.isSubmitting,
+                    isLoading = state.isSubmitting,
+                    kind = AppleSignInButtonKind.SignIn,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(Res.string.auth_sign_in_oauth_apple)) }
+                )
             }
             Spacer(modifier = Modifier.height(Dimension.D700))
             Text(

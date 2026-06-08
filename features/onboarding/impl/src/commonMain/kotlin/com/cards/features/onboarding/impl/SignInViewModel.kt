@@ -1,12 +1,18 @@
 package com.dangerfield.cards.features.onboarding.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
+import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.isiOS
+import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
+import com.dangerfield.cards.libraries.identity.auth.awaitCredential
 import me.tatarka.inject.annotations.Inject
 
 /**
@@ -25,12 +31,14 @@ import me.tatarka.inject.annotations.Inject
 class SignInViewModel(
     private val authRepository: AuthRepository,
     private val appCache: AppCache,
+    private val appleSignInCoordinator: AppleSignInCoordinator,
     googleSignInEnabled: GoogleSignInEnabled,
     appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<SignInState, SignInEvent, SignInAction>(
     initialStateArg = SignInState(
         googleEnabled = googleSignInEnabled(),
-        appleEnabled = appleSignInEnabled(),
+        // Apple is the native flow only, which is iOS-only (see docs/decisions.md).
+        appleEnabled = appleSignInEnabled() && BuildInfo.isiOS(),
     ),
 ) {
 
@@ -60,6 +68,24 @@ class SignInViewModel(
             is SignInAction.SignInWithOAuth -> action.run {
                 updateState { it.copy(isSubmitting = true, error = null) }
                 handleSignInOutcome(authRepository.signInWithOAuth(action.provider))
+            }
+
+            is SignInAction.SignInWithApple -> action.run {
+                updateState { it.copy(isSubmitting = true, error = null) }
+                Catching { appleSignInCoordinator.awaitCredential() }
+                    .logOnFailure { "Apple credential request failed (sign-in)" }
+                    .fold(
+                        onSuccess = { credential ->
+                            if (credential == null) {
+                                updateState { it.copy(isSubmitting = false) } // dismissed
+                            } else {
+                                handleSignInOutcome(authRepository.signInWithApple(credential))
+                            }
+                        },
+                        onFailure = {
+                            updateState { it.copy(isSubmitting = false, error = SignInError.Unknown) }
+                        },
+                    )
             }
         }
     }
@@ -136,5 +162,7 @@ sealed interface SignInAction {
     data class PasswordChanged(val value: String) : SignInAction
     data object Submit : SignInAction
     data class SignInWithOAuth(val provider: OAuthProvider) : SignInAction
+    /** Native "Sign in with Apple" (iOS) — runs the coordinator, then signs in. */
+    data object SignInWithApple : SignInAction
     data object DismissError : SignInAction
 }
