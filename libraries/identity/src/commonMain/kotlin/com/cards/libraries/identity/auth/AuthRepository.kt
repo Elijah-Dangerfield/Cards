@@ -40,12 +40,24 @@ interface AuthRepository {
     fun observe(): Flow<AuthState>
 
     /**
-     * Re-attempt the get-or-create after a previous failure. Used by the
+     * Re-resolve the persisted session after a previous failure. Used by the
      * connectivity observer (offline → online flip) and explicit retry
-     * actions (e.g. onboarding "Try again"). No-op if already
-     * Authenticated.
+     * actions. No-op if already Authenticated. Does **not** create an account —
+     * a missing session stays [AuthState.Unauthenticated].
      */
     suspend fun retry(): AuthState
+
+    /**
+     * Create a fresh anonymous (guest) session and emit
+     * [AuthState.Authenticated]. The app no longer auto-creates one on launch —
+     * onboarding calls this when the user commits to playing as a guest, so a
+     * throwaway anon account is never minted for users who sign in instead.
+     *
+     * Default-throws so test fakes that don't drive guest creation needn't
+     * implement it; the production impl overrides.
+     */
+    suspend fun createGuestSession(): SignInOutcome =
+        throw NotImplementedError("createGuestSession not implemented by ${this::class.simpleName}")
 
     /** Email/password sign-in. Server-issued JWT replaces any current session. */
     suspend fun signInWithEmail(email: String, password: String): SignInOutcome

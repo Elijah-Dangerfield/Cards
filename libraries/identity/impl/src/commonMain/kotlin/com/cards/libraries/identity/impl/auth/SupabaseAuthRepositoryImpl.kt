@@ -37,14 +37,18 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Supabase-backed [AuthRepository]. Owns the user lifecycle (sign-in /
  * sign-up / link / delete) and the public [AuthState] stream.
  *
- * The "is there a session — sign in anon if not" policy lives on
- * [AuthBootstrap]; this class waits on [AuthBootstrap.awaitResolved] to
- * derive its initial [AuthState], and calls [AuthBootstrap.invalidate]
- * after signOut / deleteAccount so the next consumer's resolve runs
- * fresh. Splitting that policy out is what breaks the construction-time
- * `NetworkClient → AuthRepository → ProfileApi → NetworkClient` cycle
- * the codebase used to dodge with a lazy provider — see the
- * [AuthBootstrap] header for the wiring.
+ * **No account is created on launch.** On init this class resolves whatever
+ * persisted session supabase-kt hydrates: a live session → [AuthState.Authenticated],
+ * none → [AuthState.Unauthenticated]. It deliberately does *not* sign in
+ * anonymously — the app stays session-less through onboarding and only mints an
+ * account when the user finishes as a guest ([createGuestSession]) or signs in.
+ * (This is what kills the orphan-anon-on-every-install problem the old
+ * auto-anon bootstrap caused.)
+ *
+ * The resolve loop tolerates supabase-kt's transient hydration states
+ * (Initializing / RefreshFailure) by re-polling a bounded number of times
+ * before settling Unauthenticated; the offline→online connectivity observer
+ * and explicit [retry] re-run it.
  *
  * Mutex serializes session-mutating operations; [state] is the source
  * of truth flipped under the lock. No in-flight sentinel exposed — the
@@ -60,7 +64,6 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class SupabaseAuthRepositoryImpl(
     private val gateway: SupabaseAuthGateway,
-    private val authBootstrap: AuthBootstrap,
     private val profileApi: ProfileApi,
     private val appEventBus: AppEventBus,
     private val tokenInvalidator: AuthTokenInvalidator,
@@ -93,30 +96,47 @@ class SupabaseAuthRepositoryImpl(
             logger.d { "retry: already Authenticated, no-op" }
             return@withLock latest
         }
-        logger.d { "retry: invalidating bootstrap + re-resolving (latest=${latest?.let { it::class.simpleName } ?: "null"})" }
-        authBootstrap.invalidate()
+        logger.d { "retry: re-resolving session (latest=${latest?.let { it::class.simpleName } ?: "null"})" }
         resolveAndEmitLocked()
     }
 
     private suspend fun resolveAndEmit(): AuthState = mutex.withLock { resolveAndEmitLocked() }
 
+    /**
+     * Read the hydrated session and publish the matching [AuthState]. Loops
+     * over supabase-kt's transient hydration states (Initializing /
+     * RefreshFailure) up to [MaxResolveAttempts] before settling
+     * Unauthenticated. **Never signs in** — a missing session resolves to
+     * [AuthState.Unauthenticated]; an account is created only on an explicit
+     * user action.
+     */
     private suspend fun resolveAndEmitLocked(): AuthState {
-        val outcome = authBootstrap.awaitResolved()
-        return when (outcome) {
-            is BootstrapOutcome.Authenticated -> {
-                val next = AuthState.Authenticated(
-                    userId = outcome.userId,
-                    isAnonymous = outcome.isAnonymous,
-                    email = outcome.email,
-                )
-                state.emit(next)
-                logger.i {
-                    "Emitted Authenticated(userId=${next.userId}, isAnonymous=${next.isAnonymous}, hasEmail=${next.email != null})"
+        repeat(MaxResolveAttempts) {
+            gateway.awaitInitialization()
+            when (gateway.currentStatus()) {
+                AuthGatewayStatus.Authenticated -> {
+                    val session = gateway.currentSession()
+                        ?: error("Authenticated status but no session in gateway")
+                    val next = AuthState.Authenticated(
+                        userId = session.userId,
+                        isAnonymous = session.isAnonymous,
+                        email = session.email,
+                    )
+                    state.emit(next)
+                    logger.i {
+                        "Emitted Authenticated(userId=${next.userId}, isAnonymous=${next.isAnonymous}, hasEmail=${next.email != null})"
+                    }
+                    return next
                 }
-                next
+                // No session and we no longer auto-create one — settle.
+                AuthGatewayStatus.NotAuthenticated -> return emitUnauthenticatedLocked(cause = null)
+                // Mid-hydration / transient refresh failure — re-poll.
+                AuthGatewayStatus.Initializing,
+                is AuthGatewayStatus.RefreshFailure -> Unit
             }
-            is BootstrapOutcome.Failed -> emitUnauthenticatedLocked(cause = outcome.cause)
         }
+        logger.w { "Resolve exhausted $MaxResolveAttempts attempts without settling" }
+        return emitUnauthenticatedLocked(cause = null)
     }
 
     /**
@@ -163,6 +183,28 @@ class SupabaseAuthRepositoryImpl(
     private fun lastEmittedOrNull(): AuthState? = state.replayCache.firstOrNull()
 
     // ---------- Auth operations ----------
+
+    override suspend fun createGuestSession(): SignInOutcome = mutex.withLock {
+        logger.d { "createGuestSession: signing in anonymously" }
+        Catching {
+            gateway.signInAnonymously()
+            emitAuthenticatedFromGatewayLocked()
+        }.fold(
+            onSuccess = {
+                logger.i { "createGuestSession: Success" }
+                SignInOutcome.Success
+            },
+            onFailure = { e ->
+                val outcome = when (e) {
+                    is RestException -> mapOAuthSignInRestException(e)
+                    is HttpRequestException -> SignInOutcome.NetworkError(e)
+                    else -> SignInOutcome.Unknown(e)
+                }
+                logger.w(e) { "createGuestSession: ${outcome::class.simpleName}" }
+                outcome
+            },
+        )
+    }
 
     override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
         mutex.withLock {
@@ -292,10 +334,9 @@ class SupabaseAuthRepositoryImpl(
         logger.i { "signOut: tearing down session" }
         Catching { gateway.signOut() }
             .logOnFailure { "Supabase signOut failed; clearing local state anyway" }
-        // Invalidate the bootstrap so a subsequent retry() runs a fresh
-        // resolve (which will anon-sign-in unless the user signs in /
-        // signs up first).
-        authBootstrap.invalidate()
+        // No session is created in its place — the user lands on the
+        // logged-out landing page and must pick a method (guest / sign-in)
+        // again. A later retry() just re-resolves (still Unauthenticated).
         emitUnauthenticatedLocked(cause = null)
         appEventBus.dispatch(AppEvent.SignedOut)
     }
@@ -346,7 +387,6 @@ class SupabaseAuthRepositoryImpl(
             logger.i { "deleteAccount: Success — signing out + dispatching SignedOut" }
             Catching { gateway.signOut() }
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
-            authBootstrap.invalidate()
             emitUnauthenticatedLocked(cause = null)
             appEventBus.dispatch(AppEvent.SignedOut)
         } else {
@@ -588,5 +628,10 @@ class SupabaseAuthRepositoryImpl(
                 LinkEmailIdentityOutcome.EmailAlreadyRegistered
             else -> LinkEmailIdentityOutcome.Unknown(e)
         }
+    }
+
+    private companion object {
+        /** Bounded re-polls over supabase-kt's transient hydration states. */
+        const val MaxResolveAttempts: Int = 5
     }
 }

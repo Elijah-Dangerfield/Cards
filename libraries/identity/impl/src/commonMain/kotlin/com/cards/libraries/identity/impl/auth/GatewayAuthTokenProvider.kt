@@ -12,30 +12,33 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 /**
  * Supplies the access token to the network layer. Two-step contract:
  *
- *  - [awaitReady] drives [AuthBootstrap.awaitResolved] to completion.
- *    [NetworkClient.awaitAuthReady] calls this before issuing a request,
- *    so the request timeout clock doesn't include the bootstrap wait.
+ *  - [awaitReady] suspends until supabase-kt has hydrated any persisted
+ *    session. [NetworkClient.awaitAuthReady] calls this before issuing a
+ *    request, so the request timeout clock doesn't include the hydration wait.
+ *    It does **not** create a session — the app is intentionally session-less
+ *    until onboarding explicitly creates an account
+ *    ([AuthRepository.createGuestSession] or a sign-in). A pre-account request
+ *    therefore goes unauthed, which is correct: onboarding only hits public
+ *    endpoints.
  *  - [accessToken] is a synchronous peek of the gateway's current session.
  *    Returns null if there's no session. Ktor's bearer plugin calls this
- *    inside `loadTokens` — by then the bootstrap is resolved and the
- *    peek is instant.
+ *    inside `loadTokens`.
  *
- * Deliberately narrow — no [AuthRepository] dep — so the construction
- * graph stays linear: `NetworkClient → AuthTokenProvider → AuthBootstrap
- * → SupabaseAuthGateway`.
+ * Deliberately narrow — depends only on [SupabaseAuthGateway], no
+ * [AuthRepository] — so the construction graph stays linear:
+ * `NetworkClient → AuthTokenProvider → SupabaseAuthGateway`.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = AuthTokenProvider::class)
 @Inject
 class GatewayAuthTokenProvider(
-    private val authBootstrap: AuthBootstrap,
     private val gateway: SupabaseAuthGateway,
 ) : AuthTokenProvider {
 
     private val logger = KLog.withTag("AuthTokenProvider")
 
     override suspend fun awaitReady() {
-        authBootstrap.awaitResolved()
+        gateway.awaitInitialization()
     }
 
     override suspend fun accessToken(): String? {
