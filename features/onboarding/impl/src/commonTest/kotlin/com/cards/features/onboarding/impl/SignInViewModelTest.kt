@@ -266,8 +266,17 @@ class SignInViewModelTest : CoroutineTest() {
         return SignInViewModel(
             authRepository = identity,
             appCache = appCache,
+            appleSignInCoordinator = NoopAppleSignInCoordinator,
             googleSignInEnabled = GoogleSignInEnabled(config),
             appleSignInEnabled = AppleSignInEnabled(config),
         )
+    }
+
+    /** No test here exercises the iOS-only native Apple sign-in; the coordinator is a no-op. */
+    private object NoopAppleSignInCoordinator :
+        com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator {
+        override fun requestCredential(
+            onComplete: (com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential?, String?) -> Unit,
+        ) = onComplete(null, null)
     }
 }

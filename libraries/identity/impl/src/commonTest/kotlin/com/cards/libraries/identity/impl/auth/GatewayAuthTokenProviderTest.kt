@@ -7,7 +7,8 @@ import kotlin.test.assertNull
 
 /**
  * Two-step contract:
- *  - [awaitReady] drives the bootstrap resolve.
+ *  - [awaitReady] waits for supabase-kt to hydrate any persisted session. It
+ *    does NOT create one (the app is session-less until onboarding).
  *  - [accessToken] is a synchronous peek of the gateway's session.
  *
  * Tests pin both halves and the refresh path.
@@ -20,53 +21,34 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
             initialStatus = AuthGatewayStatus.Authenticated,
             session = sampleSession(accessToken = "tok-abc"),
         )
-        val provider = GatewayAuthTokenProvider(AuthBootstrap(gateway), gateway)
+        val provider = GatewayAuthTokenProvider(gateway)
 
         provider.awaitReady()
         assertEquals("tok-abc", provider.accessToken())
     }
 
     @Test
-    fun accessToken_returnsNull_whenBootstrapFails() = runUnitTest {
+    fun accessToken_returnsNull_whenNoSession() = runUnitTest {
+        // No persisted session and we don't create one — the peek is null and
+        // the request goes unauthed (correct for onboarding's public calls).
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
         )
-        gateway.onSignInAnonymously = { throw IllegalStateException("anon disabled") }
-        val provider = GatewayAuthTokenProvider(AuthBootstrap(gateway), gateway)
+        val provider = GatewayAuthTokenProvider(gateway)
 
         provider.awaitReady()
-        // Bootstrap returned Failed → gateway has no session → token is null.
         assertNull(provider.accessToken())
+        assertEquals(0, gateway.signInAnonymouslyCalls, "awaitReady must never sign in")
     }
 
     @Test
-    fun awaitReady_drivesAnonSignIn_thenAccessTokenSeesNewSession() = runUnitTest {
+    fun accessToken_withoutAwaitReady_isAPurePeek() = runUnitTest {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
         )
-        gateway.onSignInAnonymously = {
-            advanceToAuthenticated(sampleSession(userId = "anon-1", accessToken = "tok-after-anon"))
-        }
-        val provider = GatewayAuthTokenProvider(AuthBootstrap(gateway), gateway)
-
-        provider.awaitReady()
-        assertEquals("tok-after-anon", provider.accessToken())
-        assertEquals(1, gateway.signInAnonymouslyCalls)
-    }
-
-    @Test
-    fun accessToken_withoutAwaitReady_doesNotDriveBootstrap() = runUnitTest {
-        // Without awaitReady(), accessToken() is a pure peek. The gateway is
-        // NotAuthenticated and accessToken returns null. The bearer plugin
-        // is expected to see null and let the request go unauthed —
-        // authedCall is responsible for the pre-flight awaitReady().
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.NotAuthenticated,
-            session = null,
-        )
-        val provider = GatewayAuthTokenProvider(AuthBootstrap(gateway), gateway)
+        val provider = GatewayAuthTokenProvider(gateway)
 
         assertNull(provider.accessToken())
         assertEquals(0, gateway.signInAnonymouslyCalls, "peek must not drive sign-in")
@@ -82,7 +64,7 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
         gateway.onRefreshSession = {
             replaceSession(initialSession.copy(accessToken = "tok-new"))
         }
-        val provider = GatewayAuthTokenProvider(AuthBootstrap(gateway), gateway)
+        val provider = GatewayAuthTokenProvider(gateway)
 
         assertEquals("tok-new", provider.refreshAccessToken())
         assertEquals(1, gateway.refreshSessionCalls)
@@ -95,7 +77,7 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
             session = sampleSession(accessToken = "tok-old"),
         )
         gateway.onRefreshSession = { throw IllegalStateException("network down") }
-        val provider = GatewayAuthTokenProvider(AuthBootstrap(gateway), gateway)
+        val provider = GatewayAuthTokenProvider(gateway)
 
         assertNull(provider.refreshAccessToken())
     }

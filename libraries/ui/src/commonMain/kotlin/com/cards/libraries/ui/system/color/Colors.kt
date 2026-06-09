@@ -28,6 +28,11 @@ interface Colors {
     val scrim: ColorResource             // dim behind modals/sheets
     val shadow: ColorResource
 
+    /* ── Inverse surface · a light fill flipped onto the dark theme ─ */
+    val surfaceInverse: ColorResource      // near-white fill (white button/chip)
+    val onSurfaceInverse: ColorResource    // dark ink on the inverse surface
+    val surfaceInverseDeep: ColorResource  // 3D lip under a filled inverse button
+
     /* ── Content · one foreground ramp for background + all surfaces ─ */
     val content: ColorResource           // primary text & active icons
     val contentSecondary: ColorResource  // supporting text, captions, inactive icons
@@ -115,6 +120,11 @@ val defaultColors: Colors = object : Colors {
     override val surfaceDisabled = ColorResource.Espresso800
     override val scrim = ColorResource.Black_A70
     override val shadow = ColorResource.Black_A30
+
+    // Inverse surface
+    override val surfaceInverse = ColorResource.SurfaceInverse
+    override val onSurfaceInverse = ColorResource.Espresso950
+    override val surfaceInverseDeep = ColorResource.SurfaceInverseDeep
 
     // Content
     override val content = ColorResource.WarmWhite

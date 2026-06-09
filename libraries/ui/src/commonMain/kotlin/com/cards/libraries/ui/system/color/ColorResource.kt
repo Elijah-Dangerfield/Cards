@@ -40,6 +40,10 @@ sealed class ColorResource(val color: Color, val designSystemName: String) {
     object WarmWhite_A44 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.44f), "warm-white-a-44") // contentTertiary
     object WarmWhite_A30 : ColorResource(Color(0xFFFFFAF4).copy(alpha = 0.30f), "warm-white-a-30") // contentDisabled
 
+    // Inverse surface — a light fill flipped onto the dark theme (white buttons / chips)
+    object SurfaceInverse : ColorResource(Color(0xFFF4F1E8), "surface-inverse")          // near-white fill
+    object SurfaceInverseDeep : ColorResource(Color(0xFFD8D2C4), "surface-inverse-deep") // 3D lip under it
+
     // Hairlines (warm white, low alpha)
     object Hairline_09 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.09f), "hairline-09") // border
     object Hairline_22 : ColorResource(Color(0xFFFFF8EE).copy(alpha = 0.22f), "hairline-22") // borderStrong

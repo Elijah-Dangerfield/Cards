@@ -21,6 +21,7 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
 import com.dangerfield.cards.libraries.gameplay.deterministicDeck
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -130,6 +131,9 @@ class LocalBotsSession(
     // [Connected] so the play-screen banner observer is a no-op for solo.
     private val _connectionState = MutableStateFlow(ConnectionState.Connected)
     override val connectionState: StateFlow<ConnectionState> get() = _connectionState
+
+    // In-process sessions have no room to close — this never emits for solo.
+    override val roomClosed: SharedFlow<ClosedReason> = MutableSharedFlow()
 
     private var gameState: GameState = startNextHand()
 

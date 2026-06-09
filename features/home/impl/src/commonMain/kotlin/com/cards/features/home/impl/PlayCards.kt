@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -86,7 +87,7 @@ internal fun PlayFeatureCard(
             .clip(Radii.R900.shape)
             .background(playGradient(accent))
             .clickable(onClick = onClick)
-            .padding(horizontal = Dimension.D700, vertical = Dimension.D700),
+            .padding(horizontal = Dimension.D700, vertical = Dimension.D900),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
     ) {
@@ -113,7 +114,9 @@ internal fun PlayFeatureCard(
 /**
  * A half-width play option (Quick Match, Friend Game): glyph tile at the top,
  * title + short subtitle anchored to the bottom. Pass `Modifier.weight(1f)`
- * from the caller so two sit side by side.
+ * from the caller so two sit side by side. An optional [tag] renders a small
+ * status pill in the top-right corner — used to mark a not-yet-shipped option
+ * as "Coming soon".
  */
 @Composable
 internal fun PlayTileCard(
@@ -123,27 +126,41 @@ internal fun PlayTileCard(
     accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tag: String? = null,
 ) {
-    Column(
-        modifier = modifier
-            .height(132.dp)
-            .clip(Radii.R900.shape)
-            .background(playGradient(accent))
-            .clickable(onClick = onClick)
-            .padding(Dimension.D600),
-    ) {
-        GlyphTile(glyph = glyph, size = 40.dp)
-        Spacer(modifier = Modifier.weight(1f))
-        Text(
-            text = title,
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.content,
-        )
-        Text(
-            text = subtitle,
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.content.withAlpha(0.78f),
-        )
+    Box(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(132.dp)
+                .clip(Radii.R900.shape)
+                .background(playGradient(accent))
+                .clickable(onClick = onClick)
+                .padding(Dimension.D600),
+        ) {
+            GlyphTile(glyph = glyph, size = 40.dp)
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = title,
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.content,
+            )
+            Text(
+                text = subtitle,
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.content.withAlpha(0.78f),
+            )
+        }
+        tag?.let {
+            StatusPill(
+                text = it,
+                background = AppTheme.colors.surfaceHigh,
+                foreground = AppTheme.colors.content,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(Dimension.D400),
+            )
+        }
     }
 }
 
@@ -169,6 +186,7 @@ private fun PlayCardsPreview() {
                     accent = FeatureCardAccents.Blue,
                     onClick = {},
                     modifier = Modifier.weight(1f),
+                    tag = "Coming soon",
                 )
                 PlayTileCard(
                     title = "Friend Game",

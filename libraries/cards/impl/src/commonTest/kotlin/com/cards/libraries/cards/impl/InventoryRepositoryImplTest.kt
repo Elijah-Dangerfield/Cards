@@ -372,6 +372,7 @@ class InventoryRepositoryImplTest : CoroutineTest() {
         val idempotencyKeys = mutableListOf<String?>()
         var failOnNextApplyDelta: Throwable? = null
 
+        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = state.asStateFlow()
         override suspend fun getBalance(): Long? = state.value
 

@@ -30,14 +30,7 @@ package com.dangerfield.cards.libraries.config
  * list, or `@Serializable` object. Subclass `ConfiguredValue<T>` directly and
  * implement [resolveValue] (`appConfigMap.value(this)`) for those.
  */
-/**
- * Non-generic supertype every [ConfiguredValue] implements. Exists so all values
- * can be collected into a single DI multibinding `Set<QaConfigValue>` — anvil/KSP
- * can't key a multibinding on a generic type (`ConfiguredValue<*>` fails ClassName
- * conversion). Consumers that need the typed value still inject the concrete class
- * and read `ConfiguredValue<T>.value`; the QA menu iterates the set and narrows
- * back to `ConfiguredValue<*>` for display.
- */
+// Non-generic multibinding key for [ConfiguredValue] — anvil/KSP can't key a Set<> on the generic `ConfiguredValue<*>`.
 interface QaConfigValue
 
 abstract class ConfiguredValue<out T : Any> : QaConfigValue {

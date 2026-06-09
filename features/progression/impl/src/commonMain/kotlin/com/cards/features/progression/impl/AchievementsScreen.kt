@@ -74,7 +74,7 @@ fun AchievementsScreen(
                             achievement = achievement,
                             earnedAtEpochMs = state.progress.earned[achievement.id],
                             progress = achievement.currentProgress(state.progress),
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth(0.82f),
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(

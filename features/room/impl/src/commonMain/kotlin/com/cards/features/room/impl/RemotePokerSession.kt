@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.rooms.ClientFrame
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.GameplayFrame
 import com.dangerfield.cards.libraries.rooms.RoomConnection
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
@@ -81,6 +82,14 @@ internal class RemotePokerSession(
     private val _connectionState = MutableStateFlow(ConnectionState.Disconnected)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    /**
+     * `extraBufferCapacity = 1` so the terminal reason is buffered even
+     * when the VM's collector attaches a beat after `run()` — a one-shot
+     * `tryEmit` from [collectConnection] never drops it.
+     */
+    private val _roomClosed = MutableSharedFlow<ClosedReason>(extraBufferCapacity = 1)
+    override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
+
     private val pendingAcks: MutableMap<String, CompletableDeferred<GameplayFrame.IntentAck>> =
         mutableMapOf()
     private val pendingAcksMutex = Mutex()
@@ -110,6 +119,14 @@ internal class RemotePokerSession(
                 is RoomConnection.Reconnecting -> ConnectionState.Reconnecting
                 is RoomConnection.Closed -> ConnectionState.Disconnected
             }
+            // A terminal close (room GC'd / subscription rejected) collapses
+            // to Disconnected above, which the banner can't distinguish from
+            // a transient drop. Fan it out as a one-shot so the VM can pop
+            // the screen rather than leave the user spinning. Cancelled is
+            // our own teardown — the player is already leaving.
+            if (conn is RoomConnection.Closed && conn.reason != ClosedReason.Cancelled) {
+                _roomClosed.tryEmit(conn.reason)
+            }
         }
     }
 
@@ -117,7 +134,15 @@ internal class RemotePokerSession(
         handle.gameplayFrames.collect { frame ->
             when (frame) {
                 is GameplayFrame.StateSnapshot -> {
-                    _gameStateFlow.value = frame.state
+                    if (isStale(incoming = frame.state, current = _gameStateFlow.value)) {
+                        logger.d {
+                            "dropping stale snapshot hand=${frame.state.handNumber}/" +
+                                "seq=${frame.state.lastSequence} behind applied hand=" +
+                                "${_gameStateFlow.value.handNumber}/seq=${_gameStateFlow.value.lastSequence}"
+                        }
+                    } else {
+                        _gameStateFlow.value = frame.state
+                    }
                 }
                 is GameplayFrame.Event -> {
                     _events.tryEmit(frame.event)
@@ -126,6 +151,24 @@ internal class RemotePokerSession(
             }
         }
     }
+
+    /**
+     * The transport (per the decision log) doesn't guarantee snapshot
+     * order beyond the engine's sequence numbers, so a frame that arrives
+     * after a newer one — e.g. an old connection's buffered snapshot
+     * landing just after the post-reconnect resync — must not clobber the
+     * live table. [GameState.lastSequence] resets to 0 at the start of
+     * every hand (the engine seeds `seq = 0L` in `startHand`), so it only
+     * orders frames *within* a hand; across hands [GameState.handNumber]
+     * is the monotonic key. A snapshot is stale iff it sits strictly
+     * behind the applied state on `(handNumber, lastSequence)`. Equal keys
+     * (an idempotent resync of the same state) still apply — dropping
+     * those would risk swallowing a legitimate re-send.
+     */
+    private fun isStale(incoming: GameState, current: GameState): Boolean =
+        incoming.handNumber < current.handNumber ||
+            (incoming.handNumber == current.handNumber &&
+                incoming.lastSequence < current.lastSequence)
 
     private suspend fun pumpNextHandSignals() {
         for (signal in nextHandSignal) {

@@ -137,11 +137,11 @@
     <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
-    <string name="onboarding_welcome_oauth_apple"> Apple</string>
-    <string name="onboarding_welcome_oauth_google">G  Google</string>
-    <string name="onboarding_welcome_oauth_in_flight">…</string>
+    <string name="onboarding_welcome_oauth_apple">Continue with Apple</string>
+    <string name="onboarding_welcome_oauth_google">Continue with Google</string>
+    <string name="onboarding_welcome_oauth_in_flight">One moment…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
-    <string name="onboarding_welcome_sign_in">Already have an account? Sign in</string>
+    <string name="onboarding_welcome_sign_in">Sign in with email</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding — PickIdentity step (name + starter-pack avatar picker). -->
@@ -152,6 +152,7 @@
     <string name="onboarding_identity_section_pack">STARTER PACK</string>
     <string name="onboarding_identity_edit_name_icon_desc">Edit name</string>
     <string name="onboarding_identity_more_packs_hint">More packs in the shop</string>
+    <string name="onboarding_identity_name_requirements">%1$d–%2$d characters, no emoji</string>
     <string name="onboarding_identity_continue_button">Continue</string>
 
     <!-- Home — Play section (featured Practice card + Quick Match / Friend Game tiles). -->
@@ -418,12 +419,19 @@
     <string name="profile_item_sheet_in_pack">In this pack</string>
     <string name="profile_item_sheet_try_emote">Try it out</string>
     <string name="profile_item_sheet_avatar_edit_hint">Edit your avatar from the pencil button on your profile.</string>
+    <!-- Locked / not-yet-owned cosmetic preview sheet. -->
+    <string name="profile_item_sheet_locked_a11y">Locked</string>
+    <string name="profile_item_sheet_locked_not_owned">Not in your collection yet.</string>
+    <string name="profile_item_sheet_open_in_shop">Open in shop</string>
     <!-- Earned / prestige item detail sheet — "How you earned it" heading + per-item copy. -->
     <string name="profile_item_sheet_how_earned">How you earned it</string>
     <string name="earned_founding_member_title">Founding Member</string>
     <string name="earned_founding_member_description">A badge for the players who were here at the very beginning.</string>
-    <string name="earned_founding_member_how">Granted to early players who pulled up a seat during launch — it can\'t be bought.</string>
+    <string name="earned_founding_member_how">Granted to early players who pulled up a seat during launch — it can't be bought.</string>
     <string name="earned_founding_member_thanks">Thank you for betting on us from the start. It means the world.</string>
+    <!-- Dedicated founding-member sheet (rotating-dial ceremony). Tighter copy. -->
+    <string name="founding_member_tagline">Here from the very first hand — a badge that can't be bought.</string>
+    <string name="founding_member_done">Nice</string>
 
     <!-- Profile — Notifications inbox top bar + empty state. -->
     <string name="profile_notifications_title">Notifications</string>
@@ -434,7 +442,7 @@
     <string name="profile_edit_title">Edit profile</string>
     <string name="profile_edit_subtitle">Other players see this on the table.</string>
     <string name="profile_edit_display_name_label">Display name</string>
-    <string name="profile_edit_display_name_helper_range">%1$d–%2$d characters</string>
+    <string name="profile_edit_display_name_helper_range">%1$d–%2$d characters, no emoji</string>
     <string name="profile_edit_avatar_color_section">Avatar color</string>
     <string name="profile_edit_avatar_section">Avatar</string>
     <string name="profile_edit_save_button">Save</string>
@@ -665,25 +673,25 @@
     <string name="room_cheat_sheet_rankings_heading">What beats what</string>
     <string name="room_cheat_sheet_you_have_label">You have</string>
     <string name="room_cheat_sheet_ranking_royal_flush_name">Royal Flush</string>
-    <string name="room_cheat_sheet_ranking_royal_flush_tagline">10, J, Q, K, A — all same suit</string>
+    <string name="room_cheat_sheet_ranking_royal_flush_tagline">10–A, one suit</string>
     <string name="room_cheat_sheet_ranking_straight_flush_name">Straight Flush</string>
-    <string name="room_cheat_sheet_ranking_straight_flush_tagline">Five in a row, same suit</string>
+    <string name="room_cheat_sheet_ranking_straight_flush_tagline">Run, one suit</string>
     <string name="room_cheat_sheet_ranking_four_of_a_kind_name">Four of a Kind</string>
-    <string name="room_cheat_sheet_ranking_four_of_a_kind_tagline">Four cards of the same rank</string>
+    <string name="room_cheat_sheet_ranking_four_of_a_kind_tagline">Four of a rank</string>
     <string name="room_cheat_sheet_ranking_full_house_name">Full House</string>
-    <string name="room_cheat_sheet_ranking_full_house_tagline">Three of a kind + a pair</string>
+    <string name="room_cheat_sheet_ranking_full_house_tagline">Three + a pair</string>
     <string name="room_cheat_sheet_ranking_flush_name">Flush</string>
-    <string name="room_cheat_sheet_ranking_flush_tagline">Five cards of the same suit</string>
+    <string name="room_cheat_sheet_ranking_flush_tagline">Five of a suit</string>
     <string name="room_cheat_sheet_ranking_straight_name">Straight</string>
-    <string name="room_cheat_sheet_ranking_straight_tagline">Five in a row, any suits</string>
+    <string name="room_cheat_sheet_ranking_straight_tagline">Five in a row</string>
     <string name="room_cheat_sheet_ranking_three_of_a_kind_name">Three of a Kind</string>
-    <string name="room_cheat_sheet_ranking_three_of_a_kind_tagline">Three cards of the same rank</string>
+    <string name="room_cheat_sheet_ranking_three_of_a_kind_tagline">Three of a rank</string>
     <string name="room_cheat_sheet_ranking_two_pair_name">Two Pair</string>
-    <string name="room_cheat_sheet_ranking_two_pair_tagline">Two pairs of different ranks</string>
+    <string name="room_cheat_sheet_ranking_two_pair_tagline">Two pairs</string>
     <string name="room_cheat_sheet_ranking_pair_name">Pair</string>
-    <string name="room_cheat_sheet_ranking_pair_tagline">Two cards of the same rank</string>
+    <string name="room_cheat_sheet_ranking_pair_tagline">Two of a rank</string>
     <string name="room_cheat_sheet_ranking_high_card_name">High Card</string>
-    <string name="room_cheat_sheet_ranking_high_card_tagline">Best single card wins</string>
+    <string name="room_cheat_sheet_ranking_high_card_tagline">No pair</string>
     <string name="room_cheat_sheet_street_label_preflop">Preflop</string>
     <string name="room_cheat_sheet_street_label_flop">Flop</string>
     <string name="room_cheat_sheet_street_label_turn">Turn</string>
@@ -936,8 +944,10 @@
          server's minimum supported version. Body is generic so it covers both
          App Store and Play Store; the CTA opens the user's platform store. -->
     <string name="upgrade_required_title">Time to update</string>
-    <string name="upgrade_required_body">This version of Cards is no longer supported. Grab the latest from your app store to keep playing.</string>
-    <string name="upgrade_required_cta">Update Cards</string>
+    <string name="upgrade_required_body">A new version of Cards is ready, and you'll need it to keep playing.</string>
+    <string name="upgrade_required_cta">Update now</string>
+    <!-- Reassurance under the CTA so the update doesn't read as risky. -->
+    <string name="upgrade_required_reassurance">Your chips, level, and progress are safe.</string>
 
     <!-- Maintenance blocking overlay — title only; body comes from server config
          so the team can tailor it per incident without shipping a build. -->

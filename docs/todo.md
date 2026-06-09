@@ -26,43 +26,86 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & account onboarding
 
-- `[P1]` **Wire the native Apple sign-in button into the onboarding/claim flow.** The `createAppleSignInButton` primitive (`NativeViewFactory.kt`) + its Swift `ASAuthorizationAppleIDButton` impl exist, but the Apple slot still renders a custom `ButtonSecondary` ([`OnboardingScreen.kt:365`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt)) that App Review rejects. Render the native button there, capture the authorization, and exchange the ID token for a Supabase session — no id-token sign-in path exists today (`RealSupabaseAuthGateway` only runs the web OAuth flow).
-  **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
-  **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
+- `[P2]` **Make the starter-grant "seen" state server-authoritative (per account).** The cross-switch leak is fixed — the Home gate now keys on the live `ChipsRepository.walletJustCreated` signal (false for any pre-existing wallet) AND `AppData.didSeeInitialGrantInOnboarding` (set when onboarding shows the number). What's still install-scoped is `didSeeInitialGrantInOnboarding`: the airtight version is a server flag (e.g. `welcome_seen_at` on the profile) so "we revealed the grant" is correct across devices/reinstalls. *(proposed 2026-06-08, updated 2026-06-09)*
+  **Hints:** signal set in `ChipsRepositoryImpl.sync`; consumers in `HomeViewModel.observeWelcomeGate` + `OnboardingViewModel.kickOffGrantReveal`. **Out of scope:** founding-member inbox message — already server-read-tracked.
 
-### Layout & responsiveness
+- `[P2]` **Degraded "account-creation pending" UX — remaining polish.** The degraded path is now functional + safe: creation self-heals (resume on relaunch via `PendingGuestAccountStore` + retry on the offline→online flip), the app-wide `AccountSetupBanner` communicates the pending state, and `PlayMultiplayerFeatureEntryPoint` bounces Unauthenticated sessions instead of hanging. Remaining nice-to-haves: (a) a manual **Retry** affordance on Profile/Settings near `SaveProgressBanner` (the banner + auto-retry already cover the common case); (b) consider a richer dialog vs. the thin banner; (c) device-verify the banner copy/placement. *(proposed 2026-06-09, mostly done 2026-06-09)*
+  **Hints:** observe `GuestAccountCreator.state` (app-scoped, globally injectable); banner lives in `apps/compose/AccountSetupBanner.kt`.
 
-- `[P2]` **Landscape/horizontal layouts — improve the screens that read poorly.** Every main screen (Home, Profile, Shop, PlayPoker, Lobby, Onboarding) now has a landscape `@Preview`; single-column screens stretch edge-to-edge on a wide canvas and the table needs bespoke short/wide seating. Judge each against its landscape preview and improve the layouts that read poorly (e.g. cap readable content width on wide layouts). *(proposed 2026-05-30)*
-  **Acceptance:** screens that read poorly horizontally get an improved layout.
-  **Hints:** landscape previews use `@Preview(widthDp = 800, heightDp = 380)`. **Worker note:** the layout-tuning half needs Studio to render the previews — pair with a visual pass.
+- `[P1]` **Reconcile local bot-play progress when a degraded account is finally created.** While creation is pending (offline) the user plays bots and accrues XP/chips locally against `Profile.Fallback`. When `GuestAccountCreator` later succeeds, the server is authoritative: its balance + the pending `wallet_events` replay must converge **without double-counting** the provisional starter grant (`OnboardingStarterGrant`). Server balance wins; replay pending deltas on top; never re-grant. *(proposed 2026-06-09)*
+  **Hints:** `ChipsRepositoryImpl.sync` already replays pending `wallet_events`; progression/XP sync is the riskier half. Decide whether degraded play mutates the server-bound ledger at all or stays purely local until creation.
+
+- `[P2]` **Route new OAuth/email sign-ups through onboarding.** Deferred creation sends *guests* through onboarding, but a brand-new Apple/Google/email sign-up still goes straight to Home (returning sign-ins correctly skip). Routing new sign-ups through PickIdentity/grant needs a reliable new-vs-returning signal (`walletCreated` on first wallet sync, or a server "profile just created" flag). *(proposed 2026-06-09)*
+  **Hints:** OAuth/Apple paths in `OnboardingViewModel` (`handleOAuth` / `finishAppleSignIn`) set `hasUserOnboarded=true` → Home.
+
+- `[P2]` **Hold the splash for onboarding config + cycling load messages.** `OnboardingStarterGrant`/`OnboardingSuggestedName` ride the unauthed app-config tree but the splash doesn't wait for the fetch. Hold the splash until app-config resolves (or a timeout) and, after ~5s, show the `CyclingLoadingMessage` ("Shuffling the deck…", already built in `:libraries:ui`). Android's native splash can't show custom text, so this is a Compose loading gate handing off from the native/iOS splash. *(proposed 2026-06-09)*
+  **Hints:** `AppViewModel.isReady` / `MainActivity` `keepOnScreenCondition`; `appConfigFlow` first emission; `DefaultBootLoadingMessages`.
 
 ### Gameplay & table UX
-
-- `[P2]` **Hand-end XP/coin particle overlay.** When the hand-result / celebration overlay dismisses, fly an XP particle up to the `LevelPill` and a coin particle down to the chip stack, tied to the moment the gated values release. Polish on top of the existing deferred-animation gating.
 
 - `[P2]` **Per-hand decision capture + batch upload (for a future heat-map).** Capture per-hand attributes (folded / called / raised / bluffed / showdown-won + outcome) to a local Room table at hand-end; batch-upload when 50 entries accumulate or 24h passes; server stores rows + exposes a snapshot endpoint.
   **Acceptance:** local capture on every resolved hand; batch fires on threshold or timer; endpoint returns a snapshot.
   **Hints:** `:libraries:storage`; achievement counter logic is precedent. **Out of scope:** the heat-map visual; bot tracking. **Worker note:** sketch the architecture in the in-flight Approach line before coding — direction is ambiguous.
 
-- `[P1]` **Tap-an-opponent sheet — remaining affordances.** Add the human-variant "Add friend" affordance (pairs with the friend graph) and "view full profile" tap-through once profile-of-a-stranger is a real route.
+- `[P1]` **Tap-an-opponent sheet — remaining affordances.** Add the human-variant "Add friend" affordance (pairs with the friend graph) and "view full profile" tap-through once profile-of-a-stranger is a real route. *(This sheet is the at-table **Player Card** surface — see the Player Card feature below + `decisions.md` 2026-06-06.)*
 
 - `[P2]` **Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint (the KDoc already notes the vertical half). *(proposed 2026-05-31)*
   **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
   **Hints:** the `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
 
-- `[P1]` **Home active-room banner — back the reactive flow with a server-pushed source.** `RoomRepository.observeActiveRooms()` now drives the Home banner reactively, seeded on arrival and kept current by this client's own create/join/leave mutations. The gap: it's a client-side projection, so room changes that don't originate on this device (host closes the room elsewhere, server-side forfeit/grace expiry, a second device) don't reflect until the next `getActiveRooms()`. Hang `observeActiveRooms()` off the durable membership source so it's authoritative regardless of who mutated the room. *(proposed 2026-05-31)*
+- `[P1]` **Home active-room banner — back the reactive flow with a server-pushed source.** `observeActiveRooms()` is a client-side projection: room changes that don't originate on this device (host closes the room elsewhere, server-side forfeit/grace expiry, a second device) don't reflect until the next `getActiveRooms()`. Hang it off the durable membership source so it's authoritative regardless of who mutated the room. *(proposed 2026-05-31)*
   **Acceptance:** the banner reflects room changes made off-device without a manual refresh.
   **Hints:** [`RoomRepositoryImpl.observeActiveRooms`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/RoomRepositoryImpl.kt) holds the in-memory `MutableStateFlow` today; the durable source is [B2](#b2--persisted-room-membership) (persisted membership), and presence pushes pair with the [online-presence WS signal](#social-graph--friends--load-bearing-for-v1x).
 
 ### Stats & progression
 
-### Profile, cosmetics & sheets
+- `[P1]` **Full-screen level-up celebration.** A teal celebratory takeover — `RotatingDial` burst + the new level number + a warm line + Continue — with haptics + an entrance animation, in the level/XP teal identity (`accentSecondary` / `LevelProgressGradient`). Product call (when it shows, how it avoids spam) is in [`decisions.md`](./decisions.md) 2026-06-06; mock is [`level-up-screen.png`](./todo-assets/README.md). *(proposed 2026-06-06)*
+  **Acceptance:** appears **only on Home**, never at the table (bots or MP); triggered by a persisted `AppData.lastCelebratedLevel` watermark — on Home, if `levelProgressFor(progression.totalXp).level > lastCelebratedLevel`, show for the current level then advance the watermark; a multi-level jump shows **once** (net level); existing users are seeded to current level on first run with **no** celebration; haptics + entrance animation fire.
+  **Hints:** reuse [`RotatingDial`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/RotatingDial.kt) (re-skinned teal via `rayColor`/`glowColor`) and the shake→burst+haptics pattern from `AchievementUnlockReveal`; watermark mirrors `pendingProfileHighlight` in [`AppCache.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/AppCache.kt); host overlay sits on Home like [`UserMessageOverlay`](../apps/compose/src/commonMain/kotlin/com/cards/UserMessageOverlay.kt). **Coexists with:** the at-table `AchievementCelebrationSheet` (different surface) and the server-dialog `InAppMessageManager` (level-up takes the Home foreground first). **Out of scope (need data — see [`backlog.md`](./backlog.md)):** per-level names ("Calculated"), the "better than N% of players" percentile, the level-gated "Unlocked" callout.
 
-- `[P1]` **Cosmetic detail/purchase sheets: buyable tap → purchase sheet + richer felt/emote preview.** Tapping a buyable shelf tile should open the purchase sheet (not just jump to the shop). Felts + emote packs should get a richer preview to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)* (Slot-aware equip already ships: card back / felt are swap-only with no "unequip".)
-  **Acceptance:** buyable tap → purchase sheet; felt/emote-pack sheets show a richer (animated) preview.
-  **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`; reuse the shop purchase-sheet route for the buyable tap.
+- `[P2]` **Level-up rewards — `level → reward` table + idempotent grant.** The keystone that makes "certain level-ups give a prize" real: a static `level → reward` table (chips / cosmetic / XP boost / Pick-a-Card chest) and an idempotent grant **on level-cross** — keyed `levelup_<level>` with a `highestLevelRewarded` watermark **separate from** the celebration's `lastCelebratedLevel`. Existing users backfill per policy (grant-from-now, no retro spam). Grant the prize when earned (offline-OK), celebrate later on Home. Full call (XP is client-local; reuse the chip-ledger / achievement-reward paths; server-derive when stakes rise) is in [`decisions.md`](./decisions.md) 2026-06-06 (level-up addendum) + [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md). *(proposed 2026-06-06)*
+  **Acceptance:** crossing a rewarded level grants its prize exactly once (survives retries / reinstall / multi-level jump); existing users aren't blasted with historical rewards; rewards can be chips, a cosmetic, or a consumable.
+  **Hints:** chips → [`ChipsRepository.addChips(idempotencyKey=…)`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/ChipsRepository.kt); cosmetic → the achievement-reward grant path; consumables → see the Consumables items below. **Pairs with:** the level-up celebration (reveals what was granted).
 
-### Cross-app consistency
+### Consumables & rewards (V1.x / monetization)
+
+Buyable, level-up-giftable consumables. Product + grant-model call is in [`decisions.md`](./decisions.md) 2026-06-06 ("Consumable reward items"); both lean on the grant models in [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md), and the level→reward table from the level-up decision can grant either. *(proposed 2026-06-06)*
+
+- `[P2]` **XP Boost (2× XP for 30 min).** A chip-priced (and level-up-giftable) consumable modeled as a **time window**, not an owned count: buying/granting sets-or-extends a persisted `boostExpiresAt`; `XpCalculator` doubles awards while active; a "2× XP" countdown shows near the level/XP UI. Offline-friendly (XP is client-local).
+  **Acceptance:** buying doubles XP for 30 min, extends on re-buy, persists across restart, shows an active indicator; the chip spend rides the wallet ledger.
+  **Hints:** multiplier insertion is the per-mode `multiplier` in [`XpCalculator`](../libraries/cards/impl/src/commonMain/kotlin/com/cards/libraries/cards/impl/XpCalculator.kt); store `boostExpiresAt` like `pendingProfileHighlight` in [`AppCache.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/AppCache.kt). **Out of scope:** inventory quantity (it's a timer, not an owned count).
+
+- `[P2]` **Pick-a-Card reward chest — server-rolled prize + shuffle animation.** A consumable chest: open → a magician-style card-shuffle/reveal → a prize (chips / card back / felt / boost) from a **weighted, server-owned loot table**. Server rolls + grants on open (idempotent); the client only animates + reveals the server's result; the "pick" is theatrical. **Online to open; ownable offline** ("opens when you reconnect"). Giftable on level-up. *(Bigger lift — phase it.)*
+  **Phase A — inventory quantity + consumable kind:** add `quantity` (stockpile) + a consume path to inventory (today it's one permanent row per product) and a `chest_` product kind.
+  **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
+  **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
+  **Hints:** grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. **Interacts with:** wallet, inventory / my-items, shop, and level-up rewards.
+
+### Player Card — Phase 1 (V1)
+
+The owner-facing slice of the **Player Card** feature: the public at-the-table identity others see when they tap your avatar. Full product call (scope, phasing, terminology) is in [`decisions.md`](./decisions.md) 2026-06-06; Phase 2 (opponent cards over the wire) and Phase 3 (scouting-stats perk) are in [`backlog.md`](./backlog.md). Ship Phase 1 in dependency order — the shared component first, since everything else renders it. *(proposed 2026-06-06)*
+
+- `[P1]` **Shared `PlayerCard` DS component.** One composable — avatar (emoji + background), display name, equipped title, featured badges — used by both the at-table tap sheet and the editor/profile preview, so the preview can never drift from what others see.
+  **Acceptance:** a single `PlayerCard` in `:libraries:ui`; [`PlayerProfileSheet`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayerProfileSheet.kt) renders the owner's identity block through it.
+  **Hints:** avatar + badge primitives already exist (`AvatarCircle`, `AchievementMedal`). **Out of scope:** stats (Phase 3).
+
+- `[P1]` **Featured badges — selection + `/v1/me` persistence.** Owner picks up to 3 earned badges to feature on the card; persisted as an additive `featuredBadgeIds` profile field.
+  **Acceptance:** selection capped at 3, persists across launches + reinstall (server-owned), defaults to most-recent earned when unset.
+  **Hints:** earned set is `AchievementProgress.earned`; additive `/v1/me` field + a `ProfileRepository.update` path. **Out of scope:** surfacing other players' featured badges (Phase 2).
+
+- `[P1]` **Edit Profile → two tabs (Profile / Player Card).** Restructure [`EditProfileScreen`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/edit/EditProfileScreen.kt) into a **Profile** tab (name, avatar, background) and a **Player Card** tab (a "this is what other players see when they tap your avatar in a game" banner + featured-badge show/hide toggles + a live `PlayerCard` preview).
+  **Acceptance:** two tabs; the Player Card tab shows the banner, the toggles, and the shared preview reflecting current selection.
+
+- `[P1]` **Profile screen — live Player Card preview + edit entry.** A compact live `PlayerCard` preview on [`ProfileScreen`](../features/profile/impl/src/commonMain/kotlin/com/cards/features/profile/impl/ProfileScreen.kt) with an "Edit" affordance that deep-links to the Player Card tab.
+  **Acceptance:** profile renders the live card; "Edit" opens Edit Profile on the Player Card tab.
+
+- `[P2]` **Tap your own avatar at the table → your Player Card.** The own seat is inert today; open the owner's `PlayerCard` (read-only) with an Edit affordance into the Player Card tab.
+  **Hints:** the human seat is suppressed in [`PlayPokerScreen`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayPokerScreen.kt) because `seatMuteKey(seat)` returns null for `isHuman`.
+
+- `[P2]` **Edit Profile — drop the avatar-pack marketplace; link to Shop.** Avatar picker shows only owned/unlocked packs; replace the locked/for-sale packs with a single "Get more avatar packs in the Shop →" link.
+  **Hints:** the locked-pack grid + per-pack "Get in shop" buttons in `EditProfileScreen`. **Depends on / pairs with:** the shop category-anchor item below (until that lands, the link just opens the Shop tab).
+
+- `[P2]` **Shop — anchor/scroll to a category (e.g. avatars).** So the Edit Profile "Get more avatar packs" link can land on the avatar section. The shop grid is a flat list today; needs category grouping + an optional scroll-anchor arg on the shop route.
 
 ### Social graph + friends — load-bearing for V1.x
 
@@ -155,6 +198,18 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
   - **Next rules (each a small follow-on, not this item):** `Catching {}` instead of `try/catch` / `runCatching`; `DispatcherProvider` instead of direct `Dispatchers.{Main,IO,Default,Unconfined}`; raw `Color(0xFF…)` / `Color.White.copy(alpha=)` / one-off `RoundedCornerShape(N.dp)` for semantic surfaces. All are mechanical AGENTS.md conventions a rule can pin.
   **Acceptance:** adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
   **Hints:** convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations (`PurchaseConfirmSheet.kt`, `AppGuardLayer.kt`, …) — separate cleanup once the gate exists.
+
+### Remote config / feature flags
+
+- `[P2]` **`PostgresAppConfigSource` + a targeted flag/rollout engine + a local admin UI.** Today app config is hardcoded in `InMemoryAppConfigSource` — every change is a server redeploy, and a value is all-or-nothing for every user. Replace it with a DB-backed source that can serve **different values to different audiences** and ramp rollouts, plus a small local UI to drive it. Big item; ship in slices. *(proposed 2026-06-08)*
+  - **Phase 1 — DB-backed source (small, high value):** implement `PostgresAppConfigSource` bound to `ServerScope` (drops in for `InMemoryAppConfigSource` via the same `@ContributesBinding`); read the `key → value` tree from a Postgres table with a short in-memory TTL cache. Editable in the Supabase table editor → flags flip with **no redeploy**, live on the next client config refresh. This alone kills the redeploy pain.
+  - **Phase 2 — targeting + rollout:** per-flag **rules** evaluated **server-side** in `GET /v1/app-config` (the endpoint already returns *resolved* values, so the client `ConfiguredValue` model is untouched — it just receives the resolved value). Rules match on an **evaluation context** in a defined order (first-match / priority wins), with an always-available **kill-switch** override.
+    - **Axes:** platform (iOS/Android), **app version** (≥ / range), user id (allow/deny lists), location (country/region), locale, OS version, release channel (internal/beta/prod), account type (anon vs claimed), install/cohort date (new vs existing user), device class (phone/tablet). *(Decide each input's source — JWT claims (user id, anon), client headers (platform, app version, install id, locale — see `ClientHeaders`), IP-geo or a profile field (location).)*
+    - **% rollout / A/B:** deterministic bucketing via a stable hash (`hash(userId + flagKey) % 100 < rolloutPct`) so a user keeps the same bucket across sessions and you can ramp 1% → 100%; optionally mutually-exclusive experiment variants.
+    - **Audit:** a who/what/when change log.
+  - **Phase 3 — local admin UI:** a small local web app (run on demand) that shows **(a)** every flag that exists (from the `ConfiguredValue` registry), **(b)** the value currently served per app version / audience, and **(c)** an editor to set values + rules along the axes and dial rollout %. Talks to an authenticated admin write-path (or directly to the config table).
+  **Acceptance:** flipping a flag for "iOS, app version ≥ N, 10% of users" takes effect with no client release and no server redeploy; everyone else reads the client default; the admin UI lists flags + per-version served values and can edit rules.
+  **Hints:** the seam already exists — `AppConfigSource` (server) + `ConfiguredValue` / `AppConfigMap` (client); some eval inputs live in `ClientHeaders` (install id, platform, app version) + the JWT. **Out of scope / decide first:** buy-vs-build — a hosted service (PostHog / Statsig / LaunchDarkly) may beat hand-rolling the rule engine before Phase 2; this todo is the thin in-house version over the existing seam.
 
 ---
 

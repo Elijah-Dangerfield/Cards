@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.upgrade.AppGuardState
@@ -33,14 +35,17 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import com.dangerfield.cards.system.Radii
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.upgrade_debug_clear_overrides
 import cards.libraries.resources.generated.resources.upgrade_maintenance_blocking_title
 import cards.libraries.resources.generated.resources.upgrade_required_body
 import cards.libraries.resources.generated.resources.upgrade_required_cta
+import cards.libraries.resources.generated.resources.upgrade_required_reassurance
 import cards.libraries.resources.generated.resources.upgrade_required_title
 import org.jetbrains.compose.resources.stringResource
 
@@ -136,24 +141,80 @@ private fun MaintenanceBanner(message: String) {
 
 @Composable
 private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: () -> Unit) {
-    BlockingScreen(debugEscape = { DebugEscapeHatch(onClearOverrides = onClearOverrides) }) {
-        Text(
-            text = stringResource(Res.string.upgrade_required_title),
-            typography = AppTheme.typography.Heading.H700,
-            color = AppTheme.colors.content,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(Res.string.upgrade_required_body),
-            typography = AppTheme.typography.Body.B500,
-            color = AppTheme.colors.contentSecondary,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        ButtonPrimary(onClick = onOpenStore) {
-            Text(stringResource(Res.string.upgrade_required_cta))
+    // Hero content (icon + title + body) floats centered; the CTA + reassurance
+    // anchor to the bottom — a more app-store-y "time to update" treatment than
+    // the generic centered BlockingScreen.
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppTheme.colors.background.color)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(horizontal = 32.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 96.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            UpgradeIconBadge()
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = stringResource(Res.string.upgrade_required_title),
+                typography = AppTheme.typography.Display.D1100.Italic,
+                color = AppTheme.colors.accentPrimary,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(Res.string.upgrade_required_body),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
         }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            DebugEscapeHatch(onClearOverrides = onClearOverrides)
+            ButtonPrimary(
+                onClick = onOpenStore,
+                modifier = Modifier.fillMaxWidth(),
+                size = ButtonSize.Large,
+            ) {
+                Text(stringResource(Res.string.upgrade_required_cta))
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = stringResource(Res.string.upgrade_required_reassurance),
+                typography = AppTheme.typography.Caption.C200,
+                color = AppTheme.colors.contentTertiary,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+/** Gold rounded-square badge with an up-arrow — the "time to update" mark. */
+@Composable
+private fun UpgradeIconBadge() {
+    Box(
+        modifier = Modifier
+            .size(72.dp)
+            .clip(Radii.R700.shape)
+            .background(AppTheme.colors.accentPrimary.color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon = Icons.ArrowUp(null),
+            size = IconSize.Largest,
+            color = AppTheme.colors.onAccentPrimary,
+        )
     }
 }
 

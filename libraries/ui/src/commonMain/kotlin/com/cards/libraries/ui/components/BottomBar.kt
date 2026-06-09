@@ -332,7 +332,8 @@ fun BottomBarBadge(
     Badge(
         modifier = modifier,
         containerColor = AppTheme.colors.accentPrimary.color,
-        contentColor = AppTheme.colors.content.color
+        // On-accent ink for contrast (warm-white on gold fails WCAG AA).
+        contentColor = AppTheme.colors.onAccentPrimary.color
     ) {
         Box(
             modifier = Modifier.padding(

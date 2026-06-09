@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dangerfield.cards.libraries.cards.CosmeticSlot
+import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.products.Product
 import com.dangerfield.cards.libraries.products.StoreSku
 import com.dangerfield.cards.libraries.ui.Elevation
@@ -31,6 +33,9 @@ import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHa
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.rememberBottomSheetState
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
+import com.dangerfield.cards.libraries.ui.components.poker.FlippableCard
+import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
+import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
@@ -265,11 +270,22 @@ private fun ChipOfferConfirmContent(
         // already shown in the drag-handle bubble.
         if (hasCosmeticPreview(offer.id)) {
             VerticalSpacerD400()
-            CosmeticPreview(
-                productId = offer.id,
-                emoji = offer.iconEmoji,
-                size = 120.dp,
-            )
+            // Card backs get the real flip-card (auto-flips on open, draggable),
+            // same hero as the profile's cosmetic sheet; felts stay a swatch.
+            if (cosmeticSlotFor(offer.id) == CosmeticSlot.CardBack) {
+                FlippableCard(
+                    style = cardBackForProductId(offer.id),
+                    size = PlayingCardSize.Hole,
+                    flipOnInit = true,
+                    interactive = true,
+                )
+            } else {
+                CosmeticPreview(
+                    productId = offer.id,
+                    emoji = offer.iconEmoji,
+                    size = 120.dp,
+                )
+            }
         }
         // Description is the "what does this DO" sentence the user needs
         // before committing — "Victory Dance" / "Bluff Master" / "Neon

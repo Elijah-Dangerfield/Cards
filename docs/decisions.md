@@ -25,6 +25,125 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-09 — Central, declarative auth-gate on navigation
+
+**Decision:** A route declares what identity it needs via `Route.authRequirement` (`None` / `Account` / `ClaimedAccount`). `DelegatingRouter.navigate()` consults an injected `AuthGateChecker` and, when the requirement isn't met, transparently substitutes a shared `AuthGateRoute` (a bottom sheet) for the requested route — copy/CTA chosen from a `GateReason` (finishing-setup / need-account / need-claimed). First applied to `LobbyRoute` + `PlayMultiplayerRoute` (`Account`).
+
+**Why:** Gating is a cross-cutting concern that should be declared once per feature and enforced in one place. `navigate()` is the single choke point for all navigation, so enforcing there is proactive (blocks before the screen renders *and* before any authed call fires) and uniform. Adding a gate to a new feature is one constructor arg on its route — no per-screen guard code.
+
+**Decoupling:** `AuthRequirement` / `AuthGateChecker` / `AuthGateRoute` live in `:libraries:navigation` (just markers + an interface). `RealAuthGateChecker` (in `:navigation:impl`, which gained an `:libraries:identity` dep) caches `AuthState` + `GuestAccountCreator.state` from their flows so the check is a synchronous peek (navigate isn't suspend) and fails *closed* before auth resolves. It's an `AutoInit`, not an `AppEventListener`, to avoid the `AppEventBus` DI cycle. The gate sheet lives in `:apps:compose` because its CTAs span onboarding + claim.
+
+**Alternatives considered:**
+- *Throw `AuthError`, catch → error page* — rejected: reactive (you've entered the feature / fired the 401 before bouncing), scattered across call sites, control-flow-by-exception.
+- *A `RequireAccount { … }` composable wrapper per screen* — rejected (and explicitly disliked as a web-ish pattern): per-feature, and still reactive (navigate-then-bounce flicker) rather than proactive.
+
+**Status:** Locked. Note: route-gating covers *navigations*, not in-screen *actions* — real-money purchase buttons (an in-screen action) still need a VM-level `isAnonymous` check; `ClaimedAccount` is ready for any checkout *route*.
+
+## 2026-06-09 — Defer account creation to onboarding finish (kill anon-on-init)
+
+**Decision:** The app no longer signs in anonymously on launch. `AuthBootstrap` is deleted; a missing session resolves to `AuthState.Unauthenticated`. Onboarding runs fully unauthenticated (off the unauthed app-config tree), and a guest account is minted only when the user commits their identity (`GuestAccountCreator.start` at PickIdentity→Continue, joined at the final step). New OAuth/email sign-ups create a real account at auth time. Once creation has started, back-navigation to the Welcome landing is blocked.
+
+**Why:** Anon-on-init created a throwaway account on *every* fresh install. When the user then signed into a real account, (a) the throwaway anon + its starter grant were orphaned server-side, and (b) its install-scoped `requiresGrantInfo` flag leaked onto the switched-in account, firing the starter-grant dialog for a returning user. Deferring creation removes the orphan and the leak *at the source* — no account exists until the user commits to one.
+
+**Supporting changes:**
+- **Grant signal made leak-proof:** `requiresGrantInfo` → live, in-memory `ChipsRepository.walletJustCreated` (server-sourced, false for any pre-existing wallet) AND monotonic `AppData.didSeeInitialGrantInOnboarding`. The Home gate ANDs them, so a switched-in account can never trigger the reveal.
+- **Self-healing offline:** `PendingGuestAccountStore` persists the chosen identity; `DefaultGuestAccountCreator` (an `AutoInit`) resumes the attempt on the next launch, so an offline-onboarded user isn't stranded as a permanent `Profile.Fallback`.
+- **Clean sign-out reset:** extended the existing `AppEvent.SignedOut` clearing (DB via `SignedOutLocalDataCleaner`) to the profile caches (`SignedOutProfileCacheCleaner`) and account-scoped `AppData` (`SignedOutAppDataReset` + `resetAccountScoped()`); made `Cache.update` atomic so the concurrent resets don't clobber.
+
+**Alternatives considered:**
+- *Keep anon-on-init + reconcile on account switch* (the original instinct) — rejected: still mints orphans, and "reconcile on every switch path" is the fragile per-call-site clearing we were trying to delete.
+- *Add `AuthState.Error` for the degraded/creation-failed state* — rejected: a third arm on the sealed `AuthState` forces ~15 exhaustive `when` sites (shop/lobby/progression/room…) to handle a state that's just "no usable account" for them. Modeled creation status as the separate `AccountCreationState` on `GuestAccountCreator` instead.
+- *Wire the clear via a new `AuthRepository.events` flow + `collectWithPrevious`* — rejected: the codebase already has the decentralized lifecycle (`AppEvent`/`AppEventListener` multibinding). Reused it. (Listeners that depend on `AuthRepository` must stay out of the listener set — that forms a DI cycle through `AppEventBus`; the profile-cache cleaner and the creator are standalone/AutoInit for this reason.)
+
+**Status:** Locked for the deferred-creation + leak-fix + sign-out-reset core (Phases 1–6 functional). Deferred (see `docs/todo.md`): the user-facing degraded UX (Home dialog, retry affordance, multiplayer gate, connectivity-flip retry), local→server progress reconciliation, routing new OAuth sign-ups through onboarding, and the splash-config hold.
+
+## 2026-06-06 — Consumable reward items: XP Boost + Pick-a-Card chest
+
+**Decision:** Add two buyable (and level-up-giftable) consumables, each mapped onto the right grant model (see [`docs/wiki/state-authority-and-sync.md`](./wiki/state-authority-and-sync.md)):
+
+- **XP Boost** — 2× XP for 30 min. Modeled as a **time window, not an owned count**: buying or being gifted one **sets/extends a persisted `boostExpiresAt`**; `XpCalculator` doubles awards while `now < boostExpiresAt`. The *purchase* (chip spend) rides the chips ledger (model 2, server-reconciled); the *effect* is client-local math (model 1), so it works fully offline (XP is client-local today). Re-buying while active extends the window; a "2× XP" countdown indicator shows near the level/XP UI. No server roll, no inventory quantity, low stakes (play-money XP) → client-authoritative is fine for V1.
+
+- **Pick-a-Card chest** — open → a card-shuffle/reveal animation → a prize (chips / card back / felt / maybe a boost) from a **weighted, server-owned loot table**. This is a **server-rolled, model-3 grant**: the server rolls + grants on open (idempotent), the client only animates and reveals what the server returned. The "pick" is theatrical — the outcome is the roll, not which card is tapped.
+  - **Online to open; ownable offline.** Unopened chests sit in inventory offline, but opening needs a round-trip ("opens when you reconnect") — exactly the model-3 reserve case (a value the client shouldn't compute, for fairness + anti-reroll). Prizes land via existing paths: chips → wallet ledger (idempotent), cosmetic → inventory grant.
+  - **Net-new infra (the bigger lift):** a consumable product kind, inventory **quantity + consume** (chests stockpile; today inventory is one permanent row per product), a server `open chest` endpoint + loot table + idempotent roll, and the pick/shuffle screen + reveal animation.
+
+- **Level-up tie-in:** the level→reward table (from the level-up decision below) can grant either consumable — gifting a boost extends `boostExpiresAt`; gifting a chest grants an unopened chest into inventory. This is the "certain level-ups gift a pick-a-card or an XP boost" idea.
+
+**Why:** Both are item-economy features, so they sit apart from the level-up *celebration* (a UI moment) but share its reward plumbing — which is why they're planned together. Mapping each to the existing grant models keeps them honest: the boost is cheap and offline-friendly because its value is just local XP math; the chest is the one place a real server-authoritative roll is warranted (fairness + anti-reroll), and gating its *open* on connectivity is acceptable because opening is a deliberate one-off, not passive offline accrual.
+
+**Alternatives considered:**
+ - **(a) Client-rolled chest (offline-openable)** — exploitable (re-roll until rare); the roll is precisely the value model 3 reserves for the server. Rejected despite being offline-friendlier.
+ - **(b) XP Boost as an inventory item with quantity** — forces the inventory quantity/consume work onto the simple feature; the time-window model needs none of it. Reserve quantity for chests.
+ - **(c) Boost as a server entitlement** — unnecessary while XP is client-local; revisit when XP moves server-side (Phase 3).
+ - **(d) Fold these into the level-up plan** — they're a distinct item-economy area (shop, wallet, inventory, my-items); cross-linked instead.
+
+**Status:** Tentative (V1.x / monetization). XP Boost is the small, mostly-reuse half; Pick-a-Card is the bigger lift. Sequence per `todo.md`.
+
+---
+
+## 2026-06-06 — Full-screen level-up celebration — shown on Home, derived from a "last celebrated level" watermark
+
+**Decision:** Add a full-screen level-up celebration (teal `RotatingDial` burst + the new level number + a warm line + Continue, with haptics + an entrance animation). Two load-bearing calls:
+
+- **It only ever appears on a "safe" surface — Home — never at the poker table** (bots or multiplayer). No mid-game takeover.
+- **It's triggered by derivation, not by a table-side event.** Persist a `lastCelebratedLevel` watermark in `AppData`. When Home composes/foregrounds, compare the user's current level (from `levelProgressFor(progression.totalXp)`) against the watermark: if current > watermark, show the celebration for the *current* level, then set the watermark to current. On first run after this ships (watermark unset), seed it to the current level **without** showing — so existing users aren't blasted on update.
+
+**Why:** The whole point is to feel celebratory, which a full-screen takeover does — but a takeover mid-hand (especially a live MP hand) is hostile, and we don't want to stack it on top of the at-table achievement celebration. Pinning it to Home sidesteps all of that: it never interrupts a game, and it's spatially/temporally separated from the at-table achievement sheet so the two can't collide. Deriving from a persisted watermark (instead of firing an event at hand-end and carrying it across navigation) is robust by construction: it survives the table→home trip and process death, naturally shows **once** for a multi-level jump (you see "Level 7", not three screens), and can never double-fire or be missed. It mirrors the existing `pendingProfileHighlight` / `lastSessionEndedAt` `AppData` patterns.
+
+**Coordination with other surfaces:**
+ - **Achievement celebration stays where it is** — the at-table `AchievementCelebrationSheet` (bots) / inline callout (MP). It's contextual to the hand; the level-up is a separate Home moment. No shared queue needed for V1 because they live on different surfaces.
+ - **Server dialogs** (`InAppMessageManager`, 1-per-foreground) and the level-up both want the Home foreground. The level-up takes precedence; the server dialog waits for the next foreground (its gate already does this). If client celebrations multiply later (big-win, streaks), promote this into a shared client "celebration queue" modeled on `InAppMessageManager`.
+
+**Scope (V1 vs deferred):** V1 = burst + level number + a generic warm line + Continue, in the **teal / `LevelProgressGradient`** identity that level/XP already use. **Deferred (need data, see `backlog.md`):** per-level *names* ("Calculated"), the "better than N% of players" percentile, and the level-gated **Unlocked** callout ("Ranked tournaments") — all shown in the mock (`docs/todo-assets/level-up-screen.png`) but aspirational.
+
+**Alternatives considered:**
+ - **(a) Show it at the table between hands in bots mode** (the proposal floated this) — still interrupts the practice flow and risks stacking with the achievement sheet; Home-only is the simpler, unified rule.
+ - **(b) Fire a `LevelUpDetected` event at hand-end + carry a pending flag through navigation** — works, but needs MP-suppression logic and survives-process-death handling that the watermark gets for free.
+ - **(c) Sequence one screen per level on a multi-level jump** — spammy; show the net result once.
+ - **(d) Route through the existing `InAppMessageManager`** — that gate is for *server-scheduled* `UserMessage` dialogs; overloading it with a client-derived celebration muddies its contract. Keep separate until we have enough client celebrations to justify a shared queue.
+
+**Status:** Locked for V1 (Home-only + watermark + teal). Per-level names / percentile / unlock callout Tentative — `backlog.md`.
+
+**Addendum (2026-06-06) — if a level-up grants a *prize*, how the grant works.** XP/level is **client-local** today (no server XP in V1 — `ProgressionRepositoryImpl` computes it on-device; bots earn it offline). So a level-up prize must **not** invent server-authoritative XP; it reuses the existing offline-first grant paths:
+ - **Grant client-side, idempotent, on level-cross** (works offline; the prize is theirs the moment they level, independent of seeing the celebration). Idempotency key `levelup_<level>`; track a "highest level rewarded" watermark separate from the UI's `lastCelebratedLevel`.
+ - **Chips prize →** the chips wallet ledger (model 2, optimistic-local + server-reconciled). **Cosmetic prize →** the achievement-reward path (client self-grant + fire-and-forget server grant). Don't add a third grant mechanism.
+ - A reward can also be a **consumable** — an XP Boost (extend `boostExpiresAt`) or a Pick-a-Card chest (grant an unopened chest into inventory). See the Consumable reward items decision above.
+ - **Reward table (level → prize) is static client content** (mirrored server-side for the reconcile), so no pre-fetch — it works offline by construction. Make it remote-config (`:libraries:config`) only if rewards need tuning without a release.
+ - **Anti-cheat scales with stakes:** client-self-grant + server-notify is fine for V1 (play-money / free cosmetics); when a prize becomes IAP-equivalent or ranked-status, the server must *derive* the grant from synced facts + caps rather than trust the claim. This is the Phase-3 server-authoritative-ledger direction.
+
+ The durable version of this networking model (this addendum dies when the feature ships) lives in [`docs/wiki/state-authority-and-sync.md`](./wiki/state-authority-and-sync.md).
+
+---
+
+## 2026-06-06 — "Player Card" — the at-table identity surface (terminology, scope, phasing)
+
+**Decision:** Adopt **"Player Card"** as the name for a player's public, at-the-table identity — what someone sees when they tap an avatar at the poker table — and make it owner-editable.
+
+- **What the card shows (V1):** avatar (emoji + background), display name, the equipped **title** cosmetic (already a public slot), and up to **3 owner-chosen "featured" badges** from their earned achievements. **Stats are not on the V1 card.**
+- **One shared DS component.** A single `PlayerCard` composable renders identically (a) inside the at-table tap sheet and (b) as the live preview in the editor and on the Profile screen — the preview can't drift from what others see because it *is* the same component.
+- **Editing lives in Edit Profile as a second tab.** Edit Profile becomes two tabs: **Profile** (name, avatar, background) and **Player Card** (a banner — "this is what other players see when they tap your avatar in a game" — plus show/hide toggles for which earned badges are featured). Title is equipped via the existing cosmetics flow.
+- **Avatar-pack marketplace leaves Edit Profile.** The avatar picker shows only owned/unlocked packs; the for-sale/locked packs are replaced by a single "Get more avatar packs in the Shop →" link.
+- **Tapping your OWN avatar at the table** opens your Player Card (the own seat is inert today) with an Edit affordance into the Player Card tab.
+- **Featured-badge selection is server-owned** (additive `/v1/me.featuredBadgeIds`) even though only the owner sees their own card in V1 — so V1.x can surface it to opponents without reworking persistence.
+
+**Phasing:**
+ - **Phase 1 (V1 — client + one additive server field):** shared `PlayerCard` component; Profile-screen preview+edit entry; Edit Profile two-tab restructure + avatar-pack-marketplace removal; own-avatar-tap → your card; featured-badge picker persisted to `/v1/me`. Opponent taps in this phase show only what already reaches the table (bots show bot info; human opponents show name/avatar).
+ - **Phase 2 (V1.x — backend plumbing):** plumb each opponent's title + featured badges (+ level for remote humans) through the room/seat snapshot so tapping a human opponent shows their real card. Pairs with the existing "Tap-an-opponent sheet — view full profile" todo. See `backlog.md`.
+ - **Phase 3 (later — gated perk):** a **"scouting" ability** — see an opponent's *stats* on their card only if you have the relevant ability equipped. Needs per-opponent stats on the wire + the gating item. See `backlog.md`.
+
+**Why:** The card's value is what *others* see, but the expensive part (opponent cosmetics/stats over the wire) is backend plumbing that V1 — mostly bots — doesn't need yet. Splitting the owner-facing UX (editor + self card + shared component) from cross-player display lets the warm, visible 80% ship now on the client behind a single tiny additive `/v1/me` field, while the serialization work waits until human-vs-human is common. Folding the editor into Edit Profile keeps avatar + card editing (which users think of together) in one place, and the shared component removes drift between "preview" and "what they actually see."
+
+**Alternatives considered:**
+ - **(a) Separate Player Card editor screen** — more nav surface for closely-related editing; the two-tab restructure is tighter.
+ - **(b) Stats on the V1 card** — needs per-opponent stats plumbing + a gating story; deferred to the Phase 3 scouting perk so V1 stays client-only.
+ - **(c) Local-only featured-badge persistence, server later** — guarantees rework when Phase 2 surfaces it to others; do the additive `/v1/me` field once, up front.
+ - **(d) Keep the avatar marketplace in Edit Profile** — clutters the editing surface and competes with the Player Card tab; selling belongs in the Shop, so Edit Profile links out.
+ - **(e) Higher / unlimited featured-badge cap** — a wall of badges defeats "featured" and bloats the table render; 3 keeps it legible (tunable).
+
+**Status:** Locked for V1 (Phase 1). Phase 2/3 Tentative — tracked in `backlog.md`.
+
+---
+
 ## 2026-05-30 — Multiplayer host = first connected member (implicit auto-promotion)
 
 **Decision:** The lobby's "effective host" is computed client-side as `room.members.firstOrNull { it.isConnected }?.userId`, not the server-tagged `room.hostUserId`. The host badge, the "Start hand" CTA, and the snackbar promotion notification all key off this computed value. When the original host disconnects (`isConnected = false`), the next-listed connected member becomes effective host automatically with no server change.
@@ -1894,3 +2013,17 @@ path) without committing to any of them today.
 **Status:** Decided 2026-05-27, migration sliced into `docs/todo.md` §B
 sub-items (B0–B6). Eval kept in [`multiplayer-architecture-eval.md`](./multiplayer-architecture-eval.md)
 as supporting context.
+
+## 2026-06-08 — Sign in with Apple: native on iOS, web-on-Android deferred
+
+**Decision:** Offer "Sign in with Apple" via the **native** `ASAuthorizationController` flow on **iOS only**. Android gets Google + guest; the Apple button is hidden there (onboarding gates it with `BuildInfo.isiOS()`). The web-OAuth Apple path stays in the codebase (`AuthRepository.signInWithOAuth(Apple)` → `supabase.auth.signInWith(Apple)`) but dormant.
+
+**Why:** There is no native Sign-in-with-Apple SDK on Android — the only way to offer Apple there is the web/OAuth flow, which carries a real maintenance cost (an Apple **Services ID** + a **client-secret JWT that expires every ≤6 months** and must be rotated, plus a redirect/deep-link callback). Android users overwhelmingly have Google accounts, which we already offer, so Apple-on-Android only serves the small slice who created an Apple account on iOS and later moved to Android. Native-iOS-Apple + Google-everywhere captures ~95% of the value with none of the secret-rotation burden. The native flow needs no client secret — Supabase validates the id token against the bundle ID.
+
+**Shape:** Two distinct auth-layer methods keep the split clean: `signInWithApple(credential)` (native id-token → `signInWith(IDToken)`) vs `signInWithOAuth(Apple)` (web). The native credential comes from a Swift `IOSAppleSignInCoordinator` (ASAuthorizationController + SHA-256 nonce) injected through `IosAppComponent`, surfaced via the `AppleSignInButton` DS primitive (native UIKit button on iOS, Compose fallback elsewhere). Onboarding links the Apple identity to the current anonymous guest when one exists (preserves chips/XP), else signs in. Cancellation crosses the K/N boundary as a `null` return, not an exception.
+
+**Setup still required (human/external):** enable the Apple provider in each Supabase project (dev + prod are independent) with the iOS bundle ID; the `com.apple.developer.applesignin` entitlement is already in the repo. Provider config + flipping `identity.appleSignInEnabled` on is dashboard work.
+
+**Alternatives considered:** (1) Web Apple on both platforms — rejected: worse iOS UX, App-Review-rejected button, and the secret-rotation burden for no iOS benefit. (2) Native iOS + web Android now — deferred, not rejected: the web path already exists, so turning it on later is just flipping the iOS-only gate + the Supabase Services-ID/secret/redirect config. (3) No Apple at all — rejected: Apple sign-in is expected on iOS and App-Store-required once you offer any third-party login (Google).
+
+**Status:** Locked (native iOS). Web-Apple-on-Android: Tentative / deferred.

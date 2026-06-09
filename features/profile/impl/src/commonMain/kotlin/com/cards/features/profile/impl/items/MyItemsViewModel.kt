@@ -202,9 +202,17 @@ data class OwnedItem(
  */
 data class BuyableCosmetic(
     val productId: String,
+    val title: String,
     val iconEmoji: String,
     val packEmojis: List<String> = emptyList(),
 )
+
+/**
+ * Inventory / catalog product id for the always-granted starter avatar pack.
+ * Mirrors the server's `StarterInventory` grant; the matching wire pack has a
+ * null `unlockProductId` rather than this id.
+ */
+private const val STARTER_AVATAR_PACK_PRODUCT_ID = "avatars_starter"
 
 data class MyItemsState(
     val inventory: List<InventoryItem> = emptyList(),
@@ -249,6 +257,7 @@ data class MyItemsState(
                 .map { offer ->
                     BuyableCosmetic(
                         productId = offer.id,
+                        title = offer.title,
                         iconEmoji = offer.iconEmoji,
                         packEmojis = packEmojisFor(offer.id),
                     )
@@ -263,10 +272,25 @@ data class MyItemsState(
      */
     private fun packEmojisFor(productId: String): List<String> = when {
         productId.startsWith("emotes_") -> EmotePackCatalog.emojisForPack(productId)
-        productId.startsWith("avatars_") ->
-            avatarPacks.firstOrNull { it.id == productId }?.emojis.orEmpty()
+        productId.startsWith("avatars_") -> avatarPackFor(productId)?.emojis.orEmpty()
         else -> emptyList()
     }
+
+    /**
+     * Resolve an avatar **product id** (the inventory / catalog id, e.g.
+     * `avatars_animals` or `avatars_starter`) to its server [AvatarPack].
+     * The wire packs key off their own ids (`animals`, `starter`) and link
+     * back via [AvatarPack.unlockProductId], so matching `pack.id == productId`
+     * never hits — premium packs match on `unlockProductId`, and the starter
+     * pack (inventory id `avatars_starter`, no unlock product) is the single
+     * always-granted pack with a null `unlockProductId`.
+     */
+    private fun avatarPackFor(productId: String): AvatarPack? =
+        if (productId == STARTER_AVATAR_PACK_PRODUCT_ID) {
+            avatarPacks.firstOrNull { it.unlockProductId == null }
+        } else {
+            avatarPacks.firstOrNull { it.unlockProductId == productId }
+        }
 
     private fun prettifyMissingId(productId: String): String =
         productId.substringAfterLast('.', productId)

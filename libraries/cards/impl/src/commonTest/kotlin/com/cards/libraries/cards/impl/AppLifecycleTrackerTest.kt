@@ -80,6 +80,31 @@ class AppLifecycleTrackerTest : CoroutineTest() {
         assertEquals(FIRST_TICK_EPOCH_MS, cache.get().lastSessionEndedAt)
     }
 
+    @Test
+    fun onForeground_coldBoot_clearsStaleProfileHighlight() = runUnitTest {
+        // A pendingProfileHighlight left over from a prior run must not
+        // survive a cold boot — otherwise it scrolls a Profile cosmetic
+        // shelf to a non-first item on launch.
+        val cache = FakeAppCache(initial = AppData(pendingProfileHighlight = "cardback_neon"))
+        val tracker = trackerFor(cache, clockEpochMs = FIRST_TICK_EPOCH_MS)
+
+        tracker.onForeground(AppEvent.OnForeground(isColdBoot = true))
+
+        assertEquals(null, cache.get().pendingProfileHighlight)
+    }
+
+    @Test
+    fun onForeground_warmForeground_leavesProfileHighlightIntact() = runUnitTest {
+        // A warm foreground (resume from background) is not a fresh process,
+        // so an in-session spotlight signal must be preserved.
+        val cache = FakeAppCache(initial = AppData(pendingProfileHighlight = "cardback_neon"))
+        val tracker = trackerFor(cache, clockEpochMs = FIRST_TICK_EPOCH_MS)
+
+        tracker.onForeground(AppEvent.OnForeground(isColdBoot = false))
+
+        assertEquals("cardback_neon", cache.get().pendingProfileHighlight)
+    }
+
     private fun trackerFor(cache: AppCache, clockEpochMs: Long): AppLifecycleTracker =
         AppLifecycleTracker(
             appCache = cache,

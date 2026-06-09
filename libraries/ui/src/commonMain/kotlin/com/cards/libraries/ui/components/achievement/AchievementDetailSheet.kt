@@ -82,7 +82,7 @@ fun AchievementMedalWithDetail(
  * profile / Achievements grids keep filling their column (pass no size).
  */
 enum class MedalSize(val dp: Dp) {
-    Small(100.dp),
+    Small(88.dp),
     Medium(112.dp),
     Large(128.dp),
 }

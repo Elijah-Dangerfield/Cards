@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
@@ -29,11 +30,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
@@ -51,13 +55,13 @@ import cards.libraries.resources.generated.resources.month_october
 import cards.libraries.resources.generated.resources.month_september
 import cards.libraries.resources.generated.resources.month_unknown
 import cards.libraries.resources.generated.resources.profile_avatar_edit_a11y
-import cards.libraries.resources.generated.resources.profile_header_founding_member_chip
 import cards.libraries.resources.generated.resources.profile_header_joined
 import cards.libraries.resources.generated.resources.profile_items_avatars
 import cards.libraries.resources.generated.resources.profile_items_card_back
 import cards.libraries.resources.generated.resources.profile_items_emotes
 import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_items_felt
+import cards.libraries.resources.generated.resources.profile_item_sheet_locked_a11y
 import cards.libraries.resources.generated.resources.profile_items_shop_link
 import cards.libraries.resources.generated.resources.profile_items_specialty
 import cards.libraries.resources.generated.resources.profile_level_summary_level
@@ -73,6 +77,7 @@ import cards.libraries.resources.generated.resources.ui_achievement_medallion_lo
 import com.dangerfield.cards.features.profile.impl.items.BuyableCosmetic
 import com.dangerfield.cards.features.profile.impl.items.CosmeticDetailSheet
 import com.dangerfield.cards.features.profile.impl.items.KnownEarnedItems
+import com.dangerfield.cards.features.profile.impl.items.LockedCosmeticSheet
 import com.dangerfield.cards.features.profile.impl.items.OwnedItem
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AcquisitionSource
@@ -86,19 +91,18 @@ import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.DecorativeBlob
+import com.dangerfield.cards.libraries.ui.components.PlayStyleBlobMark
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.StatusPill
 import com.dangerfield.cards.libraries.ui.components.Surface
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
+import com.dangerfield.cards.libraries.ui.components.icon.BadgedIconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
-import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPreview
@@ -112,7 +116,10 @@ import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import com.dangerfield.cards.system.VerticalSpacerD800
 import com.dangerfield.cards.system.VerticalSpacerD900
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.StringResource
@@ -161,6 +168,7 @@ fun ProfileScreen(
     onOpenShop: () -> Unit,
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
+    onBuyableTap: (String) -> Unit = {},
     buyableItems: List<BuyableCosmetic> = emptyList(),
     highlightProductId: String? = null,
     onHighlightConsumed: () -> Unit = {},
@@ -178,10 +186,15 @@ fun ProfileScreen(
                 scrollState = scrollState,
                 actions = {
                     // Surface-backed icon button, mirroring the TopBar's
-                    // back button treatment.
-                    IconButton(
+                    // back button treatment. The gear is the only path to the
+                    // inbox from here, so it carries the same unread badge the
+                    // bottom-tab and the in-Settings row already show.
+                    BadgedIconButton(
                         icon = Icons.Settings(stringResource(Res.string.profile_settings_a11y)),
                         onClick = onOpenSettings,
+                        badgeCount = settings.unreadNotificationCount,
+                        // Nudge in from the screen edge so the badge isn't clipped.
+                        modifier = Modifier.padding(end = Dimension.D200),
                     )
                 },
             )
@@ -219,6 +232,7 @@ fun ProfileScreen(
                     buyableItems = buyableItems,
                     onToggleEquip = onToggleEquip,
                     onOpenShop = onOpenShop,
+                    onBuyableTap = onBuyableTap,
                     onTryEmote = { emoji ->
                         emojiBlast = EmojiBlast(
                             emoji = emoji,
@@ -277,7 +291,7 @@ private fun ProfileHeader(
                     .align(Alignment.BottomEnd)
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(AppTheme.colors.surfaceHigh.color)
+                    .background(AppTheme.colors.accentPrimary.color)
                     .border(
                         width = 2.dp,
                         color = AppTheme.colors.background.color,
@@ -288,7 +302,7 @@ private fun ProfileHeader(
                 Icon(
                     icon = Icons.Pencil(stringResource(Res.string.profile_avatar_edit_a11y)),
                     size = IconSize.Small,
-                    color = AppTheme.colors.contentSecondary,
+                    color = AppTheme.colors.onAccentPrimary,
                 )
             }
         }
@@ -307,10 +321,6 @@ private fun ProfileHeader(
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
-        }
-        if (settings.isFoundingMember) {
-            VerticalSpacerD200()
-            FoundingMemberChip()
         }
         VerticalSpacerD500()
         LevelSummary(
@@ -355,17 +365,6 @@ private fun monthResource(monthNumber: Int): StringResource = when (monthNumber)
     else -> Res.string.month_unknown
 }
 
-@Composable
-private fun FoundingMemberChip() {
-    StatusPill(background = AppTheme.colors.accentSecondary) {
-        Text(text = "🏛", typography = AppTheme.typography.Caption.C200)
-        Text(
-            text = stringResource(Res.string.profile_header_founding_member_chip),
-            typography = AppTheme.typography.Caption.C200.SemiBold,
-            color = AppTheme.colors.onAccentSecondary,
-        )
-    }
-}
 
 @Composable
 private fun LevelSummary(progress: LevelProgress, modifier: Modifier = Modifier) {
@@ -429,6 +428,18 @@ private fun StatsStyleBanner(
     } else {
         stringResource(Res.string.profile_stats_banner_subtitle_no_games, style)
     }
+    // The play-style name reads in the accent (matching the blob); the rest of
+    // the line stays muted. Span-on-substring keeps the localized template whole.
+    val styleColor = AppTheme.colors.accentSecondary.color
+    val subtitleAnnotated = remember(subtitle, style, styleColor) {
+        buildAnnotatedString {
+            append(subtitle)
+            val start = subtitle.indexOf(style)
+            if (start >= 0) {
+                addStyle(SpanStyle(color = styleColor), start, start + style.length)
+            }
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -443,11 +454,20 @@ private fun StatsStyleBanner(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            // Example decorative blob, tinted from a DS accent token.
-            DecorativeBlob(
-                modifier = Modifier.size(44.dp),
-                color = AppTheme.colors.accentSecondary,
-            )
+            // Fake play-style preview — the same blob mark the Stats quadrant
+            // uses, framed in a tile so it reads as "your style at a glance".
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(Radii.R600.shape)
+                    .background(AppTheme.colors.surfaceRaised.color),
+                contentAlignment = Alignment.Center,
+            ) {
+                PlayStyleBlobMark(
+                    modifier = Modifier.size(36.dp),
+                    color = AppTheme.colors.accentSecondary,
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(Res.string.profile_stats_banner_title),
@@ -455,7 +475,7 @@ private fun StatsStyleBanner(
                     color = AppTheme.colors.content,
                 )
                 Text(
-                    text = subtitle,
+                    text = subtitleAnnotated,
                     typography = AppTheme.typography.Body.B400,
                     color = AppTheme.colors.contentSecondary,
                 )
@@ -556,6 +576,7 @@ private fun OwnedItemsSections(
     buyableItems: List<BuyableCosmetic>,
     onToggleEquip: (String) -> Unit,
     onOpenShop: () -> Unit,
+    onBuyableTap: (String) -> Unit,
     onTryEmote: (String) -> Unit,
     highlightProductId: String?,
     onHighlightConsumed: () -> Unit,
@@ -574,11 +595,28 @@ private fun OwnedItemsSections(
             .groupBy({ it.first }, { it.second })
     }
 
+    // Each shelf keeps its own horizontal scroll position. The Profile tab
+    // stays composed in the back stack, so without this a row the user
+    // scrolled on a prior visit would still be mid-scroll on return. Reset
+    // every shelf to its start on each resume so landing on the tab always
+    // shows item 0. Fixed-size, stable-order map → safe to remember per shelf.
+    val shelfStates = ShelfOrder.associateWith { rememberLazyListState() }
+    val scope = rememberCoroutineScope()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch {
+            shelfStates.values.forEach { it.scrollToItem(0) }
+        }
+    }
+
     // Tapping any tile opens its detail sheet. We track the selected product
     // id (not the item) so the sheet re-reads fresh equipped state after a
     // toggle re-derives the list — mirrors AchievementMedalWithDetail's
     // per-medal sheet toggle, lifted to one slot for the whole bookshelf.
     var selectedId by remember { mutableStateOf<String?>(null) }
+
+    // A tapped buyable (locked) tile opens a preview sheet rather than jumping
+    // straight to the shop, so the user can see what they'd be buying first.
+    var lockedSelected by remember { mutableStateOf<BuyableCosmetic?>(null) }
 
     // Cross-tab "spotlight a just-bought item" — scroll its tile into view and
     // pulse a border. [pulseId] is local so clearing the cache signal (which
@@ -590,11 +628,18 @@ private fun OwnedItemsSections(
         val id = highlightProductId ?: return@LaunchedEffect
         pulseId = id
         onHighlightConsumed()
+    }
+    // The pulse lifecycle keys off [pulseId], NOT highlightProductId: consuming
+    // the highlight above flips highlightProductId to null, which would cancel
+    // this coroutine mid-delay and strand the ring on-screen until app restart.
+    // Keyed on pulseId, the scroll + fade-out always run to completion.
+    LaunchedEffect(pulseId) {
+        val id = pulseId ?: return@LaunchedEffect
         // Let the matching tile attach its requester before we scroll to it.
         delay(100)
         runCatching { highlightRequester.bringIntoView() }
         delay(HighlightPulseDurationMillis)
-        pulseId = null
+        if (pulseId == id) pulseId = null
     }
 
     ShelfOrder.forEach { shelf ->
@@ -623,7 +668,7 @@ private fun OwnedItemsSections(
         // up to [rowCount] tiles, so both shapes share one scroll container.
         val tiles: List<ShelfTile> = owned.map(::ShelfTileOwned) + buyable.map(::ShelfTileBuyable)
         val rowCount = if (useTwoRows) 2 else 1
-        EdgeToEdgeRow {
+        EdgeToEdgeRow(state = shelfStates.getValue(shelf)) {
             items(tiles.chunked(rowCount), key = { column -> column.first().key }) { column ->
                 Column(verticalArrangement = Arrangement.spacedBy(Dimension.D500)) {
                     column.forEach { tile ->
@@ -642,7 +687,10 @@ private fun OwnedItemsSections(
                                 )
                             }
                             is ShelfTileBuyable -> {
-                                BuyableCosmeticTile(item = tile.item, onClick = onOpenShop)
+                                BuyableCosmeticTile(
+                                    item = tile.item,
+                                    onClick = { lockedSelected = tile.item },
+                                )
                             }
                         }
                     }
@@ -662,6 +710,14 @@ private fun OwnedItemsSections(
                 onTryEmote = onTryEmote,
             )
         }
+
+    lockedSelected?.let { item ->
+        LockedCosmeticSheet(
+            item = item,
+            onOpenInShop = onBuyableTap,
+            onDismiss = { lockedSelected = null },
+        )
+    }
 }
 
 private const val HighlightPulseDurationMillis = 1_800L
@@ -781,8 +837,11 @@ private fun OwnedCosmeticTile(
     )
     // Equipped tiles carry a persistent accent ring so the active pick reads at
     // a glance; the pulse reuses the same ring at a higher transient alpha when
-    // a just-bought tile is spotlighted.
-    val ringAlpha = maxOf(pulseAlpha, if (item.isEquipped) 1f else 0f)
+    // a just-bought tile is spotlighted. Only genuinely equippable cosmetics
+    // (card backs / felts / titles) get the equipped ring — packs (emotes,
+    // avatars) are owned, not "equipped", so they never carry it.
+    val showEquippedRing = item.isEquipped && item.isEquippable
+    val ringAlpha = maxOf(pulseAlpha, if (showEquippedRing) 1f else 0f)
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
@@ -797,7 +856,7 @@ private fun OwnedCosmeticTile(
                 packEmojis = item.packEmojis,
             )
         }
-        if (item.isEquipped) {
+        if (showEquippedRing) {
             EquippedBadge(modifier = Modifier.align(Alignment.TopEnd))
         }
     }
@@ -827,27 +886,50 @@ private fun EquippedBadge(modifier: Modifier = Modifier) {
 /**
  * A not-yet-owned cosmetic shown after the owned tiles on a shoppable shelf —
  * the real preview, dimmed, so it reads as "available, not yours yet." Tapping
- * routes to the shop. No equipped badge, no price; it's a nudge, not a
- * purchase surface.
+ * opens the shop's purchase sheet for this product. No equipped badge, no
+ * price on the tile itself; it's a nudge into the buy flow.
  */
 @Composable
 private fun BuyableCosmeticTile(item: BuyableCosmetic, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(Radii.R500.shape)
-            .clickable(onClick = onClick)
-            .alpha(BuyableTileAlpha),
+            .clickable(onClick = onClick),
     ) {
-        CosmeticPreview(
-            productId = item.productId,
-            emoji = item.iconEmoji,
-            size = CosmeticTileSize,
-            packEmojis = item.packEmojis,
-        )
+        // Only the preview dims — the lock badge stays full-opacity so
+        // "you don't own this" reads clearly rather than as a faded smudge.
+        Box(modifier = Modifier.alpha(BuyableTileAlpha)) {
+            CosmeticPreview(
+                productId = item.productId,
+                emoji = item.iconEmoji,
+                size = CosmeticTileSize,
+                packEmojis = item.packEmojis,
+            )
+        }
+        LockedBadge(modifier = Modifier.align(Alignment.BottomEnd))
     }
 }
 
 private const val BuyableTileAlpha = 0.45f
+
+/** Corner badge marking a shelf tile as locked / not-yet-owned. */
+@Composable
+private fun LockedBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(AppTheme.colors.surfaceHigh.color)
+            .border(2.dp, AppTheme.colors.background.color, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon = Icons.Lock(stringResource(Res.string.profile_item_sheet_locked_a11y)),
+            size = IconSize.Smallest,
+            color = AppTheme.colors.contentSecondary,
+        )
+    }
+}
 
 // ---- Previews ----------------------------------------------------------
 
@@ -861,6 +943,7 @@ private fun previewSettings(isAnonymous: Boolean) = ProfileSettings(
     botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
     appVersion = "0.1.0",
+    unreadNotificationCount = if (isAnonymous) 0 else 3,
     isFoundingMember = !isAnonymous,
 )
 
@@ -931,11 +1014,12 @@ private fun ProfileScreenPreview() {
                 ),
             ),
             buyableItems = listOf(
-                BuyableCosmetic(productId = "cardback_neon", iconEmoji = "🃏"),
-                BuyableCosmetic(productId = "cardback_galaxy", iconEmoji = "✨"),
-                BuyableCosmetic(productId = "felt_royal_red", iconEmoji = "🟥"),
+                BuyableCosmetic(productId = "cardback_neon", title = "Neon", iconEmoji = "🃏"),
+                BuyableCosmetic(productId = "cardback_galaxy", title = "Galaxy", iconEmoji = "✨"),
+                BuyableCosmetic(productId = "felt_royal_red", title = "Royal Red", iconEmoji = "🟥"),
                 BuyableCosmetic(
                     productId = "emotes_royal",
+                    title = "Royal emotes",
                     iconEmoji = "👑",
                     packEmojis = listOf("👑", "🃏", "♠️", "♥️"),
                 ),
@@ -993,7 +1077,7 @@ private fun ProfileScreenPreview_StockedShelf() {
                 )
             },
             buyableItems = listOf(
-                BuyableCosmetic(productId = "felt_royal_red", iconEmoji = "🟥"),
+                BuyableCosmetic(productId = "felt_royal_red", title = "Royal Red", iconEmoji = "🟥"),
             ),
             winRatePercent = 58,
             onOpenSettings = {},

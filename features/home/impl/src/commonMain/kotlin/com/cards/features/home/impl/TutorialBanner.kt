@@ -19,6 +19,9 @@ import cards.libraries.resources.generated.resources.home_tutorial_banner_subtit
 import cards.libraries.resources.generated.resources.home_tutorial_banner_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.bounceClick
+import com.dangerfield.cards.libraries.ui.components.button.ButtonAccent
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
@@ -69,36 +72,26 @@ internal fun TutorialBanner(
                 )
             }
             HorizontalSpacerD500()
-            StartPill(onClick = onStart)
+            ButtonPrimary(
+                onClick = onStart,
+                accent = ButtonAccent.Inverse,
+                flat = true,
+                size = ButtonSize.Small,
+            ) {
+                Text(stringResource(Res.string.home_tutorial_banner_start_button))
+            }
         }
-        // Low-emphasis dismiss tucked into the corner so the card reads clean.
+        // Dismiss as a badged box in the corner so it reads as a deliberate
+        // affordance rather than a bare glyph floating on the gradient.
         IconButton(
             icon = Icons.X(stringResource(Res.string.home_tutorial_banner_dismiss_a11y)),
             onClick = onDismiss,
             size = IconButton.Size.Small,
-            backgroundColor = null,
-            iconColor = AppTheme.colors.content.withAlpha(0.6f),
-            modifier = Modifier.align(Alignment.TopEnd),
-        )
-    }
-}
-
-/** White "Start" pill — composed from the inverse [content]-on-[background]
- *  tokens since the DS has no light filled button. */
-@Composable
-private fun StartPill(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(Radii.Round.shape)
-            .background(AppTheme.colors.content.color)
-            .bounceClick(onClick = onClick)
-            .padding(horizontal = Dimension.D600, vertical = Dimension.D300),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(Res.string.home_tutorial_banner_start_button),
-            typography = AppTheme.typography.Body.B600,
-            color = AppTheme.colors.background,
+            backgroundColor = AppTheme.colors.background,
+            iconColor = AppTheme.colors.content,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(Dimension.D300),
         )
     }
 }

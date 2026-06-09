@@ -40,12 +40,24 @@ interface AuthRepository {
     fun observe(): Flow<AuthState>
 
     /**
-     * Re-attempt the get-or-create after a previous failure. Used by the
+     * Re-resolve the persisted session after a previous failure. Used by the
      * connectivity observer (offline → online flip) and explicit retry
-     * actions (e.g. onboarding "Try again"). No-op if already
-     * Authenticated.
+     * actions. No-op if already Authenticated. Does **not** create an account —
+     * a missing session stays [AuthState.Unauthenticated].
      */
     suspend fun retry(): AuthState
+
+    /**
+     * Create a fresh anonymous (guest) session and emit
+     * [AuthState.Authenticated]. The app no longer auto-creates one on launch —
+     * onboarding calls this when the user commits to playing as a guest, so a
+     * throwaway anon account is never minted for users who sign in instead.
+     *
+     * Default-throws so test fakes that don't drive guest creation needn't
+     * implement it; the production impl overrides.
+     */
+    suspend fun createGuestSession(): SignInOutcome =
+        throw NotImplementedError("createGuestSession not implemented by ${this::class.simpleName}")
 
     /** Email/password sign-in. Server-issued JWT replaces any current session. */
     suspend fun signInWithEmail(email: String, password: String): SignInOutcome
@@ -106,6 +118,32 @@ interface AuthRepository {
      * session is orphaned by design.
      */
     suspend fun signInWithOAuth(provider: OAuthProvider): SignInOutcome
+
+    /**
+     * Native Sign in with Apple — exchange the [credential] (id token + raw
+     * nonce captured by [AppleSignInCoordinator]) for a Supabase session.
+     * Replaces the current session, like [signInWithOAuth].
+     *
+     * Default-throws so the test fakes that don't exercise native sign-in
+     * needn't implement it; the production impl overrides.
+     */
+    suspend fun signInWithApple(credential: AppleSignInCredential): SignInOutcome =
+        throw NotImplementedError("signInWithApple not implemented by ${this::class.simpleName}")
+
+    /**
+     * Attach a native Apple identity to the current (typically anonymous) user,
+     * preserving chips / XP / history. Default-throws (see [signInWithApple]).
+     */
+    suspend fun linkAppleIdentity(credential: AppleSignInCredential): LinkIdentityOutcome =
+        throw NotImplementedError("linkAppleIdentity not implemented by ${this::class.simpleName}")
+
+    /**
+     * Native Google id-token sign-in — exchange a Google id token (+ optional
+     * nonce) for a session. Wired ahead of a Google token source (Credential
+     * Manager / GIDSignIn) landing. Default-throws (see [signInWithApple]).
+     */
+    suspend fun signInWithGoogleIdToken(idToken: String, nonce: String? = null): SignInOutcome =
+        throw NotImplementedError("signInWithGoogleIdToken not implemented by ${this::class.simpleName}")
 
     /**
      * Attach an email/password to the current anonymous Supabase user.

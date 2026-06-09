@@ -120,6 +120,10 @@ class ProfileFeatureEntryPoint(
             val inventory by inventoryRepository.observeInventory()
                 .collectAsStateWithLifecycle(initialValue = emptyList())
             val isFoundingMember = inventory.any { it.productId == FOUNDING_MEMBER_PRODUCT_ID }
+            // The gear is the only path to the inbox from Profile, so badge it
+            // with the same unread count the bottom-tab + Settings row show.
+            val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
+                .collectAsStateWithLifecycle(initialValue = 0)
 
             // Owned cosmetics (inventory ∩ catalog) for the grouped item
             // shelves. Reuses MyItemsViewModel so the catalog join + display
@@ -159,6 +163,7 @@ class ProfileFeatureEntryPoint(
                     botSpeed = com.dangerfield.cards.libraries.cards.BotSpeed.Normal,
                     turnFeedback = com.dangerfield.cards.libraries.cards.TurnFeedback.Vibrate,
                     appVersion = "0.1.0",
+                    unreadNotificationCount = unreadNotificationCount,
                     showQaMenu = BuildInfo.isDebug,
                     memberSince = authenticated?.createdAt,
                     isFoundingMember = isFoundingMember,
@@ -173,6 +178,17 @@ class ProfileFeatureEntryPoint(
                 onSeeAllAchievements = { router.navigate(AchievementsRoute()) },
                 onToggleEquip = { myItemsVm.takeAction(MyItemsAction.ToggleEquipped(it)) },
                 onOpenShop = { router.batch { switchTab(ShopGraph) } },
+                onBuyableTap = { productId ->
+                    // Cross-tab deep-link straight to the product's purchase
+                    // sheet rather than dumping the user in the shop grid.
+                    // Batched so the tab switch + sheet push run as one queued
+                    // unit (tab-root args get clobbered by restoreState — see
+                    // docs/decisions.md). Mirrors EditProfile's onNavigateToShop.
+                    router.batch {
+                        switchTab(ShopGraph)
+                        navigate(ShopProductSheetRoute(productId))
+                    }
+                },
                 onSignIn = { router.navigate(ClaimAccountRoute()) },
                 highlightProductId = appData.pendingProfileHighlight,
                 onHighlightConsumed = {

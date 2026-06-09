@@ -144,18 +144,21 @@ class HomeViewModel(
                 chipsRepository.observeBalance(),
                 profileRepository.observe(),
                 appCache.updates,
-            ) { chips, profile, appData ->
+                chipsRepository.walletJustCreated,
+            ) { chips, profile, appData, walletJustCreated ->
                 WelcomeGate(
                     chips = chips,
                     profile = profile,
-                    requiresGrantInfo = appData.requiresGrantInfo,
+                    walletJustCreated = walletJustCreated,
+                    didSeeInitialGrantInOnboarding = appData.didSeeInitialGrantInOnboarding,
                 )
             }
                 .distinctUntilChanged()
                 .onEach { gate ->
                     homeLogger.i {
                         "welcomeGates: resolved=${gate.payload() != null} " +
-                            "requiresGrantInfo=${gate.requiresGrantInfo} " +
+                            "walletJustCreated=${gate.walletJustCreated} " +
+                            "didSeeInOnboarding=${gate.didSeeInitialGrantInOnboarding} " +
                             "profile=${gate.profile.debugKind()} " +
                             "chips=${gate.chips}"
                     }
@@ -168,7 +171,10 @@ class HomeViewModel(
                 .first { it.payload() != null }
                 .let { gate ->
                     val payload = gate.payload()!!
-                    appCache.update { it.copy(requiresGrantInfo = false) }
+                    // Monotonic: record that we've now shown the grant so it
+                    // can't re-fire (even though walletJustCreated stays true
+                    // for the rest of this session).
+                    appCache.update { it.copy(didSeeInitialGrantInOnboarding = true) }
                     // Beat between Home rendering and the welcome popping;
                     // without it the dialog grabs focus before the user has
                     // oriented on the new screen. See `DialogIntroDelay`.
@@ -241,10 +247,14 @@ class HomeViewModel(
 private data class WelcomeGate(
     val chips: Long?,
     val profile: Profile?,
-    val requiresGrantInfo: Boolean,
+    val walletJustCreated: Boolean,
+    val didSeeInitialGrantInOnboarding: Boolean,
 ) {
     fun payload(): WelcomePayload? {
-        if (!requiresGrantInfo) return null
+        // Fire only for a brand-new wallet we haven't already revealed in
+        // onboarding. The "just created" half is live + server-sourced, so a
+        // pre-existing account never triggers this — no cross-switch leak.
+        if (!walletJustCreated || didSeeInitialGrantInOnboarding) return null
         val auth = profile as? Profile.Authenticated ?: return null
         // Require a hydrated balance — the dialog's whole purpose is to
         // reveal the authoritative number, so we wait for it rather than

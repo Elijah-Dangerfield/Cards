@@ -37,5 +37,8 @@ class GoogleSignInEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfi
 class AppleSignInEnabled(appConfigMap: AppConfigMap) : FlagConfigValue(appConfigMap) {
     override val name = "Apple sign-in enabled"
     override val path = "identity.appleSignInEnabled"
-    override val default = false
+    // On by default — the native Apple flow is wired and the button is iOS-gated.
+    // (Still needs the Apple provider configured in the Supabase project to
+    // actually authenticate; AppConfig / QA override can flip it back off.)
+    override val default = true
 }

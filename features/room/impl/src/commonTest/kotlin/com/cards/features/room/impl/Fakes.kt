@@ -29,6 +29,7 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
@@ -68,8 +69,15 @@ class FakePokerSession(
     private val _connectionState = MutableStateFlow(ConnectionState.Connected)
     override val connectionState: StateFlow<ConnectionState> = _connectionState
 
+    private val _roomClosed = MutableSharedFlow<ClosedReason>(extraBufferCapacity = 1)
+    override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
+
     val submittedIntents = mutableListOf<PlayerIntent>()
     var requestNextHandCount: Int = 0
+
+    fun emitRoomClosed(reason: ClosedReason) {
+        _roomClosed.tryEmit(reason)
+    }
 
     fun emitGameState(state: GameState) {
         _gameStateFlow.value = state

@@ -53,6 +53,9 @@ import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.isiOS
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButton
+import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.components.AnimatedCountUpText
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.Card
@@ -111,6 +114,7 @@ import cards.libraries.resources.generated.resources.onboarding_how_eyebrow
 import cards.libraries.resources.generated.resources.onboarding_how_title
 import cards.libraries.resources.generated.resources.onboarding_identity_avatar_placeholder
 import cards.libraries.resources.generated.resources.onboarding_identity_continue_button
+import cards.libraries.resources.generated.resources.onboarding_identity_name_requirements
 import cards.libraries.resources.generated.resources.onboarding_identity_edit_name_icon_desc
 import cards.libraries.resources.generated.resources.onboarding_identity_more_packs_hint
 import cards.libraries.resources.generated.resources.onboarding_identity_section_name
@@ -146,9 +150,15 @@ fun OnboardingScreen(
     onAction: (OnboardingAction) -> Unit,
 ) {
     // System back (Android hardware/gesture, iOS swipe) mirrors the in-UI
-    // Back button: it steps back through the flow and only falls through to
-    // exit on the entry step, where there's nothing before it.
-    BackHandler(enabled = state.step != OnboardingStep.Welcome) {
+    // Back button: it steps back through the flow. Disabled on the entry step
+    // (nothing before it) and once account creation has started / an identity
+    // is claimed — from there the account is forming and there's no going back
+    // to the landing page.
+    BackHandler(
+        enabled = state.step != OnboardingStep.Welcome &&
+            !state.creationStarted &&
+            !state.identityClaimed,
+    ) {
         onAction(OnboardingAction.Back)
     }
     
@@ -189,7 +199,7 @@ fun OnboardingScreen(
                 when (step) {
                     OnboardingStep.Welcome -> WelcomeStep(state, onAction)
                     OnboardingStep.PickIdentity -> PickIdentityStep(state, onAction)
-                    OnboardingStep.HowItWorks -> HowItWorksStep(onAction)
+                    OnboardingStep.HowItWorks -> HowItWorksStep(state, onAction)
                     OnboardingStep.StarterGrant -> StarterGrantStep(state, onAction)
                 }
             }
@@ -342,6 +352,42 @@ private fun WelcomeStep(
                 Spacer(modifier = Modifier.height(Dimension.D400))
             }
 
+            // Social-forward: the OAuth options sit on top as full-width
+            // buttons, then the always-available no-friction guest path, then
+            // a quiet "use email instead" link for the minority who want it.
+            // Each OAuth button only appears when its provider flag is on
+            // (off until the Supabase provider is provisioned); with both off
+            // the screen gracefully collapses to guest + email link.
+            val oauthBusy = state.oauthInFlight != null || state.isAuthing
+            if (state.appleEnabled) {
+                // Native ASAuthorizationAppleIDButton on iOS (the only place the
+                // Apple slot shows — appleEnabled is iOS-gated). Tapping it runs
+                // the native sheet via the injected coordinator, not the web flow.
+                AppleSignInButton(
+                    onClick = { onAction(OnboardingAction.SignInWithApple) },
+                    enabled = !oauthBusy,
+                    isLoading = state.oauthInFlight == OAuthProvider.Apple,
+                    kind = AppleSignInButtonKind.ContinueFlow,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(Dimension.D400))
+            }
+            if (state.googleEnabled) {
+                ButtonSecondary(
+                    onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
+                    enabled = !oauthBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        stringResource(
+                            if (state.oauthInFlight == OAuthProvider.Google) Res.string.onboarding_welcome_oauth_in_flight
+                            else Res.string.onboarding_welcome_oauth_google,
+                        ),
+                    )
+                }
+                Spacer(modifier = Modifier.height(Dimension.D400))
+            }
+
             ButtonPrimary(
                 onClick = { onAction(OnboardingAction.ContinueAsGuest) },
                 enabled = !state.isAuthing && state.oauthInFlight == null,
@@ -353,43 +399,6 @@ private fun WelcomeStep(
                         else Res.string.onboarding_welcome_continue_guest,
                     ),
                 )
-            }
-
-            if (state.showOAuthRow) {
-                Spacer(modifier = Modifier.height(Dimension.D400))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
-                ) {
-                    if (state.appleEnabled) {
-                        ButtonSecondary(
-                            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Apple)) },
-                            enabled = state.oauthInFlight == null && !state.isAuthing,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (state.oauthInFlight == OAuthProvider.Apple) Res.string.onboarding_welcome_oauth_in_flight
-                                    else Res.string.onboarding_welcome_oauth_apple,
-                                ),
-                            )
-                        }
-                    }
-                    if (state.googleEnabled) {
-                        ButtonSecondary(
-                            onClick = { onAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google)) },
-                            enabled = state.oauthInFlight == null && !state.isAuthing,
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (state.oauthInFlight == OAuthProvider.Google) Res.string.onboarding_welcome_oauth_in_flight
-                                    else Res.string.onboarding_welcome_oauth_google,
-                                ),
-                            )
-                        }
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(Dimension.D500))
@@ -428,14 +437,17 @@ private fun PickIdentityStep(
             .verticalScroll(rememberScrollState())
             .padding(screenHorizontalInsets),
     ) {
-        IconButton(
-            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-            onClick = { onAction(OnboardingAction.Back) },
-            iconColor = AppTheme.colors.content,
-            modifier = Modifier.padding(top = Dimension.D300),
-        )
-
-        Spacer(modifier = Modifier.height(Dimension.D300))
+        // No back affordance once the user has claimed a real identity — the
+        // Welcome page's sign-in options don't apply to a signed-in user.
+        if (!state.identityClaimed) {
+            IconButton(
+                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+                onClick = { onAction(OnboardingAction.Back) },
+                iconColor = AppTheme.colors.content,
+                modifier = Modifier.padding(top = Dimension.D300),
+            )
+            Spacer(modifier = Modifier.height(Dimension.D300))
+        }
 
         val avatarPlaceholder = stringResource(Res.string.onboarding_identity_avatar_placeholder)
         Box(
@@ -505,13 +517,35 @@ private fun PickIdentityStep(
                 )
             },
             isError = state.saveError != null,
-            supportingText = state.saveError?.let { error ->
-                {
-                    Text(
-                        text = error.message(),
-                        typography = AppTheme.typography.Body.B400,
-                        color = AppTheme.colors.danger,
-                    )
+            supportingText = run {
+                val saveError = state.saveError
+                val showRequirements = saveError == null &&
+                    state.displayName.isNotBlank() &&
+                    !DisplayNameRules.isValid(state.displayName)
+                when {
+                    saveError != null -> {
+                        {
+                            Text(
+                                text = saveError.message(),
+                                typography = AppTheme.typography.Body.B400,
+                                color = AppTheme.colors.danger,
+                            )
+                        }
+                    }
+                    showRequirements -> {
+                        {
+                            Text(
+                                text = stringResource(
+                                    Res.string.onboarding_identity_name_requirements,
+                                    DisplayNameRules.MIN_LENGTH,
+                                    DisplayNameRules.MAX_LENGTH,
+                                ),
+                                typography = AppTheme.typography.Body.B400,
+                                color = AppTheme.colors.contentSecondary,
+                            )
+                        }
+                    }
+                    else -> null
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -557,7 +591,7 @@ private fun PickIdentityStep(
 
         ButtonPrimary(
             onClick = { onAction(OnboardingAction.ContinueFromPickIdentity) },
-            enabled = state.displayName.isNotBlank(),
+            enabled = DisplayNameRules.isValid(state.displayName),
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(Res.string.onboarding_identity_continue_button))
@@ -634,18 +668,24 @@ private fun SectionLabel(text: String) {
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
+private fun HowItWorksStep(
+    state: OnboardingState,
+    onAction: (OnboardingAction) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(screenHorizontalInsets),
     ) {
-        IconButton(
-            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-            onClick = { onAction(OnboardingAction.Back) },
-            iconColor = AppTheme.colors.content,
-            modifier = Modifier.padding(top = Dimension.D300),
-        )
+        // No back affordance once creation has started — the account is forming.
+        if (!state.creationStarted) {
+            IconButton(
+                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+                onClick = { onAction(OnboardingAction.Back) },
+                iconColor = AppTheme.colors.content,
+                modifier = Modifier.padding(top = Dimension.D300),
+            )
+        }
         Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
             text = stringResource(Res.string.onboarding_how_eyebrow),
@@ -762,14 +802,17 @@ private fun StarterGrantStep(
             .padding(screenHorizontalInsets),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconButton(
-            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-            onClick = { onAction(OnboardingAction.Back) },
-            iconColor = AppTheme.colors.content,
-            modifier = Modifier
-                .align(Alignment.Start)
-                .padding(top = Dimension.D300),
-        )
+        // No back affordance once creation has started — the account is forming.
+        if (!state.creationStarted) {
+            IconButton(
+                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+                onClick = { onAction(OnboardingAction.Back) },
+                iconColor = AppTheme.colors.content,
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .padding(top = Dimension.D300),
+            )
+        }
 
         // The hero sits in the space between the fixed back button and the
         // pinned CTA: centered when it fits, scrollable on short screens so
@@ -855,9 +898,11 @@ private fun StarterGrantStep(
             Spacer(modifier = Modifier.height(Dimension.D700))
         }
 
-        // Always enabled — never block the user on the wallet round-trip.
+        // Disabled only for the brief moment we join on the in-flight account
+        // creation (usually already done by now); we always proceed to Home.
         ButtonPrimary(
             onClick = { onAction(OnboardingAction.Finish) },
+            enabled = !state.isFinishing,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(Res.string.onboarding_grant_cta))

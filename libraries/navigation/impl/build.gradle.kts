@@ -15,6 +15,8 @@ kotlin {
             implementation(projects.libraries.ui)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.cards)
+            // Auth-gate: reads AuthState + guest-creation state to gate routes.
+            implementation(projects.libraries.identity)
             // `:features:profile` api carries `BugReportRoute`, the
             // destination of the in-app error-fallback dialog.
             implementation(projects.features.profile)
@@ -24,6 +26,8 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
             implementation(projects.libraries.navigation)
+            implementation(projects.libraries.core)
+            implementation(projects.libraries.identity)
         }
     }
 }

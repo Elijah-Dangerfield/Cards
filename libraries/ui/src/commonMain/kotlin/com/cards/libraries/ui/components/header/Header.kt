@@ -51,11 +51,13 @@ fun TopBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // Shadow first so the lift-on-scroll elevation wraps the full-width
+            // bar; applied after the horizontal padding it would cast around the
+            // inset content and read as a weird inset strip.
+            .thenIf(liftOnScroll) { elevateOnScroll(scrollState) }
             .background(backgroundColor)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-            .padding(screenHorizontalInsets)
-            .thenIf(liftOnScroll) { elevateOnScroll(scrollState) }
-            ,
+            .padding(screenHorizontalInsets),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {

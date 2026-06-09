@@ -19,12 +19,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.earned_founding_member_thanks
+import cards.libraries.resources.generated.resources.earned_founding_member_title
+import cards.libraries.resources.generated.resources.founding_member_done
+import cards.libraries.resources.generated.resources.founding_member_tagline
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought
 import cards.libraries.resources.generated.resources.profile_item_sheet_avatar_edit_hint
 import cards.libraries.resources.generated.resources.profile_item_sheet_bought_free
 import cards.libraries.resources.generated.resources.profile_item_sheet_how_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_earned
 import cards.libraries.resources.generated.resources.profile_item_sheet_in_pack
+import cards.libraries.resources.generated.resources.profile_item_sheet_locked_not_owned
+import cards.libraries.resources.generated.resources.profile_item_sheet_open_in_shop
 import cards.libraries.resources.generated.resources.profile_item_sheet_try_emote
 import cards.libraries.resources.generated.resources.profile_items_equipped
 import cards.libraries.resources.generated.resources.profile_my_items_button_equip
@@ -40,6 +46,7 @@ import com.dangerfield.cards.libraries.ui.components.achievement.label
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.RotatingDial
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.poker.CosmeticPackThumbnail
 import com.dangerfield.cards.libraries.ui.components.poker.FlippableCard
@@ -74,6 +81,12 @@ fun CosmeticDetailSheet(
     onDismiss: () -> Unit,
     onTryEmote: (String) -> Unit = {},
 ) {
+    // The founding-member badge gets its own ceremonial sheet rather than the
+    // generic earned-item layout — a rotating sun-dial behind the medallion.
+    if (item.productId == FOUNDING_MEMBER_PRODUCT_ID) {
+        FoundingMemberSheet(onDismiss = onDismiss)
+        return
+    }
     val isEmotePack = item.productId.startsWith("emotes_") && item.packEmojis.isNotEmpty()
     val isAvatarPack = item.productId.startsWith("avatars_") && item.packEmojis.isNotEmpty()
     // Earned / prestige grants arrive without catalog metadata; this client
@@ -89,7 +102,12 @@ fun CosmeticDetailSheet(
                 .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CosmeticHero(item = item, emojiOverride = earnedInfo?.emoji)
+            CosmeticHero(
+                productId = item.productId,
+                emoji = item.iconEmoji,
+                packEmojis = item.packEmojis,
+                emojiOverride = earnedInfo?.emoji,
+            )
             VerticalSpacerD500()
 
             Text(
@@ -179,6 +197,136 @@ fun CosmeticDetailSheet(
 }
 
 /**
+ * The founding-member badge's one-off sheet. A slowly-rotating golden sun-dial
+ * frames the medallion, then a single tagline and a thank-you — deliberately
+ * lighter on copy than the generic earned-item layout so the badge reads as a
+ * moment rather than a spec sheet.
+ */
+@Composable
+private fun FoundingMemberSheet(onDismiss: () -> Unit) {
+    BottomSheet(
+        onDismissRequest = onDismiss,
+        showCloseButton = true,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            RotatingDial(size = 200.dp) {
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .background(AppTheme.colors.surfaceRaised.color),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = KnownEarnedItems[FOUNDING_MEMBER_PRODUCT_ID]?.emoji ?: "🏛",
+                        typography = AppTheme.typography.Display.D900,
+                    )
+                }
+            }
+            VerticalSpacerD500()
+            Text(
+                text = stringResource(Res.string.earned_founding_member_title),
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD200()
+            Text(
+                text = stringResource(Res.string.founding_member_tagline),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD300()
+            Text(
+                text = stringResource(Res.string.earned_founding_member_thanks),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD800()
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                size = ButtonSize.Medium,
+                style = ButtonStyle.Filled,
+            ) {
+                Text(stringResource(Res.string.founding_member_done))
+            }
+        }
+    }
+}
+
+/**
+ * The "you don't own this yet" sheet for a dimmed buyable tile on a shoppable
+ * shelf. Shows the same hero preview as [CosmeticDetailSheet] so the item reads
+ * as a real thing, a "not yours yet" line, the pack contents if it's a pack,
+ * and a single CTA into the shop's purchase flow for this product.
+ */
+@Composable
+fun LockedCosmeticSheet(
+    item: BuyableCosmetic,
+    onOpenInShop: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    BottomSheet(
+        onDismissRequest = onDismiss,
+        showCloseButton = true,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            CosmeticHero(
+                productId = item.productId,
+                emoji = item.iconEmoji,
+                packEmojis = item.packEmojis,
+            )
+            VerticalSpacerD500()
+
+            Text(
+                text = item.title,
+                typography = AppTheme.typography.Heading.H700,
+                color = AppTheme.colors.content,
+                textAlign = TextAlign.Center,
+            )
+            VerticalSpacerD200()
+            Text(
+                text = stringResource(Res.string.profile_item_sheet_locked_not_owned),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
+
+            if (item.packEmojis.isNotEmpty()) {
+                VerticalSpacerD500()
+                PackContents(emojis = item.packEmojis)
+            }
+
+            VerticalSpacerD800()
+            Button(
+                onClick = {
+                    onOpenInShop(item.productId)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                size = ButtonSize.Medium,
+                style = ButtonStyle.Filled,
+            ) {
+                Text(stringResource(Res.string.profile_item_sheet_open_in_shop))
+            }
+        }
+    }
+}
+
+/**
  * The equip CTA. Card backs and felts are *swap-only* — there's always one
  * equipped and you change it by equipping a different one, so an equipped
  * one shows a disabled "Equipped" state rather than an "Unequip" button that
@@ -260,18 +408,23 @@ private fun PackContents(emojis: List<String>) {
  * its glyph on a raised tile.
  */
 @Composable
-private fun CosmeticHero(item: OwnedItem, emojiOverride: String? = null) {
-    when (cosmeticSlotFor(item.productId)) {
+private fun CosmeticHero(
+    productId: String,
+    emoji: String,
+    packEmojis: List<String>,
+    emojiOverride: String? = null,
+) {
+    when (cosmeticSlotFor(productId)) {
         CosmeticSlot.CardBack -> FlippableCard(
-            style = cardBackForProductId(item.productId),
+            style = cardBackForProductId(productId),
             size = PlayingCardSize.Hole,
             flipOnInit = true,
             interactive = true,
         )
-        CosmeticSlot.Felt -> FeltVignette(item.productId)
+        CosmeticSlot.Felt -> FeltVignette(productId)
         // Packs (avatars / emotes) read as a stack of their contents.
-        else -> if (emojiOverride == null && item.packEmojis.size >= 2) {
-            CosmeticPackThumbnail(emojis = item.packEmojis, size = 120.dp)
+        else -> if (emojiOverride == null && packEmojis.size >= 2) {
+            CosmeticPackThumbnail(emojis = packEmojis, size = 120.dp)
         } else {
             Box(
                 modifier = Modifier
@@ -281,7 +434,7 @@ private fun CosmeticHero(item: OwnedItem, emojiOverride: String? = null) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = emojiOverride ?: item.iconEmoji,
+                    text = emojiOverride ?: emoji,
                     typography = AppTheme.typography.Display.D900,
                 )
             }
