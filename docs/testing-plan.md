@@ -83,6 +83,8 @@ Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/ko
 
 **Cost:** ~6-8 hours, ~10 tests in addition to the module setup. **Why now:** the wire format between client and server is the highest-risk single category — every other test mocks one side. Pays back on every future change.
 
+> **Landed (harness + golden path).** The module is `:apps:integration` — an Android library whose tests run as Android **unit tests on the host JVM** (`./gradlew :apps:integration:testDebugUnitTest`), so they reuse the feature modules' existing Android compilation and drive the **real `LobbyViewModel`s** (not just the repository) with **no `jvm{}`-target surgery**. `InProcessServer` boots the real routes via `embeddedServer(Netty, port = 0)`; `IntegrationAuth` mints/verifies HS256 JWTs under the real `SUPABASE_JWT_AUTH` realm; `TestClient` wires the real `RoomRepositoryImpl` + reconnecting socket beneath a real VM. The first test, [`FriendsGameHappyPathTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/FriendsGameHappyPathTest.kt), drives the **setup journey** end to end — host creates → joiner joins by code → both present/connected → host starts → both navigate — and runs green + non-flaky. A dedicated `integration-test` CI job (Ubuntu, no Docker) gates it. The items below are the remaining fan-out on top of that harness.
+
 ### Module structure
 
 Create `:integration` (or `:tests:e2e`) as a JVM-only Kotlin module:
