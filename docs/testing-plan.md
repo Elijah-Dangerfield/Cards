@@ -91,9 +91,11 @@ Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/ko
 >
 > *Full-stack (Layer 3):* [`FullStackRoomTest`](../apps/server/src/test/kotlin/com/cards/server/FullStackRoomTest.kt) boots the **real `ServerComponent` over real Postgres** (Testcontainers) via the shared `installApp` seam and asserts a `StartHand` persists to `room_sessions` — runs in the existing `server-test` job.
 >
-> *In-hand play (Phase 2):* [`InHandPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/InHandPlayTest.kt) drives real gameplay over the wire via a `GameplaySession` over the real `RoomConnectionHandle` — two clients play a heads-up hand to completion (fold), per-recipient **hole-card scrubbing** (neither sees the other's cards), and **out-of-turn intent rejection**. 18 integration tests total, green + non-flaky.
+> *In-hand play (Phase 2):* a `GameplaySession` over the real `RoomConnectionHandle` (forward-only snapshot cursor, intent acks) drives real gameplay over the wire. [`InHandPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/InHandPlayTest.kt): heads-up hand to completion (fold), per-recipient **hole-card scrubbing**, **out-of-turn rejection**. [`DeeperPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/DeeperPlayTest.kt): **multi-street betting** (passive call/check advances preflop→flop, 3 community cards) and **request-next-hand**. [`ChaosPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/ChaosPlayTest.kt): a client **drops mid-hand, reconnects, and re-syncs** to the completed hand. **21 integration tests**, green + non-flaky (6×).
 >
-> Remaining fan-out on top of this: deeper gameplay (multi-street betting, side pots, request-next-hand), more chaos (Round 5: backgrounding, latency double-submit, reconnect mid-hand), hydrate-after-restart (Layer 3), and the feature-gated public-games / add-a-bot specs.
+> *Hydration (Layer 3):* [`SessionHydrationTest`](../apps/server/src/test/kotlin/com/cards/server/game/SessionHydrationTest.kt) — a fresh `DefaultGameSessionRegistry` (server-restart) rebuilds a live session by hydrating from the real `room_sessions` Postgres table.
+>
+> Remaining fan-out: side pots / all-in run-outs, more chaos (backgrounding, latency double-submit dedupe), and the feature-gated public-games / add-a-bot specs.
 
 ### Module structure
 

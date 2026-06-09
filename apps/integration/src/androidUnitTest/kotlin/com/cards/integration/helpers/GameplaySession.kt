@@ -52,13 +52,32 @@ class GameplaySession(
             connection.filterIsInstance<RoomConnection.Connected>().first().room
         }
 
+    // Forward-only cursor so a buffered (replayed) older snapshot is never
+    // re-matched — keyed on (handNumber, lastSequence), mirroring the client's
+    // own out-of-order guard (lastSequence resets per hand).
+    private var cursorHand = -1
+    private var cursorSeq = -1L
+
     suspend fun startHand() = handle.send(ClientFrame.StartHand(clientNonce = newNonce()))
 
-    /** The next game-state snapshot satisfying [predicate]. */
+    suspend fun requestNextHand() = handle.send(ClientFrame.RequestNextHand(clientNonce = newNonce()))
+
+    /**
+     * The next game-state snapshot satisfying [predicate] that is strictly newer
+     * than the last one returned (so repeated calls walk the hand forward).
+     */
     suspend fun nextSnapshot(
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         predicate: (GameState) -> Boolean = { true },
-    ): GameState = withTimeout(timeoutMs) { snapshots.first(predicate) }
+    ): GameState = withTimeout(timeoutMs) {
+        snapshots.first { it.isAfterCursor() && predicate(it) }.also {
+            cursorHand = it.handNumber
+            cursorSeq = it.lastSequence
+        }
+    }
+
+    private fun GameState.isAfterCursor(): Boolean =
+        handNumber > cursorHand || (handNumber == cursorHand && lastSequence > cursorSeq)
 
     /** Submit [intent] and return the server's correlated ack (accepted or rejected). */
     suspend fun submit(
