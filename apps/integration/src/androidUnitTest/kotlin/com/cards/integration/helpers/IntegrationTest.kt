@@ -3,8 +3,12 @@ package com.cards.integration.helpers
 import com.dangerfield.cards.features.lobby.impl.LobbyEvent
 import com.dangerfield.cards.features.lobby.impl.LobbyState
 import com.dangerfield.cards.features.lobby.impl.LobbyViewModel
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
@@ -39,14 +43,30 @@ abstract class IntegrationTest {
 
     /** Boots a real [InProcessServer] and runs [block] against it. */
     protected fun integration(block: suspend Harness.() -> Unit) = runBlocking {
-        InProcessServer().use { server -> Harness(server).block() }
+        InProcessServer().use { server ->
+            val harness = Harness(server)
+            try {
+                harness.block()
+            } finally {
+                harness.close()
+            }
+        }
     }
 }
 
-/** The per-test surface: the running server plus a factory for real clients. */
+/** The per-test surface: the running server plus factories for real clients + sessions. */
 class Harness(val server: InProcessServer) {
+    /** Background scope for session collectors; cancelled when the test ends. */
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
     fun client(userId: String = randomUserId(), faulty: Boolean = false): TestClient =
         TestClient(serverUrl = server.baseUrl, userId = userId, faulty = faulty)
+
+    /** A gameplay view over a live connection handle (real socket). */
+    fun gameplay(handle: RoomConnectionHandle): GameplaySession =
+        GameplaySession(handle, scope)
+
+    internal fun close() = scope.cancel()
 }
 
 // ---- await helpers (real time + generous timeouts; never fixed sleeps) ----

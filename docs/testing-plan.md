@@ -91,7 +91,9 @@ Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/ko
 >
 > *Full-stack (Layer 3):* [`FullStackRoomTest`](../apps/server/src/test/kotlin/com/cards/server/FullStackRoomTest.kt) boots the **real `ServerComponent` over real Postgres** (Testcontainers) via the shared `installApp` seam and asserts a `StartHand` persists to `room_sessions` — runs in the existing `server-test` job.
 >
-> Remaining fan-out on top of this: in-hand play through the wire (Round 2 gameplay set + per-recipient scrub), more chaos (Round 5: backgrounding, latency double-submit), hydrate-after-restart (Layer 3), and the feature-gated public-games / add-a-bot specs.
+> *In-hand play (Phase 2):* [`InHandPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/InHandPlayTest.kt) drives real gameplay over the wire via a `GameplaySession` over the real `RoomConnectionHandle` — two clients play a heads-up hand to completion (fold), per-recipient **hole-card scrubbing** (neither sees the other's cards), and **out-of-turn intent rejection**. 18 integration tests total, green + non-flaky.
+>
+> Remaining fan-out on top of this: deeper gameplay (multi-street betting, side pots, request-next-hand), more chaos (Round 5: backgrounding, latency double-submit, reconnect mid-hand), hydrate-after-restart (Layer 3), and the feature-gated public-games / add-a-bot specs.
 
 ### Module structure
 
