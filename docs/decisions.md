@@ -25,6 +25,24 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-09 — Defer account creation to onboarding finish (kill anon-on-init)
+
+**Decision:** The app no longer signs in anonymously on launch. `AuthBootstrap` is deleted; a missing session resolves to `AuthState.Unauthenticated`. Onboarding runs fully unauthenticated (off the unauthed app-config tree), and a guest account is minted only when the user commits their identity (`GuestAccountCreator.start` at PickIdentity→Continue, joined at the final step). New OAuth/email sign-ups create a real account at auth time. Once creation has started, back-navigation to the Welcome landing is blocked.
+
+**Why:** Anon-on-init created a throwaway account on *every* fresh install. When the user then signed into a real account, (a) the throwaway anon + its starter grant were orphaned server-side, and (b) its install-scoped `requiresGrantInfo` flag leaked onto the switched-in account, firing the starter-grant dialog for a returning user. Deferring creation removes the orphan and the leak *at the source* — no account exists until the user commits to one.
+
+**Supporting changes:**
+- **Grant signal made leak-proof:** `requiresGrantInfo` → live, in-memory `ChipsRepository.walletJustCreated` (server-sourced, false for any pre-existing wallet) AND monotonic `AppData.didSeeInitialGrantInOnboarding`. The Home gate ANDs them, so a switched-in account can never trigger the reveal.
+- **Self-healing offline:** `PendingGuestAccountStore` persists the chosen identity; `DefaultGuestAccountCreator` (an `AutoInit`) resumes the attempt on the next launch, so an offline-onboarded user isn't stranded as a permanent `Profile.Fallback`.
+- **Clean sign-out reset:** extended the existing `AppEvent.SignedOut` clearing (DB via `SignedOutLocalDataCleaner`) to the profile caches (`SignedOutProfileCacheCleaner`) and account-scoped `AppData` (`SignedOutAppDataReset` + `resetAccountScoped()`); made `Cache.update` atomic so the concurrent resets don't clobber.
+
+**Alternatives considered:**
+- *Keep anon-on-init + reconcile on account switch* (the original instinct) — rejected: still mints orphans, and "reconcile on every switch path" is the fragile per-call-site clearing we were trying to delete.
+- *Add `AuthState.Error` for the degraded/creation-failed state* — rejected: a third arm on the sealed `AuthState` forces ~15 exhaustive `when` sites (shop/lobby/progression/room…) to handle a state that's just "no usable account" for them. Modeled creation status as the separate `AccountCreationState` on `GuestAccountCreator` instead.
+- *Wire the clear via a new `AuthRepository.events` flow + `collectWithPrevious`* — rejected: the codebase already has the decentralized lifecycle (`AppEvent`/`AppEventListener` multibinding). Reused it. (Listeners that depend on `AuthRepository` must stay out of the listener set — that forms a DI cycle through `AppEventBus`; the profile-cache cleaner and the creator are standalone/AutoInit for this reason.)
+
+**Status:** Locked for the deferred-creation + leak-fix + sign-out-reset core (Phases 1–6 functional). Deferred (see `docs/todo.md`): the user-facing degraded UX (Home dialog, retry affordance, multiplayer gate, connectivity-flip retry), local→server progress reconciliation, routing new OAuth sign-ups through onboarding, and the splash-config hold.
+
 ## 2026-06-06 — Consumable reward items: XP Boost + Pick-a-Card chest
 
 **Decision:** Add two buyable (and level-up-giftable) consumables, each mapped onto the right grant model (see [`docs/wiki/state-authority-and-sync.md`](./wiki/state-authority-and-sync.md)):
