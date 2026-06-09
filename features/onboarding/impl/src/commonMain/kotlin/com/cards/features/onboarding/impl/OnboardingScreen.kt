@@ -150,9 +150,15 @@ fun OnboardingScreen(
     onAction: (OnboardingAction) -> Unit,
 ) {
     // System back (Android hardware/gesture, iOS swipe) mirrors the in-UI
-    // Back button: it steps back through the flow and only falls through to
-    // exit on the entry step, where there's nothing before it.
-    BackHandler(enabled = state.step != OnboardingStep.Welcome) {
+    // Back button: it steps back through the flow. Disabled on the entry step
+    // (nothing before it) and once account creation has started / an identity
+    // is claimed — from there the account is forming and there's no going back
+    // to the landing page.
+    BackHandler(
+        enabled = state.step != OnboardingStep.Welcome &&
+            !state.creationStarted &&
+            !state.identityClaimed,
+    ) {
         onAction(OnboardingAction.Back)
     }
     
@@ -193,7 +199,7 @@ fun OnboardingScreen(
                 when (step) {
                     OnboardingStep.Welcome -> WelcomeStep(state, onAction)
                     OnboardingStep.PickIdentity -> PickIdentityStep(state, onAction)
-                    OnboardingStep.HowItWorks -> HowItWorksStep(onAction)
+                    OnboardingStep.HowItWorks -> HowItWorksStep(state, onAction)
                     OnboardingStep.StarterGrant -> StarterGrantStep(state, onAction)
                 }
             }
@@ -662,18 +668,24 @@ private fun SectionLabel(text: String) {
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun HowItWorksStep(onAction: (OnboardingAction) -> Unit) {
+private fun HowItWorksStep(
+    state: OnboardingState,
+    onAction: (OnboardingAction) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(screenHorizontalInsets),
     ) {
-        IconButton(
-            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-            onClick = { onAction(OnboardingAction.Back) },
-            iconColor = AppTheme.colors.content,
-            modifier = Modifier.padding(top = Dimension.D300),
-        )
+        // No back affordance once creation has started — the account is forming.
+        if (!state.creationStarted) {
+            IconButton(
+                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+                onClick = { onAction(OnboardingAction.Back) },
+                iconColor = AppTheme.colors.content,
+                modifier = Modifier.padding(top = Dimension.D300),
+            )
+        }
         Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
             text = stringResource(Res.string.onboarding_how_eyebrow),
@@ -790,14 +802,17 @@ private fun StarterGrantStep(
             .padding(screenHorizontalInsets),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        IconButton(
-            icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
-            onClick = { onAction(OnboardingAction.Back) },
-            iconColor = AppTheme.colors.content,
-            modifier = Modifier
-                .align(Alignment.Start)
-                .padding(top = Dimension.D300),
-        )
+        // No back affordance once creation has started — the account is forming.
+        if (!state.creationStarted) {
+            IconButton(
+                icon = Icons.ArrowBack(stringResource(Res.string.ui_top_bar_back_a11y)),
+                onClick = { onAction(OnboardingAction.Back) },
+                iconColor = AppTheme.colors.content,
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .padding(top = Dimension.D300),
+            )
+        }
 
         // The hero sits in the space between the fixed back button and the
         // pinned CTA: centered when it fits, scrollable on short screens so
@@ -883,9 +898,11 @@ private fun StarterGrantStep(
             Spacer(modifier = Modifier.height(Dimension.D700))
         }
 
-        // Always enabled — never block the user on the wallet round-trip.
+        // Disabled only for the brief moment we join on the in-flight account
+        // creation (usually already done by now); we always proceed to Home.
         ButtonPrimary(
             onClick = { onAction(OnboardingAction.Finish) },
+            enabled = !state.isFinishing,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(Res.string.onboarding_grant_cta))
