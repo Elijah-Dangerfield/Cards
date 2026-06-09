@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.identity.impl.auth
 
+import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
@@ -198,6 +199,26 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
     }
 
     @Test
+    fun goingOnline_retriesFailedCreation_midSession() = runUnitTest {
+        val appState = FakeAppState(isOffline = MutableStateFlow(true)) // start offline
+        val auth = FakeAuthRepository(SignInOutcome.NetworkError(RuntimeException("offline")))
+        val creator = build(auth, FakeProfileRepository(), appState = appState)
+
+        creator.start(identity)
+        advanceUntilIdle()
+        assertIs<AccountCreationState.Failed>(creator.state.value)
+        assertEquals(1, auth.createGuestCalls)
+
+        // Connectivity returns and creation can now succeed.
+        auth.guestOutcome = SignInOutcome.Success
+        appState.isOffline.value = false
+        advanceUntilIdle()
+
+        assertIs<AccountCreationState.Succeeded>(creator.state.value)
+        assertEquals(2, auth.createGuestCalls, "online flip must re-attempt the failed creation")
+    }
+
+    @Test
     fun retry_isNoOp_whenNotFailed() = runUnitTest {
         val auth = FakeAuthRepository(guestOutcome = SignInOutcome.Success)
         val creator = build(auth, FakeProfileRepository())
@@ -213,12 +234,20 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
         auth: AuthRepository,
         profile: ProfileRepository,
         store: PendingGuestAccountStore = PendingGuestAccountStore(InMemoryCacheFactory),
+        appState: FakeAppState = FakeAppState(),
     ) = DefaultGuestAccountCreator(
         authRepository = auth,
         profileRepository = profile,
         pendingStore = store,
+        appState = appState,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private class FakeAppState(
+        override val isOffline: MutableStateFlow<Boolean> = MutableStateFlow(false),
+    ) : AppState {
+        override val isBlockActive: MutableStateFlow<Boolean> = MutableStateFlow(false)
+    }
 
     private object InMemoryCacheFactory : CacheFactory {
         override fun <T : Any> inMemory(defaultValue: () -> T): Cache<T> = FakeCache(defaultValue)

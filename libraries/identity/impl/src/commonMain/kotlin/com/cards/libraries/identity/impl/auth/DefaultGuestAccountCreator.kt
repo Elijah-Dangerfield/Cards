@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.identity.impl.auth
 
+import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
@@ -48,6 +49,7 @@ class DefaultGuestAccountCreator(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
     private val pendingStore: PendingGuestAccountStore,
+    private val appState: AppState,
     private val appScope: AppCoroutineScope,
 ) : GuestAccountCreator, AutoInit {
 
@@ -72,6 +74,18 @@ class DefaultGuestAccountCreator(
             }
             logger.i { "Resuming owed guest-account creation from a prior session" }
             start(owed)
+        }
+
+        // Heal mid-session: when connectivity returns and a creation is still
+        // Failed, retry it — so an offline guest doesn't have to relaunch.
+        // (isOffline is a StateFlow, so it already only emits on change.)
+        appScope.launch {
+            appState.isOffline.collect { offline ->
+                if (!offline && _state.value is AccountCreationState.Failed) {
+                    logger.i { "Back online — retrying failed guest-account creation" }
+                    retry()
+                }
+            }
         }
     }
 
