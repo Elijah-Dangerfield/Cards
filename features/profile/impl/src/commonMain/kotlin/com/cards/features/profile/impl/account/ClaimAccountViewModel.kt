@@ -1,14 +1,21 @@
 package com.dangerfield.cards.features.profile.impl.account
 
+import com.dangerfield.cards.libraries.core.BuildInfo
+import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.libraries.core.isiOS
+import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
+import com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.LinkEmailIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.LinkIdentityOutcome
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
+import com.dangerfield.cards.libraries.identity.auth.awaitCredential
 import me.tatarka.inject.annotations.Inject
 
 /**
@@ -38,12 +45,14 @@ import me.tatarka.inject.annotations.Inject
 @Inject
 class ClaimAccountViewModel(
     private val authRepository: AuthRepository,
+    private val appleSignInCoordinator: AppleSignInCoordinator,
     googleSignInEnabled: GoogleSignInEnabled,
     appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<ClaimAccountState, ClaimAccountEvent, ClaimAccountAction>(
     initialStateArg = ClaimAccountState(
         googleEnabled = googleSignInEnabled(),
-        appleEnabled = appleSignInEnabled(),
+        // Apple is the native flow only, which is iOS-only (see docs/decisions.md).
+        appleEnabled = appleSignInEnabled() && BuildInfo.isiOS(),
     ),
 ) {
 
@@ -60,7 +69,7 @@ class ClaimAccountViewModel(
             }
 
             is ClaimAccountAction.DismissError -> action.updateState {
-                it.copy(error = null, conflictingProvider = null)
+                it.copy(error = null, conflictingProvider = null, pendingAppleCredential = null)
             }
 
             is ClaimAccountAction.Submit -> action.run {
@@ -109,11 +118,51 @@ class ClaimAccountViewModel(
                 }
             }
 
+            is ClaimAccountAction.ClaimWithApple -> action.run {
+                updateState { it.copy(isSubmitting = true, error = null, conflictingProvider = null) }
+                Catching { appleSignInCoordinator.awaitCredential() }
+                    .logOnFailure { "Apple credential request failed (claim)" }
+                    .fold(
+                        onSuccess = { credential ->
+                            if (credential == null) {
+                                // Dismissed the sheet — quiet no-op.
+                                updateState { it.copy(isSubmitting = false) }
+                            } else {
+                                linkApple(credential)
+                            }
+                        },
+                        onFailure = {
+                            updateState {
+                                it.copy(isSubmitting = false, error = ClaimAccountError.Unknown)
+                            }
+                        },
+                    )
+            }
+
             is ClaimAccountAction.ConfirmSwitchToExisting -> action.run {
                 val provider = state.conflictingProvider ?: return@run
-                updateState { it.copy(isSubmitting = true, error = null, conflictingProvider = null) }
-                when (authRepository.signInWithOAuth(provider)) {
+                val appleCredential = state.pendingAppleCredential
+                updateState {
+                    it.copy(
+                        isSubmitting = true,
+                        error = null,
+                        conflictingProvider = null,
+                        pendingAppleCredential = null,
+                    )
+                }
+                // Reuse the Apple credential we already captured so the user
+                // doesn't have to re-run the sheet; Google still uses the web flow.
+                val outcome = if (provider == OAuthProvider.Apple && appleCredential != null) {
+                    authRepository.signInWithApple(appleCredential)
+                } else {
+                    authRepository.signInWithOAuth(provider)
+                }
+                when (outcome) {
                     is SignInOutcome.Success -> {
+                        // Switched to a pre-existing account. No grant-flag
+                        // bookkeeping: the Home dialog keys on the live
+                        // walletJustCreated signal (false for a pre-existing
+                        // account), so it can't fire here.
                         updateState { it.copy(isSubmitting = false) }
                         sendEvent(ClaimAccountEvent.SwitchedAccounts)
                     }
@@ -136,6 +185,46 @@ class ClaimAccountViewModel(
                         it.copy(isSubmitting = false, error = ClaimAccountError.SwitchFailed)
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Link the captured Apple identity to the current (anonymous) account.
+     * Mirrors the [ClaimAccountAction.ClaimWith] OAuth path, but on an
+     * already-on-another-account conflict it stashes the [credential] so
+     * [ClaimAccountAction.ConfirmSwitchToExisting] can switch without re-running
+     * the Apple sheet.
+     */
+    private suspend fun ClaimAccountAction.linkApple(credential: AppleSignInCredential) {
+        when (authRepository.linkAppleIdentity(credential)) {
+            is LinkIdentityOutcome.Success -> {
+                updateState { it.copy(isSubmitting = false) }
+                sendEvent(ClaimAccountEvent.Claimed)
+            }
+            is LinkIdentityOutcome.AlreadyOnAnotherAccount -> updateState {
+                it.copy(
+                    isSubmitting = false,
+                    conflictingProvider = OAuthProvider.Apple,
+                    pendingAppleCredential = credential,
+                    error = ClaimAccountError.AlreadyOnAnotherAccount,
+                )
+            }
+            is LinkIdentityOutcome.NotSignedIn -> updateState {
+                it.copy(isSubmitting = false, error = ClaimAccountError.NotSignedIn)
+            }
+            is LinkIdentityOutcome.Cancelled -> updateState { it.copy(isSubmitting = false) }
+            is LinkIdentityOutcome.ProviderNotEnabled -> updateState {
+                it.copy(
+                    isSubmitting = false,
+                    error = ClaimAccountError.ProviderNotEnabled(OAuthProvider.Apple),
+                )
+            }
+            is LinkIdentityOutcome.NetworkError -> updateState {
+                it.copy(isSubmitting = false, error = ClaimAccountError.NetworkError)
+            }
+            is LinkIdentityOutcome.Unknown -> updateState {
+                it.copy(isSubmitting = false, error = ClaimAccountError.Unknown)
             }
         }
     }
@@ -213,6 +302,12 @@ data class ClaimAccountState(
     val error: ClaimAccountError? = null,
     /** Set when the user attempted to link an identity already used by another account. */
     val conflictingProvider: OAuthProvider? = null,
+    /**
+     * The Apple credential captured during a claim attempt, retained across an
+     * `AlreadyOnAnotherAccount` conflict so "switch to existing" can sign in
+     * without re-running the native Apple sheet. Not held for the web (Google) flow.
+     */
+    val pendingAppleCredential: AppleSignInCredential? = null,
 ) {
     val anyProviderEnabled: Boolean get() = googleEnabled || appleEnabled
 
@@ -271,6 +366,8 @@ sealed interface ClaimAccountError {
 
 sealed interface ClaimAccountAction {
     data class ClaimWith(val provider: OAuthProvider) : ClaimAccountAction
+    /** Native "Sign in with Apple" claim (iOS) — runs the coordinator, then links. */
+    data object ClaimWithApple : ClaimAccountAction
     data object ConfirmSwitchToExisting : ClaimAccountAction
     data class EmailChanged(val value: String) : ClaimAccountAction
     data class PasswordChanged(val value: String) : ClaimAccountAction

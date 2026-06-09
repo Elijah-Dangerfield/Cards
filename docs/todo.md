@@ -26,19 +26,22 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & account onboarding
 
-- `[P1]` **Wire the native Apple sign-in button into the onboarding/claim flow.** The `createAppleSignInButton` primitive (`NativeViewFactory.kt`) + its Swift `ASAuthorizationAppleIDButton` impl exist, but the Apple slot still renders a custom `ButtonSecondary` ([`OnboardingScreen.kt:365`](../features/onboarding/impl/src/commonMain/kotlin/com/cards/features/onboarding/impl/OnboardingScreen.kt)) that App Review rejects. Render the native button there, capture the authorization, and exchange the ID token for a Supabase session — no id-token sign-in path exists today (`RealSupabaseAuthGateway` only runs the web OAuth flow).
-  **Acceptance:** the iOS Apple slot shows the system button; tap opens the system sheet; success authenticates the linked Apple identity; cancel returns silently; error surfaces via the onboarding/claim state's error.
-  **Hints:** `createAppleSignInButton` in `NativeViewFactory.kt`; `RealSupabaseAuthGateway.kt`. **Out of scope:** Google native button on iOS.
+- `[P2]` **Make the starter-grant "seen" state server-authoritative (per account).** The cross-switch leak is fixed — the Home gate now keys on the live `ChipsRepository.walletJustCreated` signal (false for any pre-existing wallet) AND `AppData.didSeeInitialGrantInOnboarding` (set when onboarding shows the number). What's still install-scoped is `didSeeInitialGrantInOnboarding`: the airtight version is a server flag (e.g. `welcome_seen_at` on the profile) so "we revealed the grant" is correct across devices/reinstalls. *(proposed 2026-06-08, updated 2026-06-09)*
+  **Hints:** signal set in `ChipsRepositoryImpl.sync`; consumers in `HomeViewModel.observeWelcomeGate` + `OnboardingViewModel.kickOffGrantReveal`. **Out of scope:** founding-member inbox message — already server-read-tracked.
 
-### Layout & responsiveness
+- `[P2]` **Degraded "account-creation pending" UX — remaining polish.** The degraded path is now functional + safe: creation self-heals (resume on relaunch via `PendingGuestAccountStore` + retry on the offline→online flip), the app-wide `AccountSetupBanner` communicates the pending state, and `PlayMultiplayerFeatureEntryPoint` bounces Unauthenticated sessions instead of hanging. Remaining nice-to-haves: (a) a manual **Retry** affordance on Profile/Settings near `SaveProgressBanner` (the banner + auto-retry already cover the common case); (b) consider a richer dialog vs. the thin banner; (c) device-verify the banner copy/placement. *(proposed 2026-06-09, mostly done 2026-06-09)*
+  **Hints:** observe `GuestAccountCreator.state` (app-scoped, globally injectable); banner lives in `apps/compose/AccountSetupBanner.kt`.
 
-- `[P2]` **Landscape/horizontal layouts — improve the screens that read poorly.** Every main screen (Home, Profile, Shop, PlayPoker, Lobby, Onboarding) now has a landscape `@Preview`; single-column screens stretch edge-to-edge on a wide canvas and the table needs bespoke short/wide seating. Judge each against its landscape preview and improve the layouts that read poorly (e.g. cap readable content width on wide layouts). *(proposed 2026-05-30)*
-  **Acceptance:** screens that read poorly horizontally get an improved layout.
-  **Hints:** landscape previews use `@Preview(widthDp = 800, heightDp = 380)`. **Worker note:** the layout-tuning half needs Studio to render the previews — pair with a visual pass.
+- `[P1]` **Reconcile local bot-play progress when a degraded account is finally created.** While creation is pending (offline) the user plays bots and accrues XP/chips locally against `Profile.Fallback`. When `GuestAccountCreator` later succeeds, the server is authoritative: its balance + the pending `wallet_events` replay must converge **without double-counting** the provisional starter grant (`OnboardingStarterGrant`). Server balance wins; replay pending deltas on top; never re-grant. *(proposed 2026-06-09)*
+  **Hints:** `ChipsRepositoryImpl.sync` already replays pending `wallet_events`; progression/XP sync is the riskier half. Decide whether degraded play mutates the server-bound ledger at all or stays purely local until creation.
+
+- `[P2]` **Route new OAuth/email sign-ups through onboarding.** Deferred creation sends *guests* through onboarding, but a brand-new Apple/Google/email sign-up still goes straight to Home (returning sign-ins correctly skip). Routing new sign-ups through PickIdentity/grant needs a reliable new-vs-returning signal (`walletCreated` on first wallet sync, or a server "profile just created" flag). *(proposed 2026-06-09)*
+  **Hints:** OAuth/Apple paths in `OnboardingViewModel` (`handleOAuth` / `finishAppleSignIn`) set `hasUserOnboarded=true` → Home.
+
+- `[P2]` **Hold the splash for onboarding config + cycling load messages.** `OnboardingStarterGrant`/`OnboardingSuggestedName` ride the unauthed app-config tree but the splash doesn't wait for the fetch. Hold the splash until app-config resolves (or a timeout) and, after ~5s, show the `CyclingLoadingMessage` ("Shuffling the deck…", already built in `:libraries:ui`). Android's native splash can't show custom text, so this is a Compose loading gate handing off from the native/iOS splash. *(proposed 2026-06-09)*
+  **Hints:** `AppViewModel.isReady` / `MainActivity` `keepOnScreenCondition`; `appConfigFlow` first emission; `DefaultBootLoadingMessages`.
 
 ### Gameplay & table UX
-
-- `[P2]` **Hand-end XP/coin particle overlay.** When the hand-result / celebration overlay dismisses, fly an XP particle up to the `LevelPill` and a coin particle down to the chip stack, tied to the moment the gated values release. Polish on top of the existing deferred-animation gating.
 
 - `[P2]` **Per-hand decision capture + batch upload (for a future heat-map).** Capture per-hand attributes (folded / called / raised / bluffed / showdown-won + outcome) to a local Room table at hand-end; batch-upload when 50 entries accumulate or 24h passes; server stores rows + exposes a snapshot endpoint.
   **Acceptance:** local capture on every resolved hand; batch fires on threshold or timer; endpoint returns a snapshot.
@@ -77,12 +80,6 @@ Buyable, level-up-giftable consumables. Product + grant-model call is in [`decis
   **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
   **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
   **Hints:** grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. **Interacts with:** wallet, inventory / my-items, shop, and level-up rewards.
-
-### Profile, cosmetics & sheets
-
-- `[P1]` **Cosmetic detail sheets: richer felt/emote-pack preview.** Felts + emote packs should get a richer (animated) preview in `CosmeticDetailSheet` to match the card-back flip — the felt sheet shows a static `FeltVignette` today, emote packs a thumbnail. *(proposed 2026-06-05)*
-  **Acceptance:** felt/emote-pack detail sheets show a richer (animated) preview.
-  **Hints:** `FlippableCard` is the card-back precedent in `CosmeticDetailSheet`. **Worker note:** the buyable-tap → purchase-sheet half already shipped.
 
 ### Player Card — Phase 1 (V1)
 
@@ -201,6 +198,18 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
   - **Next rules (each a small follow-on, not this item):** `Catching {}` instead of `try/catch` / `runCatching`; `DispatcherProvider` instead of direct `Dispatchers.{Main,IO,Default,Unconfined}`; raw `Color(0xFF…)` / `Color.White.copy(alpha=)` / one-off `RoundedCornerShape(N.dp)` for semantic surfaces. All are mechanical AGENTS.md conventions a rule can pin.
   **Acceptance:** adding `Text("Hello")` to a feature `:impl` fails both `./gradlew check` and the pre-push hook; `stringResource(...)` passes; a documented suppress annotation clears a flagged line; adding a second rule is a localized change (new rule class + config entry), no framework rework.
   **Hints:** convention plugins live in `build-logic/`; existing `.githooks/` has `commit-msg`. **Out of scope:** migrating the existing string violations (`PurchaseConfirmSheet.kt`, `AppGuardLayer.kt`, …) — separate cleanup once the gate exists.
+
+### Remote config / feature flags
+
+- `[P2]` **`PostgresAppConfigSource` + a targeted flag/rollout engine + a local admin UI.** Today app config is hardcoded in `InMemoryAppConfigSource` — every change is a server redeploy, and a value is all-or-nothing for every user. Replace it with a DB-backed source that can serve **different values to different audiences** and ramp rollouts, plus a small local UI to drive it. Big item; ship in slices. *(proposed 2026-06-08)*
+  - **Phase 1 — DB-backed source (small, high value):** implement `PostgresAppConfigSource` bound to `ServerScope` (drops in for `InMemoryAppConfigSource` via the same `@ContributesBinding`); read the `key → value` tree from a Postgres table with a short in-memory TTL cache. Editable in the Supabase table editor → flags flip with **no redeploy**, live on the next client config refresh. This alone kills the redeploy pain.
+  - **Phase 2 — targeting + rollout:** per-flag **rules** evaluated **server-side** in `GET /v1/app-config` (the endpoint already returns *resolved* values, so the client `ConfiguredValue` model is untouched — it just receives the resolved value). Rules match on an **evaluation context** in a defined order (first-match / priority wins), with an always-available **kill-switch** override.
+    - **Axes:** platform (iOS/Android), **app version** (≥ / range), user id (allow/deny lists), location (country/region), locale, OS version, release channel (internal/beta/prod), account type (anon vs claimed), install/cohort date (new vs existing user), device class (phone/tablet). *(Decide each input's source — JWT claims (user id, anon), client headers (platform, app version, install id, locale — see `ClientHeaders`), IP-geo or a profile field (location).)*
+    - **% rollout / A/B:** deterministic bucketing via a stable hash (`hash(userId + flagKey) % 100 < rolloutPct`) so a user keeps the same bucket across sessions and you can ramp 1% → 100%; optionally mutually-exclusive experiment variants.
+    - **Audit:** a who/what/when change log.
+  - **Phase 3 — local admin UI:** a small local web app (run on demand) that shows **(a)** every flag that exists (from the `ConfiguredValue` registry), **(b)** the value currently served per app version / audience, and **(c)** an editor to set values + rules along the axes and dial rollout %. Talks to an authenticated admin write-path (or directly to the config table).
+  **Acceptance:** flipping a flag for "iOS, app version ≥ N, 10% of users" takes effect with no client release and no server redeploy; everyone else reads the client default; the admin UI lists flags + per-version served values and can edit rules.
+  **Hints:** the seam already exists — `AppConfigSource` (server) + `ConfiguredValue` / `AppConfigMap` (client); some eval inputs live in `ClientHeaders` (install id, platform, app version) + the JWT. **Out of scope / decide first:** buy-vs-build — a hosted service (PostHog / Statsig / LaunchDarkly) may beat hand-rolling the rule engine before Phase 2; this todo is the thin in-house version over the existing seam.
 
 ---
 

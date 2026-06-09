@@ -28,12 +28,10 @@ import kotlin.test.assertTrue
  *
  * The interesting edges all flow through the [SupabaseAuthGateway] seam:
  *  - cold-boot resolve: `Initializing → … → Authenticated`,
- *  - cold-boot anonymous bootstrap: `NotAuthenticated → signInAnonymously →
+ *  - no-session resolve: `NotAuthenticated → Unauthenticated` (NO auto-anon),
+ *  - explicit guest creation: `createGuestSession → signInAnonymously →
  *    Authenticated`,
  *  - exhausted resolve attempts (gateway stays Transient forever),
- *  - sign-in failure during anon bootstrap → `Unauthenticated(cause)`,
- *  - `accessToken()` returns the gateway token when Authenticated,
- *    `null` when Unauthenticated,
  *  - `retry()` is a no-op when already Authenticated,
  *  - `signOut()` flips state and dispatches `AppEvent.SignedOut`,
  *  - `current()` suspends pre-resolve, then unsuspends after.
@@ -67,8 +65,26 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun resolve_notAuthenticated_triggersAnonSignIn_andSettles() = runUnitTest {
-        // Cold-boot fresh-install path: no session → anon sign-in → resolve.
+    fun resolve_notAuthenticated_emitsUnauthenticated_withoutCreatingAnAccount() = runUnitTest {
+        // Cold-boot fresh-install path: no session. We no longer auto-create
+        // one — the app stays Unauthenticated until onboarding mints an
+        // account explicitly. This is what kills the orphan-anon problem.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val state = assertIs<AuthState.Unauthenticated>(repo.current())
+        assertNull(state.cause, "a clean no-session resolve carries no error")
+        assertEquals(0, gateway.signInAnonymouslyCalls, "no anonymous sign-in on launch")
+    }
+
+    @Test
+    fun createGuestSession_signsInAnonymously_andEmitsAuthenticated() = runUnitTest {
+        // Explicit guest creation (onboarding finish): anon sign-in fires here,
+        // not on launch.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
@@ -76,11 +92,29 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         )
         val repo = build(gateway = gateway)
         advanceUntilIdle()
+        assertIs<AuthState.Unauthenticated>(repo.current())
 
+        val outcome = repo.createGuestSession()
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Success>(outcome)
         val state = assertIs<AuthState.Authenticated>(repo.current())
         assertEquals(true, state.isAnonymous)
-        assertNull(state.email, "anonymous users surface a null email regardless of supabase placeholder")
+        assertNull(state.email)
         assertEquals(1, gateway.signInAnonymouslyCalls)
+    }
+
+    @Test
+    fun createGuestSession_whenAnonSignInThrows_returnsFailureOutcome_andStaysUnauthenticated() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+            onSignInAnonymously = { throw RuntimeException("offline") },
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        val outcome = repo.createGuestSession()
+        assertIs<com.dangerfield.cards.libraries.identity.auth.SignInOutcome.Unknown>(outcome)
+        assertIs<AuthState.Unauthenticated>(repo.current())
     }
 
     @Test
@@ -99,23 +133,6 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
         assertIs<AuthState.Authenticated>(repo.current())
         assertTrue(gateway.statusReads >= 2, "resolve must re-poll after a Transient status")
-    }
-
-    @Test
-    fun resolve_signInAnonymouslyThrows_emitsUnauthenticatedWithCause() = runUnitTest {
-        // Offline + fresh install: anon sign-in throws (network). Resolve
-        // bails to Unauthenticated with the cause so callers see why.
-        val boom = RuntimeException("offline")
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.NotAuthenticated,
-            session = null,
-            onSignInAnonymously = { throw boom },
-        )
-        val repo = build(gateway = gateway)
-        advanceUntilIdle()
-
-        val state = assertIs<AuthState.Unauthenticated>(repo.current())
-        assertEquals(boom, state.cause)
     }
 
     @Test
@@ -161,23 +178,20 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     fun current_suspendsUntilResolveCompletes() = runUnitTest {
         // The whole reason for the resolve loop: callers (including the
         // network client's bearer plugin) suspend until auth lands.
-        val sessionGate = CompletableDeferred<Unit>()
+        val initGate = CompletableDeferred<Unit>()
         val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.NotAuthenticated,
-            session = null,
-            onSignInAnonymously = {
-                sessionGate.await()
-                advanceToAuthenticated(anonymousSession())
-            },
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = claimedSession(),
+            onAwaitInitialization = { initGate.await() },
         )
         val repo = build(gateway = gateway)
 
         val pending = async { repo.current() }
         // Yield the dispatcher to let the resolve start.
         advanceUntilIdle()
-        assertTrue(pending.isActive, "current() must still be suspended until anon sign-in completes")
+        assertTrue(pending.isActive, "current() must still be suspended until session hydration completes")
 
-        sessionGate.complete(Unit)
+        initGate.complete(Unit)
         advanceUntilIdle()
         assertIs<AuthState.Authenticated>(pending.await())
     }
@@ -204,18 +218,19 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
 
     @Test
     fun retry_reRunsResolve_afterUnauthenticated() = runUnitTest {
-        // First resolve fails (no network). retry() (e.g. on offline→online
-        // flip) re-runs the loop, sees network is back, lands authed.
+        // First resolve finds no session → Unauthenticated. Later a session
+        // appears (e.g. it hydrated after a transient failure, or a sign-in
+        // landed out of band); retry() re-resolves and lands authed.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
-            onSignInAnonymously = { throw RuntimeException("offline") },
         )
         val repo = build(gateway = gateway)
         advanceUntilIdle()
         assertIs<AuthState.Unauthenticated>(repo.current())
 
-        gateway.onSignInAnonymously = { advanceToAuthenticated(anonymousSession()) }
+        gateway.replaceSession(claimedSession())
+        gateway.setStatus(AuthGatewayStatus.Authenticated)
         val result = repo.retry()
         assertIs<AuthState.Authenticated>(result)
     }
@@ -293,7 +308,6 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
-            onSignInAnonymously = { throw RuntimeException("no network") },
         )
         val repo = build(gateway = gateway)
         advanceUntilIdle()
@@ -328,11 +342,16 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         appEventBus: AppEventBus = NoOpEventBus,
     ): SupabaseAuthRepositoryImpl = SupabaseAuthRepositoryImpl(
         gateway = gateway,
-        authBootstrap = AuthBootstrap(gateway),
         profileApi = UnusedProfileApi,
         appEventBus = appEventBus,
+        tokenInvalidator = NoOpTokenInvalidator,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private object NoOpTokenInvalidator :
+        com.dangerfield.cards.libraries.networking.AuthTokenInvalidator {
+        override fun invalidate() = Unit
+    }
 
     private fun anonymousSession(
         userId: String = "anon-user",
@@ -394,6 +413,7 @@ internal class FakeSupabaseAuthGateway(
     initialStatus: AuthGatewayStatus,
     session: GatewaySession?,
     statusSequence: List<AuthGatewayStatus>? = null,
+    var onAwaitInitialization: suspend FakeSupabaseAuthGateway.() -> Unit = {},
     var onSignInAnonymously: suspend FakeSupabaseAuthGateway.() -> Unit = {},
     var onSignOut: suspend FakeSupabaseAuthGateway.() -> Unit = {},
     var onRefreshSession: suspend FakeSupabaseAuthGateway.() -> Unit = {},
@@ -435,7 +455,9 @@ internal class FakeSupabaseAuthGateway(
         status = next
     }
 
-    override suspend fun awaitInitialization() { /* no-op for tests */ }
+    override suspend fun awaitInitialization() {
+        onAwaitInitialization()
+    }
 
     override fun currentStatus(): AuthGatewayStatus {
         statusReads++
@@ -477,6 +499,15 @@ internal class FakeSupabaseAuthGateway(
 
     override suspend fun signInWithOAuth(provider: OAuthProvider): Unit =
         error("signInWithOAuth not stubbed for these tests")
+
+    override suspend fun signInWithAppleIdToken(idToken: String, nonce: String): Unit =
+        error("signInWithAppleIdToken not stubbed for these tests")
+
+    override suspend fun linkAppleIdToken(idToken: String, nonce: String): Unit =
+        error("linkAppleIdToken not stubbed for these tests")
+
+    override suspend fun signInWithGoogleIdToken(idToken: String, nonce: String?): Unit =
+        error("signInWithGoogleIdToken not stubbed for these tests")
 
     override suspend fun linkEmailIdentity(email: String, password: String): Unit =
         error("linkEmailIdentity not stubbed for these tests")

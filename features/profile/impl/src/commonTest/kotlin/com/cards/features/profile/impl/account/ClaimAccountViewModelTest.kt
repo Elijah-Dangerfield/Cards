@@ -48,7 +48,9 @@ class ClaimAccountViewModelTest : CoroutineTest() {
             config = TestAppConfigMap.withOAuthEnabled(google = true, apple = true),
         )
         assertEquals(true, vmEnabled.state.googleEnabled)
-        assertEquals(true, vmEnabled.state.appleEnabled)
+        // Apple is additionally gated on iOS (native flow only); this unit test
+        // runs on the JVM, so it's off even with the flag enabled.
+        assertEquals(false, vmEnabled.state.appleEnabled)
         assertEquals(true, vmEnabled.state.anyProviderEnabled)
 
         val vmGoogleOnly = buildVm(
@@ -481,7 +483,16 @@ class ClaimAccountViewModelTest : CoroutineTest() {
         config: TestAppConfigMap = TestAppConfigMap.withOAuthEnabled(),
     ): ClaimAccountViewModel = ClaimAccountViewModel(
         authRepository = identity,
+        appleSignInCoordinator = NoopAppleSignInCoordinator,
         googleSignInEnabled = GoogleSignInEnabled(config),
         appleSignInEnabled = AppleSignInEnabled(config),
     )
+
+    /** No test here exercises the iOS-only native Apple claim; the coordinator is a no-op. */
+    private object NoopAppleSignInCoordinator :
+        com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator {
+        override fun requestCredential(
+            onComplete: (com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential?, String?) -> Unit,
+        ) = onComplete(null, null)
+    }
 }

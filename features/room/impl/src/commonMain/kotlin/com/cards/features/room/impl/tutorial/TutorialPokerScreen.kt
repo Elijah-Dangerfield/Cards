@@ -19,12 +19,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.runtime.getValue
@@ -148,18 +145,12 @@ internal fun TutorialPokerScreen(
                 tableau = tableau,
                 step = state.step,
                 stepIndex = state.stepIndex,
-                onIntent = onIntent,
-                onAdvance = onAdvance,
-                onExit = { leaveDialogOpen = true },
-            )
-            StepCounterPill(
                 section = state.section,
                 sectionStep = state.sectionStepIndex + 1,
                 sectionTotal = state.sectionTotalSteps,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                    .padding(top = 14.dp),
+                onIntent = onIntent,
+                onAdvance = onAdvance,
+                onExit = { leaveDialogOpen = true },
             )
         }
     }
@@ -194,6 +185,9 @@ private fun TableauStep(
     tableau: com.dangerfield.cards.features.room.impl.PlayPokerState,
     step: TutorialStep,
     stepIndex: Int,
+    section: TutorialSection,
+    sectionStep: Int,
+    sectionTotal: Int,
     onIntent: (com.dangerfield.cards.libraries.gameplay.PlayerIntent) -> Unit,
     onAdvance: () -> Unit,
     onExit: () -> Unit,
@@ -208,9 +202,17 @@ private fun TableauStep(
                 // engine.
             },
             onBack = onExit,
-            // Hide the centered Level pill so our step-counter pill
-            // owns the top-bar middle slot without colliding.
+            // Hide the centered Level pill and hand the step-counter pill to
+            // the top bar's centered slot so it sits *in* the bar, vertically
+            // centered with the back chevron — not floating above it.
             showXpPill = false,
+            topBarCenterSlot = {
+                StepCounterPill(
+                    section = section,
+                    sectionStep = sectionStep,
+                    sectionTotal = sectionTotal,
+                )
+            },
             // No real hand or XP at stake in the tutorial, so back-out
             // skips the "you'll lose this hand" confirm dialog.
             confirmLeave = false,

@@ -52,7 +52,10 @@ class PlayMultiplayerFeatureEntryPoint(
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<PlayMultiplayerRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<PlayMultiplayerRoute>()
-            val localUserId = rememberLocalUserId()
+            // Multiplayer needs a real (server) account. If the session resolves
+            // Unauthenticated — e.g. a guest whose account creation is still
+            // pending (degraded) — bounce back instead of spinning forever.
+            val localUserId = rememberLocalUserId(onUnauthenticated = { router.goBack() })
             if (localUserId == null) {
                 LoadingPlaceholder()
                 return@screen
@@ -82,11 +85,15 @@ class PlayMultiplayerFeatureEntryPoint(
     }
 
     @Composable
-    private fun rememberLocalUserId(): String? {
+    private fun rememberLocalUserId(onUnauthenticated: () -> Unit): String? {
         var userId by remember { mutableStateOf<String?>(null) }
         LaunchedEffect(Unit) {
-            val current = authRepository.current()
-            if (current is AuthState.Authenticated) userId = current.userId
+            // current() suspends until auth resolves to a definitive state, so
+            // an Unauthenticated result here is final — not "still loading."
+            when (val current = authRepository.current()) {
+                is AuthState.Authenticated -> userId = current.userId
+                is AuthState.Unauthenticated -> onUnauthenticated()
+            }
         }
         return userId
     }

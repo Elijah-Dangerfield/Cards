@@ -64,6 +64,23 @@ interface SupabaseAuthGateway {
     suspend fun signInWithOAuth(provider: OAuthProvider)
 
     /**
+     * Native Sign in with Apple — exchange the Apple id token (+ the raw nonce
+     * that was hashed into the Apple request) for a Supabase session. Throws on
+     * failure / cancellation.
+     */
+    suspend fun signInWithAppleIdToken(idToken: String, nonce: String)
+
+    /** Attach a native Apple identity to the current (anonymous) user. Throws on failure. */
+    suspend fun linkAppleIdToken(idToken: String, nonce: String)
+
+    /**
+     * Native Google id-token sign-in — exchange a Google id token for a Supabase
+     * session. [nonce] is optional (Credential Manager may not supply one).
+     * Throws on failure. Wired ahead of a Google token source landing.
+     */
+    suspend fun signInWithGoogleIdToken(idToken: String, nonce: String?)
+
+    /**
      * Attach an email/password identity to the current anonymous user.
      * Throws on failure.
      */

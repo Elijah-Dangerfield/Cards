@@ -5,8 +5,13 @@ import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
+import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
+import com.dangerfield.cards.libraries.identity.OnboardingSuggestedName
+import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
+import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
@@ -15,6 +20,8 @@ import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -27,21 +34,18 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /**
- * Covers the redesigned three-step onboarding flow:
+ * Covers the **deferred-creation** onboarding flow:
  *
  *  - Returning user (hasUserOnboarded) bounces straight to Home.
- *  - ContinueAsGuest: anon-auth success advances to PickIdentity and
- *    kicks off profile + avatar-pack background loads; failure stays on
- *    Welcome with a friendly error (incl. the Supabase-specific cases).
- *  - SignInWithOAuth: success → marks onboarded + NavigateToHome; cancel
- *    silently clears the in-flight flag; failures surface a message.
- *  - DisplayName: user-edit gates profile prefill; Regenerate re-rolls.
- *  - SelectAvatar: stores emoji + background hex.
- *  - ContinueFromPickIdentity: advances to HowItWorks immediately and
- *    persists the profile in the background (optimistic); a taken name
- *    surfaces on the name field without blocking the flow.
- *  - Finish: marks onboarded + Navigates Home from the HowItWorks step.
- *  - Profile + avatar-pack timeouts fall back gracefully.
+ *  - ContinueAsGuest just enters PickIdentity — no auth, no account yet.
+ *  - ContinueFromPickIdentity kicks off guest-account creation in the
+ *    background (the app-scoped [GuestAccountCreator]) and locks back-nav.
+ *    When an account already exists (OAuth), it patches the profile instead.
+ *  - StarterGrant reveals the wallet balance once it hydrates.
+ *  - Finish joins on the in-flight creation: success or failure both go Home
+ *    (failure flags the degraded state).
+ *  - Back is blocked once creation has started.
+ *  - SignInWithOAuth: success → onboarded + Home; cancel/failure handled.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnboardingViewModelTest : CoroutineTest() {
@@ -59,14 +63,6 @@ class OnboardingViewModelTest : CoroutineTest() {
 
     @Test
     fun starterPack_pinsCanonicalEmojis_inSyncWithServerStarter() {
-        // The onboarding picker is hardcoded — no network — so what
-        // ships in STARTER_PACK is what the user will pick from on a
-        // cold install. The server's `AvatarPacks.Starter` must contain
-        // every emoji here forever (append-only invariant), enforced
-        // by `AvatarPacksTest.starter_includesAllClientFallbackEmojis`.
-        // If you change either side without the other, profile saves
-        // will reject with `invalid_avatar_emoji` for any user that
-        // picks a drifted emoji.
         val expectedEmojis = listOf("🦊", "🐱", "🐼", "🐯", "🐸", "🦁", "🃏", "🎲")
         assertEquals(expectedEmojis, OnboardingViewModel.STARTER_PACK.map { it.emoji })
         assertEquals(OnboardingViewModel.STARTER_TILE_COUNT, OnboardingViewModel.STARTER_PACK.size)
@@ -74,12 +70,6 @@ class OnboardingViewModelTest : CoroutineTest() {
 
     @Test
     fun starterPack_defaultBackgroundColors_matchServerPaletteForm() {
-        // The server validates `avatarBackgroundColor` against
-        // `AvatarPalette` which normalizes to lowercase `#rrggbb`. The
-        // original bug shipped uppercase / different hex values so
-        // every onboarding save was getting rejected on color
-        // validation. Pin the format so a future palette edit can't
-        // silently break onboarding again.
         OnboardingViewModel.STARTER_PACK.forEach { option ->
             val color = option.backgroundColorHex
                 ?: error("STARTER_PACK ${option.emoji} is missing a default background color")
@@ -92,104 +82,241 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun continueAsGuest_success_advancesToPickIdentity_andPrefillsFromProfile() = runUnitTest {
-        val cache = FakeAppCache()
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val profile = FakeProfileRepository(
-            initial = authenticatedProfile(
-                displayName = "ServerName42",
-                avatarEmoji = "🦊",
-                avatarBackgroundColor = "#ff6b35",
-            ),
-        )
-        val vm = newVm(cache = cache, auth = auth, profile = profile)
+    fun continueAsGuest_entersPickIdentity_withoutAuthing() = runUnitTest {
+        // No account is created here anymore — guest-tap just enters the
+        // identity step; creation is deferred to ContinueFromPickIdentity.
+        val auth = FakeAuthRepository() // Unauthenticated by default
+        val vm = newVm(auth = auth)
 
         vm.takeAction(OnboardingAction.ContinueAsGuest)
         runCurrent()
 
         assertEquals(OnboardingStep.PickIdentity, vm.state.step)
-        assertEquals("ServerName42", vm.state.displayName)
-        assertEquals("🦊", vm.state.selectedEmoji)
-        assertEquals("#ff6b35", vm.state.selectedBackgroundColor)
-        // The avatar picker uses the hardcoded onboarding starter
-        // pack — fetched in parallel from the server to warm the
-        // EditProfile cache, but the picker itself always renders
-        // STARTER_PACK. Pin the count + first emoji so a future
-        // change to STARTER_PACK trips a test.
+        assertNull(vm.state.authError)
         assertEquals(OnboardingViewModel.STARTER_TILE_COUNT, vm.state.starterPack.size)
-        assertEquals("🦊", vm.state.starterPack.first().emoji)
+        // Display name is prefilled from a client suggestion (config empty in tests).
+        assertTrue(vm.state.displayName.isNotBlank())
     }
 
     @Test
-    fun continueAsGuest_anonymousDisabled_surfacesAnonymousSignInDisabled() = runUnitTest {
-        // Load-bearing dev message: this is the #1 cause of "no user
-        // appeared in the Supabase dashboard" head-scratching. Carrying
-        // the raw exception message through `debugDetails` lets the
-        // screen append a `DEBUG:` suffix on debug builds without putting
-        // BuildInfo.isDebug branching into the VM.
-        val auth = FakeAuthRepository(
-            initialAuthState = AuthState.Unauthenticated(
-                RuntimeException("Anonymous sign-ins are disabled"),
-            ),
-        )
-        val vm = newVm(auth = auth)
+    fun displayNameChanged_setsValue_andUserEditedFlag() = runUnitTest {
+        val vm = newVm()
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+
+        vm.takeAction(OnboardingAction.DisplayNameChanged("MyChoice"))
+        runCurrent()
+
+        assertEquals("MyChoice", vm.state.displayName)
+        assertTrue(vm.state.userEditedName)
+    }
+
+    @Test
+    fun regenerateDisplayName_replacesValue_andMarksUserEdited() = runUnitTest {
+        val vm = newVm()
+        val before = vm.state.displayName
+
+        vm.takeAction(OnboardingAction.RegenerateDisplayName)
+        runCurrent()
+
+        assertTrue(vm.state.userEditedName)
+        assertTrue(vm.state.displayName.isNotBlank())
+        assertNotNull(before)
+    }
+
+    @Test
+    fun selectAvatar_storesEmojiAndBackground() = runUnitTest {
+        val vm = newVm()
+
+        vm.takeAction(OnboardingAction.SelectAvatar("🐯", "#a18bff"))
+        runCurrent()
+
+        assertEquals("🐯", vm.state.selectedEmoji)
+        assertEquals("#a18bff", vm.state.selectedBackgroundColor)
+    }
+
+    @Test
+    fun continueFromPickIdentity_guest_startsBackgroundCreation_advances_andLocksBack() = runUnitTest {
+        val auth = FakeAuthRepository() // Unauthenticated → guest path
+        val creator = FakeGuestAccountCreator()
+        val vm = newVm(auth = auth, creator = creator)
 
         vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.DisplayNameChanged("Picked"))
+        vm.takeAction(OnboardingAction.SelectAvatar("🦊", "#ff6b35"))
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
+        assertTrue(vm.state.creationStarted)
+        assertEquals(1, creator.startCalls)
+        assertEquals(
+            PendingIdentity(displayName = "Picked", avatarEmoji = "🦊", avatarBackgroundColor = "#ff6b35"),
+            creator.lastIdentity,
+        )
+    }
+
+    @Test
+    fun continueFromPickIdentity_authenticated_patchesProfile_andSurfacesTakenName() = runUnitTest {
+        // A real account already exists (e.g. OAuth claimed): patch directly,
+        // surfacing a taken name on the field.
+        val auth = FakeAuthRepository(initialAuthState = sampleAuthenticated)
+        val profile = FakeProfileRepository(
+            initial = Profile.Fallback(id = "f"),
+            updateOutcome = UpdateProfileOutcome.DisplayNameTaken,
+        )
+        val creator = FakeGuestAccountCreator()
+        val vm = newVm(auth = auth, profile = profile, creator = creator)
+
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.DisplayNameChanged("Taken"))
+        vm.takeAction(OnboardingAction.SelectAvatar("🦊", "#ff6b35"))
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
+        assertEquals(0, creator.startCalls, "authed path must not create a guest account")
+        assertEquals("Taken" to ("🦊" to "#ff6b35"), profile.lastUpdateArgs)
+        assertEquals(OnboardingSaveError.DisplayNameTaken, vm.state.saveError)
+    }
+
+    @Test
+    fun continueFromHowItWorks_advancesToStarterGrant_andRevealsBalance() = runUnitTest {
+        val cache = FakeAppCache()
+        val chips = FakeChipsRepository(initial = 10_500L)
+        val vm = newVm(cache = cache, chips = chips)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+
+        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
+        runCurrent()
+
+        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
+        assertEquals(10_500L, vm.state.revealedChips)
+        assertFalse(vm.state.grantRevealTimedOut)
+        // Showing the number records that we did, so the Home dialog won't repeat it.
+        assertTrue(cache.get().didSeeInitialGrantInOnboarding)
+    }
+
+    @Test
+    fun starterGrant_offline_noBalanceNoConfig_showsNoNumber_andDoesNotMarkSeen() = runUnitTest {
+        // No live balance and no config amount (empty config) → "reconnect"
+        // copy, and we did NOT show a number, so the Home dialog can still
+        // reveal it once the wallet syncs.
+        val cache = FakeAppCache()
+        val chips = FakeChipsRepository(initial = null)
+        val vm = newVm(cache = cache, chips = chips)
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+
+        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
+        advanceTimeBy(2_000)
+        runCurrent()
+
+        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
+        assertNull(vm.state.revealedChips)
+        assertTrue(vm.state.grantRevealTimedOut)
+        assertFalse(cache.get().didSeeInitialGrantInOnboarding)
+    }
+
+    @Test
+    fun back_isBlocked_onceCreationStarted() = runUnitTest {
+        val vm = newVm()
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
+
+        vm.takeAction(OnboardingAction.Back)
+        runCurrent()
+
+        // Back is a no-op — the account is forming, no return to landing.
+        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
+    }
+
+    @Test
+    fun back_fromPickIdentity_returnsToWelcome_beforeCreation() = runUnitTest {
+        val vm = newVm()
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
+
+        vm.takeAction(OnboardingAction.Back)
         runCurrent()
 
         assertEquals(OnboardingStep.Welcome, vm.state.step)
-        assertEquals(
-            OnboardingAuthError.AnonymousSignInDisabled(debugDetails = "Anonymous sign-ins are disabled"),
-            vm.state.authError,
-        )
     }
 
     @Test
-    fun continueAsGuest_network_surfacesGuestSignInFailed() = runUnitTest {
-        val auth = FakeAuthRepository(
-            initialAuthState = AuthState.Unauthenticated(RuntimeException("network is unreachable")),
-        )
-        val vm = newVm(auth = auth)
+    fun back_fromWelcome_isNoOp() = runUnitTest {
+        val vm = newVm()
+        assertEquals(OnboardingStep.Welcome, vm.state.step)
 
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        vm.takeAction(OnboardingAction.Back)
         runCurrent()
 
-        assertEquals(
-            OnboardingAuthError.GuestSignInFailed(debugDetails = "network is unreachable"),
-            vm.state.authError,
-        )
+        assertEquals(OnboardingStep.Welcome, vm.state.step)
     }
 
     @Test
-    fun continueAsGuest_invalidAnonKey_surfacesInvalidConfig() = runUnitTest {
-        val auth = FakeAuthRepository(
-            initialAuthState = AuthState.Unauthenticated(RuntimeException("Invalid API key")),
-        )
-        val vm = newVm(auth = auth)
+    fun finish_noCreation_marksOnboarded_andNavigatesHome() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = newVm(cache = cache)
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        vm.takeAction(OnboardingAction.Finish)
         runCurrent()
 
-        assertEquals(
-            OnboardingAuthError.InvalidConfig(debugDetails = "Invalid API key"),
-            vm.state.authError,
-        )
+        assertTrue(cache.get().hasUserOnboarded)
+        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
     }
 
     @Test
-    fun continueAsGuest_captcha_surfacesCaptchaRequired() = runUnitTest {
-        val auth = FakeAuthRepository(
-            initialAuthState = AuthState.Unauthenticated(RuntimeException("captcha required by project")),
-        )
-        val vm = newVm(auth = auth)
+    fun finish_afterGuestCreationSucceeds_navigatesHome_notDegraded() = runUnitTest {
+        val cache = FakeAppCache()
+        val creator = FakeGuestAccountCreator(failCreation = false)
+        val vm = newVm(cache = cache, creator = creator)
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
 
         vm.takeAction(OnboardingAction.ContinueAsGuest)
         runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+        vm.takeAction(OnboardingAction.Finish)
+        runCurrent()
 
-        assertEquals(
-            OnboardingAuthError.CaptchaRequired(debugDetails = "captcha required by project"),
-            vm.state.authError,
-        )
+        assertTrue(cache.get().hasUserOnboarded)
+        assertFalse(vm.state.creationFailed)
+        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
+    }
+
+    @Test
+    fun finish_afterGuestCreationFails_stillNavigatesHome_flaggedDegraded() = runUnitTest {
+        val cache = FakeAppCache()
+        val creator = FakeGuestAccountCreator(failCreation = true)
+        val vm = newVm(cache = cache, creator = creator)
+        val received = mutableListOf<OnboardingEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+
+        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        runCurrent()
+        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
+        runCurrent()
+        vm.takeAction(OnboardingAction.Finish)
+        runCurrent()
+
+        assertTrue(cache.get().hasUserOnboarded)
+        assertTrue(vm.state.creationFailed)
+        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
     }
 
     @Test
@@ -214,19 +341,6 @@ class OnboardingViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertEquals(OnboardingAuthError.OAuthNetworkError, vm.state.authError)
-    }
-
-    @Test
-    fun signInWithOAuth_unknownLikeOutcome_surfacesOAuthFailed() = runUnitTest {
-        val auth = FakeAuthRepository(
-            oauthSignInOutcome = SignInOutcome.Unknown(RuntimeException("boom")),
-        )
-        val vm = newVm(auth = auth)
-
-        vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
-        runCurrent()
-
-        assertEquals(OnboardingAuthError.OAuthFailed, vm.state.authError)
     }
 
     @Test
@@ -261,134 +375,6 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun displayNameChanged_setsUserEditedFlag_andBlocksProfilePrefill() = runUnitTest {
-        // Profile resolves only after the user has already typed — the
-        // prefill must NOT clobber the user's input.
-        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val vm = newVm(auth = auth, profile = profile)
-
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.DisplayNameChanged("MyChoice"))
-        runCurrent()
-        assertEquals("MyChoice", vm.state.displayName)
-        assertTrue(vm.state.userEditedName)
-
-        // Now the real profile lands — must NOT overwrite.
-        profile.emit(authenticatedProfile(displayName = "ServerName"))
-        runCurrent()
-        assertEquals("MyChoice", vm.state.displayName)
-    }
-
-    @Test
-    fun regenerateDisplayName_replacesValue_andMarksUserEdited() = runUnitTest {
-        val vm = newVm()
-        val before = vm.state.displayName
-
-        vm.takeAction(OnboardingAction.RegenerateDisplayName)
-        runCurrent()
-
-        // Random — assert it changed at least most of the time. To keep
-        // the test deterministic, just assert userEdited flipped.
-        assertTrue(vm.state.userEditedName)
-        // And the new value is a non-empty, suggester-shaped string.
-        assertTrue(vm.state.displayName.isNotBlank())
-        // We can't assert inequality reliably (theoretical collision),
-        // but at minimum the field is still populated.
-        assertNotNull(before)
-    }
-
-    @Test
-    fun selectAvatar_storesEmojiAndBackground() = runUnitTest {
-        val vm = newVm()
-
-        vm.takeAction(OnboardingAction.SelectAvatar("🐯", "#a18bff"))
-        runCurrent()
-
-        assertEquals("🐯", vm.state.selectedEmoji)
-        assertEquals("#a18bff", vm.state.selectedBackgroundColor)
-    }
-
-    @Test
-    fun continueFromPickIdentity_success_advancesToHowItWorks_andCallsUpdate() = runUnitTest {
-        val profile = FakeProfileRepository(
-            initial = Profile.Fallback(id = "f"),
-            updateOutcome = UpdateProfileOutcome.Success(
-                profile = authenticatedProfile(displayName = "Picked"),
-            ),
-        )
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val vm = newVm(auth = auth, profile = profile)
-
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.DisplayNameChanged("Picked"))
-        vm.takeAction(OnboardingAction.SelectAvatar("🦊", "#ff6b35"))
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-
-        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-        assertEquals("Picked" to ("🦊" to "#ff6b35"), profile.lastUpdateArgs)
-    }
-
-    @Test
-    fun continueFromPickIdentity_displayNameTaken_advancesOptimistically_andSurfacesError() = runUnitTest {
-        // Optimistic: we jump to HowItWorks immediately and persist in the
-        // background. A taken name still surfaces on the name field so it's
-        // visible if the user steps back, but it no longer blocks the flow.
-        val profile = FakeProfileRepository(
-            initial = Profile.Fallback(id = "f"),
-            updateOutcome = UpdateProfileOutcome.DisplayNameTaken,
-        )
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val vm = newVm(auth = auth, profile = profile)
-
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.DisplayNameChanged("Taken"))
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-
-        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-        assertEquals(OnboardingSaveError.DisplayNameTaken, vm.state.saveError)
-    }
-
-    @Test
-    fun continueFromPickIdentity_networkError_advancesAnyway() = runUnitTest {
-        // We don't want a server hiccup to dead-end the user on the
-        // last form step before Home. The user can fix their name
-        // later from Profile.
-        val profile = FakeProfileRepository(
-            initial = Profile.Fallback(id = "f"),
-            updateOutcome = UpdateProfileOutcome.NetworkError(RuntimeException("boom")),
-        )
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val vm = newVm(auth = auth, profile = profile)
-
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-
-        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-    }
-
-    @Test
-    fun finish_marksOnboarded_andNavigatesHome() = runUnitTest {
-        val cache = FakeAppCache()
-        val vm = newVm(cache = cache)
-        val received = mutableListOf<OnboardingEvent>()
-        backgroundScope.launch { vm.eventFlow.collect { received += it } }
-
-        vm.takeAction(OnboardingAction.Finish)
-        runCurrent()
-
-        assertTrue(cache.get().hasUserOnboarded)
-        assertEquals(OnboardingEvent.NavigateToHome, received.firstOrNull())
-    }
-
-    @Test
     fun signIn_emitsNavigateToSignInEvent() = runUnitTest {
         val vm = newVm()
         val received = mutableListOf<OnboardingEvent>()
@@ -402,140 +388,10 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun back_fromHowItWorks_returnsToPickIdentity() = runUnitTest {
-        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val vm = newVm(auth = auth, profile = profile)
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-
-        vm.takeAction(OnboardingAction.Back)
-        runCurrent()
-
-        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
-    }
-
-    @Test
-    fun back_keepsSaveErrorOnPickIdentity_thenClearsItAtWelcome() = runUnitTest {
-        // Optimistic save advanced us to HowItWorks and set a name error in
-        // the background. Stepping back onto PickIdentity keeps that error
-        // visible on the name field; stepping back again to Welcome clears it.
-        val profile = FakeProfileRepository(
-            initial = Profile.Fallback(id = "f"),
-            updateOutcome = UpdateProfileOutcome.DisplayNameTaken,
-        )
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val vm = newVm(auth = auth, profile = profile)
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.DisplayNameChanged("Taken"))
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-        assertNotNull(vm.state.saveError)
-
-        vm.takeAction(OnboardingAction.Back)
-        runCurrent()
-        assertEquals(OnboardingStep.PickIdentity, vm.state.step)
-        assertNotNull(vm.state.saveError)
-
-        vm.takeAction(OnboardingAction.Back)
-        runCurrent()
-        assertEquals(OnboardingStep.Welcome, vm.state.step)
-        assertNull(vm.state.saveError)
-    }
-
-    @Test
-    fun continueFromHowItWorks_advancesToStarterGrant_andRevealsBalance() = runUnitTest {
-        // Wallet already hydrated (cold-boot sync landed) → the StarterGrant
-        // page reveals the real number and clears requiresGrantInfo so the
-        // Home dialog won't re-reveal.
-        val cache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
-        val chips = FakeChipsRepository(initial = 10_500L)
-        val vm = newVm(cache = cache, auth = auth, profile = profile, chips = chips)
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-
-        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
-        runCurrent()
-
-        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
-        assertEquals(10_500L, vm.state.revealedChips)
-        assertFalse(vm.state.grantRevealTimedOut)
-        assertFalse(cache.get().requiresGrantInfo)
-    }
-
-    @Test
-    fun starterGrant_offline_showsNoNumber_andLeavesFlag() = runUnitTest {
-        // Balance never hydrates → after the grace window we show the
-        // "reconnect" copy (no number) and leave requiresGrantInfo set so
-        // the Home dialog reveals the grant once the wallet syncs.
-        val cache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
-        val chips = FakeChipsRepository(initial = null)
-        val vm = newVm(cache = cache, auth = auth, profile = profile, chips = chips)
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-
-        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
-        // Push past the 1.5s grace window on virtual time.
-        advanceTimeBy(2_000)
-        runCurrent()
-
-        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
-        assertNull(vm.state.revealedChips)
-        assertTrue(vm.state.grantRevealTimedOut)
-        assertTrue(cache.get().requiresGrantInfo)
-    }
-
-    @Test
-    fun back_fromStarterGrant_returnsToHowItWorks() = runUnitTest {
-        val auth = FakeAuthRepository(initialAuthState = sampleAnonymous)
-        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "f"))
-        val chips = FakeChipsRepository(initial = 10_000L)
-        val vm = newVm(auth = auth, profile = profile, chips = chips)
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
-        runCurrent()
-        vm.takeAction(OnboardingAction.ContinueFromPickIdentity)
-        runCurrent()
-        vm.takeAction(OnboardingAction.ContinueFromHowItWorks)
-        runCurrent()
-        assertEquals(OnboardingStep.StarterGrant, vm.state.step)
-
-        vm.takeAction(OnboardingAction.Back)
-        runCurrent()
-
-        assertEquals(OnboardingStep.HowItWorks, vm.state.step)
-    }
-
-    @Test
-    fun back_fromWelcome_isNoOp() = runUnitTest {
-        val vm = newVm()
-        assertEquals(OnboardingStep.Welcome, vm.state.step)
-
-        vm.takeAction(OnboardingAction.Back)
-        runCurrent()
-
-        assertEquals(OnboardingStep.Welcome, vm.state.step)
-    }
-
-    @Test
-    fun dismissError_clearsErrors() = runUnitTest {
-        val auth = FakeAuthRepository(
-            initialAuthState = AuthState.Unauthenticated(RuntimeException("boom")),
-        )
+    fun dismissError_clearsOAuthError() = runUnitTest {
+        val auth = FakeAuthRepository(oauthSignInOutcome = SignInOutcome.ProviderNotEnabled)
         val vm = newVm(auth = auth)
-        vm.takeAction(OnboardingAction.ContinueAsGuest)
+        vm.takeAction(OnboardingAction.SignInWithOAuth(OAuthProvider.Google))
         runCurrent()
         assertNotNull(vm.state.authError)
 
@@ -552,6 +408,7 @@ class OnboardingViewModelTest : CoroutineTest() {
         auth: FakeAuthRepository = FakeAuthRepository(),
         profile: FakeProfileRepository = FakeProfileRepository(),
         chips: FakeChipsRepository = FakeChipsRepository(),
+        creator: FakeGuestAccountCreator = FakeGuestAccountCreator(),
     ): OnboardingViewModel {
         val config = EmptyAppConfigMap()
         return OnboardingViewModel(
@@ -559,24 +416,52 @@ class OnboardingViewModelTest : CoroutineTest() {
             authRepository = auth,
             profileRepository = profile,
             chipsRepository = chips,
+            guestAccountCreator = creator,
+            appleSignInCoordinator = NoopAppleSignInCoordinator,
+            onboardingStarterGrant = OnboardingStarterGrant(config),
+            onboardingSuggestedName = OnboardingSuggestedName(config),
             googleSignInEnabled = GoogleSignInEnabled(config),
             appleSignInEnabled = AppleSignInEnabled(config),
         )
     }
 
-    private fun authenticatedProfile(
-        displayName: String = "ServerName",
-        avatarEmoji: String = "🦊",
-        avatarBackgroundColor: String? = "#ff6b35",
-    ): Profile.Authenticated = Profile.Authenticated(
-        id = "11111111-1111-1111-1111-111111111111",
-        displayName = displayName,
-        avatarEmoji = avatarEmoji,
-        avatarBackgroundColor = avatarBackgroundColor,
-        email = null,
-        isAnonymous = true,
-        createdAt = Instant.fromEpochSeconds(0),
-    )
+    /** No test here exercises the iOS-only Apple flow; the coordinator is a no-op. */
+    private object NoopAppleSignInCoordinator :
+        com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator {
+        override fun requestCredential(
+            onComplete: (com.dangerfield.cards.libraries.identity.auth.AppleSignInCredential?, String?) -> Unit,
+        ) = onComplete(null, null)
+    }
+}
+
+internal class FakeGuestAccountCreator(
+    private val failCreation: Boolean = false,
+    private val failureCause: Throwable? = null,
+) : GuestAccountCreator {
+    private val _state = MutableStateFlow<AccountCreationState>(AccountCreationState.Idle)
+    override val state: StateFlow<AccountCreationState> = _state
+
+    var startCalls: Int = 0
+        private set
+    var lastIdentity: PendingIdentity? = null
+        private set
+
+    override fun start(identity: PendingIdentity) {
+        startCalls++
+        lastIdentity = identity
+        _state.value = if (failCreation) {
+            AccountCreationState.Failed(identity, failureCause)
+        } else {
+            AccountCreationState.Succeeded
+        }
+    }
+
+    override suspend fun awaitTerminal(): AccountCreationState =
+        state.first { it is AccountCreationState.Succeeded || it is AccountCreationState.Failed }
+
+    override fun retry() {
+        lastIdentity?.let { start(it) }
+    }
 }
 
 internal class FakeProfileRepository(
@@ -612,15 +497,13 @@ internal class FakeProfileRepository(
         return updateOutcome
     }
 
-    // Onboarding doesn't call fetchAvatarPack — ProfileRepositoryImpl
-    // warms the pack at app boot via the AutoInit pattern instead.
-    // Stub satisfies the contract; nobody on this path calls it.
     override suspend fun fetchAvatarPack(): AvatarPackOutcome =
         AvatarPackOutcome.Success(packs = emptyList(), palette = emptyList())
 }
 
 internal class FakeChipsRepository(initial: Long? = null) : ChipsRepository {
     val balance = MutableStateFlow(initial)
+    override val walletJustCreated = MutableStateFlow(false)
     var syncCalls: Int = 0
         private set
 

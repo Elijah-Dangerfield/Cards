@@ -1,7 +1,5 @@
 package com.dangerfield.cards.libraries.identity.impl.profile
 
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.cards.AppEventBus
 import com.dangerfield.cards.libraries.cards.SessionTracker
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
@@ -81,7 +79,6 @@ class ProfileRepositoryImpl(
     private val avatarPackCache: AvatarPackCache,
     private val sessionTracker: SessionTracker,
     private val clock: Clock,
-    private val appEventBus: AppEventBus,
     private val appScope: AppCoroutineScope,
 ) : ProfileRepository, AutoInit {
 
@@ -461,13 +458,4 @@ class ProfileRepositoryImpl(
     private fun lastEmittedAuthenticatedOrNull(): Profile.Authenticated? =
         _state.replayCache.firstOrNull() as? Profile.Authenticated
 
-    @Suppress("unused")
-    private val signedOutTrigger: Unit = run {
-        // Future hook: clear the profile cache when AppEvent.SignedOut
-        // fires from AuthRepository. Wiring is mute for now — the auth
-        // observer above already re-resolves and emits Unauthenticated →
-        // Fallback, which is the user-visible part.
-        appEventBus.let { /* keep param referenced */ }
-        Unit
-    }
 }

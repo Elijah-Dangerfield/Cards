@@ -25,6 +25,38 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-09 — Central, declarative auth-gate on navigation
+
+**Decision:** A route declares what identity it needs via `Route.authRequirement` (`None` / `Account` / `ClaimedAccount`). `DelegatingRouter.navigate()` consults an injected `AuthGateChecker` and, when the requirement isn't met, transparently substitutes a shared `AuthGateRoute` (a bottom sheet) for the requested route — copy/CTA chosen from a `GateReason` (finishing-setup / need-account / need-claimed). First applied to `LobbyRoute` + `PlayMultiplayerRoute` (`Account`).
+
+**Why:** Gating is a cross-cutting concern that should be declared once per feature and enforced in one place. `navigate()` is the single choke point for all navigation, so enforcing there is proactive (blocks before the screen renders *and* before any authed call fires) and uniform. Adding a gate to a new feature is one constructor arg on its route — no per-screen guard code.
+
+**Decoupling:** `AuthRequirement` / `AuthGateChecker` / `AuthGateRoute` live in `:libraries:navigation` (just markers + an interface). `RealAuthGateChecker` (in `:navigation:impl`, which gained an `:libraries:identity` dep) caches `AuthState` + `GuestAccountCreator.state` from their flows so the check is a synchronous peek (navigate isn't suspend) and fails *closed* before auth resolves. It's an `AutoInit`, not an `AppEventListener`, to avoid the `AppEventBus` DI cycle. The gate sheet lives in `:apps:compose` because its CTAs span onboarding + claim.
+
+**Alternatives considered:**
+- *Throw `AuthError`, catch → error page* — rejected: reactive (you've entered the feature / fired the 401 before bouncing), scattered across call sites, control-flow-by-exception.
+- *A `RequireAccount { … }` composable wrapper per screen* — rejected (and explicitly disliked as a web-ish pattern): per-feature, and still reactive (navigate-then-bounce flicker) rather than proactive.
+
+**Status:** Locked. Note: route-gating covers *navigations*, not in-screen *actions* — real-money purchase buttons (an in-screen action) still need a VM-level `isAnonymous` check; `ClaimedAccount` is ready for any checkout *route*.
+
+## 2026-06-09 — Defer account creation to onboarding finish (kill anon-on-init)
+
+**Decision:** The app no longer signs in anonymously on launch. `AuthBootstrap` is deleted; a missing session resolves to `AuthState.Unauthenticated`. Onboarding runs fully unauthenticated (off the unauthed app-config tree), and a guest account is minted only when the user commits their identity (`GuestAccountCreator.start` at PickIdentity→Continue, joined at the final step). New OAuth/email sign-ups create a real account at auth time. Once creation has started, back-navigation to the Welcome landing is blocked.
+
+**Why:** Anon-on-init created a throwaway account on *every* fresh install. When the user then signed into a real account, (a) the throwaway anon + its starter grant were orphaned server-side, and (b) its install-scoped `requiresGrantInfo` flag leaked onto the switched-in account, firing the starter-grant dialog for a returning user. Deferring creation removes the orphan and the leak *at the source* — no account exists until the user commits to one.
+
+**Supporting changes:**
+- **Grant signal made leak-proof:** `requiresGrantInfo` → live, in-memory `ChipsRepository.walletJustCreated` (server-sourced, false for any pre-existing wallet) AND monotonic `AppData.didSeeInitialGrantInOnboarding`. The Home gate ANDs them, so a switched-in account can never trigger the reveal.
+- **Self-healing offline:** `PendingGuestAccountStore` persists the chosen identity; `DefaultGuestAccountCreator` (an `AutoInit`) resumes the attempt on the next launch, so an offline-onboarded user isn't stranded as a permanent `Profile.Fallback`.
+- **Clean sign-out reset:** extended the existing `AppEvent.SignedOut` clearing (DB via `SignedOutLocalDataCleaner`) to the profile caches (`SignedOutProfileCacheCleaner`) and account-scoped `AppData` (`SignedOutAppDataReset` + `resetAccountScoped()`); made `Cache.update` atomic so the concurrent resets don't clobber.
+
+**Alternatives considered:**
+- *Keep anon-on-init + reconcile on account switch* (the original instinct) — rejected: still mints orphans, and "reconcile on every switch path" is the fragile per-call-site clearing we were trying to delete.
+- *Add `AuthState.Error` for the degraded/creation-failed state* — rejected: a third arm on the sealed `AuthState` forces ~15 exhaustive `when` sites (shop/lobby/progression/room…) to handle a state that's just "no usable account" for them. Modeled creation status as the separate `AccountCreationState` on `GuestAccountCreator` instead.
+- *Wire the clear via a new `AuthRepository.events` flow + `collectWithPrevious`* — rejected: the codebase already has the decentralized lifecycle (`AppEvent`/`AppEventListener` multibinding). Reused it. (Listeners that depend on `AuthRepository` must stay out of the listener set — that forms a DI cycle through `AppEventBus`; the profile-cache cleaner and the creator are standalone/AutoInit for this reason.)
+
+**Status:** Locked for the deferred-creation + leak-fix + sign-out-reset core (Phases 1–6 functional). Deferred (see `docs/todo.md`): the user-facing degraded UX (Home dialog, retry affordance, multiplayer gate, connectivity-flip retry), local→server progress reconciliation, routing new OAuth sign-ups through onboarding, and the splash-config hold.
+
 ## 2026-06-06 — Consumable reward items: XP Boost + Pick-a-Card chest
 
 **Decision:** Add two buyable (and level-up-giftable) consumables, each mapped onto the right grant model (see [`docs/wiki/state-authority-and-sync.md`](./wiki/state-authority-and-sync.md)):
@@ -1981,3 +2013,17 @@ path) without committing to any of them today.
 **Status:** Decided 2026-05-27, migration sliced into `docs/todo.md` §B
 sub-items (B0–B6). Eval kept in [`multiplayer-architecture-eval.md`](./multiplayer-architecture-eval.md)
 as supporting context.
+
+## 2026-06-08 — Sign in with Apple: native on iOS, web-on-Android deferred
+
+**Decision:** Offer "Sign in with Apple" via the **native** `ASAuthorizationController` flow on **iOS only**. Android gets Google + guest; the Apple button is hidden there (onboarding gates it with `BuildInfo.isiOS()`). The web-OAuth Apple path stays in the codebase (`AuthRepository.signInWithOAuth(Apple)` → `supabase.auth.signInWith(Apple)`) but dormant.
+
+**Why:** There is no native Sign-in-with-Apple SDK on Android — the only way to offer Apple there is the web/OAuth flow, which carries a real maintenance cost (an Apple **Services ID** + a **client-secret JWT that expires every ≤6 months** and must be rotated, plus a redirect/deep-link callback). Android users overwhelmingly have Google accounts, which we already offer, so Apple-on-Android only serves the small slice who created an Apple account on iOS and later moved to Android. Native-iOS-Apple + Google-everywhere captures ~95% of the value with none of the secret-rotation burden. The native flow needs no client secret — Supabase validates the id token against the bundle ID.
+
+**Shape:** Two distinct auth-layer methods keep the split clean: `signInWithApple(credential)` (native id-token → `signInWith(IDToken)`) vs `signInWithOAuth(Apple)` (web). The native credential comes from a Swift `IOSAppleSignInCoordinator` (ASAuthorizationController + SHA-256 nonce) injected through `IosAppComponent`, surfaced via the `AppleSignInButton` DS primitive (native UIKit button on iOS, Compose fallback elsewhere). Onboarding links the Apple identity to the current anonymous guest when one exists (preserves chips/XP), else signs in. Cancellation crosses the K/N boundary as a `null` return, not an exception.
+
+**Setup still required (human/external):** enable the Apple provider in each Supabase project (dev + prod are independent) with the iOS bundle ID; the `com.apple.developer.applesignin` entitlement is already in the repo. Provider config + flipping `identity.appleSignInEnabled` on is dashboard work.
+
+**Alternatives considered:** (1) Web Apple on both platforms — rejected: worse iOS UX, App-Review-rejected button, and the secret-rotation burden for no iOS benefit. (2) Native iOS + web Android now — deferred, not rejected: the web path already exists, so turning it on later is just flipping the iOS-only gate + the Supabase Services-ID/secret/redirect config. (3) No Apple at all — rejected: Apple sign-in is expected on iOS and App-Store-required once you offer any third-party login (Google).
+
+**Status:** Locked (native iOS). Web-Apple-on-Android: Tentative / deferred.

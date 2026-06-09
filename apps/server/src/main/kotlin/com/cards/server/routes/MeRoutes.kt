@@ -112,12 +112,12 @@ fun Route.meRoutes(
                 val body = call.receive<PatchMeRequest>()
 
                 val cleanedName = body.displayName?.trim()
-                if (cleanedName != null && cleanedName.length !in NAME_LENGTH) {
+                if (cleanedName != null && (cleanedName.length !in NAME_LENGTH || cleanedName.containsEmoji())) {
                     return@patch call.respond(
                         HttpStatusCode.BadRequest,
                         problem(
                             "invalid_display_name",
-                            "Display name must be ${NAME_LENGTH.first}-${NAME_LENGTH.last} characters."
+                            "Display name must be ${NAME_LENGTH.first}-${NAME_LENGTH.last} characters and contain no emoji."
                         ),
                     )
                 }
@@ -230,7 +230,27 @@ fun Route.meRoutes(
     }
 }
 
-private val NAME_LENGTH = 1..32
+private val NAME_LENGTH = 3..32
+
+/**
+ * True if this string contains any emoji code point. Display names are
+ * letters-and-numbers handles, not emoji — the client blocks them too, this
+ * is the authoritative backstop. Tests each Unicode code point against the
+ * common emoji blocks.
+ */
+private fun String.containsEmoji(): Boolean =
+    codePoints().anyMatch { cp ->
+        cp in 0x1F000..0x1FAFF ||   // emoticons, pictographs, transport, flags, supplemental
+            cp in 0x2600..0x27BF || // misc symbols + dingbats
+            cp in 0x2300..0x23FF || // misc technical (⌚ ⏰ …)
+            cp in 0x2B00..0x2BFF || // misc symbols & arrows (⭐ …)
+            cp in 0x2190..0x21FF || // arrows (↔ …)
+            cp in 0xFE00..0xFE0F || // variation selectors
+            cp == 0x200D ||         // zero-width joiner
+            cp == 0x20E3 ||         // combining enclosing keycap
+            cp == 0x2122 || cp == 0x2139 || cp == 0x24C2 ||
+            cp == 0x3030 || cp == 0x303D || cp == 0x3297 || cp == 0x3299
+    }
 
 /**
  * Per-install identifier set by the client on every authenticated request

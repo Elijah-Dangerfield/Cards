@@ -500,6 +500,7 @@ class InventoryRepositoryImplSyncTest : CoroutineTest() {
     private class FakeChipsRepository : ChipsRepository {
         val deltas = mutableListOf<Long>()
         private val state = MutableStateFlow<Long?>(0L)
+        override val walletJustCreated = MutableStateFlow(false)
         override fun observeBalance(): Flow<Long?> = state.asStateFlow()
         override suspend fun getBalance(): Long? = state.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {

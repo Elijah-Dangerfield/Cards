@@ -137,11 +137,11 @@
     <string name="onboarding_welcome_subtitle">Poker with your friends.\nPractice with bots when they're busy.</string>
     <string name="onboarding_welcome_continue_guest">Continue as guest</string>
     <string name="onboarding_welcome_continue_guest_progress">One moment…</string>
-    <string name="onboarding_welcome_oauth_apple"> Apple</string>
-    <string name="onboarding_welcome_oauth_google">G  Google</string>
-    <string name="onboarding_welcome_oauth_in_flight">…</string>
+    <string name="onboarding_welcome_oauth_apple">Continue with Apple</string>
+    <string name="onboarding_welcome_oauth_google">Continue with Google</string>
+    <string name="onboarding_welcome_oauth_in_flight">One moment…</string>
     <string name="onboarding_welcome_footer">No account required to play.\nSign in later if you want to save your progress.</string>
-    <string name="onboarding_welcome_sign_in">Already have an account? Sign in</string>
+    <string name="onboarding_welcome_sign_in">Sign in with email</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
 
     <!-- Onboarding — PickIdentity step (name + starter-pack avatar picker). -->
@@ -152,6 +152,7 @@
     <string name="onboarding_identity_section_pack">STARTER PACK</string>
     <string name="onboarding_identity_edit_name_icon_desc">Edit name</string>
     <string name="onboarding_identity_more_packs_hint">More packs in the shop</string>
+    <string name="onboarding_identity_name_requirements">%1$d–%2$d characters, no emoji</string>
     <string name="onboarding_identity_continue_button">Continue</string>
 
     <!-- Home — Play section (featured Practice card + Quick Match / Friend Game tiles). -->
@@ -441,7 +442,7 @@
     <string name="profile_edit_title">Edit profile</string>
     <string name="profile_edit_subtitle">Other players see this on the table.</string>
     <string name="profile_edit_display_name_label">Display name</string>
-    <string name="profile_edit_display_name_helper_range">%1$d–%2$d characters</string>
+    <string name="profile_edit_display_name_helper_range">%1$d–%2$d characters, no emoji</string>
     <string name="profile_edit_avatar_color_section">Avatar color</string>
     <string name="profile_edit_avatar_section">Avatar</string>
     <string name="profile_edit_save_button">Save</string>

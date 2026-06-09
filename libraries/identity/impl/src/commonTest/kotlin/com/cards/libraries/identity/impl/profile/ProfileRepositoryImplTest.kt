@@ -1,7 +1,5 @@
 package com.dangerfield.cards.libraries.identity.impl.profile
 
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.cards.AppEventBus
 import com.dangerfield.cards.libraries.cards.Session
 import com.dangerfield.cards.libraries.cards.SessionStartReason
 import com.dangerfield.cards.libraries.cards.SessionTracker
@@ -47,6 +45,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -139,6 +138,25 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         advanceUntilIdle()
         val second = assertIs<Profile.Fallback>(repo.observe().first())
         assertEquals(first.id, second.id, "fallback id must be stable across auth re-emissions")
+    }
+
+    @Test
+    fun signedOutProfileCacheCleaner_clearsCachedProfile() = runUnitTest {
+        // Stale cache from the previous account must not survive a sign-out,
+        // or the next account would briefly resolve to it before /v1/me lands.
+        val cache = newProfileCache()
+        cache.writeAuthenticated(SAMPLE_CACHED_PROFILE)
+        assertNotNull(cache.readAuthenticated())
+        val cleaner = SignedOutProfileCacheCleaner(
+            profileCache = cache,
+            avatarPackCache = AvatarPackCache(InMemoryCacheFactory),
+            appScope = AppCoroutineScope(dispatchers),
+        )
+
+        cleaner.onSignedOut(com.dangerfield.cards.libraries.cards.AppEvent.SignedOut)
+        advanceUntilIdle()
+
+        assertNull(cache.readAuthenticated(), "sign-out must drop the cached profile")
     }
 
     @Test
@@ -427,7 +445,6 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         avatarPackCache = avatarPackCache,
         sessionTracker = sessionTracker,
         clock = clock,
-        appEventBus = NoOpEventBus,
         appScope = AppCoroutineScope(dispatchers),
     )
 
@@ -445,10 +462,6 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         )
         override fun observe(): kotlinx.coroutines.flow.Flow<Session> =
             kotlinx.coroutines.flow.flowOf(current)
-    }
-
-    private object NoOpEventBus : AppEventBus {
-        override fun dispatch(event: AppEvent) = Unit
     }
 
     /**

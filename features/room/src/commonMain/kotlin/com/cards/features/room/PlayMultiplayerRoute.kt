@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.room
 
+import com.dangerfield.cards.libraries.navigation.AuthRequirement
 import com.dangerfield.cards.libraries.navigation.Route
 import kotlinx.serialization.Serializable
 
@@ -16,4 +17,4 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PlayMultiplayerRoute(
     val roomCode: String,
-) : Route()
+) : Route(authRequirement = AuthRequirement.Account)

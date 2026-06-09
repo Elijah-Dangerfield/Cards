@@ -20,6 +20,7 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.observeWithLifecycle
 import androidx.navigation.NavBackStackEntry
+import com.dangerfield.cards.libraries.navigation.AuthGateChecker
 import com.dangerfield.cards.libraries.navigation.BlockingErrorRoute
 import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.navigation.Route
@@ -55,6 +56,7 @@ class DelegatingRouter(
     private val appScope: AppCoroutineScope,
     private val webLinkLauncher: WebLinkLauncher,
     private val dispatchers: DispatcherProvider,
+    private val authGateChecker: AuthGateChecker,
 ) : Router {
 
     private val logger = KLog.withTag("DelegatingRouter")
@@ -130,11 +132,17 @@ class DelegatingRouter(
     }
 
     override fun navigate(route: Route, options: NavigationOptions) {
+        // Central auth-gate: a route requiring identity the current user lacks
+        // is transparently swapped for the gate sheet (which carries no
+        // requirement, so this can't loop). Options are dropped on a gate
+        // redirect — clearBackStack etc. shouldn't apply to a dialog on top.
+        val effective = authGateChecker.gate(route)
+        val effectiveOptions = if (effective === route) options else NavigationOptions()
         enqueueNavigation(
-            description = "navigate to ${route.nameForLogs()}",
-            route = route,
+            description = "navigate to ${effective.nameForLogs()}",
+            route = effective,
         ) {
-            executeNavigate(route, options)
+            executeNavigate(effective, effectiveOptions)
         }
     }
 
@@ -182,11 +190,15 @@ class DelegatingRouter(
             val controller = this
             val scope = object : RouterBatch {
                 override fun navigate(route: Route, options: NavigationOptions) {
-                    if (controller.shouldBlockNavigation(route)) {
-                        logger.w { "Blocked batch navigate to ${route.nameForLogs()} (blocking error active)" }
+                    val effective = authGateChecker.gate(route)
+                    if (controller.shouldBlockNavigation(effective)) {
+                        logger.w { "Blocked batch navigate to ${effective.nameForLogs()} (blocking error active)" }
                         return
                     }
-                    controller.executeNavigate(route, options)
+                    controller.executeNavigate(
+                        effective,
+                        if (effective === route) options else NavigationOptions(),
+                    )
                 }
 
                 override fun switchTab(route: TabRoute) {

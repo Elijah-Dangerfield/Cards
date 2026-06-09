@@ -321,13 +321,6 @@ class ChipsRepositoryImplTest : CoroutineTest() {
             networkClient = networkClient,
             appScope = AppCoroutineScope(dispatchers),
             clock = FixedClock,
-            appCache = object : AppCache {
-                private val state = MutableStateFlow(AppData())
-                override val updates: Flow<AppData> = state
-                override suspend fun get(): AppData = state.value
-                override suspend fun set(value: AppData) { state.value = value }
-                override suspend fun clear() { state.value = AppData() }
-            },
         )
     }
 

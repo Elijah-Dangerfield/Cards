@@ -25,6 +25,17 @@ class AdjectiveNounUsernameGeneratorTest {
     }
 
     @Test
+    fun generatedNamesNeverExceedClientMaxLength() {
+        // Generated defaults must fit the client's 16-char display cap, or
+        // onboarding's Continue button soft-locks on a name the user didn't type.
+        val gen = AdjectiveNounUsernameGenerator()
+        repeat(20_000) {
+            val name = gen.random()
+            assertTrue(name.length <= 16, "Generated name exceeds 16 chars: '$name' (${name.length})")
+        }
+    }
+
+    @Test
     fun seededRandomIsDeterministic() {
         val a = AdjectiveNounUsernameGenerator(random = Random(seed = 12345)).random()
         val b = AdjectiveNounUsernameGenerator(random = Random(seed = 12345)).random()

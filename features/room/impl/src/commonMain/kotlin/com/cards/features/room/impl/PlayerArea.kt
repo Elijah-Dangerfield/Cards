@@ -55,6 +55,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -591,6 +593,10 @@ private fun PlayerInfoTile(
             overflow = TextOverflow.Ellipsis,
         )
         VerticalSpacerD100()
+        // Publish the human's stack bounds so the hand-end coin particle knows
+        // where to land. Only the human tile feeds the overlay; opponents and
+        // the no-holder previews leave it untouched.
+        val rewardAnchors = LocalTableRewardAnchors.current
         ChipCoinAmount(
             amount = stackOverride ?: seat.stack,
             coinSize = 14.dp,
@@ -599,7 +605,15 @@ private fun PlayerInfoTile(
             gap = 5.dp,
             formatter = ::formatCompactChips,
             animated = stackOverride != null,
-            modifier = Modifier.clickable(onClick = onStackClick),
+            modifier = Modifier
+                .then(
+                    if (seat.isHuman && rewardAnchors != null) {
+                        Modifier.onGloballyPositioned { rewardAnchors.chipStackBounds = it.boundsInRoot() }
+                    } else {
+                        Modifier
+                    },
+                )
+                .clickable(onClick = onStackClick),
         )
         // Show the chip contribution (gold pill) OR the last-action label, not
         // both — they overlap in meaning ("Call 30" + a 30-chip pill duplicates

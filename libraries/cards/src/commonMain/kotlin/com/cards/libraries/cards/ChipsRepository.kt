@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.cards
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Owns the optimistic local chip balance.
@@ -30,6 +31,19 @@ interface ChipsRepository {
 
     /** One-shot read. `null` until the local store has a row (see [observeBalance]). */
     suspend fun getBalance(): Long?
+
+    /**
+     * Live, in-memory signal that a wallet was lazily *created* this session —
+     * flips true on the [sync] whose response carries `walletCreated` (only the
+     * first-contact response for a brand-new account; every later sync is false).
+     *
+     * Deliberately **not persisted**: it represents "a brand-new wallet just
+     * appeared," which is server-authoritative and one-shot. The Home welcome
+     * gate ANDs this with `!didSeeInitialGrantInOnboarding` to decide whether to
+     * reveal the starter grant — so a pre-existing account (walletCreated=false)
+     * never triggers the reveal, even right after switching into it.
+     */
+    val walletJustCreated: StateFlow<Boolean>
 
     /**
      * Optimistic credit. Updates the singleton row by `+amount` AND
