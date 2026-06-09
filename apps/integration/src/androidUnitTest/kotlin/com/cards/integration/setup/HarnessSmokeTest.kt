@@ -1,25 +1,20 @@
 package com.cards.integration.setup
 
-import com.cards.integration.helpers.InProcessServer
-import com.cards.integration.helpers.TestClient
+import com.cards.integration.helpers.IntegrationTest
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
  * The harness's own smoke test: a real client authenticates and creates a room
- * against the real in-process server. Proves [InProcessServer] + [TestClient] +
- * the JWT wiring work before the multi-client golden path leans on them.
+ * against the real in-process server. Proves the helpers + JWT wiring work before
+ * the journey tests lean on them.
  */
-class HarnessSmokeTest {
+class HarnessSmokeTest : IntegrationTest() {
 
     @Test
-    fun realClient_createsRoom_againstRealServer() = runBlocking<Unit> {
-        InProcessServer().use { server ->
-            val client = TestClient(server.baseUrl)
-            val outcome = client.repository.createRoom()
-            assertTrue(outcome is CreateRoomOutcome.Success, "expected Success, got $outcome")
-        }
+    fun realClient_createsRoom_againstRealServer() = integration {
+        val outcome = client().repository.createRoom()
+        assertTrue(outcome is CreateRoomOutcome.Success, "expected Success, got $outcome")
     }
 }

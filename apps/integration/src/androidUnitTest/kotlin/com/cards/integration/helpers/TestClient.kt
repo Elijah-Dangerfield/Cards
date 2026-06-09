@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.impl.NetworkClientImpl
+import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.impl.HttpRoomApi
 import com.dangerfield.cards.libraries.rooms.impl.KtorRoomSocketTransport
@@ -22,40 +23,60 @@ import java.util.UUID
 
 /**
  * One end-to-end test user: the REAL client stack — `RoomRepositoryImpl` over the
- * real HTTP API + reconnecting WebSocket — pointed at [serverUrl], wrapped in the
- * REAL [LobbyViewModel]. This is the production code path from the lobby down to
- * the wire; only auth and per-request headers are stubbed.
+ * real HTTP API + reconnecting WebSocket — pointed at [serverUrl]. Build a real
+ * [LobbyViewModel] on demand with [lobbyVm].
  *
  * [userId] is the JWT `sub` AND the identity the fake [AuthRepository] reports, so
  * the VM's host/seat logic lines up with what the server sees.
+ *
+ * Pass [faulty] = true to route the socket through a [FaultInjectingTransport],
+ * exposed as [faults], so a test can drop/block the connection and exercise the
+ * reconnect + presence machinery.
  */
 class TestClient(
     serverUrl: String,
-    val userId: String = UUID.randomUUID().toString(),
-    prefilledCode: String? = null,
-    autoCreate: Boolean = false,
+    val userId: String = randomUserId(),
+    faulty: Boolean = false,
 ) {
-    val repository: RoomRepository = buildRepository(serverUrl, userId)
+    /** Non-null only when constructed with `faulty = true`. */
+    var faults: FaultInjectingTransport? = null
+        private set
 
-    val vm: LobbyViewModel = LobbyViewModel(
-        prefilledCode = prefilledCode,
-        autoCreate = autoCreate,
-        rooms = repository,
-        auth = FakeAuthRepository(userId),
-        appScope = AppCoroutineScope(DefaultDispatcherProvider()),
-    )
-}
-
-private fun buildRepository(serverUrl: String, userId: String): RoomRepository {
-    val config = object : NetworkConfig {
-        override val baseUrl: String = serverUrl
+    val repository: RoomRepository = run {
+        val config = object : NetworkConfig {
+            override val baseUrl: String = serverUrl
+        }
+        val networkClient = NetworkClientImpl(config, TokenProvider(userId), FixedHeaders)
+        val realTransport = KtorRoomSocketTransport(networkClient, config)
+        val transport = if (faulty) {
+            FaultInjectingTransport(realTransport).also { faults = it }
+        } else {
+            realTransport
+        }
+        val socket = ReconnectingRoomSocket(transport, AppCoroutineScope(DefaultDispatcherProvider()))
+        RoomRepositoryImpl(HttpRoomApi(networkClient), socket)
     }
-    val tokens = object : AuthTokenProvider {
+
+    /** Build the real lobby VM for this user. Mirrors how the entry point constructs it. */
+    fun lobbyVm(prefilledCode: String? = null, autoCreate: Boolean = false): LobbyViewModel =
+        LobbyViewModel(
+            prefilledCode = prefilledCode,
+            autoCreate = autoCreate,
+            rooms = repository,
+            auth = FakeAuthRepository(userId),
+            appScope = AppCoroutineScope(DefaultDispatcherProvider()),
+        )
+
+    /** Open a raw connection handle (real socket) — for gameplay/contract-level tests. */
+    fun connect(code: String): RoomConnectionHandle = repository.connect(code)
+
+    private class TokenProvider(private val userId: String) : AuthTokenProvider {
         override suspend fun awaitReady() = Unit
         override suspend fun accessToken(): String = IntegrationAuth.mintJwt(userId)
         override suspend fun refreshAccessToken(): String = IntegrationAuth.mintJwt(userId)
     }
-    val headers = object : ClientHeadersProvider {
+
+    private object FixedHeaders : ClientHeadersProvider {
         override fun current(): ClientHeaders = ClientHeaders(
             platform = "android",
             appVersion = "0.0.0",
@@ -65,28 +86,26 @@ private fun buildRepository(serverUrl: String, userId: String): RoomRepository {
             installId = null,
         )
     }
-    val networkClient = NetworkClientImpl(config, tokens, headers)
-    val transport = KtorRoomSocketTransport(networkClient, config)
-    val socket = ReconnectingRoomSocket(transport, AppCoroutineScope(DefaultDispatcherProvider()))
-    return RoomRepositoryImpl(HttpRoomApi(networkClient), socket)
+
+    /** Always signed in as [userId]; the rest is unused by the lobby flow. */
+    private class FakeAuthRepository(userId: String) : AuthRepository {
+        private val state: AuthState =
+            AuthState.Authenticated(userId = userId, isAnonymous = true, email = null)
+
+        override suspend fun current(): AuthState = state
+        override fun observe(): Flow<AuthState> = flowOf(state)
+        override suspend fun retry(): AuthState = state
+        override suspend fun signInWithEmail(email: String, password: String) = error("unused")
+        override suspend fun signUpWithEmail(email: String, password: String) = error("unused")
+        override suspend fun refreshSession() = error("unused")
+        override suspend fun resendVerificationEmail(email: String) = error("unused")
+        override suspend fun sendPasswordResetEmail(email: String) = error("unused")
+        override suspend fun signOut() = Unit
+        override suspend fun deleteAccount() = error("unused")
+        override suspend fun linkOAuthIdentity(provider: OAuthProvider) = error("unused")
+        override suspend fun signInWithOAuth(provider: OAuthProvider) = error("unused")
+        override suspend fun linkEmailIdentity(email: String, password: String) = error("unused")
+    }
 }
 
-/** Always signed in as [userId]; everything else is unused by the lobby flow. */
-private class FakeAuthRepository(userId: String) : AuthRepository {
-    private val state: AuthState =
-        AuthState.Authenticated(userId = userId, isAnonymous = true, email = null)
-
-    override suspend fun current(): AuthState = state
-    override fun observe(): Flow<AuthState> = flowOf(state)
-    override suspend fun retry(): AuthState = state
-    override suspend fun signInWithEmail(email: String, password: String) = error("unused")
-    override suspend fun signUpWithEmail(email: String, password: String) = error("unused")
-    override suspend fun refreshSession() = error("unused")
-    override suspend fun resendVerificationEmail(email: String) = error("unused")
-    override suspend fun sendPasswordResetEmail(email: String) = error("unused")
-    override suspend fun signOut() = Unit
-    override suspend fun deleteAccount() = error("unused")
-    override suspend fun linkOAuthIdentity(provider: OAuthProvider) = error("unused")
-    override suspend fun signInWithOAuth(provider: OAuthProvider) = error("unused")
-    override suspend fun linkEmailIdentity(email: String, password: String) = error("unused")
-}
+internal fun randomUserId(): String = UUID.randomUUID().toString()
