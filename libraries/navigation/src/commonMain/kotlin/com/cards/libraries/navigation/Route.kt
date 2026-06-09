@@ -91,6 +91,14 @@ open class Route(
     val enter: AnimationType = AnimationType.SlideInFromRight,
     val exit: AnimationType = AnimationType.SlideOutToLeft,
     val popExit: AnimationType = AnimationType.SlideOutToRight,
+    /**
+     * Identity this destination requires before it can be entered. Enforced
+     * centrally by the [Router] (via [AuthGateChecker]) — a route that sets this
+     * to anything other than [AuthRequirement.None] gets transparently
+     * redirected to the gate sheet when the current user doesn't qualify. One
+     * constructor arg, no per-screen guard code.
+     */
+    val authRequirement: AuthRequirement = AuthRequirement.None,
 )  {
     fun getEnterTransition(): EnterTransition = enter.toEnterTransition()
     fun getExitTransition(): ExitTransition = exit.toExitTransition()

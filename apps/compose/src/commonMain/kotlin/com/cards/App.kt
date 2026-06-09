@@ -43,10 +43,15 @@ import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowHost
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowNavigator
 import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
+import com.dangerfield.cards.libraries.navigation.AuthGateRoute
+import com.dangerfield.cards.libraries.navigation.GateReason
+import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.navigation.toEnterTransition
 import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import com.dangerfield.cards.features.onboarding.OnboardingRoute
+import com.dangerfield.cards.features.profile.ClaimAccountRoute
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -406,6 +411,21 @@ private fun AppNavigation(
                     with(entryPoint) {
                         buildNavGraph(router)
                     }
+                }
+                // Shared auth-gate sheet the router substitutes for a route the
+                // current user can't enter (see AuthGateChecker). Registered
+                // here (not in a feature) because its CTAs span onboarding +
+                // claim, which the app layer already knows about.
+                dialog<AuthGateRoute> { entry, dialogState ->
+                    val reason = entry.toRouteOrNull<AuthGateRoute>()?.reason
+                        ?: GateReason.NeedAccount
+                    AuthGateSheet(
+                        reason = reason,
+                        state = dialogState,
+                        onCreateAccount = { router.goBack(); router.navigate(OnboardingRoute()) },
+                        onSaveAccount = { router.goBack(); router.navigate(ClaimAccountRoute()) },
+                        onDismiss = { router.goBack() },
+                    )
                 }
             }
 
