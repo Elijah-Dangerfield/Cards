@@ -45,12 +45,20 @@ class AdjectiveNounUsernameGeneratorTest {
     }
 
     @Test
-    fun largeSamplingHasZeroCollisions() {
-        // Reddit-style space is ~450M; 5000 draws should never collide.
-        val gen = AdjectiveNounUsernameGenerator()
+    fun largeSamplingHasNegligibleCollisions() {
+        // Guards against a degenerate (tiny-space) generator — that would
+        // collide thousands of times in 5000 draws. We do NOT assert *zero*
+        // collisions: even with a hundreds-of-millions space, "no collisions in
+        // 5000 draws" is a birthday-paradox coin-flip (a few % chance of one),
+        // which made this test flaky in CI. A fixed seed keeps it deterministic;
+        // the tolerance still trips loudly for any real space collapse.
+        val gen = AdjectiveNounUsernameGenerator(random = Random(seed = 42))
         val names = List(5000) { gen.random() }
         val uniques = names.toSet().size
-        assertEquals(5000, uniques, "Expected zero collisions in 5000 draws, got ${5000 - uniques}")
+        assertTrue(
+            uniques >= 4990,
+            "Too many username collisions (${5000 - uniques} in 5000) — the name space may be degenerate",
+        )
     }
 
     @Test
