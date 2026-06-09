@@ -114,5 +114,20 @@ private class DataStoreCache<T : Any>(
         dataStore.updateData { value }
     }
 
+    /**
+     * Atomic read-modify-write. Overrides the default get-then-set (which can
+     * clobber a concurrent update of a *different* field on the same blob) by
+     * running the transform inside DataStore's `updateData`, which serializes
+     * transforms and hands each the latest value. Load-bearing now that
+     * sign-out fires several independent `appCache.update {}` calls at once
+     * (e.g. clearing `hasUserOnboarded` while a listener resets account-scoped
+     * fields).
+     */
+    override suspend fun update(transform: (T) -> T): T {
+        lateinit var result: T
+        dataStore.updateData { current -> transform(current).also { result = it } }
+        return result
+    }
+
     override suspend fun clear() { deleteFile() }
 }
