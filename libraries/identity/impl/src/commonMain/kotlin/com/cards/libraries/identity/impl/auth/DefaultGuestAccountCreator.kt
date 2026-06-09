@@ -1,11 +1,13 @@
 package com.dangerfield.cards.libraries.identity.impl.auth
 
+import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
 import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
@@ -29,19 +31,49 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  * Success is defined by an anonymous session existing; the profile apply is
  * best-effort (the server seeds a usable generated name on first contact, so a
  * failed patch just leaves that default in place — not a creation failure).
+ *
+ * **Durable + self-healing.** [start] persists the chosen identity via
+ * [PendingGuestAccountStore] *before* attempting, and only clears it on success.
+ * As an [AutoInit] it re-reads that store at app launch: if a guest account is
+ * still owed (creation failed offline last session), it re-attempts immediately
+ * — so a user who onboarded offline gets their real guest account the next time
+ * the app opens online, with the same name/avatar, instead of being stranded as
+ * a local-only Fallback forever.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = GuestAccountCreator::class)
+@ContributesBinding(AppScope::class, boundType = AutoInit::class, multibinding = true)
 @Inject
 class DefaultGuestAccountCreator(
     private val authRepository: AuthRepository,
     private val profileRepository: ProfileRepository,
+    private val pendingStore: PendingGuestAccountStore,
     private val appScope: AppCoroutineScope,
-) : GuestAccountCreator {
+) : GuestAccountCreator, AutoInit {
 
     private val logger = KLog.withTag("GuestAccountCreator")
     private val _state = MutableStateFlow<AccountCreationState>(AccountCreationState.Idle)
     override val state: StateFlow<AccountCreationState> = _state.asStateFlow()
+
+    init {
+        // Resume an owed creation from a previous session (e.g. onboarded
+        // offline). No-op when nothing's pending.
+        appScope.launch {
+            val owed = Catching { pendingStore.read() }.getOrNull() ?: return@launch
+            // Guard against double-creation: if a session already exists (last
+            // session's createGuestSession succeeded but the clear() didn't
+            // persist — e.g. a crash in between), reconcile instead of minting
+            // a second anonymous account.
+            if (authRepository.current() is AuthState.Authenticated) {
+                logger.d { "Owed guest account but already authenticated — clearing without re-creating" }
+                Catching { pendingStore.clear() }.logOnFailure { "Clearing reconciled pending account failed" }
+                _state.value = AccountCreationState.Succeeded
+                return@launch
+            }
+            logger.i { "Resuming owed guest-account creation from a prior session" }
+            start(owed)
+        }
+    }
 
     override fun start(identity: PendingIdentity) {
         // Don't restart a run that's in flight or already done; a Failed state
@@ -66,6 +98,9 @@ class DefaultGuestAccountCreator(
         state.first { it is AccountCreationState.Succeeded || it is AccountCreationState.Failed }
 
     private suspend fun runCreate(identity: PendingIdentity) {
+        // Persist the owed creation up front so an app kill mid-attempt still
+        // leaves us able to resume next launch.
+        Catching { pendingStore.set(identity) }.logOnFailure { "Persisting pending guest account failed" }
         val next = when (val outcome = authRepository.createGuestSession()) {
             is SignInOutcome.Success -> {
                 // Session is live → account exists. Apply the chosen identity
@@ -78,6 +113,7 @@ class DefaultGuestAccountCreator(
                         avatarBackgroundColor = identity.avatarBackgroundColor,
                     )
                 }.logOnFailure { "Guest profile apply failed (non-fatal)" }
+                Catching { pendingStore.clear() }.logOnFailure { "Clearing pending guest account failed" }
                 logger.i { "Guest account created" }
                 AccountCreationState.Succeeded
             }

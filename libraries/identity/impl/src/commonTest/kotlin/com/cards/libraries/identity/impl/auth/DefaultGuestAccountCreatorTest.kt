@@ -19,12 +19,18 @@ import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.storage.Cache
+import com.dangerfield.cards.libraries.storage.CacheFactory
+import com.dangerfield.cards.libraries.storage.CacheJsonSerializer
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 
 /**
  * Pins [DefaultGuestAccountCreator]: success = a session exists, profile apply
@@ -123,6 +129,75 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
     }
 
     @Test
+    fun start_success_clearsPendingStore() = runUnitTest {
+        val store = PendingGuestAccountStore(InMemoryCacheFactory)
+        val creator = build(FakeAuthRepository(SignInOutcome.Success), FakeProfileRepository(), store)
+
+        creator.start(identity)
+        advanceUntilIdle()
+
+        assertNull(store.read(), "a created account is no longer owed")
+    }
+
+    @Test
+    fun start_failure_keepsPendingInStore_forLaterResume() = runUnitTest {
+        val store = PendingGuestAccountStore(InMemoryCacheFactory)
+        val auth = FakeAuthRepository(SignInOutcome.NetworkError(RuntimeException("offline")))
+        val creator = build(auth, FakeProfileRepository(), store)
+
+        creator.start(identity)
+        advanceUntilIdle()
+
+        assertIs<AccountCreationState.Failed>(creator.state.value)
+        assertEquals(identity, store.read(), "a failed creation stays owed for the next launch")
+    }
+
+    @Test
+    fun init_resumesOwedCreation_fromStore() = runUnitTest {
+        // Simulate a prior session that onboarded offline: the store still owes
+        // a guest account. On construction (app launch) the creator resumes it.
+        val store = PendingGuestAccountStore(InMemoryCacheFactory)
+        store.set(identity)
+        val auth = FakeAuthRepository(SignInOutcome.Success)
+
+        val creator = build(auth, FakeProfileRepository(), store)
+        advanceUntilIdle()
+
+        assertIs<AccountCreationState.Succeeded>(creator.state.value)
+        assertEquals(1, auth.createGuestCalls)
+        assertNull(store.read())
+    }
+
+    @Test
+    fun init_owedButAlreadyAuthenticated_reconcilesWithoutRecreating() = runUnitTest {
+        // Last session created the account but the clear() didn't persist (crash
+        // in between). Resume must reconcile, not mint a second anon account.
+        val store = PendingGuestAccountStore(InMemoryCacheFactory)
+        store.set(identity)
+        val auth = FakeAuthRepository(
+            guestOutcome = SignInOutcome.Success,
+            currentState = AuthState.Authenticated(userId = "u1", isAnonymous = true, email = null),
+        )
+
+        val creator = build(auth, FakeProfileRepository(), store)
+        advanceUntilIdle()
+
+        assertIs<AccountCreationState.Succeeded>(creator.state.value)
+        assertEquals(0, auth.createGuestCalls, "must not mint a second account")
+        assertNull(store.read())
+    }
+
+    @Test
+    fun init_nothingOwed_staysIdle() = runUnitTest {
+        val auth = FakeAuthRepository(SignInOutcome.Success)
+        val creator = build(auth, FakeProfileRepository())
+        advanceUntilIdle()
+
+        assertIs<AccountCreationState.Idle>(creator.state.value)
+        assertEquals(0, auth.createGuestCalls)
+    }
+
+    @Test
     fun retry_isNoOp_whenNotFailed() = runUnitTest {
         val auth = FakeAuthRepository(guestOutcome = SignInOutcome.Success)
         val creator = build(auth, FakeProfileRepository())
@@ -134,15 +209,37 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
         assertEquals(0, auth.createGuestCalls)
     }
 
-    private fun build(auth: AuthRepository, profile: ProfileRepository) =
-        DefaultGuestAccountCreator(
-            authRepository = auth,
-            profileRepository = profile,
-            appScope = AppCoroutineScope(dispatchers),
-        )
+    private fun build(
+        auth: AuthRepository,
+        profile: ProfileRepository,
+        store: PendingGuestAccountStore = PendingGuestAccountStore(InMemoryCacheFactory),
+    ) = DefaultGuestAccountCreator(
+        authRepository = auth,
+        profileRepository = profile,
+        pendingStore = store,
+        appScope = AppCoroutineScope(dispatchers),
+    )
+
+    private object InMemoryCacheFactory : CacheFactory {
+        override fun <T : Any> inMemory(defaultValue: () -> T): Cache<T> = FakeCache(defaultValue)
+        override fun <T : Any> persistent(
+            name: String,
+            serializer: CacheJsonSerializer<T>,
+            loadEagerly: Boolean,
+        ): Cache<T> = FakeCache { runBlocking { serializer.read(null) } }
+    }
+
+    private class FakeCache<T : Any>(private val initial: () -> T) : Cache<T> {
+        private val state = MutableStateFlow(initial())
+        override val updates: Flow<T> = state
+        override suspend fun get(): T = state.value
+        override suspend fun set(value: T) { state.value = value }
+        override suspend fun clear() { state.value = initial() }
+    }
 
     private class FakeAuthRepository(
         var guestOutcome: SignInOutcome,
+        private val currentState: AuthState = AuthState.Unauthenticated(),
     ) : AuthRepository {
         var createGuestCalls = 0
             private set
@@ -152,7 +249,7 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
             return guestOutcome
         }
 
-        override suspend fun current(): AuthState = error("unused")
+        override suspend fun current(): AuthState = currentState
         override fun observe(): Flow<AuthState> = emptyFlow()
         override suspend fun retry(): AuthState = error("unused")
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome = error("unused")
