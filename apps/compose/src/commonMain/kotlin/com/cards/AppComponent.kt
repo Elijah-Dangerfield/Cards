@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
+import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
 import com.dangerfield.cards.libraries.config.QaConfigValue
@@ -37,6 +38,7 @@ interface AppComponent {
     val shopBadgeStateRepository: ShopBadgeStateRepository
     val inAppMessageManager: InAppMessageManager
     val appState: AppState
+    val guestAccountCreator: GuestAccountCreator
 
     /**
      * Singletons that need to construct at app boot rather than lazily

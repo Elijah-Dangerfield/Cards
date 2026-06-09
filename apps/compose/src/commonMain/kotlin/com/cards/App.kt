@@ -188,6 +188,7 @@ fun App(appComponent: AppComponent) {
                                 androidx.compose.foundation.layout.Column {
                                     AppGuardBanner(state = guardState)
                                     OfflineBanner()
+                                    AccountSetupBanner(appComponent.guestAccountCreator)
                                 }
                             },
                             userMessageRepository = appComponent.userMessageRepository,
