@@ -1,9 +1,11 @@
 package com.dangerfield.cards.server
 
+import com.dangerfield.cards.server.config.AdminConfig
 import com.dangerfield.cards.server.config.ServerConfig
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.di.ServerComponent
 import com.dangerfield.cards.server.di.create
+import com.dangerfield.cards.server.plugins.JwtVerification
 import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installCors
 import com.dangerfield.cards.server.plugins.installHttpServerTracing
@@ -44,30 +46,50 @@ fun Application.module(config: ServerConfig) {
     val logger = LoggerFactory.getLogger("Bootstrap")
     logger.info("Booting cards-server on ${config.http.host}:${config.http.port}")
 
-    // Sentry first so any failure later in module() can be captured.
+    // Production-only observability — kept out of [installApp] so tests don't
+    // pay for Sentry/OTel. Sentry first so any later boot failure is captured;
+    // OpenTelemetry + HTTP tracing next so subsequent plugins' spans export.
     installSentry(config.sentry)
-
-    // OpenTelemetry next so spans (and, once the appender bridge lands,
-    // logs) emitted by any subsequent plugin land in the configured
-    // exporter. Falls back to stdout when no OTLP endpoint is set.
     val openTelemetry = installOpenTelemetry(config.observability)
-
-    // HTTP-server auto-instrumentation: one span per request, so ordinary
-    // traffic produces traces (not just the manual gameplay spans).
     installHttpServerTracing(openTelemetry)
-
-    installSerialization()
-    installCors()
     installObservability()
-    installRateLimits()
-    installWebSockets()
-    installStatusPages()
-    installAuthentication(config.supabase)
 
     val database = Database.connect(config.database)
     logger.info("Database connected and migrations applied")
 
     val component = ServerComponent::class.create(database, config.supabase)
+
+    installApp(
+        component = component,
+        verification = JwtVerification.Jwks(config.supabase.jwksUrl, config.supabase.expectedIssuer),
+        adminConfig = config.admin,
+    )
+}
+
+/**
+ * Installs the functional plugins + every application route for an
+ * already-constructed [component] and JWT [verification] strategy.
+ *
+ * This is the seam shared by production [module] and full-stack integration
+ * tests: a test builds a [ServerComponent] against a Testcontainers database,
+ * passes a [JwtVerification.Static] verifier, and exercises the **real DI graph
+ * + real routes + real DB** without the production-only observability plugins or
+ * the live Supabase JWKS fetch.
+ *
+ * Order matters: serialization before status pages (so error envelopes encode),
+ * auth after serialization (the JWT challenge writes a JSON body), CORS early.
+ */
+fun Application.installApp(
+    component: ServerComponent,
+    verification: JwtVerification,
+    adminConfig: AdminConfig,
+) {
+    installSerialization()
+    installCors()
+    installRateLimits()
+    installWebSockets()
+    installStatusPages()
+    installAuthentication(verification)
 
     routing {
         healthRoutes()
@@ -99,7 +121,7 @@ fun Application.module(config: ServerConfig) {
         roomRoutes(component.roomService, component.profileRepository)
         roomSocketRoutes(component.roomService, component.gameSessionRegistry)
         adminRoutes(
-            config = config.admin,
+            config = adminConfig,
             sweep = component.orphanAnonymousSweep,
             rooms = component.roomService,
             wallets = component.walletRepository,

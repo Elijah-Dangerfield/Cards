@@ -1,6 +1,5 @@
 package com.cards.integration.helpers
 
-import com.cards.integration.helpers.IntegrationAuth.installHarnessAuth
 import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -8,6 +7,7 @@ import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.game.DefaultGameSessionRegistry
 import com.dangerfield.cards.server.game.NoOpSessionSnapshotStore
+import com.dangerfield.cards.server.plugins.installAuthentication
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import com.dangerfield.cards.server.plugins.installWebSockets
@@ -39,7 +39,7 @@ class InProcessServer : AutoCloseable {
         installSerialization()
         installStatusPages()
         installWebSockets()
-        installHarnessAuth()
+        installAuthentication(IntegrationAuth.verification)
         routing {
             roomRoutes(rooms, FakeProfiles)
             roomSocketRoutes(rooms = rooms, gameSessions = registry)
