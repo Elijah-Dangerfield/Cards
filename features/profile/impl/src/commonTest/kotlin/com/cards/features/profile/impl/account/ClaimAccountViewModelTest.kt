@@ -484,7 +484,6 @@ class ClaimAccountViewModelTest : CoroutineTest() {
     ): ClaimAccountViewModel = ClaimAccountViewModel(
         authRepository = identity,
         appleSignInCoordinator = NoopAppleSignInCoordinator,
-        appCache = FakeAppCache(),
         googleSignInEnabled = GoogleSignInEnabled(config),
         appleSignInEnabled = AppleSignInEnabled(config),
     )

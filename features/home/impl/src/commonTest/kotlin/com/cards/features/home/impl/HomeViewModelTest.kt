@@ -265,15 +265,15 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun welcomeGate_requiresGrantInfo_waitsForChips_thenFires() = runUnitTest {
-        // requiresGrantInfo=true + Profile.Authenticated, but chips not yet
+    fun welcomeGate_walletJustCreated_waitsForChips_thenFires() = runUnitTest {
+        // walletJustCreated=true + Profile.Authenticated, but chips not yet
         // hydrated → don't fire. The dialog's job is to reveal the real
         // number, so the gate waits for the balance before firing.
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "FreshInstall", isAnonymous = true),
         )
-        val chips = FakeChipsRepository(initial = null)
-        val appCache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
+        val chips = FakeChipsRepository(initial = null, walletJustCreatedInitial = true)
+        val appCache = FakeAppCache() // didSeeInitialGrantInOnboarding = false
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
         vm.eventFlow.test {
@@ -287,20 +287,39 @@ class HomeViewModelTest : CoroutineTest() {
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(
-            false, appCache.get().requiresGrantInfo,
-            "gate must clear requiresGrantInfo at emit time so it doesn't re-fire",
+            true, appCache.get().didSeeInitialGrantInOnboarding,
+            "gate must mark the grant seen at emit time so it doesn't re-fire",
         )
     }
 
     @Test
-    fun welcomeGate_requiresGrantInfoFalse_doesNotFire() = runUnitTest {
-        // Returning user (or a user who already saw the reveal in onboarding):
-        // requiresGrantInfo=false → never fire, even with a hydrated balance.
+    fun welcomeGate_walletNotJustCreated_doesNotFire() = runUnitTest {
+        // Returning user / switched-into account: walletJustCreated=false →
+        // never fire, even with a hydrated balance. This is the leak fix —
+        // the signal is live + server-sourced, false for a pre-existing wallet.
         val profile = FakeProfileRepository(
             initial = authenticatedProfile(displayName = "Returning", isAnonymous = false),
         )
-        val chips = FakeChipsRepository(initial = 250_000L)
-        val appCache = FakeAppCache(initial = AppData(requiresGrantInfo = false))
+        val chips = FakeChipsRepository(initial = 250_000L, walletJustCreatedInitial = false)
+        val appCache = FakeAppCache()
+        val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
+
+        vm.eventFlow.test {
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun welcomeGate_alreadySeenInOnboarding_doesNotFire() = runUnitTest {
+        // Wallet was just created, but onboarding already revealed the number
+        // (didSeeInitialGrantInOnboarding=true) → the Home dialog must not
+        // repeat it.
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "SawItInOnboarding", isAnonymous = true),
+        )
+        val chips = FakeChipsRepository(initial = 10_000L, walletJustCreatedInitial = true)
+        val appCache = FakeAppCache(initial = AppData(didSeeInitialGrantInOnboarding = true))
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
         vm.eventFlow.test {
@@ -311,14 +330,11 @@ class HomeViewModelTest : CoroutineTest() {
 
     @Test
     fun welcomeGate_profileFallback_doesNotFire_butFiresOnceProfileResolves() = runUnitTest {
-        // Regression: previous gate flipped `isFirstEverSession` to false the
-        // first time the app backgrounded, which permanently locked a user
-        // out of the welcome if the /v1/me call failed (Fly cold-boot timeout
-        // → Profile.Fallback). Now the gate just waits for an Authenticated
-        // profile + hydrated chips — when both arrive, the welcome fires.
+        // Gate waits for an Authenticated profile + hydrated chips — when both
+        // arrive (and the wallet was just created, not yet revealed), it fires.
         val profile = FakeProfileRepository(initial = Profile.Fallback(id = "anon"))
-        val chips = FakeChipsRepository(initial = 10_000L)
-        val appCache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
+        val chips = FakeChipsRepository(initial = 10_000L, walletJustCreatedInitial = true)
+        val appCache = FakeAppCache()
         val vm = buildVm(profile = profile, chips = chips, appCache = appCache)
 
         vm.eventFlow.test {
@@ -405,8 +421,10 @@ class HomeViewModelTest : CoroutineTest() {
 
     private class FakeChipsRepository(
         initial: Long? = 10_000L,
+        walletJustCreatedInitial: Boolean = false,
     ) : ChipsRepository {
         val balance = MutableStateFlow(initial)
+        override val walletJustCreated = MutableStateFlow(walletJustCreatedInitial)
         override fun observeBalance(): Flow<Long?> = balance
         override suspend fun getBalance(): Long? = balance.value
         override suspend fun addChips(amount: Long, reason: String, idempotencyKey: String?) {

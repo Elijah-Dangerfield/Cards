@@ -78,18 +78,19 @@ data class AppData(
     val winOddsFlipHintSeen: Boolean = false,
 
     /**
-     * Whether we still owe this user the starter-grant reveal. Set true by
-     * [com.dangerfield.cards.libraries.cards.ChipsRepository]'s sync when the
-     * server reports a wallet was *just created* (`walletCreated`) — i.e. a
-     * brand-new account whose starter grant was seeded this instant. Flipped
-     * false once we've shown the number (the onboarding StarterGrant page, or
-     * the Home welcome dialog as a fallback).
+     * Whether we've already shown this user their starter-grant number during
+     * onboarding (the StarterGrant page). A **monotonic** fact — set true once,
+     * never cleared — used to suppress the Home welcome dialog so the grant
+     * isn't revealed twice.
      *
-     * Default false is self-migrating and fixes the old re-fire bug: a
-     * returning user on a fresh install already has a server wallet, so
-     * `walletCreated` never comes back true and the reveal stays suppressed.
+     * Paired with [com.dangerfield.cards.libraries.cards.ChipsRepository.walletJustCreated]
+     * (the live "a wallet was created this session" signal): the Home dialog
+     * fires only when a wallet was just created AND we did *not* already show
+     * the number in onboarding. Because the "just created" half is server-sourced
+     * and live (false for any pre-existing account), this can't leak across an
+     * account switch the way the old persisted "owe a reveal" flag did.
      */
-    val requiresGrantInfo: Boolean = false,
+    val didSeeInitialGrantInOnboarding: Boolean = false,
 
     /**
      * Whether the user has dismissed the Home-screen tutorial banner.

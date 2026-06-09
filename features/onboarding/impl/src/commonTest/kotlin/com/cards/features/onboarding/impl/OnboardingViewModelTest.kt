@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
+import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.OnboardingSuggestedName
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AuthState
@@ -183,7 +184,7 @@ class OnboardingViewModelTest : CoroutineTest() {
 
     @Test
     fun continueFromHowItWorks_advancesToStarterGrant_andRevealsBalance() = runUnitTest {
-        val cache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
+        val cache = FakeAppCache()
         val chips = FakeChipsRepository(initial = 10_500L)
         val vm = newVm(cache = cache, chips = chips)
         vm.takeAction(OnboardingAction.ContinueAsGuest)
@@ -197,12 +198,16 @@ class OnboardingViewModelTest : CoroutineTest() {
         assertEquals(OnboardingStep.StarterGrant, vm.state.step)
         assertEquals(10_500L, vm.state.revealedChips)
         assertFalse(vm.state.grantRevealTimedOut)
-        assertFalse(cache.get().requiresGrantInfo)
+        // Showing the number records that we did, so the Home dialog won't repeat it.
+        assertTrue(cache.get().didSeeInitialGrantInOnboarding)
     }
 
     @Test
-    fun starterGrant_offline_showsNoNumber_andLeavesFlag() = runUnitTest {
-        val cache = FakeAppCache(initial = AppData(requiresGrantInfo = true))
+    fun starterGrant_offline_noBalanceNoConfig_showsNoNumber_andDoesNotMarkSeen() = runUnitTest {
+        // No live balance and no config amount (empty config) → "reconnect"
+        // copy, and we did NOT show a number, so the Home dialog can still
+        // reveal it once the wallet syncs.
+        val cache = FakeAppCache()
         val chips = FakeChipsRepository(initial = null)
         val vm = newVm(cache = cache, chips = chips)
         vm.takeAction(OnboardingAction.ContinueAsGuest)
@@ -217,7 +222,7 @@ class OnboardingViewModelTest : CoroutineTest() {
         assertEquals(OnboardingStep.StarterGrant, vm.state.step)
         assertNull(vm.state.revealedChips)
         assertTrue(vm.state.grantRevealTimedOut)
-        assertTrue(cache.get().requiresGrantInfo)
+        assertFalse(cache.get().didSeeInitialGrantInOnboarding)
     }
 
     @Test
@@ -413,6 +418,7 @@ class OnboardingViewModelTest : CoroutineTest() {
             chipsRepository = chips,
             guestAccountCreator = creator,
             appleSignInCoordinator = NoopAppleSignInCoordinator,
+            onboardingStarterGrant = OnboardingStarterGrant(config),
             onboardingSuggestedName = OnboardingSuggestedName(config),
             googleSignInEnabled = GoogleSignInEnabled(config),
             appleSignInEnabled = AppleSignInEnabled(config),
@@ -497,6 +503,7 @@ internal class FakeProfileRepository(
 
 internal class FakeChipsRepository(initial: Long? = null) : ChipsRepository {
     val balance = MutableStateFlow(initial)
+    override val walletJustCreated = MutableStateFlow(false)
     var syncCalls: Int = 0
         private set
 

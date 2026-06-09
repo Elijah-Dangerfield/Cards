@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.AppleSignInEnabled
 import com.dangerfield.cards.libraries.identity.GoogleSignInEnabled
+import com.dangerfield.cards.libraries.identity.OnboardingStarterGrant
 import com.dangerfield.cards.libraries.identity.OnboardingSuggestedName
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.AppleSignInCoordinator
@@ -64,6 +65,7 @@ class OnboardingViewModel(
     private val chipsRepository: ChipsRepository,
     private val guestAccountCreator: GuestAccountCreator,
     private val appleSignInCoordinator: AppleSignInCoordinator,
+    private val onboardingStarterGrant: OnboardingStarterGrant,
     onboardingSuggestedName: OnboardingSuggestedName,
     googleSignInEnabled: GoogleSignInEnabled,
     appleSignInEnabled: AppleSignInEnabled,
@@ -213,10 +215,10 @@ class OnboardingViewModel(
     /** Existing-account path: switch sessions, mark onboarded, jump to Home. */
     private suspend fun OnboardingAction.enterExistingAppleAccount(credential: AppleSignInCredential) {
         if (authRepository.signInWithApple(credential) is SignInOutcome.Success) {
-            // Switched to a pre-existing account — drop any starter-grant reveal
-            // the throwaway guest queued (its wallet was just created), or the
-            // Home welcome dialog would fire for an account that isn't new.
-            appCache.update { it.copy(hasUserOnboarded = true, requiresGrantInfo = false) }
+            // Switched to a pre-existing account. No grant suppression needed
+            // anymore — the Home gate keys on the live walletJustCreated signal,
+            // which is false for an account whose wallet already existed.
+            appCache.update { it.copy(hasUserOnboarded = true) }
             updateState { it.copy(oauthInFlight = null) }
             sendEvent(OnboardingEvent.NavigateToHome)
         } else {
@@ -277,18 +279,19 @@ class OnboardingViewModel(
     }
 
     /**
-     * Reveal the starter grant truthfully. Cold-boot sync already runs at
-     * launch (AppEventDispatcher → ChipsRepository.onColdBoot), so for a new
-     * account the wallet is usually hydrated by the time the user reaches
-     * this step; we kick another [ChipsRepository.sync] as a belt-and-
-     * suspenders nudge and observe the balance with a short grace window.
+     * Reveal the starter grant. The guest account was created on the previous
+     * step, so a [ChipsRepository.sync] usually has the authoritative balance
+     * ready; we kick one and observe with a short grace window.
      *
-     *  - Balance hydrated within the window → reveal the real number and
-     *    clear [AppData.requiresGrantInfo] (we've informed them; the Home
-     *    welcome dialog won't re-reveal).
-     *  - Timed out / offline → show "lands when you reconnect" copy and
-     *    leave the flag set — the Home dialog reveals it once the wallet
-     *    syncs. We never display a number we didn't get from the server.
+     *  - Real balance within the window → reveal it.
+     *  - Otherwise fall back to the server-advertised config amount
+     *    ([OnboardingStarterGrant]) if we have it — it equals what the server
+     *    seeds, so it's not a made-up number; useful when the account isn't
+     *    live yet (offline → degraded).
+     *  - Neither available → "lands when you reconnect" copy.
+     *
+     * Either reveal marks [AppData.didSeeInitialGrantInOnboarding] so the Home
+     * welcome dialog won't show the number a second time.
      */
     private fun OnboardingAction.kickOffGrantReveal() {
         val action = this
@@ -299,9 +302,10 @@ class OnboardingViewModel(
                     chipsRepository.observeBalance().filterNotNull().first()
                 }
             }.getOrNull()
-            if (balance != null) {
-                action.updateState { it.copy(revealedChips = balance, grantRevealTimedOut = false) }
-                appCache.update { it.copy(requiresGrantInfo = false) }
+            val amount = balance ?: onboardingStarterGrant.amountOrNull()
+            if (amount != null) {
+                action.updateState { it.copy(revealedChips = amount, grantRevealTimedOut = false) }
+                appCache.update { it.copy(didSeeInitialGrantInOnboarding = true) }
             } else {
                 action.updateState { it.copy(grantRevealTimedOut = true) }
             }

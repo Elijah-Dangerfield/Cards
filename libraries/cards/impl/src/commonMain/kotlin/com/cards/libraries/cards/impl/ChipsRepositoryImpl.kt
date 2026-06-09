@@ -1,6 +1,5 @@
 package com.dangerfield.cards.libraries.cards.impl
 
-import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.ChipsRepository
@@ -23,6 +22,9 @@ import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -60,11 +62,13 @@ class ChipsRepositoryImpl(
     private val networkClient: NetworkClient,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
-    private val appCache: AppCache,
 ) : ChipsRepository, AppEventListener {
 
     private val syncLogger = KLog.withTag("ChipsSync")
     private val syncMutex = Mutex()
+
+    private val _walletJustCreated = MutableStateFlow(false)
+    override val walletJustCreated: StateFlow<Boolean> = _walletJustCreated.asStateFlow()
 
     override fun observeBalance(): Flow<Long?> = chipsDao.observeChips().map { it?.balance }
 
@@ -188,13 +192,14 @@ class ChipsRepositoryImpl(
             // handles the no-local-row case by inserting directly.
             setBalance(response.balance)
 
-            // Brand-new account: the server just lazy-created the wallet, so
-            // we still owe the user the starter-grant reveal. `walletCreated`
-            // is true only on this first-contact response; later syncs report
-            // false. Onboarding (or the Home dialog) clears the flag once the
-            // number is shown.
+            // Brand-new account: the server just lazy-created the wallet. Flip
+            // the live, in-memory signal — `walletCreated` is true only on this
+            // first-contact response, false on every later sync. The Home gate
+            // ANDs it with !didSeeInitialGrantInOnboarding to reveal the grant.
+            // Not persisted on purpose: a one-shot, server-sourced fact can't
+            // then leak across an account switch.
             if (response.walletCreated) {
-                appCache.update { if (it.requiresGrantInfo) it else it.copy(requiresGrantInfo = true) }
+                _walletJustCreated.value = true
             }
 
             syncLogger.d {

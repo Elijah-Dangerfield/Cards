@@ -1,6 +1,5 @@
 package com.dangerfield.cards.features.profile.impl.account
 
-import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.isiOS
@@ -47,7 +46,6 @@ import me.tatarka.inject.annotations.Inject
 class ClaimAccountViewModel(
     private val authRepository: AuthRepository,
     private val appleSignInCoordinator: AppleSignInCoordinator,
-    private val appCache: AppCache,
     googleSignInEnabled: GoogleSignInEnabled,
     appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<ClaimAccountState, ClaimAccountEvent, ClaimAccountAction>(
@@ -161,10 +159,10 @@ class ClaimAccountViewModel(
                 }
                 when (outcome) {
                     is SignInOutcome.Success -> {
-                        // Switched to a pre-existing account — clear any pending
-                        // starter-grant reveal so the Home welcome dialog doesn't
-                        // fire for an account that isn't new.
-                        appCache.update { it.copy(requiresGrantInfo = false) }
+                        // Switched to a pre-existing account. No grant-flag
+                        // bookkeeping: the Home dialog keys on the live
+                        // walletJustCreated signal (false for a pre-existing
+                        // account), so it can't fire here.
                         updateState { it.copy(isSubmitting = false) }
                         sendEvent(ClaimAccountEvent.SwitchedAccounts)
                     }
