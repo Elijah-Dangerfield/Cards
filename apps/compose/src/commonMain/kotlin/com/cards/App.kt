@@ -47,6 +47,7 @@ import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
 import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.navigation.dialog
+import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.navigation.toEnterTransition
 import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
@@ -85,6 +86,7 @@ import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
 import com.dangerfield.cards.system.AppThemeProvider
+import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.launch
 
@@ -413,7 +415,12 @@ private fun AppNavigation(
                 // current user can't enter (see AuthGateChecker). Registered
                 // here (not in a feature) because its CTAs span onboarding +
                 // claim, which the app layer already knows about.
-                dialog<AuthGateRoute> { entry, dialogState ->
+                dialog<AuthGateRoute>(
+                    // AuthGateRoute carries a GateReason arg; iOS/Native needs an
+                    // explicit NavType for it (the base-route types come from the
+                    // builder's baseRouteTypeMap).
+                    typeMap = mapOf(typeOf<GateReason>() to serializableType<GateReason>()),
+                ) { entry, dialogState ->
                     val reason = entry.toRouteOrNull<AuthGateRoute>()?.reason
                         ?: GateReason.NeedAccount
                     AuthGateSheet(
