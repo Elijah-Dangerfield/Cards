@@ -82,6 +82,22 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
         assertNull(provider.refreshAccessToken())
     }
 
+    @Test
+    fun refreshAccessToken_withNoSession_returnsNull_withoutCallingGateway() = runUnitTest {
+        // Fresh install before onboarding: no session. Ktor's bearer plugin may
+        // still try a refresh on a 401 — we must NOT call the gateway (it would
+        // throw "No refresh token found in current session"); return null and go
+        // unauthed instead.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.NotAuthenticated,
+            session = null,
+        )
+        val provider = GatewayAuthTokenProvider(gateway)
+
+        assertNull(provider.refreshAccessToken())
+        assertEquals(0, gateway.refreshSessionCalls, "must not attempt a refresh with no session")
+    }
+
     private fun sampleSession(
         userId: String = "user-1",
         accessToken: String = "tok-$userId",

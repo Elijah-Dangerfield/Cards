@@ -38,6 +38,7 @@ import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.navigation.AnimationType
+import com.dangerfield.cards.libraries.navigation.baseRouteTypeMap
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowHost
@@ -46,7 +47,6 @@ import com.dangerfield.cards.libraries.navigation.impl.DelegatingRouter
 import com.dangerfield.cards.libraries.navigation.AuthGateRoute
 import com.dangerfield.cards.libraries.navigation.GateReason
 import com.dangerfield.cards.libraries.navigation.dialog
-import com.dangerfield.cards.libraries.navigation.serializableType
 import com.dangerfield.cards.libraries.navigation.toEnterTransition
 import com.dangerfield.cards.libraries.navigation.toExitTransition
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
@@ -85,7 +85,6 @@ import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
 import com.dangerfield.cards.system.AppThemeProvider
-import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.launch
 
@@ -403,9 +402,7 @@ private fun AppNavigation(
 
                     animationType.toExitTransition()
                 },
-                typeMap = mapOf(
-                    typeOf<AnimationType>() to serializableType<AnimationType>()
-                )
+                typeMap = baseRouteTypeMap
             ) {
                 featureEntryPoints.forEach { entryPoint ->
                     with(entryPoint) {

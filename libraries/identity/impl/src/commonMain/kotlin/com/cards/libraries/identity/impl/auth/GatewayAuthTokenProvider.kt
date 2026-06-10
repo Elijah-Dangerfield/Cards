@@ -50,6 +50,15 @@ class GatewayAuthTokenProvider(
     }
 
     override suspend fun refreshAccessToken(): String? {
+        // No session at all — e.g. a fresh install before onboarding creates an
+        // account, where a public request 401s and Ktor's bearer plugin tries a
+        // refresh anyway. There's nothing to refresh; calling the gateway would
+        // throw "No refresh token found in current session". Skip it and let the
+        // request proceed unauthed (the documented null-means-unauthed contract).
+        if (gateway.currentSession() == null) {
+            logger.d { "refreshAccessToken: no session — nothing to refresh, going unauthed" }
+            return null
+        }
         logger.d { "refreshAccessToken: forcing gateway session refresh" }
         return Catching {
             gateway.refreshSession()
