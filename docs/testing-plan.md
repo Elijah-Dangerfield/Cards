@@ -83,6 +83,20 @@ Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/ko
 
 **Cost:** ~6-8 hours, ~10 tests in addition to the module setup. **Why now:** the wire format between client and server is the highest-risk single category — every other test mocks one side. Pays back on every future change.
 
+> **Landed (harness + Phase 1 suite).** The module is `:apps:integration` — an Android library whose tests run as Android **unit tests on the host JVM** (`./gradlew :apps:integration:testDebugUnitTest`), so they reuse the feature modules' existing Android compilation and drive the **real `LobbyViewModel`s** (not just the repository) with **no `jvm{}`-target surgery**.
+>
+> *Harness:* `InProcessServer` boots the real routes via `embeddedServer(Netty, port = 0)`; `IntegrationAuth` mints/verifies HS256 JWTs through the **real server auth seam** (`installAuthentication(JwtVerification.Static…)`); `TestClient` wires the real `RoomRepositoryImpl` + reconnecting socket beneath a real VM and can route the socket through a `FaultInjectingTransport` to drop/block connections; `IntegrationTest` + `Harness` + `await*` helpers cut per-test boilerplate.
+>
+> *Tests (all green + non-flaky, 5×):* the [`FriendsGameHappyPathTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/FriendsGameHappyPathTest.kt) golden path; [`SetupJourneyTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/SetupJourneyTest.kt) (unknown-code / full-room / idempotent-rejoin, 4-player presence convergence, start-gating, leave→member-drop, **host-disconnect→promotion** and **drop→reconnect→presence-restored** via fault injection); and [`WireFormatContractTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/WireFormatContractTest.kt) (client `ClientFrame` ↔ server `RoomClientFrame` cross-decode). A dedicated `integration-test` CI job (Ubuntu, no Docker) gates them.
+>
+> *Full-stack (Layer 3):* [`FullStackRoomTest`](../apps/server/src/test/kotlin/com/cards/server/FullStackRoomTest.kt) boots the **real `ServerComponent` over real Postgres** (Testcontainers) via the shared `installApp` seam and asserts a `StartHand` persists to `room_sessions` — runs in the existing `server-test` job.
+>
+> *In-hand play (Phase 2):* a `GameplaySession` over the real `RoomConnectionHandle` (forward-only snapshot cursor, intent acks) drives real gameplay over the wire. [`InHandPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/InHandPlayTest.kt): heads-up hand to completion (fold), per-recipient **hole-card scrubbing**, **out-of-turn rejection**. [`DeeperPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/DeeperPlayTest.kt): **multi-street betting** (passive call/check advances preflop→flop, 3 community cards) and **request-next-hand**. [`ChaosPlayTest`](../apps/integration/src/androidUnitTest/kotlin/com/cards/integration/setup/ChaosPlayTest.kt): a client **drops mid-hand, reconnects, and re-syncs** to the completed hand. **21 integration tests**, green + non-flaky (6×).
+>
+> *Hydration (Layer 3):* [`SessionHydrationTest`](../apps/server/src/test/kotlin/com/cards/server/game/SessionHydrationTest.kt) — a fresh `DefaultGameSessionRegistry` (server-restart) rebuilds a live session by hydrating from the real `room_sessions` Postgres table.
+>
+> Remaining fan-out: side pots / all-in run-outs, more chaos (backgrounding, latency double-submit dedupe), and the feature-gated public-games / add-a-bot specs.
+
 ### Module structure
 
 Create `:integration` (or `:tests:e2e`) as a JVM-only Kotlin module:
