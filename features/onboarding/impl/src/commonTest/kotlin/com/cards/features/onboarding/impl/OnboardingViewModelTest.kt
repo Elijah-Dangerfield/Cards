@@ -136,6 +136,25 @@ class OnboardingViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun initialState_autoSelectsAStarterAvatar_pairedEmojiAndColor() = runUnitTest {
+        // The user should never land on the picker with a blank identity — one
+        // starter avatar is pre-selected (at random) so finishing without
+        // touching the grid still saves a real avatar. The chosen emoji and its
+        // background color must be a genuine pair from the starter pack.
+        val vm = newVm()
+
+        val emoji = vm.state.selectedEmoji
+        val color = vm.state.selectedBackgroundColor
+        assertNotNull(emoji, "an avatar emoji must be pre-selected")
+        assertTrue(
+            OnboardingViewModel.STARTER_PACK.any {
+                it.emoji == emoji && it.backgroundColorHex == color
+            },
+            "pre-selected emoji+color must be a real paired option from the starter pack",
+        )
+    }
+
+    @Test
     fun continueFromPickIdentity_guest_startsBackgroundCreation_advances_andLocksBack() = runUnitTest {
         val auth = FakeAuthRepository() // Unauthenticated → guest path
         val creator = FakeGuestAccountCreator()

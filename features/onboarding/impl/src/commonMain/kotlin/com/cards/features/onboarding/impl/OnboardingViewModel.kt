@@ -70,14 +70,24 @@ class OnboardingViewModel(
     googleSignInEnabled: GoogleSignInEnabled,
     appleSignInEnabled: AppleSignInEnabled,
 ) : SEAViewModel<OnboardingState, OnboardingEvent, OnboardingAction>(
-    initialStateArg = OnboardingState(
-        // Prefer the server-suggested name (unauthed config) when present and
-        // valid; otherwise a client-side suggestion. Offline → client suggestion.
-        displayName = onboardingSuggestedName.nameOrNull()?.takeIf { DisplayNameRules.isValid(it) }
-            ?: DisplayNameSuggester.next(),
-        googleEnabled = googleSignInEnabled(),
-        appleEnabled = appleSignInEnabled() && BuildInfo.isiOS(),
-    ),
+    initialStateArg = run {
+        // Pre-select a random starter avatar so the user always lands with an
+        // identity (and a highlighted pick in the grid) rather than a blank
+        // one they might skip past — mirrors the server's own random default.
+        // They can still tap a different option. One AvatarOption is picked so
+        // the emoji and its paired background color stay together.
+        val avatar = STARTER_PACK.random()
+        OnboardingState(
+            // Prefer the server-suggested name (unauthed config) when present and
+            // valid; otherwise a client-side suggestion. Offline → client suggestion.
+            displayName = onboardingSuggestedName.nameOrNull()?.takeIf { DisplayNameRules.isValid(it) }
+                ?: DisplayNameSuggester.next(),
+            googleEnabled = googleSignInEnabled(),
+            appleEnabled = appleSignInEnabled() && BuildInfo.isiOS(),
+            selectedEmoji = avatar.emoji,
+            selectedBackgroundColor = avatar.backgroundColorHex,
+        )
+    },
 ) {
 
     init {
