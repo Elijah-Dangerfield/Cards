@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.systemBars
@@ -38,7 +39,9 @@ import cards.libraries.resources.generated.resources.auth_sign_up_password_misma
 import cards.libraries.resources.generated.resources.auth_sign_up_submit_button
 import cards.libraries.resources.generated.resources.auth_sign_up_submit_button_progress
 import cards.libraries.resources.generated.resources.profile_claim_back_a11y
+import cards.libraries.resources.generated.resources.profile_claim_conflict_cancel_button
 import cards.libraries.resources.generated.resources.profile_claim_conflict_switch_button
+import cards.libraries.resources.generated.resources.profile_claim_conflict_title
 import cards.libraries.resources.generated.resources.profile_claim_provider_apple
 import cards.libraries.resources.generated.resources.profile_claim_provider_google
 import cards.libraries.resources.generated.resources.profile_claim_subtitle
@@ -49,7 +52,11 @@ import com.dangerfield.cards.libraries.ui.components.AppleSignInButtonKind
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
@@ -159,7 +166,10 @@ fun ClaimAccountScreen(
                     isError = state.passwordMismatch,
                 )
 
-                state.error?.let {
+                // Inline errors (network, unknown, etc.). The "account already
+                // exists" conflict is surfaced as an explicit confirm dialog
+                // instead (see ClaimConflictDialog), so suppress it here.
+                state.error?.takeIf { state.conflictingProvider == null }?.let {
                     Spacer(modifier = Modifier.height(Dimension.D400))
                     Text(
                         text = it.message(),
@@ -216,23 +226,50 @@ fun ClaimAccountScreen(
                     }
                 }
 
-                state.conflictingProvider?.let { provider ->
-                    Spacer(modifier = Modifier.height(Dimension.D500))
-                    Button(
-                        onClick = { onAction(ClaimAccountAction.ConfirmSwitchToExisting) },
-                        enabled = !state.isSubmitting,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            stringResource(
-                                Res.string.profile_claim_conflict_switch_button,
-                                provider.label,
-                            )
-                        )
-                    }
-                }
-
             Spacer(modifier = Modifier.height(Dimension.D800))
+        }
+
+        // An existing account is already tied to this provider — make switching
+        // (which abandons guest progress) an explicit, dismissible choice rather
+        // than an inline "continue anyway" button.
+        state.conflictingProvider?.let { provider ->
+            ClaimConflictDialog(
+                provider = provider,
+                isSubmitting = state.isSubmitting,
+                onSwitch = { onAction(ClaimAccountAction.ConfirmSwitchToExisting) },
+                onCancel = { onAction(ClaimAccountAction.DismissError) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ClaimConflictDialog(
+    provider: OAuthProvider,
+    isSubmitting: Boolean,
+    onSwitch: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Dialog(
+        title = stringResource(Res.string.profile_claim_conflict_title),
+        onDismissRequest = onCancel,
+        topAccessory = topAccessoryEmoji(emoji = "👤"),
+    ) {
+        Text(stringResource(Res.string.auth_claim_error_already_on_another_account))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
+        ) {
+            ButtonSecondary(
+                onClick = onCancel,
+                enabled = !isSubmitting,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(Res.string.profile_claim_conflict_cancel_button)) }
+            ButtonPrimary(
+                onClick = onSwitch,
+                enabled = !isSubmitting,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(Res.string.profile_claim_conflict_switch_button, provider.label)) }
         }
     }
 }

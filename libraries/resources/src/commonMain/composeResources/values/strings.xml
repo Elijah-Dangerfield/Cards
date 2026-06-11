@@ -462,7 +462,9 @@
     <string name="profile_claim_subtitle">Save your chips, XP, and achievements across devices.</string>
     <string name="profile_claim_provider_google">Continue with Google</string>
     <string name="profile_claim_provider_apple">Continue with Apple</string>
-    <string name="profile_claim_conflict_switch_button">Switch to my %1$s account anyway</string>
+    <string name="profile_claim_conflict_switch_button">Switch to my %1$s account</string>
+    <string name="profile_claim_conflict_title">Account already exists</string>
+    <string name="profile_claim_conflict_cancel_button">Cancel</string>
 
     <!-- Profile — Delete account destructive flow. -->
     <string name="profile_delete_back_a11y">Back</string>
