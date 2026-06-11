@@ -289,21 +289,6 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     // ---------- deleteAccount ----------
 
     @Test
-    fun deleteAccount_anonymousSession_returnsAnonymousNotAllowed_withoutHittingProfileApi() = runUnitTest {
-        // The fast-path guard: anon sessions get rejected client-side
-        // before any HTTP fires. UnusedProfileApi would error if hit.
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.Authenticated,
-            session = anonymousSession(),
-        )
-        val repo = build(gateway = gateway)
-        advanceUntilIdle()
-
-        val outcome = repo.deleteAccount()
-        assertIs<com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome.AnonymousNotAllowed>(outcome)
-    }
-
-    @Test
     fun deleteAccount_noSession_returnsNotSignedIn() = runUnitTest {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
