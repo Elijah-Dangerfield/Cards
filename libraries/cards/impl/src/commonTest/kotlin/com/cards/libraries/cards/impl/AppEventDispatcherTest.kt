@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 
 /**
  * Pins the contract every cleanup listener relies on:
- *  - dispatch(SignedOut) fans out to every listener's onSignedOut.
+ *  - dispatch(UserChanged) fans out to every listener's onUserChanged.
  *  - Listener exceptions don't poison subsequent listeners — the
  *    dispatcher's Catching{} wrap keeps the loop going.
  *  - dispatch is synchronous on the calling thread (we don't post to
@@ -18,13 +18,13 @@ import kotlin.test.assertEquals
  *
  * Lifecycle (foreground/cold-boot dispatch) isn't tested here because
  * it's driven via the AppLifecycle observer and the test would just
- * mirror that wiring. SignedOut is the path we explicitly call via
+ * mirror that wiring. UserChanged is the path we explicitly call via
  * AppEventBus, so that's what's worth pinning.
  */
 class AppEventDispatcherTest {
 
     @Test
-    fun signedOut_fansOutToEveryListener() {
+    fun userChanged_fansOutToEveryListener() {
         val a = Recording()
         val b = Recording()
         val dispatcher = AppEventDispatcher(
@@ -32,10 +32,10 @@ class AppEventDispatcherTest {
             appLifecycle = NoopLifecycle,
         )
 
-        dispatcher.dispatch(AppEvent.SignedOut)
+        dispatcher.dispatch(AppEvent.UserChanged(previous = "old", current = null))
 
-        assertEquals(listOf("signedOut"), a.calls)
-        assertEquals(listOf("signedOut"), b.calls)
+        assertEquals(listOf("userChanged"), a.calls)
+        assertEquals(listOf("userChanged"), b.calls)
     }
 
     @Test
@@ -47,12 +47,12 @@ class AppEventDispatcherTest {
             appLifecycle = NoopLifecycle,
         )
 
-        dispatcher.dispatch(AppEvent.SignedOut)
+        dispatcher.dispatch(AppEvent.UserChanged(previous = "old", current = "new"))
 
         // The healthy listener still ran — exact ordering across the
         // set isn't part of the contract (Set is unordered), but
         // "every non-throwing listener fires" is.
-        assertEquals(listOf("signedOut"), healthy.calls)
+        assertEquals(listOf("userChanged"), healthy.calls)
     }
 
     private class Recording : AppEventListener {
@@ -61,11 +61,11 @@ class AppEventDispatcherTest {
         override fun onWarmBoot(event: AppEvent.WarmBoot) { calls += "warmBoot" }
         override fun onForeground(event: AppEvent.OnForeground) { calls += "foreground" }
         override fun onBackground(event: AppEvent.OnBackground) { calls += "background" }
-        override fun onSignedOut(event: AppEvent.SignedOut) { calls += "signedOut" }
+        override fun onUserChanged(event: AppEvent.UserChanged) { calls += "userChanged" }
     }
 
     private class Throwing : AppEventListener {
-        override fun onSignedOut(event: AppEvent.SignedOut) {
+        override fun onUserChanged(event: AppEvent.UserChanged) {
             throw IllegalStateException("simulated cleanup failure")
         }
     }

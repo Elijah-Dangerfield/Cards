@@ -69,9 +69,11 @@ class InAppMessageManagerImpl(
         appScope.launch { onForegroundLikeEvent() }
     }
 
-    override fun onSignedOut(event: AppEvent.SignedOut) {
-        // Drop whatever's on screen; the repo's own listener clears
-        // the table elsewhere in the signed-out cascade.
+    override fun onUserChanged(event: AppEvent.UserChanged) {
+        // Drop whatever's on screen on any user change (switch or sign-out) —
+        // a message addressed to the departing user must not linger for the
+        // next one. The message table itself is wiped by the user-scoped
+        // clearer dump; this just clears the in-memory current.
         _current.value = null
     }
 

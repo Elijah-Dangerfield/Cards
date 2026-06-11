@@ -1,48 +1,41 @@
 package com.dangerfield.cards.libraries.storage.impl
 
-import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.storage.db.ClearableDao
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Pins the contract callers of the multibound [ClearableDao] set rely
- * on:
- *  - every dao in the set has `deleteAll()` invoked
- *  - one dao throwing doesn't block the rest (a stuck row can't strand
- *    user data across sign-outs)
- *  - work is dispatched via [AppCoroutineScope] (the AppEventListener
- *    callback contract is non-suspend)
+ * Pins the contract callers of the multibound [ClearableDao] set rely on:
+ *  - every dao in the set has `deleteAll()` invoked when the active user changes
+ *  - one dao throwing doesn't block the rest (a stuck row can't strand user
+ *    data across an account switch / sign-out)
+ *  - `clear` is suspend and awaited by the caller — the user-scoped dump runs
+ *    to completion before the new user's state is announced
  */
-class SignedOutLocalDataCleanerTest : CoroutineTest() {
+class UserScopedDaoCleanerTest : CoroutineTest() {
 
     @Test
-    fun onSignedOut_clearsEveryDao() = runUnitTest {
+    fun clear_clearsEveryDao() = runUnitTest {
         val daos = List(3) { RecordingDao() }
-        val cleaner = SignedOutLocalDataCleaner(
-            clearableDaos = daos.toSet(),
-            appScope = AppCoroutineScope(dispatchers),
-        )
+        val cleaner = UserScopedDaoCleaner(clearableDaos = daos.toSet())
 
-        cleaner.onSignedOut(AppEvent.SignedOut)
+        cleaner.clear(previousUserId = "user-1")
 
         assertTrue(daos.all { it.cleared }, "expected every dao to be cleared")
     }
 
     @Test
-    fun onSignedOut_oneDaoThrows_othersStillClear() = runUnitTest {
+    fun clear_oneDaoThrows_othersStillClear() = runUnitTest {
         val healthy1 = RecordingDao()
         val poison = ThrowingDao()
         val healthy2 = RecordingDao()
-        val cleaner = SignedOutLocalDataCleaner(
+        val cleaner = UserScopedDaoCleaner(
             clearableDaos = setOf(healthy1, poison, healthy2),
-            appScope = AppCoroutineScope(dispatchers),
         )
 
-        cleaner.onSignedOut(AppEvent.SignedOut)
+        cleaner.clear(previousUserId = "user-1")
 
         assertTrue(healthy1.cleared)
         assertTrue(healthy2.cleared)

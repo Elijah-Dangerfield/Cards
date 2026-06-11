@@ -67,7 +67,12 @@ class TelemetryUserBinder(
         }
     }
 
-    override fun onSignedOut(event: AppEvent.SignedOut) {
-        telemetry.setUser(email = null, name = null, id = null)
+    override fun onUserChanged(event: AppEvent.UserChanged) {
+        // Only clear on a true sign-out / delete. On an account *switch*
+        // (current != null) the profile observer above re-binds telemetry to
+        // the incoming user, so there's nothing to null out.
+        if (event.isSignedOut) {
+            telemetry.setUser(email = null, name = null, id = null)
+        }
     }
 }

@@ -7,20 +7,33 @@ sealed class AppEvent {
     data object OnBackground : AppEvent()
 
     /**
-     * The user explicitly signed out, OR completed a delete-account flow,
-     * OR the local session was forcibly invalidated (e.g. JWT revoked).
+     * The active user identity changed. Fired by the auth layer at the single
+     * point it knows the current user id moved — covering every transition:
      *
-     * Every repo that holds device-local user data subscribes and clears
-     * its own table — the identity layer doesn't know about chips, XP,
-     * inventory, equipment, etc. and shouldn't have to. The listener
-     * pattern keeps the cleanup ownership where the data is.
+     *  - `null → X`  first sign-in / guest creation (nothing to clear).
+     *  - `X → X`     **not fired** — claim/link keeps the same user; the guest's
+     *                progress is theirs to keep.
+     *  - `X → Y`     account switch — Y is now active; X's local data was already
+     *                wiped (see below) before this event.
+     *  - `X → null`  sign-out / delete / forced session invalidation.
      *
-     * Listeners must run their clears synchronously (the dispatcher
-     * wraps each call in Catching{} so a single slow / failing clear
-     * doesn't poison the rest), and must NOT trigger network work —
-     * we already have no session, so any networked call would 401.
+     * The actual wipe of the departing user's device-local data (Room tables,
+     * profile mirror, account-scoped settings) is **not** a listener's job — it
+     * runs through [UserScopedClearer] / [UserScopedDataReset] *before* the new
+     * [com.dangerfield.cards.libraries.identity.auth.AuthState] is emitted, so a
+     * reactive loader can't race the clear. This event is the *announcement*
+     * after the fact, for side-effects that don't hold user-scoped storage
+     * (telemetry user binding, dropping an on-screen message).
+     *
+     * Listeners must run synchronously and must NOT trigger network work.
+     *
+     * @param previous the user id that was active, or null if none.
+     * @param current the user id now active, or null after sign-out / delete.
      */
-    data object SignedOut : AppEvent()
+    data class UserChanged(val previous: String?, val current: String?) : AppEvent() {
+        /** True when this transition ended in no signed-in user (sign-out / delete). */
+        val isSignedOut: Boolean get() = current == null
+    }
 }
 
 interface AppEventListener {
@@ -28,14 +41,14 @@ interface AppEventListener {
     fun onWarmBoot(event: AppEvent.WarmBoot) {}
     fun onForeground(event: AppEvent.OnForeground) {}
     fun onBackground(event: AppEvent.OnBackground) {}
-    fun onSignedOut(event: AppEvent.SignedOut) {}
+    fun onUserChanged(event: AppEvent.UserChanged) {}
 }
 
 /**
  * Public dispatch surface for [AppEvent]. The concrete
  * [com.dangerfield.cards.libraries.cards.impl.AppEventDispatcher] handles
  * boot/foreground/background lifecycle implicitly; explicit events
- * (currently just [AppEvent.SignedOut]) are dispatched by callers that
+ * (currently just [AppEvent.UserChanged]) are dispatched by callers that
  * hold this bus.
  *
  * Lives in the api module so feature impls + libraries that can't see

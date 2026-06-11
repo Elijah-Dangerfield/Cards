@@ -74,7 +74,7 @@ class AppEventDispatcher(
                     is AppEvent.WarmBoot -> listener.onWarmBoot(event)
                     is AppEvent.OnForeground -> listener.onForeground(event)
                     is AppEvent.OnBackground -> listener.onBackground(event)
-                    is AppEvent.SignedOut -> listener.onSignedOut(event)
+                    is AppEvent.UserChanged -> listener.onUserChanged(event)
                 }
             }.onFailure { throwable ->
                 logger.e(throwable) {

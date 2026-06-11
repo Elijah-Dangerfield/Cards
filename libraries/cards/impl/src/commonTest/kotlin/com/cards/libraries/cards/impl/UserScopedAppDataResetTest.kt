@@ -2,20 +2,17 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
-import com.dangerfield.cards.libraries.cards.AppEvent
-import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class SignedOutAppDataResetTest : CoroutineTest() {
+class UserScopedAppDataResetTest : CoroutineTest() {
 
     @Test
-    fun onSignedOut_resetsAccountScopedFields_butKeepsDeviceSettings() = runUnitTest {
+    fun clear_resetsAccountScopedFields_butKeepsDeviceSettings() = runUnitTest {
         val cache = FakeAppCache(
             initial = AppData(
                 didSeeInitialGrantInOnboarding = true, // account-scoped → reset
@@ -23,10 +20,9 @@ class SignedOutAppDataResetTest : CoroutineTest() {
                 tutorialBannerDismissed = true,        // device-scoped → kept
             ),
         )
-        val reset = SignedOutAppDataReset(appCache = cache, appScope = AppCoroutineScope(dispatchers))
+        val reset = UserScopedAppDataReset(appCache = cache)
 
-        reset.onSignedOut(AppEvent.SignedOut)
-        advanceUntilIdle()
+        reset.clear(previousUserId = "user-1")
 
         val after = cache.get()
         assertFalse(after.didSeeInitialGrantInOnboarding, "account-scoped grant flag must reset")
