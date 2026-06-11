@@ -256,20 +256,22 @@ private fun ClaimConflictDialog(
         topAccessory = topAccessoryEmoji(emoji = "👤"),
     ) {
         Text(stringResource(Res.string.auth_claim_error_already_on_another_account))
-        Row(
+        // Stacked, full-width buttons — the "Switch to my <provider> account"
+        // label is too long to share a row without truncating.
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
+            verticalArrangement = Arrangement.spacedBy(Dimension.D300),
         ) {
-            ButtonSecondary(
-                onClick = onCancel,
-                enabled = !isSubmitting,
-                modifier = Modifier.weight(1f),
-            ) { Text(stringResource(Res.string.profile_claim_conflict_cancel_button)) }
             ButtonPrimary(
                 onClick = onSwitch,
                 enabled = !isSubmitting,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(Res.string.profile_claim_conflict_switch_button, provider.label)) }
+            ButtonSecondary(
+                onClick = onCancel,
+                enabled = !isSubmitting,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(Res.string.profile_claim_conflict_cancel_button)) }
         }
     }
 }
