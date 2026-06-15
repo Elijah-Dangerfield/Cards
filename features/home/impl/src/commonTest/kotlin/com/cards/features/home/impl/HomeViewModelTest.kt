@@ -500,6 +500,7 @@ class HomeViewModelTest : CoroutineTest() {
             error("awardForHand not used by HomeViewModel")
         override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
             error("applyAchievementXp not used by HomeViewModel")
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
         override suspend fun deleteAll() { /* not used */ }
         override suspend fun debugSetTotalXp(totalXp: Long) {
             progression.value = progression.value.copy(totalXp = totalXp)

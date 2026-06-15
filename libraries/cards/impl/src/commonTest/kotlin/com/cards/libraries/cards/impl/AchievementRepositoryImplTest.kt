@@ -533,6 +533,7 @@ class AchievementRepositoryImplTest : CoroutineTest() {
                 createdAtEpochMs = 0L,
             )
         }
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
         override suspend fun deleteAll() {}
         override suspend fun debugSetTotalXp(totalXp: Long) {
             state.value = state.value.copy(totalXp = totalXp)
