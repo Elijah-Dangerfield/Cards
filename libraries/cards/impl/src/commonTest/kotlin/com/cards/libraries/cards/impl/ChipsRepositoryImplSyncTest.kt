@@ -303,7 +303,9 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
-    fun onColdBoot_launchesSync() = runUnitTest {
+    fun onUserChanged_toAUser_launchesSync() = runUnitTest {
+        // A user became active (cold-boot resolve, sign-in, or account switch).
+        // We hydrate the new user's balance immediately — no foreground needed.
         val chipsDao = FakeChipsDao(seedBalance = 0L)
         val walletDao = FakeWalletEventDao()
         var hitCount = 0
@@ -313,11 +315,32 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             respondJson("""{"schemaVersion":1,"balance":555,"results":[]}""")
         }
 
-        repo.onColdBoot(AppEvent.ColdBoot)
+        repo.onUserChanged(AppEvent.UserChanged(previous = "old-user", current = "new-user"))
         appScope.coroutineContext.job.children.toList().forEach { it.join() }
 
-        assertEquals(1, hitCount, "ColdBoot should fire one sync POST")
+        assertEquals(1, hitCount, "an incoming user should fire one sync POST")
         assertEquals(555L, chipsDao.getChips()?.balance)
+    }
+
+    @Test
+    fun onUserChanged_toSignedOut_doesNotSync() = runUnitTest {
+        // Sign-out / delete (current == null) has no server data to fetch.
+        val chipsDao = FakeChipsDao(seedBalance = 0L)
+        val walletDao = FakeWalletEventDao()
+        var hitCount = 0
+        val appScope = AppCoroutineScope(dispatchers)
+        val repo = buildRepoWithScope(chipsDao, walletDao, appScope) {
+            hitCount++
+            respondJson("""{"schemaVersion":1,"balance":0,"results":[]}""")
+        }
+
+        repo.onUserChanged(AppEvent.UserChanged(previous = "old-user", current = null))
+
+        assertEquals(0, hitCount, "sign-out must not POST a sync")
+        assertTrue(
+            appScope.coroutineContext.job.children.toList().isEmpty(),
+            "no coroutine should have been launched",
+        )
     }
 
     @Test
@@ -331,9 +354,9 @@ class ChipsRepositoryImplSyncTest : CoroutineTest() {
             respondJson("""{"schemaVersion":1,"balance":42,"results":[]}""")
         }
 
-        // ColdBoot-flagged foreground defers to onColdBoot — this hook
-        // returns synchronously without launching anything, so there's
-        // no scope work to join.
+        // ColdBoot-flagged foreground defers to onUserChanged (which owns the
+        // initial per-user sync) — this hook returns synchronously without
+        // launching anything, so there's no scope work to join.
         repo.onForeground(AppEvent.OnForeground(isColdBoot = true))
         assertEquals(0, hitCount, "ColdBoot-flagged foreground must not POST")
         assertTrue(

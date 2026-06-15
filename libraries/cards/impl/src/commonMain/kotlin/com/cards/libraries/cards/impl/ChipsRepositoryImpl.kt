@@ -134,14 +134,20 @@ class ChipsRepositoryImpl(
         walletEventDao.deleteAll()
     }
 
-    override fun onColdBoot(event: AppEvent.ColdBoot) {
+    override fun onUserChanged(event: AppEvent.UserChanged) {
+        // A user just became active — cold-boot resolve, sign-in, OR an
+        // account switch. Their local wallet was just wiped by the user-scoped
+        // clear (on a switch), so re-hydrate from the server now instead of
+        // stranding the new user on a stale/empty balance until the next
+        // foreground. Sign-out (current == null) has nothing to fetch.
+        if (event.current == null) return
         appScope.launch { sync() }
     }
 
     override fun onForeground(event: AppEvent.OnForeground) {
-        // ColdBoot fires alongside OnForeground; let the cold-boot path
-        // own that first sync. Warm-resume IS where we want a fresh
-        // reconcile though, so this branch handles that.
+        // The cold-boot initial sync is owned by [onUserChanged] (fired when
+        // auth resolves a user), so skip the cold-boot-flagged foreground.
+        // Warm resume IS where we want a fresh reconcile, so this handles that.
         if (event.isColdBoot) return
         appScope.launch { sync() }
     }
