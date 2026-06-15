@@ -327,6 +327,10 @@ class PlayPokerViewModel @Inject constructor(
             bustedOpponentCount = state.seats
                 .count { it.index != humanSeatIndex && it.stack <= 0 },
         )
+        // Mark achievement computation in flight *before* the launch so the
+        // dialog's dismiss path knows to wait rather than skip a reveal that
+        // hasn't been computed yet (recordHand is async — see the flag's doc).
+        takeAction(PlayPokerAction.HandEndAchievementsPending)
         viewModelScope.launch {
             val priorLevel = Catching {
                 levelProgressFor(progressionRepository.getProgression().totalXp).level
@@ -339,12 +343,13 @@ class PlayPokerViewModel @Inject constructor(
             }.onFailure { logger.w(it) { "Awarding XP failed for hand ${summary.handId}" } }
 
             val earned = Catching {
-                val list = achievementRepository.recordHand(summary, context)
-                if (list.isNotEmpty()) takeAction(PlayPokerAction.AchievementsEarned(list))
-                list
+                achievementRepository.recordHand(summary, context)
             }.onFailure {
                 logger.w(it) { "Achievement recording failed for hand ${summary.handId}" }
             }.getOrNull().orEmpty()
+            // Always resolve — even with no unlocks — so the awaiting flag clears
+            // and the dismiss path can advance.
+            takeAction(PlayPokerAction.AchievementsEarned(earned))
 
             maybeRequestReviewPrompt(priorLevel = priorLevel, earned = earned)
         }
@@ -460,8 +465,11 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.HandXpAwarded -> action.updateState {
                 it.copy(lastHandXpAwarded = action.amount)
             }
+            is PlayPokerAction.HandEndAchievementsPending -> action.updateState {
+                it.copy(awaitingHandEndAchievements = true, recentlyEarned = emptyList())
+            }
             is PlayPokerAction.AchievementsEarned -> action.updateState {
-                it.copy(recentlyEarned = action.earned)
+                it.copy(recentlyEarned = action.earned, awaitingHandEndAchievements = false)
             }
             is PlayPokerAction.EquippedFeltChanged -> action.updateState {
                 it.copy(equippedFelt = action.felt)
@@ -590,6 +598,14 @@ data class PlayPokerState(
     val humanLevel: Int? = null,
     val lastHandXpAwarded: Int? = null,
     val recentlyEarned: List<EarnedAchievement> = emptyList(),
+    /**
+     * True from hand-end until [recordHand][AchievementRepository.recordHand]
+     * resolves. Achievement computation is async (a string of DB writes), so a
+     * fast "next hand" tap could otherwise advance past a reveal that hadn't
+     * been computed yet. The bot-mode dismiss path waits on this flag so a
+     * freshly-earned achievement can't be skipped.
+     */
+    val awaitingHandEndAchievements: Boolean = false,
     val turnFeedback: TurnFeedback = TurnFeedback.Vibrate,
     val connection: ConnectionState = ConnectionState.Connected,
     /**
@@ -717,6 +733,7 @@ sealed interface PlayPokerAction {
 
     // Hand-end transients (internal — fired by hand-end callback)
     data class HandXpAwarded(val amount: Int) : PlayPokerAction
+    data object HandEndAchievementsPending : PlayPokerAction
     data class AchievementsEarned(val earned: List<EarnedAchievement>) : PlayPokerAction
 
     /** Fired by the equipment subscription; repaints the table surface. */

@@ -112,6 +112,11 @@ fun PlayPokerScreen(
     // gate below can freeze the LevelPill while either the hand-result dialog
     // or the celebration sheet is on screen.
     var celebrationActive by remember { mutableStateOf(false) }
+    // Set when the player dismisses the end-of-hand dialog while achievement
+    // computation is still in flight (a fast tap). We hold the advance instead
+    // of skipping a reveal that hasn't been computed yet; the effect below
+    // resolves it the moment recordHand lands.
+    var advanceRequested by remember { mutableStateOf(false) }
     val active = state.table as? TableUiState.Active
     // The hand-result dialog and (in bot mode) the celebration sheet both
     // overlay the top-bar LevelPill, so any XP earned by this hand animates
@@ -433,18 +438,35 @@ fun PlayPokerScreen(
         // screen during the brief window after dismissal: the dialog hides,
         // the sheet shows, then the next-hand request fires when the sheet
         // is dismissed.
-        val celebrateOnDismiss = state.xpMode == com.dangerfield.cards.libraries.cards.XpMode.BOTS &&
-            state.recentlyEarned.isNotEmpty()
+        val isBots = state.xpMode == com.dangerfield.cards.libraries.cards.XpMode.BOTS
+
+        // Resolve a held advance (fast tap during async achievement computation)
+        // the instant recordHand settles: reveal if anything was earned,
+        // otherwise advance. Without this, a tap before the unlock is computed
+        // would skip the celebration entirely.
+        LaunchedEffect(advanceRequested, state.awaitingHandEndAchievements) {
+            if (advanceRequested && !state.awaitingHandEndAchievements) {
+                advanceRequested = false
+                if (isBots && state.recentlyEarned.isNotEmpty()) {
+                    celebrationActive = true
+                } else {
+                    onAction(PlayPokerAction.RequestNextHand)
+                }
+            }
+        }
 
         val handResult = active?.handResult
         if (handResult != null && active.seats.isNotEmpty() && !celebrationActive) {
             val humanSeat = active.seats.firstOrNull { it.isHuman }
             val humanBust = humanSeat != null && humanSeat.stack <= 0
             val onDismiss: () -> Unit = {
-                if (celebrateOnDismiss) {
-                    celebrationActive = true
-                } else {
-                    onAction(PlayPokerAction.RequestNextHand)
+                when {
+                    // Achievements already in hand → reveal them.
+                    isBots && state.recentlyEarned.isNotEmpty() -> celebrationActive = true
+                    // Still computing → hold; the effect above advances or
+                    // reveals once it lands, so a fast tap can't skip a reveal.
+                    isBots && state.awaitingHandEndAchievements -> advanceRequested = true
+                    else -> onAction(PlayPokerAction.RequestNextHand)
                 }
             }
             if (humanBust) {
