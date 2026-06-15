@@ -214,6 +214,8 @@ class AchievementsViewModelTest : CoroutineTest() {
         override suspend fun recordTutorialComplete(): com.dangerfield.cards.libraries.cards.EarnedAchievement? =
             error("recordTutorialComplete not used by AchievementsViewModel")
 
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
+
         override suspend fun deleteAll() { /* not used */ }
     }
 }

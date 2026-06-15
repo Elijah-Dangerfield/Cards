@@ -204,6 +204,7 @@ class StatsViewModelTest : CoroutineTest() {
         ): List<com.dangerfield.cards.libraries.cards.EarnedAchievement> = error("not used")
         override suspend fun recordTutorialComplete(): com.dangerfield.cards.libraries.cards.EarnedAchievement? =
             error("not used")
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
         override suspend fun deleteAll() { /* not used */ }
     }
 }

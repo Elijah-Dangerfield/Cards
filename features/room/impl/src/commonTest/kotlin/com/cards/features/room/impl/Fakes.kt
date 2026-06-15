@@ -222,6 +222,8 @@ class FakeAchievementRepository(
 
     override suspend fun recordTutorialComplete(): EarnedAchievement? = null
 
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+
     override suspend fun deleteAll() { state.value = AchievementProgress.Empty }
 }
 

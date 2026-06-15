@@ -69,6 +69,7 @@ internal class FakeAchievementRepository(
     ): List<EarnedAchievement> = error("recordHand not used by the progression VMs")
     override suspend fun recordTutorialComplete(): EarnedAchievement? =
         error("recordTutorialComplete not used by the progression VMs")
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
     override suspend fun deleteAll() { /* not used here */ }
 }
 
