@@ -848,7 +848,7 @@ Bots earn 0.5× of every component (per the locked anti-farm rule). Multiplayer 
 - When tuning numbers (everything in `XpCalculator.kt`), preserve order-of-magnitude — a normal hand should feel like "10-30 XP" against bots and "20-60 XP" in multiplayer.
 - Level thresholds remain deferred (per the previous entry) until we have a session's worth of real XP numbers to anchor them.
 
-**Status:** Locked for V1. **Phase 3 Slice 1 landed (2026-06-14):** `total_xp` lifted to a server-authoritative `xp_events` ledger; the formula stays client-side and `level` stays derived from `total_xp` (never stored/sent). Remaining: graduate the hand counters, achievements earned-set (Slice 2), and claim-time backfill (Slice 3) — see `todo.md`.
+**Status:** Locked for V1. **Phase 3 Slices 1 + 2 landed (2026-06-14):** `total_xp` (Slice 1) and the achievement *earned set* (Slice 2) are server-authoritative (Model 2); the XP formula + achievement criteria stay client-side and `level` stays derived from `total_xp`. Remaining: graduate the lifetime hand counters + achievement progress counters, and claim-time backfill (Slice 3) — see `todo.md`.
 
 ---
 

@@ -18,7 +18,7 @@ There are three models. Pick per piece of state, not globally.
 
 Computed and stored on the device; the server doesn't know it exists.
 
-- **Examples (today):** achievement counters + earned rows (`AchievementRepositoryImpl`) and lifetime hand counters (the `progression` singleton). Bots earn these fully offline; they don't leave the device yet. (XP/level itself *graduated* to model 2 — see below.)
+- **Examples (today):** achievement progress *counters* (`AchievementRepositoryImpl`) and lifetime hand counters (the `progression` singleton). Bots earn these fully offline; they don't leave the device yet. (XP/level and the achievement *earned set* both *graduated* to model 2 — see below.)
 - **Use when:** the value is derivable on-device, doesn't need cross-device truth yet, and abuse doesn't matter (low/zero stakes).
 - **Cost:** no cross-device consistency, no server-side anti-abuse. Fine until the value gains real stakes — then it graduates to model 2 or 3 (the V1 progression/achievement schemas are deliberately shaped to mirror the eventual server tables so that migration is a one-shot import).
 
@@ -28,7 +28,7 @@ Apply the change **immediately on-device** with an **idempotency key**, enqueue
 an event, and let the server **reconcile on the next sync**. The local store is
 the source of truth *between* syncs; the server is authoritative-of-record.
 
-- **Examples (today):** chips (`ChipsRepositoryImpl` — local balance + `wallet_events` ledger, flushed to `/v1/me/wallet/sync`), inventory + equipped cosmetics after a purchase, and **XP / level** (`ProgressionRepositoryImpl` — local total + `xp_events` ledger flushed to `/v1/me/progression/sync`; `level` derived from the reconciled total).
+- **Examples (today):** chips (`ChipsRepositoryImpl` — local balance + `wallet_events` ledger, flushed to `/v1/me/wallet/sync`), inventory + equipped cosmetics after a purchase, **XP / level** (`ProgressionRepositoryImpl` — local total + `xp_events` ledger flushed to `/v1/me/progression/sync`; `level` derived from the reconciled total), and the **achievement earned set** (`AchievementRepositoryImpl` — earned rows flushed to `/v1/me/achievements/sync`; criteria + progress counters stay local).
 - **Grant locally, reconcile backend.** This is the pattern to reach for when something of value is earned during offline play. The user gets it instantly; the server confirms/corrects later. If the server rejects an event, the local balance is reset to the server's authoritative value on sync.
 - **Use when:** it must work offline *and* the value matters enough to want a server record (cross-device, audit, eventual anti-abuse).
 
@@ -69,8 +69,9 @@ Does the client need to act on this while offline?
 | State | Model today | Authority | Offline |
 |---|---|---|---|
 | XP / level | 2 — optimistic + reconcile | server-of-record | ✅ earns offline |
+| Achievement earned set | 2 — optimistic + reconcile | server-of-record | ✅ earns offline |
 | Lifetime hand counters | 1 — client-local | client | ✅ earns offline |
-| Achievement counters / earned | 1 — client-local | client | ✅ earns offline |
+| Achievement progress counters | 1 — client-local | client | ✅ earns offline |
 | Achievement → cosmetic reward | 3 — server grant (after client notify) | server | queued, grants on sync |
 | Chips wallet | 2 — optimistic + reconcile | server-of-record | ✅ applies offline |
 | Inventory / equipped | 2 — optimistic + reconcile | server-of-record | ✅ applies offline |
