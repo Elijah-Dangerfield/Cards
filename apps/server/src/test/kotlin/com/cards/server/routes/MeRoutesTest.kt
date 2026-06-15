@@ -300,7 +300,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyMessages, rooms, NoOpInstallSweep)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyMessages, rooms, NoOpInstallSweep)
                 }
             }
             val client = createClient {
@@ -350,7 +350,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyMessages, EmptyRooms, installSweep) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyMessages, EmptyRooms, installSweep) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -375,7 +375,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -573,6 +573,26 @@ class MeRoutesTest {
         ): ApplyOutcome = error("unused")
 
         override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
+        override suspend fun findOrCreateResult(userId: UserId) = error("unused")
+        override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
+        override suspend fun applyXp(
+            userId: UserId,
+            idempotencyKey: String,
+            deltaXp: Long,
+            source: String,
+            mode: String,
+            handId: String?,
+        ) = error("unused")
+
+        override suspend fun recentEvents(
+            userId: UserId,
+            limit: Int,
+        ): List<com.dangerfield.cards.server.domain.XpEvent> = emptyList()
+
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 

@@ -29,6 +29,7 @@ import kotlin.time.Duration.Companion.minutes
 const val DELETE_ACCOUNT_LIMIT = "delete-account"
 const val PROFILE_WRITE_LIMIT = "profile-write"
 const val WALLET_WRITE_LIMIT = "wallet-write"
+const val PROGRESSION_WRITE_LIMIT = "progression-write"
 const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
 
 fun Application.installRateLimits() {
@@ -70,6 +71,14 @@ fun Application.installRateLimits() {
             // with two heavy users still fits comfortably, while a scripted
             // flood gets capped at 2/minute sustained.
             rateLimiter(limit = 120, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(PROGRESSION_WRITE_LIMIT)) {
+            // POST /v1/me/progression/sync fires on the same cadence as the
+            // wallet sync (cold boot, foreground resume, opportunistically
+            // after hands award XP). Same 480/hour headroom + per-IP keying.
+            rateLimiter(limit = 480, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
 

@@ -26,6 +26,7 @@ import com.dangerfield.cards.server.routes.inventoryRoutes
 import com.dangerfield.cards.server.routes.meRoutes
 import com.dangerfield.cards.server.routes.messageRoutes
 import com.dangerfield.cards.server.routes.productsRoutes
+import com.dangerfield.cards.server.routes.progressionRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.routes.walletRoutes
@@ -101,11 +102,13 @@ fun Application.installApp(
             messages = component.userMessageRepository,
             clock = component.provideClock(),
         )
+        progressionRoutes(component.progressionRepository)
         meRoutes(
             component.profileRepository,
             component.supabaseAdminClient,
             component.inventoryRepository,
             component.walletRepository,
+            component.progressionRepository,
             component.userMessageRepository,
             component.roomService,
             component.orphanInstallSweep,

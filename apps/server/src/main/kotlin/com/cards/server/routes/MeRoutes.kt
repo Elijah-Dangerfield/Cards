@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
@@ -72,6 +73,7 @@ fun Route.meRoutes(
     adminClient: SupabaseAdminClient,
     inventory: InventoryRepository,
     wallet: WalletRepository,
+    progression: ProgressionRepository,
     messages: UserMessageRepository,
     rooms: RoomService,
     installSweep: OrphanInstallSweep,
@@ -186,6 +188,7 @@ fun Route.meRoutes(
                         // mid-cascade crash leaves us with a recoverable
                         // partial state, not stuck data.
                         wallet.deleteAllForUser(userId)
+                        progression.deleteAllForUser(userId)
                         messages.deleteAllForUser(userId)
                         repository.delete(userId)
                         call.respond(HttpStatusCode.NoContent)

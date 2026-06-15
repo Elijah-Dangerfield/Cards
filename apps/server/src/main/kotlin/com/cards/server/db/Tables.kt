@@ -141,6 +141,38 @@ object WalletEventsTable : Table("wallet_events") {
 }
 
 /**
+ * Server-authoritative XP total, one row per user. Lazy-created on first
+ * progression contact. `total_xp` is summed from [XpEventsTable]; `level`
+ * is derived client-side from the curve, never stored. See
+ * `V52__xp_progression.sql`.
+ */
+object UserProgressionTable : Table("user_progression") {
+    val userId = uuid("user_id")
+    val totalXp = long("total_xp")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(userId)
+}
+
+/**
+ * Append-only ledger of XP awards. `(user_id, idempotency_key)` is the
+ * dedup boundary — retried/reinstalled syncs collapse to a single row.
+ * See `V52__xp_progression.sql`.
+ */
+object XpEventsTable : Table("xp_events") {
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val deltaXp = long("delta_xp")
+    // `source` is named `eventSource` because `source` collides with an
+    // Exposed ColumnSet member; the DB column is still `source`.
+    val eventSource = text("source")
+    val mode = text("mode")
+    val handId = text("hand_id").nullable()
+    val appliedAt = timestamp("applied_at")
+    override val primaryKey = PrimaryKey(userId, idempotencyKey)
+}
+
+/**
  * Snapshot of the live `GameSession` state for a room. One row per active
  * session, overwritten on every state mutation inside the per-session
  * mutex. Hydrated on registry lookup when in-memory has no entry for the
