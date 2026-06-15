@@ -16,6 +16,7 @@ import com.dangerfield.cards.server.plugins.installSentry
 import com.dangerfield.cards.server.plugins.installSerialization
 import com.dangerfield.cards.server.plugins.installStatusPages
 import com.dangerfield.cards.server.plugins.installWebSockets
+import com.dangerfield.cards.server.routes.achievementsRoutes
 import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
@@ -103,12 +104,14 @@ fun Application.installApp(
             clock = component.provideClock(),
         )
         progressionRoutes(component.progressionRepository)
+        achievementsRoutes(component.achievementRepository)
         meRoutes(
             component.profileRepository,
             component.supabaseAdminClient,
             component.inventoryRepository,
             component.walletRepository,
             component.progressionRepository,
+            component.achievementRepository,
             component.userMessageRepository,
             component.roomService,
             component.orphanInstallSweep,

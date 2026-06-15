@@ -30,6 +30,7 @@ const val DELETE_ACCOUNT_LIMIT = "delete-account"
 const val PROFILE_WRITE_LIMIT = "profile-write"
 const val WALLET_WRITE_LIMIT = "wallet-write"
 const val PROGRESSION_WRITE_LIMIT = "progression-write"
+const val ACHIEVEMENTS_WRITE_LIMIT = "achievements-write"
 const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
 
 fun Application.installRateLimits() {
@@ -57,6 +58,14 @@ fun Application.installRateLimits() {
             // 30/hour gives the user plenty of retries while making
             // name-squatting bots expensive.
             rateLimiter(limit = 30, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(ACHIEVEMENTS_WRITE_LIMIT)) {
+            // POST /v1/me/achievements/sync fires on the same cadence as the
+            // wallet/progression syncs (cold boot, foreground, after hands that
+            // unlock achievements). Same 480/hour headroom + per-IP keying.
+            rateLimiter(limit = 480, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
 

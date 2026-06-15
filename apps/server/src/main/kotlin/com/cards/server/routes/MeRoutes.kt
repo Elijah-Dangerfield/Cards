@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
@@ -74,6 +75,7 @@ fun Route.meRoutes(
     inventory: InventoryRepository,
     wallet: WalletRepository,
     progression: ProgressionRepository,
+    achievements: AchievementRepository,
     messages: UserMessageRepository,
     rooms: RoomService,
     installSweep: OrphanInstallSweep,
@@ -189,6 +191,7 @@ fun Route.meRoutes(
                         // partial state, not stuck data.
                         wallet.deleteAllForUser(userId)
                         progression.deleteAllForUser(userId)
+                        achievements.deleteAllForUser(userId)
                         messages.deleteAllForUser(userId)
                         repository.delete(userId)
                         call.respond(HttpStatusCode.NoContent)

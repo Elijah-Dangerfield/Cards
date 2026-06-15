@@ -173,6 +173,19 @@ object XpEventsTable : Table("xp_events") {
 }
 
 /**
+ * Server-authoritative earned-achievement set. One row per (user,
+ * achievement); first-write-wins on `earned_at`. The criteria engine +
+ * progress counters stay client-local — only the earned set syncs. See
+ * `V53__achievements_earned.sql`.
+ */
+object AchievementsEarnedTable : Table("achievements_earned") {
+    val userId = uuid("user_id")
+    val achievementId = text("achievement_id")
+    val earnedAt = timestamp("earned_at")
+    override val primaryKey = PrimaryKey(userId, achievementId)
+}
+
+/**
  * Snapshot of the live `GameSession` state for a room. One row per active
  * session, overwritten on every state mutation inside the per-session
  * mutex. Hydrated on registry lookup when in-memory has no entry for the

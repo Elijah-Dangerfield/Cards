@@ -300,7 +300,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyMessages, rooms, NoOpInstallSweep)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, EmptyMessages, rooms, NoOpInstallSweep)
                 }
             }
             val client = createClient {
@@ -350,7 +350,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyMessages, EmptyRooms, installSweep) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyAchievements, EmptyMessages, EmptyRooms, installSweep) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -375,7 +375,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -592,6 +592,20 @@ class MeRoutesTest {
             userId: UserId,
             limit: Int,
         ): List<com.dangerfield.cards.server.domain.XpEvent> = emptyList()
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyAchievements : com.dangerfield.cards.server.domain.AchievementRepository {
+        override suspend fun recordEarned(
+            userId: UserId,
+            achievementId: String,
+            earnedAt: kotlin.time.Instant,
+        ) = error("unused")
+
+        override suspend fun listEarned(
+            userId: UserId,
+        ): List<com.dangerfield.cards.server.domain.EarnedAchievement> = emptyList()
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
