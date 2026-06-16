@@ -945,12 +945,6 @@
     <string name="ui_earned_ago_months">%1$dmo ago</string>
     <string name="ui_earned_ago_years">%1$dy ago</string>
 
-    <!-- UI library — Axis labels for the play-style quadrant (PlayStyleBlob). -->
-    <string name="ui_play_style_axis_tight">Tight</string>
-    <string name="ui_play_style_axis_loose">Loose</string>
-    <string name="ui_play_style_axis_aggressive">Aggressive</string>
-    <string name="ui_play_style_axis_passive">Passive</string>
-
     <!-- Upgrade-required overlay — fires when the client version is below the
          server's minimum supported version. Body is generic so it covers both
          App Store and Play Store; the CTA opens the user's platform store. -->

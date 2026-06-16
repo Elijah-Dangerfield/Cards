@@ -22,7 +22,6 @@ import cards.libraries.resources.generated.resources.friend_game_sheet_subtitle
 import cards.libraries.resources.generated.resources.friend_game_sheet_title
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
-import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -52,10 +51,7 @@ internal fun FriendGameSheet(
     BottomSheet(
         title = stringResource(Res.string.friend_game_sheet_title),
         onDismissRequest = onDismiss,
-        dragHandle = topAccessoryEmoji(
-            emoji = "♣",
-            surface = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
-        ).asDragHandle(),
+        dragHandle = topAccessoryEmoji(emoji = "♣").asDragHandle(),
     ) {
         Text(
             text = stringResource(Res.string.friend_game_sheet_subtitle),

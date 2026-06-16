@@ -67,6 +67,8 @@ fun AchievementUnlockReveal(
     achievement: Achievement,
     modifier: Modifier = Modifier,
     revealKey: Any = Unit,
+    flipOnInit: Boolean = true,
+    interactiveFlip: Boolean = true,
     onSequenceComplete: () -> Unit = {},
 ) {
     val haptics = LocalHapticFeedback.current
@@ -187,6 +189,8 @@ fun AchievementUnlockReveal(
             AchievementMedal(
                 achievement = achievement,
                 earned = true,
+                flipOnInit = flipOnInit,
+                interactiveFlip = interactiveFlip,
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {

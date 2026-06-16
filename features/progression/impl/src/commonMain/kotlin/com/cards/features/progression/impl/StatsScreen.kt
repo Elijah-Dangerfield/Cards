@@ -39,7 +39,8 @@ import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
-import com.dangerfield.cards.libraries.ui.components.PlayStyleBlob
+import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
+import com.dangerfield.cards.libraries.ui.components.RadarAxis
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.cards.currentProgress
@@ -107,16 +108,18 @@ fun StatsScreen(
 
             SectionTitle(stringResource(Res.string.stats_play_style_section))
             Spacer(modifier = Modifier.height(8.dp))
-            PlayStyleBlob(
-                tightness = 0.74f,
-                aggression = 0.78f,
+            PlayingStyleCard(
+                // TODO: play-style axes are placeholder values — wire a real
+                // human play-style derivation (server Progression) later.
+                axes = listOf(
+                    RadarAxis(label = "Tight", value = 0.74f),
+                    RadarAxis(label = "Aggro", value = 0.78f),
+                    RadarAxis(label = "Bluff", value = 0.45f),
+                    RadarAxis(label = "Patient", value = 0.30f),
+                ),
                 styleName = stringResource(Res.string.stats_play_style_name),
                 description = stringResource(Res.string.stats_play_style_blurb),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(Radii.R700.shape)
-                    .background(AppTheme.colors.surface.color)
-                    .padding(vertical = 20.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -168,7 +171,11 @@ private fun XpHero(progress: LevelProgress) {
             color = AppTheme.colors.contentSecondary,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        LevelProgressBar(fraction = progress.fraction)
+        LevelProgressBar(
+            fraction = progress.fraction,
+            faceColor = AppTheme.colors.accentSecondary,
+            deepColor = AppTheme.colors.accentSecondaryDeep,
+        )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "${formatThousands(progress.xpToNextLevel)} XP to level ${progress.level + 1}",

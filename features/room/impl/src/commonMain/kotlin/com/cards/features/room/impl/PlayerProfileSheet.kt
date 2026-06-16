@@ -1,15 +1,9 @@
 package com.dangerfield.cards.features.room.impl
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_player_profile_difficulty_section_title
@@ -27,7 +21,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
-import com.dangerfield.cards.libraries.ui.components.RadarChart
+import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
@@ -37,8 +31,6 @@ import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
-import com.dangerfield.cards.system.Dimension
-import com.dangerfield.cards.system.Radii
 import com.dangerfield.cards.system.VerticalSpacerD200
 import com.dangerfield.cards.system.VerticalSpacerD500
 import org.jetbrains.compose.resources.stringResource
@@ -167,35 +159,11 @@ private fun PlayingStyleBlock(personality: BotPersonality) {
             color = AppTheme.colors.content,
         )
         VerticalSpacerD200()
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(Radii.Card.shape)
-                .background(AppTheme.colors.surface.color)
-                .padding(Dimension.D500),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(style.label),
-                        typography = AppTheme.typography.Body.B600,
-                        color = AppTheme.colors.content,
-                    )
-                    VerticalSpacerD200()
-                    Text(
-                        text = stringResource(style.description),
-                        typography = AppTheme.typography.Body.B500,
-                        color = AppTheme.colors.contentSecondary,
-                    )
-                }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    RadarChart(axes = radarAxesFor(personality))
-                }
-            }
-        }
+        PlayingStyleCard(
+            axes = radarAxesFor(personality),
+            styleName = stringResource(style.label),
+            description = stringResource(style.description),
+        )
     }
 }
 

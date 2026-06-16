@@ -23,7 +23,6 @@ import cards.libraries.resources.generated.resources.home_bot_setup_subtitle_six
 import cards.libraries.resources.generated.resources.home_bot_setup_title
 import com.dangerfield.cards.libraries.ui.components.OptionPillRow
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
-import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -54,10 +53,7 @@ internal fun BotTableSetupSheet(
     var seatCount by remember { mutableStateOf(4) }
     BottomSheet(
         onDismissRequest = onDismiss,
-        dragHandle = topAccessoryEmoji(
-            emoji = "♠",
-            surface = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
-        ).asDragHandle(),
+        dragHandle = topAccessoryEmoji(emoji = "♠").asDragHandle(),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(

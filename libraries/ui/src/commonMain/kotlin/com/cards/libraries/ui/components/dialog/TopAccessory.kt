@@ -94,20 +94,26 @@ sealed interface TopAccessory {
 enum class AccessoryShape { Circle, Squircle }
 
 /**
- * Theme-aware factory for [TopAccessory.Emoji]. Default [surface] is the
- * tertiary token so the bubble reads as a subtle "raised" affordance —
- * pass `null` to match the host surface for a seamless top edge, or an
- * explicit accent / gradient when the bubble should pop.
+ * Theme-aware factory for [TopAccessory.Emoji]. Default [surface] is a light
+ * inverse disc (with a dark on-content color) so the bubble reads as a bright
+ * "stamp" against the dark sheet/dialog and any emoji — including monochrome
+ * glyphs like suit pips — stays legible on it. Pass `null` to match the host
+ * surface for a seamless top edge, or an explicit accent / gradient when the
+ * bubble should carry a specific color.
  */
 @Composable
 fun topAccessoryEmoji(
     emoji: String,
     style: AccessoryShape = AccessoryShape.Circle,
-    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
+    surface: BubbleSurface? = BubbleSurface.Solid(
+        color = AppTheme.colors.surfaceInverse,
+        onContentColor = AppTheme.colors.onSurfaceInverse,
+    ),
 ): TopAccessory.Emoji = TopAccessory.Emoji(emoji, style, surface)
 
 /**
- * Theme-aware factory for [TopAccessory.Icon].
+ * Theme-aware factory for [TopAccessory.Icon]. Shares the emoji bubble's light
+ * inverse default so every default accessory disc reads the same.
  */
 @Composable
 fun topAccessoryIcon(
@@ -115,7 +121,10 @@ fun topAccessoryIcon(
     iconSize: IconSize = IconSize.Largest,
     iconColor: ColorResource? = null,
     style: AccessoryShape = AccessoryShape.Circle,
-    surface: BubbleSurface? = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
+    surface: BubbleSurface? = BubbleSurface.Solid(
+        color = AppTheme.colors.surfaceInverse,
+        onContentColor = AppTheme.colors.onSurfaceInverse,
+    ),
 ): TopAccessory.Icon = TopAccessory.Icon(icon, iconSize, iconColor, style, surface)
 
 /**

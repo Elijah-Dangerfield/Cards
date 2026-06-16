@@ -54,6 +54,7 @@ fun RadarChart(
     labelColor: Color = AppTheme.colors.contentDisabled.color,
     labelStyle: TextStyle = AppTheme.typography.Caption.C300.style,
     fillAlpha: Float = 0.30f,
+    showLabels: Boolean = true,
 ) {
     if (axes.size < 3) return
     val textMeasurer = rememberTextMeasurer()
@@ -64,21 +65,25 @@ fun RadarChart(
     Box(modifier = modifier.size(chartSize)) {
         Canvas(modifier = Modifier.size(chartSize)) {
             val center = Offset(size.width / 2f, size.height / 2f)
-            val labelPad = (size.minDimension * 0.18f)
+            // Reserve an outer ring for labels only when we're drawing them; a
+            // label-less mark (e.g. the profile teaser) gets to fill its bounds.
+            val labelPad = if (showLabels) size.minDimension * 0.18f else 0f
             val radius = (size.minDimension / 2f) - labelPad
 
             drawRadarRings(center, radius, gridColor, ringFractions = listOf(0.33f, 0.67f, 1.0f))
             drawRadarSpokes(center, radius, normalisedAxes.size, gridColor)
             drawRadarPolygon(center, radius, normalisedAxes, foregroundColor, fillAlpha)
-            drawRadarLabels(
-                center = center,
-                radius = radius,
-                labels = normalisedAxes.map { it.label },
-                textMeasurer = textMeasurer,
-                labelColor = labelColor,
-                labelStyle = labelStyle,
-                outerPad = labelPad,
-            )
+            if (showLabels) {
+                drawRadarLabels(
+                    center = center,
+                    radius = radius,
+                    labels = normalisedAxes.map { it.label },
+                    textMeasurer = textMeasurer,
+                    labelColor = labelColor,
+                    labelStyle = labelStyle,
+                    outerPad = labelPad,
+                )
+            }
         }
     }
 }
