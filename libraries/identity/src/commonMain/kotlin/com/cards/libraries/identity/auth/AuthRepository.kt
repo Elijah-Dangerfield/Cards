@@ -178,5 +178,25 @@ sealed interface AuthState {
     data class Unauthenticated(
         /** Why the last resolve failed. Null when nothing's been attempted. */
         val cause: Throwable? = null,
-    ) : AuthState
+        /** What kind of unauthenticated state this is — drives app-level routing. */
+        val reason: Reason = Reason.None,
+        /**
+         * Whether the session we lost was anonymous (guest). Only meaningful for
+         * [Reason.SessionExpired]; lets the app route a guest (unrecoverable —
+         * start fresh) differently from a claimed account (sign in again).
+         */
+        val wasAnonymous: Boolean = false,
+    ) : AuthState {
+
+        /**
+         * Why we're unauthenticated.
+         *
+         * - [None] — no session / clean sign-out / not-yet-resolved / offline. No
+         *   forced routing; the auth gate handles navigation as usual.
+         * - [SessionExpired] — the auth server **rejected** our token and a refresh
+         *   failed: the session is genuinely dead. The app boots the user to
+         *   re-authenticate (claimed) or start fresh (guest).
+         */
+        enum class Reason { None, SessionExpired }
+    }
 }

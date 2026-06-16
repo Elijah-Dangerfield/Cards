@@ -68,6 +68,48 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertEquals(0, gateway.signInAnonymouslyCalls, "no anon sign-in when already authenticated")
     }
 
+    // ---------- session rejection (server rejected our token) ----------
+
+    @Test
+    fun sessionRejected_tearsDown_toSessionExpired_carryingAnonymity() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(),
+        )
+        val bus = FakeSessionRejectionBus()
+        val repo = build(gateway = gateway, sessionRejectionBus = bus)
+        advanceUntilIdle()
+        assertIs<AuthState.Authenticated>(repo.current())
+
+        // The token layer reports the auth server rejected our (guest) session.
+        bus.signalRejected(wasAnonymous = true)
+        advanceUntilIdle()
+
+        val state = assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(AuthState.Unauthenticated.Reason.SessionExpired, state.reason)
+        assertTrue(state.wasAnonymous, "the lost session's anonymity must survive for routing")
+        assertEquals(1, gateway.signOutCalls, "the dead supabase session is torn down")
+    }
+
+    @Test
+    fun sessionRejected_isIdempotent_acrossABurst() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = claimedSession(),
+        )
+        val bus = FakeSessionRejectionBus()
+        val repo = build(gateway = gateway, sessionRejectionBus = bus)
+        advanceUntilIdle()
+
+        // A storm of rejected requests all signal; the teardown happens once.
+        bus.signalRejected(wasAnonymous = false)
+        bus.signalRejected(wasAnonymous = false)
+        advanceUntilIdle()
+
+        assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(1, gateway.signOutCalls, "a burst collapses to a single teardown")
+    }
+
     @Test
     fun resolve_notAuthenticated_emitsUnauthenticated_withoutCreatingAnAccount() = runUnitTest {
         // Cold-boot fresh-install path: no session. We no longer auto-create
@@ -403,12 +445,15 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         gateway: FakeSupabaseAuthGateway,
         appEventBus: AppEventBus = NoOpEventBus,
         userScopedDataReset: UserScopedDataReset = NoOpUserScopedDataReset,
+        sessionRejectionBus: com.dangerfield.cards.libraries.networking.SessionRejectionBus =
+            FakeSessionRejectionBus(),
     ): SupabaseAuthRepositoryImpl = SupabaseAuthRepositoryImpl(
         gateway = gateway,
         profileApi = UnusedProfileApi,
         appEventBus = appEventBus,
         userScopedDataReset = userScopedDataReset,
         tokenInvalidator = NoOpTokenInvalidator,
+        sessionRejectionBus = sessionRejectionBus,
         appScope = AppCoroutineScope(dispatchers),
     )
 

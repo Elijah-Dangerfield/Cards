@@ -177,6 +177,30 @@ class ProfileRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun sessionExpired_dropsTheGhost_emitsFallback_andClearsStaleCache() = runUnitTest {
+        // A server-confirmed dead session (token rejected) — unlike a benign
+        // offline blip, the cached profile here is a ghost. Surfacing it as
+        // Authenticated is exactly what makes the app keep firing authed calls
+        // that all 401. We must drop to Fallback and clear the stale cache.
+        val cache = newProfileCache()
+        cache.writeAuthenticated(SAMPLE_CACHED_PROFILE)
+
+        val auth = FakeAuthRepository()
+        val repo = build(auth, FakeProfileApi(), cache)
+
+        auth.emit(
+            AuthState.Unauthenticated(
+                reason = AuthState.Unauthenticated.Reason.SessionExpired,
+                wasAnonymous = true,
+            ),
+        )
+        advanceUntilIdle()
+
+        assertIs<Profile.Fallback>(repo.observe().first())
+        assertNull(cache.readAuthenticated(), "the stale cached profile must be cleared")
+    }
+
+    @Test
     fun authToAnonToClaimed_reEmitsProfile_perAuthChange() = runUnitTest {
         // The impl reads `isAnonymous` from /v1/me (the server is the
         // authoritative source for the JWT's is_anonymous claim), not

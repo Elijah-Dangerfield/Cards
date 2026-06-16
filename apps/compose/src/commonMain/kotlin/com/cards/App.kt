@@ -78,7 +78,16 @@ import com.dangerfield.cards.libraries.ui.components.dialog.LocalDialogHostState
 import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogHostState
 import com.dangerfield.cards.libraries.ui.debug.RecompositionCounter
 import com.dangerfield.cards.libraries.ui.snackbar.LocalSnackbarHostState
+import com.dangerfield.cards.libraries.navigation.NavigationOptions
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.session_expired_guest_message
+import cards.libraries.resources.generated.resources.session_expired_guest_title
+import cards.libraries.resources.generated.resources.session_expired_message
+import cards.libraries.resources.generated.resources.session_expired_title
+import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarHost
 import com.dangerfield.cards.libraries.ui.snackbar.rememberSnackbarHostState
 import com.dangerfield.cards.libraries.ui.snackbar.showDebugSnackBar
@@ -87,6 +96,7 @@ import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
 import com.dangerfield.cards.system.AppThemeProvider
 import kotlin.reflect.typeOf
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.launch
 
@@ -206,6 +216,33 @@ fun App(appComponent: AppComponent) {
                 }
 
                 SplashGate()
+
+                // The auth server rejected our session mid-run: boot to the
+                // landing (clearing the stack from wherever they were) and
+                // explain why. AuthRepository already tore down caches/session;
+                // this is the navigation + message an ambient event can't do
+                // from a feature screen. Copy differs for a guest (no account to
+                // sign back into — start fresh) vs a claimed account (sign in).
+                val sessionExpiredTitle = stringResource(Res.string.session_expired_title)
+                val sessionExpiredMessage = stringResource(Res.string.session_expired_message)
+                val guestSessionEndedTitle = stringResource(Res.string.session_expired_guest_title)
+                val guestSessionEndedMessage = stringResource(Res.string.session_expired_guest_message)
+                LaunchedEffect(Unit) {
+                    appViewModel.sessionExpired.collect { event ->
+                        router.navigate(
+                            OnboardingRoute(),
+                            NavigationOptions(launchSingleTop = true, clearBackStack = true),
+                        )
+                        showSnackBar(
+                            title = if (event.wasAnonymous) guestSessionEndedTitle else sessionExpiredTitle,
+                            message = if (event.wasAnonymous) guestSessionEndedMessage else sessionExpiredMessage,
+                            level = SnackbarLevel.Error,
+                            duration = SnackbarDuration.Long,
+                            // Let the landing settle before the toast lands on top.
+                            delayBy = 500.milliseconds,
+                        )
+                    }
+                }
 
                 UserMessageOverlay(
                     manager = appComponent.inAppMessageManager,
