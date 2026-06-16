@@ -104,7 +104,7 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 **Status:** Locked for V1 (Home-only + watermark + teal). Per-level names / percentile / unlock callout Tentative — `backlog.md`.
 
-**Addendum (2026-06-06) — if a level-up grants a *prize*, how the grant works.** XP/level is **client-local** today (no server XP in V1 — `ProgressionRepositoryImpl` computes it on-device; bots earn it offline). So a level-up prize must **not** invent server-authoritative XP; it reuses the existing offline-first grant paths:
+**Addendum (2026-06-06; updated 2026-06-14) — if a level-up grants a *prize*, how the grant works.** XP `total_xp` is now server-reconciled (Phase 3 Slice 1), but `level` is still client-derived from it and computed offline. A level-up prize must **not** invent a *new* server grant mechanism; it reuses the existing offline-first grant paths:
  - **Grant client-side, idempotent, on level-cross** (works offline; the prize is theirs the moment they level, independent of seeing the celebration). Idempotency key `levelup_<level>`; track a "highest level rewarded" watermark separate from the UI's `lastCelebratedLevel`.
  - **Chips prize →** the chips wallet ledger (model 2, optimistic-local + server-reconciled). **Cosmetic prize →** the achievement-reward path (client self-grant + fire-and-forget server grant). Don't add a third grant mechanism.
  - A reward can also be a **consumable** — an XP Boost (extend `boostExpiresAt`) or a Pick-a-Card chest (grant an unopened chest into inventory). See the Consumable reward items decision above.
@@ -835,7 +835,7 @@ When we revisit, the rough sketch is:
 
 Bots earn 0.5× of every component (per the locked anti-farm rule). Multiplayer earns 1.0×. The `wonPot` flag is **not** an input — winning and losing the same hand at the same engagement level earn identical XP.
 
-**Persistence in V1:** XP and lifetime hand counters live in **on-device Room tables** (`progression` singleton + `xp_events` ledger). Schema matches the eventual server `xp_events` table so Phase 3 can backfill on first login.
+**Persistence:** `total_xp` is **server-authoritative as of Phase 3 Slice 1 (2026-06-14)** — Model 2 (optimistic-local + server-reconciled), mirroring the chips wallet. The client still computes XP per hand with `XpCalculator` and accrues it offline; `ProgressionRepositoryImpl.sync()` flushes the `xp_events` ledger to `POST /v1/me/progression/sync` and reconciles the local total to the server's value. So XP now survives reinstall / account switch / cross-device. **Lifetime hand counters** (`progression` singleton: handsPlayed/won/folded/…) are **still client-local** — they reset on a switch and aren't re-hydrated yet (see todo).
 
 **Why this shape:**
 - "Scale by hand strength / pot size" (per user) felt better than flat per-hand, but the engagement-intensity framing keeps the decoupling-from-outcome invariant intact.
@@ -848,7 +848,7 @@ Bots earn 0.5× of every component (per the locked anti-farm rule). Multiplayer 
 - When tuning numbers (everything in `XpCalculator.kt`), preserve order-of-magnitude — a normal hand should feel like "10-30 XP" against bots and "20-60 XP" in multiplayer.
 - Level thresholds remain deferred (per the previous entry) until we have a session's worth of real XP numbers to anchor them.
 
-**Status:** Locked for V1. Phase 3 migration will lift this to a server-authoritative `xp_events` table — the formula moves to the server unchanged.
+**Status:** Locked for V1. **Phase 3 Slices 1 + 2 landed (2026-06-14):** `total_xp` (Slice 1) and the achievement *earned set* (Slice 2) are server-authoritative (Model 2); the XP formula + achievement criteria stay client-side and `level` stays derived from `total_xp`. Remaining: graduate the lifetime hand counters + achievement progress counters, and claim-time backfill (Slice 3) — see `todo.md`.
 
 ---
 

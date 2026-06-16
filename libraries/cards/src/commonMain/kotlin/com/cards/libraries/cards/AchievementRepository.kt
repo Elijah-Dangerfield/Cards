@@ -76,6 +76,14 @@ interface AchievementRepository {
      */
     suspend fun recordTutorialComplete(): EarnedAchievement?
 
+    /**
+     * Flush newly-earned achievements to the server and reconcile the earned
+     * set with the server's authoritative version (absorbing anything earned
+     * on another device). Idempotent + single-flight; safe on cold boot,
+     * account switch, and warm foreground. Criteria + counters stay local.
+     */
+    suspend fun sync(): Result<Unit>
+
     /** Reset all achievement state. Used by "Fresh Start" / debug menus. */
     suspend fun deleteAll()
 }

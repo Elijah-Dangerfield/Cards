@@ -189,6 +189,8 @@ class FakeProgressionRepository(initial: Progression = Progression.Empty) : Prog
             createdAtEpochMs = 0,
         )
 
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+
     override suspend fun deleteAll() { state.value = Progression.Empty }
 
     override suspend fun debugSetTotalXp(totalXp: Long) {
@@ -219,6 +221,8 @@ class FakeAchievementRepository(
     }
 
     override suspend fun recordTutorialComplete(): EarnedAchievement? = null
+
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
 
     override suspend fun deleteAll() { state.value = AchievementProgress.Empty }
 }

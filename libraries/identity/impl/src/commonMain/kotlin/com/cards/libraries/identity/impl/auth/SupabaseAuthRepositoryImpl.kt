@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.identity.impl.auth
 
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventBus
+import com.dangerfield.cards.libraries.cards.UserScopedDataReset
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -66,6 +67,7 @@ class SupabaseAuthRepositoryImpl(
     private val gateway: SupabaseAuthGateway,
     private val profileApi: ProfileApi,
     private val appEventBus: AppEventBus,
+    private val userScopedDataReset: UserScopedDataReset,
     private val tokenInvalidator: AuthTokenInvalidator,
     appScope: AppCoroutineScope,
 ) : AuthRepository {
@@ -122,7 +124,7 @@ class SupabaseAuthRepositoryImpl(
                         isAnonymous = session.isAnonymous,
                         email = session.email,
                     )
-                    state.emit(next)
+                    emitLocked(next)
                     logger.i {
                         "Emitted Authenticated(userId=${next.userId}, isAnonymous=${next.isAnonymous}, hasEmail=${next.email != null})"
                     }
@@ -157,7 +159,7 @@ class SupabaseAuthRepositoryImpl(
         // request — a session switch (e.g. anon → real via sign-in-with-Apple)
         // leaves the old token valid, so Ktor would otherwise keep sending it.
         tokenInvalidator.invalidate()
-        state.emit(next)
+        emitLocked(next)
         // Info-level so this lands in production diagnostic dumps — auth
         // state transitions are the load-bearing observability moment.
         logger.i {
@@ -171,13 +173,51 @@ class SupabaseAuthRepositoryImpl(
         // Sign-out / lost session — drop the cached bearer so no stale token
         // rides along on the next request.
         tokenInvalidator.invalidate()
-        state.emit(next)
+        emitLocked(next)
         if (cause != null) {
             logger.w(cause) { "Emitted Unauthenticated with cause" }
         } else {
             logger.i { "Emitted Unauthenticated (no cause — sign-out or exhausted resolve)" }
         }
         return next
+    }
+
+    /**
+     * The single choke point through which every [AuthState] emission flows.
+     * Owning the transition here is what makes user-scoped data handling
+     * un-forgettable: any current/future sign-in, switch, sign-out, or delete
+     * path lands here, so none of them has to remember to clear or announce.
+     *
+     * On a **user-id change** (the active user actually moved — not a claim that
+     * keeps the same id), this:
+     *  1. **dumps the departing user's device-local data first** — awaited,
+     *     *before* the new state is emitted — so a reactive loader (e.g.
+     *     `ProfileRepository` re-resolving on the auth change) wakes only after
+     *     the wipe and can't lose freshly-fetched data to a late clear.
+     *  2. emits the new state.
+     *  3. announces [AppEvent.UserChanged] for side-effects that don't own
+     *     user-scoped storage (telemetry binding, dropping an on-screen message).
+     *
+     * A claim/link (anon `X` → claimed `X`, same id) is *not* a user change: no
+     * dump, no announcement — the guest keeps their progress. The state still
+     * emits so the profile re-resolves to the now-claimed account.
+     */
+    private suspend fun emitLocked(next: AuthState) {
+        val previousUserId = (lastEmittedOrNull() as? AuthState.Authenticated)?.userId
+        val nextUserId = (next as? AuthState.Authenticated)?.userId
+        val userChanged = previousUserId != nextUserId
+
+        if (userChanged && previousUserId != null) {
+            logger.i { "User changed $previousUserId → ${nextUserId ?: "none"} — dumping prior user's local data before emit" }
+            Catching { userScopedDataReset.clearFor(previousUserId) }
+                .logOnFailure { "User-scoped data dump for $previousUserId failed; continuing with transition" }
+        }
+
+        state.emit(next)
+
+        if (userChanged) {
+            appEventBus.dispatch(AppEvent.UserChanged(previous = previousUserId, current = nextUserId))
+        }
     }
 
     private fun lastEmittedOrNull(): AuthState? = state.replayCache.firstOrNull()
@@ -337,8 +377,9 @@ class SupabaseAuthRepositoryImpl(
         // No session is created in its place — the user lands on the
         // logged-out landing page and must pick a method (guest / sign-in)
         // again. A later retry() just re-resolves (still Unauthenticated).
+        // emitUnauthenticatedLocked → emitLocked dumps the prior user's local
+        // data and dispatches UserChanged(prev, null); no explicit dispatch here.
         emitUnauthenticatedLocked(cause = null)
-        appEventBus.dispatch(AppEvent.SignedOut)
     }
 
     override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
@@ -348,20 +389,14 @@ class SupabaseAuthRepositoryImpl(
             logger.w { "deleteAccount: NotSignedIn (no supabase session)" }
             return@withLock DeleteAccountOutcome.NotSignedIn
         }
-        if (session.isAnonymous) {
-            // Belt-and-braces with the server: the JWT carries is_anonymous
-            // and the server rejects too. The client check is the fast
-            // path that keeps anon users out of the delete-confirmation
-            // typing dance entirely.
-            logger.w { "deleteAccount: AnonymousNotAllowed (session is anonymous)" }
-            return@withLock DeleteAccountOutcome.AnonymousNotAllowed
-        }
+        // Anonymous accounts are deletable too — a guest's data (profile,
+        // wallet, history) is a real server-side account and a user has the
+        // right to erase it. The admin delete handles anon users fine.
         val outcome = Catching { profileApi.deleteMe() }.fold(
             onSuccess = { response ->
                 when (response.status.value) {
                     204, 200, 404 -> DeleteAccountOutcome.Success
                     401 -> DeleteAccountOutcome.NotSignedIn
-                    403 -> DeleteAccountOutcome.AnonymousNotAllowed
                     503 -> DeleteAccountOutcome.NotConfigured
                     else -> DeleteAccountOutcome.Unknown(
                         IllegalStateException("Unexpected status ${response.status.value}"),
@@ -372,7 +407,6 @@ class SupabaseAuthRepositoryImpl(
                 when (e) {
                     is io.ktor.client.plugins.ClientRequestException -> when (e.response.status.value) {
                         401 -> DeleteAccountOutcome.NotSignedIn
-                        403 -> DeleteAccountOutcome.AnonymousNotAllowed
                         else -> DeleteAccountOutcome.Unknown(e)
                     }
                     is io.ktor.client.plugins.ServerResponseException ->
@@ -384,11 +418,12 @@ class SupabaseAuthRepositoryImpl(
         )
 
         if (outcome is DeleteAccountOutcome.Success) {
-            logger.i { "deleteAccount: Success — signing out + dispatching SignedOut" }
+            logger.i { "deleteAccount: Success — signing out + clearing user-scoped data" }
             Catching { gateway.signOut() }
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
+            // emitUnauthenticatedLocked → emitLocked dumps this user's local
+            // data and dispatches UserChanged(prev, null).
             emitUnauthenticatedLocked(cause = null)
-            appEventBus.dispatch(AppEvent.SignedOut)
         } else {
             logger.w { "deleteAccount: ${outcome::class.simpleName}" }
         }

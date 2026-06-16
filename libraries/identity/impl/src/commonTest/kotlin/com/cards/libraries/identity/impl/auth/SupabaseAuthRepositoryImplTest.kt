@@ -3,6 +3,7 @@ package com.dangerfield.cards.libraries.identity.impl.auth
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AppEvent
 import com.dangerfield.cards.libraries.cards.AppEventBus
+import com.dangerfield.cards.libraries.cards.UserScopedDataReset
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthState
@@ -33,7 +34,10 @@ import kotlin.test.assertTrue
  *    Authenticated`,
  *  - exhausted resolve attempts (gateway stays Transient forever),
  *  - `retry()` is a no-op when already Authenticated,
- *  - `signOut()` flips state and dispatches `AppEvent.SignedOut`,
+ *  - `signOut()` flips state, dumps the prior user's local data, and
+ *    dispatches `AppEvent.UserChanged(prev, null)`,
+ *  - an account switch dumps the departing user's data *before* emitting the
+ *    new session, and announces `UserChanged(prev, next)`,
  *  - `current()` suspends pre-resolve, then unsuspends after.
  *
  * Tests deliberately *don't* construct a real `SupabaseClient` — the
@@ -238,19 +242,86 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     // ---------- signOut ----------
 
     @Test
-    fun signOut_clearsState_andDispatchesSignedOutEvent() = runUnitTest {
+    fun signOut_clearsState_dumpsPriorUser_andAnnouncesUserChange() = runUnitTest {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = claimedSession(),
         )
         val events = RecordingEventBus()
-        val repo = build(gateway = gateway, appEventBus = events)
+        val reset = RecordingUserScopedDataReset()
+        val repo = build(gateway = gateway, appEventBus = events, userScopedDataReset = reset)
         advanceUntilIdle()
 
         repo.signOut()
         assertIs<AuthState.Unauthenticated>(repo.current())
         assertEquals(1, gateway.signOutCalls)
-        assertEquals(listOf<AppEvent>(AppEvent.SignedOut), events.dispatched)
+        // The departing user's device-local data is dumped exactly once.
+        assertEquals(listOf("user-1"), reset.clearedFor)
+        // Boot announced (null → user-1); sign-out announced (user-1 → null).
+        assertEquals(
+            listOf<AppEvent>(
+                AppEvent.UserChanged(previous = null, current = "user-1"),
+                AppEvent.UserChanged(previous = "user-1", current = null),
+            ),
+            events.dispatched,
+        )
+    }
+
+    @Test
+    fun accountSwitch_dumpsDepartingUser_beforeEmit_andAnnouncesUserChange() = runUnitTest {
+        // Start signed in as a guest, then sign into a *different* existing
+        // account. The guest's local data must be dumped before the new
+        // session is announced, and the switch announced as UserChanged.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(userId = "guest-1"),
+            onSignInWithOAuth = { advanceToAuthenticated(claimedSession(userId = "real-2", email = "real@b.com")) },
+        )
+        val events = RecordingEventBus()
+        val reset = RecordingUserScopedDataReset()
+        val repo = build(gateway = gateway, appEventBus = events, userScopedDataReset = reset)
+        advanceUntilIdle()
+
+        repo.signInWithOAuth(OAuthProvider.Google)
+
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("real-2", state.userId)
+        assertEquals(false, state.isAnonymous)
+        // The guest's data — and only the guest's — was dumped.
+        assertEquals(listOf("guest-1"), reset.clearedFor)
+        // The claim case is excluded: a switch to a *different* id announces.
+        assertEquals(
+            AppEvent.UserChanged(previous = "guest-1", current = "real-2"),
+            events.dispatched.last(),
+        )
+    }
+
+    @Test
+    fun accountClaim_sameUserId_doesNotDumpOrAnnounce() = runUnitTest {
+        // Linking/claiming keeps the same user id (anon guest-1 becomes a
+        // claimed account but stays guest-1). The guest's progress is theirs:
+        // no dump, no UserChanged — just a re-emit so the profile re-resolves.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(userId = "guest-1"),
+            onSignInWithOAuth = {
+                // Same id, now non-anonymous + email — models a refresh after claim.
+                advanceToAuthenticated(claimedSession(userId = "guest-1", email = "claimed@b.com"))
+            },
+        )
+        val events = RecordingEventBus()
+        val reset = RecordingUserScopedDataReset()
+        val repo = build(gateway = gateway, appEventBus = events, userScopedDataReset = reset)
+        advanceUntilIdle()
+        val dispatchedAtBoot = events.dispatched.size
+
+        repo.signInWithOAuth(OAuthProvider.Google)
+
+        val state = assertIs<AuthState.Authenticated>(repo.current())
+        assertEquals("guest-1", state.userId)
+        assertEquals(false, state.isAnonymous, "the claim still flips anon → claimed")
+        assertTrue(reset.clearedFor.isEmpty(), "same-user claim must not dump the guest's data")
+        assertEquals(dispatchedAtBoot, events.dispatched.size, "same-user claim must not announce UserChanged")
     }
 
     // ---------- refreshSession ----------
@@ -289,21 +360,6 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     // ---------- deleteAccount ----------
 
     @Test
-    fun deleteAccount_anonymousSession_returnsAnonymousNotAllowed_withoutHittingProfileApi() = runUnitTest {
-        // The fast-path guard: anon sessions get rejected client-side
-        // before any HTTP fires. UnusedProfileApi would error if hit.
-        val gateway = FakeSupabaseAuthGateway(
-            initialStatus = AuthGatewayStatus.Authenticated,
-            session = anonymousSession(),
-        )
-        val repo = build(gateway = gateway)
-        advanceUntilIdle()
-
-        val outcome = repo.deleteAccount()
-        assertIs<com.dangerfield.cards.libraries.identity.auth.DeleteAccountOutcome.AnonymousNotAllowed>(outcome)
-    }
-
-    @Test
     fun deleteAccount_noSession_returnsNotSignedIn() = runUnitTest {
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.NotAuthenticated,
@@ -327,12 +383,18 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
             onSignOut = { throw RuntimeException("network") },
         )
         val events = RecordingEventBus()
-        val repo = build(gateway = gateway, appEventBus = events)
+        val reset = RecordingUserScopedDataReset()
+        val repo = build(gateway = gateway, appEventBus = events, userScopedDataReset = reset)
         advanceUntilIdle()
 
         repo.signOut()
         assertIs<AuthState.Unauthenticated>(repo.current())
-        assertEquals(listOf<AppEvent>(AppEvent.SignedOut), events.dispatched)
+        // Even on a gateway failure the local dump + announcement still run.
+        assertEquals(listOf("user-1"), reset.clearedFor)
+        assertEquals(
+            AppEvent.UserChanged(previous = "user-1", current = null),
+            events.dispatched.last(),
+        )
     }
 
     // ---------- scaffolding ----------
@@ -340,13 +402,26 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     private fun build(
         gateway: FakeSupabaseAuthGateway,
         appEventBus: AppEventBus = NoOpEventBus,
+        userScopedDataReset: UserScopedDataReset = NoOpUserScopedDataReset,
     ): SupabaseAuthRepositoryImpl = SupabaseAuthRepositoryImpl(
         gateway = gateway,
         profileApi = UnusedProfileApi,
         appEventBus = appEventBus,
+        userScopedDataReset = userScopedDataReset,
         tokenInvalidator = NoOpTokenInvalidator,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private object NoOpUserScopedDataReset : UserScopedDataReset {
+        override suspend fun clearFor(previousUserId: String) = Unit
+    }
+
+    private class RecordingUserScopedDataReset : UserScopedDataReset {
+        val clearedFor: MutableList<String> = mutableListOf()
+        override suspend fun clearFor(previousUserId: String) {
+            clearedFor += previousUserId
+        }
+    }
 
     private object NoOpTokenInvalidator :
         com.dangerfield.cards.libraries.networking.AuthTokenInvalidator {
@@ -417,6 +492,9 @@ internal class FakeSupabaseAuthGateway(
     var onSignInAnonymously: suspend FakeSupabaseAuthGateway.() -> Unit = {},
     var onSignOut: suspend FakeSupabaseAuthGateway.() -> Unit = {},
     var onRefreshSession: suspend FakeSupabaseAuthGateway.() -> Unit = {},
+    var onSignInWithOAuth: suspend FakeSupabaseAuthGateway.(OAuthProvider) -> Unit = {
+        error("signInWithOAuth not stubbed for this test")
+    },
 ) : SupabaseAuthGateway {
 
     private var status: AuthGatewayStatus = initialStatus
@@ -497,8 +575,9 @@ internal class FakeSupabaseAuthGateway(
     override suspend fun linkOAuthIdentity(provider: OAuthProvider): Unit =
         error("linkOAuthIdentity not stubbed for these tests")
 
-    override suspend fun signInWithOAuth(provider: OAuthProvider): Unit =
-        error("signInWithOAuth not stubbed for these tests")
+    override suspend fun signInWithOAuth(provider: OAuthProvider) {
+        onSignInWithOAuth(provider)
+    }
 
     override suspend fun signInWithAppleIdToken(idToken: String, nonce: String): Unit =
         error("signInWithAppleIdToken not stubbed for these tests")

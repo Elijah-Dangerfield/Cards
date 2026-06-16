@@ -42,6 +42,7 @@ internal class FakeProgressionRepository(
         error("awardForHand not used by the progression VMs")
     override suspend fun applyAchievementXp(delta: Int, description: String?): XpEvent =
         error("applyAchievementXp not used by the progression VMs")
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
     override suspend fun deleteAll() { /* not used here */ }
     override suspend fun debugSetTotalXp(totalXp: Long) {
         progression.value = progression.value.copy(totalXp = totalXp)
@@ -68,6 +69,7 @@ internal class FakeAchievementRepository(
     ): List<EarnedAchievement> = error("recordHand not used by the progression VMs")
     override suspend fun recordTutorialComplete(): EarnedAchievement? =
         error("recordTutorialComplete not used by the progression VMs")
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
     override suspend fun deleteAll() { /* not used here */ }
 }
 

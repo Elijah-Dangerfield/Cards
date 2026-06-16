@@ -462,7 +462,9 @@
     <string name="profile_claim_subtitle">Save your chips, XP, and achievements across devices.</string>
     <string name="profile_claim_provider_google">Continue with Google</string>
     <string name="profile_claim_provider_apple">Continue with Apple</string>
-    <string name="profile_claim_conflict_switch_button">Switch to my %1$s account anyway</string>
+    <string name="profile_claim_conflict_switch_button">Switch to my %1$s account</string>
+    <string name="profile_claim_conflict_title">Account already exists</string>
+    <string name="profile_claim_conflict_cancel_button">Cancel</string>
 
     <!-- Profile — Delete account destructive flow. -->
     <string name="profile_delete_back_a11y">Back</string>
@@ -478,7 +480,6 @@
     <string name="profile_delete_submit_button_progress">Deleting…</string>
     <string name="profile_delete_cancel_button">Cancel</string>
     <string name="profile_delete_error_not_configured">Account deletion isn't available right now. Please try again later or contact support.</string>
-    <string name="profile_delete_error_anonymous_not_allowed">Anonymous accounts can't be deleted. Sign out instead, or claim your account first.</string>
     <string name="profile_delete_error_network">Couldn't reach the server. Check your connection and try again.</string>
     <string name="profile_delete_error_unknown">Something went wrong. Please try again.</string>
 

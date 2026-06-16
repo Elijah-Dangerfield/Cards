@@ -55,6 +55,10 @@ include(":libraries:bots")
 
 if (!serverOnly) {
     include(":apps:compose")
+    // End-to-end multiplayer test harness: real client (+ real VMs) driven
+    // against a real in-process Ktor server. Depends on client feature/impl
+    // modules + :apps:server, so it's gated out of the server-only build.
+    include(":apps:integration")
 
     // Features
     include(":features:home")

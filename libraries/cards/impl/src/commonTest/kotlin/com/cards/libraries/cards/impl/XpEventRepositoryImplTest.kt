@@ -165,6 +165,13 @@ class XpEventRepositoryImplTest : CoroutineTest() {
             return flow.asStateFlow()
         }
 
+        override suspend fun getUnsynced(): List<XpEventEntity> = flow.value.filter { !it.synced }
+
+        override suspend fun markSynced(keys: List<String>) {
+            val set = keys.toSet()
+            flow.value = flow.value.map { if (it.idempotencyKey in set) it.copy(synced = true) else it }
+        }
+
         override suspend fun deleteAll() {
             flow.value = emptyList()
         }

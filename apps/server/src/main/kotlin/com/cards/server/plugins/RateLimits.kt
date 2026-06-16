@@ -29,6 +29,8 @@ import kotlin.time.Duration.Companion.minutes
 const val DELETE_ACCOUNT_LIMIT = "delete-account"
 const val PROFILE_WRITE_LIMIT = "profile-write"
 const val WALLET_WRITE_LIMIT = "wallet-write"
+const val PROGRESSION_WRITE_LIMIT = "progression-write"
+const val ACHIEVEMENTS_WRITE_LIMIT = "achievements-write"
 const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
 
 fun Application.installRateLimits() {
@@ -59,6 +61,14 @@ fun Application.installRateLimits() {
             requestKey { call -> call.clientIp() }
         }
 
+        register(RateLimitName(ACHIEVEMENTS_WRITE_LIMIT)) {
+            // POST /v1/me/achievements/sync fires on the same cadence as the
+            // wallet/progression syncs (cold boot, foreground, after hands that
+            // unlock achievements). Same 480/hour headroom + per-IP keying.
+            rateLimiter(limit = 480, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
         register(RateLimitName(ACHIEVEMENT_GRANT_LIMIT)) {
             // POST /v1/me/grants/achievement/{id} fires from the client when a
             // bot-mode achievement criterion lights up at hand-end. Real
@@ -70,6 +80,14 @@ fun Application.installRateLimits() {
             // with two heavy users still fits comfortably, while a scripted
             // flood gets capped at 2/minute sustained.
             rateLimiter(limit = 120, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(PROGRESSION_WRITE_LIMIT)) {
+            // POST /v1/me/progression/sync fires on the same cadence as the
+            // wallet sync (cold boot, foreground resume, opportunistically
+            // after hands award XP). Same 480/hour headroom + per-IP keying.
+            rateLimiter(limit = 480, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
 

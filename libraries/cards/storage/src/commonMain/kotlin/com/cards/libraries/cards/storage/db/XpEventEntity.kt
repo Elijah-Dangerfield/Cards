@@ -22,6 +22,25 @@ data class XpEventEntity(
     @ColumnInfo(name = "user_id")
     val userId: String = "user",
 
+    /**
+     * Stable client-generated key for server idempotency (a UUID per row,
+     * set by [ProgressionRepositoryImpl]). The local PK stays the
+     * autoincrement [id]; this is the dedup boundary on the *server's*
+     * `xp_events` table so a retried sync can't double-count. Defaults empty
+     * for test rows that never sync.
+     */
+    @ColumnInfo(name = "idempotency_key")
+    val idempotencyKey: String = "",
+
+    /**
+     * False until this row has been flushed to the server (`POST
+     * /v1/me/progression/sync`). The pending-ledger flag — mirrors the
+     * wallet's separate `wallet_events` table, kept inline here since the
+     * XP ledger doubles as both history feed and sync queue.
+     */
+    @ColumnInfo(name = "synced")
+    val synced: Boolean = false,
+
     @ColumnInfo(name = "delta_xp")
     val deltaXp: Int,
 

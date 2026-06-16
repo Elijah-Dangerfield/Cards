@@ -172,12 +172,13 @@ fun AppData.isFirstEverSession(): Boolean = lastSessionEndedAt == null
 /**
  * Reset the **account-scoped** fields back to defaults while preserving every
  * device-scoped setting (bot speed, sound, hints, install id, onboarding-seen,
- * review timers…). Used on sign-out / delete so the next account doesn't
- * inherit the previous one's state.
+ * review timers…). Used whenever the active user changes (account switch or
+ * sign-out / delete) so the next account doesn't inherit the previous one's state.
  *
- * Account-scoped DB tables are wiped by `SignedOutLocalDataCleaner` and the
- * profile caches by `ProfileRepositoryImpl`; this covers the account-scoped
- * fields that live in [AppData]. Add any new account-scoped field here.
+ * This is one [UserScopedClearer] in the dump the auth layer runs on a user
+ * change: DB tables are wiped by `UserScopedDaoCleaner`, the profile caches by
+ * `UserScopedProfileCacheCleaner`, and this covers the account-scoped fields
+ * that live in [AppData]. Add any new account-scoped field here.
  */
 fun AppData.resetAccountScoped(): AppData = copy(
     // Leaving this true across sign-out would suppress the starter-grant reveal

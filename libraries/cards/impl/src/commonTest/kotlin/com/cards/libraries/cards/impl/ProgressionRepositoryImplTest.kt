@@ -8,7 +8,12 @@ import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.networking.InternalNetworkingApi
+import com.dangerfield.cards.libraries.networking.NetworkClient
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -245,8 +250,23 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
     ): ProgressionRepositoryImpl = ProgressionRepositoryImpl(
         progressionDao = dao,
         xpEventDao = ledger,
+        networkClient = NeverCalledNetworkClient,
+        appScope = AppCoroutineScope(dispatchers),
         clock = FixedClock(clockEpochMs),
     )
+
+    /**
+     * These tests exercise the local award/counter paths, never [sync] — so
+     * the network is wired to fail loudly if any test accidentally hits it.
+     * Sync reconciliation is covered by [ProgressionRepositoryImplSyncTest].
+     */
+    @OptIn(InternalNetworkingApi::class)
+    private object NeverCalledNetworkClient : NetworkClient {
+        private val engine = MockEngine { error("unexpected network call in a non-sync test") }
+        override val client: HttpClient = HttpClient(engine)
+        override val authenticatedClient: HttpClient = client
+        override suspend fun awaitAuthReady() = Unit
+    }
 
     private class FixedClock(private val now: Long) : Clock {
         override fun now(): Instant = Instant.fromEpochMilliseconds(now)
@@ -329,6 +349,18 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
 
         override fun observeRecent(limit: Int): Flow<List<XpEventEntity>> =
             flow.asStateFlow()
+
+        override suspend fun getUnsynced(): List<XpEventEntity> = inserted.filter { !it.synced }
+
+        override suspend fun markSynced(keys: List<String>) {
+            val set = keys.toSet()
+            for (i in inserted.indices) {
+                if (inserted[i].idempotencyKey in set) {
+                    inserted[i] = inserted[i].copy(synced = true)
+                }
+            }
+            flow.value = inserted.toList()
+        }
 
         override suspend fun deleteAll() {
             cleared = true

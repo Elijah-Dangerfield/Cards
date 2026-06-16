@@ -129,13 +129,13 @@ class InAppMessageManagerImplTest : CoroutineTest() {
     }
 
     @Test
-    fun signedOut_clearsCurrent_immediately() = runUnitTest {
+    fun userChanged_clearsCurrent_immediately() = runUnitTest {
         val repo = FakeRepo().apply { enqueue(message("a")) }
         val manager = buildManager(repo)
         manager.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
         assertNotNull(manager.current.value)
-        manager.onSignedOut(AppEvent.SignedOut)
+        manager.onUserChanged(AppEvent.UserChanged(previous = "u1", current = null))
         assertNull(manager.current.value)
     }
 

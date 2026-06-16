@@ -2,6 +2,8 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AchievementGrantApi
+import com.dangerfield.cards.libraries.cards.AppEvent
+import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -36,13 +38,26 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementCounterEntity
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementDao
 import com.dangerfield.cards.libraries.cards.storage.db.AchievementEarnedEntity
+import com.dangerfield.cards.libraries.cards.impl.dto.AchievementsSyncRequestDto
+import com.dangerfield.cards.libraries.cards.impl.dto.AchievementsSyncResponseDto
+import com.dangerfield.cards.libraries.cards.impl.dto.EarnedAchievementDto
 import com.dangerfield.cards.libraries.cards.winsVsBotKey
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
+import com.dangerfield.cards.libraries.networking.NetworkClient
+import com.dangerfield.cards.libraries.networking.authedCall
+import com.dangerfield.cards.libraries.networking.retry.RetryPolicy
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -50,7 +65,8 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.time.Clock
 
 @SingleIn(AppScope::class)
-@ContributesBinding(AppScope::class)
+@ContributesBinding(AppScope::class, boundType = AchievementRepository::class)
+@ContributesBinding(AppScope::class, multibinding = true, boundType = AppEventListener::class)
 @Inject
 class AchievementRepositoryImpl(
     private val achievementDao: AchievementDao,
@@ -58,11 +74,14 @@ class AchievementRepositoryImpl(
     private val chipsRepository: ChipsRepository,
     private val grantApi: AchievementGrantApi,
     private val inventoryRepository: InventoryRepository,
+    private val networkClient: NetworkClient,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
-) : AchievementRepository {
+) : AchievementRepository, AppEventListener {
 
     private val logger = KLog.withTag("AchievementRepository")
+    private val syncLogger = KLog.withTag("AchievementSync")
+    private val syncMutex = Mutex()
 
     override fun observeProgress(): Flow<AchievementProgress> = combine(
         achievementDao.observeEarned(),
@@ -237,6 +256,70 @@ class AchievementRepositoryImpl(
         }
         logger.i { "Achievement earned: ${id.name} (${achievement.name})" }
         return EarnedAchievement(achievement = achievement, earnedAtEpochMs = now)
+    }
+
+    override suspend fun sync(): Result<Unit> = syncMutex.withLock {
+        // Always POST — an empty earned list is a valid "hydrate set" call,
+        // which is how a reinstall / second device pulls down achievements
+        // earned elsewhere.
+        networkClient.authedCall("achievements.sync", retry = RetryPolicy.idempotent()) { client ->
+            val unsynced = achievementDao.getUnsyncedEarned()
+
+            val request = AchievementsSyncRequestDto(
+                earned = unsynced.map {
+                    EarnedAchievementDto(achievementId = it.achievementId, earnedAtEpochMs = it.earnedAtEpochMs)
+                },
+            )
+            val response: AchievementsSyncResponseDto = client
+                .post("/v1/me/achievements/sync") {
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
+                }
+                .body()
+
+            // Our posted rows are now on the server — mark them synced (kept
+            // locally as the source of truth for the achievement list).
+            if (unsynced.isNotEmpty()) {
+                achievementDao.markEarnedSynced(unsynced.map { it.achievementId })
+            }
+
+            // Reconcile: insert any server-earned id we don't have locally
+            // (earned on another device) as already-synced. Achievements are
+            // monotonic, so we never remove a local earned row.
+            val localIds = achievementDao.getEarned().map { it.achievementId }.toSet()
+            response.earned
+                .filter { it.achievementId !in localIds }
+                .forEach { server ->
+                    achievementDao.insertEarned(
+                        AchievementEarnedEntity(
+                            achievementId = server.achievementId,
+                            earnedAtEpochMs = server.earnedAtEpochMs,
+                            synced = true,
+                        ),
+                    )
+                }
+
+            syncLogger.d {
+                "Sync complete: ${unsynced.size} sent, ${response.earned.size} server-earned."
+            }
+            Unit
+        }
+    }
+
+    override fun onUserChanged(event: AppEvent.UserChanged) {
+        // A user just became active (cold-boot resolve, sign-in, or account
+        // switch). On a switch the prior user's earned set was just wiped, so
+        // re-hydrate the new user's now. Sign-out (current == null) fetches
+        // nothing.
+        if (event.current == null) return
+        appScope.launch { sync() }
+    }
+
+    override fun onForeground(event: AppEvent.OnForeground) {
+        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
+        // the warm-resume reconcile only.
+        if (event.isColdBoot) return
+        appScope.launch { sync() }
     }
 
     override suspend fun deleteAll() {

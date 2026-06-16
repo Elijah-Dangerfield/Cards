@@ -208,10 +208,10 @@ fun SettingsScreen(
                 )
             }
 
-            // Anonymous "sign out" is meaningless — there's no account to
-            // sign back into. Guests get the sign-in banner above instead.
+            VerticalSpacerD1100()
+            // Anonymous "sign out" is meaningless — there's no account to sign
+            // back into. Guests get the sign-in banner above instead.
             if (!settings.isAnonymous) {
-                VerticalSpacerD1100()
                 ButtonDanger(
                     onClick = { if (!isSigningOut) showSignOutDialog = true },
                     style = ButtonStyle.Outlined,
@@ -227,13 +227,15 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                ButtonDanger(
-                    onClick = onDeleteAccount,
-                    style = ButtonStyle.Text,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(Res.string.profile_delete_account_button))
-                }
+            }
+            // Deletion is available to everyone, including guests — a guest's
+            // data is a real account they have the right to erase.
+            ButtonDanger(
+                onClick = onDeleteAccount,
+                style = ButtonStyle.Text,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(Res.string.profile_delete_account_button))
             }
 
             VerticalSpacerD1100()

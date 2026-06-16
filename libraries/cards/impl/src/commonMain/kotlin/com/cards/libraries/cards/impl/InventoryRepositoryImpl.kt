@@ -166,11 +166,18 @@ class InventoryRepositoryImpl(
         inventoryDao.deleteAll()
     }
 
-    override fun onColdBoot(event: AppEvent.ColdBoot) {
+    override fun onUserChanged(event: AppEvent.UserChanged) {
+        // A user just became active (cold-boot resolve, sign-in, or account
+        // switch). On a switch the prior owner's inventory was just wiped, so
+        // re-hydrate the new user's owned items now rather than waiting for a
+        // foreground. Sign-out (current == null) has nothing to fetch.
+        if (event.current == null) return
         appScope.launch { sync() }
     }
 
     override fun onForeground(event: AppEvent.OnForeground) {
+        // Cold-boot's initial sync is owned by [onUserChanged]; this handles
+        // the warm-resume reconcile only.
         if (event.isColdBoot) return
         appScope.launch { sync() }
     }

@@ -12,7 +12,7 @@ Check items off as you do them; delete when the whole section is empty.
 
 Normal engineering tasks pulled out of [todo.md](./todo.md) on purpose — to pick up later rather than hand to a worker.
 
-- [ ] **Integration test module (testing-plan Round 2).** Stand up a new `:integration` JVM module that boots a real Ktor server in-process and points real KMP clients at it — same-repo server + KMP makes this feasible where most codebases can't. Round 2 of [`testing-plan.md`](./testing-plan.md); per-round detail lives there.
+- [ ] **Integration test fan-out (testing-plan Round 2).** The harness landed: `:apps:integration` boots a real in-process Ktor server and drives the **real client + real `LobbyViewModel`s** against it, with a green, non-flaky friends-game golden path (create → join → presence → start → both navigate) and a dedicated `integration-test` CI job. Remaining is the fan-out on top of the harness — wire-format round trips, reconnect-mid-setup, host-disconnect/promotion, join-rejection cases, "add a bot", and the public-game path when it ships. See [`testing-plan.md`](./testing-plan.md) Round 2.
 
 ---
 

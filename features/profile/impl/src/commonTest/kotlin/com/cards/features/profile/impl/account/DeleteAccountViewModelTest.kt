@@ -115,33 +115,6 @@ class DeleteAccountViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun submit_anonymousNotAllowed_surfacesAnonError_andKeepsOnboardingFlag() = runUnitTest {
-        // The UI gate should keep anon users out of the Delete screen
-        // entirely, but a deep-link / future regression could land them
-        // here. The outcome must render a real message, not silently
-        // succeed.
-        val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
-        val vm = buildVm(
-            auth = FakeAuthRepository(deleteOutcome = DeleteAccountOutcome.AnonymousNotAllowed),
-            appCache = cache,
-        )
-        vm.takeAction(DeleteAccountAction.ConfirmationChanged("delete"))
-        vm.takeAction(DeleteAccountAction.ConfirmDelete)
-
-        vm.stateFlow.test {
-            var last = awaitItem()
-            while (last.error == null) last = awaitItem()
-            assertEquals(false, last.isSubmitting)
-            assertEquals(DeleteAccountError.AnonymousNotAllowed, last.error)
-            cancelAndIgnoreRemainingEvents()
-        }
-        assertEquals(
-            true, cache.get().hasUserOnboarded,
-            "anon delete is rejected; onboarding flag stays as-was",
-        )
-    }
-
-    @Test
     fun submit_notConfigured_surfacesNotConfiguredError_andKeepsOnboardingFlag() = runUnitTest {
         val cache = FakeAppCache(initial = AppData(hasUserOnboarded = true))
         val vm = buildVm(

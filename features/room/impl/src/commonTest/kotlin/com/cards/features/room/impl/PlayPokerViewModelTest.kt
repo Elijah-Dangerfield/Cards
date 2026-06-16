@@ -343,6 +343,36 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun handEndAchievements_pendingThenEarned_togglesAwaitingFlag() = runUnitTest {
+        // The dialog dismiss path waits on `awaitingHandEndAchievements` so a
+        // fast tap can't skip a reveal that's still being computed. Pin the
+        // flag: pending sets it, the resolution (earned, even empty) clears it.
+        val vm = buildVm()
+        assertEquals(false, vm.state.awaitingHandEndAchievements)
+
+        vm.takeAction(PlayPokerAction.HandEndAchievementsPending)
+        assertTrue(vm.state.awaitingHandEndAchievements, "hand-end marks achievements in flight")
+        assertTrue(vm.state.recentlyEarned.isEmpty(), "pending clears any stale earned list")
+
+        vm.takeAction(PlayPokerAction.AchievementsEarned(earned = listOf(testEarnedAchievement())))
+        assertEquals(false, vm.state.awaitingHandEndAchievements, "resolution clears the in-flight flag")
+        assertEquals(1, vm.state.recentlyEarned.size)
+    }
+
+    @Test
+    fun handEndAchievements_resolvedEmpty_stillClearsAwaiting() = runUnitTest {
+        // No unlocks this hand still has to clear the flag, or the dismiss path
+        // would hold forever waiting on a reveal that never comes.
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.HandEndAchievementsPending)
+        assertTrue(vm.state.awaitingHandEndAchievements)
+
+        vm.takeAction(PlayPokerAction.AchievementsEarned(earned = emptyList()))
+        assertEquals(false, vm.state.awaitingHandEndAchievements)
+        assertTrue(vm.state.recentlyEarned.isEmpty())
+    }
+
+    @Test
     fun dismissEarnedToast_clearsList() = runUnitTest {
         val vm = buildVm()
         vm.takeAction(

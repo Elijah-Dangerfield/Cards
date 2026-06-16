@@ -17,12 +17,16 @@ import cards.libraries.resources.generated.resources.home_tutorial_banner_dismis
 import cards.libraries.resources.generated.resources.home_tutorial_banner_start_button
 import cards.libraries.resources.generated.resources.home_tutorial_banner_subtitle
 import cards.libraries.resources.generated.resources.home_tutorial_banner_title
+import com.dangerfield.cards.libraries.ui.Elevation
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.bounceClick
+import com.dangerfield.cards.libraries.ui.components.BadgePlacement
+import com.dangerfield.cards.libraries.ui.components.BadgedBox
 import com.dangerfield.cards.libraries.ui.components.button.ButtonAccent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
-import com.dangerfield.cards.libraries.ui.components.icon.IconButton
+import com.dangerfield.cards.libraries.ui.components.icon.CircleIcon
+import com.dangerfield.cards.libraries.ui.components.icon.IconSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
@@ -46,7 +50,26 @@ internal fun TutorialBanner(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxWidth()) {
+    // Dismiss as a DS corner badge: the ✕ sits on the banner's top-right corner
+    // as a deliberate sticker, not a bare glyph floating on the gradient.
+    // EdgeAlignedTop keeps it within the banner's horizontal bounds so it never
+    // clips against the screen gutter — the same placement the shop tiles use.
+    BadgedBox(
+        modifier = modifier.fillMaxWidth(),
+        contentRadius = Radii.R900,
+        placement = BadgePlacement.EdgeAlignedTop,
+        badge = {
+            CircleIcon(
+                icon = Icons.X(stringResource(Res.string.home_tutorial_banner_dismiss_a11y)),
+                iconSize = IconSize.Small,
+                onClick = onDismiss,
+                padding = Dimension.D200,
+                backgroundColor = AppTheme.colors.background,
+                contentColor = AppTheme.colors.content,
+                elevation = Elevation.Button,
+            )
+        },
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -81,18 +104,6 @@ internal fun TutorialBanner(
                 Text(stringResource(Res.string.home_tutorial_banner_start_button))
             }
         }
-        // Dismiss as a badged box in the corner so it reads as a deliberate
-        // affordance rather than a bare glyph floating on the gradient.
-        IconButton(
-            icon = Icons.X(stringResource(Res.string.home_tutorial_banner_dismiss_a11y)),
-            onClick = onDismiss,
-            size = IconButton.Size.Small,
-            backgroundColor = AppTheme.colors.background,
-            iconColor = AppTheme.colors.content,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(Dimension.D300),
-        )
     }
 }
 

@@ -467,9 +467,23 @@ class AchievementRepositoryImplTest : CoroutineTest() {
             chipsRepository = chips,
             grantApi = grantApi,
             inventoryRepository = inventory,
+            networkClient = NeverCalledNetworkClient,
             appScope = AppCoroutineScope(dispatchers),
             clock = clock,
         )
+    }
+
+    /**
+     * These tests exercise recordHand/recordTutorialComplete, never [sync] —
+     * so the network fails loudly if a test accidentally hits it. Sync
+     * reconciliation is covered by [AchievementRepositoryImplSyncTest].
+     */
+    @OptIn(com.dangerfield.cards.libraries.networking.InternalNetworkingApi::class)
+    private object NeverCalledNetworkClient : com.dangerfield.cards.libraries.networking.NetworkClient {
+        private val engine = io.ktor.client.engine.mock.MockEngine { error("unexpected network call") }
+        override val client = io.ktor.client.HttpClient(engine)
+        override val authenticatedClient = client
+        override suspend fun awaitAuthReady() = Unit
     }
 
     private class FakeAchievementDao : AchievementDao {
@@ -482,6 +496,12 @@ class AchievementRepositoryImplTest : CoroutineTest() {
         override suspend fun getEarned(): List<AchievementEarnedEntity> = earned.values.toList()
         override suspend fun insertEarned(entity: AchievementEarnedEntity) {
             earned.putIfAbsent(entity.achievementId, entity)
+            earnedFlow.value = earned.values.toList()
+        }
+        override suspend fun getUnsyncedEarned(): List<AchievementEarnedEntity> =
+            earned.values.filter { !it.synced }
+        override suspend fun markEarnedSynced(ids: List<String>) {
+            ids.forEach { id -> earned[id]?.let { earned[id] = it.copy(synced = true) } }
             earnedFlow.value = earned.values.toList()
         }
         override suspend fun deleteAllEarned() {
@@ -533,6 +553,7 @@ class AchievementRepositoryImplTest : CoroutineTest() {
                 createdAtEpochMs = 0L,
             )
         }
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
         override suspend fun deleteAll() {}
         override suspend fun debugSetTotalXp(totalXp: Long) {
             state.value = state.value.copy(totalXp = totalXp)

@@ -69,10 +69,20 @@ class InAppMessageManagerImpl(
         appScope.launch { onForegroundLikeEvent() }
     }
 
-    override fun onSignedOut(event: AppEvent.SignedOut) {
-        // Drop whatever's on screen; the repo's own listener clears
-        // the table elsewhere in the signed-out cascade.
+    override fun onUserChanged(event: AppEvent.UserChanged) {
+        // Drop whatever's on screen on any user change (switch or sign-out) —
+        // a message addressed to the departing user must not linger for the
+        // next one. The message table itself is wiped by the user-scoped
+        // clearer dump; this just clears the in-memory current.
         _current.value = null
+        // On an account *switch* (a real prior user → a new one) re-sync and
+        // surface the incoming user's messages now, instead of stranding them
+        // until the next foreground. The cold-boot / sign-in case (previous ==
+        // null) is already owned by onColdBoot, so this only covers switches —
+        // avoiding a double sync at launch.
+        if (event.current != null && event.previous != null) {
+            appScope.launch { onForegroundLikeEvent() }
+        }
     }
 
     private suspend fun onForegroundLikeEvent() = serializeForegroundsMutex.withLock {

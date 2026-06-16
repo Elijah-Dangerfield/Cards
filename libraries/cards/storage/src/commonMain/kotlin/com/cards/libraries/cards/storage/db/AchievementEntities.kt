@@ -19,6 +19,14 @@ data class AchievementEarnedEntity(
 
     @ColumnInfo(name = "earned_at_epoch_ms")
     val earnedAtEpochMs: Long,
+
+    /**
+     * False until this earned row has been flushed to the server
+     * (`POST /v1/me/achievements/sync`). Rows pulled down from the server
+     * (earned on another device) are inserted with `synced = true`.
+     */
+    @ColumnInfo(name = "synced")
+    val synced: Boolean = false,
 )
 
 /**

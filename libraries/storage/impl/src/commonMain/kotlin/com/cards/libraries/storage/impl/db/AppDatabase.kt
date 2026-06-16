@@ -34,7 +34,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         WalletEventEntity::class,
         UserMessageEntity::class,
     ],
-    version = 15, // v15: inventory.acquisition_source ('purchased'|'earned')
+    version = 17, // v17: achievement_earned.synced (server achievement sync)
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)

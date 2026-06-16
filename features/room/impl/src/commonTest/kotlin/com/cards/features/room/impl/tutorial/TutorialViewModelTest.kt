@@ -280,6 +280,8 @@ private class TutorialAchievementsFake(
         return tutorialEarned
     }
 
+    override suspend fun sync(): Result<Unit> = Result.success(Unit)
+
     override suspend fun deleteAll() {
         state.value = AchievementProgress.Empty
     }

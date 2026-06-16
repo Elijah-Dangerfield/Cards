@@ -25,7 +25,6 @@ import cards.libraries.resources.generated.resources.profile_delete_bullet_oauth
 import cards.libraries.resources.generated.resources.profile_delete_bullet_progress
 import cards.libraries.resources.generated.resources.profile_delete_cancel_button
 import cards.libraries.resources.generated.resources.profile_delete_confirm_input_label
-import cards.libraries.resources.generated.resources.profile_delete_error_anonymous_not_allowed
 import cards.libraries.resources.generated.resources.profile_delete_error_network
 import cards.libraries.resources.generated.resources.profile_delete_error_not_configured
 import cards.libraries.resources.generated.resources.profile_delete_error_unknown
@@ -242,8 +241,6 @@ private fun BulletItem(text: String) {
 private fun DeleteAccountError.message(): String = when (this) {
     DeleteAccountError.NotConfigured ->
         stringResource(Res.string.profile_delete_error_not_configured)
-    DeleteAccountError.AnonymousNotAllowed ->
-        stringResource(Res.string.profile_delete_error_anonymous_not_allowed)
     DeleteAccountError.NetworkError ->
         stringResource(Res.string.profile_delete_error_network)
     DeleteAccountError.Unknown ->

@@ -21,6 +21,14 @@ interface AchievementDao : ClearableDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEarned(entity: AchievementEarnedEntity)
 
+    /** Earned rows not yet flushed to the server. */
+    @Query("SELECT * FROM achievement_earned WHERE synced = 0")
+    suspend fun getUnsyncedEarned(): List<AchievementEarnedEntity>
+
+    /** Mark earned rows synced once the server has acked them. */
+    @Query("UPDATE achievement_earned SET synced = 1 WHERE achievement_id IN (:ids)")
+    suspend fun markEarnedSynced(ids: List<String>)
+
     @Query("DELETE FROM achievement_earned")
     suspend fun deleteAllEarned()
 

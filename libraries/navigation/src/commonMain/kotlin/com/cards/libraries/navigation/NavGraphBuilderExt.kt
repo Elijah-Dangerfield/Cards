@@ -25,6 +25,25 @@ import kotlin.jvm.JvmSuppressWildcards
 import kotlin.reflect.KType
 import kotlin.reflect.typeOf
 
+/**
+ * NavTypes for the arguments every [Route] carries on its **base class**.
+ *
+ * Type-safe navigation turns each serialized constructor `val` of a [Route] into
+ * a nav argument, and on iOS/Native — which has no reflection fallback — every
+ * non-primitive arg needs an explicit [NavType] in the destination's typeMap.
+ * Miss one and graph-build throws `IllegalArgumentException: ... could not find
+ * any NavType for argument <name>` (the [ShakeDialogRoute] / fresh-install
+ * crash). Every destination + deep-link builder below merges this in.
+ *
+ * Keep in sync with the serialized properties of [Route]:
+ *  - `enter` / `exit` / `popExit` → [AnimationType]
+ *  - `authRequirement`            → [AuthRequirement]
+ */
+val baseRouteTypeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = mapOf(
+    typeOf<AnimationType>() to serializableType<AnimationType>(),
+    typeOf<AuthRequirement>() to serializableType<AuthRequirement>(),
+)
+
 inline fun <reified T : Route> NavGraphBuilder.screen(
     typeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = emptyMap(),
     deepLinks: List<NavDeepLink> = emptyList(),
@@ -54,9 +73,7 @@ inline fun <reified T : Route> NavGraphBuilder.screen(
         ComposeNavigatorDestinationBuilder(
             provider[ComposeNavigator::class],
             T::class,
-            typeMap + mapOf(
-                typeOf<AnimationType>() to serializableType<AnimationType>()
-            ),
+            typeMap + baseRouteTypeMap,
             content
         )
             .apply {
@@ -84,9 +101,7 @@ inline fun <reified T : Route> routeDeepLink(
     typeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = emptyMap(),
 ): NavDeepLink = navDeepLink<T>(
     basePath = basePath,
-    typeMap = typeMap + mapOf(
-        typeOf<AnimationType>() to serializableType<AnimationType>()
-    ),
+    typeMap = typeMap + baseRouteTypeMap,
 )
 
 inline fun <reified T : Route> NavGraphBuilder.dialog(
@@ -98,9 +113,7 @@ inline fun <reified T : Route> NavGraphBuilder.dialog(
         FloatingWindowNavDestinationBuilder(
             provider[FloatingWindowNavigator::class],
             T::class,
-            typeMap + mapOf(
-                typeOf<AnimationType>() to serializableType<AnimationType>()
-            )
+            typeMap + baseRouteTypeMap
         ) { backStackEntry ->
             DialogDestination(backStackEntry, content)
         }
@@ -135,9 +148,7 @@ inline fun <reified T : Route> NavGraphBuilder.navigation(
     typeMap: Map<KType, @JvmSuppressWildcards NavType<*>> = emptyMap(),
     noinline builder: NavGraphBuilder.() -> Unit,
 ) {
-    val resolvedTypeMap = typeMap + mapOf(
-        typeOf<AnimationType>() to serializableType<AnimationType>(),
-    )
+    val resolvedTypeMap = typeMap + baseRouteTypeMap
     composeNestedGraph<T>(
         startDestination = startDestination,
         typeMap = resolvedTypeMap,
@@ -154,9 +165,7 @@ inline fun <reified T : Route> NavGraphBuilder.bottomSheet(
         FloatingWindowNavDestinationBuilder(
             provider[FloatingWindowNavigator::class],
             T::class,
-            typeMap + mapOf(
-                typeOf<AnimationType>() to serializableType<AnimationType>()
-            )
+            typeMap + baseRouteTypeMap
         ) { backStackEntry ->
             BottomSheetDestination(backStackEntry, content)
         }

@@ -60,8 +60,10 @@ enum class HandCategoryGrade {
 /**
  * Owns lifetime XP + hand counters.
  *
- * Local-only in V1 (bots earn XP on-device); Phase 3 swaps the backing store
- * for a server-authoritative ledger. The interface stays the same.
+ * XP is **optimistic-local + server-reconciled** (Model 2, Phase 3): the
+ * client computes XP per hand offline and accumulates it locally, then
+ * [sync] flushes the pending ledger to the server, which holds the
+ * authoritative `total_xp`. Lifetime hand counters stay client-local for now.
  */
 interface ProgressionRepository {
 
@@ -83,6 +85,14 @@ interface ProgressionRepository {
      * which achievement minted the row.
      */
     suspend fun applyAchievementXp(delta: Int, description: String? = null): XpEvent
+
+    /**
+     * Flush pending XP events to the server and reconcile `totalXp` to the
+     * server's authoritative value. Idempotent + single-flight; safe to call
+     * on cold boot, account switch, and warm foreground. An empty pending
+     * ledger is a valid hydrate-only call (picks up cross-device XP).
+     */
+    suspend fun sync(): Result<Unit>
 
     /** Reset all progression state. Used by "Fresh Start" / debug menus. */
     suspend fun deleteAll()

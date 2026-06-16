@@ -300,7 +300,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyMessages, rooms, NoOpInstallSweep)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, EmptyMessages, rooms, NoOpInstallSweep)
                 }
             }
             val client = createClient {
@@ -350,7 +350,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyMessages, EmptyRooms, installSweep) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyAchievements, EmptyMessages, EmptyRooms, installSweep) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -375,7 +375,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -532,17 +532,15 @@ class MeRoutesTest {
     }
 
     @Test
-    fun delete_returns403_whenJwtIsAnonymous() = runTest {
-        // Authoritative server-side guard: anon JWTs can't trigger account
-        // deletion. The client guards too, but a misbehaving / outdated
-        // build must not be able to slip through.
+    fun delete_succeeds_whenJwtIsAnonymous() = runTest {
+        // Anonymous accounts are deletable too — the admin delete fires and the
+        // local data is cleaned, same as a claimed account.
         val repo = FakeProfileRepository(existing = fakeProfile(userId))
         val admin = StubAdmin(DeleteUserResult.Success)
         callDeleteMe(repo, admin, bearer = validJwt(isAnonymous = true)) { resp ->
-            assertEquals(HttpStatusCode.Forbidden, resp.status)
-            assertEquals(0, admin.calls, "admin delete must not fire for anon JWT")
-            assertEquals(0, repo.deleteCalls)
-            assertTrue(resp.bodyAsText().contains("anonymous_not_allowed"))
+            assertEquals(HttpStatusCode.NoContent, resp.status)
+            assertEquals(1, admin.calls, "admin delete fires for anon too")
+            assertEquals(1, repo.deleteCalls)
         }
     }
 
@@ -575,6 +573,40 @@ class MeRoutesTest {
         ): ApplyOutcome = error("unused")
 
         override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = emptyList()
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
+        override suspend fun findOrCreateResult(userId: UserId) = error("unused")
+        override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
+        override suspend fun applyXp(
+            userId: UserId,
+            idempotencyKey: String,
+            deltaXp: Long,
+            source: String,
+            mode: String,
+            handId: String?,
+        ) = error("unused")
+
+        override suspend fun recentEvents(
+            userId: UserId,
+            limit: Int,
+        ): List<com.dangerfield.cards.server.domain.XpEvent> = emptyList()
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyAchievements : com.dangerfield.cards.server.domain.AchievementRepository {
+        override suspend fun recordEarned(
+            userId: UserId,
+            achievementId: String,
+            earnedAt: kotlin.time.Instant,
+        ) = error("unused")
+
+        override suspend fun listEarned(
+            userId: UserId,
+        ): List<com.dangerfield.cards.server.domain.EarnedAchievement> = emptyList()
+
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 

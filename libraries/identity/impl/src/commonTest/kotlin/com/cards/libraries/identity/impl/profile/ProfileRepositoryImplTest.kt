@@ -141,22 +141,20 @@ class ProfileRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun signedOutProfileCacheCleaner_clearsCachedProfile() = runUnitTest {
-        // Stale cache from the previous account must not survive a sign-out,
+    fun userScopedProfileCacheCleaner_clearsCachedProfile() = runUnitTest {
+        // Stale cache from the previous account must not survive a user change,
         // or the next account would briefly resolve to it before /v1/me lands.
         val cache = newProfileCache()
         cache.writeAuthenticated(SAMPLE_CACHED_PROFILE)
         assertNotNull(cache.readAuthenticated())
-        val cleaner = SignedOutProfileCacheCleaner(
+        val cleaner = UserScopedProfileCacheCleaner(
             profileCache = cache,
             avatarPackCache = AvatarPackCache(InMemoryCacheFactory),
-            appScope = AppCoroutineScope(dispatchers),
         )
 
-        cleaner.onSignedOut(com.dangerfield.cards.libraries.cards.AppEvent.SignedOut)
-        advanceUntilIdle()
+        cleaner.clear(previousUserId = SAMPLE_CACHED_PROFILE.id)
 
-        assertNull(cache.readAuthenticated(), "sign-out must drop the cached profile")
+        assertNull(cache.readAuthenticated(), "user change must drop the cached profile")
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.di
 
 import com.dangerfield.cards.server.config.SupabaseConfig
 import com.dangerfield.cards.server.db.Database
+import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AppConfigSource
 import com.dangerfield.cards.server.domain.EquipmentRepository
 import com.dangerfield.cards.server.domain.InventoryRepository
@@ -9,6 +10,7 @@ import com.dangerfield.cards.server.domain.OrphanAnonymousSweep
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserMessageRepository
@@ -54,6 +56,8 @@ abstract class ServerComponent(
     abstract val equipmentRepository: EquipmentRepository
     abstract val inventoryRepository: InventoryRepository
     abstract val walletRepository: WalletRepository
+    abstract val progressionRepository: ProgressionRepository
+    abstract val achievementRepository: AchievementRepository
     abstract val userMessageRepository: UserMessageRepository
     abstract val roomService: RoomService
     abstract val gameSessionRegistry: GameSessionRegistry

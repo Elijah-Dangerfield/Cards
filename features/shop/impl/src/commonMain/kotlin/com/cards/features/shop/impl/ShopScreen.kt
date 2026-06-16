@@ -203,7 +203,10 @@ private fun CatalogContent(
         // race where shop opens before the chip sync resolves shows 0
         // rather than passing null through every leaf. UI polish for a
         // true loading state is a separate follow-up.
-        ShopHeader(chips = state.chipBalance ?: 0L)
+        // Nullable on purpose: null = balance hasn't hydrated yet (first launch
+        // or post account-switch wipe). The pill renders "—" rather than a
+        // fake "0" until the sync lands — same as Home.
+        ShopHeader(chips = state.chipBalance)
         VerticalSpacerD700()
 
         GetChipsSection(
@@ -264,7 +267,7 @@ private fun IdeaFooter(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ShopHeader(chips: Long) {
+private fun ShopHeader(chips: Long?) {
     BalancePillSlot(chips = chips) {
         Column {
             Text(

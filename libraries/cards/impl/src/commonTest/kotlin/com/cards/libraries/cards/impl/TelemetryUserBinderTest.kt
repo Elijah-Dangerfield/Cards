@@ -104,12 +104,30 @@ class TelemetryUserBinderTest : CoroutineTest() {
         profile.emit(sample(id = "u1", name = "Alice"))
         binder.onColdBoot(AppEvent.ColdBoot)
         runCurrent()
-        binder.onSignedOut(AppEvent.SignedOut)
+        // current == null → a true sign-out / delete clears the bound user.
+        binder.onUserChanged(AppEvent.UserChanged(previous = "u1", current = null))
 
         assertEquals(2, telemetry.setUserCalls.size)
         val cleared = telemetry.setUserCalls.last()
         assertNull(cleared.id)
         assertNull(cleared.name)
+    }
+
+    @Test
+    fun accountSwitch_doesNotClearTelemetryUser() = runUnitTest {
+        // On a switch (current != null) the profile observer re-binds telemetry
+        // to the incoming user; UserChanged itself must not null it out.
+        val profile = FakeProfile()
+        val telemetry = RecordingTelemetry()
+        val binder = build(profile, telemetry)
+
+        profile.emit(sample(id = "u1", name = "Alice"))
+        binder.onColdBoot(AppEvent.ColdBoot)
+        runCurrent()
+        binder.onUserChanged(AppEvent.UserChanged(previous = "u1", current = "u2"))
+
+        assertEquals(1, telemetry.setUserCalls.size, "switch must not push a clear call")
+        assertEquals("u1", telemetry.setUserCalls.last().id)
     }
 
     @Test

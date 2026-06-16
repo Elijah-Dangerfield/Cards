@@ -1,12 +1,14 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.libraries.core.Catching
+import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
@@ -72,6 +74,8 @@ fun Route.meRoutes(
     adminClient: SupabaseAdminClient,
     inventory: InventoryRepository,
     wallet: WalletRepository,
+    progression: ProgressionRepository,
+    achievements: AchievementRepository,
     messages: UserMessageRepository,
     rooms: RoomService,
     installSweep: OrphanInstallSweep,
@@ -173,22 +177,12 @@ fun Route.meRoutes(
 
         rateLimit(RateLimitName(DELETE_ACCOUNT_LIMIT)) {
             delete("/v1/me") {
+                // Anonymous accounts are deletable too — a guest's identity +
+                // data is a real account the user has the right to erase (and
+                // App Store account-deletion rules apply regardless of type).
+                // The admin delete handles anon users fine.
                 val userId =
                     call.userId() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
-                if (call.isAnonymousUser()) {
-                    // Anonymous accounts have no claimed identity to delete —
-                    // signing out already drops the only handle the client
-                    // has on this user. The client guards against this too,
-                    // but server is authoritative (the JWT carries
-                    // is_anonymous, can't be spoofed).
-                    return@delete call.respond(
-                        HttpStatusCode.Forbidden,
-                        problem(
-                            "anonymous_not_allowed",
-                            "Anonymous accounts can't be deleted. Sign out instead, or claim your account with email or OAuth first.",
-                        ),
-                    )
-                }
                 when (val admin = adminClient.deleteUser(userId)) {
                     DeleteUserResult.Success, DeleteUserResult.AlreadyGone -> {
                         // Order: admin (revoke auth + sessions) first, then
@@ -196,6 +190,8 @@ fun Route.meRoutes(
                         // mid-cascade crash leaves us with a recoverable
                         // partial state, not stuck data.
                         wallet.deleteAllForUser(userId)
+                        progression.deleteAllForUser(userId)
+                        achievements.deleteAllForUser(userId)
                         messages.deleteAllForUser(userId)
                         repository.delete(userId)
                         call.respond(HttpStatusCode.NoContent)

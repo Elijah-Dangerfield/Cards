@@ -38,6 +38,7 @@ import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.cards.Telemetry
 import com.dangerfield.cards.libraries.navigation.AnimationType
+import com.dangerfield.cards.libraries.navigation.baseRouteTypeMap
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Route
 import com.dangerfield.cards.libraries.navigation.floatingwindow.FloatingWindowHost
@@ -403,9 +404,7 @@ private fun AppNavigation(
 
                     animationType.toExitTransition()
                 },
-                typeMap = mapOf(
-                    typeOf<AnimationType>() to serializableType<AnimationType>()
-                )
+                typeMap = baseRouteTypeMap
             ) {
                 featureEntryPoints.forEach { entryPoint ->
                     with(entryPoint) {
@@ -416,7 +415,12 @@ private fun AppNavigation(
                 // current user can't enter (see AuthGateChecker). Registered
                 // here (not in a feature) because its CTAs span onboarding +
                 // claim, which the app layer already knows about.
-                dialog<AuthGateRoute> { entry, dialogState ->
+                dialog<AuthGateRoute>(
+                    // AuthGateRoute carries a GateReason arg; iOS/Native needs an
+                    // explicit NavType for it (the base-route types come from the
+                    // builder's baseRouteTypeMap).
+                    typeMap = mapOf(typeOf<GateReason>() to serializableType<GateReason>()),
+                ) { entry, dialogState ->
                     val reason = entry.toRouteOrNull<AuthGateRoute>()?.reason
                         ?: GateReason.NeedAccount
                     AuthGateSheet(
