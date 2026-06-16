@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_player_card_view_blurb
 import cards.libraries.resources.generated.resources.room_player_profile_difficulty_section_title
 import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_headline
 import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_supporting_muted
@@ -21,6 +22,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
+import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
 import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -49,6 +51,9 @@ internal fun PlayerProfileSheet(
     isMuted: Boolean,
     onToggleMute: () -> Unit,
     onDismiss: () -> Unit,
+    isMePlayer: Boolean = false,
+    equippedTitle: String? = null,
+    permanentBadgeEmoji: String? = null,
     botDifficultyLabel: String? = null,
 ) {
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
@@ -63,26 +68,18 @@ internal fun PlayerProfileSheet(
         onDismissRequest = onDismiss,
         backgroundColor = AppTheme.colors.surface,
         dragHandle = handle,
-        title = {
-            Text(
-                text = seat.displayName,
-                typography = AppTheme.typography.Heading.H700,
-                color = AppTheme.colors.content,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            seat.seatBadge?.let { badge ->
-                VerticalSpacerD200()
-                Text(
-                    text = badge.label(),
-                    typography = AppTheme.typography.Body.B500,
-                    color = AppTheme.colors.contentSecondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
     ) {
+        // Identity block — shared with the Edit Profile preview so the card
+        // can never drift. The avatar sits in the notch bubble above; this is
+        // everything below it (name, level, title, permanent badge, featured).
+        PlayerCardContent(
+            name = seat.displayName,
+            level = (seat.seatBadge as? SeatBadge.Level)?.level,
+            equippedTitle = equippedTitle,
+            permanentBadgeEmoji = permanentBadgeEmoji,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        VerticalSpacerD500()
         // Heat-map / radar chart is bot-only today: bots ship a deterministic
         // [BotPersonality]; humans have `personality == null` and therefore
         // can't render one. When MP human opponents gain a derived style
@@ -119,23 +116,35 @@ internal fun PlayerProfileSheet(
                 VerticalSpacerD500()
             }
         }
-        ListSection(
-            title = stringResource(Res.string.room_player_profile_settings_section_title),
-            items = listOf(
-                ListSectionItem(
-                    headlineText = stringResource(Res.string.room_player_profile_mute_emoji_headline),
-                    supportingText = if (isMuted) {
-                        stringResource(Res.string.room_player_profile_mute_emoji_supporting_muted)
-                    } else {
-                        stringResource(Res.string.room_player_profile_mute_emoji_supporting_unmuted)
-                    },
-                    accessory = ListItemAccessory.Switch(
-                        checked = isMuted,
-                        onCheckedChange = { onToggleMute() },
+        if (isMePlayer) {
+            // Your own card: no mute (can't mute yourself); instead remind you
+            // this is the public identity others see.
+            Text(
+                text = stringResource(Res.string.profile_player_card_view_blurb),
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            ListSection(
+                title = stringResource(Res.string.room_player_profile_settings_section_title),
+                items = listOf(
+                    ListSectionItem(
+                        headlineText = stringResource(Res.string.room_player_profile_mute_emoji_headline),
+                        supportingText = if (isMuted) {
+                            stringResource(Res.string.room_player_profile_mute_emoji_supporting_muted)
+                        } else {
+                            stringResource(Res.string.room_player_profile_mute_emoji_supporting_unmuted)
+                        },
+                        accessory = ListItemAccessory.Switch(
+                            checked = isMuted,
+                            onCheckedChange = { onToggleMute() },
+                        ),
                     ),
                 ),
-            ),
-        )
+            )
+        }
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -121,6 +122,7 @@ internal fun PlayerArea(
     onStackClick: () -> Unit = {},
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
+    onSelfTap: () -> Unit = {},
 ) {
     val human = table.seats.firstOrNull { it.isHuman } ?: return
     val folded = human.participation == HandParticipation.Folded
@@ -352,6 +354,7 @@ internal fun PlayerArea(
             onLastActionClick = onLastActionClick,
             onStackClick = onStackClick,
             onHandLabelClick = onHandLabelClick,
+            onSelfTap = onSelfTap,
             modifier = Modifier.weight(1f).fillMaxHeight(),
         )
     }
@@ -486,6 +489,7 @@ private fun PlayerInfoTile(
     onLastActionClick: (seatName: String, action: com.dangerfield.cards.libraries.gameplay.PlayerAction) -> Unit,
     onStackClick: () -> Unit,
     onHandLabelClick: (label: String) -> Unit,
+    onSelfTap: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val hasBlindRole = seat.isDealer || seat.isSmallBlind || seat.isBigBlind
@@ -538,7 +542,21 @@ private fun PlayerInfoTile(
             )
             VerticalSpacerD100()
         }
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(56.dp)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(56.dp)
+                // Tapping your own avatar opens your Player Card (the public
+                // identity others see). Gated to the human seat; the blind
+                // explainer stays on the BlindMarker badge below.
+                .then(
+                    if (seat.isHuman) {
+                        Modifier.clip(CircleShape).clickable { onSelfTap() }
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
             if (isWinner) WinnerGlow(modifier = Modifier.size(56.dp))
             AvatarCircle(
                 name = seat.displayName,
@@ -668,6 +686,7 @@ private fun FlippablePlayerInfoTile(
     onLastActionClick: (seatName: String, action: PlayerAction) -> Unit,
     onStackClick: () -> Unit,
     onHandLabelClick: (label: String) -> Unit,
+    onSelfTap: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val canFlip = winOdds != null
@@ -744,6 +763,7 @@ private fun FlippablePlayerInfoTile(
                 onLastActionClick = onLastActionClick,
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
+                onSelfTap = onSelfTap,
                 modifier = Modifier.fillMaxSize(),
             )
             if (canFlip) {

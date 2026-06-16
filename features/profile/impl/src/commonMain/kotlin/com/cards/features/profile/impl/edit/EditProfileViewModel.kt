@@ -1,7 +1,10 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
@@ -10,6 +13,8 @@ import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
+import com.dangerfield.cards.libraries.ui.components.poker.titleForProductId
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.filterIsInstance
@@ -37,6 +42,8 @@ import me.tatarka.inject.annotations.Inject
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
     private val inventoryRepository: InventoryRepository,
+    private val equipmentRepository: EquipmentRepository,
+    private val progressionRepository: ProgressionRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<EditProfileState, EditProfileEvent, EditProfileAction>(
     initialStateArg = EditProfileState(),
@@ -71,6 +78,24 @@ class EditProfileViewModel(
         // sees up-to-date server state. Not awaited — the picker
         // doesn't need to gate on it.
         viewModelScope.launch { inventoryRepository.sync() }
+        // The equipped title is part of the public Player Card (the View
+        // tab), so reflect it live. Resolve the equipped `title_*`
+        // cosmetic to its display label via the shared catalog.
+        viewModelScope.launch {
+            equipmentRepository.observeEquipped().collect { entries ->
+                val title = entries.firstNotNullOfOrNull { titleForProductId(it.productId) }
+                val badge = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) }
+                takeAction(
+                    EditProfileAction.EquippedCosmeticsChanged(title = title, permanentBadgeEmoji = badge),
+                )
+            }
+        }
+        // Level drives the "Lvl N" chip on the card preview.
+        viewModelScope.launch {
+            progressionRepository.observeProgression().collect { progression ->
+                takeAction(EditProfileAction.LevelChanged(levelProgressFor(progression.totalXp).level))
+            }
+        }
     }
 
     override suspend fun handleAction(action: EditProfileAction) {
@@ -115,6 +140,17 @@ class EditProfileViewModel(
 
             is EditProfileAction.OwnedProductsChanged -> action.updateState {
                 it.copy(ownedProductIds = action.productIds)
+            }
+
+            is EditProfileAction.EquippedCosmeticsChanged -> action.updateState {
+                it.copy(
+                    equippedTitle = action.title,
+                    permanentBadgeEmoji = action.permanentBadgeEmoji,
+                )
+            }
+
+            is EditProfileAction.LevelChanged -> action.updateState {
+                it.copy(level = action.level)
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
@@ -262,6 +298,13 @@ data class EditProfileState(
      */
     val ownedProductIds: Set<String> = emptySet(),
     val backgroundPalette: List<String> = emptyList(),
+    /** Display label of the currently-equipped title cosmetic, shown on the
+     * Player Card View tab. Null when no title is equipped. */
+    val equippedTitle: String? = null,
+    /** Glyph of the equipped permanent badge (e.g. 🏛 Founding member). */
+    val permanentBadgeEmoji: String? = null,
+    /** Current level, shown as the "Lvl N" chip on the card preview. */
+    val level: Int? = null,
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
@@ -338,6 +381,11 @@ sealed interface EditProfileAction {
     data class SeedFromProfile(val profile: Profile.Authenticated) : EditProfileAction
     data object LoadAvatarPack : EditProfileAction
     data class OwnedProductsChanged(val productIds: Set<String>) : EditProfileAction
+    data class EquippedCosmeticsChanged(
+        val title: String?,
+        val permanentBadgeEmoji: String?,
+    ) : EditProfileAction
+    data class LevelChanged(val level: Int) : EditProfileAction
     data class DisplayNameChanged(val value: String) : EditProfileAction
     data class AvatarSelected(val emoji: String) : EditProfileAction
     data class AvatarBackgroundColorSelected(val color: String) : EditProfileAction

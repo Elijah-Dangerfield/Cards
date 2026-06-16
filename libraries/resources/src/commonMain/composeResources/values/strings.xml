@@ -449,6 +449,9 @@
     <string name="profile_notifications_empty_subtitle">Heads-ups and announcements will show up here.</string>
 
     <!-- Profile — Edit profile (name + avatar picker). -->
+    <string name="profile_edit_tab_edit">Edit</string>
+    <string name="profile_edit_tab_view">View</string>
+    <string name="profile_player_card_view_blurb">This is what other players see when they tap your avatar in a game.</string>
     <string name="profile_edit_title">Edit profile</string>
     <string name="profile_edit_subtitle">Other players see this on the table.</string>
     <string name="profile_edit_display_name_label">Display name</string>

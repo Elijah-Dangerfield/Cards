@@ -22,12 +22,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -49,9 +57,14 @@ import cards.libraries.resources.generated.resources.profile_edit_pack_unlock_bu
 import cards.libraries.resources.generated.resources.profile_edit_save_button
 import cards.libraries.resources.generated.resources.profile_edit_save_button_progress
 import cards.libraries.resources.generated.resources.profile_edit_subtitle
+import cards.libraries.resources.generated.resources.profile_edit_tab_edit
+import cards.libraries.resources.generated.resources.profile_edit_tab_view
 import cards.libraries.resources.generated.resources.profile_edit_title
+import cards.libraries.resources.generated.resources.profile_player_card_view_blurb
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
+import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
@@ -68,6 +81,8 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.screenHorizontalInsets
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -91,6 +106,8 @@ fun EditProfileScreen(
     // it directly. Null = navigate to the shop tab with no deep-link.
     onNavigateToShop: (productId: String?) -> Unit = {},
 ) {
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    val scope = rememberCoroutineScope()
     Screen(
         contentWindowInsets = WindowInsets.systemBars,
         containerColor = AppTheme.colors.background.color,
@@ -100,7 +117,7 @@ fun EditProfileScreen(
             )
         }
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .screenContentPadding(
@@ -109,16 +126,33 @@ fun EditProfileScreen(
                     includeImePadding = true,
                 ),
         ) {
-            Column(
+            EditProfileTabs(
+                pagerState = pagerState,
+                onSelect = { scope.launch { pagerState.animateScrollToPage(it) } },
+                modifier = Modifier.padding(screenHorizontalInsets),
+            )
+            HorizontalPager(
+                state = pagerState,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(screenHorizontalInsets)
-                    // Bottom padding leaves enough room for the floating
-                    // Save bar (~80dp) so the last form row scrolls
-                    // clear instead of sitting under the button.
-                    .padding(bottom = FloatingSaveBarReservedHeight),
-            ) {
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) { page ->
+                if (page == VIEW_TAB) {
+                    ViewTabContent(state)
+                    return@HorizontalPager
+                }
+                // Edit tab — the form + floating Save bar.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(screenHorizontalInsets)
+                            // Bottom padding leaves enough room for the floating
+                            // Save bar (~80dp) so the last form row scrolls
+                            // clear instead of sitting under the button.
+                            .padding(bottom = FloatingSaveBarReservedHeight),
+                    ) {
 
                 Spacer(modifier = Modifier.height(Dimension.D500))
 
@@ -223,20 +257,137 @@ fun EditProfileScreen(
                     onSelect = { onAction(EditProfileAction.AvatarSelected(it)) },
                     onUnlockPack = { productId -> onNavigateToShop(productId) },
                 )
-            }
+                    }
 
-            // Floating Save bar — sits over the bottom of the scroll
-            // surface so it's always reachable on long emoji grids
-            // without scrolling all the way down. The scroll's bottom
-            // padding (above) reserves enough space for the last row
-            // to clear this bar.
-            FloatingSaveBar(
-                isSubmitting = state.isSubmitting,
-                enabled = state.canSubmit,
-                onClick = { onAction(EditProfileAction.Submit) },
-                modifier = Modifier.align(Alignment.BottomCenter),
+                    // Floating Save bar — sits over the bottom of the scroll
+                    // surface so it's always reachable on long emoji grids
+                    // without scrolling all the way down. The scroll's bottom
+                    // padding (above) reserves enough space for the last row
+                    // to clear this bar.
+                    FloatingSaveBar(
+                        isSubmitting = state.isSubmitting,
+                        enabled = state.canSubmit,
+                        onClick = { onAction(EditProfileAction.Submit) },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private const val VIEW_TAB = 1
+
+/**
+ * The Edit/View tabs: two plain text labels with a sliding accent indicator
+ * underneath. The indicator tracks the pager continuously via
+ * `currentPage + currentPageOffsetFraction`, so it follows a swipe in real
+ * time and glides across when a label is tapped (the tap animates the
+ * pager). Reads as text with a moving underline, not buttons.
+ */
+@Composable
+private fun EditProfileTabs(
+    pagerState: PagerState,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Continuous scroll position: 0f at Edit, 1f at View, fractional mid-swipe.
+    val position = (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+        .coerceIn(0f, VIEW_TAB.toFloat())
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            EditProfileTabLabel(
+                label = stringResource(Res.string.profile_edit_tab_edit),
+                selected = position < 0.5f,
+                onClick = { onSelect(0) },
+                modifier = Modifier.weight(1f),
+            )
+            EditProfileTabLabel(
+                label = stringResource(Res.string.profile_edit_tab_view),
+                selected = position >= 0.5f,
+                onClick = { onSelect(VIEW_TAB) },
+                modifier = Modifier.weight(1f),
             )
         }
+        Spacer(modifier = Modifier.height(Dimension.D200))
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val tabWidth = maxWidth / 2
+            val indicatorWidth = tabWidth * 0.5f
+            Box(
+                modifier = Modifier
+                    .offset(x = tabWidth * position + (tabWidth - indicatorWidth) / 2)
+                    .width(indicatorWidth)
+                    .height(3.dp)
+                    .clip(Radii.Round.shape)
+                    .background(AppTheme.colors.accentPrimary.color),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EditProfileTabLabel(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            // No ripple / background — these read as text, not buttons.
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = Dimension.D300),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            typography = AppTheme.typography.Label.L500,
+            color = if (selected) AppTheme.colors.content else AppTheme.colors.contentSecondary,
+        )
+    }
+}
+
+/**
+ * The "View" tab — a live [PlayerCard] reflecting the user's current
+ * (possibly unsaved) selection, so editing and "what others see" stay in
+ * one place. Featured badges arrive with the featured-badge selection work.
+ */
+@Composable
+private fun ViewTabContent(state: EditProfileState) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(screenHorizontalInsets)
+            .padding(vertical = Dimension.D700),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        AvatarCircle(
+            name = state.displayName.ifBlank { state.initialDisplayName.orEmpty() },
+            size = Dimension.D1900,
+            emoji = state.selectedAvatarEmoji,
+            backgroundColorHex = state.selectedAvatarBackgroundColor,
+            animationsEnabled = false,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D500))
+        PlayerCardContent(
+            name = state.displayName.ifBlank { state.initialDisplayName.orEmpty() },
+            level = state.level,
+            equippedTitle = state.equippedTitle,
+            permanentBadgeEmoji = state.permanentBadgeEmoji,
+        )
+        Spacer(modifier = Modifier.height(Dimension.D700))
+        Text(
+            text = stringResource(Res.string.profile_player_card_view_blurb),
+            typography = AppTheme.typography.Body.B400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
