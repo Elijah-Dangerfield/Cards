@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.ui.snackbar
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.StandardBorderWidth
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
@@ -71,13 +73,14 @@ fun SnackbarPresentationScope.Snackbar(
     message: String,
     modifier: Modifier = Modifier,
     title: String? = null,
+    level: SnackbarLevel = SnackbarLevel.Info,
     icon: IconResource? = null,
     emoji: String? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
     dismissible: Boolean = true,
 ) {
-    SnackbarSurface(modifier = modifier) {
+    SnackbarSurface(modifier = modifier, level = level) {
         SnackbarBody(
             title = title?.let { { Text(text = it, typography = AppTheme.typography.Heading.H700) } },
             body = { Text(text = message) },
@@ -109,9 +112,10 @@ fun SnackbarPresentationScope.Snackbar(
     leading: (@Composable () -> Unit)? = null,
     action: (@Composable () -> Unit)? = null,
     dismissible: Boolean = true,
+    level: SnackbarLevel = SnackbarLevel.Info,
     body: @Composable () -> Unit,
 ) {
-    SnackbarSurface(modifier = modifier) {
+    SnackbarSurface(modifier = modifier, level = level) {
         SnackbarBody(
             title = title,
             body = body,
@@ -134,9 +138,14 @@ fun SnackbarPresentationScope.Snackbar(
 @Composable
 private fun SnackbarSurface(
     modifier: Modifier = Modifier,
+    level: SnackbarLevel = SnackbarLevel.Info,
     content: @Composable () -> Unit,
 ) {
     val shape = SnackbarDefaults.shape
+    // Error keeps the opaque base (a snackbar must stay solid over the
+    // content behind it) and layers a danger tint + accent border on top,
+    // so it reads as an error at a glance without a per-call-site restyle.
+    val isError = level == SnackbarLevel.Error
     ProvideContentColor(SnackbarDefaults.contentColor) {
         ProvideTextConfig(
             typography = AppTheme.typography.Body.B600,
@@ -148,6 +157,15 @@ private fun SnackbarSurface(
                     .padding(horizontal = Dimension.D500, vertical = Dimension.D500)
                     .shadow(elevation = Dimension.D200, shape = shape)
                     .background(SnackbarDefaults.backgroundColor.color, shape)
+                    .then(
+                        if (isError) {
+                            Modifier
+                                .background(AppTheme.colors.dangerSubtle.color, shape)
+                                .border(StandardBorderWidth, AppTheme.colors.danger.color, shape)
+                        } else {
+                            Modifier
+                        }
+                    )
                     .padding(Dimension.D500),
                 content = { content() }
             )

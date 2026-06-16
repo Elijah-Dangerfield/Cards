@@ -288,10 +288,10 @@ class ShopViewModel @Inject constructor(
             is RedeemResult.InsufficientChips -> {
                 // UI's affordance check should prevent this, but if a race
                 // sneaks through (balance changed between sheet-open and
-                // confirm) we surface it as an error toast.
-                action.updateState {
-                    it.copy(errorMessage = "Not enough chips for ${offer.title}.")
-                }
+                // confirm) we surface it as a transient error snackbar — not
+                // the persistent `errorMessage` banner, which is reserved for
+                // screen-level state like the offline-cache notice.
+                sendEvent(ShopEvent.InsufficientChips(offer))
             }
             is RedeemResult.AlreadyOwned -> {
                 // Idempotent: tell the user it's already in their library
@@ -528,14 +528,22 @@ sealed interface ShopEvent {
     ) : ShopEvent
 
     /**
-     * An anonymous user tapped buy on a real-money pack. The screen routes
-     * to the account-claim flow instead of the platform purchase sheet —
-     * they must link an account before any real purchase.
+     * An anonymous user tapped buy on a real-money pack. The screen shows an
+     * error snackbar with a "Create account" action that routes to the claim
+     * flow — they must link an account before any real purchase, but we
+     * explain why rather than yanking them into onboarding unprompted.
      */
     data object ClaimAccountRequired : ShopEvent
 
     /** Idempotent re-redeem — user tried to buy something they already own. */
     data class AlreadyOwned(val offer: Product.ChipOffer) : ShopEvent
+
+    /**
+     * Redeem hit the wallet floor — the balance changed between sheet-open
+     * and confirm (the buyable-state check normally prevents this). The
+     * screen surfaces a transient error snackbar.
+     */
+    data class InsufficientChips(val offer: Product.ChipOffer) : ShopEvent
 
     /**
      * Tap on an offer whose sale window expired between the catalog

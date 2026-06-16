@@ -199,17 +199,22 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun confirmChipOffer_insufficientChips_surfacesError_doesNotChargeRepo() = runUnitTest {
+    fun confirmChipOffer_insufficientChips_emitsInsufficientChips_doesNotSetBanner() = runUnitTest {
         val inv = FakeInventoryRepository().apply {
             nextRedeemResult = RedeemResult.InsufficientChips
         }
         val vm = buildVm(inventoryRepository = inv)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val offer = SAMPLE_CATALOG.chipOffers.first()
 
         vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
-        assertNotNull(vm.state.errorMessage, "error surfaced")
-        assertTrue(vm.state.errorMessage!!.contains(offer.title, ignoreCase = true))
+        val event = received.firstOrNull { it is ShopEvent.InsufficientChips }
+        assertNotNull(event, "InsufficientChips should fire as a transient error snackbar")
+        assertEquals(offer.id, (event as ShopEvent.InsufficientChips).offer.id)
+        // The transient error must NOT leak into the persistent screen banner.
+        assertNull(vm.state.errorMessage, "errorMessage banner stays clear")
     }
 
     @Test

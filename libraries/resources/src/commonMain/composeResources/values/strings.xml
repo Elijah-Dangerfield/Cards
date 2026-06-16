@@ -40,6 +40,16 @@
     <string name="shop_snackbar_not_signed_in_title">Sign in first</string>
     <string name="shop_snackbar_not_signed_in_message">Purchases require a signed-in account.</string>
     <string name="shop_snackbar_purchase_failed_title">Purchase failed</string>
+    <!-- App — session-expiry boot (the auth server rejected our token mid-run). -->
+    <string name="session_expired_title">Session expired</string>
+    <string name="session_expired_message">You were signed out. Sign in again to pick up where you left off.</string>
+    <string name="session_expired_guest_title">Guest session ended</string>
+    <string name="session_expired_guest_message">Your guest session ended. Sign in or start a new game to keep playing — create an account so your progress is saved.</string>
+    <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
+    <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
+    <string name="shop_snackbar_claim_required_title">Account needed</string>
+    <string name="shop_snackbar_claim_required_message">Create an account to buy chips — it keeps your purchases safe.</string>
+    <string name="shop_snackbar_claim_required_action">Create account</string>
 
     <!-- Shop — owned-state badge + locked / insufficient footers on product cards. -->
     <string name="shop_owned_badge">OWNED</string>

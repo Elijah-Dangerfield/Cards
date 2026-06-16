@@ -11,6 +11,15 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlin.time.Duration
 
 /**
+ * The severity of a snackbar. Drives the surface treatment so an error
+ * reads as one at a glance without each call site hand-styling it.
+ *
+ * - [Info] — the neutral default: announcements, confirmations, progress.
+ * - [Error] — something went wrong: danger-tinted surface + accent border.
+ */
+enum class SnackbarLevel { Info, Error }
+
+/**
  * Fire-and-forget snackbar from anywhere (ViewModel, repository, the
  * router) without a Composable context. The active [SnackbarHost]
  * subscribes to [SnackBarPresenter.requests] and translates each
@@ -24,6 +33,7 @@ import kotlin.time.Duration
 fun showSnackBar(
     message: String,
     title: String? = null,
+    level: SnackbarLevel = SnackbarLevel.Info,
     actionLabel: String? = null,
     duration: SnackbarDuration = SnackbarDuration.Short,
     withDismissAction: Boolean = true,
@@ -38,6 +48,7 @@ fun showSnackBar(
         SnackbarRequest(
             title = title,
             message = message,
+            level = level,
             actionLabel = actionLabel,
             icon = icon,
             emoji = emoji,
@@ -100,6 +111,7 @@ internal object SnackBarPresenter {
 internal data class SnackbarRequest(
     val title: String?,
     val message: String,
+    val level: SnackbarLevel,
     val actionLabel: String?,
     val icon: IconResource?,
     val emoji: String?,
@@ -117,6 +129,7 @@ internal fun SnackbarPresentationScope.PresenterSnackbar(request: SnackbarReques
     Snackbar(
         title = request.title,
         message = request.message,
+        level = request.level,
         icon = request.icon,
         emoji = request.emoji,
         actionLabel = request.actionLabel,
