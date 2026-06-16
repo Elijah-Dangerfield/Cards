@@ -40,13 +40,20 @@ COPY libraries/core/ libraries/core/
 COPY libraries/gameplay/ libraries/gameplay/
 COPY libraries/bots/ libraries/bots/
 
+# kotlin.compiler.execution.strategy=in-process: run the Kotlin compiler inside
+# the Gradle JVM instead of forking a separate Kotlin daemon. Otherwise the
+# build holds TWO JVMs at once — Gradle (-Xmx4g) + the Kotlin daemon (-Xmx3g) =
+# ~7GB — which the Fly build container intermittently OOM-kills mid-compile
+# (the symptom: "Build failed with an exception" with an empty cause, because
+# the daemon was SIGKILLed). In-process keeps it to a single JVM.
 RUN chmod +x gradlew && \
     ./gradlew :apps:server:installDist \
         --no-daemon \
         --console=plain \
         --build-cache \
         -Dcards.serverOnly=true \
-        -Dcards.skipGitHooksCheck=true
+        -Dcards.skipGitHooksCheck=true \
+        -Pkotlin.compiler.execution.strategy=in-process
 
 # --------------------------------------------------------------------------
 # Runtime stage: JRE-only, copy the installDist output, run.
