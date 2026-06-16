@@ -3,9 +3,13 @@ package com.dangerfield.cards.libraries.networking.impl
 import app.cash.turbine.test
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.networking.NetworkReachability
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -26,6 +30,7 @@ class AppStateImplTest : CoroutineTest() {
         val observer = FakeConnectivityObserver()
         val state = AppStateImpl(
             connectivityObserver = observer,
+            reachability = FakeNetworkReachability(),
             appScope = AppCoroutineScope(dispatchers),
         )
 
@@ -37,6 +42,7 @@ class AppStateImplTest : CoroutineTest() {
         val observer = FakeConnectivityObserver()
         val state = AppStateImpl(
             connectivityObserver = observer,
+            reachability = FakeNetworkReachability(),
             appScope = AppCoroutineScope(dispatchers),
         )
 
@@ -53,6 +59,7 @@ class AppStateImplTest : CoroutineTest() {
         val observer = FakeConnectivityObserver()
         val state = AppStateImpl(
             connectivityObserver = observer,
+            reachability = FakeNetworkReachability(),
             appScope = AppCoroutineScope(dispatchers),
         )
 
@@ -69,6 +76,7 @@ class AppStateImplTest : CoroutineTest() {
         val observer = FakeConnectivityObserver()
         val state = AppStateImpl(
             connectivityObserver = observer,
+            reachability = FakeNetworkReachability(),
             appScope = AppCoroutineScope(dispatchers),
         )
 
@@ -89,6 +97,7 @@ class AppStateImplTest : CoroutineTest() {
         val observer = FakeConnectivityObserver()
         val state = AppStateImpl(
             connectivityObserver = observer,
+            reachability = FakeNetworkReachability(),
             appScope = AppCoroutineScope(dispatchers),
         )
 
@@ -104,12 +113,72 @@ class AppStateImplTest : CoroutineTest() {
         val observer = FakeConnectivityObserver()
         val state = AppStateImpl(
             connectivityObserver = observer,
+            reachability = FakeNetworkReachability(),
             appScope = AppCoroutineScope(dispatchers),
         )
 
         observer.emit(online = false)
 
         assertEquals(true, state.isOffline.value)
+    }
+
+    @Test
+    fun isOffline_whenOsOnlineButRoundTripsFailing_isOffline() = runUnitTest {
+        // The captive-portal / dead-DNS / backend-down case: the OS says we have
+        // a path, but our requests aren't reaching the server.
+        val observer = FakeConnectivityObserver()
+        val reachability = FakeNetworkReachability()
+        val state = AppStateImpl(observer, reachability, AppCoroutineScope(dispatchers))
+
+        state.isOffline.test {
+            assertEquals(false, awaitItem())
+            observer.emit(online = true)
+            expectNoEvents() // OS online + reachable → still online
+            reachability.set(reachable = false)
+            assertEquals(true, awaitItem(), "witnessed round-trip failures flip offline even when OS says online")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun isOffline_recoversWhenRoundTripsSucceedAgain() = runUnitTest {
+        val observer = FakeConnectivityObserver()
+        val reachability = FakeNetworkReachability()
+        val state = AppStateImpl(observer, reachability, AppCoroutineScope(dispatchers))
+
+        state.isOffline.test {
+            assertEquals(false, awaitItem())
+            observer.emit(online = true)
+            reachability.set(reachable = false)
+            assertEquals(true, awaitItem())
+            reachability.set(reachable = true)
+            assertEquals(false, awaitItem(), "a successful round-trip clears the banner")
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun isOffline_osOfflineDominates_regardlessOfReachability() = runUnitTest {
+        val observer = FakeConnectivityObserver()
+        val reachability = FakeNetworkReachability()
+        val state = AppStateImpl(observer, reachability, AppCoroutineScope(dispatchers))
+
+        state.isOffline.test {
+            assertEquals(false, awaitItem())
+            // Even if our last round-trip "succeeded", no OS path means offline.
+            reachability.set(reachable = true)
+            observer.emit(online = false)
+            assertEquals(true, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    private class FakeNetworkReachability(reachable: Boolean = true) : NetworkReachability {
+        private val state = MutableStateFlow(reachable)
+        override val isReachable: StateFlow<Boolean> = state.asStateFlow()
+        override fun reportReachable() { state.value = true }
+        override fun reportUnreachable() { state.value = false }
+        fun set(reachable: Boolean) { state.value = reachable }
     }
 
     private class FakeConnectivityObserver : ConnectivityObserver {
