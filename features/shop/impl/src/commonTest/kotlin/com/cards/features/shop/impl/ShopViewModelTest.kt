@@ -742,6 +742,7 @@ class ShopViewModelTest : CoroutineTest() {
         ) = emptyList<com.dangerfield.cards.libraries.cards.XpEvent>()
         override suspend fun applyAchievementXp(delta: Int, description: String?) =
             error("not used in shop tests")
+        override suspend fun sync(): Result<Unit> = Result.success(Unit)
         override suspend fun deleteAll() {}
         override suspend fun debugSetTotalXp(totalXp: Long) {
             state.value = state.value.copy(totalXp = totalXp)
