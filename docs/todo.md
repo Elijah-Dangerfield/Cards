@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-05 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-15 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 > **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
@@ -22,7 +22,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P2]` **MP achievement grants — server-side hand-count floor (blocked).** Multiplayer achievements need the server to gate grants on a real hand count, but there's no `hands_finished` signal server-side yet. Blocked on server-authoritative gameplay (Phase 4.2). Bot achievements (client self-grant) are the permanent shape and are not in scope here.
+- `[P2]` **MP achievement grants — server-witnessed hand-count signal.** Multiplayer achievements should gate grants on a real hand count, but the server doesn't yet expose a per-user `hands_finished` (server-witnessed) count. Server-authoritative gameplay has shipped, so this is now buildable — persist a per-user hand-finished count from the authoritative hand loop and gate MP grants on it. Bot achievements (client self-grant) are the permanent shape and not in scope here.
 
 ### Progression & XP (server)
 
@@ -36,8 +36,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Auth & account onboarding
 
-- `[P2]` **Make the starter-grant "seen" state server-authoritative (per account).** The cross-switch leak is fixed — the Home gate now keys on the live `ChipsRepository.walletJustCreated` signal (false for any pre-existing wallet) AND `AppData.didSeeInitialGrantInOnboarding` (set when onboarding shows the number). What's still install-scoped is `didSeeInitialGrantInOnboarding`: the airtight version is a server flag (e.g. `welcome_seen_at` on the profile) so "we revealed the grant" is correct across devices/reinstalls. *(proposed 2026-06-08, updated 2026-06-09)*
-  **Hints:** signal set in `ChipsRepositoryImpl.sync`; consumers in `HomeViewModel.observeWelcomeGate` + `OnboardingViewModel.kickOffGrantReveal`. **Out of scope:** founding-member inbox message — already server-read-tracked.
+- `[P2]` **Session-expiry — remaining follow-ups.** The core seam shipped: a refresh the auth server *rejects* (`RestException` 401/403) signals `SessionRejectionBus` → `AuthRepository` tears down to `Unauthenticated(reason = SessionExpired, wasAnonymous)` (same `UserChanged(prev→null)` teardown as sign-out), `ProfileRepository` drops the cached-profile ghost, and **`AppViewModel` observes the edge → boots to `OnboardingRoute` (clear stack) + sets `hasUserOnboarded=false` + fires an error snackbar** (guest vs claimed copy). Transient/network/5xx keep the session. The **witnessed-reachability offline signal** also shipped: `NetworkReachability` watches the HTTP client's round-trip outcomes (any response = reachable, incl. 4xx/5xx; a no-response failure = unreachable after 2 in a row) and `AppState.isOffline` now combines it with the OS `ConnectivityObserver`, so the banner reflects "actually online" not just "OS thinks there's a path." **Remaining:** (a) the **cold-boot ghost** (no session at launch + cached profile surfaced as `Authenticated`, `reason = None`) — decide whether to surface `Fallback` so authed syncs don't fire blind; (b) optional richer anon UX (a "guest session ended" dialog with explicit Start-fresh vs Sign-in) — today the error toast + onboarding landing already carry the why + the how; (c) the planned **403 ban gate** can reuse the same `AppViewModel` session-edge observer. *(updated 2026-06-16)*
+  **Hints:** seam is `SessionRejectionBus` (`:libraries:networking`) + `GatewayAuthTokenProvider` + `SupabaseAuthRepositoryImpl.onSessionRejected`; classifier `RefreshFailureClassifier`; routing in `AppViewModel.sessionExpired` + `App.kt`; offline signal is `NetworkReachability` (reported from `NetworkClientImpl`'s `HttpResponseValidator`) combined in `AppStateImpl`. Full rationale in [`decisions.md`](./decisions.md) 2026-06-16.
 
 - `[P2]` **Degraded "account-creation pending" UX — remaining polish.** The degraded path is now functional + safe: creation self-heals (resume on relaunch via `PendingGuestAccountStore` + retry on the offline→online flip), the app-wide `AccountSetupBanner` communicates the pending state, and `PlayMultiplayerFeatureEntryPoint` bounces Unauthenticated sessions instead of hanging. Remaining nice-to-haves: (a) a manual **Retry** affordance on Profile/Settings near `SaveProgressBanner` (the banner + auto-retry already cover the common case); (b) consider a richer dialog vs. the thin banner; (c) device-verify the banner copy/placement. *(proposed 2026-06-09, mostly done 2026-06-09)*
   **Hints:** observe `GuestAccountCreator.state` (app-scoped, globally injectable); banner lives in `apps/compose/AccountSetupBanner.kt`.
@@ -50,6 +50,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 - `[P2]` **Hold the splash for onboarding config + cycling load messages.** `OnboardingStarterGrant`/`OnboardingSuggestedName` ride the unauthed app-config tree but the splash doesn't wait for the fetch. Hold the splash until app-config resolves (or a timeout) and, after ~5s, show the `CyclingLoadingMessage` ("Shuffling the deck…", already built in `:libraries:ui`). Android's native splash can't show custom text, so this is a Compose loading gate handing off from the native/iOS splash. *(proposed 2026-06-09)*
   **Hints:** `AppViewModel.isReady` / `MainActivity` `keepOnScreenCondition`; `appConfigFlow` first emission; `DefaultBootLoadingMessages`.
+
+- `[P1]` **ToS + Privacy consent in onboarding + Settings links.** A public launch (and both stores) needs the user to see/accept Terms + Privacy. Add a consent checkpoint in onboarding (links out, records acceptance) and "About / Privacy / Terms" entries in Settings. **Gated on:** the hosted ToS/Privacy URLs existing (see developer-todo legal). *(proposed 2026-06-15)*
 
 ### Gameplay & table UX
 
@@ -183,7 +185,7 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 - `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
   **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
-  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — Rounds 1, 3 (engine property invariants + edge-case scenarios + cross-product action tables), and 4 are shipped; only Round 3's hand-history fixtures remain, gated on a real production playtest. Round 5 (chaos / fault injection) is the open round here; Round 2 (the `:integration` module) is parked in [`developer-todo.md`](./developer-todo.md). **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
+  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — Rounds 1, 3, 4 are shipped (only Round 3's hand-history fixtures remain, gated on a real production playtest). **The `:apps:integration` module (Round 2) is built** — 7 e2e files bring up a real in-process Ktor server and play two-client hands, incl. fault injection (`ChaosPlayTest` + `FaultInjectingTransport`). Plan reconciled 2026-06-15: Round 2 is 7/10 (open: lossless-snapshot + all-`GameEvent`-variant wire round-trips, two-client nonce race); Round 5 chaos is partly covered (reconnect-resync + server-restart hydration) with the harder fault cases open; Round 6 (Compose UI for `PlayPokerScreen`) is the remaining unstarted round. **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
 
 ### B5 — Parked
 
@@ -221,6 +223,11 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
   **Acceptance:** flipping a flag for "iOS, app version ≥ N, 10% of users" takes effect with no client release and no server redeploy; everyone else reads the client default; the admin UI lists flags + per-version served values and can edit rules.
   **Hints:** the seam already exists — `AppConfigSource` (server) + `ConfiguredValue` / `AppConfigMap` (client); some eval inputs live in `ClientHeaders` (install id, platform, app version) + the JWT. **Out of scope / decide first:** buy-vs-build — a hosted service (PostHog / Statsig / LaunchDarkly) may beat hand-rolling the rule engine before Phase 2; this todo is the thin in-house version over the existing seam.
 
+### Billing integrity (monetized-launch blocker)
+
+- `[P0]` **Server-side IAP receipt validation + server-authoritative purchase ledger.** Today `ShopViewModel.ConfirmPendingPurchase` drives `billingClient.purchase(...)` and credits chips **locally** on success — the server never validates the receipt, so a forged receipt mints chips. Before any real-money sale: `POST /v1/billing/redeem` validates against the Apple App Store Server API / Google Play Developer API, then grants chips through the server wallet ledger, idempotent per store transaction id. **Gated on:** store IAP products + store API credentials existing (developer-todo). *(proposed 2026-06-15)*
+  **Hints:** grant precedent is `ChipsRepository.addChips(idempotencyKey=…)` / the wallet ledger; verify-before-credit — never trust the client for paid chips. Same "derive server-side when stakes rise" principle as the XP anti-cheat note above.
+
 ---
 
 ## D. Already on the books elsewhere
@@ -228,7 +235,6 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 For completeness; don't re-derive these here.
 
 - **Known sharp edges** — [project memory](~/.claude/projects/-Users-elijahdangerfield-Workspace-Cards/memory/project_known_sharp_edges.md) (auto-loaded).
-- **Phase 4.2 server-authoritative gameplay** — out of scope until we choose to start it. See [decisions.md](./decisions.md) and the `:libraries:gameplay` JVM-target blocker in memory.
-- **Real platform billing impls (Play Billing / StoreKit 2)** — scaffold + `FakeBillingClient` in place; provisioning store listings is the gate, not engineering.
+- **Real platform billing impls (Play Billing / StoreKit 2)** — client scaffold + `FakeBillingClient` in place; provisioning store listings is the gate for the *client* path. **Server-side receipt validation is separate engineering and a monetized-launch blocker — see §C Billing integrity.**
 - **OAuth UI gated by the `identity.*` config flags** (`GoogleSignInEnabled` / `AppleSignInEnabled`) — Apple/Google buttons wired but flagged off until dashboard credentials exist.
 - **Username / bot-name localization** — V1.x / V2.
