@@ -943,6 +943,12 @@
     <string name="ui_achievement_sheet_reward_xp">Reward · +%1$d XP</string>
     <string name="ui_achievement_sheet_reward_xp_chips">Reward · +%1$d XP · +%2$s chips</string>
 
+    <!-- UI library — Full-screen level-up celebration (shown on Home when the derived level crosses the watermark). -->
+    <string name="ui_level_up_title">Level Up!</string>
+    <string name="ui_level_up_level">Level %1$d</string>
+    <string name="ui_level_up_message">You're getting sharper. Keep stacking chips.</string>
+    <string name="ui_level_up_continue">Continue</string>
+
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>
     <string name="ui_earned_ago_yesterday">yesterday</string>

@@ -158,6 +158,24 @@ data class AppData(
      * later cold start.
      */
     val pendingProfileHighlight: String? = null,
+
+    /**
+     * Highest level for which the full-screen Home level-up celebration has
+     * already been shown. `0` is the *unset* sentinel — on the first
+     * progression emission after this lands (fresh install, account switch,
+     * reinstall) the watermark is silently seeded to the user's current level
+     * **without** celebrating, so we never blast a celebration for a level the
+     * user already had. Thereafter, whenever the derived level
+     * (`levelProgressFor(totalXp).level`) exceeds this watermark on Home, the
+     * celebration shows for the *current* level (a multi-level jump shows once)
+     * and the watermark advances to it.
+     *
+     * Deliberately separate from any reward watermark (`highestLevelRewarded`)
+     * — the celebration is a UI moment that may be missed/dismissed, whereas a
+     * reward grant must be exactly-once regardless of whether the user saw the
+     * celebration. See `docs/decisions.md` 2026-06-06 (level-up celebration).
+     */
+    val lastCelebratedLevel: Int = 0,
 )
 
 /**
@@ -184,6 +202,11 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // Leaving this true across sign-out would suppress the starter-grant reveal
     // for the *next* account the user signs up for.
     didSeeInitialGrantInOnboarding = false,
+    // Back to the unset sentinel so the next account silently re-seeds the
+    // celebration watermark to *its* level rather than inheriting the previous
+    // user's — otherwise a switch into a higher-level account would either
+    // skip its celebrations or fire a spurious one.
+    lastCelebratedLevel = 0,
 )
 
 interface AppCache : Cache<AppData>

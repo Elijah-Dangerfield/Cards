@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +34,7 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
+import com.dangerfield.cards.libraries.ui.components.LevelUpCelebration
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
@@ -75,35 +77,43 @@ fun HomeScreen(
             "[recent-achievements-delay] compose — vm=${viewModel.hashCode()} " +
                 "items=${state.recentAchievements.size}"
         }
-    HomeScreenContent(
-        levelProgress = state.levelProgress,
-        displayName = state.userName ?: "You",
-        avatarEmoji = state.avatarEmoji,
-        avatarBackgroundColorHex = state.avatarBackgroundColorHex,
-        // Nullable on purpose: null = "local DB hasn't emitted yet"
-        // (first launch or post-wipe). The chip pill renders a
-        // placeholder ("—") in that state rather than flashing "0"
-        // before the sync lands.
-        chips = state.chips,
-        activeRooms = state.activeRooms,
-        showTutorialBanner = !state.tutorialBannerDismissed,
-        onStartTutorial = onStartTutorial,
-        onDismissTutorialBanner = { viewModel.takeAction(HomeAction.DismissTutorialBanner) },
-        onPlayBots = onPlayBots,
-        onQuickMatch = onQuickMatch,
-        onFriendGame = onFriendGame,
-        onTapLevel = onTapLevel,
-        onTapCash = onTapCash,
-        onRejoinRoom = onRejoinRoom,
-        onForfeitRoom = { code -> viewModel.takeAction(HomeAction.Forfeit(code)) },
-        onTapFriends = onTapFriends,
-        onTapAchievements = onTapAchievements,
-        onAddRecentOpponent = onAddRecentOpponent,
-        onSeeAllRecentOpponents = onSeeAllRecentOpponents,
-        recentAchievements = state.recentAchievements,
-        modifier = modifier,
-        scrollState = scrollState,
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        HomeScreenContent(
+            levelProgress = state.levelProgress,
+            displayName = state.userName ?: "You",
+            avatarEmoji = state.avatarEmoji,
+            avatarBackgroundColorHex = state.avatarBackgroundColorHex,
+            // Nullable on purpose: null = "local DB hasn't emitted yet"
+            // (first launch or post-wipe). The chip pill renders a
+            // placeholder ("—") in that state rather than flashing "0"
+            // before the sync lands.
+            chips = state.chips,
+            activeRooms = state.activeRooms,
+            showTutorialBanner = !state.tutorialBannerDismissed,
+            onStartTutorial = onStartTutorial,
+            onDismissTutorialBanner = { viewModel.takeAction(HomeAction.DismissTutorialBanner) },
+            onPlayBots = onPlayBots,
+            onQuickMatch = onQuickMatch,
+            onFriendGame = onFriendGame,
+            onTapLevel = onTapLevel,
+            onTapCash = onTapCash,
+            onRejoinRoom = onRejoinRoom,
+            onForfeitRoom = { code -> viewModel.takeAction(HomeAction.Forfeit(code)) },
+            onTapFriends = onTapFriends,
+            onTapAchievements = onTapAchievements,
+            onAddRecentOpponent = onAddRecentOpponent,
+            onSeeAllRecentOpponents = onSeeAllRecentOpponents,
+            recentAchievements = state.recentAchievements,
+            modifier = modifier,
+            scrollState = scrollState,
+        )
+        state.levelUpCelebration?.let { level ->
+            LevelUpCelebration(
+                level = level,
+                onContinue = { viewModel.takeAction(HomeAction.DismissLevelUp) },
+            )
+        }
+    }
 }
 
 @Composable

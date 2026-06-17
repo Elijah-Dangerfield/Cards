@@ -157,6 +157,63 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun levelUp_freshWatermark_seedsSilently_noCelebration() = runUnitTest {
+        // lastCelebratedLevel == 0 (unset). The current level (1, empty
+        // progression) seeds the watermark silently — no celebration for a
+        // level the user already had.
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache() // lastCelebratedLevel = 0
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (appCache.get().lastCelebratedLevel == 0) last = awaitItem()
+            assertEquals(1, appCache.get().lastCelebratedLevel)
+            assertNull(last.levelUpCelebration)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_switchIntoLeveledAccount_seedsToCurrent_noCelebration() = runUnitTest {
+        // Account switch wipes the watermark to 0; the switched-in account is
+        // already level 2 (150 XP). Seeding must catch up silently rather than
+        // blasting a celebration for a level the user already holds.
+        val progression = FakeProgressionRepository(initial = Progression.Empty.copy(totalXp = 150L))
+        val appCache = FakeAppCache()
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (appCache.get().lastCelebratedLevel == 0) last = awaitItem()
+            assertEquals(2, appCache.get().lastCelebratedLevel)
+            assertNull(last.levelUpCelebration)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_crossingWatermark_showsCelebration_thenDismissAdvances() = runUnitTest {
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache()
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            // Seed settles to level 1.
+            while (appCache.get().lastCelebratedLevel != 1) last = awaitItem()
+
+            // Earn enough XP to reach level 2 → celebration surfaces.
+            progression.progression.value = progression.progression.value.copy(totalXp = 150L)
+            while (last.levelUpCelebration == null) last = awaitItem()
+            assertEquals(2, last.levelUpCelebration)
+
+            // Dismiss advances the watermark and clears the overlay.
+            vm.takeAction(HomeAction.DismissLevelUp)
+            while (last.levelUpCelebration != null) last = awaitItem()
+            assertEquals(2, appCache.get().lastCelebratedLevel)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun activeRooms_success_populatesState() = runUnitTest {
         val room = sampleRoom(code = "WXYZ12")
         val rooms = FakeRoomRepository(

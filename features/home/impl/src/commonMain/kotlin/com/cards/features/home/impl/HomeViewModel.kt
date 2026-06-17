@@ -70,6 +70,22 @@ class HomeViewModel(
             }
         }
         viewModelScope.launch {
+            // Full-screen level-up celebration, derived (not event-fired) so it
+            // survives the table→home trip + process death and shows the net
+            // level once on a multi-level jump. See decisions.md 2026-06-06.
+            combine(
+                progressionRepository.observeProgression(),
+                appCache.updates,
+            ) { progression, appData ->
+                LevelCelebrationGate(
+                    currentLevel = levelProgressFor(progression.totalXp).level,
+                    watermark = appData.lastCelebratedLevel,
+                )
+            }
+                .distinctUntilChanged()
+                .collect { gate -> takeAction(HomeAction.EvaluateLevelUp(gate)) }
+        }
+        viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
                 takeAction(HomeAction.ChipsChanged(balance))
             }
@@ -203,6 +219,32 @@ class HomeViewModel(
             is HomeAction.DismissTutorialBanner -> {
                 appCache.update { it.copy(tutorialBannerDismissed = true) }
             }
+            is HomeAction.EvaluateLevelUp -> {
+                // `watermark == 0` is the unset sentinel: silently seed it to
+                // the current level (no celebration) so a fresh install /
+                // account switch / reinstall never blasts a celebration for a
+                // level the user already had. Thereafter, a current level above
+                // the watermark surfaces the overlay for the *current* level.
+                val gate = action.gate
+                when {
+                    gate.watermark == 0 ->
+                        appCache.update { it.copy(lastCelebratedLevel = gate.currentLevel) }
+                    gate.currentLevel > gate.watermark ->
+                        action.updateState { it.copy(levelUpCelebration = gate.currentLevel) }
+                    else ->
+                        action.updateState { it.copy(levelUpCelebration = null) }
+                }
+            }
+            is HomeAction.DismissLevelUp -> {
+                // Advance the watermark to the level we just celebrated so the
+                // derived gate goes quiet; null the overlay immediately rather
+                // than waiting for the cache round-trip to echo back.
+                val reached = stateFlow.value.levelUpCelebration
+                action.updateState { it.copy(levelUpCelebration = null) }
+                if (reached != null) {
+                    appCache.update { it.copy(lastCelebratedLevel = reached) }
+                }
+            }
         }
     }
 
@@ -314,6 +356,22 @@ data class HomeState(
      *  AnimatedVisibility enter — same animation, but inviting instead
      *  of jarring. */
     val tutorialBannerDismissed: Boolean = true,
+    /** Non-null when the full-screen level-up celebration should be shown on
+     *  Home for this level. Derived from the `AppData.lastCelebratedLevel`
+     *  watermark vs the current level, so it survives the table→home trip and
+     *  process death; cleared when the user dismisses (which advances the
+     *  watermark). */
+    val levelUpCelebration: Int? = null,
+)
+
+/**
+ * Inputs the level-up gate derives from — the user's current derived level and
+ * the persisted "last celebrated" watermark. Lifted to a value type so the
+ * `combine` emits a single `distinctUntilChanged`-able value.
+ */
+data class LevelCelebrationGate(
+    val currentLevel: Int,
+    val watermark: Int,
 )
 
 /**
@@ -362,4 +420,6 @@ sealed interface HomeAction {
     data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
     data class TutorialBannerDismissedChanged(val dismissed: Boolean) : HomeAction
     data object DismissTutorialBanner : HomeAction
+    data class EvaluateLevelUp(val gate: LevelCelebrationGate) : HomeAction
+    data object DismissLevelUp : HomeAction
 }
