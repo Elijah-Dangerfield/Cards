@@ -319,6 +319,9 @@ class GameSession internal constructor(
                     userId = it.playerId!!,
                     displayName = it.displayName,
                     isBot = it.isBot,
+                    // Preserve resolved badges across hands — they're stable for
+                    // the session, so we don't re-query equipment each hand.
+                    badgeProductIds = it.badgeProductIds,
                 )
             }
         if (occupants.size < 2) {
@@ -365,6 +368,7 @@ class GameSession internal constructor(
                 seatStatus = SeatStatus.Active,
                 handParticipation = HandParticipation.InHand,
                 isBot = occ.isBot,
+                badgeProductIds = occ.badgeProductIds,
             )
         }
 

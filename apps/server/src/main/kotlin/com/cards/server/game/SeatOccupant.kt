@@ -16,4 +16,11 @@ data class SeatOccupant(
     val userId: String,
     val displayName: String,
     val isBot: Boolean,
+    /**
+     * The player's equipped Badge-/Title-slot product ids, resolved once at
+     * hand-start from their equipment. Copied onto the engine
+     * [com.dangerfield.cards.libraries.gameplay.Seat] so opponents' clients can
+     * render their badges. Empty for bots.
+     */
+    val badgeProductIds: List<String> = emptyList(),
 )

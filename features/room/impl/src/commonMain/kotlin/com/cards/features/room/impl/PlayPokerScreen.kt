@@ -52,6 +52,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BadgeDetailSheet
 import com.dangerfield.cards.libraries.ui.components.LevelPill
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -432,6 +433,11 @@ fun PlayPokerScreen(
                     }
                 },
                 onDismiss = { profileSheetSeat = null },
+                // Resolve the opponent's equipped badge ids (off their Seat) to
+                // display metadata from our catalog — no earned-at for opponents,
+                // so the sheet shows what it is, not when they earned it.
+                badges = resolvePlayerBadges(seat.equippedBadgeProductIds, state.catalog),
+                onBadgeClick = { selectedBadge = it },
                 botDifficultyLabel = active?.botDifficultyLabel,
             )
         }

@@ -30,6 +30,13 @@ data class Seat(
     val contributedThisHand: Long = 0,
     val holeCards: List<Card> = emptyList(),
     val hasActedThisStreet: Boolean = false,
+    /**
+     * Product ids of the cosmetics this player shows off at the table — their
+     * equipped Badge-/Title-slot grants. Public (no scrub needed); the client
+     * resolves each id to its display metadata from the catalog so an opponent's
+     * player card can render their badges. Empty for bots and pre-resolve seats.
+     */
+    val badgeProductIds: List<String> = emptyList(),
 ) {
     val isInHand: Boolean
         get() = handParticipation == HandParticipation.InHand ||

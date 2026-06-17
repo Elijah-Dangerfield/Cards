@@ -245,6 +245,13 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.EquippedBadgesChanged(badges))
             }
         }
+        // Catalog snapshot in state so the screen can resolve an opponent's
+        // badge ids (off their Seat) to display metadata when their sheet opens.
+        viewModelScope.launch {
+            productsRepository.observeCatalog().collect { catalog ->
+                takeAction(PlayPokerAction.CatalogChanged(catalog))
+            }
+        }
         viewModelScope.launch { productsRepository.refresh() }
         // Live win-odds — only computes when the user owns + equips the
         // tool, only on inputs that actually matter for equity (their
@@ -524,6 +531,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.EquippedBadgesChanged -> action.updateState {
                 it.copy(equippedBadges = action.badges)
             }
+            is PlayPokerAction.CatalogChanged -> action.updateState {
+                it.copy(catalog = action.catalog)
+            }
             is PlayPokerAction.ConnectionChanged -> action.updateState {
                 it.copy(connection = action.connection)
             }
@@ -692,6 +702,13 @@ data class PlayPokerState(
      */
     val equippedBadges: List<PlayerBadge> = emptyList(),
     /**
+     * The product catalog (incl. the prestige badge/title bucket). Used to
+     * resolve an *opponent's* equipped badge ids (which ride the engine Seat)
+     * into display metadata when their profile sheet opens.
+     */
+    val catalog: com.dangerfield.cards.libraries.products.ProductCatalog =
+        com.dangerfield.cards.libraries.products.ProductCatalog.Empty,
+    /**
      * Mirrors `AppData.swipeFoldGestureAck`. False = swipe-up-to-fold on
      * the human's hole cards opens a confirmation dialog; true = it folds
      * silently. Flips the moment the user ticks "Don't show this again"
@@ -800,6 +817,11 @@ sealed interface PlayPokerAction {
     /** The human's equipped badges + titles, resolved from the catalog, for the
      *  tappable chips on the player-profile sheet. */
     data class EquippedBadgesChanged(val badges: List<PlayerBadge>) : PlayPokerAction
+
+    /** Catalog snapshot — lets the screen resolve an opponent's badge ids. */
+    data class CatalogChanged(
+        val catalog: com.dangerfield.cards.libraries.products.ProductCatalog,
+    ) : PlayPokerAction
 
     /** Fired by the session's connection-state subscription. */
     data class ConnectionChanged(val connection: ConnectionState) : PlayPokerAction

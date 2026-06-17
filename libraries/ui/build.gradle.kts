@@ -54,5 +54,11 @@ kotlin {
             api(libs.compottie.lite)
             api(libs.compottie.network)
         }
+
+        commonTest.dependencies {
+            // resolvePlayerBadges joins inventory (cards) × catalog (products).
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.products)
+        }
     }
 }

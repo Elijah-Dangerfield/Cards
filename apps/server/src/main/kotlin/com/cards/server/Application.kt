@@ -126,7 +126,7 @@ fun Application.installApp(
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
         roomRoutes(component.roomService, component.profileRepository)
-        roomSocketRoutes(component.roomService, component.gameSessionRegistry)
+        roomSocketRoutes(component.roomService, component.gameSessionRegistry, component.equipmentRepository)
         adminRoutes(
             config = adminConfig,
             sweep = component.orphanAnonymousSweep,
