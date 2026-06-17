@@ -247,7 +247,8 @@ class SupabaseAuthRepositoryImpl(
      * emits so the profile re-resolves to the now-claimed account.
      */
     private suspend fun emitLocked(next: AuthState) {
-        val previousUserId = (lastEmittedOrNull() as? AuthState.Authenticated)?.userId
+        val previous = lastEmittedOrNull()
+        val previousUserId = (previous as? AuthState.Authenticated)?.userId
         val nextUserId = (next as? AuthState.Authenticated)?.userId
         val userChanged = previousUserId != nextUserId
 
@@ -259,10 +260,27 @@ class SupabaseAuthRepositoryImpl(
 
         state.emit(next)
 
-        if (userChanged) {
-            appEventBus.dispatch(AppEvent.UserChanged(previous = previousUserId, current = nextUserId))
+        when {
+            userChanged ->
+                appEventBus.dispatch(AppEvent.UserChanged(previous = previousUserId, current = nextUserId))
+            // Anon → claimed at the same id: not a user change (the guest keeps
+            // their progress, so nothing is dumped and UserChanged stays silent),
+            // but the just-claimed account's pending XP/chips/inventory/equipment
+            // would otherwise only flush on the next foreground. Announce the
+            // claim so the sync listeners reconcile now.
+            isClaim(previous, next) -> {
+                logger.i { "Account claimed (same id $nextUserId) — announcing AccountClaimed to flush user-scoped syncs" }
+                appEventBus.dispatch(AppEvent.AccountClaimed(userId = nextUserId!!))
+            }
         }
     }
+
+    private fun isClaim(previous: AuthState?, next: AuthState): Boolean =
+        previous is AuthState.Authenticated &&
+            next is AuthState.Authenticated &&
+            previous.userId == next.userId &&
+            previous.isAnonymous &&
+            !next.isAnonymous
 
     private fun lastEmittedOrNull(): AuthState? = state.replayCache.firstOrNull()
 

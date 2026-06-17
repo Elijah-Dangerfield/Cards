@@ -31,8 +31,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Re-hydrate the recent-XP history feed across switch / reinstall.** The recent-XP detail-sheet feed (`XpEventRepository.observeRecent` / `observeSince`) reads the **local** `xp_events` rows — wiped on account switch / reinstall and never re-hydrated, so after a switch the total is right but the "recent XP" list is empty until new hands.
   **Acceptance:** add a read-back (e.g. `GET /v1/me/progression/events`, or extend the sync response) of recent server `xp_events`; client inserts them into the local ledger as synced on reconcile. The server already stores the rows. *(proposed 2026-06-14)*
 
-- `[P2]` **Backfill on claim — fire a sync right after claim — Phase 3 Slice 3.** A guest claiming an account keeps the same `userId`, so `AppEvent.UserChanged` doesn't fire and their pending XP/chips flush only on the next foreground. **Acceptance:** the link-Apple / `refreshSession` claim path nudges `ProgressionRepository.sync()` (and chips/inventory/equipment) so a just-claimed account's progress lifts promptly; idempotency keys already make the replay safe. *(proposed 2026-06-14)*
-
 - `[P2]` **XP anti-cheat hardening — when stakes rise (not now).** The server stores client-computed XP deltas with a per-event clamp (fine for play-money). When XP gates ranked status or IAP-equivalent rewards, switch the server to **derive** XP from synced hand facts + caps/rate-limits/claw-back instead of trusting the client delta. See `docs/wiki/state-authority-and-sync.md`. *(proposed 2026-06-14)*
 
 ### Auth & account onboarding

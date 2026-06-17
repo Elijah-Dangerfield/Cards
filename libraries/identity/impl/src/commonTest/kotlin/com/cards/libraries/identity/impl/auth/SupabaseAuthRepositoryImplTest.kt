@@ -339,10 +339,12 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun accountClaim_sameUserId_doesNotDumpOrAnnounce() = runUnitTest {
+    fun accountClaim_sameUserId_doesNotDump_andAnnouncesAccountClaimed() = runUnitTest {
         // Linking/claiming keeps the same user id (anon guest-1 becomes a
         // claimed account but stays guest-1). The guest's progress is theirs:
-        // no dump, no UserChanged — just a re-emit so the profile re-resolves.
+        // no dump, no UserChanged. But the just-claimed account's pending
+        // syncs would otherwise wait for the next foreground, so the claim is
+        // announced as AccountClaimed for the sync listeners to flush now.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
@@ -363,7 +365,16 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertEquals("guest-1", state.userId)
         assertEquals(false, state.isAnonymous, "the claim still flips anon → claimed")
         assertTrue(reset.clearedFor.isEmpty(), "same-user claim must not dump the guest's data")
-        assertEquals(dispatchedAtBoot, events.dispatched.size, "same-user claim must not announce UserChanged")
+        val afterClaim = events.dispatched.drop(dispatchedAtBoot)
+        assertTrue(
+            afterClaim.none { it is AppEvent.UserChanged },
+            "same-user claim must not announce UserChanged",
+        )
+        assertEquals(
+            listOf<AppEvent>(AppEvent.AccountClaimed(userId = "guest-1")),
+            afterClaim,
+            "the claim is announced so user-scoped syncs flush now",
+        )
     }
 
     // ---------- refreshSession ----------

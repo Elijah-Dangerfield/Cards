@@ -75,6 +75,7 @@ class AppEventDispatcher(
                     is AppEvent.OnForeground -> listener.onForeground(event)
                     is AppEvent.OnBackground -> listener.onBackground(event)
                     is AppEvent.UserChanged -> listener.onUserChanged(event)
+                    is AppEvent.AccountClaimed -> listener.onAccountClaimed(event)
                 }
             }.onFailure { throwable ->
                 logger.e(throwable) {
