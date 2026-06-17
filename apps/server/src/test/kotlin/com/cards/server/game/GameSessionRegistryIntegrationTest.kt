@@ -85,6 +85,42 @@ class GameSessionRegistryIntegrationTest {
     }
 
     @Test
+    fun finishedHand_witnessesCountForRealUserIds_andKeysPerHand() = runTest {
+        val counter = InMemoryHandsFinishedRepository()
+        val registry = DefaultGameSessionRegistry(
+            snapshotStore = NoOpSessionSnapshotStore(),
+            clock = kotlin.time.Clock.System,
+            handsFinishedRepository = counter,
+        )
+        val aliceId = java.util.UUID.randomUUID().toString()
+        val bobId = java.util.UUID.randomUUID().toString()
+        val aliceU = com.dangerfield.cards.server.domain.UserId(java.util.UUID.fromString(aliceId))
+        val bobU = com.dangerfield.cards.server.domain.UserId(java.util.UUID.fromString(bobId))
+        val a = SeatOccupant(seatIndex = 0, userId = aliceId, displayName = "Alice", isBot = false)
+        val b = SeatOccupant(seatIndex = 1, userId = bobId, displayName = "Bob", isBot = false)
+
+        registry.startHand("ROOM1", listOf(a, b), settings)
+        val session = registry.peek("ROOM1")!!
+
+        suspend fun foldActor(nonce: String) {
+            val acting = session.state.value!!.actingSeatIndex!!
+            val actor = session.state.value!!.seats.first { it.index == acting }
+            registry.applyIntent("ROOM1", actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), nonce)
+        }
+
+        foldActor("fold-1")
+        assertEquals(1L, counter.countForUser(aliceU))
+        assertEquals(1L, counter.countForUser(bobU))
+
+        // A second completed hand carries a distinct per-hand idempotency
+        // key, so both counts advance to 2 (no collapse onto hand 1's key).
+        registry.requestNextHand("ROOM1", aliceId, "next-1")
+        foldActor("fold-2")
+        assertEquals(2L, counter.countForUser(aliceU))
+        assertEquals(2L, counter.countForUser(bobU))
+    }
+
+    @Test
     fun applyIntent_unknownCode_isRejected() = runTest {
         val registry = DefaultGameSessionRegistry(NoOpSessionSnapshotStore(), kotlin.time.Clock.System)
 

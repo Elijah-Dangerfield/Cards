@@ -160,6 +160,62 @@ class GameSessionTest {
     }
 
     @Test
+    fun handCompletion_firesOnHandFinishedOnce_withHumanSeatsAndHandNumber() = runTest {
+        val finished = mutableListOf<Pair<List<String>, Int>>()
+        val session = GameSession(
+            random = Random(seed = 42),
+            onHandFinished = { ids, handNumber -> finished += ids to handNumber },
+        )
+        session.startHand(listOf(alice, bob), settings)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+
+        session.applyIntent(actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "n1")
+
+        assertEquals(1, finished.size, "fires exactly once on the completing action")
+        assertEquals(setOf("alice", "bob"), finished.single().first.toSet())
+        assertEquals(1, finished.single().second, "carries the completed hand number")
+    }
+
+    @Test
+    fun nonCompletingAction_doesNotFireOnHandFinished() = runTest {
+        val finished = mutableListOf<Pair<List<String>, Int>>()
+        val session = GameSession(
+            random = Random(seed = 42),
+            onHandFinished = { ids, handNumber -> finished += ids to handNumber },
+        )
+        session.startHand(listOf(alice, bob), settings)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+
+        // Heads-up preflop: the small blind calling keeps the hand live
+        // (the big blind still has the option), so no completion fires.
+        val result = session.applyIntent(actor.playerId!!, PlayerIntent.Call(seatIndex = acting), "n1")
+
+        assertIs<IntentResult.Accepted>(result)
+        assertTrue(session.state.value!!.street != BettingRound.Complete)
+        assertTrue(finished.isEmpty(), "the counter only fires when a hand actually finishes")
+    }
+
+    @Test
+    fun onHandFinished_excludesBotSeats() = runTest {
+        val bot = SeatOccupant(seatIndex = 1, userId = "bot-1", displayName = "Botty", isBot = true)
+        val finished = mutableListOf<Pair<List<String>, Int>>()
+        val session = GameSession(
+            random = Random(seed = 42),
+            onHandFinished = { ids, handNumber -> finished += ids to handNumber },
+        )
+        session.startHand(listOf(alice, bot), settings)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+
+        session.applyIntent(actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "n1")
+
+        assertEquals(1, finished.size)
+        assertEquals(listOf("alice"), finished.single().first, "bots don't carry a server-witnessed count")
+    }
+
+    @Test
     fun applyIntent_dedupesByNonce() = runTest {
         val session = newSession()
         session.startHand(listOf(alice, bob), settings)

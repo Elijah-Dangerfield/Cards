@@ -112,6 +112,7 @@ fun Application.installApp(
             component.walletRepository,
             component.progressionRepository,
             component.achievementRepository,
+            component.handsFinishedRepository,
             component.userMessageRepository,
             component.roomService,
             component.orphanInstallSweep,

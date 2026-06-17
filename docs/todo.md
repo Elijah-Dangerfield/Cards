@@ -22,7 +22,7 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P2]` **MP achievement grants — server-witnessed hand-count signal.** Multiplayer achievements should gate grants on a real hand count, but the server doesn't yet expose a per-user `hands_finished` (server-witnessed) count. Server-authoritative gameplay has shipped, so this is now buildable — persist a per-user hand-finished count from the authoritative hand loop and gate MP grants on it. Bot achievements (client self-grant) are the permanent shape and not in scope here.
+- `[P2]` **MP achievement grants — gate on the server-witnessed hand count.** The server now persists a per-user finished-hand count from the authoritative loop (`HandsFinishedRepository.countForUser`). What's left: actually gate the multiplayer achievements (the `serverWitnessed` set in `ClientGrantableAchievements`) on it — server-side evaluation + grant of the count-based ones (e.g. `HANDS_100_MP`), which also needs the MP-achievement→product mapping those ids currently lack. Per-hand-shape MP achievements (busts, win-by-fold) need richer server-witnessed signals than a raw count. Bot achievements (client self-grant) stay client-side.
 
 ### Progression & XP (server)
 

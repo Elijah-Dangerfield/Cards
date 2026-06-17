@@ -193,6 +193,22 @@ object AchievementsEarnedTable : Table("achievements_earned") {
 }
 
 /**
+ * Append-only ledger of finished hands witnessed by the authoritative
+ * server loop. One row per (user, finished hand); `(user_id,
+ * idempotency_key)` is the dedup boundary so a replayed hand-completion
+ * collapses to a single row. The per-user count gates multiplayer
+ * achievement grants. See `V56__hand_finished_counts.sql`.
+ */
+object HandFinishedEventsTable : Table("hand_finished_events") {
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val handSessionId = uuid("hand_session_id")
+    val handNumber = integer("hand_number")
+    val finishedAt = timestamp("finished_at")
+    override val primaryKey = PrimaryKey(userId, idempotencyKey)
+}
+
+/**
  * Snapshot of the live `GameSession` state for a room. One row per active
  * session, overwritten on every state mutation inside the per-session
  * mutex. Hydrated on registry lookup when in-memory has no entry for the
