@@ -95,10 +95,16 @@ class EditProfileViewModel(
                 )
             }
         }
-        // Level drives the "Lvl N" chip on the card preview.
+        // Level drives the "Lvl N" chip on the card preview; hands-played feeds
+        // the card's stat row (the "what others see" View tab).
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
-                takeAction(EditProfileAction.LevelChanged(levelProgressFor(progression.totalXp).level))
+                takeAction(
+                    EditProfileAction.ProgressionChanged(
+                        level = levelProgressFor(progression.totalXp).level,
+                        handsPlayed = progression.handsPlayed,
+                    ),
+                )
             }
         }
         // Earned achievements feed the featured-badge picker. Resolve each
@@ -127,6 +133,7 @@ class EditProfileViewModel(
                     selectedAvatarBackgroundColor = action.profile.avatarBackgroundColor,
                     initialFeaturedBadgeIds = action.profile.featuredBadgeIds,
                     selectedFeaturedBadgeIds = action.profile.featuredBadgeIds,
+                    memberSince = action.profile.createdAt,
                 )
             }
 
@@ -184,8 +191,8 @@ class EditProfileViewModel(
                 )
             }
 
-            is EditProfileAction.LevelChanged -> action.updateState {
-                it.copy(level = action.level)
+            is EditProfileAction.ProgressionChanged -> action.updateState {
+                it.copy(level = action.level, handsPlayed = action.handsPlayed)
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
@@ -346,6 +353,10 @@ data class EditProfileState(
     val permanentBadgeEmoji: String? = null,
     /** Current level, shown as the "Lvl N" chip on the card preview. */
     val level: Int? = null,
+    /** Lifetime hands played, shown in the card's stat row. */
+    val handsPlayed: Long = 0,
+    /** When the account was created — drives the "Member since" stat. */
+    val memberSince: kotlin.time.Instant? = null,
     /**
      * Earned achievements, most-recently-earned first. Feeds the featured-
      * badge picker on the Edit tab + the default selection on the View tab.
@@ -445,7 +456,7 @@ sealed interface EditProfileAction {
         val title: String?,
         val permanentBadgeEmoji: String?,
     ) : EditProfileAction
-    data class LevelChanged(val level: Int) : EditProfileAction
+    data class ProgressionChanged(val level: Int, val handsPlayed: Long) : EditProfileAction
     data class DisplayNameChanged(val value: String) : EditProfileAction
     data class AvatarSelected(val emoji: String) : EditProfileAction
     data class AvatarBackgroundColorSelected(val color: String) : EditProfileAction

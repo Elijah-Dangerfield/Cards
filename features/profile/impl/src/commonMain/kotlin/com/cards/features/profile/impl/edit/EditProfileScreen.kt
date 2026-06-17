@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_edit_avatar_color_section
 import cards.libraries.resources.generated.resources.profile_edit_avatar_section
+import cards.libraries.resources.generated.resources.profile_card_stat_hands_played
+import cards.libraries.resources.generated.resources.profile_card_stat_member_since
 import cards.libraries.resources.generated.resources.profile_edit_avatars_load_error
 import cards.libraries.resources.generated.resources.profile_edit_avatars_loading
 import cards.libraries.resources.generated.resources.profile_edit_display_name_error_invalid
@@ -67,6 +69,7 @@ import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
+import com.dangerfield.cards.libraries.ui.components.PlayerCardStat
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedal
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -401,6 +404,22 @@ private fun ViewTabContent(state: EditProfileState) {
             equippedTitle = state.equippedTitle,
             permanentBadgeEmoji = state.permanentBadgeEmoji,
             featuredBadges = state.featuredBadges,
+            stats = buildList {
+                add(
+                    PlayerCardStat(
+                        value = formatHandsPlayed(state.handsPlayed),
+                        label = stringResource(Res.string.profile_card_stat_hands_played),
+                    ),
+                )
+                state.memberSince?.let { joined ->
+                    add(
+                        PlayerCardStat(
+                            value = monthYearLabel(joined),
+                            label = stringResource(Res.string.profile_card_stat_member_since),
+                        ),
+                    )
+                }
+            },
         )
         Spacer(modifier = Modifier.height(Dimension.D700))
         Text(
@@ -410,6 +429,18 @@ private fun ViewTabContent(state: EditProfileState) {
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+// Group a non-negative count with thousands separators ("1204" → "1,204").
+private fun formatHandsPlayed(count: Long): String {
+    val digits = count.toString()
+    val firstGroup = digits.length % 3
+    return buildString {
+        digits.forEachIndexed { index, c ->
+            if (index != 0 && (index - firstGroup) % 3 == 0) append(',')
+            append(c)
+        }
     }
 }
 

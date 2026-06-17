@@ -26,6 +26,14 @@ private const val MaxFeaturedBadges = 3
 private val FeaturedBadgeSize: Dp = 48.dp
 
 /**
+ * One display-ready stat on a Player Card — a value over a caption (e.g.
+ * "1,204" / "Hands played", "Feb 2026" / "Member since"). Presentational only:
+ * callers format the strings; the card just lays them out. Keeps the DS
+ * component out of the progression/profile domain.
+ */
+data class PlayerCardStat(val value: String, val label: String)
+
+/**
  * The shared identity block of the canonical Player Card — everything *below*
  * the avatar: display name, an optional "Lvl N" chip, the equipped title flair,
  * the permanent badge (e.g. 🏛 Founding member), and up to [MaxFeaturedBadges]
@@ -47,6 +55,7 @@ fun PlayerCardContent(
     equippedTitle: String? = null,
     permanentBadgeEmoji: String? = null,
     featuredBadges: List<Achievement> = emptyList(),
+    stats: List<PlayerCardStat> = emptyList(),
 ) {
     val badges = featuredBadges.take(MaxFeaturedBadges)
     Column(
@@ -100,6 +109,32 @@ fun PlayerCardContent(
                 }
             }
         }
+        if (stats.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Dimension.D700),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                stats.forEach { stat -> PlayerCardStatItem(stat) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerCardStatItem(stat: PlayerCardStat) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = stat.value,
+            typography = AppTheme.typography.Heading.H600,
+            color = AppTheme.colors.content,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stat.label,
+            typography = AppTheme.typography.Caption.C400,
+            color = AppTheme.colors.contentSecondary,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -116,6 +151,10 @@ private fun PlayerCardContentPreview_Full() {
                 equippedTitle = "High Roller",
                 permanentBadgeEmoji = "🏛",
                 featuredBadges = AllAchievements.take(3),
+                stats = listOf(
+                    PlayerCardStat(value = "1,204", label = "Hands played"),
+                    PlayerCardStat(value = "Feb 2026", label = "Member since"),
+                ),
             )
         }
     }
