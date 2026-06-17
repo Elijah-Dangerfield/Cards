@@ -37,6 +37,8 @@ data class XpEvent(
     val source: String,
     val mode: String,
     val handId: String?,
+    /** True when an XP boost doubled this hand award (cosmetic feed flag). */
+    val wasBoosted: Boolean,
     val appliedAt: Instant,
 )
 
@@ -94,6 +96,7 @@ interface ProgressionRepository {
         source: String,
         mode: String,
         handId: String?,
+        wasBoosted: Boolean = false,
     ): ApplyXpOutcome
 
     /** Recent ledger rows for a user, newest first, capped to [limit]. */

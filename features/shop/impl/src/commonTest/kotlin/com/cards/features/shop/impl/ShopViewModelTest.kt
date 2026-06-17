@@ -258,7 +258,7 @@ class ShopViewModelTest : CoroutineTest() {
     // ---------- XP Boost consumable ----------
 
     @Test
-    fun confirmXpBoost_success_spendsChips_activatesBoost_emitsBoostActivated() = runUnitTest {
+    fun confirmXpBoost_success_spendsChips_grantsInactiveBoost_emitsBoostPurchased() = runUnitTest {
         val chips = FakeChipsRepository(initialBalance = 10_000)
         val inv = FakeInventoryRepository()
         val boost = FakeXpBoostRepository()
@@ -270,10 +270,11 @@ class ShopViewModelTest : CoroutineTest() {
         vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
         assertEquals(5_000L, chips.getBalance(), "chips debited by the boost cost")
-        assertEquals(1, boost.activateCalls.size, "boost window activated once")
-        val event = received.firstOrNull { it is ShopEvent.BoostActivated }
-        assertNotNull(event, "BoostActivated should fire")
-        assertEquals(offer.id, (event as ShopEvent.BoostActivated).offer.id)
+        assertEquals(1, boost.grantCalls.size, "one boost added to the stash")
+        assertTrue(boost.activateCalls.isEmpty(), "buying must NOT light the boost")
+        val event = received.firstOrNull { it is ShopEvent.BoostPurchased }
+        assertNotNull(event, "BoostPurchased should fire")
+        assertEquals(offer.id, (event as ShopEvent.BoostPurchased).offer.id)
         // Consumable: no inventory row is ever written, so it never reads as "owned".
         assertTrue(inv.redeemCalls.isEmpty(), "boost must not write an inventory row")
     }
@@ -293,7 +294,7 @@ class ShopViewModelTest : CoroutineTest() {
         vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
         assertEquals(0L, chips.getBalance(), "no chips spent when unaffordable")
-        assertTrue(boost.activateCalls.isEmpty(), "boost not activated when unaffordable")
+        assertTrue(boost.grantCalls.isEmpty(), "boost not granted when unaffordable")
         assertTrue(received.isEmpty(), "no event for a gated no-op confirm")
     }
 
@@ -523,6 +524,7 @@ class ShopViewModelTest : CoroutineTest() {
     )
 
     private class FakeXpBoostRepository : com.dangerfield.cards.libraries.cards.XpBoostRepository {
+        val grantCalls = mutableListOf<Int>()
         val activateCalls = mutableListOf<Long>()
         private val state = MutableStateFlow(
             com.dangerfield.cards.libraries.cards.XpBoostStatus.None,
@@ -531,8 +533,12 @@ class ShopViewModelTest : CoroutineTest() {
         override fun observe(): Flow<com.dangerfield.cards.libraries.cards.XpBoostStatus> =
             state.asStateFlow()
         override suspend fun status(): com.dangerfield.cards.libraries.cards.XpBoostStatus = state.value
-        override suspend fun activate(durationMs: Long) {
+        override suspend fun grant(count: Int) {
+            grantCalls += count
+        }
+        override suspend fun activate(durationMs: Long): Boolean {
             activateCalls += durationMs
+            return true
         }
         override suspend fun multiplier(): Int = 1
     }
@@ -787,7 +793,7 @@ class ShopViewModelTest : CoroutineTest() {
                 ),
                 Product.ChipOffer(
                     id = "boost_xp_2x",
-                    title = "2× XP Boost",
+                    title = "XP Boost",
                     subtitle = "30 minutes",
                     iconEmoji = "⚡",
                     costChips = 5_000,

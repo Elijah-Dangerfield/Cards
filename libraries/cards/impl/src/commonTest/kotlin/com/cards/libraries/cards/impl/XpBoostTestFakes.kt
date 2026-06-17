@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal object InactiveXpBoostRepository : XpBoostRepository {
     override fun observe(): Flow<XpBoostStatus> = MutableStateFlow(XpBoostStatus.None)
     override suspend fun status(): XpBoostStatus = XpBoostStatus.None
-    override suspend fun activate(durationMs: Long) = Unit
+    override suspend fun grant(count: Int) = Unit
+    override suspend fun activate(durationMs: Long): Boolean = false
     override suspend fun multiplier(): Int = 1
 }
 
@@ -20,6 +21,7 @@ internal class FixedXpBoostRepository(
 ) : XpBoostRepository {
     override fun observe(): Flow<XpBoostStatus> = MutableStateFlow(XpBoostStatus.None)
     override suspend fun status(): XpBoostStatus = XpBoostStatus.None
-    override suspend fun activate(durationMs: Long) = Unit
+    override suspend fun grant(count: Int) = Unit
+    override suspend fun activate(durationMs: Long): Boolean = false
     override suspend fun multiplier(): Int = if (active) XP_BOOST_MULTIPLIER else 1
 }

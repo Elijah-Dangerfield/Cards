@@ -36,6 +36,7 @@ import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
 import com.dangerfield.cards.features.profile.NotificationsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.profile.DesignSystemColorsRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.profile.SettingsRoute
 import com.dangerfield.cards.features.profile.impl.settings.SettingsScreen
@@ -54,6 +55,7 @@ import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
+import com.dangerfield.cards.libraries.cards.XpBoostStatus
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
@@ -130,6 +132,11 @@ class ProfileFeatureEntryPoint(
             val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
                 .collectAsStateWithLifecycle(initialValue = 0)
 
+            // Live XP boost stash + window — drives the boost banner (owned →
+            // "Activate", or a running countdown).
+            val xpBoostStatus by xpBoostRepository.observe()
+                .collectAsStateWithLifecycle(initialValue = XpBoostStatus.None)
+
             // Owned cosmetics (inventory ∩ catalog) for the grouped item
             // shelves. Reuses MyItemsViewModel so the catalog join + display
             // metadata logic lives in exactly one place.
@@ -177,6 +184,9 @@ class ProfileFeatureEntryPoint(
                 ownedItems = myItemsState.ownedItems,
                 buyableItems = myItemsState.buyableItems,
                 winRatePercent = winRatePercent,
+                boostOwnedCount = xpBoostStatus.ownedCount,
+                boostExpiresAtEpochMs = xpBoostStatus.expiresAtEpochMs,
+                onActivateBoost = { scope.launch { xpBoostRepository.activate() } },
                 onOpenSettings = { router.navigate(SettingsRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },
                 onTapStats = { router.navigate(StatsRoute()) },
@@ -279,9 +289,19 @@ class ProfileFeatureEntryPoint(
                     scope.launch { progressionRepository.debugSetTotalXp(xp) }
                 },
                 onActivateXpBoost = {
-                    scope.launch { xpBoostRepository.activate() }
+                    // QA shortcut: stash one then light it so the active-boost UI
+                    // shows up in a single tap, without buying from the shop.
+                    scope.launch {
+                        xpBoostRepository.grant()
+                        xpBoostRepository.activate()
+                    }
                 },
+                onOpenColorCatalog = { router.navigate(DesignSystemColorsRoute()) },
             )
+        }
+
+        screen<DesignSystemColorsRoute> {
+            DesignSystemColorsScreen(onBack = { router.goBack() })
         }
 
         screen<EditProfileRoute> {

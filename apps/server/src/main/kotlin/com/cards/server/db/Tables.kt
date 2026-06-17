@@ -175,6 +175,10 @@ object XpEventsTable : Table("xp_events") {
     val eventSource = text("source")
     val mode = text("mode")
     val handId = text("hand_id").nullable()
+    // Whether an XP boost doubled this award — round-trips to the client so the
+    // recent-XP feed can flag boosted rows after a reinstall. Defaulted so
+    // pre-V58 rows and older clients read false.
+    val wasBoosted = bool("was_boosted").default(false)
     val appliedAt = timestamp("applied_at")
     override val primaryKey = PrimaryKey(userId, idempotencyKey)
 }

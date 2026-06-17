@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
+import com.dangerfield.cards.system.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -203,49 +206,104 @@ private fun ProfileAvatarTab(
 fun AppBottomBar(
     modifier: Modifier = Modifier,
     items: List<BottomBarItem>,
-    onItemClick: (BottomBarItem) -> Unit
+    onItemClick: (BottomBarItem) -> Unit,
+    /**
+     * Fraction (0..1) of an active XP boost window remaining, or null when no
+     * boost is running. When set, the bar tints teal and grows a thin draining
+     * progress line just above it — an ambient "boost is live" cue visible from
+     * any tab.
+     */
+    boostProgress: Float? = null,
 ) {
     val shadowColor = AppTheme.colors.scrim.withAlpha(0.25f).color
 
+    // While a boost burns, the whole bar swaps to a solid, fully-opaque deep
+    // version of the XP progression cyan — the same blue-cyan the level ring
+    // uses. Darkened toward black so the (warm-white) tab icons stay legible on
+    // it; the progress line above rides in the bright cyan so it pops. Null
+    // leaves the default surface.
+    val boostBar: Color? = if (boostProgress != null) {
+        lerp(AppTheme.colors.poker.progressionCyan.color, Color.Black, 0.42f)
+    } else {
+        null
+    }
+
     val selectedIndex = items.indexOfFirst { it.isSelected }.coerceAtLeast(0)
-    Surface(
-        modifier = modifier.fillMaxWidth()
-            .dropShadow(RectangleShape) {
-                this.radius = 10f
-                this.offset = Offset(0f, -10f)
-                this.color = shadowColor
-            },
-        elevation = Elevation.BottomBar,
-        color = AppTheme.colors.surface,
-        contentColor = AppTheme.colors.content,
-        border = null,
-        radius = Radii.None,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .bottomSafeAreaPadding()
-                .padding(horizontal = BottomBarSizes.RowHorizontalPadding),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (boostProgress != null) {
+            BoostProgressLine(progress = boostProgress)
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth()
+                .dropShadow(RectangleShape) {
+                    this.radius = 10f
+                    this.offset = Offset(0f, -10f)
+                    this.color = shadowColor
+                },
+            elevation = Elevation.BottomBar,
+            color = AppTheme.colors.surface,
+            // Opaque deep-cyan wins over `color` while a boost burns.
+            colorOverride = boostBar,
+            contentColor = AppTheme.colors.content,
+            border = null,
+            radius = Radii.None,
         ) {
-            items.forEachIndexed { index, item ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .bounceClick { onItemClick(item) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    MagnifyingBottomBarItem(
-                        item = item,
-                        isSelected = index == selectedIndex,
-                        modifier = Modifier.padding(top = TopPadding, bottom = BottomPadding),
-                    )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bottomSafeAreaPadding()
+                    .padding(horizontal = BottomBarSizes.RowHorizontalPadding),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEachIndexed { index, item ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .bounceClick { onItemClick(item) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        MagnifyingBottomBarItem(
+                            item = item,
+                            isSelected = index == selectedIndex,
+                            modifier = Modifier.padding(top = TopPadding, bottom = BottomPadding),
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/**
+ * The thin draining line that rides the top edge of the bar while an XP boost is
+ * active — a recessed track with a teal fill whose width tracks [progress]. The
+ * fill animates as the fraction drops so the drain reads as smooth rather than
+ * snapping each second.
+ */
+@Composable
+private fun BoostProgressLine(progress: Float) {
+    val animatedFraction by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 600),
+        label = "boost-bar-fraction",
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(BoostLineHeight)
+            .background(AppTheme.colors.poker.progressionCyan.withAlpha(0.25f)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(animatedFraction)
+                .height(BoostLineHeight)
+                .background(AppTheme.colors.poker.progressionCyan),
+        )
+    }
+}
+
+private val BoostLineHeight = 3.dp
 
 /**
  * Reserves bottom space equal to the app's [AppBottomBar] resting
@@ -433,6 +491,30 @@ private fun BottomBarPreviewShopUnseenDot() {
                 items = listOf(
                     BottomBarItem.Home(isSelected = true),
                     BottomBarItem.Shop(isSelected = false, showsBadgeDot = true),
+                    BottomBarItem.Profile(isSelected = false),
+                ),
+                onItemClick = {},
+            )
+            VerticalSpacerD1600()
+        }
+    }
+}
+
+// Pins the active-boost treatment: teal-tinted bar with the draining progress
+// line riding its top edge.
+@Preview(heightDp = 200)
+@Composable
+private fun BottomBarPreviewBoostActive() {
+    PreviewContent(
+        backgroundColor = ColorResource.White
+    ) {
+        Column {
+            VerticalSpacerD1600()
+            AppBottomBar(
+                boostProgress = 0.6f,
+                items = listOf(
+                    BottomBarItem.Home(isSelected = true),
+                    BottomBarItem.Shop(isSelected = false),
                     BottomBarItem.Profile(isSelected = false),
                 ),
                 onItemClick = {},

@@ -85,7 +85,10 @@ class LevelUpRewardGranter(
                         reason = "levelup.$level",
                         idempotencyKey = "levelup_$level",
                     )
-                    is LevelReward.XpBoost -> xpBoostRepository.activate(reward.durationMs)
+                    // Gifted boosts land in the stash, inactive — the player
+                    // lights them from their profile when they're ready, same as
+                    // a shop-bought one. Nothing auto-activates.
+                    is LevelReward.XpBoost -> xpBoostRepository.grant()
                 }
             }
         }

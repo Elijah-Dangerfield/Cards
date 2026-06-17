@@ -30,6 +30,7 @@ internal data class XpEventDto(
     val source: String,
     val mode: String,
     val handId: String? = null,
+    val wasBoosted: Boolean = false,
 )
 
 @Serializable
@@ -54,6 +55,7 @@ internal data class XpEventSnapshotDto(
     val source: String,
     val mode: String,
     val handId: String? = null,
+    val wasBoosted: Boolean = false,
     val appliedAtEpochMs: Long,
 )
 

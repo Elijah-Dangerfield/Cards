@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -123,9 +124,10 @@ internal fun ColorRow(
     usage: String,
 ) {
     Row(
-        // Fixed width so a ladder of these wraps into columns on a wide canvas (see SwatchFlow)
-        // instead of one tall single-file stack.
-        modifier = Modifier.width(500.dp),
+        // Capped at 500dp so a ladder of these wraps into columns on a wide canvas
+        // (see SwatchFlow) instead of one tall single-file stack, but fills the width
+        // on a narrow one (the in-app QA color screen on a phone) instead of clipping.
+        modifier = Modifier.widthIn(max = 500.dp).fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(Dimension.D600),
         verticalAlignment = Alignment.Top,
     ) {

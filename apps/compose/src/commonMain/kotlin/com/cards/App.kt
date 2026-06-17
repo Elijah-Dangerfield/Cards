@@ -68,8 +68,10 @@ import com.dangerfield.cards.features.profile.ProfileRoute
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.features.shop.ShopRoute
+import com.dangerfield.cards.libraries.cards.XP_BOOST_DEFAULT_DURATION_MS
 import com.dangerfield.cards.libraries.ui.components.AppBottomBar
 import com.dangerfield.cards.libraries.ui.components.BottomBarItem
+import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
 import com.dangerfield.cards.libraries.ui.components.BottomBarSizes
 import com.dangerfield.cards.libraries.ui.components.LocalAppBottomBarHeight
 import com.dangerfield.cards.libraries.ui.components.Screen
@@ -212,6 +214,7 @@ fun App(appComponent: AppComponent) {
                             userMessageRepository = appComponent.userMessageRepository,
                             profileRepository = appComponent.profileRepository,
                             shopBadgeStateRepository = appComponent.shopBadgeStateRepository,
+                            xpBoostRepository = appComponent.xpBoostRepository,
                             telemetry = appComponent.telemetry,
                         )
                     } else {
@@ -304,6 +307,7 @@ private fun AppNavigation(
     userMessageRepository: com.dangerfield.cards.libraries.cards.UserMessageRepository,
     profileRepository: ProfileRepository,
     shopBadgeStateRepository: com.dangerfield.cards.libraries.products.ShopBadgeStateRepository,
+    xpBoostRepository: com.dangerfield.cards.libraries.cards.XpBoostRepository,
     telemetry: Telemetry,
     topBar: @Composable () -> Unit = {},
 ) {
@@ -330,6 +334,18 @@ private fun AppNavigation(
         .collectAsState(initial = false)
     val shopMarkSeenScope = rememberCoroutineScope()
 
+    // While an XP boost is burning, the bottom bar tints + grows a thin draining
+    // progress line above it so the active window is visible from any tab. Null
+    // fraction (no live window) leaves the bar in its default treatment.
+    val xpBoostStatus by xpBoostRepository.observe()
+        .collectAsState(initial = com.dangerfield.cards.libraries.cards.XpBoostStatus.None)
+    val boostRemainingMs = rememberBoostRemainingMs(xpBoostStatus.expiresAtEpochMs)
+    val boostProgress = if (boostRemainingMs > 0L) {
+        (boostRemainingMs.toFloat() / XP_BOOST_DEFAULT_DURATION_MS.toFloat()).coerceIn(0f, 1f)
+    } else {
+        null
+    }
+
     Screen(
         topBar = topBar,
         bottomBar = {
@@ -348,6 +364,7 @@ private fun AppNavigation(
                     currentDestination?.hasRoute<ShopProductSheetRoute>() == true
 
                 AppBottomBar(
+                    boostProgress = boostProgress,
                     items = listOf(
                         BottomBarItem.Home(isSelected = currentDestination?.hasRoute<HomeRoute>() == true),
                         BottomBarItem.Shop(

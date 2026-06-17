@@ -169,7 +169,7 @@ fun LevelUpCelebration(
 /**
  * One revealed level-up prize, already mapped to display form by the caller
  * (the DS component stays out of the economy domain). [emoji] is the prize
- * glyph; [label] is the localized one-liner ("+5,000 chips", "2× XP boost").
+ * glyph; [label] is the localized one-liner ("+5,000 chips", "XP Boost").
  */
 data class LevelUpReward(
     val emoji: String,
@@ -252,7 +252,7 @@ private fun LevelUpCelebrationPreview_WithRewards() {
                 onContinue = {},
                 rewards = listOf(
                     LevelUpReward(emoji = "🪙", label = "+7,500 chips"),
-                    LevelUpReward(emoji = "⚡", label = "2× XP boost"),
+                    LevelUpReward(emoji = "⚡", label = "XP Boost"),
                 ),
             )
         }

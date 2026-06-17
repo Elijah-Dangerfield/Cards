@@ -27,8 +27,9 @@
     <string name="shop_snackbar_redeem_succeeded_action_view">View</string>
     <string name="shop_snackbar_redeem_auto_equipped_title">Equipped!</string>
     <string name="shop_snackbar_redeem_auto_equipped_message">%1$s is equipped and ready to use.</string>
-    <string name="shop_snackbar_boost_activated_title">2× XP active!</string>
-    <string name="shop_snackbar_boost_activated_message">Every hand earns double XP for the next 30 minutes.</string>
+    <string name="shop_snackbar_boost_purchased_title">XP Boost added</string>
+    <string name="shop_snackbar_boost_purchased_message">It's in your profile — activate it to earn double XP for 30 minutes.</string>
+    <string name="shop_snackbar_boost_purchased_action">Activate</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>
@@ -953,10 +954,28 @@
     <string name="ui_level_up_continue">Continue</string>
     <string name="ui_level_up_rewards_header">You earned</string>
     <string name="ui_level_up_reward_chips">+%1$s chips</string>
-    <string name="ui_level_up_reward_xp_boost">2× XP boost</string>
+    <string name="ui_level_up_reward_xp_boost">XP Boost</string>
 
-    <!-- UI library — Active 2× XP boost indicator. %1$s is a mm:ss countdown. -->
-    <string name="ui_xp_boost_active">2× XP · %1$s</string>
+    <!-- UI library — Active XP boost indicator. %1$s is a mm:ss countdown. -->
+    <string name="ui_xp_boost_active">XP Boost · %1$s</string>
+
+    <!-- UI library — XP boost banner (Profile). -->
+    <string name="ui_xp_boost_banner_owned_title">XP Boost</string>
+    <!-- %1$d is how many boosts the player has stashed. -->
+    <string name="ui_xp_boost_banner_owned_subtitle">%1$d ready to activate</string>
+    <string name="ui_xp_boost_banner_activate">Activate</string>
+    <string name="ui_xp_boost_banner_active_title">XP Boost active</string>
+    <string name="ui_xp_boost_banner_active_subtitle">Double XP on every hand</string>
+    <!-- %1$s is a mm:ss countdown to expiry. -->
+    <string name="ui_xp_boost_banner_remaining">%1$s left</string>
+    <!-- Recent-XP feed tag on a hand row whose XP was doubled by an active boost. -->
+    <string name="stats_recent_xp_boosted_tag">⚡ 2×</string>
+
+    <!-- Profile — confirm dialog before lighting a stashed XP boost. -->
+    <string name="profile_boost_confirm_title">Activate XP Boost?</string>
+    <string name="profile_boost_confirm_message">Your 30-minute window starts now — you\'ll earn double XP on every hand you play. (Achievement XP isn\'t boosted.)</string>
+    <string name="profile_boost_confirm_activate">Activate</string>
+    <string name="profile_boost_confirm_cancel">Not yet</string>
 
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>

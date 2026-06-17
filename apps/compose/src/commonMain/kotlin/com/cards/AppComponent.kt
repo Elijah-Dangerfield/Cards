@@ -2,6 +2,7 @@ package com.dangerfield.cards
 
 import com.dangerfield.cards.libraries.cards.InAppMessageManager
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
+import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.AutoInit
@@ -36,6 +37,7 @@ interface AppComponent {
     val userMessageRepository: UserMessageRepository
     val profileRepository: ProfileRepository
     val shopBadgeStateRepository: ShopBadgeStateRepository
+    val xpBoostRepository: XpBoostRepository
     val inAppMessageManager: InAppMessageManager
     val appState: AppState
     val guestAccountCreator: GuestAccountCreator
