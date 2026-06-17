@@ -55,6 +55,10 @@ import cards.libraries.resources.generated.resources.month_october
 import cards.libraries.resources.generated.resources.month_september
 import cards.libraries.resources.generated.resources.month_unknown
 import cards.libraries.resources.generated.resources.profile_avatar_edit_a11y
+import cards.libraries.resources.generated.resources.profile_boost_confirm_activate
+import cards.libraries.resources.generated.resources.profile_boost_confirm_cancel
+import cards.libraries.resources.generated.resources.profile_boost_confirm_message
+import cards.libraries.resources.generated.resources.profile_boost_confirm_title
 import cards.libraries.resources.generated.resources.profile_header_joined
 import cards.libraries.resources.generated.resources.profile_items_avatars
 import cards.libraries.resources.generated.resources.profile_items_card_back
@@ -98,6 +102,8 @@ import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.XpBoostBanner
 import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
+import com.dangerfield.cards.libraries.ui.components.dialog.rememberDialogState
 import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Surface
@@ -183,6 +189,11 @@ fun ProfileScreen(
     // rendered over the whole screen — the same animation as the poker table.
     var emojiBlast by remember { mutableStateOf<EmojiBlast?>(null) }
 
+    // Lighting a stashed boost burns 30 minutes starting immediately, so we
+    // confirm first (and restate that it's hand XP only) rather than firing on
+    // the banner's tap.
+    val boostConfirmState = rememberDialogState(initiallyVisible = false)
+
     Screen(
         modifier = modifier,
         topBar = {
@@ -230,7 +241,7 @@ fun ProfileScreen(
                     XpBoostBanner(
                         ownedCount = boostOwnedCount,
                         expiresAtEpochMs = boostExpiresAtEpochMs,
-                        onActivate = onActivateBoost,
+                        onActivate = { boostConfirmState.show() },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     VerticalSpacerD800()
@@ -274,6 +285,20 @@ fun ProfileScreen(
                 emitterName = settings.displayName,
                 emitterEmoji = settings.avatarEmoji,
                 emitterColorHex = settings.avatarBackgroundColor,
+            )
+
+            Dialog(
+                state = boostConfirmState,
+                title = stringResource(Res.string.profile_boost_confirm_title),
+                description = stringResource(Res.string.profile_boost_confirm_message),
+                primaryButtonText = stringResource(Res.string.profile_boost_confirm_activate),
+                secondaryButtonText = stringResource(Res.string.profile_boost_confirm_cancel),
+                onDismissRequest = { boostConfirmState.dismiss() },
+                onPrimaryButtonClicked = {
+                    boostConfirmState.dismiss()
+                    onActivateBoost()
+                },
+                onSecondaryButtonClicked = { boostConfirmState.dismiss() },
             )
         }
     }

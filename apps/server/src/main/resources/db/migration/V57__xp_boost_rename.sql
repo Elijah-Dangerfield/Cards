@@ -14,5 +14,5 @@
 UPDATE products
 SET
     title_by_locale = '{"en":"XP Boost","es":"Boost de XP"}'::jsonb,
-    description_by_locale = '{"en":"Earn double XP on every hand for 30 minutes. Activate it from your profile whenever you''re ready — buy more to keep a few on hand.","es":"Gana el doble de XP en cada mano durante 30 minutos. Actívalo desde tu perfil cuando quieras; compra más para tener algunos a mano."}'::jsonb
+    description_by_locale = '{"en":"Earn double XP on every hand you play for 30 minutes. Activate it from your profile whenever you''re ready — buy more to keep a few on hand.","es":"Gana el doble de XP en cada mano que juegues durante 30 minutos. Actívalo desde tu perfil cuando quieras; compra más para tener algunos a mano."}'::jsonb
 WHERE id = 'boost_xp_2x';
