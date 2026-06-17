@@ -459,6 +459,32 @@ class MeRoutesTest {
         }
     }
 
+    @Test
+    fun patch_featuredBadges_blankId_returns400_andDoesNotPersist() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callPatch(
+            repo,
+            bearer = validJwt(),
+            jsonBody = """{"featuredBadgeIds":["FIRST_HAND",""]}""",
+        ) { resp ->
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, repo.updateCalls, "a blank badge id must be rejected before the repo write")
+        }
+    }
+
+    @Test
+    fun patch_featuredBadges_overlongId_returns400_andDoesNotPersist() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callPatch(
+            repo,
+            bearer = validJwt(),
+            jsonBody = """{"featuredBadgeIds":["${"A".repeat(65)}"]}""",
+        ) { resp ->
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, repo.updateCalls, "an over-length badge id must be rejected before the repo write")
+        }
+    }
+
     private fun fakeProfile(userId: UserId): Profile {
         val now = Instant.fromEpochMilliseconds(1_700_000_000_000)
         return Profile(
