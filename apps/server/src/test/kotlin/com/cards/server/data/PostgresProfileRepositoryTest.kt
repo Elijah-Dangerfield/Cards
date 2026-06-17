@@ -23,6 +23,7 @@ import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.junit.After
 import java.util.UUID
 import kotlin.test.Test
+import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -199,6 +200,47 @@ class PostgresProfileRepositoryTest : DatabaseTest() {
             readUserMessages(userId).isEmpty(),
             "Users outside the founding cohort must not receive the welcome inbox row",
         )
+    }
+
+    @Test
+    fun update_featuredBadgeIds_persistsAndRoundTrips() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+
+        val ids = listOf("FIRST_HAND", "HANDS_10", "SHOW_FLUSH")
+        val updated = repo.update(userId = userId, displayName = null, avatarEmoji = null, featuredBadgeIds = ids)
+        assertTrue(updated is UpdateProfileOutcome.Success)
+        assertEquals(ids, (updated as UpdateProfileOutcome.Success).profile.featuredBadgeIds)
+
+        // Round-trips through a fresh read.
+        assertEquals(ids, repo.findById(userId)?.featuredBadgeIds)
+    }
+
+    @Test
+    fun update_emptyFeaturedBadgeIds_clearsBackToDefault() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+        repo.update(userId = userId, displayName = null, avatarEmoji = null, featuredBadgeIds = listOf("FIRST_HAND"))
+
+        repo.update(userId = userId, displayName = null, avatarEmoji = null, featuredBadgeIds = emptyList())
+
+        assertEquals(emptyList(), repo.findById(userId)?.featuredBadgeIds)
+    }
+
+    @Test
+    fun update_nullFeaturedBadgeIds_leavesSelectionUntouched() = runTest {
+        val repo = newRepository()
+        val userId = seedAuthUser()
+        repo.findOrCreate(userId)
+        val ids = listOf("FIRST_HAND", "HANDS_10")
+        repo.update(userId = userId, displayName = null, avatarEmoji = null, featuredBadgeIds = ids)
+
+        // A later name-only update must not wipe the featured selection.
+        repo.update(userId = userId, displayName = null, avatarEmoji = "🐼", featuredBadgeIds = null)
+
+        assertEquals(ids, repo.findById(userId)?.featuredBadgeIds)
     }
 
     @Test

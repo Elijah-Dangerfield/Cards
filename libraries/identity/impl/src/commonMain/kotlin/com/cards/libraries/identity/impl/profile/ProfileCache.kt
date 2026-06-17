@@ -58,6 +58,7 @@ class ProfileCache(
             // forward-compat with cache records written by earlier
             // versions; conversion happens here at the boundary.
             createdAt = Instant.fromEpochMilliseconds(record.createdAtEpochMs),
+            featuredBadgeIds = record.featuredBadgeIds,
         )
     }
 
@@ -72,6 +73,7 @@ class ProfileCache(
                 isAnonymous = profile.isAnonymous,
                 email = profile.email,
                 createdAtEpochMs = profile.createdAt.toEpochMilliseconds(),
+                featuredBadgeIds = profile.featuredBadgeIds,
             ),
         )
     }
@@ -107,6 +109,9 @@ class ProfileCache(
         // "member since" info until the next /v1/me sync rewrites the
         // record with the server-issued value.
         val createdAtEpochMs: Long = 0L,
+        // Defaulted for forward-compat with records written before this
+        // field existed; the next /v1/me sync rewrites it.
+        val featuredBadgeIds: List<String> = emptyList(),
     ) {
         companion object {
             fun empty() = ProfileRecord(
@@ -118,6 +123,7 @@ class ProfileCache(
                 email = null,
                 localId = null,
                 createdAtEpochMs = 0L,
+                featuredBadgeIds = emptyList(),
             )
         }
     }

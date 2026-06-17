@@ -41,6 +41,13 @@ object ProfilesTable : Table("profiles") {
      * profile that's seen one authed `/v1/me` from a current client.
      */
     val installId = uuid("install_id").nullable()
+    /**
+     * JSON array of up to 3 achievement-id strings the owner features on
+     * their Player Card (V54). NULL = "never chosen" — the client renders
+     * the most-recently-earned badges by default. The cap + de-dup live in
+     * the route layer; this column stores the blob verbatim.
+     */
+    val featuredBadgeIds = text("featured_badge_ids").nullable()
     override val primaryKey = PrimaryKey(userId)
 }
 

@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.MAX_FEATURED_BADGES
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ProgressionRepository
@@ -146,6 +147,30 @@ fun Route.meRoutes(
                         ),
                     )
                 }
+                // Cap + de-dup (order-preserving) the featured-badge selection.
+                // We don't validate id-vs-registry here: the achievement id set
+                // is play-money / low-stakes, the client only offers earned
+                // badges, and the server has no full achievement-id registry to
+                // check against. The cap is the only invariant that matters.
+                val featuredBadgeIds = body.featuredBadgeIds?.let { raw ->
+                    if (raw.any { it.isBlank() || it.length > MAX_FEATURED_BADGE_ID_LENGTH }) {
+                        return@patch call.respond(
+                            HttpStatusCode.BadRequest,
+                            problem("invalid_featured_badges", "Featured badge ids are malformed."),
+                        )
+                    }
+                    val deduped = raw.distinct()
+                    if (deduped.size > MAX_FEATURED_BADGES) {
+                        return@patch call.respond(
+                            HttpStatusCode.BadRequest,
+                            problem(
+                                "invalid_featured_badges",
+                                "You can feature at most $MAX_FEATURED_BADGES badges.",
+                            ),
+                        )
+                    }
+                    deduped
+                }
 
                 when (val outcome = repository.update(
                     userId = userId,
@@ -153,6 +178,7 @@ fun Route.meRoutes(
                     avatarEmoji = body.avatarEmoji,
                     avatarBackgroundColor = body.avatarBackgroundColor?.lowercase(),
                     clearAvatarBackgroundColor = body.clearAvatarBackgroundColor,
+                    featuredBadgeIds = featuredBadgeIds,
                 )) {
                     is UpdateProfileOutcome.Success -> call.respond(
                         HttpStatusCode.OK,
@@ -227,6 +253,10 @@ fun Route.meRoutes(
 }
 
 private val NAME_LENGTH = 3..32
+
+/** Generous upper bound on a single featured-badge id — real ids are short
+ * enum names; this just rejects obviously-junk blobs. */
+private const val MAX_FEATURED_BADGE_ID_LENGTH = 64
 
 /**
  * True if this string contains any emoji code point. Display names are

@@ -314,6 +314,7 @@ class RoomRoutesTest {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used in this test")
 
         override suspend fun delete(userId: UserId) { /* no-op for route tests */ }

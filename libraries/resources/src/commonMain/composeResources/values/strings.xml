@@ -464,6 +464,9 @@
     <string name="profile_edit_avatars_load_error">Avatars couldn't load. You can still save your current avatar.</string>
     <string name="profile_edit_pack_locked_prefix">🔒  %1$s</string>
     <string name="profile_edit_pack_unlock_button">Get in shop</string>
+    <string name="profile_edit_featured_section">Featured badges</string>
+    <string name="profile_edit_featured_helper">Pick up to 3 badges to feature on your card. Until you do, we show your most recent.</string>
+    <string name="profile_edit_featured_empty">Earn achievements to feature them on your card.</string>
 
     <!-- Edit profile — inline display-name error states surfaced by the VM (sealed EditProfileDisplayNameError → resource). -->
     <string name="profile_edit_display_name_error_taken">That name is taken. Try another.</string>

@@ -229,6 +229,7 @@ class TelemetryUserBinderTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("unused")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("unused")
     }

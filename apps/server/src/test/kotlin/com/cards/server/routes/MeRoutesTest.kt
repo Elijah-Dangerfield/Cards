@@ -34,6 +34,10 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -384,6 +388,77 @@ class MeRoutesTest {
         }
     }
 
+    private suspend fun callPatch(
+        repo: ProfileRepository,
+        bearer: String?,
+        jsonBody: String,
+        assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
+    ) {
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, EmptyMessages, EmptyRooms, NoOpInstallSweep)
+                }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val response = client.patch("/v1/me") {
+                bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+                contentType(ContentType.Application.Json)
+                setBody(jsonBody)
+            }
+            assert(response)
+        }
+    }
+
+    @Test
+    fun patch_featuredBadges_underCap_persistsSelection() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callPatch(
+            repo,
+            bearer = validJwt(),
+            jsonBody = """{"featuredBadgeIds":["FIRST_HAND","HANDS_10","SHOW_FLUSH"]}""",
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(listOf("FIRST_HAND", "HANDS_10", "SHOW_FLUSH"), repo.lastFeaturedBadgeIds)
+            assertEquals(
+                listOf("FIRST_HAND", "HANDS_10", "SHOW_FLUSH"),
+                resp.body<MeResponse>().featuredBadgeIds,
+            )
+        }
+    }
+
+    @Test
+    fun patch_featuredBadges_dedupesBeforePersisting() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callPatch(
+            repo,
+            bearer = validJwt(),
+            jsonBody = """{"featuredBadgeIds":["FIRST_HAND","FIRST_HAND","HANDS_10"]}""",
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(listOf("FIRST_HAND", "HANDS_10"), repo.lastFeaturedBadgeIds)
+        }
+    }
+
+    @Test
+    fun patch_featuredBadges_overCap_returns400_andDoesNotPersist() = runTest {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        callPatch(
+            repo,
+            bearer = validJwt(),
+            jsonBody = """{"featuredBadgeIds":["A","B","C","D"]}""",
+        ) { resp ->
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertEquals(0, repo.updateCalls, "an over-cap selection must be rejected before the repo write")
+        }
+    }
+
     private fun fakeProfile(userId: UserId): Profile {
         val now = Instant.fromEpochMilliseconds(1_700_000_000_000)
         return Profile(
@@ -400,6 +475,10 @@ class MeRoutesTest {
         var findOrCreateCalls: Int = 0
             private set
         var deleteCalls: Int = 0
+            private set
+        var updateCalls: Int = 0
+            private set
+        var lastFeaturedBadgeIds: List<String>? = null
             private set
         val installIdCalls: MutableList<Pair<UserId, UUID>> = mutableListOf()
 
@@ -423,7 +502,15 @@ class MeRoutesTest {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
-        ): com.dangerfield.cards.server.domain.UpdateProfileOutcome = error("not used in this test")
+            featuredBadgeIds: List<String>?,
+        ): com.dangerfield.cards.server.domain.UpdateProfileOutcome {
+            updateCalls++
+            lastFeaturedBadgeIds = featuredBadgeIds
+            val base = existing ?: findOrCreate(userId)
+            return com.dangerfield.cards.server.domain.UpdateProfileOutcome.Success(
+                base.copy(featuredBadgeIds = featuredBadgeIds ?: base.featuredBadgeIds),
+            )
+        }
 
         override suspend fun delete(userId: UserId) {
             deleteCalls++

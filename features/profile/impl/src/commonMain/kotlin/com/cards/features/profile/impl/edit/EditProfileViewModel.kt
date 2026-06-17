@@ -1,6 +1,9 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.Achievement
+import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -10,6 +13,7 @@ import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
+import com.dangerfield.cards.libraries.identity.profile.MAX_FEATURED_BADGES
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
@@ -44,6 +48,7 @@ class EditProfileViewModel(
     private val inventoryRepository: InventoryRepository,
     private val equipmentRepository: EquipmentRepository,
     private val progressionRepository: ProgressionRepository,
+    private val achievementRepository: AchievementRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<EditProfileState, EditProfileEvent, EditProfileAction>(
     initialStateArg = EditProfileState(),
@@ -96,6 +101,18 @@ class EditProfileViewModel(
                 takeAction(EditProfileAction.LevelChanged(levelProgressFor(progression.totalXp).level))
             }
         }
+        // Earned achievements feed the featured-badge picker. Resolve each
+        // earned id to its static definition (skipping any unknown id from a
+        // server ahead of this build) and order most-recently-earned first so
+        // the default selection reads as "your latest wins."
+        viewModelScope.launch {
+            achievementRepository.observeProgress().collect { progress ->
+                val earned = progress.earned.entries
+                    .sortedByDescending { it.value }
+                    .mapNotNull { (id, _) -> AllAchievementsById[id] }
+                takeAction(EditProfileAction.EarnedBadgesChanged(earned))
+            }
+        }
     }
 
     override suspend fun handleAction(action: EditProfileAction) {
@@ -108,7 +125,25 @@ class EditProfileViewModel(
                     selectedAvatarEmoji = action.profile.avatarEmoji,
                     initialAvatarBackgroundColor = action.profile.avatarBackgroundColor,
                     selectedAvatarBackgroundColor = action.profile.avatarBackgroundColor,
+                    initialFeaturedBadgeIds = action.profile.featuredBadgeIds,
+                    selectedFeaturedBadgeIds = action.profile.featuredBadgeIds,
                 )
+            }
+
+            is EditProfileAction.EarnedBadgesChanged -> action.updateState {
+                it.copy(earnedBadges = action.badges)
+            }
+
+            is EditProfileAction.ToggleFeaturedBadge -> action.updateState { s ->
+                val current = s.selectedFeaturedBadgeIds
+                val next = when {
+                    action.id in current -> current - action.id
+                    // At the cap — ignore the add; the UI disables unselected
+                    // tiles once three are chosen, this is the backstop.
+                    current.size >= MAX_FEATURED_BADGES -> current
+                    else -> current + action.id
+                }
+                s.copy(selectedFeaturedBadgeIds = next)
             }
 
             is EditProfileAction.LoadAvatarPack -> action.run {
@@ -189,6 +224,11 @@ class EditProfileViewModel(
                 val avatarBackgroundColor = current.selectedAvatarBackgroundColor
                     ?.takeIf { colorChanged }
                 val clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null
+                // Send the featured selection only when it actually changed.
+                // An empty list (cleared all) is a real change vs. a prior
+                // non-empty selection — the server reads it as "back to default."
+                val featuredBadgeIds = current.selectedFeaturedBadgeIds
+                    .takeIf { it != current.initialFeaturedBadgeIds }
 
                 // The request runs on appScope so it survives VM teardown
                 // (user backs out the moment they tap Save). When the
@@ -205,6 +245,7 @@ class EditProfileViewModel(
                         avatarEmoji = avatarEmoji,
                         avatarBackgroundColor = avatarBackgroundColor,
                         clearAvatarBackgroundColor = clearAvatarBackgroundColor,
+                        featuredBadgeIds = featuredBadgeIds,
                     )
                 }
 
@@ -305,6 +346,19 @@ data class EditProfileState(
     val permanentBadgeEmoji: String? = null,
     /** Current level, shown as the "Lvl N" chip on the card preview. */
     val level: Int? = null,
+    /**
+     * Earned achievements, most-recently-earned first. Feeds the featured-
+     * badge picker on the Edit tab + the default selection on the View tab.
+     */
+    val earnedBadges: List<Achievement> = emptyList(),
+    /** Featured badge ids saved on the profile when the screen opened. */
+    val initialFeaturedBadgeIds: List<String> = emptyList(),
+    /**
+     * Featured badge ids the user has explicitly chosen this session. Empty =
+     * "no explicit choice" — the card preview falls back to [featuredBadges]'
+     * most-recent default.
+     */
+    val selectedFeaturedBadgeIds: List<String> = emptyList(),
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
@@ -337,10 +391,29 @@ data class EditProfileState(
     val isNameValid: Boolean
         get() = DisplayNameRules.isValid(displayName)
 
+    /**
+     * The badges rendered on the card preview: the explicit selection when
+     * the user has made one, else the most-recently-earned default (capped).
+     * This is the "defaults to most-recent earned when unset" contract.
+     */
+    val featuredBadges: List<Achievement>
+        get() {
+            val byId = earnedBadges.associateBy { it.id.name }
+            val ids = selectedFeaturedBadgeIds.ifEmpty {
+                earnedBadges.take(MAX_FEATURED_BADGES).map { it.id.name }
+            }
+            return ids.mapNotNull { byId[it] }
+        }
+
+    /** True once the user has picked the maximum number of featured badges. */
+    val isFeaturedSelectionFull: Boolean
+        get() = selectedFeaturedBadgeIds.size >= MAX_FEATURED_BADGES
+
     val isDirty: Boolean
         get() = displayName.trim() != initialDisplayName?.trim() ||
             selectedAvatarEmoji != initialAvatarEmoji ||
-            selectedAvatarBackgroundColor != initialAvatarBackgroundColor
+            selectedAvatarBackgroundColor != initialAvatarBackgroundColor ||
+            selectedFeaturedBadgeIds != initialFeaturedBadgeIds
 
     val canSubmit: Boolean
         get() = !isSubmitting && isNameValid && isDirty && selectedAvatarEmoji != null
@@ -379,6 +452,8 @@ sealed interface EditProfileDisplayNameError {
 
 sealed interface EditProfileAction {
     data class SeedFromProfile(val profile: Profile.Authenticated) : EditProfileAction
+    data class EarnedBadgesChanged(val badges: List<Achievement>) : EditProfileAction
+    data class ToggleFeaturedBadge(val id: String) : EditProfileAction
     data object LoadAvatarPack : EditProfileAction
     data class OwnedProductsChanged(val productIds: Set<String>) : EditProfileAction
     data class EquippedCosmeticsChanged(

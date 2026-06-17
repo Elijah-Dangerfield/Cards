@@ -305,6 +305,7 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome {
             updateThrows?.let { throw it }
             lastUpdate = UpdateArgs(displayName, avatarEmoji, avatarBackgroundColor)

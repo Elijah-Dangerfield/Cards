@@ -183,6 +183,7 @@ class DefaultOrphanInstallSweepTest {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("unused")
         override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = error("unused")
     }
