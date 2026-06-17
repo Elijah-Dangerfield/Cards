@@ -38,6 +38,23 @@ internal data class ProgressionSyncResponseDto(
     val totalXp: Long,
     val results: List<XpEventResultDto> = emptyList(),
     val progressionCreated: Boolean = false,
+    /**
+     * Recent server ledger rows, newest first. Present only on a pure-hydrate
+     * sync (no events sent) — the client inserts any key it doesn't already
+     * hold (marked synced) to repopulate the recent-XP feed after an account
+     * switch / reinstall wiped the local ledger.
+     */
+    val recentEvents: List<XpEventSnapshotDto> = emptyList(),
+)
+
+@Serializable
+internal data class XpEventSnapshotDto(
+    val idempotencyKey: String,
+    val deltaXp: Long,
+    val source: String,
+    val mode: String,
+    val handId: String? = null,
+    val appliedAtEpochMs: Long,
 )
 
 @Serializable

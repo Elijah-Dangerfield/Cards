@@ -50,6 +50,30 @@ data class ProgressionSyncResponse(
     val totalXp: Long,
     val results: List<XpEventResultDto>,
     val progressionCreated: Boolean = false,
+    /**
+     * Recent server-stored ledger rows, newest first, for re-hydrating a
+     * client whose local `xp_events` were wiped (account switch / reinstall).
+     * Populated only on a pure-hydrate sync (the request carried no events) so
+     * steady-state syncs that already flushed local rows don't re-ship them.
+     * The client inserts any key it doesn't already hold, marked synced.
+     */
+    val recentEvents: List<XpEventSnapshotDto> = emptyList(),
+)
+
+/**
+ * A server-authoritative ledger row echoed back for client re-hydration.
+ * Distinct from [XpEventDto] (the client→server flush shape): this carries the
+ * server's `appliedAt` as epoch millis so the re-hydrated row sorts into the
+ * feed at its original time.
+ */
+@Serializable
+data class XpEventSnapshotDto(
+    val idempotencyKey: String,
+    val deltaXp: Long,
+    val source: String,
+    val mode: String,
+    val handId: String? = null,
+    val appliedAtEpochMs: Long,
 )
 
 @Serializable

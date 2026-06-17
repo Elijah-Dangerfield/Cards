@@ -14,6 +14,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import kotlin.time.ExperimentalTime
 
 /**
  * Server-authoritative XP / progression endpoints (Model 2 — see
@@ -32,6 +33,10 @@ import io.ktor.server.routing.post
  * Both require a valid Supabase JWT; the userId comes from the `sub` claim.
  * Per-IP rate limit on sync mirrors the wallet endpoint.
  */
+/** Cap on rows echoed back for client re-hydration of the recent-XP feed. */
+private const val RECENT_EVENTS_LIMIT = 50
+
+@OptIn(ExperimentalTime::class)
 fun Route.progressionRoutes(repository: ProgressionRepository) {
     authenticate(SUPABASE_JWT_AUTH) {
         get("/v1/me/progression") {
@@ -76,12 +81,34 @@ fun Route.progressionRoutes(repository: ProgressionRepository) {
                     }
                 }
 
+                // Re-hydration: an event-less sync is the client asking "what
+                // do I have?" — the cold-boot / account-switch / reinstall
+                // pulse, where the local ledger was just wiped. Echo back the
+                // recent server rows so the client can repopulate its feed.
+                // A sync that carried events is steady-state (the client still
+                // holds those rows locally), so skip the extra read + payload.
+                val recentEvents = if (body.events.isEmpty()) {
+                    repository.recentEvents(userId, RECENT_EVENTS_LIMIT).map { event ->
+                        XpEventSnapshotDto(
+                            idempotencyKey = event.idempotencyKey,
+                            deltaXp = event.deltaXp,
+                            source = event.source,
+                            mode = event.mode,
+                            handId = event.handId,
+                            appliedAtEpochMs = event.appliedAt.toEpochMilliseconds(),
+                        )
+                    }
+                } else {
+                    emptyList()
+                }
+
                 call.respond(
                     HttpStatusCode.OK,
                     ProgressionSyncResponse(
                         totalXp = lastTotal,
                         results = results,
                         progressionCreated = initial.created,
+                        recentEvents = recentEvents,
                     ),
                 )
             }

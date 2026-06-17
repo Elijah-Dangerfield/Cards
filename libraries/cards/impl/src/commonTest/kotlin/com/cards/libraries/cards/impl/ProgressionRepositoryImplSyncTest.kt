@@ -132,6 +132,54 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun recentEvents_inResponse_rehydrateLocalLedgerAsSynced() = runUnitTest {
+        // The reinstall / account-switch case: the local ledger is empty, so
+        // the server's echoed recent rows seed it, marked synced.
+        val xpDao = FakeXpEventDao()
+        val repo = buildRepo(FakeProgressionDao(seedTotalXp = 0L), xpDao) {
+            respondJson(
+                """
+                {"schemaVersion":1,"totalXp":2040,"results":[],"recentEvents":[
+                  {"idempotencyKey":"srv1","deltaXp":40,"source":"hand","mode":"MULTIPLAYER","handId":"h1","appliedAtEpochMs":1000},
+                  {"idempotencyKey":"srv2","deltaXp":2000,"source":"achievement","mode":"BOTS","appliedAtEpochMs":500}
+                ]}
+                """.trimIndent(),
+            )
+        }
+
+        repo.sync()
+
+        val keys = xpDao.observeRecentSnapshot().map { it.idempotencyKey }
+        assertEquals(setOf("srv1", "srv2"), keys.toSet(), "echoed rows are inserted into the local feed")
+        assertTrue(
+            xpDao.getUnsynced().isEmpty(),
+            "re-hydrated rows are already on the server → inserted as synced",
+        )
+    }
+
+    @Test
+    fun recentEvents_skipKeysAlreadyHeldLocally() = runUnitTest {
+        // A row the client already holds must not be duplicated (no unique
+        // index on the key — a naive insert would double the feed entry).
+        val xpDao = FakeXpEventDao(xpEvent("srv1", 40).copy(synced = true))
+        val repo = buildRepo(FakeProgressionDao(seedTotalXp = 40L), xpDao) {
+            respondJson(
+                """
+                {"schemaVersion":1,"totalXp":2040,"results":[],"recentEvents":[
+                  {"idempotencyKey":"srv1","deltaXp":40,"source":"hand","mode":"BOTS","handId":"hand-srv1","appliedAtEpochMs":1000},
+                  {"idempotencyKey":"srv2","deltaXp":2000,"source":"achievement","mode":"BOTS","appliedAtEpochMs":500}
+                ]}
+                """.trimIndent(),
+            )
+        }
+
+        repo.sync()
+
+        val keys = xpDao.observeRecentSnapshot().map { it.idempotencyKey }
+        assertEquals(listOf("srv1", "srv2"), keys, "the already-held key is not re-inserted")
+    }
+
+    @Test
     fun onUserChanged_toAUser_launchesSync() = runUnitTest {
         val xpDao = FakeXpEventDao()
         val appScope = AppCoroutineScope(dispatchers)
@@ -281,6 +329,8 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
         private val rows = seed.toMutableList()
         private val flow = MutableStateFlow(rows.toList())
 
+        fun observeRecentSnapshot(): List<XpEventEntity> = rows.toList()
+
         override suspend fun insertAll(events: List<XpEventEntity>) {
             rows += events
             flow.value = rows.toList()
@@ -297,6 +347,11 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
                 if (rows[i].idempotencyKey in set) rows[i] = rows[i].copy(synced = true)
             }
             flow.value = rows.toList()
+        }
+
+        override suspend fun existingKeys(keys: List<String>): List<String> {
+            val set = keys.toSet()
+            return rows.map { it.idempotencyKey }.filter { it in set }
         }
 
         override suspend fun deleteAll() {

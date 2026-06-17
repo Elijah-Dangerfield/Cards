@@ -396,6 +396,11 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
             flow.value = inserted.toList()
         }
 
+        override suspend fun existingKeys(keys: List<String>): List<String> {
+            val set = keys.toSet()
+            return inserted.map { it.idempotencyKey }.filter { it in set }
+        }
+
         override suspend fun deleteAll() {
             cleared = true
             inserted.clear()

@@ -44,6 +44,14 @@ interface XpEventDao : ClearableDao {
     @Query("UPDATE xp_events SET synced = 1 WHERE idempotency_key IN (:keys)")
     suspend fun markSynced(keys: List<String>)
 
+    /**
+     * Idempotency keys already present locally, for the re-hydration dedup:
+     * server-echoed rows whose key is already held must not be re-inserted
+     * (the local ledger has no unique index on the key — Room would duplicate).
+     */
+    @Query("SELECT idempotency_key FROM xp_events WHERE idempotency_key IN (:keys)")
+    suspend fun existingKeys(keys: List<String>): List<String>
+
     @Query("DELETE FROM xp_events")
     override suspend fun deleteAll()
 }

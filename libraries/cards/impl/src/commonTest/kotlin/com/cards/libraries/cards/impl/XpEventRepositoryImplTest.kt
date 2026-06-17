@@ -172,6 +172,11 @@ class XpEventRepositoryImplTest : CoroutineTest() {
             flow.value = flow.value.map { if (it.idempotencyKey in set) it.copy(synced = true) else it }
         }
 
+        override suspend fun existingKeys(keys: List<String>): List<String> {
+            val set = keys.toSet()
+            return flow.value.map { it.idempotencyKey }.filter { it in set }
+        }
+
         override suspend fun deleteAll() {
             flow.value = emptyList()
         }
