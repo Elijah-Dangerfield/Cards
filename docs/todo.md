@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-16 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-17 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 > **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
@@ -30,16 +30,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 - `[P2]` **Re-hydrate the recent-XP history feed across switch / reinstall.** The recent-XP detail-sheet feed (`XpEventRepository.observeRecent` / `observeSince`) reads the **local** `xp_events` rows — wiped on account switch / reinstall and never re-hydrated, so after a switch the total is right but the "recent XP" list is empty until new hands.
   **Acceptance:** add a read-back (e.g. `GET /v1/me/progression/events`, or extend the sync response) of recent server `xp_events`; client inserts them into the local ledger as synced on reconcile. The server already stores the rows. *(proposed 2026-06-14)*
-
-- `[P2]` **XP anti-cheat hardening — when stakes rise (not now).** The server stores client-computed XP deltas with a per-event clamp (fine for play-money). When XP gates ranked status or IAP-equivalent rewards, switch the server to **derive** XP from synced hand facts + caps/rate-limits/claw-back instead of trusting the client delta. See `docs/wiki/state-authority-and-sync.md`. *(proposed 2026-06-14)*
-
-### Progression & XP (server)
-
-- `[P2]` **Graduate lifetime hand counters + achievement progress counters to the server (decision + do).** XP `total_xp` (Slice 1) and the achievement *earned set* (Slice 2) are server-authoritative, but the `progression` hand counters (handsPlayed/won/folded/lostAtShowdown/botHandsPlayed) and the achievement *progress counters* (no-bust streak, per-bot wins, …) are still client-local — they reset on a switch and aren't re-hydrated, so after switching accounts the stats page shows correct XP/level + earned badges but **zeroed hand counts** and restarted in-progress streaks. **Decision:** carry the counters in their respective syncs, or document accept-reset. **Lean: graduate the hand counters** (monotonic + tiny; the Phase 4.2 MP-achievement floor wants a server `hands_finished` anyway); progress counters are lower-value. *(proposed 2026-06-14)*
-
-- `[P2]` **Re-hydrate the recent-XP history feed across switch / reinstall.** XP `total_xp` is server-authoritative (Slice 1) and the per-hand `xp_events` are uploaded, but the recent-XP detail-sheet feed (`XpEventRepository.observeRecent` / `observeSince`) reads the **local** `xp_events` rows — wiped on account switch / reinstall and never re-hydrated (the sync response returns only `totalXp` + per-event outcomes, not the event list). So after a switch/reinstall the total is right but the "recent XP" list is empty until new hands. **Acceptance:** add a read-back (e.g. `GET /v1/me/progression/events`, or extend the sync response) of recent server `xp_events`; client inserts them into the local ledger as synced on reconcile. The server already stores the rows. *(proposed 2026-06-14)*
-
-- `[P2]` **Backfill on claim — fire a sync right after claim — Phase 3 Slice 3.** A guest claiming an account keeps the same `userId`, so `AppEvent.UserChanged` doesn't fire and their pending XP/chips flush only on the next foreground. **Acceptance:** the link-Apple / `refreshSession` claim path nudges `ProgressionRepository.sync()` (and chips/inventory/equipment) so a just-claimed account's progress lifts promptly; idempotency keys already make the replay safe. *(proposed 2026-06-14)*
 
 - `[P2]` **XP anti-cheat hardening — when stakes rise (not now).** The server stores client-computed XP deltas with a per-event clamp (fine for play-money). When XP gates ranked status or IAP-equivalent rewards, switch the server to **derive** XP from synced hand facts + caps/rate-limits/claw-back instead of trusting the client delta. See `docs/wiki/state-authority-and-sync.md`. *(proposed 2026-06-14)*
 
@@ -151,7 +141,7 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 - `[P1]` **Per-turn time limit in multiplayer.** A player shouldn't be able to stall the table by sitting on their action. Give each turn a deadline; on expiry, auto-check if checking is legal, otherwise auto-fold. Surface the countdown to the table. *(proposed 2026-05-30)*
   **Acceptance:** a seat that doesn't act within the limit is auto-checked/folded and play continues; the active seat shows a visible countdown.
-  **Hints:** turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
+  **Hints:** `RoomSettings.turnTimerSeconds` already carries the limit (default 30) — wire enforcement, don't re-add the field. Turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
 
 - `[P1]` **Orphaned-room policy — forfeit-then-spectator.** Last human leaving still kills the room. On disconnect, keep the seat warm via the existing grace; if it expires mid-hand, mark `SeatForfeited`, auto-fold the rest of the session, downgrade the WS subscription to read-only. `GET /v1/me/active-rooms` drives the Rejoin / Forfeit banner. **Depends on:** B0 + B4.
 
