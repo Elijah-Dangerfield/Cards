@@ -9,7 +9,7 @@ const val XP_BOOST_MULTIPLIER: Int = 2
 const val XP_BOOST_DEFAULT_DURATION_MS: Long = 30L * 60L * 1000L
 
 /**
- * Catalog id + grant key for the chip-priced 2× XP boost shop product. The
+ * Catalog id + grant key for the chip-priced XP Boost shop product. The
  * boost is a **consumable** — buying it spends chips and extends the
  * [XpBoostRepository] window rather than granting an inventory row, so it's
  * re-buyable and never shows as "owned." The client routes a chip offer with

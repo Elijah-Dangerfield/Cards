@@ -954,10 +954,10 @@
     <string name="ui_level_up_continue">Continue</string>
     <string name="ui_level_up_rewards_header">You earned</string>
     <string name="ui_level_up_reward_chips">+%1$s chips</string>
-    <string name="ui_level_up_reward_xp_boost">2× XP boost</string>
+    <string name="ui_level_up_reward_xp_boost">XP Boost</string>
 
-    <!-- UI library — Active 2× XP boost indicator. %1$s is a mm:ss countdown. -->
-    <string name="ui_xp_boost_active">2× XP · %1$s</string>
+    <!-- UI library — Active XP boost indicator. %1$s is a mm:ss countdown. -->
+    <string name="ui_xp_boost_active">XP Boost · %1$s</string>
 
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>

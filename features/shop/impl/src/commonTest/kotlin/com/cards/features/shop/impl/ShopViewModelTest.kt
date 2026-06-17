@@ -793,7 +793,7 @@ class ShopViewModelTest : CoroutineTest() {
                 ),
                 Product.ChipOffer(
                     id = "boost_xp_2x",
-                    title = "2× XP Boost",
+                    title = "XP Boost",
                     subtitle = "30 minutes",
                     iconEmoji = "⚡",
                     costChips = 5_000,

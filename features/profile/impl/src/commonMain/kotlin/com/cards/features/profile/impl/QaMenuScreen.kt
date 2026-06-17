@@ -277,7 +277,7 @@ private fun ProgressionDebugBlock(
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 Text(
-                    text = "Activate 2× XP boost (30m)",
+                    text = "Grant + activate XP Boost (30m)",
                     typography = AppTheme.typography.Body.B500,
                     color = AppTheme.colors.accentSecondary,
                 )

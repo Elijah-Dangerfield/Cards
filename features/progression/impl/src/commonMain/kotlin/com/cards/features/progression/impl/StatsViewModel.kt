@@ -81,7 +81,7 @@ data class StatsState(
     val recentEvents: List<XpEvent> = emptyList(),
     val achievements: AchievementProgress = AchievementProgress.Empty,
     val isAnonymous: Boolean = false,
-    /** Expiry of the active 2× XP boost, or `null` if none. Drives the
+    /** Expiry of the active XP Boost, or `null` if none. Drives the
      *  countdown badge under the XP hero. */
     val xpBoostExpiresAtEpochMs: Long? = null,
 )
