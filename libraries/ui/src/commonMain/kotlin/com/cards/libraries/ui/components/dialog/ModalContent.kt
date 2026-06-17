@@ -48,6 +48,10 @@ fun ModalContent(
             Spacer(modifier = Modifier.height(Dimension.D600))
 
             ProvideTextConfig(AppTheme.typography.Body.B500) {
+                // Single-slot container: [content] is laid out in a Box, so a
+                // caller passing multiple stacked sections must wrap them in
+                // their own Column — bare siblings here render at the same
+                // origin and overlap.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
