@@ -7,6 +7,8 @@ import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.XpBoostRepository
+import com.dangerfield.cards.libraries.cards.XpBoostStatus
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpEventRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -55,6 +57,16 @@ internal class FakeXpEventRepository(
     val events = MutableStateFlow(initial)
     override fun observeRecent(limit: Int): Flow<List<XpEvent>> = events
     override fun observeSince(sinceEpochMs: Long): Flow<List<XpEvent>> = events
+}
+
+internal class FakeXpBoostRepository(
+    initial: XpBoostStatus = XpBoostStatus.None,
+) : XpBoostRepository {
+    val status = MutableStateFlow(initial)
+    override fun observe(): Flow<XpBoostStatus> = status
+    override suspend fun status(): XpBoostStatus = status.value
+    override suspend fun activate(durationMs: Long) { /* not exercised by the read-only VMs */ }
+    override suspend fun multiplier(): Int = 1
 }
 
 internal class FakeAchievementRepository(

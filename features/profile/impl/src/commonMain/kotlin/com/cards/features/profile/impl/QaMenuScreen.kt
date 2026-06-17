@@ -67,6 +67,7 @@ fun QaMenuScreen(
     userId: String? = null,
     totalXp: Long = 0L,
     onSetTotalXp: (Long) -> Unit = {},
+    onActivateXpBoost: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val configMap by configStream.collectAsState(initial = initialConfig)
@@ -110,6 +111,7 @@ fun QaMenuScreen(
             ProgressionDebugBlock(
                 totalXp = totalXp,
                 onSetTotalXp = onSetTotalXp,
+                onActivateXpBoost = onActivateXpBoost,
             )
 
             Box(
@@ -217,6 +219,7 @@ private fun UserIdBlock(userId: String?) {
 private fun ProgressionDebugBlock(
     totalXp: Long,
     onSetTotalXp: (Long) -> Unit,
+    onActivateXpBoost: () -> Unit,
 ) {
     val progress = remember(totalXp) { levelProgressFor(totalXp) }
     var xpDraft by remember(totalXp) { mutableStateOf(totalXp.toString()) }
@@ -266,6 +269,19 @@ private fun ProgressionDebugBlock(
                 },
                 keyboardType = KeyboardType.Number,
             )
+            Box(
+                modifier = Modifier
+                    .clip(Radii.R400.shape)
+                    .background(AppTheme.colors.accentSecondarySubtle.color)
+                    .clickable(onClick = onActivateXpBoost)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = "Activate 2× XP boost (30m)",
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.accentSecondary,
+                )
+            }
         }
     }
 }

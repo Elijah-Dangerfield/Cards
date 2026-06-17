@@ -51,6 +51,7 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
@@ -84,6 +85,7 @@ class ProfileFeatureEntryPoint(
     private val configOverrideRepository: ConfigOverrideRepository,
     private val configuredValues: Set<QaConfigValue>,
     private val progressionRepository: ProgressionRepository,
+    private val xpBoostRepository: XpBoostRepository,
     private val achievementRepository: AchievementRepository,
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
     private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
@@ -272,6 +274,9 @@ class ProfileFeatureEntryPoint(
                 totalXp = progression.totalXp,
                 onSetTotalXp = { xp ->
                     scope.launch { progressionRepository.debugSetTotalXp(xp) }
+                },
+                onActivateXpBoost = {
+                    scope.launch { xpBoostRepository.activate() }
                 },
             )
         }

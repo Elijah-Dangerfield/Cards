@@ -43,6 +43,7 @@ import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.RadarAxis
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
 import com.dangerfield.cards.libraries.ui.components.Screen
+import com.dangerfield.cards.libraries.ui.components.XpBoostBadge
 import com.dangerfield.cards.libraries.cards.currentProgress
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.achievement.MedalSize
@@ -94,6 +95,12 @@ fun StatsScreen(
                 .screenContentPadding(paddingValues = padding),
         ) {
             XpHero(progress = levelProgress)
+            state.xpBoostExpiresAtEpochMs?.let { expiry ->
+                Spacer(modifier = Modifier.height(10.dp))
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    XpBoostBadge(expiresAtEpochMs = expiry)
+                }
+            }
             Spacer(modifier = Modifier.height(24.dp))
 
             if (state.isAnonymous) {
@@ -479,6 +486,29 @@ private fun StatsScreenPreview_Populated() {
                     XpEvent(id = 4, deltaXp = 6, source = XpSource.HAND_STRENGTH, mode = XpMode.BOTS, handId = "41", createdAtEpochMs = now - 3L * dayMs),
                     XpEvent(id = 5, deltaXp = 2, source = XpSource.BASE, mode = XpMode.BOTS, handId = "40", createdAtEpochMs = now - 9L * dayMs),
                 ),
+            ),
+            onBack = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun StatsScreenPreview_WithXpBoost() {
+    PreviewContent {
+        StatsScreen(
+            state = StatsState(
+                isLoading = false,
+                progression = Progression(
+                    totalXp = 2_840,
+                    handsPlayed = 412,
+                    handsWon = 110,
+                    handsFolded = 220,
+                    handsLostAtShowdown = 82,
+                    botHandsPlayed = 412,
+                    updatedAtEpochMs = 0,
+                ),
+                xpBoostExpiresAtEpochMs = 1_000_000L,
             ),
             onBack = {},
         )

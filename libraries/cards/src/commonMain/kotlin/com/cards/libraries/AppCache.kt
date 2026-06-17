@@ -176,6 +176,16 @@ data class AppData(
      * celebration. See `docs/decisions.md` 2026-06-06 (level-up celebration).
      */
     val lastCelebratedLevel: Int = 0,
+
+    /**
+     * Epoch-ms at which the active **2× XP boost** expires, or `null` if no
+     * boost is (or has ever been) active. The boost is modeled as a time window
+     * rather than an owned count: buying / gifting one set-or-extends this
+     * timestamp, and `XpCalculator` awards double while `now < this`. Persisted
+     * so an active boost survives a restart; account-scoped (a purchased
+     * per-user consumable) so it doesn't leak across an account switch.
+     */
+    val xpBoostExpiresAtEpochMs: Long? = null,
 )
 
 /**
@@ -207,6 +217,8 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // user's — otherwise a switch into a higher-level account would either
     // skip its celebrations or fire a spurious one.
     lastCelebratedLevel = 0,
+    // A purchased per-user consumable — the next account starts with no boost.
+    xpBoostExpiresAtEpochMs = null,
 )
 
 interface AppCache : Cache<AppData>

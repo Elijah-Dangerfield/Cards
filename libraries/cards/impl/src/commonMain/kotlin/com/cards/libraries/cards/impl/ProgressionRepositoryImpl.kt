@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.AppEventListener
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
@@ -60,6 +61,7 @@ class ProgressionRepositoryImpl(
     private val networkClient: NetworkClient,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
+    private val xpBoostRepository: XpBoostRepository,
 ) : ProgressionRepository, AppEventListener {
 
     private val logger = KLog.withTag("ProgressionRepository")
@@ -73,7 +75,13 @@ class ProgressionRepositoryImpl(
         progressionDao.getProgression()?.toDomain() ?: Progression.Empty
 
     override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> {
-        val awards = XpCalculator.calculate(summary)
+        // A 2× XP boost (if active) multiplies every award before it hits the
+        // ledger, so the boosted XP is what the user keeps + what syncs to the
+        // server. The boost is purely local math — see [XpBoostRepository].
+        val multiplier = xpBoostRepository.multiplier()
+        val awards = XpCalculator.calculate(summary).let { base ->
+            if (multiplier > 1) base.map { it.copy(amount = it.amount * multiplier) } else base
+        }
         val totalDelta = awards.sumOf { it.amount }
         val now = clock.now().toEpochMilliseconds()
 

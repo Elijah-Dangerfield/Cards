@@ -211,6 +211,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
             networkClient = networkClient,
             appScope = appScope,
             clock = FixedClock,
+            xpBoostRepository = InactiveXpBoostRepository,
         )
     }
 

@@ -949,6 +949,9 @@
     <string name="ui_level_up_message">You're getting sharper. Keep stacking chips.</string>
     <string name="ui_level_up_continue">Continue</string>
 
+    <!-- UI library — Active 2× XP boost indicator. %1$s is a mm:ss countdown. -->
+    <string name="ui_xp_boost_active">2× XP · %1$s</string>
+
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>
     <string name="ui_earned_ago_yesterday">yesterday</string>
