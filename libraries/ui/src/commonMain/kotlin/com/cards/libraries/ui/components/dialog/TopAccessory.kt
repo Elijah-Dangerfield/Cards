@@ -106,7 +106,7 @@ fun topAccessoryEmoji(
     emoji: String,
     style: AccessoryShape = AccessoryShape.Circle,
     surface: BubbleSurface? = BubbleSurface.Solid(
-        color = AppTheme.colors.surfaceInverse,
+        color = AppTheme.colors.surfaceInverseDeep,
         onContentColor = AppTheme.colors.onSurfaceInverse,
     ),
 ): TopAccessory.Emoji = TopAccessory.Emoji(emoji, style, surface)
