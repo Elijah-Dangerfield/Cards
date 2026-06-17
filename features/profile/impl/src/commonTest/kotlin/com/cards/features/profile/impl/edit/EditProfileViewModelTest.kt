@@ -36,6 +36,7 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -104,14 +105,13 @@ class EditProfileViewModelTest : CoroutineTest() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun avatarPacks_flipLockedByLocalInventory_beforeSyncCompletes() = runUnitTest {
-        // Contract (2026-05-23 revision): every server pack is always
-        // present in the derived `avatarPacks` — locked premium packs
-        // render dimmed with a "Get in shop" CTA. The invariant pinned
-        // here is that ownership flips a pack from locked → unlocked
-        // off the local-inventory flow, without waiting on the server
-        // sync. Mirrors the optimistic redeem path (Pending row →
-        // live flow → isLocked = false on the next tick).
+    fun avatarPacks_excludeUnownedPremium_unlockByLocalInventoryBeforeSync() = runUnitTest {
+        // Contract: the picker is a wardrobe — only owned/unlocked packs
+        // appear in `avatarPacks`. Unowned premium packs are excluded
+        // (discovery moves to the Shop via `hasLockedAvatarPacks`). The
+        // invariant pinned here is that an optimistic redeem flips the
+        // pack into the picker off the local-inventory flow, without
+        // waiting on the server sync (Pending row → live flow → next tick).
         val syncGate = CompletableDeferred<Result<Unit>>()
         val ownedFlow = MutableStateFlow(emptyList<InventoryItem>())
         val inventory = ObservableInventoryRepository(syncGate, ownedFlow)
@@ -137,11 +137,10 @@ class EditProfileViewModelTest : CoroutineTest() {
         )
         runCurrent()
 
-        // Before any inventory: both packs present, premium pack locked.
-        assertEquals(
-            listOf("starter" to false, "animals" to true),
-            vm.state.avatarPacks.map { it.pack.id to it.isLocked },
-        )
+        // Before any inventory: only the starter pack is pickable; the
+        // unowned premium pack is excluded but flagged for the shop link.
+        assertEquals(listOf("starter"), vm.state.avatarPacks.map { it.id })
+        assertTrue(vm.state.hasLockedAvatarPacks)
 
         // Simulate optimistic redeem of the Animals pack — local row
         // appears (Pending) before any server roundtrip.
@@ -156,23 +155,25 @@ class EditProfileViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertEquals(
-            listOf("starter" to false, "animals" to false),
-            vm.state.avatarPacks.map { it.pack.id to it.isLocked },
-            "owned premium pack must unlock on the local-inventory tick, " +
-                "without waiting for server sync",
+            listOf("starter", "animals"),
+            vm.state.avatarPacks.map { it.id },
+            "owned premium pack must enter the picker on the local-inventory " +
+                "tick, without waiting for server sync",
+        )
+        assertFalse(
+            vm.state.hasLockedAvatarPacks,
+            "shop link hides once every premium pack is owned",
         )
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun avatarPacks_renderUnlockedPacksBeforeLockedOnes() = runUnitTest {
-        // The picker puts what the user can *actually* pick from at the
-        // top — Starter + any owned premium packs — and pushes locked
-        // upsell rows below. Server order is preserved within each
-        // group via stable sort; if the server returns
-        // [Starter, Animals(locked), Food(unlocked), Fantasy(locked)],
-        // the picker renders [Starter, Food, Animals, Fantasy] so the
-        // user's choices sit contiguous at the top.
+    fun avatarPacks_onlyOwnedPacks_serverOrderPreserved() = runUnitTest {
+        // The picker shows only what the user can actually pick — Starter +
+        // any owned premium packs — in server order. Unowned premium packs
+        // are excluded (they live in the Shop). For
+        // [Starter, Animals(unowned), Food(owned), Fantasy(unowned)] the
+        // picker renders [Starter, Food] and flags the shop link.
         val ownedFlow = MutableStateFlow(
             listOf(
                 InventoryItem(
@@ -206,10 +207,11 @@ class EditProfileViewModelTest : CoroutineTest() {
         runCurrent()
 
         assertEquals(
-            listOf("starter" to false, "food" to false, "animals" to true, "fantasy" to true),
-            vm.state.avatarPacks.map { it.pack.id to it.isLocked },
-            "unlocked packs render first; server order is preserved within each group",
+            listOf("starter", "food"),
+            vm.state.avatarPacks.map { it.id },
+            "only owned packs render, in server order",
         )
+        assertTrue(vm.state.hasLockedAvatarPacks)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -90,10 +90,7 @@ Buyable, level-up-giftable consumables. Product + grant-model call is in [`decis
 
 The owner-facing slice of the **Player Card** feature: the public at-the-table identity others see when they tap your avatar. Full product call (scope, phasing, terminology) is in [`decisions.md`](./decisions.md) 2026-06-06; Phase 2 (opponent cards over the wire) and Phase 3 (scouting-stats perk) are in [`backlog.md`](./backlog.md). The shared card shipped — one notch-bubble sheet for self + opponents ([`PlayerProfileSheet`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/PlayerProfileSheet.kt), gated by `isMePlayer`), the same `PlayerCardContent` in the Edit Profile **View** tab, tap-your-own-seat, founding-badge auto-equip, and featured-badge selection + `/v1/me` persistence. What's left: the avatar-pack→Shop cleanups. *(proposed 2026-06-06)*
 
-- `[P2]` **Edit Profile — drop the avatar-pack marketplace; link to Shop.** Avatar picker shows only owned/unlocked packs; replace the locked/for-sale packs with a single "Get more avatar packs in the Shop →" link.
-  **Hints:** the locked-pack grid + per-pack "Get in shop" buttons in `EditProfileScreen`. **Depends on / pairs with:** the shop category-anchor item below (until that lands, the link just opens the Shop tab).
-
-- `[P2]` **Shop — anchor/scroll to a category (e.g. avatars).** So the Edit Profile "Get more avatar packs" link can land on the avatar section. The shop grid is a flat list today; needs category grouping + an optional scroll-anchor arg on the shop route.
+- `[P2]` **Shop — anchor/scroll to a category (e.g. avatars).** So the Edit Profile "Get more avatar packs" link (today opens the Shop tab generically) can land on the avatar section. The grid already groups by category (`ShopSection`); needs a scroll-anchor. **Constraint:** the Shop tab root (`ShopRoute`) is arg-less by the routing rules (tab-root args get dropped on `restoreState` — see `docs/decisions.md`), so the anchor can't ride a `ShopRoute` field — carry it on a sub-route or a graph-scoped one-shot the `ShopViewModel` consumes, the same way `ShopProductSheetRoute` carries the product id.
 
 ### Social graph + friends — load-bearing for V1.x
 

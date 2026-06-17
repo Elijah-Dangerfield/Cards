@@ -365,28 +365,23 @@ data class EditProfileState(
     val displayNameError: EditProfileDisplayNameError? = null,
 ) {
     /**
-     * Display projection: every server pack, paired with whether the
-     * user owns it. Locked packs render dimmed with a 🔒 overlay and
-     * a "Get in shop" CTA so the user sees the breadth of what's
-     * available (incentive to buy) instead of an artificially short
-     * grid. The picker disables tap on locked tiles — the CTA is the
-     * only path forward.
-     *
-     * **Order:** unlocked packs first (starter + every owned premium),
-     * then locked packs. Server order is preserved within each group
-     * via stable sort — what the user *can* actually pick from sits
-     * at the top of the picker; the locked aspirational rows sit
-     * below as the upsell shelf.
+     * The packs the user can actually pick from: the starter pack plus every
+     * premium pack they own. Locked (for-sale) packs are *not* surfaced here —
+     * the picker is a wardrobe, not a storefront. Discovery of unowned packs
+     * lives in the Shop, reached via the [hasLockedAvatarPacks] link. Server
+     * order is preserved.
      */
-    val avatarPacks: List<AvatarPackDisplay>
+    val avatarPacks: List<AvatarPack>
         get() = allAvatarPacks
-            .map { pack ->
-                AvatarPackDisplay(
-                    pack = pack,
-                    isLocked = pack.unlockProductId != null && pack.unlockProductId !in ownedProductIds,
-                )
-            }
-            .sortedBy { it.isLocked }
+            .filter { it.unlockProductId == null || it.unlockProductId in ownedProductIds }
+
+    /**
+     * True when the server registry holds at least one premium pack the user
+     * doesn't own yet — drives the "Get more avatar packs in the Shop" link
+     * under the picker. False (link hidden) once everything is owned.
+     */
+    val hasLockedAvatarPacks: Boolean
+        get() = allAvatarPacks.any { it.unlockProductId != null && it.unlockProductId !in ownedProductIds }
 
     val isNameValid: Boolean
         get() = DisplayNameRules.isValid(displayName)
@@ -425,16 +420,6 @@ data class EditProfileState(
         const val MAX_NAME_LENGTH = DisplayNameRules.MAX_LENGTH
     }
 }
-
-/**
- * One row in the avatar picker. Wraps the server [AvatarPack] with the
- * locally-derived ownership state so the screen layer doesn't have to
- * cross-reference inventory itself.
- */
-data class AvatarPackDisplay(
-    val pack: AvatarPack,
-    val isLocked: Boolean,
-)
 
 sealed interface EditProfileEvent {
     data object Saved : EditProfileEvent

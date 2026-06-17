@@ -55,8 +55,7 @@ import cards.libraries.resources.generated.resources.profile_edit_display_name_l
 import cards.libraries.resources.generated.resources.profile_edit_featured_empty
 import cards.libraries.resources.generated.resources.profile_edit_featured_helper
 import cards.libraries.resources.generated.resources.profile_edit_featured_section
-import cards.libraries.resources.generated.resources.profile_edit_pack_locked_prefix
-import cards.libraries.resources.generated.resources.profile_edit_pack_unlock_button
+import cards.libraries.resources.generated.resources.profile_edit_get_more_packs
 import cards.libraries.resources.generated.resources.profile_edit_save_button
 import cards.libraries.resources.generated.resources.profile_edit_save_button_progress
 import cards.libraries.resources.generated.resources.profile_edit_subtitle
@@ -259,8 +258,9 @@ fun EditProfileScreen(
                     isLoading = state.isLoadingAvatars,
                     loadError = state.avatarLoadError,
                     enabled = !state.isSubmitting,
+                    hasMorePacksInShop = state.hasLockedAvatarPacks,
                     onSelect = { onAction(EditProfileAction.AvatarSelected(it)) },
-                    onUnlockPack = { productId -> onNavigateToShop(productId) },
+                    onGetMorePacks = { onNavigateToShop(null) },
                 )
 
                 Spacer(modifier = Modifier.height(Dimension.D900))
@@ -487,13 +487,14 @@ private fun AvatarPreviewHero(emoji: String?, backgroundColorHex: String?) {
 
 @Composable
 private fun AvatarPicker(
-    packs: List<AvatarPackDisplay>,
+    packs: List<AvatarPack>,
     selected: String?,
     isLoading: Boolean,
     loadError: Boolean,
     enabled: Boolean,
+    hasMorePacksInShop: Boolean,
     onSelect: (String) -> Unit,
-    onUnlockPack: (productId: String) -> Unit,
+    onGetMorePacks: () -> Unit,
 ) {
     if (isLoading && packs.isEmpty()) {
         Text(
@@ -515,62 +516,44 @@ private fun AvatarPicker(
         )
     }
 
-    packs.forEachIndexed { index, display ->
+    packs.forEachIndexed { index, pack ->
         if (index > 0) Spacer(modifier = Modifier.height(Dimension.D700))
-        val pack = display.pack
-        // Show the pack name whenever there are multiple packs OR any
-        // pack is locked — locked rows need a header so the "Get in
-        // shop" CTA has somewhere to live, and so the user can read
-        // the pack's name before deciding to buy.
-        val showHeader = packs.size > 1 || display.isLocked
-        if (showHeader) {
-            PackHeader(
-                name = pack.name,
-                isLocked = display.isLocked,
-                onUnlock = pack.unlockProductId?.let { id -> { onUnlockPack(id) } },
-            )
+        // Only name packs once there's more than one to disambiguate — a
+        // lone starter pack reads fine headerless.
+        if (packs.size > 1) {
+            PackHeader(name = pack.name)
             Spacer(modifier = Modifier.height(Dimension.D300))
         }
         AvatarGrid(
             emojis = pack.emojis,
             selected = selected,
-            enabled = enabled && !display.isLocked,
-            isLocked = display.isLocked,
+            enabled = enabled,
             onSelect = onSelect,
         )
+    }
+
+    // Single discovery link to the Shop in place of the old in-picker
+    // marketplace — the picker stays a wardrobe; buying happens in the Shop.
+    if (hasMorePacksInShop) {
+        Spacer(modifier = Modifier.height(Dimension.D700))
+        Button(
+            onClick = onGetMorePacks,
+            style = ButtonStyle.Text,
+            size = ButtonSize.Small,
+        ) {
+            Text(stringResource(Res.string.profile_edit_get_more_packs))
+        }
     }
 }
 
 @Composable
-private fun PackHeader(
-    name: String,
-    isLocked: Boolean,
-    onUnlock: (() -> Unit)?,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+private fun PackHeader(name: String) {
+    Text(
+        text = name,
+        typography = AppTheme.typography.Label.L500,
+        color = AppTheme.colors.contentSecondary,
         modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            text = if (isLocked) {
-                stringResource(Res.string.profile_edit_pack_locked_prefix, name)
-            } else {
-                name
-            },
-            typography = AppTheme.typography.Label.L500,
-            color = if (isLocked) AppTheme.colors.contentSecondary else AppTheme.colors.contentSecondary,
-            modifier = Modifier.weight(1f),
-        )
-        if (isLocked && onUnlock != null) {
-            Button(
-                onClick = onUnlock,
-                style = ButtonStyle.Outlined,
-                size = ButtonSize.Small,
-            ) {
-                Text(stringResource(Res.string.profile_edit_pack_unlock_button))
-            }
-        }
-    }
+    )
 }
 
 @Composable
@@ -578,7 +561,6 @@ private fun AvatarGrid(
     emojis: List<String>,
     selected: String?,
     enabled: Boolean,
-    isLocked: Boolean = false,
     onSelect: (String) -> Unit,
 ) {
     // Plain chunked Column-of-Rows. A LazyVerticalGrid inside a vertical
@@ -600,7 +582,6 @@ private fun AvatarGrid(
                         emoji = emoji,
                         isSelected = emoji == selected,
                         enabled = enabled,
-                        isLocked = isLocked,
                         onClick = { onSelect(emoji) },
                         modifier = Modifier.weight(1f),
                     )
@@ -620,7 +601,6 @@ private fun AvatarTile(
     emoji: String,
     isSelected: Boolean,
     enabled: Boolean,
-    isLocked: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -633,9 +613,7 @@ private fun AvatarTile(
         // BoxWithConstraints so the emoji typography scales with the actual
         // measured tile width (depends on screen size + column count). Keeps
         // the picker's emoji-to-tile ratio aligned with the rest of the
-        // avatar surfaces. Clipped to a circle so the emoji + dim alpha
-        // overlay stay inside the tile shape — the lock badge sits on
-        // the unclipped outer box below so its full chip is visible.
+        // avatar surfaces.
         BoxWithConstraints(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -648,23 +626,7 @@ private fun AvatarTile(
             Text(
                 text = emoji,
                 typography = avatarEmojiTypographyFor(maxWidth),
-                modifier = if (isLocked) Modifier.alpha(0.35f) else Modifier,
             )
-        }
-        if (isLocked) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(AppTheme.colors.surface.color),
-            ) {
-                Text(
-                    text = "🔒",
-                    typography = AppTheme.typography.Label.L400,
-                )
-            }
         }
     }
 }
@@ -870,10 +832,11 @@ private fun EditProfileScreenPreview_TwoPacksOwned() {
 
 @org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
-private fun EditProfileScreenPreview_PremiumPackLocked() {
-    // Pins the new locked-pack visual: every server pack still
-    // renders, premium packs the user doesn't own show with a
-    // dimmed grid + 🔒 stamp + "Get in shop" CTA in the header.
+private fun EditProfileScreenPreview_UnownedPacksLinkToShop() {
+    // Pins the wardrobe-not-storefront behavior: only the owned starter
+    // pack renders in the picker; the two unowned premium packs are
+    // filtered out and surface as the single "Get more avatar packs in
+    // the Shop →" link beneath the grid.
     com.dangerfield.cards.libraries.ui.PreviewContent {
         EditProfileScreen(
             state = EditProfileState(
