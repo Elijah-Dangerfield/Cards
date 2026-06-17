@@ -978,4 +978,12 @@
     <!-- Debug-only escape hatch shown on blocking overlays so QA can break out
          of an override that was forced via the QA menu. Hidden in release. -->
     <string name="upgrade_debug_clear_overrides">Clear overrides</string>
+
+    <!-- Top-of-screen banner shown when a guest account couldn't be created
+         (typically offline). The user can keep playing bots; creation retries
+         automatically on reconnect/relaunch and the manual Retry button kicks
+         an attempt now. -->
+    <string name="account_setup_banner_message">Finishing account setup — we'll keep trying. Some features are limited until then.</string>
+    <string name="account_setup_banner_retry">Retry</string>
+    <string name="account_setup_banner_retrying">Retrying…</string>
 </resources>

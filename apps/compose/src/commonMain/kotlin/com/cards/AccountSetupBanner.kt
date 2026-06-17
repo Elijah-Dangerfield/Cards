@@ -16,18 +16,30 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.account_setup_banner_message
+import cards.libraries.resources.generated.resources.account_setup_banner_retry
+import cards.libraries.resources.generated.resources.account_setup_banner_retrying
 import com.dangerfield.cards.libraries.identity.auth.AccountCreationState
 import com.dangerfield.cards.libraries.identity.auth.GuestAccountCreator
+import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
+import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Top-of-screen banner shown while a guest account is still being created in the
@@ -37,22 +49,47 @@ import com.dangerfield.cards.system.AppTheme
  *
  * Communicates the degraded state without blocking the user — they can keep
  * playing bots; [GuestAccountCreator] retries automatically on reconnect /
- * relaunch, and the banner disappears once creation succeeds.
+ * relaunch, and the banner disappears once creation succeeds. A manual **Retry**
+ * button drives [GuestAccountCreator.retry] for users who don't want to wait for
+ * the next automatic attempt.
+ *
+ * Once a failure has been seen the banner stays up through the resulting
+ * retry ([AccountCreationState.InProgress]) — showing a "Retrying…" state
+ * instead of flickering away and back — and only clears on
+ * [AccountCreationState.Succeeded]. The first, never-failed creation pass
+ * (Idle → InProgress → Succeeded) never shows the banner.
  */
 @Composable
 fun AccountSetupBanner(creator: GuestAccountCreator) {
     val state by creator.state.collectAsState()
+
+    var hasFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(state) {
+        when (state) {
+            is AccountCreationState.Failed -> hasFailed = true
+            AccountCreationState.Succeeded -> hasFailed = false
+            else -> Unit
+        }
+    }
+
+    val isRetrying = hasFailed && state is AccountCreationState.InProgress
     AnimatedVisibility(
-        visible = state is AccountCreationState.Failed,
+        visible = hasFailed && state !is AccountCreationState.Succeeded,
         enter = slideInVertically { -it } + fadeIn(),
         exit = slideOutVertically { -it } + fadeOut(),
     ) {
-        AccountSetupBannerContent()
+        AccountSetupBannerContent(
+            isRetrying = isRetrying,
+            onRetry = { creator.retry() },
+        )
     }
 }
 
 @Composable
-private fun AccountSetupBannerContent() {
+private fun AccountSetupBannerContent(
+    isRetrying: Boolean,
+    onRetry: () -> Unit,
+) {
     val warning = AppTheme.colors.warning
     Row(
         modifier = Modifier
@@ -69,10 +106,27 @@ private fun AccountSetupBannerContent() {
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = "Finishing account setup — we'll keep trying. Some features are limited until then.",
+            text = stringResource(Res.string.account_setup_banner_message),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.content,
             textAlign = TextAlign.Start,
+            modifier = Modifier.weight(1f),
         )
+        Spacer(modifier = Modifier.width(10.dp))
+        if (isRetrying) {
+            Text(
+                text = stringResource(Res.string.account_setup_banner_retrying),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+            )
+        } else {
+            Button(
+                onClick = onRetry,
+                size = ButtonSize.Small,
+                style = ButtonStyle.Text,
+            ) {
+                Text(stringResource(Res.string.account_setup_banner_retry))
+            }
+        }
     }
 }
