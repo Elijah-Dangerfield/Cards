@@ -30,8 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -216,12 +217,13 @@ fun AppBottomBar(
 ) {
     val shadowColor = AppTheme.colors.scrim.withAlpha(0.25f).color
 
-    // While a boost burns, tint the bar teal — but composite the (translucent)
-    // accent over the opaque surface so the bar stays solid rather than letting
-    // the screen show through. Null leaves the default surface.
-    val boostTint = if (boostProgress != null) {
-        AppTheme.colors.accentSecondary.color.copy(alpha = 0.22f)
-            .compositeOver(AppTheme.colors.surface.color)
+    // While a boost burns, the whole bar swaps to a solid, fully-opaque deep
+    // version of the XP progression cyan — the same blue-cyan the level ring
+    // uses. Darkened toward black so the (warm-white) tab icons stay legible on
+    // it; the progress line above rides in the bright cyan so it pops. Null
+    // leaves the default surface.
+    val boostBar: Color? = if (boostProgress != null) {
+        lerp(AppTheme.colors.poker.progressionCyan.color, Color.Black, 0.42f)
     } else {
         null
     }
@@ -240,8 +242,8 @@ fun AppBottomBar(
                 },
             elevation = Elevation.BottomBar,
             color = AppTheme.colors.surface,
-            // Opaque teal-over-surface wins over `color` while a boost burns.
-            colorOverride = boostTint,
+            // Opaque deep-cyan wins over `color` while a boost burns.
+            colorOverride = boostBar,
             contentColor = AppTheme.colors.content,
             border = null,
             radius = Radii.None,
@@ -290,13 +292,13 @@ private fun BoostProgressLine(progress: Float) {
         modifier = Modifier
             .fillMaxWidth()
             .height(BoostLineHeight)
-            .background(AppTheme.colors.accentSecondarySubtle),
+            .background(AppTheme.colors.poker.progressionCyan.withAlpha(0.25f)),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(animatedFraction)
                 .height(BoostLineHeight)
-                .background(AppTheme.colors.accentSecondary),
+                .background(AppTheme.colors.poker.progressionCyan),
         )
     }
 }
