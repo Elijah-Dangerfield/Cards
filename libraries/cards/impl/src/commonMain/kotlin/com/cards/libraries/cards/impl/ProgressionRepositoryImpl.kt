@@ -265,6 +265,7 @@ class ProgressionRepositoryImpl(
         source = source,
         mode = mode,
         handId = handId,
+        wasBoosted = wasBoosted,
     )
 
     // Server-echoed ledger row → local entity, already synced. The server
@@ -277,6 +278,7 @@ class ProgressionRepositoryImpl(
         source = source,
         mode = mode,
         handId = handId,
+        wasBoosted = wasBoosted,
         createdAtEpochMs = appliedAtEpochMs,
     )
 

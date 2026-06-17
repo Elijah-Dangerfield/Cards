@@ -41,6 +41,8 @@ data class XpEventDto(
     val mode: String,
     /** Originating hand for hand awards; null for achievement awards. */
     val handId: String? = null,
+    /** True when an XP boost doubled this award. Defaulted for older clients. */
+    val wasBoosted: Boolean = false,
 )
 
 @Serializable
@@ -73,6 +75,7 @@ data class XpEventSnapshotDto(
     val source: String,
     val mode: String,
     val handId: String? = null,
+    val wasBoosted: Boolean = false,
     val appliedAtEpochMs: Long,
 )
 

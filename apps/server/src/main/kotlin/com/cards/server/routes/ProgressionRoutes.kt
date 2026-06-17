@@ -66,6 +66,7 @@ fun Route.progressionRoutes(repository: ProgressionRepository) {
                         source = event.source,
                         mode = event.mode,
                         handId = event.handId,
+                        wasBoosted = event.wasBoosted,
                     )
                     lastTotal = outcome.totalXp
                     when (outcome) {
@@ -95,6 +96,7 @@ fun Route.progressionRoutes(repository: ProgressionRepository) {
                             source = event.source,
                             mode = event.mode,
                             handId = event.handId,
+                            wasBoosted = event.wasBoosted,
                             appliedAtEpochMs = event.appliedAt.toEpochMilliseconds(),
                         )
                     }

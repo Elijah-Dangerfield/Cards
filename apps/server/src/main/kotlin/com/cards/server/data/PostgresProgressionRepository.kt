@@ -68,6 +68,7 @@ class PostgresProgressionRepository(
         source: String,
         mode: String,
         handId: String?,
+        wasBoosted: Boolean,
     ): ApplyXpOutcome = database.transaction {
         val progression = readProgression(userId) ?: create(userId, clock.now())
 
@@ -93,6 +94,7 @@ class PostgresProgressionRepository(
                 it[XpEventsTable.eventSource] = source
                 it[XpEventsTable.mode] = mode
                 it[XpEventsTable.handId] = handId
+                it[XpEventsTable.wasBoosted] = wasBoosted
                 it[XpEventsTable.appliedAt] = now.toJavaInstant()
             }
         } catch (e: ExposedSQLException) {
@@ -178,6 +180,7 @@ class PostgresProgressionRepository(
         source = this[XpEventsTable.eventSource],
         mode = this[XpEventsTable.mode],
         handId = this[XpEventsTable.handId],
+        wasBoosted = this[XpEventsTable.wasBoosted],
         appliedAt = this[XpEventsTable.appliedAt].toKotlinInstant(),
     )
 

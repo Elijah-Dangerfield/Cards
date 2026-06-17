@@ -103,6 +103,7 @@ class ProgressionRoutesTest {
         mode: String,
         handId: String?,
         at: Long,
+        wasBoosted: Boolean = false,
     ): XpEvent = XpEvent(
         userId = userId,
         idempotencyKey = key,
@@ -110,6 +111,7 @@ class ProgressionRoutesTest {
         source = source,
         mode = mode,
         handId = handId,
+        wasBoosted = wasBoosted,
         appliedAt = Instant.fromEpochMilliseconds(at),
     )
 
@@ -180,6 +182,7 @@ class ProgressionRoutesTest {
             source: String,
             mode: String,
             handId: String?,
+            wasBoosted: Boolean,
         ): ApplyXpOutcome {
             total += deltaXp
             return ApplyXpOutcome.Applied(totalXp = total, wasAlreadyApplied = false)

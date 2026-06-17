@@ -700,6 +700,7 @@ class MeRoutesTest {
             source: String,
             mode: String,
             handId: String?,
+            wasBoosted: Boolean,
         ) = error("unused")
 
         override suspend fun recentEvents(
