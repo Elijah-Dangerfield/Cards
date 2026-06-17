@@ -192,8 +192,10 @@ fun App(appComponent: AppComponent) {
                         appScope.launch { configOverrideRepository.clearAll() }
                     },
                 ) { guardState ->
+                    val bootComplete by appViewModel.isBootComplete.collectAsState()
                     val startDestination by appViewModel.startDestination.collectAsState()
-                    startDestination?.let { route ->
+                    val route = startDestination
+                    if (bootComplete && route != null) {
                         AppNavigation(
                             navController = navController,
                             floatingWindowNavigator = floatingWindowNavigator,
@@ -212,6 +214,8 @@ fun App(appComponent: AppComponent) {
                             shopBadgeStateRepository = appComponent.shopBadgeStateRepository,
                             telemetry = appComponent.telemetry,
                         )
+                    } else {
+                        BootLoadingScreen()
                     }
                 }
 

@@ -44,9 +44,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Route new OAuth/email sign-ups through onboarding.** Deferred creation sends *guests* through onboarding, but a brand-new Apple/Google/email sign-up still goes straight to Home (returning sign-ins correctly skip). Routing new sign-ups through PickIdentity/grant needs a reliable new-vs-returning signal (`walletCreated` on first wallet sync, or a server "profile just created" flag). *(proposed 2026-06-09)*
   **Hints:** OAuth/Apple paths in `OnboardingViewModel` (`handleOAuth` / `finishAppleSignIn`) set `hasUserOnboarded=true` → Home.
 
-- `[P2]` **Hold the splash for onboarding config + cycling load messages.** `OnboardingStarterGrant`/`OnboardingSuggestedName` ride the unauthed app-config tree but the splash doesn't wait for the fetch. Hold the splash until app-config resolves (or a timeout) and, after ~5s, show the `CyclingLoadingMessage` ("Shuffling the deck…", already built in `:libraries:ui`). Android's native splash can't show custom text, so this is a Compose loading gate handing off from the native/iOS splash. *(proposed 2026-06-09)*
-  **Hints:** `AppViewModel.isReady` / `MainActivity` `keepOnScreenCondition`; `appConfigFlow` first emission; `DefaultBootLoadingMessages`.
-
 - `[P1]` **ToS + Privacy consent in onboarding + Settings links.** A public launch (and both stores) needs the user to see/accept Terms + Privacy. Add a consent checkpoint in onboarding (links out, records acceptance) and "About / Privacy / Terms" entries in Settings. **Gated on:** the hosted ToS/Privacy URLs existing (see developer-todo legal). *(proposed 2026-06-15)*
 
 ### Gameplay & table UX
