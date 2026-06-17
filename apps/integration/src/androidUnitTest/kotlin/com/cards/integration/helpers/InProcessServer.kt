@@ -42,7 +42,7 @@ class InProcessServer : AutoCloseable {
         installAuthentication(IntegrationAuth.verification)
         routing {
             roomRoutes(rooms, FakeProfiles)
-            roomSocketRoutes(rooms = rooms, gameSessions = registry)
+            roomSocketRoutes(rooms = rooms, gameSessions = registry, equipmentRepository = FakeEquipment)
         }
     }.start(wait = false)
 
@@ -81,4 +81,20 @@ private object FakeProfiles : ProfileRepository {
     override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = null
     override suspend fun findInstallSiblings(installId: UUID, currentUserId: UserId): List<UserId> =
         emptyList()
+}
+
+/** No-op equipment source — the integration harness doesn't seat badges. */
+private object FakeEquipment : com.dangerfield.cards.server.domain.EquipmentRepository {
+    override suspend fun listEquipped(userId: UserId): List<com.dangerfield.cards.server.domain.EquippedItem> =
+        emptyList()
+    override suspend fun equip(
+        userId: UserId,
+        productId: String,
+        newUpdatedAt: Instant,
+    ): com.dangerfield.cards.server.domain.EquippedItem = error("unused in the integration harness")
+    override suspend fun unequip(
+        userId: UserId,
+        productId: String,
+        opUpdatedAt: Instant,
+    ): com.dangerfield.cards.server.domain.EquippedItem? = null
 }

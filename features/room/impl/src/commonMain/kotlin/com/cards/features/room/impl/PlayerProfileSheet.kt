@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.room.impl
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
@@ -22,6 +23,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
 import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
@@ -52,8 +54,8 @@ internal fun PlayerProfileSheet(
     onToggleMute: () -> Unit,
     onDismiss: () -> Unit,
     isMePlayer: Boolean = false,
-    equippedTitle: String? = null,
-    permanentBadgeEmoji: String? = null,
+    badges: List<PlayerBadge> = emptyList(),
+    onBadgeClick: (PlayerBadge) -> Unit = {},
     botDifficultyLabel: String? = null,
 ) {
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
@@ -69,81 +71,90 @@ internal fun PlayerProfileSheet(
         backgroundColor = AppTheme.colors.surface,
         dragHandle = handle,
     ) {
-        // Identity block — shared with the Edit Profile preview so the card
-        // can never drift. The avatar sits in the notch bubble above; this is
-        // everything below it (name, level, title, permanent badge, featured).
-        PlayerCardContent(
-            name = seat.displayName,
-            level = (seat.seatBadge as? SeatBadge.Level)?.level,
-            equippedTitle = equippedTitle,
-            permanentBadgeEmoji = permanentBadgeEmoji,
+        // [ModalContent] places this content slot in a Box, so the stacked
+        // sections must bring their own vertical layout — without this Column
+        // they'd all render at the same origin and overlap.
+        Column(
             modifier = Modifier.fillMaxWidth(),
-        )
-        VerticalSpacerD500()
-        // Heat-map / radar chart is bot-only today: bots ship a deterministic
-        // [BotPersonality]; humans have `personality == null` and therefore
-        // can't render one. When MP human opponents gain a derived style
-        // (raise/call/fold tendencies from public history), the render gate
-        // here must additionally require ownership of `tool_opponent_style`
-        // (the Opponent Style Reader utility in the shop). The product copy
-        // already calls out that bot heat-maps are free via seat-tap; humans
-        // are the paid path.
-        if (seat.isBot) {
-            seat.personality?.let { personality ->
-                PlayingStyleBlock(personality = personality)
-                VerticalSpacerD500()
-            }
-        }
-        tenureRows(seat).takeIf { it.isNotEmpty() }?.let { rows ->
-            ListSection(
-                title = stringResource(Res.string.room_player_profile_tenure_section_title),
-                items = rows,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Identity block — shared with the Edit Profile preview so the card
+            // can never drift. The avatar sits in the notch bubble above; this
+            // is everything below it (name, level, title, permanent badge,
+            // featured).
+            PlayerCardContent(
+                name = seat.displayName,
+                level = (seat.seatBadge as? SeatBadge.Level)?.level,
+                badges = badges,
+                onBadgeClick = onBadgeClick,
+                modifier = Modifier.fillMaxWidth(),
             )
             VerticalSpacerD500()
-        }
-        if (seat.isBot) {
-            botDifficultyLabel?.let { difficultyTierFor(it) }?.let { tier ->
+            // Heat-map / radar chart is bot-only today: bots ship a deterministic
+            // [BotPersonality]; humans have `personality == null` and therefore
+            // can't render one. When MP human opponents gain a derived style
+            // (raise/call/fold tendencies from public history), the render gate
+            // here must additionally require ownership of `tool_opponent_style`
+            // (the Opponent Style Reader utility in the shop). The product copy
+            // already calls out that bot heat-maps are free via seat-tap; humans
+            // are the paid path.
+            if (seat.isBot) {
+                seat.personality?.let { personality ->
+                    PlayingStyleBlock(personality = personality)
+                    VerticalSpacerD500()
+                }
+            }
+            tenureRows(seat).takeIf { it.isNotEmpty() }?.let { rows ->
                 ListSection(
-                    title = stringResource(Res.string.room_player_profile_difficulty_section_title),
-                    items = listOf(
-                        ListSectionItem(
-                            headlineText = tier.label,
-                            supportingText = stringResource(tier.description),
-                            accessory = ListItemAccessory.None,
-                        ),
-                    ),
+                    title = stringResource(Res.string.room_player_profile_tenure_section_title),
+                    items = rows,
                 )
                 VerticalSpacerD500()
             }
-        }
-        if (isMePlayer) {
-            // Your own card: no mute (can't mute yourself); instead remind you
-            // this is the public identity others see.
-            Text(
-                text = stringResource(Res.string.profile_player_card_view_blurb),
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.contentSecondary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            ListSection(
-                title = stringResource(Res.string.room_player_profile_settings_section_title),
-                items = listOf(
-                    ListSectionItem(
-                        headlineText = stringResource(Res.string.room_player_profile_mute_emoji_headline),
-                        supportingText = if (isMuted) {
-                            stringResource(Res.string.room_player_profile_mute_emoji_supporting_muted)
-                        } else {
-                            stringResource(Res.string.room_player_profile_mute_emoji_supporting_unmuted)
-                        },
-                        accessory = ListItemAccessory.Switch(
-                            checked = isMuted,
-                            onCheckedChange = { onToggleMute() },
+            if (seat.isBot) {
+                botDifficultyLabel?.let { difficultyTierFor(it) }?.let { tier ->
+                    ListSection(
+                        title = stringResource(Res.string.room_player_profile_difficulty_section_title),
+                        items = listOf(
+                            ListSectionItem(
+                                headlineText = tier.label,
+                                supportingText = stringResource(tier.description),
+                                accessory = ListItemAccessory.None,
+                            ),
+                        ),
+                    )
+                    VerticalSpacerD500()
+                }
+            }
+            if (isMePlayer) {
+                // Your own card: no mute (can't mute yourself); instead remind
+                // you this is the public identity others see.
+                Text(
+                    text = stringResource(Res.string.profile_player_card_view_blurb),
+                    typography = AppTheme.typography.Body.B400,
+                    color = AppTheme.colors.contentSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                ListSection(
+                    title = stringResource(Res.string.room_player_profile_settings_section_title),
+                    items = listOf(
+                        ListSectionItem(
+                            headlineText = stringResource(Res.string.room_player_profile_mute_emoji_headline),
+                            supportingText = if (isMuted) {
+                                stringResource(Res.string.room_player_profile_mute_emoji_supporting_muted)
+                            } else {
+                                stringResource(Res.string.room_player_profile_mute_emoji_supporting_unmuted)
+                            },
+                            accessory = ListItemAccessory.Switch(
+                                checked = isMuted,
+                                onCheckedChange = { onToggleMute() },
+                            ),
                         ),
                     ),
-                ),
-            )
+                )
+            }
         }
     }
 }

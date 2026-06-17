@@ -580,3 +580,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 - **Level-gated "Unlocked" callout** — "Ranked tournaments / Compete in the Royal Flush" implies a level→feature-unlock map *and* the gated features actually existing (ranked/tournaments/leagues aren't built). The callout slot should stay hidden until there's a real unlock at that level.
 
 **Status:** Backlog. Layer onto the V1 level-up screen as the data lands — names first (content-only), percentile + unlocks later (server + feature work). Keep the teal/progression identity.
+
+## XP Boost active-state UI treatment
+
+**Idea:** When a 2× XP boost is running, make the *whole app* feel boosted rather than just showing a small badge. A global treatment — e.g. a warm tint on the bottom bar + a slim countdown bar — signals the temporary special state. Drive it off a cross-cutting "boost active" signal (a `staticCompositionLocalOf`, the documented pattern for subtree-wide state) so any surface can opt in to reacting; the DS owns the treatment, not the bottom bar.
+
+**On the poker table, stay subtle.** Mid-hand is the wrong place for app-chrome tinting — it competes with gameplay. The XP chip already sits up top; bolt the countdown onto it there and leave the felt/bottom-bar alone.
+
+**Watch:** a perpetually-ticking countdown is a 1s recomposition driver — keep it cheap (isolate the ticking node) and self-hiding on expiry (the existing `XpBoostBadge` already self-hides).
+
+**Status:** Backlog. Polish on top of the shipped boost mechanic; not a V1 gate.

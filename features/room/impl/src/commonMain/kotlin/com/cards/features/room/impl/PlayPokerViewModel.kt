@@ -35,6 +35,9 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.products.ProductsRepository
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
@@ -79,6 +82,7 @@ class PlayPokerViewModel @Inject constructor(
     private val appCache: AppCache,
     private val equipmentRepository: EquipmentRepository,
     private val inventoryRepository: InventoryRepository,
+    private val productsRepository: ProductsRepository,
     private val profileRepository: ProfileRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
@@ -170,6 +174,7 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
                 takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
+                takeAction(PlayPokerAction.XpBoostChanged(data.xpBoostExpiresAtEpochMs))
             }
         }
         // Inventory mirror — folds owned emote-pack product IDs into the
@@ -222,6 +227,32 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.EquippedBadgeChanged(badgeEmoji))
             }
         }
+        // Catalog-driven badges + titles (unified) for the tappable chips on the
+        // player-profile sheet — name/emoji/description come from the product
+        // catalog (incl. the prestige bucket), earned date from inventory.
+        viewModelScope.launch {
+            combine(
+                equipmentRepository.observeEquipped(),
+                productsRepository.observeCatalog(),
+                inventoryRepository.observeInventory(),
+            ) { equipped, catalog, inventory ->
+                resolvePlayerBadges(
+                    equippedProductIds = equipped.filter { it.isEquipped }.map { it.productId },
+                    catalog = catalog,
+                    inventory = inventory,
+                )
+            }.collect { badges ->
+                takeAction(PlayPokerAction.EquippedBadgesChanged(badges))
+            }
+        }
+        // Catalog snapshot in state so the screen can resolve an opponent's
+        // badge ids (off their Seat) to display metadata when their sheet opens.
+        viewModelScope.launch {
+            productsRepository.observeCatalog().collect { catalog ->
+                takeAction(PlayPokerAction.CatalogChanged(catalog))
+            }
+        }
+        viewModelScope.launch { productsRepository.refresh() }
         // Live win-odds — only computes when the user owns + equips the
         // tool, only on inputs that actually matter for equity (their
         // hole cards, the visible board, the count of opponents still
@@ -461,6 +492,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.TurnFeedbackChanged -> action.updateState {
                 it.copy(turnFeedback = action.value)
             }
+            is PlayPokerAction.XpBoostChanged -> action.updateState {
+                it.copy(xpBoostExpiresAtEpochMs = action.expiresAtEpochMs)
+            }
 
             is PlayPokerAction.HandXpAwarded -> action.updateState {
                 it.copy(lastHandXpAwarded = action.amount)
@@ -493,6 +527,12 @@ class PlayPokerViewModel @Inject constructor(
             }
             is PlayPokerAction.EquippedBadgeChanged -> action.updateState {
                 it.copy(equippedBadgeEmoji = action.emoji)
+            }
+            is PlayPokerAction.EquippedBadgesChanged -> action.updateState {
+                it.copy(equippedBadges = action.badges)
+            }
+            is PlayPokerAction.CatalogChanged -> action.updateState {
+                it.copy(catalog = action.catalog)
             }
             is PlayPokerAction.ConnectionChanged -> action.updateState {
                 it.copy(connection = action.connection)
@@ -591,6 +631,11 @@ data class PlayPokerState(
     val cheatSheetOpen: Boolean = false,
     val xp: Long = 0,
     /**
+     * Expiry of the active XP boost window (epoch-ms), or null if none. Drives
+     * the inline countdown grafted onto the level pill while a boost burns.
+     */
+    val xpBoostExpiresAtEpochMs: Long? = null,
+    /**
      * Local user's derived level from [xp]. Mirrored into [TableUiState]
      * via the session factory so the human seat shows a "Lvl N" pill
      * below the avatar. Null until the first progression emission lands.
@@ -651,6 +696,18 @@ data class PlayPokerState(
      * SB/BB chip on the human seat. Null = empty slot.
      */
     val equippedBadgeEmoji: String? = null,
+    /**
+     * The human's equipped badges + titles (unified), resolved from the catalog,
+     * shown as tappable chips on the player-profile sheet (tap → read about it).
+     */
+    val equippedBadges: List<PlayerBadge> = emptyList(),
+    /**
+     * The product catalog (incl. the prestige badge/title bucket). Used to
+     * resolve an *opponent's* equipped badge ids (which ride the engine Seat)
+     * into display metadata when their profile sheet opens.
+     */
+    val catalog: com.dangerfield.cards.libraries.products.ProductCatalog =
+        com.dangerfield.cards.libraries.products.ProductCatalog.Empty,
     /**
      * Mirrors `AppData.swipeFoldGestureAck`. False = swipe-up-to-fold on
      * the human's hole cards opens a confirmation dialog; true = it folds
@@ -730,6 +787,7 @@ sealed interface PlayPokerAction {
     // Settings mirrors (cache flow → state)
     data class XpChanged(val totalXp: Long) : PlayPokerAction
     data class TurnFeedbackChanged(val value: TurnFeedback) : PlayPokerAction
+    data class XpBoostChanged(val expiresAtEpochMs: Long?) : PlayPokerAction
 
     // Hand-end transients (internal — fired by hand-end callback)
     data class HandXpAwarded(val amount: Int) : PlayPokerAction
@@ -755,6 +813,15 @@ sealed interface PlayPokerAction {
 
     /** Fired by the equipment subscription; flips the equipped permanent seat badge. */
     data class EquippedBadgeChanged(val emoji: String?) : PlayPokerAction
+
+    /** The human's equipped badges + titles, resolved from the catalog, for the
+     *  tappable chips on the player-profile sheet. */
+    data class EquippedBadgesChanged(val badges: List<PlayerBadge>) : PlayPokerAction
+
+    /** Catalog snapshot — lets the screen resolve an opponent's badge ids. */
+    data class CatalogChanged(
+        val catalog: com.dangerfield.cards.libraries.products.ProductCatalog,
+    ) : PlayPokerAction
 
     /** Fired by the session's connection-state subscription. */
     data class ConnectionChanged(val connection: ConnectionState) : PlayPokerAction

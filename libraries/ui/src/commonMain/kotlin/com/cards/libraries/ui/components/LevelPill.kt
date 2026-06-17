@@ -7,7 +7,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +32,7 @@ import com.dangerfield.cards.libraries.cards.levelProgressFor
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_level_pill_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -56,13 +60,41 @@ fun LevelPill(
     progress: LevelProgress,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    boostExpiresAtEpochMs: Long? = null,
 ) {
-    LeadingPill(
-        text = stringResource(Res.string.ui_level_pill_label, progress.level),
-        modifier = modifier,
-        onClick = onClick,
-        leading = { XpBadge(fraction = progress.fraction) },
-    )
+    val levelText = stringResource(Res.string.ui_level_pill_label, progress.level)
+    val boostRemainingMs = rememberBoostRemainingMs(boostExpiresAtEpochMs)
+    if (boostRemainingMs > 0L) {
+        // Boost is live — graft a teal "⚡ m:ss" countdown onto the trailing
+        // slot so the running window is visible right on the play screen's pill.
+        LeadingPill(
+            modifier = modifier,
+            onClick = onClick,
+            leading = { XpBadge(fraction = progress.fraction) },
+            trailing = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = levelText,
+                        typography = AppTheme.typography.Body.B500,
+                        color = AppTheme.colors.content,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "⚡ ${formatBoostCountdown(boostRemainingMs)}",
+                        typography = AppTheme.typography.Body.B500.SemiBold,
+                        color = AppTheme.colors.accentSecondary,
+                    )
+                }
+            },
+        )
+    } else {
+        LeadingPill(
+            text = levelText,
+            modifier = modifier,
+            onClick = onClick,
+            leading = { XpBadge(fraction = progress.fraction) },
+        )
+    }
 }
 
 /**
@@ -76,8 +108,14 @@ fun LevelPill(
     xp: Long,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    boostExpiresAtEpochMs: Long? = null,
 ) {
-    LevelPill(progress = levelProgressFor(xp), onClick = onClick, modifier = modifier)
+    LevelPill(
+        progress = levelProgressFor(xp),
+        onClick = onClick,
+        modifier = modifier,
+        boostExpiresAtEpochMs = boostExpiresAtEpochMs,
+    )
 }
 
 /**
@@ -252,5 +290,19 @@ private fun LevelPillPreview_OneXpFromLevelUp() {
 private fun LevelPillPreview_TwoDigitLevel() {
     PreviewContent {
         LevelPill(progress = LevelProgress(level = 42, totalXp = 0, xpAtLevelStart = 0, xpForNextLevel = 176_400), onClick = {})
+    }
+}
+
+// Pins the active-boost pill — the teal "⚡ m:ss" countdown grafted onto the
+// trailing slot. Inspection mode pins the countdown to 1:30.
+@Preview
+@Composable
+private fun LevelPillPreview_BoostActive() {
+    PreviewContent {
+        LevelPill(
+            progress = LevelProgress(level = 4, totalXp = 1_140, xpAtLevelStart = 1_000, xpForNextLevel = 1_600),
+            onClick = {},
+            boostExpiresAtEpochMs = 1_000_000L,
+        )
     }
 }

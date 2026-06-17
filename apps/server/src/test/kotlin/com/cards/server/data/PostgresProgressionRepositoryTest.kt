@@ -138,6 +138,19 @@ class PostgresProgressionRepositoryTest : DatabaseTest() {
     }
 
     @Test
+    fun applyXp_persistsWasBoosted_throughRecentEvents() = runTest {
+        val repo = newRepo()
+        val userId = newUser()
+
+        repo.applyXp(userId, "boosted", deltaXp = 40, source = "hand", mode = "BOTS", handId = "1", wasBoosted = true)
+        repo.applyXp(userId, "plain", deltaXp = 20, source = "hand", mode = "BOTS", handId = "2", wasBoosted = false)
+
+        val events = repo.recentEvents(userId, 10).associateBy { it.idempotencyKey }
+        assertEquals(true, events.getValue("boosted").wasBoosted, "boosted flag round-trips through the DB")
+        assertEquals(false, events.getValue("plain").wasBoosted)
+    }
+
+    @Test
     fun deleteAllForUser_clears_andOnlyTheGivenUser() = runTest {
         val repo = newRepo()
         val a = newUser()

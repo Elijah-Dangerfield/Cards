@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-16 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-17 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 > **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
@@ -22,24 +22,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P2]` **MP achievement grants — server-witnessed hand-count signal.** Multiplayer achievements should gate grants on a real hand count, but the server doesn't yet expose a per-user `hands_finished` (server-witnessed) count. Server-authoritative gameplay has shipped, so this is now buildable — persist a per-user hand-finished count from the authoritative hand loop and gate MP grants on it. Bot achievements (client self-grant) are the permanent shape and not in scope here.
+- `[P2]` **MP achievement grants — gate on the server-witnessed hand count.** The server now persists a per-user finished-hand count from the authoritative loop (`HandsFinishedRepository.countForUser`). What's left: actually gate the multiplayer achievements (the `serverWitnessed` set in `ClientGrantableAchievements`) on it — server-side evaluation + grant of the count-based ones (e.g. `HANDS_100_MP`), which also needs the MP-achievement→product mapping those ids currently lack. Per-hand-shape MP achievements (busts, win-by-fold) need richer server-witnessed signals than a raw count. Bot achievements (client self-grant) stay client-side.
 
 ### Progression & XP (server)
 
 - `[P2]` **Graduate lifetime hand + achievement-progress counters to the server.** The `progression` hand counters (handsPlayed/won/folded/lostAtShowdown/botHandsPlayed) and the achievement *progress counters* (no-bust streak, per-bot wins, …) are client-local — they zero on account switch / reinstall and aren't re-hydrated, so a switched-in account shows correct XP/level + earned badges but zeroed hand counts. Decision is to lift them (`decisions.md` 2026-06-15 — accept-reset rejected for these); carry the counters in their respective syncs. The hand counters double as the server `hands_finished` the MP-achievement floor wants. *(proposed 2026-06-14)*
-
-- `[P2]` **Re-hydrate the recent-XP history feed across switch / reinstall.** The recent-XP detail-sheet feed (`XpEventRepository.observeRecent` / `observeSince`) reads the **local** `xp_events` rows — wiped on account switch / reinstall and never re-hydrated, so after a switch the total is right but the "recent XP" list is empty until new hands.
-  **Acceptance:** add a read-back (e.g. `GET /v1/me/progression/events`, or extend the sync response) of recent server `xp_events`; client inserts them into the local ledger as synced on reconcile. The server already stores the rows. *(proposed 2026-06-14)*
-
-- `[P2]` **XP anti-cheat hardening — when stakes rise (not now).** The server stores client-computed XP deltas with a per-event clamp (fine for play-money). When XP gates ranked status or IAP-equivalent rewards, switch the server to **derive** XP from synced hand facts + caps/rate-limits/claw-back instead of trusting the client delta. See `docs/wiki/state-authority-and-sync.md`. *(proposed 2026-06-14)*
-
-### Progression & XP (server)
-
-- `[P2]` **Graduate lifetime hand counters + achievement progress counters to the server (decision + do).** XP `total_xp` (Slice 1) and the achievement *earned set* (Slice 2) are server-authoritative, but the `progression` hand counters (handsPlayed/won/folded/lostAtShowdown/botHandsPlayed) and the achievement *progress counters* (no-bust streak, per-bot wins, …) are still client-local — they reset on a switch and aren't re-hydrated, so after switching accounts the stats page shows correct XP/level + earned badges but **zeroed hand counts** and restarted in-progress streaks. **Decision:** carry the counters in their respective syncs, or document accept-reset. **Lean: graduate the hand counters** (monotonic + tiny; the Phase 4.2 MP-achievement floor wants a server `hands_finished` anyway); progress counters are lower-value. *(proposed 2026-06-14)*
-
-- `[P2]` **Re-hydrate the recent-XP history feed across switch / reinstall.** XP `total_xp` is server-authoritative (Slice 1) and the per-hand `xp_events` are uploaded, but the recent-XP detail-sheet feed (`XpEventRepository.observeRecent` / `observeSince`) reads the **local** `xp_events` rows — wiped on account switch / reinstall and never re-hydrated (the sync response returns only `totalXp` + per-event outcomes, not the event list). So after a switch/reinstall the total is right but the "recent XP" list is empty until new hands. **Acceptance:** add a read-back (e.g. `GET /v1/me/progression/events`, or extend the sync response) of recent server `xp_events`; client inserts them into the local ledger as synced on reconcile. The server already stores the rows. *(proposed 2026-06-14)*
-
-- `[P2]` **Backfill on claim — fire a sync right after claim — Phase 3 Slice 3.** A guest claiming an account keeps the same `userId`, so `AppEvent.UserChanged` doesn't fire and their pending XP/chips flush only on the next foreground. **Acceptance:** the link-Apple / `refreshSession` claim path nudges `ProgressionRepository.sync()` (and chips/inventory/equipment) so a just-claimed account's progress lifts promptly; idempotency keys already make the replay safe. *(proposed 2026-06-14)*
 
 - `[P2]` **XP anti-cheat hardening — when stakes rise (not now).** The server stores client-computed XP deltas with a per-event clamp (fine for play-money). When XP gates ranked status or IAP-equivalent rewards, switch the server to **derive** XP from synced hand facts + caps/rate-limits/claw-back instead of trusting the client delta. See `docs/wiki/state-authority-and-sync.md`. *(proposed 2026-06-14)*
 
@@ -56,9 +43,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 - `[P2]` **Route new OAuth/email sign-ups through onboarding.** Deferred creation sends *guests* through onboarding, but a brand-new Apple/Google/email sign-up still goes straight to Home (returning sign-ins correctly skip). Routing new sign-ups through PickIdentity/grant needs a reliable new-vs-returning signal (`walletCreated` on first wallet sync, or a server "profile just created" flag). *(proposed 2026-06-09)*
   **Hints:** OAuth/Apple paths in `OnboardingViewModel` (`handleOAuth` / `finishAppleSignIn`) set `hasUserOnboarded=true` → Home.
-
-- `[P2]` **Hold the splash for onboarding config + cycling load messages.** `OnboardingStarterGrant`/`OnboardingSuggestedName` ride the unauthed app-config tree but the splash doesn't wait for the fetch. Hold the splash until app-config resolves (or a timeout) and, after ~5s, show the `CyclingLoadingMessage` ("Shuffling the deck…", already built in `:libraries:ui`). Android's native splash can't show custom text, so this is a Compose loading gate handing off from the native/iOS splash. *(proposed 2026-06-09)*
-  **Hints:** `AppViewModel.isReady` / `MainActivity` `keepOnScreenCondition`; `appConfigFlow` first emission; `DefaultBootLoadingMessages`.
 
 - `[P1]` **ToS + Privacy consent in onboarding + Settings links.** A public launch (and both stores) needs the user to see/accept Terms + Privacy. Add a consent checkpoint in onboarding (links out, records acceptance) and "About / Privacy / Terms" entries in Settings. **Gated on:** the hosted ToS/Privacy URLs existing (see developer-todo legal). *(proposed 2026-06-15)*
 
@@ -83,6 +67,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Level-up rewards — cosmetic reward kind.** Only `LevelReward.Chips` / `XpBoost` are modeled; add a **cosmetic** reward (felt / card back / title) granted via the achievement-reward grant path so `LevelRewardTable` can gift one. The celebration already reveals chips + boost rows — extend `LevelUpReward` (`:libraries:ui`) + `HomeScreen.toDisplay` to render the cosmetic too. *(proposed 2026-06-06)*
   **Hints:** cosmetic grant precedent is the achievement-reward path; reward maps in `LevelReward.kt` + `LevelUpRewardGranter`. **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
 
+- `[P2]` **Move the level ladder to app-config + reconcile level-up grants server-side.** The reward table now resolves off app-config (`progression.levelRewards` via `ProgressionConfig` / `LevelRewardsConfigValue`, bundled default). Two parts remain: **(a)** the XP-per-level curve in `Level.kt` (`N²×100`; top-level `levelProgressFor` / `xpToLevelUpFrom` / `xpAtStartOfLevel`) is still a compile-time constant — lift the variable-length ladder onto `progression.*` (one `JsonConfigValue`) behind `ProgressionConfig`, threading the configured curve through every level-derivation site (VMs + the granter; previews/QA can keep the default) so display and grant never diverge; **(b)** the server-side reconcile — the client already grants offline by a stable `levelup_<level>` key, but the server doesn't confirm/void those against `total_xp` vs the same config's level thresholds in the progression-sync response. See [`decisions.md`](./decisions.md) 2026-06-17. *(proposed 2026-06-17)*
+  **Pairs with:** the cosmetic reward kind (above) for the full reward set.
+
 ### Consumables & rewards (V1.x / monetization)
 
 Buyable, level-up-giftable consumables. Product + grant-model call is in [`decisions.md`](./decisions.md) 2026-06-06 ("Consumable reward items"); both lean on the grant models in [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md), and the level→reward table from the level-up decision can grant either. *(proposed 2026-06-06)*
@@ -92,6 +79,8 @@ Buyable, level-up-giftable consumables. Product + grant-model call is in [`decis
   **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
   **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
   **Hints:** grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. **Interacts with:** wallet, inventory / my-items, shop, and level-up rewards.
+
+- ~~`[P2]` **XP Boost: split buy from activate (own a count, light it on demand).**~~ **Done 2026-06-17.** Buying / level-up gifts now stash an **inactive** boost (`AppData.xpBoostOwnedCount`); the player lights one on demand (`XpBoostRepository.grant` / `activate`) via the profile boost banner. Renamed "2× XP Boost" → "XP Boost". Gift goes to the stash (decision: stash, not auto-activate). Active-boost UI added to the profile banner, the bottom bar (tint + draining line), and the poker level pill (inline countdown). Used a simple count rather than the chest's inventory-quantity machinery — boosts are a uniform consumable with no per-item metadata, so a count in `AppCache` was the lighter fit.
 
 ### Social graph + friends — load-bearing for V1.x
 
@@ -146,7 +135,7 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 - `[P1]` **Per-turn time limit in multiplayer.** A player shouldn't be able to stall the table by sitting on their action. Give each turn a deadline; on expiry, auto-check if checking is legal, otherwise auto-fold. Surface the countdown to the table. *(proposed 2026-05-30)*
   **Acceptance:** a seat that doesn't act within the limit is auto-checked/folded and play continues; the active seat shows a visible countdown.
-  **Hints:** turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
+  **Hints:** `RoomSettings.turnTimerSeconds` already carries the limit (default 30) — wire enforcement, don't re-add the field. Turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
 
 - `[P1]` **Orphaned-room policy — forfeit-then-spectator.** Last human leaving still kills the room. On disconnect, keep the seat warm via the existing grace; if it expires mid-hand, mark `SeatForfeited`, auto-fold the rest of the session, downgrade the WS subscription to read-only. `GET /v1/me/active-rooms` drives the Rejoin / Forfeit banner. **Depends on:** B0 + B4.
 

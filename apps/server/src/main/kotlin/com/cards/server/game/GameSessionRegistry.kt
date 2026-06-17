@@ -5,6 +5,9 @@ import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.HandsFinishedRepository
+import com.dangerfield.cards.server.domain.NoOpHandsFinishedRepository
+import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -115,6 +118,10 @@ interface GameSessionRegistry {
 class DefaultGameSessionRegistry(
     private val snapshotStore: SessionSnapshotStore,
     private val clock: Clock,
+    // Last + defaulted so existing positional constructions stay valid. DI
+    // resolves the real binding here; the default only serves direct
+    // construction in tests that don't care about the counter.
+    private val handsFinishedRepository: HandsFinishedRepository = NoOpHandsFinishedRepository,
 ) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
@@ -194,7 +201,31 @@ class DefaultGameSessionRegistry(
     private fun createSession(code: String, sessionId: UUID): GameSession = GameSession(
         id = sessionId,
         onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
+        onHandFinished = { humanUserIds, handNumber ->
+            recordHandsFinished(sessionId = sessionId, handNumber = handNumber, humanUserIds = humanUserIds)
+        },
     )
+
+    /**
+     * Witness each human's finished-hand count. Best-effort: a counter
+     * write failing must never break gameplay, so each is wrapped in
+     * [Catching]. A non-UUID actorUserId (a `"bot-..."` string slipping
+     * through, or a test fixture) is skipped — only real Supabase users
+     * carry a server-witnessed count.
+     */
+    private suspend fun recordHandsFinished(sessionId: UUID, handNumber: Int, humanUserIds: List<String>) {
+        for (userIdString in humanUserIds) {
+            val userId = Catching { UserId(UUID.fromString(userIdString)) }.getOrNull() ?: continue
+            Catching {
+                handsFinishedRepository.recordHandFinished(
+                    userId = userId,
+                    idempotencyKey = "$sessionId:$handNumber:$userIdString",
+                    handSessionId = sessionId,
+                    handNumber = handNumber,
+                )
+            }.onFailure { log.warn("hands_finished record failed for user {} hand {}", userIdString, handNumber, it) }
+        }
+    }
 
     private suspend fun persist(code: String, sessionId: UUID, state: GameState) {
         Catching {

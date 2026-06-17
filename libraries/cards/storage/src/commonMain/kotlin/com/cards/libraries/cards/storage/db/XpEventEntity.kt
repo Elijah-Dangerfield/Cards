@@ -61,6 +61,14 @@ data class XpEventEntity(
     @ColumnInfo(name = "description")
     val description: String? = null,
 
+    /**
+     * True when an XP boost doubled this award. Round-trips through progression
+     * sync (`xp_events.was_boosted`, server V58) so the recent-XP feed's boosted
+     * tag survives a reinstall / account switch, not just the local session.
+     */
+    @ColumnInfo(name = "was_boosted")
+    val wasBoosted: Boolean = false,
+
     @ColumnInfo(name = "created_at_epoch_ms")
     val createdAtEpochMs: Long,
 )

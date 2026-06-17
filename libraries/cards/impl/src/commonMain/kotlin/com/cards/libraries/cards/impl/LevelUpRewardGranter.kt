@@ -3,10 +3,10 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.levelProgressFor
-import com.dangerfield.cards.libraries.cards.rewardsForLevel
 import com.dangerfield.cards.libraries.core.AutoInit
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -40,6 +40,7 @@ class LevelUpRewardGranter(
     private val progressionRepository: ProgressionRepository,
     private val chipsRepository: ChipsRepository,
     private val xpBoostRepository: XpBoostRepository,
+    private val progressionConfig: ProgressionConfig,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
 ) : AutoInit {
@@ -74,7 +75,7 @@ class LevelUpRewardGranter(
     }
 
     private suspend fun grantRewardsFor(level: Int) {
-        val rewards = rewardsForLevel(level)
+        val rewards = progressionConfig.rewardsForLevel(level)
         if (rewards.isEmpty()) return
         for (reward in rewards) {
             Catching {
@@ -84,7 +85,10 @@ class LevelUpRewardGranter(
                         reason = "levelup.$level",
                         idempotencyKey = "levelup_$level",
                     )
-                    is LevelReward.XpBoost -> xpBoostRepository.activate(reward.durationMs)
+                    // Gifted boosts land in the stash, inactive — the player
+                    // lights them from their profile when they're ready, same as
+                    // a shop-bought one. Nothing auto-activates.
+                    is LevelReward.XpBoost -> xpBoostRepository.grant()
                 }
             }
         }

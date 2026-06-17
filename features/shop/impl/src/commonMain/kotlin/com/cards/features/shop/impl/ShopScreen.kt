@@ -1214,9 +1214,9 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
     chipOffers = listOf(
         Product.ChipOffer(
             id = "boost_xp_2x",
-            title = "2× XP Boost",
+            title = "XP Boost",
             subtitle = "30 minutes",
-            description = "Earn double XP on every hand for 30 minutes. Stack it by buying more time.",
+            description = "Earn double XP on every hand you play for 30 minutes. Save them up and activate when you're ready.",
             iconEmoji = "⚡",
             costChips = 5_000,
             grantsKey = "boost.xp_2x",

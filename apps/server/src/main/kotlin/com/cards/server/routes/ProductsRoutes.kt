@@ -47,9 +47,12 @@ fun Route.productsRoutes(source: ProductCatalogSource) {
         val nowEpochMs = Clock.System.now().toEpochMilliseconds()
 
         // Filter out anything past its sale window per the server's clock.
+        // Prestige grants have no sale window (they're owned, not sold), so they
+        // pass through untouched.
         val visibleCatalog = ProductCatalog(
             chipPacks = rawCatalog.chipPacks.filter { it.availableUntilEpochMs == null || it.availableUntilEpochMs > nowEpochMs },
             chipOffers = rawCatalog.chipOffers.filter { it.availableUntilEpochMs == null || it.availableUntilEpochMs > nowEpochMs },
+            prestige = rawCatalog.prestige,
         )
 
         // Cache-Control max-age = min(5 min, soonest expiry - now).
@@ -80,6 +83,7 @@ internal fun ProductCatalog.toDto(ctx: ClientContext, serverNowEpochMs: Long): P
         serverNowEpochMs = serverNowEpochMs,
         chipPacks = chipPacks.map { it.toDto(ctx) },
         chipOffers = chipOffers.map { it.toDto(ctx) },
+        prestige = prestige.map { it.toDto(ctx) },
     )
 
 private fun Product.ChipPack.toDto(ctx: ClientContext): ChipPackDto = ChipPackDto(

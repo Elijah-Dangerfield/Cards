@@ -93,6 +93,7 @@ import com.dangerfield.cards.libraries.gameplay.scrubbedFor
 fun Route.roomSocketRoutes(
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
     reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) {
     val app = application
@@ -247,6 +248,7 @@ fun Route.roomSocketRoutes(
                         frame = clientFrame,
                         rooms = rooms,
                         gameSessions = gameSessions,
+                        equipmentRepository = equipmentRepository,
                     )
                     sendJson(ack)
                 }
@@ -297,9 +299,10 @@ private suspend fun handleClientFrame(
     frame: RoomClientFrame,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
-        is RoomClientFrame.StartHand -> handleStartHand(code, userId, rooms, gameSessions)
+        is RoomClientFrame.StartHand -> handleStartHand(code, userId, rooms, gameSessions, equipmentRepository)
         is RoomClientFrame.SubmitIntent -> withSpan(
             name = "submit_intent",
             configure = {
@@ -355,18 +358,25 @@ private suspend fun handleStartHand(
     userId: UserId,
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
 ): IntentResult {
     val room = rooms.find(code)
         ?: return IntentResult.Rejected("room not found")
     if (room.hostUserId != userId) {
         return IntentResult.Rejected("only the host can start the hand")
     }
-    val occupants = room.members.map {
+    val occupants = room.members.map { member ->
         SeatOccupant(
-            seatIndex = it.seatIndex,
-            userId = it.userId.value.toString(),
-            displayName = it.displayName,
+            seatIndex = member.seatIndex,
+            userId = member.userId.value.toString(),
+            displayName = member.displayName,
             isBot = false,
+            // Resolve the player's equipped badges/titles once, here at
+            // hand-start — they ride the Seat to every opponent's client, which
+            // resolves each id to display metadata from its own catalog.
+            badgeProductIds = equipmentRepository.listEquipped(member.userId)
+                .map { it.productId }
+                .filter { it.startsWith("badge_") || it.startsWith("title_") },
         )
     }
     if (occupants.size < 2) {

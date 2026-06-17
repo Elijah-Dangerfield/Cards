@@ -12,9 +12,10 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 import kotlin.time.Clock
 
 /**
- * Persists the 2× XP boost window in [AppCache] (`xpBoostExpiresAtEpochMs`).
- * No server involvement — the boost only affects local XP math, so it works
- * offline and survives a restart for free via the persisted cache.
+ * Persists the XP boost stash + window in [AppCache] (`xpBoostOwnedCount` +
+ * `xpBoostExpiresAtEpochMs`). No server involvement — the boost only affects
+ * local XP math, so it works offline and survives a restart for free via the
+ * persisted cache.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
@@ -25,19 +26,32 @@ class XpBoostRepositoryImpl(
 ) : XpBoostRepository {
 
     override fun observe(): Flow<XpBoostStatus> =
-        appCache.updates.map { XpBoostStatus(it.xpBoostExpiresAtEpochMs) }
+        appCache.updates.map { XpBoostStatus(it.xpBoostExpiresAtEpochMs, it.xpBoostOwnedCount) }
 
     override suspend fun status(): XpBoostStatus =
-        XpBoostStatus(appCache.get().xpBoostExpiresAtEpochMs)
+        appCache.get().let { XpBoostStatus(it.xpBoostExpiresAtEpochMs, it.xpBoostOwnedCount) }
 
-    override suspend fun activate(durationMs: Long) {
+    override suspend fun grant(count: Int) {
+        if (count <= 0) return
+        appCache.update { it.copy(xpBoostOwnedCount = it.xpBoostOwnedCount + count) }
+    }
+
+    override suspend fun activate(durationMs: Long): Boolean {
         val now = clock.now().toEpochMilliseconds()
+        var activated = false
         appCache.update { data ->
-            // Stack from the current expiry while active so a re-buy adds time;
+            // A boost has to be in the stash to light — empty stash is a no-op.
+            if (data.xpBoostOwnedCount <= 0) return@update data
+            activated = true
+            // Stack from the current expiry while active so a re-light adds time;
             // otherwise start fresh from now.
             val base = maxOf(now, data.xpBoostExpiresAtEpochMs ?: now)
-            data.copy(xpBoostExpiresAtEpochMs = base + durationMs)
+            data.copy(
+                xpBoostOwnedCount = data.xpBoostOwnedCount - 1,
+                xpBoostExpiresAtEpochMs = base + durationMs,
+            )
         }
+        return activated
     }
 
     override suspend fun multiplier(): Int =

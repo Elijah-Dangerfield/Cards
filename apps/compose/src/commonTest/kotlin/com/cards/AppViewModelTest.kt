@@ -5,6 +5,8 @@ import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
+import com.dangerfield.cards.libraries.config.EnsureAppConfigLoaded
+import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
@@ -13,6 +15,7 @@ import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
@@ -22,15 +25,16 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 
 /**
- * Pins [AppViewModel]'s splash-gate logic. The VM decides:
+ * Pins [AppViewModel]'s two-stage boot-gate logic. The VM decides:
  *   - which Route to start at (Home vs Onboarding) based on
- *     `AppData.hasUserOnboarded`, and
- *   - when the splash screen can dismiss (`isReady`):
- *       * first-launch users → as soon as start destination is resolved
- *         (no profile to wait on),
- *       * onboarded users → after the first [ProfileRepository.observe]
- *         emission so the home renders with authoritative data on frame
- *         one instead of flashing stale cache.
+ *     `AppData.hasUserOnboarded`,
+ *   - when the platform splash can dismiss (`isReady`) — as soon as the
+ *     start destination is resolved, regardless of user kind, so it hands
+ *     off to the Compose boot gate, and
+ *   - when the Compose boot gate releases to the nav graph
+ *     (`isBootComplete`): once app-config has resolved (or timed out) and —
+ *     for onboarded users — the first [ProfileRepository.observe] emission
+ *     has landed (so home renders authoritative data, not a stale flash).
  *
  * Regressions here are a P0 launch-stall or a wrong start destination —
  * the kind that's easy to spot in QA but easier to catch in test.
@@ -41,7 +45,7 @@ class AppViewModelTest : CoroutineTest() {
     fun firstLaunchUser_landsOnOnboardingRoute_andIsReadyImmediately() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = false))
         val profile = FakeProfileRepository()
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()))
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
 
         vm.startDestination.test {
             assertTrue(awaitItem() is OnboardingRoute)
@@ -55,7 +59,7 @@ class AppViewModelTest : CoroutineTest() {
     fun onboardedUser_landsOnHomeRoute() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("user-1", "Elijah"))
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()))
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
 
         vm.startDestination.test {
             assertTrue(awaitItem() is HomeRoute)
@@ -63,16 +67,29 @@ class AppViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun onboardedUser_isReady_onlyAfterProfileEmits() = runUnitTest {
+    fun isReady_flipsImmediately_evenForOnboardedUserAwaitingProfile() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
-        // Cold flow that we manually advance — the VM should not flip
-        // isReady until our emit() lands.
+        // Profile never emits — isReady must still flip so the platform
+        // splash hands off to the Compose boot gate.
         val profile = ManualProfileRepository()
-        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()))
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
 
         vm.isReady.test {
+            assertEquals(true, awaitItem())
+        }
+    }
+
+    @Test
+    fun onboardedUser_isBootComplete_onlyAfterProfileEmits() = runUnitTest {
+        val cache = FakeAppCache(AppData(hasUserOnboarded = true))
+        // Cold flow that we manually advance — the VM should not flip
+        // isBootComplete until our emit() lands.
+        val profile = ManualProfileRepository()
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), instantConfig())
+
+        vm.isBootComplete.test {
             assertEquals(false, awaitItem())
-            // Sanity: profile hasn't emitted, isReady is still false.
+            // Sanity: profile hasn't emitted, boot is still gated.
             expectNoEvents()
 
             profile.emit(authenticated("user-1", "Elijah"))
@@ -82,11 +99,44 @@ class AppViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun firstLaunchUser_isBootComplete_onlyAfterConfigResolves() = runUnitTest {
+        val cache = FakeAppCache(AppData(hasUserOnboarded = false))
+        val profile = FakeProfileRepository()
+        // First-launch users don't wait on profile, so app-config is the
+        // sole gate on the boot-complete signal.
+        val config = ManualEnsureConfig()
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), config)
+
+        vm.isBootComplete.test {
+            assertEquals(false, awaitItem())
+            expectNoEvents()
+
+            config.complete()
+
+            assertEquals(true, awaitItem())
+        }
+    }
+
+    @Test
+    fun isBootComplete_flips_whenConfigNeverResolves_viaTimeout() = runUnitTest {
+        val cache = FakeAppCache(AppData(hasUserOnboarded = false))
+        val profile = FakeProfileRepository()
+        // Config never completes; the boot gate must still release once the
+        // hard-cap timeout elapses (virtual time) so we never strand boot.
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()), ManualEnsureConfig())
+
+        vm.isBootComplete.test {
+            assertEquals(false, awaitItem())
+            assertEquals(true, awaitItem())
+        }
+    }
+
+    @Test
     fun sessionExpired_setsHasOnboardedFalse_andEmitsEvent_carryingAnonymity() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("guest-1", "Guest"))
         val auth = FakeAuthRepository(idleAuth())
-        val vm = AppViewModel(cache, profile, auth)
+        val vm = AppViewModel(cache, profile, auth, instantConfig())
 
         vm.sessionExpired.test {
             // The auth server rejected our (guest) session mid-run.
@@ -109,7 +159,7 @@ class AppViewModelTest : CoroutineTest() {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("u", "E"))
         val auth = FakeAuthRepository(idleAuth())
-        val vm = AppViewModel(cache, profile, auth)
+        val vm = AppViewModel(cache, profile, auth, instantConfig())
 
         vm.sessionExpired.test {
             auth.emit(AuthState.Unauthenticated(reason = AuthState.Unauthenticated.Reason.None))
@@ -120,6 +170,16 @@ class AppViewModelTest : CoroutineTest() {
 
     private fun idleAuth(): AuthState =
         AuthState.Authenticated(userId = "u", isAnonymous = false, email = null)
+
+    /** Config that resolves the instant it's awaited. */
+    private fun instantConfig() = EnsureAppConfigLoaded { Catching { } }
+
+    /** Config whose resolution is gated until [complete] is called. */
+    private class ManualEnsureConfig : EnsureAppConfigLoaded {
+        private val gate = CompletableDeferred<Unit>()
+        override suspend fun invoke(): Catching<Unit> = Catching { gate.await() }
+        fun complete() { gate.complete(Unit) }
+    }
 
     private fun authenticated(id: String, name: String): Profile.Authenticated =
         Profile.Authenticated(

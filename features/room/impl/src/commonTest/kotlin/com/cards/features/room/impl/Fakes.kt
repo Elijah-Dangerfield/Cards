@@ -383,3 +383,14 @@ class FakeProfileRepository : ProfileRepository {
 
     override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("fetchAvatarPack not used")
 }
+
+/** Empty catalog — the room VM only reads it to resolve equipped-badge display. */
+class FakeProductsRepository : com.dangerfield.cards.libraries.products.ProductsRepository {
+    override fun observeCatalog(): Flow<com.dangerfield.cards.libraries.products.ProductCatalog> =
+        MutableStateFlow(com.dangerfield.cards.libraries.products.ProductCatalog.Empty)
+    override suspend fun refresh(force: Boolean): Result<com.dangerfield.cards.libraries.products.ProductCatalog> =
+        Result.success(com.dangerfield.cards.libraries.products.ProductCatalog.Empty)
+    override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> =
+        MutableStateFlow(null)
+    override fun observeIsRefreshing(): Flow<Boolean> = MutableStateFlow(false)
+}

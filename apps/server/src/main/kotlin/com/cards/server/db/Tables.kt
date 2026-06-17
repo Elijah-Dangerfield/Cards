@@ -175,6 +175,10 @@ object XpEventsTable : Table("xp_events") {
     val eventSource = text("source")
     val mode = text("mode")
     val handId = text("hand_id").nullable()
+    // Whether an XP boost doubled this award — round-trips to the client so the
+    // recent-XP feed can flag boosted rows after a reinstall. Defaulted so
+    // pre-V58 rows and older clients read false.
+    val wasBoosted = bool("was_boosted").default(false)
     val appliedAt = timestamp("applied_at")
     override val primaryKey = PrimaryKey(userId, idempotencyKey)
 }
@@ -190,6 +194,22 @@ object AchievementsEarnedTable : Table("achievements_earned") {
     val achievementId = text("achievement_id")
     val earnedAt = timestamp("earned_at")
     override val primaryKey = PrimaryKey(userId, achievementId)
+}
+
+/**
+ * Append-only ledger of finished hands witnessed by the authoritative
+ * server loop. One row per (user, finished hand); `(user_id,
+ * idempotency_key)` is the dedup boundary so a replayed hand-completion
+ * collapses to a single row. The per-user count gates multiplayer
+ * achievement grants. See `V56__hand_finished_counts.sql`.
+ */
+object HandFinishedEventsTable : Table("hand_finished_events") {
+    val userId = uuid("user_id")
+    val idempotencyKey = text("idempotency_key")
+    val handSessionId = uuid("hand_session_id")
+    val handNumber = integer("hand_number")
+    val finishedAt = timestamp("finished_at")
+    override val primaryKey = PrimaryKey(userId, idempotencyKey)
 }
 
 /**

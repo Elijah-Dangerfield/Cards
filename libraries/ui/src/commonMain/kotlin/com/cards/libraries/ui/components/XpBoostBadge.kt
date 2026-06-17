@@ -27,8 +27,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.time.Clock
 
 /**
- * A small teal pill announcing an active **2× XP boost** with a live
- * `mm:ss` countdown to expiry — "⚡ 2× XP · 12:30". Self-hides the moment the
+ * A small teal pill announcing an active **XP Boost** with a live
+ * `mm:ss` countdown to expiry — "⚡ XP Boost · 12:30". Self-hides the moment the
  * window lapses, so callers can mount it unconditionally off the boost's
  * `expiresAtEpochMs` and let it disappear on its own.
  *

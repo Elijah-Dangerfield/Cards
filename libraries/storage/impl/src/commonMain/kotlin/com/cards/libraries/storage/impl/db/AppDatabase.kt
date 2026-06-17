@@ -34,7 +34,7 @@ import com.dangerfield.cards.libraries.cards.storage.db.XpEventEntity
         WalletEventEntity::class,
         UserMessageEntity::class,
     ],
-    version = 17, // v17: achievement_earned.synced (server achievement sync)
+    version = 18, // v18: xp_events.was_boosted (flag boosted hand XP in the recent feed)
     exportSchema = true
 )
 @ConstructedBy(AppDatabaseConstructor::class)

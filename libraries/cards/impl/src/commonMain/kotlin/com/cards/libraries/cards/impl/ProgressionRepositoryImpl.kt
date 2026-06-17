@@ -13,6 +13,7 @@ import com.dangerfield.cards.libraries.cards.impl.dto.ProgressionSyncRequestDto
 import com.dangerfield.cards.libraries.cards.impl.dto.ProgressionSyncResponseDto
 import com.dangerfield.cards.libraries.cards.impl.dto.XpEventDto
 import com.dangerfield.cards.libraries.cards.impl.dto.XpEventOutcomeDto
+import com.dangerfield.cards.libraries.cards.impl.dto.XpEventSnapshotDto
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionEntity
 import com.dangerfield.cards.libraries.cards.storage.db.XpEventDao
@@ -75,12 +76,13 @@ class ProgressionRepositoryImpl(
         progressionDao.getProgression()?.toDomain() ?: Progression.Empty
 
     override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> {
-        // A 2× XP boost (if active) multiplies every award before it hits the
+        // An XP boost (if active) multiplies every hand award before it hits the
         // ledger, so the boosted XP is what the user keeps + what syncs to the
         // server. The boost is purely local math — see [XpBoostRepository].
         val multiplier = xpBoostRepository.multiplier()
+        val wasBoosted = multiplier > 1
         val awards = XpCalculator.calculate(summary).let { base ->
-            if (multiplier > 1) base.map { it.copy(amount = it.amount * multiplier) } else base
+            if (wasBoosted) base.map { it.copy(amount = it.amount * multiplier) } else base
         }
         val totalDelta = awards.sumOf { it.amount }
         val now = clock.now().toEpochMilliseconds()
@@ -107,6 +109,7 @@ class ProgressionRepositoryImpl(
                 source = award.source.name,
                 mode = summary.mode.name,
                 handId = summary.handId,
+                wasBoosted = wasBoosted,
                 createdAtEpochMs = now,
             )
         }
@@ -127,6 +130,7 @@ class ProgressionRepositoryImpl(
                 source = awards[index].source,
                 mode = summary.mode,
                 handId = row.handId,
+                wasBoosted = wasBoosted,
                 createdAtEpochMs = row.createdAtEpochMs,
             )
         }
@@ -184,6 +188,23 @@ class ProgressionRepositoryImpl(
                 .map { it.idempotencyKey }
             if (resolvedKeys.isNotEmpty()) {
                 xpEventDao.markSynced(resolvedKeys)
+            }
+
+            // Re-hydrate the recent-XP feed. On a pure-hydrate sync (no pending
+            // rows — the cold-boot / account-switch / reinstall pulse) the
+            // server echoes its recent ledger rows; insert any whose key we
+            // don't already hold, marked synced (they're already on the
+            // server). Dedup is required: the local table has no unique index
+            // on the idempotency key, so a re-insert would duplicate the feed.
+            if (response.recentEvents.isNotEmpty()) {
+                val incomingKeys = response.recentEvents.map { it.idempotencyKey }
+                val held = xpEventDao.existingKeys(incomingKeys).toSet()
+                val fresh = response.recentEvents
+                    .filter { it.idempotencyKey !in held }
+                    .map { it.toSyncedEntity() }
+                if (fresh.isNotEmpty()) {
+                    xpEventDao.insertAll(fresh)
+                }
             }
 
             // Reconcile the local total to the server's authoritative value
@@ -244,6 +265,21 @@ class ProgressionRepositoryImpl(
         source = source,
         mode = mode,
         handId = handId,
+        wasBoosted = wasBoosted,
+    )
+
+    // Server-echoed ledger row → local entity, already synced. The server
+    // doesn't store the free-text `description` (an achievement-feed nicety),
+    // so re-hydrated rows fall back to the source-based label in the feed.
+    private fun XpEventSnapshotDto.toSyncedEntity(): XpEventEntity = XpEventEntity(
+        idempotencyKey = idempotencyKey,
+        synced = true,
+        deltaXp = deltaXp.toInt(),
+        source = source,
+        mode = mode,
+        handId = handId,
+        wasBoosted = wasBoosted,
+        createdAtEpochMs = appliedAtEpochMs,
     )
 
     private fun ProgressionEntity.toDomain(): Progression = Progression(

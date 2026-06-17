@@ -22,9 +22,13 @@ import com.dangerfield.cards.system.Radii
  * DesignSystemPreview.kt (ColorPrimaryPreview / ColorSupportPreview).
  */
 
-/** Everything, single column. Kept for completeness; the live previews use the granular pieces. */
+/**
+ * Everything, single column. Used by the IDE previews and by the in-app
+ * design-system color screen (reached from the QA menu), so it's `public` while
+ * the granular section pieces below stay `internal` to the catalog.
+ */
 @Composable
-internal fun ColorCatalogBody() {
+fun ColorCatalogBody() {
     ColorCatalogBodyPrimary()
     ColorCatalogBodySupport()
 }

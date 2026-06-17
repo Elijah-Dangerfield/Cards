@@ -240,6 +240,13 @@ data class SeatView(
      * tenure today).
      */
     val playingSinceEpochMs: Long? = null,
+    /**
+     * Product ids of the cosmetics this player shows off — their equipped
+     * Badge-/Title-slot grants, straight off the engine [Seat]. The
+     * tap-an-opponent sheet resolves each to display metadata from the catalog
+     * to render tappable badge chips. Empty for bots / pre-resolve seats.
+     */
+    val equippedBadgeProductIds: List<String> = emptyList(),
 ) {
     companion object {
         fun fromSeat(
@@ -311,6 +318,7 @@ data class SeatView(
                 personality = personality,
                 handsAtTable = if (seatEmpty) 0 else handsAtTable,
                 playingSinceEpochMs = if (isHuman) humanProfile?.createdAt?.toEpochMilliseconds() else null,
+                equippedBadgeProductIds = seat.badgeProductIds,
             )
         }
     }

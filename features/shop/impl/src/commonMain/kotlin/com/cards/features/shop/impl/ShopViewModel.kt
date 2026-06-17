@@ -293,11 +293,12 @@ class ShopViewModel @Inject constructor(
     }
 
     /**
-     * Buy the 2× XP boost — a **consumable**, not an inventory item. Unlike
-     * [confirmChipOfferRedeem], there's no inventory row and no "owned" state:
-     * the spend rides the wallet ledger and the boost extends the
-     * [XpBoostRepository] window (re-buying stacks more time). That's why the
-     * boost offer never classifies as Owned and stays re-buyable.
+     * Buy an XP boost — a **consumable**, not an inventory item. Unlike
+     * [confirmChipOfferRedeem], there's no inventory row and no "owned" cosmetic
+     * state: the spend rides the wallet ledger and the boost lands **inactive**
+     * in the [XpBoostRepository] stash. The player lights it later from their
+     * profile — buying no longer burns minutes immediately. Re-buying just adds
+     * to the stash, so the offer stays re-buyable and never classifies as Owned.
      *
      * The [ShopAction.ConfirmPurchase] gate already ensures we only land here
      * when the offer is [PurchaseSheetMode.Available]; the balance re-check is
@@ -313,12 +314,12 @@ class ShopViewModel @Inject constructor(
             amount = offer.costChips,
             reason = "boost.${offer.id}",
         )
-        xpBoostRepository.activate()
+        xpBoostRepository.grant()
         // Flush the debit promptly so the wallet ledger reflects the spend
         // without waiting on the next foreground sync. Best-effort — the
         // periodic sync retries on failure.
         viewModelScope.launch { chipsRepository.sync() }
-        sendEvent(ShopEvent.BoostActivated(offer))
+        sendEvent(ShopEvent.BoostPurchased(offer))
     }
 
     private suspend fun confirmChipOfferRedeem(offer: Product.ChipOffer) {
@@ -602,12 +603,13 @@ sealed interface ShopEvent {
     ) : ShopEvent
 
     /**
-     * The chip-priced XP boost consumable was bought — chips debited and the
-     * 2× window activated/extended. Screen plays a celebration cue. Distinct
-     * from [RedeemSucceeded] because there's no inventory row to jump to: the
-     * boost is a live timer, surfaced by the countdown badge on Stats.
+     * The chip-priced XP boost consumable was bought — chips debited and one
+     * inactive boost added to the stash. Buying no longer lights it; the screen
+     * plays a celebration cue and points the user at their profile, where they
+     * light it on demand. Distinct from [RedeemSucceeded] because there's no
+     * inventory row to jump to.
      */
-    data class BoostActivated(val offer: Product.ChipOffer) : ShopEvent
+    data class BoostPurchased(val offer: Product.ChipOffer) : ShopEvent
 
     /**
      * An anonymous user tapped buy on a real-money pack. The screen shows an

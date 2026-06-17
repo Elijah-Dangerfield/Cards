@@ -24,8 +24,9 @@ import com.dangerfield.cards.libraries.navigation.screen
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_message
 import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_title
-import cards.libraries.resources.generated.resources.shop_snackbar_boost_activated_message
-import cards.libraries.resources.generated.resources.shop_snackbar_boost_activated_title
+import cards.libraries.resources.generated.resources.shop_snackbar_boost_purchased_action
+import cards.libraries.resources.generated.resources.shop_snackbar_boost_purchased_message
+import cards.libraries.resources.generated.resources.shop_snackbar_boost_purchased_title
 import cards.libraries.resources.generated.resources.shop_snackbar_chips_added_message
 import cards.libraries.resources.generated.resources.shop_snackbar_chips_added_title
 import cards.libraries.resources.generated.resources.shop_snackbar_chips_restored_message
@@ -139,11 +140,15 @@ class ShopFeatureEntryPoint(
                                 },
                             )
                         }
-                        is ShopEvent.BoostActivated -> showSnackBar(
-                            title = getString(Res.string.shop_snackbar_boost_activated_title),
-                            message = getString(Res.string.shop_snackbar_boost_activated_message),
+                        is ShopEvent.BoostPurchased -> showSnackBar(
+                            title = getString(Res.string.shop_snackbar_boost_purchased_title),
+                            message = getString(Res.string.shop_snackbar_boost_purchased_message),
                             emoji = event.offer.iconEmoji,
                             duration = SnackbarDuration.Short,
+                            // It's inactive in the stash now — the action jumps to
+                            // Profile where the boost banner's Activate button lights it.
+                            actionLabel = getString(Res.string.shop_snackbar_boost_purchased_action),
+                            onAction = { scope.launch { router.switchTab(ProfileRoute()) } },
                         )
                         is ShopEvent.AlreadyOwned -> showSnackBar(
                             title = getString(Res.string.shop_snackbar_already_owned_title),

@@ -771,6 +771,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),
         inventoryRepository = inventoryRepository,
+        productsRepository = FakeProductsRepository(),
         profileRepository = profileRepository,
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,

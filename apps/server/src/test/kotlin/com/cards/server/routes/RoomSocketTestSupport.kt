@@ -204,6 +204,7 @@ internal suspend fun withRoomSocketTestApp(
     rooms: InMemoryRoomService,
     gameSessions: GameSessionRegistry = newRegistry(),
     reaperGrace: Duration = 5.minutes,
+    equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository = EmptyEquipmentRepository,
     block: suspend (RoomSocketTestApp) -> Unit,
 ) {
     testApplication {
@@ -216,6 +217,7 @@ internal suspend fun withRoomSocketTestApp(
                 roomSocketRoutes(
                     rooms = rooms,
                     gameSessions = gameSessions,
+                    equipmentRepository = equipmentRepository,
                     reaperGrace = reaperGrace,
                 )
             }
@@ -405,4 +407,24 @@ internal class RoomSocketTestClient(val session: ClientWebSocketSession) {
         /** Cap on fresh reads per wait, so a missing frame fails loudly. */
         const val MAX_FRAMES_PER_WAIT = 60
     }
+}
+
+/** No-op equipment source — room-socket tests don't exercise badge resolution. */
+@OptIn(kotlin.time.ExperimentalTime::class)
+private object EmptyEquipmentRepository : com.dangerfield.cards.server.domain.EquipmentRepository {
+    override suspend fun listEquipped(
+        userId: com.dangerfield.cards.server.domain.UserId,
+    ): List<com.dangerfield.cards.server.domain.EquippedItem> = emptyList()
+
+    override suspend fun equip(
+        userId: com.dangerfield.cards.server.domain.UserId,
+        productId: String,
+        newUpdatedAt: kotlin.time.Instant,
+    ): com.dangerfield.cards.server.domain.EquippedItem = error("equip not used in room-socket tests")
+
+    override suspend fun unequip(
+        userId: com.dangerfield.cards.server.domain.UserId,
+        productId: String,
+        opUpdatedAt: kotlin.time.Instant,
+    ): com.dangerfield.cards.server.domain.EquippedItem? = null
 }

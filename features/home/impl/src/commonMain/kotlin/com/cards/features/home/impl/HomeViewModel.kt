@@ -8,9 +8,9 @@ import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.levelProgressFor
-import com.dangerfield.cards.libraries.cards.rewardsForLevel
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -35,6 +35,7 @@ class HomeViewModel(
     private val chipsRepository: ChipsRepository,
     private val roomRepository: RoomRepository,
     private val profileRepository: ProfileRepository,
+    private val progressionConfig: ProgressionConfig,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<HomeState, HomeEvent, HomeAction>(
@@ -291,6 +292,25 @@ class HomeViewModel(
         // room correctly stays visible — no optimistic drop to undo.
         appScope.async { roomRepository.leaveRoom(code) }.await()
     }
+
+    /**
+     * Aggregate the prizes for every level newly crossed — `(fromExclusive,
+     * toInclusive]` — into the at-most-two rows the celebration reveals: a single
+     * summed chip prize and a single XP-boost row. The range mirrors the grant
+     * range in [com.dangerfield.cards.libraries.cards.impl] so the reveal can't
+     * claim a prize the granter didn't grant. Multi-level jumps (rare) collapse
+     * to one tidy payout instead of a stack of "+chips" lines. Reads the same
+     * [ProgressionConfig] the granter does, so reveal and grant never drift.
+     */
+    private fun crossedLevelRewards(fromExclusive: Int, toInclusive: Int): List<LevelReward> {
+        val crossed = ((fromExclusive + 1)..toInclusive).flatMap { progressionConfig.rewardsForLevel(it) }
+        val totalChips = crossed.filterIsInstance<LevelReward.Chips>().sumOf { it.amount }
+        val hasBoost = crossed.any { it is LevelReward.XpBoost }
+        return buildList {
+            if (totalChips > 0) add(LevelReward.Chips(totalChips))
+            if (hasBoost) add(LevelReward.XpBoost())
+        }
+    }
 }
 
 /**
@@ -381,24 +401,6 @@ data class HomeState(
      *  grant. Cleared alongside [levelUpCelebration]. */
     val levelUpRewards: List<LevelReward> = emptyList(),
 )
-
-/**
- * Aggregate the prizes for every level newly crossed — `(fromExclusive,
- * toInclusive]` — into the at-most-two rows the celebration reveals: a single
- * summed chip prize and a single XP-boost row. The range mirrors the grant
- * range in [com.dangerfield.cards.libraries.cards.impl] so the reveal can't
- * claim a prize the granter didn't grant. Multi-level jumps (rare) collapse to
- * one tidy payout instead of a stack of "+chips" lines.
- */
-private fun crossedLevelRewards(fromExclusive: Int, toInclusive: Int): List<LevelReward> {
-    val crossed = ((fromExclusive + 1)..toInclusive).flatMap { rewardsForLevel(it) }
-    val totalChips = crossed.filterIsInstance<LevelReward.Chips>().sumOf { it.amount }
-    val hasBoost = crossed.any { it is LevelReward.XpBoost }
-    return buildList {
-        if (totalChips > 0) add(LevelReward.Chips(totalChips))
-        if (hasBoost) add(LevelReward.XpBoost())
-    }
-}
 
 /**
  * Inputs the level-up gate derives from — the user's current derived level and

@@ -51,8 +51,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * in the level/XP teal frames the new level number, with a warm line and a
  * single Continue affordance.
  *
- * Deliberately a self-contained takeover (its own scrim, centered content)
- * rather than a [com.dangerfield.cards.libraries.ui.components.dialog.Dialog]:
+ * Deliberately a self-contained takeover (its own opaque background, centered
+ * content) rather than a [com.dangerfield.cards.libraries.ui.components.dialog.Dialog]:
  * the moment wants the whole screen. It only ever mounts on Home — never at
  * the poker table — per `docs/decisions.md` 2026-06-06. The entrance animates
  * (scale + fade in) and a heavy haptic fires as the dial lands so the level-up
@@ -91,7 +91,9 @@ fun LevelUpCelebration(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AppTheme.colors.scrim.color)
+            // Opaque app background, not a scrim — this is a full-screen
+            // takeover, so Home shouldn't bleed through behind it.
+            .background(AppTheme.colors.background.color)
             .pointerInput(Unit) { detectTapGestures { onContinue() } },
         contentAlignment = Alignment.Center,
     ) {
@@ -167,7 +169,7 @@ fun LevelUpCelebration(
 /**
  * One revealed level-up prize, already mapped to display form by the caller
  * (the DS component stays out of the economy domain). [emoji] is the prize
- * glyph; [label] is the localized one-liner ("+5,000 chips", "2× XP boost").
+ * glyph; [label] is the localized one-liner ("+5,000 chips", "XP Boost").
  */
 data class LevelUpReward(
     val emoji: String,
@@ -250,7 +252,7 @@ private fun LevelUpCelebrationPreview_WithRewards() {
                 onContinue = {},
                 rewards = listOf(
                     LevelUpReward(emoji = "🪙", label = "+7,500 chips"),
-                    LevelUpReward(emoji = "⚡", label = "2× XP boost"),
+                    LevelUpReward(emoji = "⚡", label = "XP Boost"),
                 ),
             )
         }

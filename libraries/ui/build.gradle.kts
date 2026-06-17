@@ -24,6 +24,10 @@ kotlin {
             implementation(projects.libraries.flowroutines)
             // TODO honestly the cards library should expose the component that require cards domain
             implementation(projects.libraries.cards)
+            // Product catalog model — the Player Card resolves an equipped
+            // badge's/title's display metadata (name, emoji, description) from
+            // the catalog rather than a hardcoded client map.
+            implementation(projects.libraries.products)
             // User-facing copy on DS dialogs / banners / snackbars resolves
             // through the centralized resource catalog (see docs/todo.md
             // "Strings — centralize everything in :libraries:resources").
@@ -49,6 +53,12 @@ kotlin {
             api(libs.compottie.dot)
             api(libs.compottie.lite)
             api(libs.compottie.network)
+        }
+
+        commonTest.dependencies {
+            // resolvePlayerBadges joins inventory (cards) × catalog (products).
+            implementation(projects.libraries.cards)
+            implementation(projects.libraries.products)
         }
     }
 }

@@ -49,7 +49,10 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.BadgeDetailSheet
 import com.dangerfield.cards.libraries.ui.components.LevelPill
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
+import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -104,6 +107,9 @@ fun PlayPokerScreen(
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     var selfCardOpen by remember { mutableStateOf(false) }
+    // A badge/title chip tapped on the player-profile sheet — opens its
+    // read-about-it detail sheet.
+    var selectedBadge by remember { mutableStateOf<PlayerBadge?>(null) }
     // Action / bet / hand-label explainers carry their own context so each
     // dialog can render specific copy instead of opening the whole cheat sheet.
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
@@ -247,6 +253,7 @@ fun PlayPokerScreen(
                 ConnectionBanner(connection = state.connection)
                 TopBar(
                     xp = displayedXp,
+                    xpBoostExpiresAtEpochMs = state.xpBoostExpiresAtEpochMs,
                     onBack = requestLeave,
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
@@ -270,7 +277,6 @@ fun PlayPokerScreen(
                         table = active,
                         humanWinOdds = state.humanWinOdds,
                         humanTitle = state.equippedTitle,
-                        humanPermanentBadgeEmoji = state.equippedBadgeEmoji,
                         humanStackOverride = displayedHumanStack,
                         silentSwipeFold = state.swipeFoldGestureAck,
                         winOddsFlipHintSeen = state.winOddsFlipHintSeen,
@@ -427,6 +433,11 @@ fun PlayPokerScreen(
                     }
                 },
                 onDismiss = { profileSheetSeat = null },
+                // Resolve the opponent's equipped badge ids (off their Seat) to
+                // display metadata from our catalog — no earned-at for opponents,
+                // so the sheet shows what it is, not when they earned it.
+                badges = resolvePlayerBadges(seat.equippedBadgeProductIds, state.catalog),
+                onBadgeClick = { selectedBadge = it },
                 botDifficultyLabel = active?.botDifficultyLabel,
             )
         }
@@ -439,10 +450,14 @@ fun PlayPokerScreen(
                     isMuted = false,
                     onToggleMute = {},
                     onDismiss = { selfCardOpen = false },
-                    equippedTitle = state.equippedTitle,
-                    permanentBadgeEmoji = state.equippedBadgeEmoji,
+                    badges = state.equippedBadges,
+                    onBadgeClick = { selectedBadge = it },
                 )
             }
+        }
+
+        selectedBadge?.let { badge ->
+            BadgeDetailSheet(badge = badge, onDismiss = { selectedBadge = null })
         }
 
         // Bot-mode achievement-unlock celebration is sequenced *after* the
@@ -588,6 +603,7 @@ private fun PracticeTierLabel() {
 @Composable
 private fun TopBar(
     xp: Long,
+    xpBoostExpiresAtEpochMs: Long? = null,
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
@@ -634,6 +650,7 @@ private fun TopBar(
             LevelPill(
                 xp = xp,
                 onClick = onTapXp,
+                boostExpiresAtEpochMs = xpBoostExpiresAtEpochMs,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .then(
@@ -685,7 +702,6 @@ private fun ActiveTable(
     table: TableUiState.Active,
     humanWinOdds: EquityBreakdown?,
     humanTitle: String?,
-    humanPermanentBadgeEmoji: String?,
     humanStackOverride: Long? = null,
     silentSwipeFold: Boolean = false,
     winOddsFlipHintSeen: Boolean = false,
@@ -742,7 +758,6 @@ private fun ActiveTable(
             PlayerArea(
                 table = table,
                 humanTitle = humanTitle,
-                humanPermanentBadgeEmoji = humanPermanentBadgeEmoji,
                 humanStackOverride = humanStackOverride,
                 humanWinOdds = humanWinOdds,
                 silentSwipeFold = silentSwipeFold,

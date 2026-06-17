@@ -31,6 +31,14 @@ data class ProductCatalogResponse(
     val serverNowEpochMs: Long = 0L,
     val chipPacks: List<ChipPackDto> = emptyList(),
     val chipOffers: List<ChipOfferDto> = emptyList(),
+    /**
+     * `unlock_only` cosmetics (badges + titles) — never shown in the shop, but
+     * carried so clients can render an *owned* badge's/title's display metadata
+     * (name, description, emoji) on the profile and player card. Same
+     * [ChipOfferDto] shape; the client merges these into its display lookup
+     * without ever offering them for sale.
+     */
+    val prestige: List<ChipOfferDto> = emptyList(),
 )
 
 @Serializable

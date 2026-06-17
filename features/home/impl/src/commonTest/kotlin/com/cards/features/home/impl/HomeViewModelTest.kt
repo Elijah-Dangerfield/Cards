@@ -9,8 +9,10 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.DefaultLevelRewards
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
@@ -218,7 +220,7 @@ class HomeViewModelTest : CoroutineTest() {
 
     @Test
     fun levelUp_crossingIntoRewardedLevel_revealsAggregatedRewards() = runUnitTest {
-        // Level 3 grants 1,000 chips (LevelRewardTable). Starting from a fresh
+        // Level 3 grants 1,000 chips (DefaultLevelRewards). Starting from a fresh
         // level-1 account, the watermark seeds to 1, then a jump straight to
         // level 3 crosses levels 2 (no reward) + 3 (chips) — the reveal
         // aggregates that to a single chip row.
@@ -463,15 +465,22 @@ class HomeViewModelTest : CoroutineTest() {
         rooms: FakeRoomRepository = FakeRoomRepository(),
         profile: FakeProfileRepository = FakeProfileRepository(),
         appCache: FakeAppCache = FakeAppCache(),
+        progressionConfig: ProgressionConfig = FakeProgressionConfig(),
     ): HomeViewModel = HomeViewModel(
         progressionRepository = progression,
         achievementRepository = achievements,
         chipsRepository = chips,
         roomRepository = rooms,
         profileRepository = profile,
+        progressionConfig = progressionConfig,
         appCache = appCache,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private class FakeProgressionConfig : ProgressionConfig {
+        override fun rewardsForLevel(level: Int): List<LevelReward> =
+            DefaultLevelRewards.rewardsForLevel(level)
+    }
 
     private fun sampleRoom(
         code: String,

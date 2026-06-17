@@ -83,6 +83,18 @@ class GameSession internal constructor(
      * doesn't need persistence.
      */
     private val onStateChange: suspend (GameState) -> Unit = {},
+    /**
+     * Called inside the per-session mutex the moment a hand transitions
+     * into [BettingRound.Complete], with the userIds of the **human**
+     * seats that were dealt into the just-finished hand (bots excluded)
+     * and the hand number. The registry wires this to the
+     * `HandsFinishedRepository` so the server witnesses each human's
+     * finished-hand count (gates MP achievement grants). Fires exactly
+     * once per hand — once `Complete`, further intents are rejected, so
+     * the transition can't re-fire. Defaults to no-op for tests / unit
+     * code that doesn't need the counter.
+     */
+    private val onHandFinished: suspend (humanUserIds: List<String>, handNumber: Int) -> Unit = { _, _ -> },
 ) {
     private val mutex = Mutex()
 
@@ -220,9 +232,18 @@ class GameSession internal constructor(
                     },
                 ) {
                     val origin = Span.current().spanContext
-                    _state.value = resolved.result.state
-                    _tracedState.value = TracedState(resolved.result.state, origin)
-                    onStateChange(resolved.result.state)
+                    val newState = resolved.result.state
+                    val handJustFinished = current.street != BettingRound.Complete &&
+                        newState.street == BettingRound.Complete
+                    _state.value = newState
+                    _tracedState.value = TracedState(newState, origin)
+                    onStateChange(newState)
+                    if (handJustFinished) {
+                        val humanUserIds = newState.seats
+                            .filter { !it.isBot && it.playerId != null }
+                            .map { it.playerId!! }
+                        onHandFinished(humanUserIds, newState.handNumber)
+                    }
                     resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
                     recordNonce(clientNonce)
                 }
@@ -298,6 +319,9 @@ class GameSession internal constructor(
                     userId = it.playerId!!,
                     displayName = it.displayName,
                     isBot = it.isBot,
+                    // Preserve resolved badges across hands — they're stable for
+                    // the session, so we don't re-query equipment each hand.
+                    badgeProductIds = it.badgeProductIds,
                 )
             }
         if (occupants.size < 2) {
@@ -344,6 +368,7 @@ class GameSession internal constructor(
                 seatStatus = SeatStatus.Active,
                 handParticipation = HandParticipation.InHand,
                 isBot = occ.isBot,
+                badgeProductIds = occ.badgeProductIds,
             )
         }
 

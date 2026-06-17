@@ -34,6 +34,7 @@ class XpEventRepositoryImpl(
         mode = parseMode(mode),
         handId = handId,
         description = description,
+        wasBoosted = wasBoosted,
         createdAtEpochMs = createdAtEpochMs,
     )
 

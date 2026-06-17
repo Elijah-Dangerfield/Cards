@@ -48,7 +48,6 @@ class PostgresProductCatalogSource(
         database.transaction {
             val rows = ProductsTable
                 .selectAll()
-                .where { ProductsTable.unlockOnly eq false }
                 .orderBy(ProductsTable.sortOrder to SortOrder.ASC)
                 .toList()
 
@@ -59,18 +58,26 @@ class PostgresProductCatalogSource(
 
             val chipPacks = mutableListOf<Product.ChipPack>()
             val chipOffers = mutableListOf<Product.ChipOffer>()
+            // unlock_only cosmetics (badges + titles) — kept out of the shop
+            // buckets so they never render as buyable, but surfaced so clients
+            // can resolve an owned badge's/title's display metadata.
+            val prestige = mutableListOf<Product.ChipOffer>()
 
             for (row in rows) {
                 val id = row[ProductsTable.id]
                 val platforms = platformsById[id] ?: defaultPlatforms()
+                val unlockOnly = row[ProductsTable.unlockOnly]
                 when (val kind = row[ProductsTable.kind]) {
-                    "chip_pack" -> chipPacks += row.toChipPack(platforms)
-                    "chip_offer" -> chipOffers += row.toChipOffer(platforms)
+                    "chip_pack" -> if (!unlockOnly) chipPacks += row.toChipPack(platforms)
+                    "chip_offer" -> {
+                        val offer = row.toChipOffer(platforms)
+                        if (unlockOnly) prestige += offer else chipOffers += offer
+                    }
                     else -> error("Unknown product kind '$kind' on row id='$id'")
                 }
             }
 
-            ProductCatalog(chipPacks = chipPacks, chipOffers = chipOffers)
+            ProductCatalog(chipPacks = chipPacks, chipOffers = chipOffers, prestige = prestige)
         }
 
     override suspend fun readById(id: String, context: ClientContext): Product? =

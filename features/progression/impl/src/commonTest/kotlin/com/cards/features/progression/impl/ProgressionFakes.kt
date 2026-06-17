@@ -65,7 +65,8 @@ internal class FakeXpBoostRepository(
     val status = MutableStateFlow(initial)
     override fun observe(): Flow<XpBoostStatus> = status
     override suspend fun status(): XpBoostStatus = status.value
-    override suspend fun activate(durationMs: Long) { /* not exercised by the read-only VMs */ }
+    override suspend fun grant(count: Int) { /* not exercised by the read-only VMs */ }
+    override suspend fun activate(durationMs: Long): Boolean = false
     override suspend fun multiplier(): Int = 1
 }
 

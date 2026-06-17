@@ -128,15 +128,23 @@ data class StoreSku(
 data class ProductCatalog(
     val chipPacks: List<Product.ChipPack> = emptyList(),
     val chipOffers: List<Product.ChipOffer> = emptyList(),
+    /**
+     * `unlock_only` cosmetics (badges + titles) — prestige grants the shop never
+     * sells, carried so an *owned* badge/title resolves its display metadata
+     * (name, description, emoji) on the profile + player card. Never rendered as
+     * buyable: shop surfaces read [chipOffers]/[chipPacks] only.
+     */
+    val prestige: List<Product.ChipOffer> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() = chipPacks.isEmpty() && chipOffers.isEmpty()
 
-    /** Linear scan across both buckets — catalog is small (handful of
-     *  packs + handful of offers), so the simple version wins. */
+    /** Linear scan across all buckets — catalog is small (handful of packs +
+     *  offers + prestige grants), so the simple version wins. */
     fun findById(productId: String): Product? =
         chipPacks.firstOrNull { it.id == productId }
             ?: chipOffers.firstOrNull { it.id == productId }
+            ?: prestige.firstOrNull { it.id == productId }
 
     companion object {
         val Empty: ProductCatalog = ProductCatalog()

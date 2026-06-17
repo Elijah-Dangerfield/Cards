@@ -23,6 +23,9 @@ data class ProductCatalogDto(
     val serverNowEpochMs: Long = 0L,
     val chipPacks: List<ChipPackDto> = emptyList(),
     val chipOffers: List<ChipOfferDto> = emptyList(),
+    /** `unlock_only` cosmetics (badges + titles) — owned-display metadata only,
+     *  never shown in the shop. See server's ProductCatalogResponse.prestige. */
+    val prestige: List<ChipOfferDto> = emptyList(),
 )
 
 @Serializable
@@ -64,6 +67,7 @@ data class StoreSkuDto(
 fun ProductCatalogDto.toDomain(): ProductCatalog = ProductCatalog(
     chipPacks = chipPacks.map { it.toDomain() },
     chipOffers = chipOffers.map { it.toDomain() },
+    prestige = prestige.map { it.toDomain() },
 )
 
 private fun ChipPackDto.toDomain(): Product.ChipPack = Product.ChipPack(
