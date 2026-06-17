@@ -36,7 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.dangerfield.cards.libraries.cards.levelProgressFor
-import com.dangerfield.cards.libraries.cards.xpToLevelUpFrom
+import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.ConfigOverride
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
@@ -331,13 +331,6 @@ private fun ProgressionInputRow(
             )
         }
     }
-}
-
-private fun xpAtStartOfLevel(level: Int): Long {
-    val target = level.coerceAtLeast(1)
-    var sum = 0L
-    for (n in 1 until target) sum += xpToLevelUpFrom(n)
-    return sum
 }
 
 @Composable

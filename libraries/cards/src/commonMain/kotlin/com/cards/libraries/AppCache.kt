@@ -186,6 +186,22 @@ data class AppData(
      * per-user consumable) so it doesn't leak across an account switch.
      */
     val xpBoostExpiresAtEpochMs: Long? = null,
+
+    /**
+     * Highest level whose **reward** (from the `level → reward` table) has been
+     * granted. Like [lastCelebratedLevel], `0` is the unset sentinel: the first
+     * progression emission seeds it to the current level **without** granting,
+     * so a fresh install / account switch / reinstall never retro-grants
+     * rewards for levels already held. Thereafter, crossing a rewarded level
+     * grants its prize exactly once and advances this watermark.
+     *
+     * **Separate** from [lastCelebratedLevel] on purpose: the celebration is a
+     * UI moment that may be missed/dismissed, whereas a reward grant must be
+     * exactly-once independent of whether the user saw the celebration. Chip
+     * rewards are additionally keyed (`levelup_<level>`) at the wallet ledger so
+     * they survive retries even within a watermark window.
+     */
+    val highestLevelRewarded: Int = 0,
 )
 
 /**
@@ -219,6 +235,9 @@ fun AppData.resetAccountScoped(): AppData = copy(
     lastCelebratedLevel = 0,
     // A purchased per-user consumable — the next account starts with no boost.
     xpBoostExpiresAtEpochMs = null,
+    // Unset sentinel so the next account silently seeds to its own level rather
+    // than retro-granting level rewards on switch-in.
+    highestLevelRewarded = 0,
 )
 
 interface AppCache : Cache<AppData>
