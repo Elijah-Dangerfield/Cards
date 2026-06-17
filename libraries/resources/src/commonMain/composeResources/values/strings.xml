@@ -27,6 +27,8 @@
     <string name="shop_snackbar_redeem_succeeded_action_view">View</string>
     <string name="shop_snackbar_redeem_auto_equipped_title">Equipped!</string>
     <string name="shop_snackbar_redeem_auto_equipped_message">%1$s is equipped and ready to use.</string>
+    <string name="shop_snackbar_boost_activated_title">2× XP active!</string>
+    <string name="shop_snackbar_boost_activated_message">Every hand earns double XP for the next 30 minutes.</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>

@@ -80,7 +80,7 @@ class ShopViewModelTest : CoroutineTest() {
         assertFalse(vm.state.isRefreshing)
         assertTrue(vm.state.hasLoaded)
         assertEquals(2, vm.state.catalog.chipPacks.size)
-        assertEquals(4, vm.state.catalog.chipOffers.size)
+        assertEquals(5, vm.state.catalog.chipOffers.size)
     }
 
     @Test
@@ -253,6 +253,48 @@ class ShopViewModelTest : CoroutineTest() {
 
         assertTrue(received.any { it is ShopEvent.AlreadyOwned })
         assertNull(vm.state.errorMessage, "AlreadyOwned isn't surfaced as an error")
+    }
+
+    // ---------- XP Boost consumable ----------
+
+    @Test
+    fun confirmXpBoost_success_spendsChips_activatesBoost_emitsBoostActivated() = runUnitTest {
+        val chips = FakeChipsRepository(initialBalance = 10_000)
+        val inv = FakeInventoryRepository()
+        val boost = FakeXpBoostRepository()
+        val vm = buildVm(inventoryRepository = inv, chipsRepository = chips, xpBoostRepository = boost)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val offer = SAMPLE_CATALOG.chipOffers.first { it.id == "boost_xp_2x" }
+
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
+
+        assertEquals(5_000L, chips.getBalance(), "chips debited by the boost cost")
+        assertEquals(1, boost.activateCalls.size, "boost window activated once")
+        val event = received.firstOrNull { it is ShopEvent.BoostActivated }
+        assertNotNull(event, "BoostActivated should fire")
+        assertEquals(offer.id, (event as ShopEvent.BoostActivated).offer.id)
+        // Consumable: no inventory row is ever written, so it never reads as "owned".
+        assertTrue(inv.redeemCalls.isEmpty(), "boost must not write an inventory row")
+    }
+
+    @Test
+    fun confirmXpBoost_insufficientChips_isNoOp() = runUnitTest {
+        // ConfirmPurchase gates on the Available sheet mode; an unaffordable
+        // boost classifies as Insufficient, so confirm is a pure no-op —
+        // no chip spend, no activation, no event.
+        val chips = FakeChipsRepository(initialBalance = 0)
+        val boost = FakeXpBoostRepository()
+        val vm = buildVm(chipsRepository = chips, xpBoostRepository = boost)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val offer = SAMPLE_CATALOG.chipOffers.first { it.id == "boost_xp_2x" }
+
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
+
+        assertEquals(0L, chips.getBalance(), "no chips spent when unaffordable")
+        assertTrue(boost.activateCalls.isEmpty(), "boost not activated when unaffordable")
+        assertTrue(received.isEmpty(), "no event for a gated no-op confirm")
     }
 
     // ---------- Auto-equip on purchase ----------
@@ -466,6 +508,7 @@ class ShopViewModelTest : CoroutineTest() {
             ),
         ),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
+        xpBoostRepository: FakeXpBoostRepository = FakeXpBoostRepository(),
         deepLinkBus: FakeShopDeepLinkBus = FakeShopDeepLinkBus(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
@@ -475,8 +518,24 @@ class ShopViewModelTest : CoroutineTest() {
         billingClient = billingClient,
         authRepository = authRepository,
         equipmentRepository = equipmentRepository,
+        xpBoostRepository = xpBoostRepository,
         deepLinkBus = deepLinkBus,
     )
+
+    private class FakeXpBoostRepository : com.dangerfield.cards.libraries.cards.XpBoostRepository {
+        val activateCalls = mutableListOf<Long>()
+        private val state = MutableStateFlow(
+            com.dangerfield.cards.libraries.cards.XpBoostStatus.None,
+        )
+
+        override fun observe(): Flow<com.dangerfield.cards.libraries.cards.XpBoostStatus> =
+            state.asStateFlow()
+        override suspend fun status(): com.dangerfield.cards.libraries.cards.XpBoostStatus = state.value
+        override suspend fun activate(durationMs: Long) {
+            activateCalls += durationMs
+        }
+        override suspend fun multiplier(): Int = 1
+    }
 
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
         private val state = MutableStateFlow(initial)
@@ -725,6 +784,14 @@ class ShopViewModelTest : CoroutineTest() {
                     iconEmoji = "🟦",
                     costChips = 5_000,
                     grantsKey = "felt.midnight_blue",
+                ),
+                Product.ChipOffer(
+                    id = "boost_xp_2x",
+                    title = "2× XP Boost",
+                    subtitle = "30 minutes",
+                    iconEmoji = "⚡",
+                    costChips = 5_000,
+                    grantsKey = "boost.xp_2x",
                 ),
             ),
         )

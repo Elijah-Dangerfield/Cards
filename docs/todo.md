@@ -77,9 +77,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 Buyable, level-up-giftable consumables. Product + grant-model call is in [`decisions.md`](./decisions.md) 2026-06-06 ("Consumable reward items"); both lean on the grant models in [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md), and the level→reward table from the level-up decision can grant either. *(proposed 2026-06-06)*
 
-- `[P2]` **XP Boost — chip-priced shop purchase entry point.** The boost mechanic ships (`XpBoostRepository` time-window in `AppCache.xpBoostExpiresAtEpochMs`, `ProgressionRepositoryImpl` doubles awards while active, `XpBoostBadge` countdown on Stats, QA-menu + level-up-gift activation). Remaining gap: a user-facing **buy** path — a chip-priced shop product that debits the wallet ledger and calls `XpBoostRepository.activate()` on success.
-  **Hints:** purchase precedent is `ShopViewModel.ConfirmPendingPurchase` + `ChipsRepository.subtractChips`; the activation call already exists. **Out of scope:** inventory quantity (it's a timer, not an owned count).
-
 - `[P2]` **Pick-a-Card reward chest — server-rolled prize + shuffle animation.** A consumable chest: open → a magician-style card-shuffle/reveal → a prize (chips / card back / felt / boost) from a **weighted, server-owned loot table**. Server rolls + grants on open (idempotent); the client only animates + reveals the server's result; the "pick" is theatrical. **Online to open; ownable offline** ("opens when you reconnect"). Giftable on level-up. *(Bigger lift — phase it.)*
   **Phase A — inventory quantity + consumable kind:** add `quantity` (stockpile) + a consume path to inventory (today it's one permanent row per product) and a `chest_` product kind.
   **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.

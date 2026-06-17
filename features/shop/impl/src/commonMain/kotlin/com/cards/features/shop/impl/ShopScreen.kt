@@ -325,6 +325,7 @@ private fun ShopHeader(chips: Long?) {
  * the shop and get no shelf here.
  */
 private enum class ShopSection(val title: String, val category: ShopCategory?) {
+    Boosts("Boosts", ShopCategory.Boosts),
     CardBacks("Card backs", ShopCategory.CardBacks),
     Felts("Felts", ShopCategory.Felts),
     Tables("Table themes", ShopCategory.Tables),
@@ -335,6 +336,7 @@ private enum class ShopSection(val title: String, val category: ShopCategory?) {
 }
 
 private val ShopSectionOrder = listOf(
+    ShopSection.Boosts,
     ShopSection.CardBacks,
     ShopSection.Felts,
     ShopSection.Tables,
@@ -345,6 +347,7 @@ private val ShopSectionOrder = listOf(
 )
 
 private fun shopSectionFor(productId: String): ShopSection = when {
+    productId.startsWith("boost_") -> ShopSection.Boosts
     productId.startsWith("cardback_") -> ShopSection.CardBacks
     productId.startsWith("felt_") -> ShopSection.Felts
     productId.startsWith("table_") -> ShopSection.Tables
@@ -1209,6 +1212,16 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
         ),
     ),
     chipOffers = listOf(
+        Product.ChipOffer(
+            id = "boost_xp_2x",
+            title = "2× XP Boost",
+            subtitle = "30 minutes",
+            description = "Earn double XP on every hand for 30 minutes. Stack it by buying more time.",
+            iconEmoji = "⚡",
+            costChips = 5_000,
+            grantsKey = "boost.xp_2x",
+            unlockLevel = 1,
+        ),
         Product.ChipOffer(
             id = "emotes_drama",
             title = "Drama Emote Pack",

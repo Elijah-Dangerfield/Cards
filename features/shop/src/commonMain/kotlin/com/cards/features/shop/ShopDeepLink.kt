@@ -19,6 +19,7 @@ enum class ShopCategory {
     Emotes,
     Avatars,
     Tools,
+    Boosts,
 }
 
 /**

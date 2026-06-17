@@ -25,6 +25,16 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-17 — XP Boost shop purchase: model the boost as a consumable chip offer, not an inventory item
+
+**Decision:** The chip-priced 2× XP boost is a `Product.ChipOffer` (server-seeded, `grants_key = boost.xp_2x`) that the client routes to a **consumable** purchase path — spend chips via `ChipsRepository.subtractChips`, then `XpBoostRepository.activate()` — instead of `InventoryRepository.redeemChipOffer`. No inventory row is ever written, so the boost never classifies as "owned" and stays re-buyable (re-buying extends the time window). The client discriminator is the shared `XP_BOOST_GRANTS_KEY` constant; the boost gets its own "Boosts" storefront shelf via the existing product-id-prefix (`boost_`) section convention.
+
+**Why:** The shop's whole model is "own this permanently" (one inventory row per product, `ownsProduct` → Owned badge, no re-buy). A time-window consumable contradicts every part of that — forcing it through `redeemChipOffer` would make a one-time boost look permanently owned and block re-purchase. Keeping the boost out of inventory entirely means the existing ownership/equip/My-Items machinery needs zero special cases, and the offline-first boost (pure local XP math, no server grant) stays offline-first.
+
+**Alternatives considered:** (1) A real inventory row with a `quantity`/consumable kind — that's the heavier "inventory quantity + consume path" lift the Pick-a-Card chest needs (todo §Consumables), overkill for a timer that's already fully modeled as a window. (2) A new `Product` subtype — rejected; reusing `ChipOffer` + a grant-key discriminator means no server DTO / catalog-table changes, just one seed row.
+
+**Status:** Locked for the XP boost. When the chest lands (needs true inventory quantity), revisit whether other consumables share a path.
+
 ## 2026-06-16 — Session-rejection handling: boot only on a server-confirmed dead session
 
 **Decision:** A 401 alone never boots the user. The single trigger for tearing down a session is **"a token refresh the auth server itself rejected"** (`RestException` 401/403 from the refresh) — surfaced as `AuthState.Unauthenticated(reason = SessionExpired, wasAnonymous)`. Network errors (`HttpRequestException`), 5xx, timeouts, and anything unrecognized are **transient**: keep the session, fall back to cache, show the offline indicator. The signal flows network→auth via a one-way `SessionRejectionBus` (so the token provider stays narrow — no `AuthRepository` dependency, no construction cycle); `AuthRepository` observes it, clears the dead supabase session, and emits `SessionExpired`. `ProfileRepository` drops the cached-profile *ghost* on `SessionExpired` (the ghost is what made the app keep firing authed calls that all 401).

@@ -9,6 +9,18 @@ const val XP_BOOST_MULTIPLIER: Int = 2
 const val XP_BOOST_DEFAULT_DURATION_MS: Long = 30L * 60L * 1000L
 
 /**
+ * Catalog id + grant key for the chip-priced 2× XP boost shop product. The
+ * boost is a **consumable** — buying it spends chips and extends the
+ * [XpBoostRepository] window rather than granting an inventory row, so it's
+ * re-buyable and never shows as "owned." The client routes a chip offer with
+ * [XP_BOOST_GRANTS_KEY] to that consumable path instead of the normal
+ * inventory redeem; the server seeds the matching row (see
+ * `V55__xp_boost_product.sql`).
+ */
+const val XP_BOOST_PRODUCT_ID: String = "boost_xp_2x"
+const val XP_BOOST_GRANTS_KEY: String = "boost.xp_2x"
+
+/**
  * Snapshot of the user's **2× XP boost** — a time window, not an owned count.
  * [expiresAtEpochMs] is the instant the boost lapses (`null` if none is or has
  * ever been active). "Active" is relative to a clock, so callers pass `now`
