@@ -237,6 +237,14 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
                 unlockOnlyId !in ids,
                 "unlock_only product $unlockOnlyId leaked into shop catalog",
             )
+            // ...but it IS surfaced in prestige (owned-display metadata) so the
+            // profile / player card can resolve its name + description.
+            val prestige = catalog.prestige.single { it.id == unlockOnlyId }
+            assertEquals(
+                "Legendary Trophy",
+                prestige.titleByLocale["en"],
+                "prestige carries the unlock-only product's display metadata",
+            )
         } finally {
             deleteProduct(unlockOnlyId)
         }

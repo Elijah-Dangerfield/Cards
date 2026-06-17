@@ -39,4 +39,12 @@ interface ProductCatalogSource {
 data class ProductCatalog(
     val chipPacks: List<Product.ChipPack>,
     val chipOffers: List<Product.ChipOffer>,
+    /**
+     * `unlock_only` cosmetics (badges + titles) — the prestige grants the shop
+     * filter omits from [chipOffers]. Surfaced separately so clients can resolve
+     * an *owned* badge/title's display metadata (name, description, emoji)
+     * without the shop ever rendering them as buyable. Reuses [Product.ChipOffer]
+     * since the shape is identical; they just never appear in a shop shelf.
+     */
+    val prestige: List<Product.ChipOffer> = emptyList(),
 )
