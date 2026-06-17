@@ -36,6 +36,7 @@ import com.dangerfield.cards.features.profile.DeleteAccountRoute
 import com.dangerfield.cards.features.profile.EditProfileRoute
 import com.dangerfield.cards.features.profile.NotificationsRoute
 import com.dangerfield.cards.features.profile.ProfileRoute
+import com.dangerfield.cards.features.profile.DesignSystemColorsRoute
 import com.dangerfield.cards.features.profile.QaMenuRoute
 import com.dangerfield.cards.features.profile.SettingsRoute
 import com.dangerfield.cards.features.profile.impl.settings.SettingsScreen
@@ -295,7 +296,12 @@ class ProfileFeatureEntryPoint(
                         xpBoostRepository.activate()
                     }
                 },
+                onOpenColorCatalog = { router.navigate(DesignSystemColorsRoute()) },
             )
+        }
+
+        screen<DesignSystemColorsRoute> {
+            DesignSystemColorsScreen(onBack = { router.goBack() })
         }
 
         screen<EditProfileRoute> {

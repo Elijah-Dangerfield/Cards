@@ -68,6 +68,7 @@ fun QaMenuScreen(
     totalXp: Long = 0L,
     onSetTotalXp: (Long) -> Unit = {},
     onActivateXpBoost: () -> Unit = {},
+    onOpenColorCatalog: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val configMap by configStream.collectAsState(initial = initialConfig)
@@ -113,6 +114,20 @@ fun QaMenuScreen(
                 onSetTotalXp = onSetTotalXp,
                 onActivateXpBoost = onActivateXpBoost,
             )
+
+            Box(
+                modifier = Modifier
+                    .clip(Radii.R400.shape)
+                    .background(AppTheme.colors.surfaceRaised.color)
+                    .clickable(onClick = onOpenColorCatalog)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = "Design system · Colors",
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.content,
+                )
+            }
 
             Box(
                 modifier = Modifier
