@@ -959,6 +959,16 @@
     <!-- UI library — Active XP boost indicator. %1$s is a mm:ss countdown. -->
     <string name="ui_xp_boost_active">XP Boost · %1$s</string>
 
+    <!-- UI library — XP boost banner (Profile). -->
+    <string name="ui_xp_boost_banner_owned_title">XP Boost</string>
+    <!-- %1$d is how many boosts the player has stashed. -->
+    <string name="ui_xp_boost_banner_owned_subtitle">%1$d ready to activate</string>
+    <string name="ui_xp_boost_banner_activate">Activate</string>
+    <string name="ui_xp_boost_banner_active_title">XP Boost active</string>
+    <string name="ui_xp_boost_banner_active_subtitle">Double XP on every hand</string>
+    <!-- %1$s is a mm:ss countdown to expiry. -->
+    <string name="ui_xp_boost_banner_remaining">%1$s left</string>
+
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>
     <string name="ui_earned_ago_yesterday">yesterday</string>

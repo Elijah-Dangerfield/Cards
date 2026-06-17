@@ -54,6 +54,7 @@ import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
+import com.dangerfield.cards.libraries.cards.XpBoostStatus
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
@@ -130,6 +131,11 @@ class ProfileFeatureEntryPoint(
             val unreadNotificationCount by userMessageRepository.observeUnreadInboxCount()
                 .collectAsStateWithLifecycle(initialValue = 0)
 
+            // Live XP boost stash + window — drives the boost banner (owned →
+            // "Activate", or a running countdown).
+            val xpBoostStatus by xpBoostRepository.observe()
+                .collectAsStateWithLifecycle(initialValue = XpBoostStatus.None)
+
             // Owned cosmetics (inventory ∩ catalog) for the grouped item
             // shelves. Reuses MyItemsViewModel so the catalog join + display
             // metadata logic lives in exactly one place.
@@ -177,6 +183,9 @@ class ProfileFeatureEntryPoint(
                 ownedItems = myItemsState.ownedItems,
                 buyableItems = myItemsState.buyableItems,
                 winRatePercent = winRatePercent,
+                boostOwnedCount = xpBoostStatus.ownedCount,
+                boostExpiresAtEpochMs = xpBoostStatus.expiresAtEpochMs,
+                onActivateBoost = { scope.launch { xpBoostRepository.activate() } },
                 onOpenSettings = { router.navigate(SettingsRoute()) },
                 onEditProfile = { router.navigate(EditProfileRoute()) },
                 onTapStats = { router.navigate(StatsRoute()) },

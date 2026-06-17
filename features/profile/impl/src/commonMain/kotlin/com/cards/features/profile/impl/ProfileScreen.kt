@@ -96,6 +96,8 @@ import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.SaveProgressBanner
+import com.dangerfield.cards.libraries.ui.components.XpBoostBanner
+import com.dangerfield.cards.libraries.ui.components.rememberBoostRemainingMs
 import com.dangerfield.cards.libraries.ui.components.poker.EmojiBlastOverlay
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.Surface
@@ -168,6 +170,9 @@ fun ProfileScreen(
     onOpenShop: () -> Unit,
     onSignIn: () -> Unit,
     modifier: Modifier = Modifier,
+    boostOwnedCount: Int = 0,
+    boostExpiresAtEpochMs: Long? = null,
+    onActivateBoost: () -> Unit = {},
     onBuyableTap: (String) -> Unit = {},
     buyableItems: List<BuyableCosmetic> = emptyList(),
     highlightProductId: String? = null,
@@ -213,6 +218,21 @@ fun ProfileScreen(
 
                 if (settings.isAnonymous) {
                     SaveProgressBanner(onSignIn = onSignIn)
+                    VerticalSpacerD800()
+                }
+
+                // Renders only when the user owns a stashed boost or one's
+                // running — it self-hides otherwise. The same ticking remaining
+                // gates the trailing spacer so it doesn't leave a gap once a
+                // lapsed window's timestamp lingers with an empty stash.
+                val boostRemainingMs = rememberBoostRemainingMs(boostExpiresAtEpochMs)
+                if (boostRemainingMs > 0L || boostOwnedCount > 0) {
+                    XpBoostBanner(
+                        ownedCount = boostOwnedCount,
+                        expiresAtEpochMs = boostExpiresAtEpochMs,
+                        onActivate = onActivateBoost,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                     VerticalSpacerD800()
                 }
 
