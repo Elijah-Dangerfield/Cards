@@ -9,9 +9,11 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
+import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
@@ -209,6 +211,29 @@ class HomeViewModelTest : CoroutineTest() {
             vm.takeAction(HomeAction.DismissLevelUp)
             while (last.levelUpCelebration != null) last = awaitItem()
             assertEquals(2, appCache.get().lastCelebratedLevel)
+            assertTrue(last.levelUpRewards.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_crossingIntoRewardedLevel_revealsAggregatedRewards() = runUnitTest {
+        // Level 3 grants 1,000 chips (LevelRewardTable). Starting from a fresh
+        // level-1 account, the watermark seeds to 1, then a jump straight to
+        // level 3 crosses levels 2 (no reward) + 3 (chips) — the reveal
+        // aggregates that to a single chip row.
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache()
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (appCache.get().lastCelebratedLevel != 1) last = awaitItem()
+
+            progression.progression.value =
+                progression.progression.value.copy(totalXp = xpAtStartOfLevel(3))
+            while (last.levelUpCelebration == null) last = awaitItem()
+            assertEquals(3, last.levelUpCelebration)
+            assertEquals(listOf(LevelReward.Chips(1_000)), last.levelUpRewards)
             cancelAndIgnoreRemainingEvents()
         }
     }

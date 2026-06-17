@@ -7,8 +7,10 @@ import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.cards.rewardsForLevel
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -230,9 +232,19 @@ class HomeViewModel(
                     gate.watermark == 0 ->
                         appCache.update { it.copy(lastCelebratedLevel = gate.currentLevel) }
                     gate.currentLevel > gate.watermark ->
-                        action.updateState { it.copy(levelUpCelebration = gate.currentLevel) }
+                        action.updateState {
+                            it.copy(
+                                levelUpCelebration = gate.currentLevel,
+                                levelUpRewards = crossedLevelRewards(
+                                    fromExclusive = gate.watermark,
+                                    toInclusive = gate.currentLevel,
+                                ),
+                            )
+                        }
                     else ->
-                        action.updateState { it.copy(levelUpCelebration = null) }
+                        action.updateState {
+                            it.copy(levelUpCelebration = null, levelUpRewards = emptyList())
+                        }
                 }
             }
             is HomeAction.DismissLevelUp -> {
@@ -240,7 +252,7 @@ class HomeViewModel(
                 // derived gate goes quiet; null the overlay immediately rather
                 // than waiting for the cache round-trip to echo back.
                 val reached = stateFlow.value.levelUpCelebration
-                action.updateState { it.copy(levelUpCelebration = null) }
+                action.updateState { it.copy(levelUpCelebration = null, levelUpRewards = emptyList()) }
                 if (reached != null) {
                     appCache.update { it.copy(lastCelebratedLevel = reached) }
                 }
@@ -362,7 +374,31 @@ data class HomeState(
      *  process death; cleared when the user dismisses (which advances the
      *  watermark). */
     val levelUpCelebration: Int? = null,
+    /** Prizes revealed in the level-up celebration — aggregated across every
+     *  level crossed since the last celebration (chips summed, boost de-duped
+     *  to one row). Empty when the reached level(s) grant nothing. Mirrors what
+     *  `LevelUpRewardGranter` already granted; this is the reveal, not the
+     *  grant. Cleared alongside [levelUpCelebration]. */
+    val levelUpRewards: List<LevelReward> = emptyList(),
 )
+
+/**
+ * Aggregate the prizes for every level newly crossed — `(fromExclusive,
+ * toInclusive]` — into the at-most-two rows the celebration reveals: a single
+ * summed chip prize and a single XP-boost row. The range mirrors the grant
+ * range in [com.dangerfield.cards.libraries.cards.impl] so the reveal can't
+ * claim a prize the granter didn't grant. Multi-level jumps (rare) collapse to
+ * one tidy payout instead of a stack of "+chips" lines.
+ */
+private fun crossedLevelRewards(fromExclusive: Int, toInclusive: Int): List<LevelReward> {
+    val crossed = ((fromExclusive + 1)..toInclusive).flatMap { rewardsForLevel(it) }
+    val totalChips = crossed.filterIsInstance<LevelReward.Chips>().sumOf { it.amount }
+    val hasBoost = crossed.any { it is LevelReward.XpBoost }
+    return buildList {
+        if (totalChips > 0) add(LevelReward.Chips(totalChips))
+        if (hasBoost) add(LevelReward.XpBoost())
+    }
+}
 
 /**
  * Inputs the level-up gate derives from — the user's current derived level and

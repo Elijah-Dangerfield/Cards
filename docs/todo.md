@@ -70,8 +70,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P2]` **Level-up rewards — remaining reward kinds + reveal in celebration.** The table + idempotent grant ship: `LevelRewardTable` (`LevelReward.Chips` / `XpBoost`), `LevelUpRewardGranter` (AutoInit) grants on level-cross keyed `levelup_<level>` against a `highestLevelRewarded` watermark (separate from `lastCelebratedLevel`, `0`-sentinel seeds silently). What's left: (a) **cosmetic rewards** via the achievement-reward grant path (only chips + boost are modeled today), and (b) **the level-up celebration revealing the granted prize** — the grant is currently silent (chips/boost just appear); thread the reward into `LevelUpCelebration` so it shows "+N chips / 2× XP". The reward table cadence is a placeholder for the human to tune. *(proposed 2026-06-06)*
-  **Hints:** cosmetic grant precedent is the achievement-reward path; the celebration overlay is `LevelUpCelebration` (driven by `HomeViewModel`'s level-up gate). **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
+- `[P2]` **Level-up rewards — cosmetic reward kind.** Only `LevelReward.Chips` / `XpBoost` are modeled; add a **cosmetic** reward (felt / card back / title) granted via the achievement-reward grant path so `LevelRewardTable` can gift one. The celebration already reveals chips + boost rows — extend `LevelUpReward` (`:libraries:ui`) + `HomeScreen.toDisplay` to render the cosmetic too. *(proposed 2026-06-06)*
+  **Hints:** cosmetic grant precedent is the achievement-reward path; reward maps in `LevelReward.kt` + `LevelUpRewardGranter`. **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
 
 ### Consumables & rewards (V1.x / monetization)
 

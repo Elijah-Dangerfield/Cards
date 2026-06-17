@@ -29,12 +29,17 @@ import cards.libraries.resources.generated.resources.home_play_friend_subtitle
 import cards.libraries.resources.generated.resources.home_play_practice_subtitle
 import cards.libraries.resources.generated.resources.home_play_quick_match_subtitle
 import cards.libraries.resources.generated.resources.home_section_play
+import cards.libraries.resources.generated.resources.ui_level_up_reward_chips
+import cards.libraries.resources.generated.resources.ui_level_up_reward_xp_boost
 import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.LevelUpCelebration
+import com.dangerfield.cards.libraries.ui.components.LevelUpReward
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.header.SectionHeader
 import com.dangerfield.cards.libraries.ui.system.color.FeatureCardAccents
@@ -111,9 +116,27 @@ fun HomeScreen(
             LevelUpCelebration(
                 level = level,
                 onContinue = { viewModel.takeAction(HomeAction.DismissLevelUp) },
+                rewards = state.levelUpRewards.map { it.toDisplay() },
             )
         }
     }
+}
+
+/**
+ * Map a domain [LevelReward] to the DS reveal model. Lives in the feature
+ * layer so the DS celebration stays out of the economy domain — it just
+ * renders glyph + localized label.
+ */
+@Composable
+private fun LevelReward.toDisplay(): LevelUpReward = when (this) {
+    is LevelReward.Chips -> LevelUpReward(
+        emoji = "🪙",
+        label = stringResource(Res.string.ui_level_up_reward_chips, formatThousands(amount)),
+    )
+    is LevelReward.XpBoost -> LevelUpReward(
+        emoji = "⚡",
+        label = stringResource(Res.string.ui_level_up_reward_xp_boost),
+    )
 }
 
 @Composable

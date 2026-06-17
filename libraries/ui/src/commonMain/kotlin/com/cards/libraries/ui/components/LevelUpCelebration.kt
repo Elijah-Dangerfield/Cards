@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -30,6 +32,7 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_level_up_continue
 import cards.libraries.resources.generated.resources.ui_level_up_level
 import cards.libraries.resources.generated.resources.ui_level_up_message
+import cards.libraries.resources.generated.resources.ui_level_up_rewards_header
 import cards.libraries.resources.generated.resources.ui_level_up_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonAccent
@@ -37,6 +40,7 @@ import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
+import com.dangerfield.cards.system.Radii
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -57,12 +61,16 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * @param level the level just reached (the net level on a multi-level jump).
  * @param onContinue fires when the user taps Continue or the scrim; the host
  *   advances the watermark in response.
+ * @param rewards the prizes granted for crossing into this level (already
+ *   granted by `LevelUpRewardGranter` — this is the reveal, not the grant).
+ *   Empty for levels that grant nothing; the section then renders nothing.
  */
 @Composable
 fun LevelUpCelebration(
     level: Int,
     onContinue: () -> Unit,
     modifier: Modifier = Modifier,
+    rewards: List<LevelUpReward> = emptyList(),
 ) {
     val haptics = LocalHapticFeedback.current
     val inInspection = LocalInspectionMode.current
@@ -137,6 +145,12 @@ fun LevelUpCelebration(
                 color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
+            if (rewards.isNotEmpty()) {
+                RewardsPanel(
+                    rewards = rewards,
+                    modifier = Modifier.padding(top = Dimension.D700),
+                )
+            }
             ButtonPrimary(
                 onClick = onContinue,
                 accent = ButtonAccent.Secondary,
@@ -145,6 +159,62 @@ fun LevelUpCelebration(
                     .fillMaxWidth(),
             ) {
                 Text(text = stringResource(Res.string.ui_level_up_continue))
+            }
+        }
+    }
+}
+
+/**
+ * One revealed level-up prize, already mapped to display form by the caller
+ * (the DS component stays out of the economy domain). [emoji] is the prize
+ * glyph; [label] is the localized one-liner ("+5,000 chips", "2× XP boost").
+ */
+data class LevelUpReward(
+    val emoji: String,
+    val label: String,
+)
+
+/**
+ * The "You earned" card listing the level's prizes. A raised surface panel
+ * over the scrim so the rewards read as a distinct, tangible payout rather
+ * than more body copy.
+ */
+@Composable
+private fun RewardsPanel(
+    rewards: List<LevelUpReward>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(Radii.Card.shape)
+            .background(AppTheme.colors.surfaceRaised.color)
+            .padding(horizontal = Dimension.D600, vertical = Dimension.D500),
+        verticalArrangement = Arrangement.spacedBy(Dimension.D400),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(Res.string.ui_level_up_rewards_header),
+            typography = AppTheme.typography.Label.L400,
+            color = AppTheme.colors.contentSecondary,
+            allCaps = true,
+        )
+        rewards.forEach { reward ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = reward.emoji,
+                    typography = AppTheme.typography.Heading.H600,
+                )
+                Text(
+                    text = reward.label,
+                    modifier = Modifier.padding(start = Dimension.D300),
+                    typography = AppTheme.typography.Body.B600,
+                    color = AppTheme.colors.content,
+                )
             }
         }
     }
@@ -166,6 +236,23 @@ private fun LevelUpCelebrationPreview_DoubleDigit() {
     PreviewContent {
         Box(Modifier.fillMaxSize().size(400.dp)) {
             LevelUpCelebration(level = 24, onContinue = {})
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun LevelUpCelebrationPreview_WithRewards() {
+    PreviewContent {
+        Box(Modifier.fillMaxSize().size(400.dp)) {
+            LevelUpCelebration(
+                level = 10,
+                onContinue = {},
+                rewards = listOf(
+                    LevelUpReward(emoji = "🪙", label = "+7,500 chips"),
+                    LevelUpReward(emoji = "⚡", label = "2× XP boost"),
+                ),
+            )
         }
     }
 }
