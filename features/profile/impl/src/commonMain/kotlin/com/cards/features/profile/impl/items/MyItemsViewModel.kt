@@ -223,7 +223,12 @@ data class MyItemsState(
     /** Owned items, newest purchase first, with catalog metadata folded in. */
     val ownedItems: List<OwnedItem>
         get() {
-            val productsById = (catalog.chipOffers + catalog.chipPacks).associateBy { it.id }
+            // Prestige grants (badges + titles) ride a separate catalog bucket —
+            // the shop never sells them — but they carry the same display
+            // metadata, so fold them in here to give an owned badge/title its
+            // real name, emoji, and description instead of a bare "🎁".
+            val productsById = (catalog.chipOffers + catalog.chipPacks + catalog.prestige)
+                .associateBy { it.id }
             return inventory.map { item ->
                 val product = productsById[item.productId]
                 OwnedItem(
