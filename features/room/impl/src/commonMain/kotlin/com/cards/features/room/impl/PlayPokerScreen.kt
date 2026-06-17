@@ -247,6 +247,7 @@ fun PlayPokerScreen(
                 ConnectionBanner(connection = state.connection)
                 TopBar(
                     xp = displayedXp,
+                    xpBoostExpiresAtEpochMs = state.xpBoostExpiresAtEpochMs,
                     onBack = requestLeave,
                     onCheatSheet = { onAction(PlayPokerAction.ToggleCheatSheet) },
                     onTapXp = onTapXp,
@@ -587,6 +588,7 @@ private fun PracticeTierLabel() {
 @Composable
 private fun TopBar(
     xp: Long,
+    xpBoostExpiresAtEpochMs: Long? = null,
     onBack: () -> Unit,
     onCheatSheet: () -> Unit,
     onTapXp: () -> Unit = {},
@@ -633,6 +635,7 @@ private fun TopBar(
             LevelPill(
                 xp = xp,
                 onClick = onTapXp,
+                boostExpiresAtEpochMs = xpBoostExpiresAtEpochMs,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .then(

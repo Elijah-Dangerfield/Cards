@@ -170,6 +170,7 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.SwipeFoldAckChanged(data.swipeFoldGestureAck))
                 takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(data.winOddsFlipHintSeen))
                 takeAction(PlayPokerAction.MutedEmojiPlayersChanged(data.mutedEmojiPlayerKeys))
+                takeAction(PlayPokerAction.XpBoostChanged(data.xpBoostExpiresAtEpochMs))
             }
         }
         // Inventory mirror — folds owned emote-pack product IDs into the
@@ -461,6 +462,9 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.TurnFeedbackChanged -> action.updateState {
                 it.copy(turnFeedback = action.value)
             }
+            is PlayPokerAction.XpBoostChanged -> action.updateState {
+                it.copy(xpBoostExpiresAtEpochMs = action.expiresAtEpochMs)
+            }
 
             is PlayPokerAction.HandXpAwarded -> action.updateState {
                 it.copy(lastHandXpAwarded = action.amount)
@@ -590,6 +594,11 @@ data class PlayPokerState(
     val occupants: List<SeatOccupant> = emptyList(),
     val cheatSheetOpen: Boolean = false,
     val xp: Long = 0,
+    /**
+     * Expiry of the active XP boost window (epoch-ms), or null if none. Drives
+     * the inline countdown grafted onto the level pill while a boost burns.
+     */
+    val xpBoostExpiresAtEpochMs: Long? = null,
     /**
      * Local user's derived level from [xp]. Mirrored into [TableUiState]
      * via the session factory so the human seat shows a "Lvl N" pill
@@ -730,6 +739,7 @@ sealed interface PlayPokerAction {
     // Settings mirrors (cache flow → state)
     data class XpChanged(val totalXp: Long) : PlayPokerAction
     data class TurnFeedbackChanged(val value: TurnFeedback) : PlayPokerAction
+    data class XpBoostChanged(val expiresAtEpochMs: Long?) : PlayPokerAction
 
     // Hand-end transients (internal — fired by hand-end callback)
     data class HandXpAwarded(val amount: Int) : PlayPokerAction
