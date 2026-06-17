@@ -53,7 +53,6 @@ import cards.libraries.resources.generated.resources.profile_edit_display_name_e
 import cards.libraries.resources.generated.resources.profile_edit_display_name_helper_range
 import cards.libraries.resources.generated.resources.profile_edit_display_name_label
 import cards.libraries.resources.generated.resources.profile_edit_featured_empty
-import cards.libraries.resources.generated.resources.profile_edit_featured_helper
 import cards.libraries.resources.generated.resources.profile_edit_featured_section
 import cards.libraries.resources.generated.resources.profile_edit_get_more_packs
 import cards.libraries.resources.generated.resources.profile_edit_save_button
@@ -75,6 +74,7 @@ import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
 import com.dangerfield.cards.libraries.ui.components.resolveAvatarBackground
 import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.button.ButtonType
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.icon.IconButton
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
@@ -269,12 +269,6 @@ fun EditProfileScreen(
                     text = stringResource(Res.string.profile_edit_featured_section),
                     typography = AppTheme.typography.Heading.H500,
                     color = AppTheme.colors.content,
-                )
-                Spacer(modifier = Modifier.height(Dimension.D200))
-                Text(
-                    text = stringResource(Res.string.profile_edit_featured_helper),
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.contentSecondary,
                 )
                 Spacer(modifier = Modifier.height(Dimension.D400))
                 FeaturedBadgePicker(
@@ -538,7 +532,8 @@ private fun AvatarPicker(
         Spacer(modifier = Modifier.height(Dimension.D700))
         Button(
             onClick = onGetMorePacks,
-            style = ButtonStyle.Text,
+            type = ButtonType.Secondary,
+            style = ButtonStyle.Outlined,
             size = ButtonSize.Small,
         ) {
             Text(stringResource(Res.string.profile_edit_get_more_packs))
