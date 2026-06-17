@@ -22,6 +22,7 @@ kotlin {
             implementation(libs.kermit)
             implementation(projects.libraries.flowroutines)
             implementation(projects.libraries.cards.storage)
+            implementation(projects.libraries.config)
             implementation(projects.libraries.networking)
             implementation(projects.libraries.identity)
             implementation(libs.kotlinx.datetime)
@@ -33,6 +34,7 @@ kotlin {
         commonTest.dependencies {
             implementation(projects.libraries.cards)
             implementation(projects.libraries.cards.storage)
+            implementation(projects.libraries.config)
             implementation(projects.libraries.networking)
             implementation(projects.libraries.identity)
             implementation(projects.libraries.flowroutines.testing)

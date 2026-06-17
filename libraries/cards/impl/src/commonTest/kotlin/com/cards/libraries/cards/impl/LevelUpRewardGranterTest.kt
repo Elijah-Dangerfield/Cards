@@ -3,8 +3,11 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.DefaultLevelRewards
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.XpBoostStatus
@@ -99,13 +102,20 @@ class LevelUpRewardGranterTest : CoroutineTest() {
         chips: RecordingChipsRepository = RecordingChipsRepository(),
         boost: RecordingXpBoostRepository = RecordingXpBoostRepository(),
         progression: FakeProgressionRepository = FakeProgressionRepository(),
+        config: ProgressionConfig = DefaultProgressionConfigFake(),
     ): LevelUpRewardGranter = LevelUpRewardGranter(
         progressionRepository = progression,
         chipsRepository = chips,
         xpBoostRepository = boost,
+        progressionConfig = config,
         appCache = cache,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    private class DefaultProgressionConfigFake : ProgressionConfig {
+        override fun rewardsForLevel(level: Int): List<LevelReward> =
+            DefaultLevelRewards.rewardsForLevel(level)
+    }
 
     private class FakeProgressionRepository(
         initial: Progression = Progression.Empty,
