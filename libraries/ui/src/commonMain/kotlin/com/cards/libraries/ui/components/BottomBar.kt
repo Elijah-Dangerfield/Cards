@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -215,6 +216,16 @@ fun AppBottomBar(
 ) {
     val shadowColor = AppTheme.colors.scrim.withAlpha(0.25f).color
 
+    // While a boost burns, tint the bar teal — but composite the (translucent)
+    // accent over the opaque surface so the bar stays solid rather than letting
+    // the screen show through. Null leaves the default surface.
+    val boostTint = if (boostProgress != null) {
+        AppTheme.colors.accentSecondary.color.copy(alpha = 0.22f)
+            .compositeOver(AppTheme.colors.surface.color)
+    } else {
+        null
+    }
+
     val selectedIndex = items.indexOfFirst { it.isSelected }.coerceAtLeast(0)
     Column(modifier = modifier.fillMaxWidth()) {
         if (boostProgress != null) {
@@ -228,8 +239,9 @@ fun AppBottomBar(
                     this.color = shadowColor
                 },
             elevation = Elevation.BottomBar,
-            // Teal-tinted surface while a boost burns; default otherwise.
-            color = if (boostProgress != null) AppTheme.colors.accentSecondarySubtle else AppTheme.colors.surface,
+            color = AppTheme.colors.surface,
+            // Opaque teal-over-surface wins over `color` while a boost burns.
+            colorOverride = boostTint,
             contentColor = AppTheme.colors.content,
             border = null,
             radius = Radii.None,
