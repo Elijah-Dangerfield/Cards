@@ -540,26 +540,34 @@ private fun PlayerInfoTile(
         }
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(56.dp)
-                // Tapping your own avatar opens your Player Card (the public
-                // identity others see). Gated to the human seat; the blind
-                // explainer stays on the BlindMarker badge below.
-                .then(
-                    if (seat.isHuman) {
-                        Modifier.clip(CircleShape).clickable { onSelfTap() }
-                    } else {
-                        Modifier
-                    },
-                ),
+            modifier = Modifier.size(56.dp),
         ) {
             if (isWinner) WinnerGlow(modifier = Modifier.size(56.dp))
-            AvatarCircle(
-                name = seat.displayName,
-                size = 52.dp,
-                emoji = seat.emoji ?: AnonymousAvatarEmoji,
-                backgroundColorHex = seat.avatarBackgroundColorHex,
-            )
+            // The circular clip + tap target lives on the avatar itself, NOT
+            // the outer box. Clipping the outer box to a circle cropped the
+            // BlindMarker (anchored at its bottom-end corner) against the
+            // circle's curve — the dealer "D" was getting a flat edge.
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .then(
+                        if (seat.isHuman) {
+                            // Tapping your own avatar opens your Player Card
+                            // (the public identity others see). The blind
+                            // explainer stays on the BlindMarker badge below.
+                            Modifier.clip(CircleShape).clickable { onSelfTap() }
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
+                AvatarCircle(
+                    name = seat.displayName,
+                    size = 52.dp,
+                    emoji = seat.emoji ?: AnonymousAvatarEmoji,
+                    backgroundColorHex = seat.avatarBackgroundColorHex,
+                )
+            }
             BlindMarker(
                 isDealer = seat.isDealer,
                 isSmallBlind = seat.isSmallBlind,
@@ -567,9 +575,8 @@ private fun PlayerInfoTile(
                 onClick = if (hasBlindRole) onBlindClick else null,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    // Inset from the avatar's corner so the chip sits fully
-                    // inside the seat tile (the old near-edge offset clipped it
-                    // against the rounded card border on the self seat).
+                    // Small inward inset so the chip overlaps the avatar's
+                    // bottom-right corner rather than floating off it.
                     .offset(x = (-4).dp, y = (-4).dp),
             )
         }
