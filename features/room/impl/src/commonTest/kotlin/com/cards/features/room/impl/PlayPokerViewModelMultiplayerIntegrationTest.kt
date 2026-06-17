@@ -305,6 +305,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             appCache = FakeAppCache(),
             equipmentRepository = FakeEquipmentRepository(),
             inventoryRepository = FakeInventoryRepository(),
+            productsRepository = FakeProductsRepository(),
             profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,

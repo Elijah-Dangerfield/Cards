@@ -971,6 +971,9 @@
     <!-- Recent-XP feed tag on a hand row whose XP was doubled by an active boost. -->
     <string name="stats_recent_xp_boosted_tag">⚡ 2×</string>
 
+    <!-- Badge detail sheet (tap a badge/title chip on a player card). -->
+    <string name="ui_badge_sheet_done">Done</string>
+
     <!-- Profile — confirm dialog before lighting a stashed XP boost. -->
     <string name="profile_boost_confirm_title">Activate XP Boost?</string>
     <string name="profile_boost_confirm_message">Your 30-minute window starts now — you\'ll earn double XP on every hand you play. (Achievement XP isn\'t boosted.)</string>

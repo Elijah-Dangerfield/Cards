@@ -49,7 +49,9 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Rank
 import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.BadgeDetailSheet
 import com.dangerfield.cards.libraries.ui.components.LevelPill
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
@@ -104,6 +106,9 @@ fun PlayPokerScreen(
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
     var selfCardOpen by remember { mutableStateOf(false) }
+    // A badge/title chip tapped on the player-profile sheet — opens its
+    // read-about-it detail sheet.
+    var selectedBadge by remember { mutableStateOf<PlayerBadge?>(null) }
     // Action / bet / hand-label explainers carry their own context so each
     // dialog can render specific copy instead of opening the whole cheat sheet.
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
@@ -439,10 +444,14 @@ fun PlayPokerScreen(
                     isMuted = false,
                     onToggleMute = {},
                     onDismiss = { selfCardOpen = false },
-                    equippedTitle = state.equippedTitle,
-                    permanentBadgeEmoji = state.equippedBadgeEmoji,
+                    badges = state.equippedBadges,
+                    onBadgeClick = { selectedBadge = it },
                 )
             }
+        }
+
+        selectedBadge?.let { badge ->
+            BadgeDetailSheet(badge = badge, onDismiss = { selectedBadge = null })
         }
 
         // Bot-mode achievement-unlock celebration is sequenced *after* the

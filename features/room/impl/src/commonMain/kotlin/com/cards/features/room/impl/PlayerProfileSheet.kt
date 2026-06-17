@@ -23,6 +23,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
 import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
@@ -53,8 +54,8 @@ internal fun PlayerProfileSheet(
     onToggleMute: () -> Unit,
     onDismiss: () -> Unit,
     isMePlayer: Boolean = false,
-    equippedTitle: String? = null,
-    permanentBadgeEmoji: String? = null,
+    badges: List<PlayerBadge> = emptyList(),
+    onBadgeClick: (PlayerBadge) -> Unit = {},
     botDifficultyLabel: String? = null,
 ) {
     val bubbleColor = resolveAvatarBackground(seat.avatarBackgroundColorHex)
@@ -84,8 +85,8 @@ internal fun PlayerProfileSheet(
             PlayerCardContent(
                 name = seat.displayName,
                 level = (seat.seatBadge as? SeatBadge.Level)?.level,
-                equippedTitle = equippedTitle,
-                permanentBadgeEmoji = permanentBadgeEmoji,
+                badges = badges,
+                onBadgeClick = onBadgeClick,
                 modifier = Modifier.fillMaxWidth(),
             )
             VerticalSpacerD500()

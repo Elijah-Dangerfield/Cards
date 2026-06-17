@@ -54,6 +54,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -92,6 +93,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -133,6 +135,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -202,6 +205,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -228,6 +232,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -264,6 +269,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -301,6 +307,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -330,6 +337,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -360,6 +368,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = NoOpAchievementRepository,
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -392,6 +401,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = FakeAchievementRepository(progress),
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -423,6 +433,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = FakeAchievementRepository(progress),
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -462,6 +473,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
             achievementRepository = FakeAchievementRepository(progress),
+            productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
         runCurrent()
@@ -566,6 +578,15 @@ private class GatedInventoryRepository(
         syncCalls += 1
         return gate.await()
     }
+}
+
+private object NoOpProductsRepository : com.dangerfield.cards.libraries.products.ProductsRepository {
+    override fun observeCatalog(): Flow<com.dangerfield.cards.libraries.products.ProductCatalog> =
+        flowOf(com.dangerfield.cards.libraries.products.ProductCatalog.Empty)
+    override suspend fun refresh(force: Boolean): Result<com.dangerfield.cards.libraries.products.ProductCatalog> =
+        Result.success(com.dangerfield.cards.libraries.products.ProductCatalog.Empty)
+    override fun observeTimeAnchor(): Flow<com.dangerfield.cards.libraries.products.CatalogTimeAnchor?> = flowOf(null)
+    override fun observeIsRefreshing(): Flow<Boolean> = flowOf(false)
 }
 
 private object NoOpInventoryRepository : InventoryRepository {

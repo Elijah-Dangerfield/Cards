@@ -34,8 +34,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -68,6 +71,8 @@ import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
+import com.dangerfield.cards.libraries.ui.components.BadgeDetailSheet
+import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
 import com.dangerfield.cards.libraries.ui.components.PlayerCardStat
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedal
@@ -265,22 +270,10 @@ fun EditProfileScreen(
                     onSelect = { onAction(EditProfileAction.AvatarSelected(it)) },
                     onGetMorePacks = { onNavigateToShop(null) },
                 )
-
-                Spacer(modifier = Modifier.height(Dimension.D900))
-
-                Text(
-                    text = stringResource(Res.string.profile_edit_featured_section),
-                    typography = AppTheme.typography.Heading.H500,
-                    color = AppTheme.colors.content,
-                )
-                Spacer(modifier = Modifier.height(Dimension.D400))
-                FeaturedBadgePicker(
-                    badges = state.earnedBadges,
-                    selectedIds = state.selectedFeaturedBadgeIds,
-                    selectionFull = state.isFeaturedSelectionFull,
-                    enabled = !state.isSubmitting,
-                    onToggle = { onAction(EditProfileAction.ToggleFeaturedBadge(it)) },
-                )
+                // The "Featured badges" achievement picker was removed with the
+                // Player Card rework — the card shows equipped badges/titles, not
+                // featured achievements. (Picker composables + state are now
+                // orphaned; cleanup tracked separately.)
                     }
 
                     // Floating Save bar — sits over the bottom of the scroll
@@ -377,11 +370,13 @@ private fun EditProfileTabLabel(
 
 /**
  * The "View" tab — a live [PlayerCard] reflecting the user's current
- * (possibly unsaved) selection, so editing and "what others see" stay in
- * one place. Featured badges arrive with the featured-badge selection work.
+ * (possibly unsaved) selection, so editing and "what others see" stay in one
+ * place. Shows the player's equipped badges + titles as tappable chips (tap →
+ * read about it); recent achievements deliberately don't appear here.
  */
 @Composable
 private fun ViewTabContent(state: EditProfileState) {
+    var selectedBadge by remember { mutableStateOf<PlayerBadge?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -401,9 +396,8 @@ private fun ViewTabContent(state: EditProfileState) {
         PlayerCardContent(
             name = state.displayName.ifBlank { state.initialDisplayName.orEmpty() },
             level = state.level,
-            equippedTitle = state.equippedTitle,
-            permanentBadgeEmoji = state.permanentBadgeEmoji,
-            featuredBadges = state.featuredBadges,
+            badges = state.equippedBadges,
+            onBadgeClick = { selectedBadge = it },
             stats = buildList {
                 add(
                     PlayerCardStat(
@@ -429,6 +423,10 @@ private fun ViewTabContent(state: EditProfileState) {
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+
+    selectedBadge?.let { badge ->
+        BadgeDetailSheet(badge = badge, onDismiss = { selectedBadge = null })
     }
 }
 
