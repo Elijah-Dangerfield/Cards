@@ -76,12 +76,13 @@ class ProgressionRepositoryImpl(
         progressionDao.getProgression()?.toDomain() ?: Progression.Empty
 
     override suspend fun awardForHand(summary: HandResultSummary): List<XpEvent> {
-        // A 2× XP boost (if active) multiplies every award before it hits the
+        // An XP boost (if active) multiplies every hand award before it hits the
         // ledger, so the boosted XP is what the user keeps + what syncs to the
         // server. The boost is purely local math — see [XpBoostRepository].
         val multiplier = xpBoostRepository.multiplier()
+        val wasBoosted = multiplier > 1
         val awards = XpCalculator.calculate(summary).let { base ->
-            if (multiplier > 1) base.map { it.copy(amount = it.amount * multiplier) } else base
+            if (wasBoosted) base.map { it.copy(amount = it.amount * multiplier) } else base
         }
         val totalDelta = awards.sumOf { it.amount }
         val now = clock.now().toEpochMilliseconds()
@@ -108,6 +109,7 @@ class ProgressionRepositoryImpl(
                 source = award.source.name,
                 mode = summary.mode.name,
                 handId = summary.handId,
+                wasBoosted = wasBoosted,
                 createdAtEpochMs = now,
             )
         }
@@ -128,6 +130,7 @@ class ProgressionRepositoryImpl(
                 source = awards[index].source,
                 mode = summary.mode,
                 handId = row.handId,
+                wasBoosted = wasBoosted,
                 createdAtEpochMs = row.createdAtEpochMs,
             )
         }

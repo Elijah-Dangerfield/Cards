@@ -121,6 +121,24 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
             boostedLedger.inserted.sumOf { it.deltaXp }.toLong(),
             "every ledger row carries the boosted amount",
         )
+        // Boosted rows are flagged so the recent-XP feed can label them.
+        assertTrue(
+            boostedLedger.inserted.isNotEmpty() && boostedLedger.inserted.all { it.wasBoosted },
+            "every boosted ledger row is flagged wasBoosted",
+        )
+    }
+
+    @Test
+    fun awardForHand_withoutBoost_leavesRowsUnflagged() = runUnitTest {
+        val ledger = FakeXpEventDao()
+        build(ledger = ledger, boostActive = false).awardForHand(
+            summary(reachedShowdown = true, wonPot = true),
+        )
+
+        assertTrue(
+            ledger.inserted.isNotEmpty() && ledger.inserted.none { it.wasBoosted },
+            "unboosted ledger rows are never flagged wasBoosted",
+        )
     }
 
     @Test

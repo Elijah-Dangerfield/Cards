@@ -61,6 +61,14 @@ data class XpEventEntity(
     @ColumnInfo(name = "description")
     val description: String? = null,
 
+    /**
+     * True when an XP boost doubled this award. Local-only — the server's
+     * `xp_events` table doesn't carry it (the already-doubled [deltaXp] is what
+     * syncs); this just lets the recent-XP feed flag boosted hand rows.
+     */
+    @ColumnInfo(name = "was_boosted")
+    val wasBoosted: Boolean = false,
+
     @ColumnInfo(name = "created_at_epoch_ms")
     val createdAtEpochMs: Long,
 )

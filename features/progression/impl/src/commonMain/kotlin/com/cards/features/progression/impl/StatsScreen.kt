@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.stats_play_style_blurb
+import cards.libraries.resources.generated.resources.stats_recent_xp_boosted_tag
 import cards.libraries.resources.generated.resources.stats_play_style_name
 import cards.libraries.resources.generated.resources.stats_play_style_section
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -309,6 +310,16 @@ private fun EventRow(event: XpEvent) {
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column(horizontalAlignment = Alignment.End) {
+            // Flag boosted hand rows so the doubled amount reads as a reward
+            // rather than a mystery — the deltaXp already holds the 2× total.
+            if (event.wasBoosted) {
+                Text(
+                    text = stringResource(Res.string.stats_recent_xp_boosted_tag),
+                    typography = AppTheme.typography.Caption.C200.SemiBold,
+                    color = AppTheme.colors.accentSecondary,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+            }
             Text(
                 text = "+${event.deltaXp}",
                 typography = AppTheme.typography.Heading.H600,

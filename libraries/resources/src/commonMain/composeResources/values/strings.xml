@@ -968,6 +968,14 @@
     <string name="ui_xp_boost_banner_active_subtitle">Double XP on every hand</string>
     <!-- %1$s is a mm:ss countdown to expiry. -->
     <string name="ui_xp_boost_banner_remaining">%1$s left</string>
+    <!-- Recent-XP feed tag on a hand row whose XP was doubled by an active boost. -->
+    <string name="stats_recent_xp_boosted_tag">⚡ 2×</string>
+
+    <!-- Profile — confirm dialog before lighting a stashed XP boost. -->
+    <string name="profile_boost_confirm_title">Activate XP Boost?</string>
+    <string name="profile_boost_confirm_message">Your 30-minute window starts now — you\'ll earn double XP on every hand you play. (Achievement XP isn\'t boosted.)</string>
+    <string name="profile_boost_confirm_activate">Activate</string>
+    <string name="profile_boost_confirm_cancel">Not yet</string>
 
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>

@@ -63,5 +63,12 @@ data class XpEvent(
     val handId: String?,
     /** Free-text disambiguator — e.g. the achievement name for ACHIEVEMENT events. */
     val description: String? = null,
+    /**
+     * True when an XP boost was active and doubled this award. Only hand-derived
+     * events ([XpSource.BASE]/[INVESTMENT][XpSource.INVESTMENT]/[SHOWDOWN][XpSource.SHOWDOWN]/[HAND_STRENGTH][XpSource.HAND_STRENGTH])
+     * are ever boosted — achievement XP is a fixed reward — so the recent-XP feed
+     * can flag these rows. [deltaXp] already holds the doubled amount.
+     */
+    val wasBoosted: Boolean = false,
     val createdAtEpochMs: Long,
 )
