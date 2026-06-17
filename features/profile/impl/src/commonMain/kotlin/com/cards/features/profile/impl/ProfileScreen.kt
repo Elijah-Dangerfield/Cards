@@ -91,7 +91,7 @@ import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
-import com.dangerfield.cards.libraries.ui.components.PlayStyleBlobMark
+import com.dangerfield.cards.libraries.ui.components.PlayStyleRadarMark
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedalWithDetail
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
@@ -428,9 +428,10 @@ private fun StatsStyleBanner(
     } else {
         stringResource(Res.string.profile_stats_banner_subtitle_no_games, style)
     }
-    // The play-style name reads in the accent (matching the blob); the rest of
-    // the line stays muted. Span-on-substring keeps the localized template whole.
-    val styleColor = AppTheme.colors.accentSecondary.color
+    // The play-style name reads in the accent (matching the radar mark); the
+    // rest of the line stays muted. Span-on-substring keeps the localized
+    // template whole.
+    val styleColor = AppTheme.colors.poker.progressionCyan.color
     val subtitleAnnotated = remember(subtitle, style, styleColor) {
         buildAnnotatedString {
             append(subtitle)
@@ -454,7 +455,7 @@ private fun StatsStyleBanner(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
         ) {
-            // Fake play-style preview — the same blob mark the Stats quadrant
+            // Fake play-style preview — the same radar mark the Stats page
             // uses, framed in a tile so it reads as "your style at a glance".
             Box(
                 modifier = Modifier
@@ -463,9 +464,8 @@ private fun StatsStyleBanner(
                     .background(AppTheme.colors.surfaceRaised.color),
                 contentAlignment = Alignment.Center,
             ) {
-                PlayStyleBlobMark(
+                PlayStyleRadarMark(
                     modifier = Modifier.size(36.dp),
-                    color = AppTheme.colors.accentSecondary,
                 )
             }
             Column(modifier = Modifier.weight(1f)) {

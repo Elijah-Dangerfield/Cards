@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.features.upgrade.AppGuardState
@@ -148,6 +149,9 @@ private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: ()
         modifier = Modifier
             .fillMaxSize()
             .background(AppTheme.colors.background.color)
+            // Swallow every touch so taps that miss the CTA don't fall through
+            // to the nav graph drawn beneath this blocking overlay.
+            .consumeTouches()
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 32.dp),
     ) {
@@ -192,8 +196,8 @@ private fun UpgradeRequiredOverlay(onOpenStore: () -> Unit, onClearOverrides: ()
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(Res.string.upgrade_required_reassurance),
-                typography = AppTheme.typography.Caption.C200,
-                color = AppTheme.colors.contentTertiary,
+                typography = AppTheme.typography.Caption.C400,
+                color = AppTheme.colors.contentSecondary,
                 textAlign = TextAlign.Center,
             )
         }
@@ -239,6 +243,20 @@ private fun MaintenanceBlockingOverlay(message: String, onClearOverrides: () -> 
     }
 }
 
+/**
+ * Consume every pointer event so a full-screen blocking overlay actually
+ * blocks: taps that land outside an interactive child (the CTA still works —
+ * children get the event first on the main pass) are swallowed instead of
+ * falling through to the nav graph drawn beneath the overlay.
+ */
+private fun Modifier.consumeTouches(): Modifier = pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            awaitPointerEvent().changes.forEach { it.consume() }
+        }
+    }
+}
+
 @Composable
 private fun DebugEscapeHatch(onClearOverrides: () -> Unit) {
     if (!BuildInfo.isDebug) return
@@ -265,6 +283,8 @@ private fun BlockingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AppTheme.colors.background.color)
+            // Block taps from leaking through to the app underneath.
+            .consumeTouches()
             .windowInsetsPadding(WindowInsets.safeDrawing),
     ) {
         Column(

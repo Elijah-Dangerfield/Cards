@@ -144,7 +144,7 @@ class ProfileRepositoryImpl(
     private suspend fun resolve(auth: AuthState): Profile = mutex.withLock {
         val resolved = when (auth) {
             is AuthState.Authenticated -> resolveAuthenticatedLocked(auth)
-            is AuthState.Unauthenticated -> resolveFallbackLocked()
+            is AuthState.Unauthenticated -> resolveFallbackLocked(auth)
         }
         _state.emit(resolved)
         // Info-level — profile emissions are load-bearing observability,
@@ -172,6 +172,7 @@ class ProfileRepositoryImpl(
                 email = auth.email,
                 isAnonymous = me.isAnonymous,
                 createdAt = Instant.fromEpochMilliseconds(me.createdAtEpochMs),
+                featuredBadgeIds = me.featuredBadgeIds,
             )
             profileCache.writeAuthenticated(profile)
             // Real session resolved — local fallback no longer relevant.
@@ -197,10 +198,27 @@ class ProfileRepositoryImpl(
             },
         )
 
-    private suspend fun resolveFallbackLocked(): Profile {
-        // No auth → no real profile to fetch. But we may have one cached
-        // from a previous session. If so, that's the best we have to
-        // show until auth comes back. Otherwise the fallback UUID.
+    private suspend fun resolveFallbackLocked(auth: AuthState.Unauthenticated): Profile {
+        // A server-confirmed dead session (the auth server rejected our token):
+        // the cached profile is a ghost. Surfacing it as Authenticated is exactly
+        // what makes the app keep firing authed calls that all 401. Clear it and
+        // drop to Fallback so the app knows it has no working account — routing to
+        // re-auth happens off the SessionExpired auth state, not from here.
+        if (auth.reason == AuthState.Unauthenticated.Reason.SessionExpired) {
+            val cached = Catching { profileCache.readAuthenticated() }
+                .logOnFailure { "Profile cache read failed" }
+                .getOrNull()
+            if (cached != null) {
+                logger.i { "SessionExpired — clearing stale cached profile ${cached.id}" }
+                Catching { profileCache.clear() }
+                    .logOnFailure { "Failed to clear stale cached profile after session expiry" }
+            }
+            return Profile.Fallback(id = ensureLocalIdLocked())
+        }
+
+        // Benign unauthenticated (no session yet / clean sign-out / offline): we
+        // may have a profile cached from a previous session. If so, that's the
+        // best we have to show until auth comes back. Otherwise the fallback UUID.
         val cached = Catching { profileCache.readAuthenticated() }
             .logOnFailure { "Profile cache read failed" }
             .getOrNull()
@@ -228,6 +246,7 @@ class ProfileRepositoryImpl(
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
+        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome = mutex.withLock {
         // Don't log the new values themselves — display names are
         // mildly user-identifying. Just record which fields are
@@ -239,6 +258,7 @@ class ProfileRepositoryImpl(
                     "avatarEmoji".takeIf { avatarEmoji != null },
                     "avatarBackgroundColor".takeIf { avatarBackgroundColor != null },
                     "clearAvatarBackgroundColor".takeIf { clearAvatarBackgroundColor },
+                    "featuredBadgeIds".takeIf { featuredBadgeIds != null },
                 ).joinToString() +
                 "]"
         }
@@ -265,6 +285,7 @@ class ProfileRepositoryImpl(
                     avatarBackgroundColor != null -> avatarBackgroundColor
                     else -> priorProfile.avatarBackgroundColor
                 },
+                featuredBadgeIds = featuredBadgeIds ?: priorProfile.featuredBadgeIds,
             )
             profileCache.writeAuthenticated(optimistic)
             _state.emit(optimistic)
@@ -278,6 +299,7 @@ class ProfileRepositoryImpl(
                     avatarEmoji = avatarEmoji,
                     avatarBackgroundColor = avatarBackgroundColor,
                     clearAvatarBackgroundColor = clearAvatarBackgroundColor,
+                    featuredBadgeIds = featuredBadgeIds,
                 ),
             )
         }.fold(
@@ -290,6 +312,7 @@ class ProfileRepositoryImpl(
                     isAnonymous = updated.isAnonymous,
                     email = auth.email,
                     createdAt = Instant.fromEpochMilliseconds(updated.createdAtEpochMs),
+                    featuredBadgeIds = updated.featuredBadgeIds,
                 )
                 profileCache.writeAuthenticated(profile)
                 _state.emit(profile)

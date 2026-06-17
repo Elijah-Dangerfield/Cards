@@ -168,6 +168,13 @@ class EquipmentRepositoryImpl(
         appScope.launch { sync() }
     }
 
+    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
+        // A guest just claimed their account (same user id, no UserChanged), so
+        // flush pending equipment ops + reconcile the loadout now instead of
+        // waiting for the next foreground.
+        appScope.launch { sync() }
+    }
+
     override fun onForeground(event: AppEvent.OnForeground) {
         // Cold-boot's initial sync is owned by [onUserChanged]; this handles
         // the warm-resume reconcile only.

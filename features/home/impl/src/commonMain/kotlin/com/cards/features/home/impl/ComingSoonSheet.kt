@@ -5,7 +5,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.dangerfield.cards.libraries.ui.PreviewContent
-import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.asDragHandle
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -33,10 +32,7 @@ internal fun ComingSoonSheet(
         title = title,
         onDismissRequest = onDismiss,
         backgroundColor = AppTheme.colors.surface,
-        dragHandle = topAccessoryEmoji(
-            emoji = emoji,
-            surface = BubbleSurface.Solid(AppTheme.colors.surfaceHigh),
-        ).asDragHandle(),
+        dragHandle = topAccessoryEmoji(emoji = emoji).asDragHandle(),
     ) {
         Text(
             text = body,

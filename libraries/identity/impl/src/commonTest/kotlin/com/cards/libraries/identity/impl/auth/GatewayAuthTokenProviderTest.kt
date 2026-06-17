@@ -1,9 +1,12 @@
 package com.dangerfield.cards.libraries.identity.impl.auth
 
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import io.github.jan.supabase.exceptions.HttpRequestException
+import io.ktor.client.request.HttpRequestBuilder
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Two-step contract:
@@ -21,7 +24,7 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
             initialStatus = AuthGatewayStatus.Authenticated,
             session = sampleSession(accessToken = "tok-abc"),
         )
-        val provider = GatewayAuthTokenProvider(gateway)
+        val provider = GatewayAuthTokenProvider(gateway, FakeSessionRejectionBus())
 
         provider.awaitReady()
         assertEquals("tok-abc", provider.accessToken())
@@ -35,7 +38,7 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
         )
-        val provider = GatewayAuthTokenProvider(gateway)
+        val provider = GatewayAuthTokenProvider(gateway, FakeSessionRejectionBus())
 
         provider.awaitReady()
         assertNull(provider.accessToken())
@@ -48,7 +51,7 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
         )
-        val provider = GatewayAuthTokenProvider(gateway)
+        val provider = GatewayAuthTokenProvider(gateway, FakeSessionRejectionBus())
 
         assertNull(provider.accessToken())
         assertEquals(0, gateway.signInAnonymouslyCalls, "peek must not drive sign-in")
@@ -64,7 +67,7 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
         gateway.onRefreshSession = {
             replaceSession(initialSession.copy(accessToken = "tok-new"))
         }
-        val provider = GatewayAuthTokenProvider(gateway)
+        val provider = GatewayAuthTokenProvider(gateway, FakeSessionRejectionBus())
 
         assertEquals("tok-new", provider.refreshAccessToken())
         assertEquals(1, gateway.refreshSessionCalls)
@@ -77,9 +80,25 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
             session = sampleSession(accessToken = "tok-old"),
         )
         gateway.onRefreshSession = { throw IllegalStateException("network down") }
-        val provider = GatewayAuthTokenProvider(gateway)
+        val provider = GatewayAuthTokenProvider(gateway, FakeSessionRejectionBus())
 
         assertNull(provider.refreshAccessToken())
+    }
+
+    @Test
+    fun refreshAccessToken_onNetworkFailure_returnsNull_withoutSignalingRejection() = runUnitTest {
+        // A transient network failure must NOT boot the session — keep it and let
+        // the request go unauthed / the offline path take over.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = sampleSession(accessToken = "tok-old"),
+        )
+        gateway.onRefreshSession = { throw HttpRequestException("connection refused", HttpRequestBuilder()) }
+        val bus = FakeSessionRejectionBus()
+        val provider = GatewayAuthTokenProvider(gateway, bus)
+
+        assertNull(provider.refreshAccessToken())
+        assertTrue(bus.signaled.isEmpty(), "transient failures must not signal a session rejection")
     }
 
     @Test
@@ -92,7 +111,7 @@ class GatewayAuthTokenProviderTest : CoroutineTest() {
             initialStatus = AuthGatewayStatus.NotAuthenticated,
             session = null,
         )
-        val provider = GatewayAuthTokenProvider(gateway)
+        val provider = GatewayAuthTokenProvider(gateway, FakeSessionRejectionBus())
 
         assertNull(provider.refreshAccessToken())
         assertEquals(0, gateway.refreshSessionCalls, "must not attempt a refresh with no session")

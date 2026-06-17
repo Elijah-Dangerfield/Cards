@@ -148,6 +148,22 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
     }
 
     @Test
+    fun onAccountClaimed_launchesSync() = runUnitTest {
+        val xpDao = FakeXpEventDao()
+        val appScope = AppCoroutineScope(dispatchers)
+        var hits = 0
+        val repo = buildRepoWithScope(FakeProgressionDao(seedTotalXp = 0L), xpDao, appScope) {
+            hits++
+            respondJson("""{"schemaVersion":1,"totalXp":500,"results":[]}""")
+        }
+
+        repo.onAccountClaimed(AppEvent.AccountClaimed(userId = "guest-1"))
+        appScope.coroutineContext.job.children.toList().forEach { it.join() }
+
+        assertEquals(1, hits, "a just-claimed account flushes XP without waiting for foreground")
+    }
+
+    @Test
     fun onUserChanged_toSignedOut_doesNotSync() = runUnitTest {
         val appScope = AppCoroutineScope(dispatchers)
         var hits = 0
@@ -195,6 +211,7 @@ class ProgressionRepositoryImplSyncTest : CoroutineTest() {
             networkClient = networkClient,
             appScope = appScope,
             clock = FixedClock,
+            xpBoostRepository = InactiveXpBoostRepository,
         )
     }
 

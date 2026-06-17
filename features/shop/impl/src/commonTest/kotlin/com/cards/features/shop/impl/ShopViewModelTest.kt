@@ -35,7 +35,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -78,7 +80,7 @@ class ShopViewModelTest : CoroutineTest() {
         assertFalse(vm.state.isRefreshing)
         assertTrue(vm.state.hasLoaded)
         assertEquals(2, vm.state.catalog.chipPacks.size)
-        assertEquals(4, vm.state.catalog.chipOffers.size)
+        assertEquals(5, vm.state.catalog.chipOffers.size)
     }
 
     @Test
@@ -109,6 +111,26 @@ class ShopViewModelTest : CoroutineTest() {
 
         vm.takeAction(ShopAction.DismissError)
         assertNull(vm.state.errorMessage)
+    }
+
+    @Test
+    @kotlin.OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun deepLinkScrollRequest_setsPendingCategory_thenScrollConsumedClearsIt() = runUnitTest {
+        val bus = FakeShopDeepLinkBus()
+        val vm = buildVm(deepLinkBus = bus)
+        assertNull(vm.state.pendingScrollCategory)
+
+        bus.requestScrollTo(com.dangerfield.cards.features.shop.ShopCategory.Avatars)
+        advanceUntilIdle()
+        assertEquals(
+            com.dangerfield.cards.features.shop.ShopCategory.Avatars,
+            vm.state.pendingScrollCategory,
+        )
+
+        // The screen fires this once it's scrolled, so a recompose doesn't
+        // re-trigger the deep-link scroll.
+        vm.takeAction(ShopAction.ScrollConsumed)
+        assertNull(vm.state.pendingScrollCategory)
     }
 
     @Test
@@ -199,17 +221,22 @@ class ShopViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun confirmChipOffer_insufficientChips_surfacesError_doesNotChargeRepo() = runUnitTest {
+    fun confirmChipOffer_insufficientChips_emitsInsufficientChips_doesNotSetBanner() = runUnitTest {
         val inv = FakeInventoryRepository().apply {
             nextRedeemResult = RedeemResult.InsufficientChips
         }
         val vm = buildVm(inventoryRepository = inv)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
         val offer = SAMPLE_CATALOG.chipOffers.first()
 
         vm.takeAction(ShopAction.ConfirmPurchase(offer))
 
-        assertNotNull(vm.state.errorMessage, "error surfaced")
-        assertTrue(vm.state.errorMessage!!.contains(offer.title, ignoreCase = true))
+        val event = received.firstOrNull { it is ShopEvent.InsufficientChips }
+        assertNotNull(event, "InsufficientChips should fire as a transient error snackbar")
+        assertEquals(offer.id, (event as ShopEvent.InsufficientChips).offer.id)
+        // The transient error must NOT leak into the persistent screen banner.
+        assertNull(vm.state.errorMessage, "errorMessage banner stays clear")
     }
 
     @Test
@@ -226,6 +253,48 @@ class ShopViewModelTest : CoroutineTest() {
 
         assertTrue(received.any { it is ShopEvent.AlreadyOwned })
         assertNull(vm.state.errorMessage, "AlreadyOwned isn't surfaced as an error")
+    }
+
+    // ---------- XP Boost consumable ----------
+
+    @Test
+    fun confirmXpBoost_success_spendsChips_activatesBoost_emitsBoostActivated() = runUnitTest {
+        val chips = FakeChipsRepository(initialBalance = 10_000)
+        val inv = FakeInventoryRepository()
+        val boost = FakeXpBoostRepository()
+        val vm = buildVm(inventoryRepository = inv, chipsRepository = chips, xpBoostRepository = boost)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val offer = SAMPLE_CATALOG.chipOffers.first { it.id == "boost_xp_2x" }
+
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
+
+        assertEquals(5_000L, chips.getBalance(), "chips debited by the boost cost")
+        assertEquals(1, boost.activateCalls.size, "boost window activated once")
+        val event = received.firstOrNull { it is ShopEvent.BoostActivated }
+        assertNotNull(event, "BoostActivated should fire")
+        assertEquals(offer.id, (event as ShopEvent.BoostActivated).offer.id)
+        // Consumable: no inventory row is ever written, so it never reads as "owned".
+        assertTrue(inv.redeemCalls.isEmpty(), "boost must not write an inventory row")
+    }
+
+    @Test
+    fun confirmXpBoost_insufficientChips_isNoOp() = runUnitTest {
+        // ConfirmPurchase gates on the Available sheet mode; an unaffordable
+        // boost classifies as Insufficient, so confirm is a pure no-op —
+        // no chip spend, no activation, no event.
+        val chips = FakeChipsRepository(initialBalance = 0)
+        val boost = FakeXpBoostRepository()
+        val vm = buildVm(chipsRepository = chips, xpBoostRepository = boost)
+        val received = mutableListOf<ShopEvent>()
+        backgroundScope.launch { vm.eventFlow.collect { received += it } }
+        val offer = SAMPLE_CATALOG.chipOffers.first { it.id == "boost_xp_2x" }
+
+        vm.takeAction(ShopAction.ConfirmPurchase(offer))
+
+        assertEquals(0L, chips.getBalance(), "no chips spent when unaffordable")
+        assertTrue(boost.activateCalls.isEmpty(), "boost not activated when unaffordable")
+        assertTrue(received.isEmpty(), "no event for a gated no-op confirm")
     }
 
     // ---------- Auto-equip on purchase ----------
@@ -439,6 +508,8 @@ class ShopViewModelTest : CoroutineTest() {
             ),
         ),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
+        xpBoostRepository: FakeXpBoostRepository = FakeXpBoostRepository(),
+        deepLinkBus: FakeShopDeepLinkBus = FakeShopDeepLinkBus(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
         inventoryRepository = inventoryRepository,
@@ -447,7 +518,24 @@ class ShopViewModelTest : CoroutineTest() {
         billingClient = billingClient,
         authRepository = authRepository,
         equipmentRepository = equipmentRepository,
+        xpBoostRepository = xpBoostRepository,
+        deepLinkBus = deepLinkBus,
     )
+
+    private class FakeXpBoostRepository : com.dangerfield.cards.libraries.cards.XpBoostRepository {
+        val activateCalls = mutableListOf<Long>()
+        private val state = MutableStateFlow(
+            com.dangerfield.cards.libraries.cards.XpBoostStatus.None,
+        )
+
+        override fun observe(): Flow<com.dangerfield.cards.libraries.cards.XpBoostStatus> =
+            state.asStateFlow()
+        override suspend fun status(): com.dangerfield.cards.libraries.cards.XpBoostStatus = state.value
+        override suspend fun activate(durationMs: Long) {
+            activateCalls += durationMs
+        }
+        override suspend fun multiplier(): Int = 1
+    }
 
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
         private val state = MutableStateFlow(initial)
@@ -697,6 +785,14 @@ class ShopViewModelTest : CoroutineTest() {
                     costChips = 5_000,
                     grantsKey = "felt.midnight_blue",
                 ),
+                Product.ChipOffer(
+                    id = "boost_xp_2x",
+                    title = "2× XP Boost",
+                    subtitle = "30 minutes",
+                    iconEmoji = "⚡",
+                    costChips = 5_000,
+                    grantsKey = "boost.xp_2x",
+                ),
             ),
         )
 
@@ -746,6 +842,23 @@ class ShopViewModelTest : CoroutineTest() {
         override suspend fun deleteAll() {}
         override suspend fun debugSetTotalXp(totalXp: Long) {
             state.value = state.value.copy(totalXp = totalXp)
+        }
+    }
+
+    private class FakeShopDeepLinkBus :
+        com.dangerfield.cards.features.shop.ShopDeepLinkBus {
+        private val channel =
+            kotlinx.coroutines.channels.Channel<com.dangerfield.cards.features.shop.ShopCategory>(
+                capacity = kotlinx.coroutines.channels.Channel.CONFLATED,
+            )
+
+        override val scrollRequests: Flow<com.dangerfield.cards.features.shop.ShopCategory> =
+            channel.receiveAsFlow()
+
+        override fun requestScrollTo(
+            category: com.dangerfield.cards.features.shop.ShopCategory,
+        ) {
+            channel.trySend(category)
         }
     }
 }

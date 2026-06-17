@@ -33,6 +33,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(projects.libraries.flowroutines.testing)
+            implementation(projects.features.shop)
             implementation(projects.libraries.products)
             implementation(projects.libraries.cards)
             implementation(projects.libraries.billing)

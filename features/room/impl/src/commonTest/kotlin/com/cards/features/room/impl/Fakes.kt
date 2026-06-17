@@ -378,6 +378,7 @@ class FakeProfileRepository : ProfileRepository {
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
+        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome = error("update not used")
 
     override suspend fun fetchAvatarPack(): AvatarPackOutcome = error("fetchAvatarPack not used")

@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.shop.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.features.shop.ShopCategory
+import com.dangerfield.cards.features.shop.ShopDeepLinkBus
 import com.dangerfield.cards.libraries.billing.BillingClient
 import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.PurchaseTransaction
@@ -10,6 +12,8 @@ import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.RedeemResult
+import com.dangerfield.cards.libraries.cards.XP_BOOST_GRANTS_KEY
+import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.cosmeticSlotFor
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -62,6 +66,8 @@ class ShopViewModel @Inject constructor(
     private val billingClient: BillingClient,
     private val authRepository: AuthRepository,
     private val equipmentRepository: EquipmentRepository,
+    private val xpBoostRepository: XpBoostRepository,
+    private val deepLinkBus: ShopDeepLinkBus,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
@@ -109,6 +115,16 @@ class ShopViewModel @Inject constructor(
             // resistance logic.
             productsRepository.observeTimeAnchor().collect { anchor ->
                 takeAction(ShopAction.TimeAnchorChanged(anchor))
+            }
+        }
+        viewModelScope.launch {
+            // A cross-tab deep-link (e.g. Edit Profile's "Get more avatar
+            // packs") asks the grid to land on a category section. The
+            // bus is conflate-then-consume so a request fired before the
+            // grid existed still lands, and the screen drives the actual
+            // scroll once the section is measured.
+            deepLinkBus.scrollRequests.collect { category ->
+                takeAction(ShopAction.ScrollToCategory(category))
             }
         }
         // No explicit catalog refresh on screen entry: the repository
@@ -179,6 +195,12 @@ class ShopViewModel @Inject constructor(
             is ShopAction.DismissError -> action.updateState {
                 it.copy(errorMessage = null)
             }
+            is ShopAction.ScrollToCategory -> action.updateState {
+                it.copy(pendingScrollCategory = action.category)
+            }
+            is ShopAction.ScrollConsumed -> action.updateState {
+                it.copy(pendingScrollCategory = null)
+            }
 
             // ---- Purchase confirm flow ----
             //
@@ -203,7 +225,12 @@ class ShopViewModel @Inject constructor(
                 }
                 when (product) {
                     is Product.ChipPack -> launchIapPurchase(product)
-                    is Product.ChipOffer -> confirmChipOfferRedeem(product)
+                    is Product.ChipOffer ->
+                        if (product.grantsKey == XP_BOOST_GRANTS_KEY) {
+                            confirmXpBoostPurchase(product)
+                        } else {
+                            confirmChipOfferRedeem(product)
+                        }
                 }
             }
         }
@@ -265,6 +292,35 @@ class ShopViewModel @Inject constructor(
         logger.i { "Granted ${pack.grantsChips} chips for IAP order ${transaction.orderId}" }
     }
 
+    /**
+     * Buy the 2× XP boost — a **consumable**, not an inventory item. Unlike
+     * [confirmChipOfferRedeem], there's no inventory row and no "owned" state:
+     * the spend rides the wallet ledger and the boost extends the
+     * [XpBoostRepository] window (re-buying stacks more time). That's why the
+     * boost offer never classifies as Owned and stays re-buyable.
+     *
+     * The [ShopAction.ConfirmPurchase] gate already ensures we only land here
+     * when the offer is [PurchaseSheetMode.Available]; the balance re-check is
+     * defensive against a balance that changed between sheet-open and confirm.
+     */
+    private suspend fun confirmXpBoostPurchase(offer: Product.ChipOffer) {
+        val balance = state.chipBalance ?: 0L
+        if (balance < offer.costChips) {
+            sendEvent(ShopEvent.InsufficientChips(offer))
+            return
+        }
+        chipsRepository.subtractChips(
+            amount = offer.costChips,
+            reason = "boost.${offer.id}",
+        )
+        xpBoostRepository.activate()
+        // Flush the debit promptly so the wallet ledger reflects the spend
+        // without waiting on the next foreground sync. Best-effort — the
+        // periodic sync retries on failure.
+        viewModelScope.launch { chipsRepository.sync() }
+        sendEvent(ShopEvent.BoostActivated(offer))
+    }
+
     private suspend fun confirmChipOfferRedeem(offer: Product.ChipOffer) {
         // Sheet route is popped synchronously by the caller (sheet
         // composable's confirm handler runs `router.goBack()` before
@@ -288,10 +344,10 @@ class ShopViewModel @Inject constructor(
             is RedeemResult.InsufficientChips -> {
                 // UI's affordance check should prevent this, but if a race
                 // sneaks through (balance changed between sheet-open and
-                // confirm) we surface it as an error toast.
-                action.updateState {
-                    it.copy(errorMessage = "Not enough chips for ${offer.title}.")
-                }
+                // confirm) we surface it as a transient error snackbar — not
+                // the persistent `errorMessage` banner, which is reserved for
+                // screen-level state like the offline-cache notice.
+                sendEvent(ShopEvent.InsufficientChips(offer))
             }
             is RedeemResult.AlreadyOwned -> {
                 // Idempotent: tell the user it's already in their library
@@ -353,6 +409,14 @@ data class ShopState(
      * resistant remaining time for sale-window offers.
      */
     val timeAnchor: CatalogTimeAnchor? = null,
+    /**
+     * Set when a deep-link asks the grid to scroll to a category section
+     * (e.g. "Get more avatar packs" → [ShopCategory.Avatars]). The screen
+     * scrolls to the section once it's measured, then fires
+     * [ShopAction.ScrollConsumed] to clear this so a recompose doesn't
+     * re-trigger the scroll.
+     */
+    val pendingScrollCategory: ShopCategory? = null,
 ) {
     fun ownsProduct(productId: String): Boolean = productId in ownedProductIds
 
@@ -496,6 +560,16 @@ sealed interface ShopAction {
     data object DismissError : ShopAction
 
     /**
+     * A deep-link requested the grid scroll to [category]'s section. Held
+     * in state until the screen measures the section and scrolls; cleared
+     * by [ScrollConsumed].
+     */
+    data class ScrollToCategory(val category: ShopCategory) : ShopAction
+
+    /** The screen finished the deep-link scroll — clear the pending target. */
+    data object ScrollConsumed : ShopAction
+
+    /**
      * Confirm the purchase of [product] from inside the sheet. Opening
      * and dismissing the sheet are navigation operations
      * (`ShopProductSheetRoute`), not actions — only the commit step
@@ -528,14 +602,30 @@ sealed interface ShopEvent {
     ) : ShopEvent
 
     /**
-     * An anonymous user tapped buy on a real-money pack. The screen routes
-     * to the account-claim flow instead of the platform purchase sheet —
-     * they must link an account before any real purchase.
+     * The chip-priced XP boost consumable was bought — chips debited and the
+     * 2× window activated/extended. Screen plays a celebration cue. Distinct
+     * from [RedeemSucceeded] because there's no inventory row to jump to: the
+     * boost is a live timer, surfaced by the countdown badge on Stats.
+     */
+    data class BoostActivated(val offer: Product.ChipOffer) : ShopEvent
+
+    /**
+     * An anonymous user tapped buy on a real-money pack. The screen shows an
+     * error snackbar with a "Create account" action that routes to the claim
+     * flow — they must link an account before any real purchase, but we
+     * explain why rather than yanking them into onboarding unprompted.
      */
     data object ClaimAccountRequired : ShopEvent
 
     /** Idempotent re-redeem — user tried to buy something they already own. */
     data class AlreadyOwned(val offer: Product.ChipOffer) : ShopEvent
+
+    /**
+     * Redeem hit the wallet floor — the balance changed between sheet-open
+     * and confirm (the buyable-state check normally prevents this). The
+     * screen surfaces a transient error snackbar.
+     */
+    data class InsufficientChips(val offer: Product.ChipOffer) : ShopEvent
 
     /**
      * Tap on an offer whose sale window expired between the catalog

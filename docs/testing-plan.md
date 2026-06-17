@@ -125,16 +125,18 @@ integration/
 
 ### Initial test set
 
-- [ ] **`fullHand_twoClients_dealBetCallFold_renderEqual`** — two clients join the same room, one taps Start, both observe HandStarted → BlindPosted → HoleCardsDealt → fold-around → HandEnded → PotAwarded; assert both clients' `GameState` matches at each step.
-- [ ] **`submitIntent_wrongSeat_serverRejects_clientSurfacesIntentRejected`** — client A submits an intent for client B's seat; assert the server `IntentAck.accepted = false` and the client throws `IntentRejectedException` with the server's reason.
-- [ ] **`submitIntent_outOfTurnAttempt_doesNotMutateState`** — both clients see the same state before and after the rejected intent.
-- [ ] **`startHand_serverBroadcastsToBothSubscribers`** — host's StartHand reaches both connected clients via separate handles. (Catches "did sharing actually work end-to-end.")
-- [ ] **`wireFormat_GameStateSnapshot_roundTripsLosslessly`** — server constructs a GameState, sends as JSON over WS, client decodes; deep-equality assert. (Pins the wire contract — any field added to one side without the other breaks this immediately.)
-- [ ] **`wireFormat_allGameEvent_variants_roundTrip`** — same as above for every `GameEvent` sealed variant.
-- [ ] **`wireFormat_allClientFrame_variants_roundTrip`** — client → server direction.
-- [ ] **`reconnect_midHand_resyncsState`** — drop and restore one client's WS during a hand; assert their GameStateFlow re-converges to the live state.
-- [ ] **`hostDisconnects_clientPromotionDetected_otherClientSeesHostBadgeMove`** — host drops; the other client's LobbyState reflects the new effective host within one snapshot.
-- [ ] **`twoClientsRace_sameIntent_serverDedupesViaNonce`** — both clients send the same intent with the same nonce; server processes once; both clients see `IntentAck.accepted` (server's idempotency contract).
+> **Reconciled against the shipped `:apps:integration` suite (2026-06-15).** Original plan names kept; covering test (or remaining gap) noted per line.
+
+- [x] **`fullHand_twoClients_dealBetCallFold_renderEqual`** — two clients join the same room, one taps Start, both observe HandStarted → BlindPosted → HoleCardsDealt → fold-around → HandEnded → PotAwarded; assert both clients' `GameState` matches at each step. *(✅ `InHandPlayTest.twoClients_playHeadsUpHand_toCompletion_viaFold` for the fold-to-completion path + `DeeperPlayTest.headsUp_passiveBetting_advancesPreflopToFlop` for bet/call/check across streets.)*
+- [x] **`submitIntent_wrongSeat_serverRejects_clientSurfacesIntentRejected`** — client A submits an intent for client B's seat; assert the server `IntentAck.accepted = false` and the client throws `IntentRejectedException` with the server's reason. *(✅ `InHandPlayTest.outOfTurnIntent_isRejected`.)*
+- [x] **`submitIntent_outOfTurnAttempt_doesNotMutateState`** — both clients see the same state before and after the rejected intent. *(✅ rejection by `InHandPlayTest.outOfTurnIntent_isRejected`; the no-mutation half by Round 4 `submitIntent_invalidIntent_…_doesNotBroadcastSnapshot`.)*
+- [x] **`startHand_serverBroadcastsToBothSubscribers`** — host's StartHand reaches both connected clients via separate handles. (Catches "did sharing actually work end-to-end.") *(✅ `FriendsGameHappyPathTest.twoClients_createJoinPresenceStart_bothNavigate` + both clients observe the deal in `InHandPlayTest`.)*
+- [ ] **`wireFormat_GameStateSnapshot_roundTripsLosslessly`** — server constructs a GameState, sends as JSON over WS, client decodes; deep-equality assert. (Pins the wire contract — any field added to one side without the other breaks this immediately.) *(Open as a dedicated pin: snapshots ARE decoded live over the wire by the gameplay tests — a lossy field fails them — but there's no deep-equality round-trip test.)*
+- [ ] **`wireFormat_allGameEvent_variants_roundTrip`** — same as above for every `GameEvent` sealed variant. *(Open: no exhaustive per-variant round-trip.)*
+- [x] **`wireFormat_allClientFrame_variants_roundTrip`** — client → server direction. *(✅ `WireFormatContractTest` cross-decodes `ClientFrame` ↔ `RoomClientFrame` for StartHand / RequestNextHand / SubmitIntent + the reverse direction.)*
+- [x] **`reconnect_midHand_resyncsState`** — drop and restore one client's WS during a hand; assert their GameStateFlow re-converges to the live state. *(✅ `ChaosPlayTest.clientDropsMidHand_reconnects_andStillSeesHandComplete`.)*
+- [x] **`hostDisconnects_clientPromotionDetected_otherClientSeesHostBadgeMove`** — host drops; the other client's LobbyState reflects the new effective host within one snapshot. *(✅ `SetupJourneyTest.hostDisconnects_joinerIsPromoted` + `droppedClient_reconnects_andPresenceIsRestored`.)*
+- [ ] **`twoClientsRace_sameIntent_serverDedupesViaNonce`** — both clients send the same intent with the same nonce; server processes once; both clients see `IntentAck.accepted` (server's idempotency contract). *(Open: single-client nonce idempotency is pinned by Round 4 `submitIntent_duplicateNonce_processedOnce_acksTwice`; the two-client race at the integration tier is remaining fan-out.)*
 
 ### What integration tests are NOT for
 
@@ -217,8 +219,10 @@ Landed in a new [`RoomSocketGameplayRoutesTest`](../apps/server/src/test/kotlin/
 
 **Cost:** ~4-6 hours, ~10 tests. **Why:** the cases users actually hit on real networks. Most of these are integration tests living in `:integration`.
 
-- [ ] **WS drops mid-`SubmitIntent`** — outbound frame may or may not have shipped; on reconnect, server's nonce dedupe should make the resubmit a no-op if processed, or fire normally if not.
-- [ ] **Server restart mid-hand** — client reconnects, server has hydrated state from snapshot store, client's first `GameStateSnapshot` matches pre-restart state.
+> **Partial coverage landed (2026-06-15, noted during reconciliation).** The baseline reconnect-resync is now pinned end-to-end by `ChaosPlayTest.clientDropsMidHand_reconnects_andStillSeesHandComplete` (Round 2), and the **server-side** half of "server restart mid-hand" by `SessionHydrationTest` (a fresh registry rebuilds a live session from the `room_sessions` snapshot). The boxes below stay open because each pins a *specific harder fault* the existing tests don't assert (active mid-submit dedupe, full client-reconnect-after-restart, backgrounding, host-race, latency double-submit, auth-refresh handshake, concurrent multi-client intents).
+
+- [ ] **WS drops mid-`SubmitIntent`** — outbound frame may or may not have shipped; on reconnect, server's nonce dedupe should make the resubmit a no-op if processed, or fire normally if not. *(Passive reconnect-resync covered by `ChaosPlayTest`; the in-flight-submit dedupe path is the open part.)*
+- [ ] **Server restart mid-hand** — client reconnects, server has hydrated state from snapshot store, client's first `GameStateSnapshot` matches pre-restart state. *(Server-side hydration pinned by `SessionHydrationTest`; the full client-reconnect-after-restart end-to-end is the open part.)*
 - [ ] **Client backgrounded > 30s during opponent's turn** — on resume, client's `connection` collector reconnects, `gameplayFrames` flow re-syncs, no stale state shown.
 - [ ] **Two clients race the host role (host disconnects + reconnects fast)** — should not produce two effective hosts.
 - [x] **Server sends `RoomClosed` mid-hand** — client surfaces ClosedReason.RoomDeleted; play screen exits gracefully. *(Built the behavior, not just the test: `RemotePokerSession.roomClosed` fans out terminal RoomDeleted/Rejected — collapsed-to-Disconnected before — and `PlayPokerViewModel` emits `PlayPokerEvent.RoomClosed`, which the MP entry point pops on. Pinned in `RemotePokerSessionTest` + `PlayPokerViewModelMultiplayerIntegrationTest`.)*

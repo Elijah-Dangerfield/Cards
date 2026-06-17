@@ -11,6 +11,7 @@ import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.impl.NetworkClientImpl
+import com.dangerfield.cards.libraries.networking.impl.NetworkReachabilityImpl
 import com.dangerfield.cards.libraries.rooms.RoomConnectionHandle
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.rooms.impl.HttpRoomApi
@@ -46,7 +47,12 @@ class TestClient(
         val config = object : NetworkConfig {
             override val baseUrl: String = serverUrl
         }
-        val networkClient = NetworkClientImpl(config, TokenProvider(userId), FixedHeaders)
+        val networkClient = NetworkClientImpl(
+            config,
+            TokenProvider(userId),
+            FixedHeaders,
+            NetworkReachabilityImpl(AppCoroutineScope(DefaultDispatcherProvider())),
+        )
         val realTransport = KtorRoomSocketTransport(networkClient, config)
         val transport = if (faulty) {
             FaultInjectingTransport(realTransport).also { faults = it }

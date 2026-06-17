@@ -111,9 +111,9 @@ internal fun NarrationStep(
         topBar = {
             TopBar(
                 onNavigateBack = onBack,
-                // Step counter lives in the top bar (matching the tableau
-                // steps' top overlay) so progress reads consistently.
-                actions = {
+                // Centered in the bar (matching the tableau steps' centered
+                // step pill) so progress reads consistently across the tutorial.
+                centerContent = {
                     StepCounterPill(
                         section = section,
                         sectionStep = sectionStepIndex + 1,

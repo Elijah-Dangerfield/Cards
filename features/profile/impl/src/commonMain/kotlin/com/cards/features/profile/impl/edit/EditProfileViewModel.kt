@@ -1,15 +1,24 @@
 package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.libraries.cards.Achievement
+import com.dangerfield.cards.libraries.cards.AchievementRepository
+import com.dangerfield.cards.libraries.cards.AllAchievementsById
+import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
+import com.dangerfield.cards.libraries.identity.profile.MAX_FEATURED_BADGES
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
+import com.dangerfield.cards.libraries.ui.components.poker.titleForProductId
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.filterIsInstance
@@ -37,6 +46,9 @@ import me.tatarka.inject.annotations.Inject
 class EditProfileViewModel(
     private val profileRepository: ProfileRepository,
     private val inventoryRepository: InventoryRepository,
+    private val equipmentRepository: EquipmentRepository,
+    private val progressionRepository: ProgressionRepository,
+    private val achievementRepository: AchievementRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<EditProfileState, EditProfileEvent, EditProfileAction>(
     initialStateArg = EditProfileState(),
@@ -71,6 +83,36 @@ class EditProfileViewModel(
         // sees up-to-date server state. Not awaited — the picker
         // doesn't need to gate on it.
         viewModelScope.launch { inventoryRepository.sync() }
+        // The equipped title is part of the public Player Card (the View
+        // tab), so reflect it live. Resolve the equipped `title_*`
+        // cosmetic to its display label via the shared catalog.
+        viewModelScope.launch {
+            equipmentRepository.observeEquipped().collect { entries ->
+                val title = entries.firstNotNullOfOrNull { titleForProductId(it.productId) }
+                val badge = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) }
+                takeAction(
+                    EditProfileAction.EquippedCosmeticsChanged(title = title, permanentBadgeEmoji = badge),
+                )
+            }
+        }
+        // Level drives the "Lvl N" chip on the card preview.
+        viewModelScope.launch {
+            progressionRepository.observeProgression().collect { progression ->
+                takeAction(EditProfileAction.LevelChanged(levelProgressFor(progression.totalXp).level))
+            }
+        }
+        // Earned achievements feed the featured-badge picker. Resolve each
+        // earned id to its static definition (skipping any unknown id from a
+        // server ahead of this build) and order most-recently-earned first so
+        // the default selection reads as "your latest wins."
+        viewModelScope.launch {
+            achievementRepository.observeProgress().collect { progress ->
+                val earned = progress.earned.entries
+                    .sortedByDescending { it.value }
+                    .mapNotNull { (id, _) -> AllAchievementsById[id] }
+                takeAction(EditProfileAction.EarnedBadgesChanged(earned))
+            }
+        }
     }
 
     override suspend fun handleAction(action: EditProfileAction) {
@@ -83,7 +125,25 @@ class EditProfileViewModel(
                     selectedAvatarEmoji = action.profile.avatarEmoji,
                     initialAvatarBackgroundColor = action.profile.avatarBackgroundColor,
                     selectedAvatarBackgroundColor = action.profile.avatarBackgroundColor,
+                    initialFeaturedBadgeIds = action.profile.featuredBadgeIds,
+                    selectedFeaturedBadgeIds = action.profile.featuredBadgeIds,
                 )
+            }
+
+            is EditProfileAction.EarnedBadgesChanged -> action.updateState {
+                it.copy(earnedBadges = action.badges)
+            }
+
+            is EditProfileAction.ToggleFeaturedBadge -> action.updateState { s ->
+                val current = s.selectedFeaturedBadgeIds
+                val next = when {
+                    action.id in current -> current - action.id
+                    // At the cap — ignore the add; the UI disables unselected
+                    // tiles once three are chosen, this is the backstop.
+                    current.size >= MAX_FEATURED_BADGES -> current
+                    else -> current + action.id
+                }
+                s.copy(selectedFeaturedBadgeIds = next)
             }
 
             is EditProfileAction.LoadAvatarPack -> action.run {
@@ -115,6 +175,17 @@ class EditProfileViewModel(
 
             is EditProfileAction.OwnedProductsChanged -> action.updateState {
                 it.copy(ownedProductIds = action.productIds)
+            }
+
+            is EditProfileAction.EquippedCosmeticsChanged -> action.updateState {
+                it.copy(
+                    equippedTitle = action.title,
+                    permanentBadgeEmoji = action.permanentBadgeEmoji,
+                )
+            }
+
+            is EditProfileAction.LevelChanged -> action.updateState {
+                it.copy(level = action.level)
             }
 
             is EditProfileAction.DisplayNameChanged -> action.updateState {
@@ -153,6 +224,11 @@ class EditProfileViewModel(
                 val avatarBackgroundColor = current.selectedAvatarBackgroundColor
                     ?.takeIf { colorChanged }
                 val clearAvatarBackgroundColor = colorChanged && current.selectedAvatarBackgroundColor == null
+                // Send the featured selection only when it actually changed.
+                // An empty list (cleared all) is a real change vs. a prior
+                // non-empty selection — the server reads it as "back to default."
+                val featuredBadgeIds = current.selectedFeaturedBadgeIds
+                    .takeIf { it != current.initialFeaturedBadgeIds }
 
                 // The request runs on appScope so it survives VM teardown
                 // (user backs out the moment they tap Save). When the
@@ -169,6 +245,7 @@ class EditProfileViewModel(
                         avatarEmoji = avatarEmoji,
                         avatarBackgroundColor = avatarBackgroundColor,
                         clearAvatarBackgroundColor = clearAvatarBackgroundColor,
+                        featuredBadgeIds = featuredBadgeIds,
                     )
                 }
 
@@ -262,42 +339,76 @@ data class EditProfileState(
      */
     val ownedProductIds: Set<String> = emptySet(),
     val backgroundPalette: List<String> = emptyList(),
+    /** Display label of the currently-equipped title cosmetic, shown on the
+     * Player Card View tab. Null when no title is equipped. */
+    val equippedTitle: String? = null,
+    /** Glyph of the equipped permanent badge (e.g. 🏛 Founding member). */
+    val permanentBadgeEmoji: String? = null,
+    /** Current level, shown as the "Lvl N" chip on the card preview. */
+    val level: Int? = null,
+    /**
+     * Earned achievements, most-recently-earned first. Feeds the featured-
+     * badge picker on the Edit tab + the default selection on the View tab.
+     */
+    val earnedBadges: List<Achievement> = emptyList(),
+    /** Featured badge ids saved on the profile when the screen opened. */
+    val initialFeaturedBadgeIds: List<String> = emptyList(),
+    /**
+     * Featured badge ids the user has explicitly chosen this session. Empty =
+     * "no explicit choice" — the card preview falls back to [featuredBadges]'
+     * most-recent default.
+     */
+    val selectedFeaturedBadgeIds: List<String> = emptyList(),
     val isLoadingAvatars: Boolean = false,
     val avatarLoadError: Boolean = false,
     val isSubmitting: Boolean = false,
     val displayNameError: EditProfileDisplayNameError? = null,
 ) {
     /**
-     * Display projection: every server pack, paired with whether the
-     * user owns it. Locked packs render dimmed with a 🔒 overlay and
-     * a "Get in shop" CTA so the user sees the breadth of what's
-     * available (incentive to buy) instead of an artificially short
-     * grid. The picker disables tap on locked tiles — the CTA is the
-     * only path forward.
-     *
-     * **Order:** unlocked packs first (starter + every owned premium),
-     * then locked packs. Server order is preserved within each group
-     * via stable sort — what the user *can* actually pick from sits
-     * at the top of the picker; the locked aspirational rows sit
-     * below as the upsell shelf.
+     * The packs the user can actually pick from: the starter pack plus every
+     * premium pack they own. Locked (for-sale) packs are *not* surfaced here —
+     * the picker is a wardrobe, not a storefront. Discovery of unowned packs
+     * lives in the Shop, reached via the [hasLockedAvatarPacks] link. Server
+     * order is preserved.
      */
-    val avatarPacks: List<AvatarPackDisplay>
+    val avatarPacks: List<AvatarPack>
         get() = allAvatarPacks
-            .map { pack ->
-                AvatarPackDisplay(
-                    pack = pack,
-                    isLocked = pack.unlockProductId != null && pack.unlockProductId !in ownedProductIds,
-                )
-            }
-            .sortedBy { it.isLocked }
+            .filter { it.unlockProductId == null || it.unlockProductId in ownedProductIds }
+
+    /**
+     * True when the server registry holds at least one premium pack the user
+     * doesn't own yet — drives the "Get more avatar packs in the Shop" link
+     * under the picker. False (link hidden) once everything is owned.
+     */
+    val hasLockedAvatarPacks: Boolean
+        get() = allAvatarPacks.any { it.unlockProductId != null && it.unlockProductId !in ownedProductIds }
 
     val isNameValid: Boolean
         get() = DisplayNameRules.isValid(displayName)
 
+    /**
+     * The badges rendered on the card preview: the explicit selection when
+     * the user has made one, else the most-recently-earned default (capped).
+     * This is the "defaults to most-recent earned when unset" contract.
+     */
+    val featuredBadges: List<Achievement>
+        get() {
+            val byId = earnedBadges.associateBy { it.id.name }
+            val ids = selectedFeaturedBadgeIds.ifEmpty {
+                earnedBadges.take(MAX_FEATURED_BADGES).map { it.id.name }
+            }
+            return ids.mapNotNull { byId[it] }
+        }
+
+    /** True once the user has picked the maximum number of featured badges. */
+    val isFeaturedSelectionFull: Boolean
+        get() = selectedFeaturedBadgeIds.size >= MAX_FEATURED_BADGES
+
     val isDirty: Boolean
         get() = displayName.trim() != initialDisplayName?.trim() ||
             selectedAvatarEmoji != initialAvatarEmoji ||
-            selectedAvatarBackgroundColor != initialAvatarBackgroundColor
+            selectedAvatarBackgroundColor != initialAvatarBackgroundColor ||
+            selectedFeaturedBadgeIds != initialFeaturedBadgeIds
 
     val canSubmit: Boolean
         get() = !isSubmitting && isNameValid && isDirty && selectedAvatarEmoji != null
@@ -309,16 +420,6 @@ data class EditProfileState(
         const val MAX_NAME_LENGTH = DisplayNameRules.MAX_LENGTH
     }
 }
-
-/**
- * One row in the avatar picker. Wraps the server [AvatarPack] with the
- * locally-derived ownership state so the screen layer doesn't have to
- * cross-reference inventory itself.
- */
-data class AvatarPackDisplay(
-    val pack: AvatarPack,
-    val isLocked: Boolean,
-)
 
 sealed interface EditProfileEvent {
     data object Saved : EditProfileEvent
@@ -336,8 +437,15 @@ sealed interface EditProfileDisplayNameError {
 
 sealed interface EditProfileAction {
     data class SeedFromProfile(val profile: Profile.Authenticated) : EditProfileAction
+    data class EarnedBadgesChanged(val badges: List<Achievement>) : EditProfileAction
+    data class ToggleFeaturedBadge(val id: String) : EditProfileAction
     data object LoadAvatarPack : EditProfileAction
     data class OwnedProductsChanged(val productIds: Set<String>) : EditProfileAction
+    data class EquippedCosmeticsChanged(
+        val title: String?,
+        val permanentBadgeEmoji: String?,
+    ) : EditProfileAction
+    data class LevelChanged(val level: Int) : EditProfileAction
     data class DisplayNameChanged(val value: String) : EditProfileAction
     data class AvatarSelected(val emoji: String) : EditProfileAction
     data class AvatarBackgroundColorSelected(val color: String) : EditProfileAction

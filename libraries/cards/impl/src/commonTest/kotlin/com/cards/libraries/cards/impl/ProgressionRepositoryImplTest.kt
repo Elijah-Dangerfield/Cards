@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.HandCategoryGrade
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.XP_BOOST_MULTIPLIER
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.cards.storage.db.ProgressionDao
@@ -89,6 +90,37 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
         repo.awardForHand(summary(mode = XpMode.MULTIPLAYER))
 
         assertEquals(0L, dao.row().botHandsPlayed, "MULTIPLAYER mode never bumps the bot counter")
+    }
+
+    @Test
+    fun awardForHand_withActiveBoost_doublesXp_butNotCounters() = runUnitTest {
+        val handSummary = summary(
+            reachedShowdown = true,
+            wonPot = true,
+            chipsCommitted = 200,
+            bigBlind = 10,
+            handCategory = HandCategoryGrade.Flush,
+        )
+
+        val plainDao = FakeProgressionDao()
+        build(dao = plainDao, boostActive = false).awardForHand(handSummary)
+        val plainXp = plainDao.row().totalXp
+
+        val boostedDao = FakeProgressionDao()
+        val boostedLedger = FakeXpEventDao()
+        build(dao = boostedDao, ledger = boostedLedger, boostActive = true).awardForHand(handSummary)
+
+        assertEquals(
+            plainXp * XP_BOOST_MULTIPLIER, boostedDao.row().totalXp,
+            "an active boost doubles awarded XP",
+        )
+        assertEquals(1L, boostedDao.row().handsPlayed, "boost never touches hand counters")
+        // The boosted amount is what lands in the ledger (so it syncs to server).
+        assertEquals(
+            boostedDao.row().totalXp,
+            boostedLedger.inserted.sumOf { it.deltaXp }.toLong(),
+            "every ledger row carries the boosted amount",
+        )
     }
 
     @Test
@@ -247,12 +279,14 @@ class ProgressionRepositoryImplTest : CoroutineTest() {
         dao: FakeProgressionDao = FakeProgressionDao(),
         ledger: FakeXpEventDao = FakeXpEventDao(),
         clockEpochMs: Long = 1_000L,
+        boostActive: Boolean = false,
     ): ProgressionRepositoryImpl = ProgressionRepositoryImpl(
         progressionDao = dao,
         xpEventDao = ledger,
         networkClient = NeverCalledNetworkClient,
         appScope = AppCoroutineScope(dispatchers),
         clock = FixedClock(clockEpochMs),
+        xpBoostRepository = FixedXpBoostRepository(active = boostActive),
     )
 
     /**

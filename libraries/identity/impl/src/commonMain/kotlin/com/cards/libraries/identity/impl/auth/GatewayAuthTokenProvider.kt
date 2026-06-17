@@ -1,9 +1,9 @@
 package com.dangerfield.cards.libraries.identity.impl.auth
 
 import com.dangerfield.cards.libraries.core.Catching
-import com.dangerfield.cards.libraries.core.logOnFailure
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.networking.AuthTokenProvider
+import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -24,15 +24,19 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
  *    Returns null if there's no session. Ktor's bearer plugin calls this
  *    inside `loadTokens`.
  *
- * Deliberately narrow — depends only on [SupabaseAuthGateway], no
- * [AuthRepository] — so the construction graph stays linear:
- * `NetworkClient → AuthTokenProvider → SupabaseAuthGateway`.
+ * Deliberately narrow — depends only on [SupabaseAuthGateway] and the
+ * [SessionRejectionBus], never on [AuthRepository] — so the construction graph
+ * stays linear: `NetworkClient → AuthTokenProvider → SupabaseAuthGateway`. When
+ * a refresh is **rejected** by the auth server (the session is genuinely dead),
+ * it signals the bus; the auth layer observes that and tears the session down,
+ * so this class never has to know about the auth repository.
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, boundType = AuthTokenProvider::class)
 @Inject
 class GatewayAuthTokenProvider(
     private val gateway: SupabaseAuthGateway,
+    private val sessionRejectionBus: SessionRejectionBus,
 ) : AuthTokenProvider {
 
     private val logger = KLog.withTag("AuthTokenProvider")
@@ -55,14 +59,36 @@ class GatewayAuthTokenProvider(
         // refresh anyway. There's nothing to refresh; calling the gateway would
         // throw "No refresh token found in current session". Skip it and let the
         // request proceed unauthed (the documented null-means-unauthed contract).
-        if (gateway.currentSession() == null) {
+        val session = gateway.currentSession()
+        if (session == null) {
             logger.d { "refreshAccessToken: no session — nothing to refresh, going unauthed" }
             return null
         }
+        // Captured before the refresh so we can tell the auth layer whether the
+        // rejected session was a guest (unrecoverable) or claimed (sign back in).
+        val wasAnonymous = session.isAnonymous
         logger.d { "refreshAccessToken: forcing gateway session refresh" }
         return Catching {
             gateway.refreshSession()
             gateway.currentSession()?.accessToken
-        }.logOnFailure { "Force refresh of access token failed" }.getOrNull()
+        }.fold(
+            onSuccess = { it },
+            onFailure = { e ->
+                when (classifyRefreshFailure(e)) {
+                    RefreshFailureKind.AuthRejected -> {
+                        // The auth server rejected our token — the session is dead.
+                        // Signal the auth layer to tear it down; don't just retry
+                        // unauthed (that's the silent 401-storm we're fixing).
+                        logger.w(e) { "refreshAccessToken: auth server rejected our token — signaling session rejection" }
+                        sessionRejectionBus.signalRejected(wasAnonymous)
+                    }
+                    RefreshFailureKind.Transient ->
+                        // Network down / 5xx / unrecognized — keep the session; the
+                        // request goes unauthed and the offline path takes over.
+                        logger.d(e) { "refreshAccessToken: transient refresh failure — keeping session, going unauthed" }
+                }
+                null
+            },
+        )
     }
 }

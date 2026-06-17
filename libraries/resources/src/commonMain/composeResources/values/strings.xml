@@ -27,6 +27,8 @@
     <string name="shop_snackbar_redeem_succeeded_action_view">View</string>
     <string name="shop_snackbar_redeem_auto_equipped_title">Equipped!</string>
     <string name="shop_snackbar_redeem_auto_equipped_message">%1$s is equipped and ready to use.</string>
+    <string name="shop_snackbar_boost_activated_title">2× XP active!</string>
+    <string name="shop_snackbar_boost_activated_message">Every hand earns double XP for the next 30 minutes.</string>
     <string name="shop_snackbar_already_owned_title">Already yours</string>
     <string name="shop_snackbar_already_owned_message">Look for %1$s in your items.</string>
     <string name="shop_snackbar_offer_expired_title">Just missed it</string>
@@ -40,6 +42,16 @@
     <string name="shop_snackbar_not_signed_in_title">Sign in first</string>
     <string name="shop_snackbar_not_signed_in_message">Purchases require a signed-in account.</string>
     <string name="shop_snackbar_purchase_failed_title">Purchase failed</string>
+    <!-- App — session-expiry boot (the auth server rejected our token mid-run). -->
+    <string name="session_expired_title">Session expired</string>
+    <string name="session_expired_message">You were signed out. Sign in again to pick up where you left off.</string>
+    <string name="session_expired_guest_title">Guest session ended</string>
+    <string name="session_expired_guest_message">Your guest session ended. Sign in or start a new game to keep playing — create an account so your progress is saved.</string>
+    <string name="shop_snackbar_insufficient_chips_title">Not enough chips</string>
+    <string name="shop_snackbar_insufficient_chips_message">You need more chips to grab %1$s.</string>
+    <string name="shop_snackbar_claim_required_title">Account needed</string>
+    <string name="shop_snackbar_claim_required_message">Create an account to buy chips — it keeps your purchases safe.</string>
+    <string name="shop_snackbar_claim_required_action">Create account</string>
 
     <!-- Shop — owned-state badge + locked / insufficient footers on product cards. -->
     <string name="shop_owned_badge">OWNED</string>
@@ -439,6 +451,9 @@
     <string name="profile_notifications_empty_subtitle">Heads-ups and announcements will show up here.</string>
 
     <!-- Profile — Edit profile (name + avatar picker). -->
+    <string name="profile_edit_tab_edit">Edit</string>
+    <string name="profile_edit_tab_view">View</string>
+    <string name="profile_player_card_view_blurb">This is what other players see when they tap your avatar in a game.</string>
     <string name="profile_edit_title">Edit profile</string>
     <string name="profile_edit_subtitle">Other players see this on the table.</string>
     <string name="profile_edit_display_name_label">Display name</string>
@@ -449,8 +464,10 @@
     <string name="profile_edit_save_button_progress">Saving…</string>
     <string name="profile_edit_avatars_loading">Loading…</string>
     <string name="profile_edit_avatars_load_error">Avatars couldn't load. You can still save your current avatar.</string>
-    <string name="profile_edit_pack_locked_prefix">🔒  %1$s</string>
-    <string name="profile_edit_pack_unlock_button">Get in shop</string>
+    <string name="profile_edit_get_more_packs">Get more avatar packs in the Shop →</string>
+    <string name="profile_edit_featured_section">Featured badges</string>
+    <string name="profile_edit_featured_helper">Pick up to 3 badges to feature on your card. Until you do, we show your most recent.</string>
+    <string name="profile_edit_featured_empty">Earn achievements to feature them on your card.</string>
 
     <!-- Edit profile — inline display-name error states surfaced by the VM (sealed EditProfileDisplayNameError → resource). -->
     <string name="profile_edit_display_name_error_taken">That name is taken. Try another.</string>
@@ -927,6 +944,18 @@
     <string name="ui_achievement_sheet_reward_xp">Reward · +%1$d XP</string>
     <string name="ui_achievement_sheet_reward_xp_chips">Reward · +%1$d XP · +%2$s chips</string>
 
+    <!-- UI library — Full-screen level-up celebration (shown on Home when the derived level crosses the watermark). -->
+    <string name="ui_level_up_title">Level Up!</string>
+    <string name="ui_level_up_level">Level %1$d</string>
+    <string name="ui_level_up_message">You're getting sharper. Keep stacking chips.</string>
+    <string name="ui_level_up_continue">Continue</string>
+    <string name="ui_level_up_rewards_header">You earned</string>
+    <string name="ui_level_up_reward_chips">+%1$s chips</string>
+    <string name="ui_level_up_reward_xp_boost">2× XP boost</string>
+
+    <!-- UI library — Active 2× XP boost indicator. %1$s is a mm:ss countdown. -->
+    <string name="ui_xp_boost_active">2× XP · %1$s</string>
+
     <!-- UI library — Relative-time labels rendered next to an achievement's earned-at timestamp. -->
     <string name="ui_earned_ago_today">today</string>
     <string name="ui_earned_ago_yesterday">yesterday</string>
@@ -934,12 +963,6 @@
     <string name="ui_earned_ago_weeks">%1$dw ago</string>
     <string name="ui_earned_ago_months">%1$dmo ago</string>
     <string name="ui_earned_ago_years">%1$dy ago</string>
-
-    <!-- UI library — Axis labels for the play-style quadrant (PlayStyleBlob). -->
-    <string name="ui_play_style_axis_tight">Tight</string>
-    <string name="ui_play_style_axis_loose">Loose</string>
-    <string name="ui_play_style_axis_aggressive">Aggressive</string>
-    <string name="ui_play_style_axis_passive">Passive</string>
 
     <!-- Upgrade-required overlay — fires when the client version is below the
          server's minimum supported version. Body is generic so it covers both
@@ -957,4 +980,12 @@
     <!-- Debug-only escape hatch shown on blocking overlays so QA can break out
          of an override that was forced via the QA menu. Hidden in release. -->
     <string name="upgrade_debug_clear_overrides">Clear overrides</string>
+
+    <!-- Top-of-screen banner shown when a guest account couldn't be created
+         (typically offline). The user can keep playing bots; creation retries
+         automatically on reconnect/relaunch and the manual Retry button kicks
+         an attempt now. -->
+    <string name="account_setup_banner_message">Finishing account setup — we'll keep trying. Some features are limited until then.</string>
+    <string name="account_setup_banner_retry">Retry</string>
+    <string name="account_setup_banner_retrying">Retrying…</string>
 </resources>

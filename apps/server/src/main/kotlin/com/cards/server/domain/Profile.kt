@@ -48,4 +48,14 @@ data class Profile(
     val avatarBackgroundColor: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
+    /**
+     * Achievement ids the owner features on their Player Card, in display
+     * order (most-significant first). Empty = "never chosen" — the client
+     * falls back to the most-recently-earned badges. Capped at
+     * [MAX_FEATURED_BADGES] by the route layer.
+     */
+    val featuredBadgeIds: List<String> = emptyList(),
 )
+
+/** Most badges a Player Card features. Mirrored client-side. */
+const val MAX_FEATURED_BADGES: Int = 3

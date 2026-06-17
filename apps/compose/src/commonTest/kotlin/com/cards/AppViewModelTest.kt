@@ -6,6 +6,9 @@ import com.dangerfield.cards.features.onboarding.OnboardingRoute
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
+import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.OAuthProvider
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
@@ -14,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 
@@ -37,7 +41,7 @@ class AppViewModelTest : CoroutineTest() {
     fun firstLaunchUser_landsOnOnboardingRoute_andIsReadyImmediately() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = false))
         val profile = FakeProfileRepository()
-        val vm = AppViewModel(cache, profile)
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()))
 
         vm.startDestination.test {
             assertTrue(awaitItem() is OnboardingRoute)
@@ -51,7 +55,7 @@ class AppViewModelTest : CoroutineTest() {
     fun onboardedUser_landsOnHomeRoute() = runUnitTest {
         val cache = FakeAppCache(AppData(hasUserOnboarded = true))
         val profile = FakeProfileRepository(initial = authenticated("user-1", "Elijah"))
-        val vm = AppViewModel(cache, profile)
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()))
 
         vm.startDestination.test {
             assertTrue(awaitItem() is HomeRoute)
@@ -64,7 +68,7 @@ class AppViewModelTest : CoroutineTest() {
         // Cold flow that we manually advance — the VM should not flip
         // isReady until our emit() lands.
         val profile = ManualProfileRepository()
-        val vm = AppViewModel(cache, profile)
+        val vm = AppViewModel(cache, profile, FakeAuthRepository(idleAuth()))
 
         vm.isReady.test {
             assertEquals(false, awaitItem())
@@ -77,6 +81,46 @@ class AppViewModelTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun sessionExpired_setsHasOnboardedFalse_andEmitsEvent_carryingAnonymity() = runUnitTest {
+        val cache = FakeAppCache(AppData(hasUserOnboarded = true))
+        val profile = FakeProfileRepository(initial = authenticated("guest-1", "Guest"))
+        val auth = FakeAuthRepository(idleAuth())
+        val vm = AppViewModel(cache, profile, auth)
+
+        vm.sessionExpired.test {
+            // The auth server rejected our (guest) session mid-run.
+            auth.emit(
+                AuthState.Unauthenticated(
+                    reason = AuthState.Unauthenticated.Reason.SessionExpired,
+                    wasAnonymous = true,
+                ),
+            )
+            assertTrue(awaitItem().wasAnonymous, "the guest flag must reach the App for routing")
+        }
+        // Mirrors sign-out so a cold boot also lands on onboarding.
+        assertFalse(cache.get().hasUserOnboarded, "session expiry resets the onboarded flag")
+    }
+
+    @Test
+    fun benignUnauthenticated_doesNotBoot() = runUnitTest {
+        // A plain Unauthenticated (offline / clean sign-out) must NOT fire the
+        // session-expiry boot — only a server-confirmed rejection does.
+        val cache = FakeAppCache(AppData(hasUserOnboarded = true))
+        val profile = FakeProfileRepository(initial = authenticated("u", "E"))
+        val auth = FakeAuthRepository(idleAuth())
+        val vm = AppViewModel(cache, profile, auth)
+
+        vm.sessionExpired.test {
+            auth.emit(AuthState.Unauthenticated(reason = AuthState.Unauthenticated.Reason.None))
+            expectNoEvents()
+        }
+        assertTrue(cache.get().hasUserOnboarded, "a benign sign-out must not touch the onboarded flag here")
+    }
+
+    private fun idleAuth(): AuthState =
+        AuthState.Authenticated(userId = "u", isAnonymous = false, email = null)
+
     private fun authenticated(id: String, name: String): Profile.Authenticated =
         Profile.Authenticated(
             id = id,
@@ -87,6 +131,24 @@ class AppViewModelTest : CoroutineTest() {
             isAnonymous = false,
             createdAt = Clock.System.now(),
         )
+
+    private class FakeAuthRepository(initial: AuthState) : AuthRepository {
+        private val state = MutableStateFlow(initial)
+        suspend fun emit(next: AuthState) { state.emit(next) }
+        override suspend fun current(): AuthState = state.value
+        override fun observe(): Flow<AuthState> = state
+        override suspend fun retry(): AuthState = state.value
+        override suspend fun signInWithEmail(email: String, password: String) = error("unused")
+        override suspend fun signUpWithEmail(email: String, password: String) = error("unused")
+        override suspend fun refreshSession() = error("unused")
+        override suspend fun resendVerificationEmail(email: String) = error("unused")
+        override suspend fun sendPasswordResetEmail(email: String) = error("unused")
+        override suspend fun signOut() = error("unused")
+        override suspend fun deleteAccount() = error("unused")
+        override suspend fun linkOAuthIdentity(provider: OAuthProvider) = error("unused")
+        override suspend fun signInWithOAuth(provider: OAuthProvider) = error("unused")
+        override suspend fun linkEmailIdentity(email: String, password: String) = error("unused")
+    }
 
     private class FakeAppCache(initial: AppData = AppData()) : AppCache {
         private val state = MutableStateFlow(initial)
@@ -107,6 +169,7 @@ class AppViewModelTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used by AppViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by AppViewModel")
@@ -124,6 +187,7 @@ class AppViewModelTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used by AppViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by AppViewModel")

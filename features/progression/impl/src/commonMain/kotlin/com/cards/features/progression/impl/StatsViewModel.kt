@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpEventRepository
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -20,6 +21,7 @@ class StatsViewModel(
     xpEventRepository: XpEventRepository,
     achievementRepository: AchievementRepository,
     authRepository: AuthRepository,
+    xpBoostRepository: XpBoostRepository,
 ) : SEAViewModel<StatsState, StatsEvent, StatsAction>(
     initialStateArg = StatsState(),
 ) {
@@ -42,6 +44,11 @@ class StatsViewModel(
                 takeAction(StatsAction.AuthChanged(isAnonymous))
             }
         }
+        viewModelScope.launch {
+            xpBoostRepository.observe().collect { boost ->
+                takeAction(StatsAction.BoostChanged(boost.expiresAtEpochMs))
+            }
+        }
     }
 
     override suspend fun handleAction(action: StatsAction) {
@@ -57,6 +64,9 @@ class StatsViewModel(
             is StatsAction.AuthChanged -> action.updateState {
                 it.copy(isAnonymous = action.isAnonymous)
             }
+            is StatsAction.BoostChanged -> action.updateState {
+                it.copy(xpBoostExpiresAtEpochMs = action.expiresAtEpochMs)
+            }
         }
     }
 
@@ -71,6 +81,9 @@ data class StatsState(
     val recentEvents: List<XpEvent> = emptyList(),
     val achievements: AchievementProgress = AchievementProgress.Empty,
     val isAnonymous: Boolean = false,
+    /** Expiry of the active 2× XP boost, or `null` if none. Drives the
+     *  countdown badge under the XP hero. */
+    val xpBoostExpiresAtEpochMs: Long? = null,
 )
 
 sealed interface StatsEvent
@@ -83,4 +96,6 @@ sealed interface StatsAction {
     ) : StatsAction
 
     data class AuthChanged(val isAnonymous: Boolean) : StatsAction
+
+    data class BoostChanged(val expiresAtEpochMs: Long?) : StatsAction
 }

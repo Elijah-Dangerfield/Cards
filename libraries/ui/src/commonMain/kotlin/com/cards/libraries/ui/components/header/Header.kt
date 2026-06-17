@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -45,10 +46,14 @@ fun TopBar(
     typographyToken: TypographyResource = AppTheme.typography.Heading.H800,
     backgroundColor: Color = AppTheme.colors.background.color,
     actions: @Composable () -> Unit = {},
+    // Absolutely-centered slot (e.g. a step-counter pill), centered across the
+    // full bar independent of the back button / actions widths and vertically
+    // aligned with them. Null by default — existing bars render unchanged.
+    centerContent: (@Composable () -> Unit)? = null,
     scrollState: ScrollableState? = null,
     liftOnScroll: Boolean = scrollState != null,
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             // Shadow first so the lift-on-scroll elevation wraps the full-width
@@ -58,33 +63,42 @@ fun TopBar(
             .background(backgroundColor)
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
             .padding(screenHorizontalInsets),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        contentAlignment = Alignment.Center,
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.weight(1f, fill = false)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            if (onNavigateBack != null) {
-                IconButton(
-                    size = IconButton.Size.Medium,
-                    icon = Icons.ChevronLeft(stringResource(Res.string.ui_top_bar_back_a11y)),
-                    enabled = backEnabled,
-                    onClick = onNavigateBack
-                )
-                HorizontalSpacerD500()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                if (onNavigateBack != null) {
+                    IconButton(
+                        size = IconButton.Size.Medium,
+                        icon = Icons.ChevronLeft(stringResource(Res.string.ui_top_bar_back_a11y)),
+                        enabled = backEnabled,
+                        onClick = onNavigateBack
+                    )
+                    HorizontalSpacerD500()
+                }
+                title?.let {
+                    Text(text = title, typography = typographyToken)
+                }
             }
-            title?.let {
-                Text(text = title, typography = typographyToken)
+
+            Row(
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                actions()
             }
         }
-        
-        Row(
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            actions()
-        }
+
+        // Drawn on top of the row, centered in the full bar. Callers that use
+        // this shouldn't also pass a long title/actions that would overlap it.
+        centerContent?.invoke()
     }
 }
 

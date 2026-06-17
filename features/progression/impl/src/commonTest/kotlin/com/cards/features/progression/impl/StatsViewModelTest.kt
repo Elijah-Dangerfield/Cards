@@ -4,6 +4,7 @@ import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementProgress
 import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.XpBoostStatus
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.XpSource
@@ -31,6 +32,7 @@ class StatsViewModelTest : CoroutineTest() {
             xpEventRepository = NeverEmittingXpEventRepository,
             achievementRepository = NeverEmittingAchievementRepository,
             authRepository = FakeAuthRepository(),
+            xpBoostRepository = FakeXpBoostRepository(),
         )
         assertEquals(true, vm.state.isLoading)
         assertEquals(Progression.Empty, vm.state.progression)
@@ -63,6 +65,7 @@ class StatsViewModelTest : CoroutineTest() {
             xpEventRepository = FakeXpEventRepository(initial = seedEvents),
             achievementRepository = FakeAchievementRepository(initial = seedAchievements),
             authRepository = FakeAuthRepository(),
+            xpBoostRepository = FakeXpBoostRepository(),
         )
 
         vm.stateFlow.test {
@@ -86,6 +89,7 @@ class StatsViewModelTest : CoroutineTest() {
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
+            xpBoostRepository = FakeXpBoostRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -112,6 +116,7 @@ class StatsViewModelTest : CoroutineTest() {
             xpEventRepository = events,
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(),
+            xpBoostRepository = FakeXpBoostRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -140,12 +145,33 @@ class StatsViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun xpBoostEmission_setsExpiryOnState() = runUnitTest {
+        val boost = FakeXpBoostRepository()
+        val vm = StatsViewModel(
+            progressionRepository = FakeProgressionRepository(),
+            xpEventRepository = FakeXpEventRepository(),
+            achievementRepository = FakeAchievementRepository(),
+            authRepository = FakeAuthRepository(),
+            xpBoostRepository = boost,
+        )
+        vm.stateFlow.test {
+            var last = awaitItem()
+            assertEquals(null, last.xpBoostExpiresAtEpochMs)
+            boost.status.value = XpBoostStatus(expiresAtEpochMs = 1_700_000_900_000L)
+            while (last.xpBoostExpiresAtEpochMs == null) last = awaitItem()
+            assertEquals(1_700_000_900_000L, last.xpBoostExpiresAtEpochMs)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun anonymousAuth_setsIsAnonymous() = runUnitTest {
         val vm = StatsViewModel(
             progressionRepository = FakeProgressionRepository(),
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(initial = anonymousAuthState()),
+            xpBoostRepository = FakeXpBoostRepository(),
         )
         vm.stateFlow.test {
             var last = awaitItem()
@@ -162,6 +188,7 @@ class StatsViewModelTest : CoroutineTest() {
             xpEventRepository = FakeXpEventRepository(),
             achievementRepository = FakeAchievementRepository(),
             authRepository = FakeAuthRepository(initial = claimedAuthState()),
+            xpBoostRepository = FakeXpBoostRepository(),
         )
         vm.stateFlow.test {
             assertEquals(false, awaitItem().isAnonymous)

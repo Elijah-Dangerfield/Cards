@@ -7,8 +7,10 @@ import com.dangerfield.cards.libraries.cards.AllAchievementsById
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.LevelProgress
+import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.cards.rewardsForLevel
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
@@ -68,6 +70,22 @@ class HomeViewModel(
             progressionRepository.observeProgression().collect { progression ->
                 takeAction(HomeAction.ProgressionChanged(levelProgressFor(progression.totalXp)))
             }
+        }
+        viewModelScope.launch {
+            // Full-screen level-up celebration, derived (not event-fired) so it
+            // survives the table→home trip + process death and shows the net
+            // level once on a multi-level jump. See decisions.md 2026-06-06.
+            combine(
+                progressionRepository.observeProgression(),
+                appCache.updates,
+            ) { progression, appData ->
+                LevelCelebrationGate(
+                    currentLevel = levelProgressFor(progression.totalXp).level,
+                    watermark = appData.lastCelebratedLevel,
+                )
+            }
+                .distinctUntilChanged()
+                .collect { gate -> takeAction(HomeAction.EvaluateLevelUp(gate)) }
         }
         viewModelScope.launch {
             chipsRepository.observeBalance().collect { balance ->
@@ -203,6 +221,42 @@ class HomeViewModel(
             is HomeAction.DismissTutorialBanner -> {
                 appCache.update { it.copy(tutorialBannerDismissed = true) }
             }
+            is HomeAction.EvaluateLevelUp -> {
+                // `watermark == 0` is the unset sentinel: silently seed it to
+                // the current level (no celebration) so a fresh install /
+                // account switch / reinstall never blasts a celebration for a
+                // level the user already had. Thereafter, a current level above
+                // the watermark surfaces the overlay for the *current* level.
+                val gate = action.gate
+                when {
+                    gate.watermark == 0 ->
+                        appCache.update { it.copy(lastCelebratedLevel = gate.currentLevel) }
+                    gate.currentLevel > gate.watermark ->
+                        action.updateState {
+                            it.copy(
+                                levelUpCelebration = gate.currentLevel,
+                                levelUpRewards = crossedLevelRewards(
+                                    fromExclusive = gate.watermark,
+                                    toInclusive = gate.currentLevel,
+                                ),
+                            )
+                        }
+                    else ->
+                        action.updateState {
+                            it.copy(levelUpCelebration = null, levelUpRewards = emptyList())
+                        }
+                }
+            }
+            is HomeAction.DismissLevelUp -> {
+                // Advance the watermark to the level we just celebrated so the
+                // derived gate goes quiet; null the overlay immediately rather
+                // than waiting for the cache round-trip to echo back.
+                val reached = stateFlow.value.levelUpCelebration
+                action.updateState { it.copy(levelUpCelebration = null, levelUpRewards = emptyList()) }
+                if (reached != null) {
+                    appCache.update { it.copy(lastCelebratedLevel = reached) }
+                }
+            }
         }
     }
 
@@ -314,6 +368,46 @@ data class HomeState(
      *  AnimatedVisibility enter — same animation, but inviting instead
      *  of jarring. */
     val tutorialBannerDismissed: Boolean = true,
+    /** Non-null when the full-screen level-up celebration should be shown on
+     *  Home for this level. Derived from the `AppData.lastCelebratedLevel`
+     *  watermark vs the current level, so it survives the table→home trip and
+     *  process death; cleared when the user dismisses (which advances the
+     *  watermark). */
+    val levelUpCelebration: Int? = null,
+    /** Prizes revealed in the level-up celebration — aggregated across every
+     *  level crossed since the last celebration (chips summed, boost de-duped
+     *  to one row). Empty when the reached level(s) grant nothing. Mirrors what
+     *  `LevelUpRewardGranter` already granted; this is the reveal, not the
+     *  grant. Cleared alongside [levelUpCelebration]. */
+    val levelUpRewards: List<LevelReward> = emptyList(),
+)
+
+/**
+ * Aggregate the prizes for every level newly crossed — `(fromExclusive,
+ * toInclusive]` — into the at-most-two rows the celebration reveals: a single
+ * summed chip prize and a single XP-boost row. The range mirrors the grant
+ * range in [com.dangerfield.cards.libraries.cards.impl] so the reveal can't
+ * claim a prize the granter didn't grant. Multi-level jumps (rare) collapse to
+ * one tidy payout instead of a stack of "+chips" lines.
+ */
+private fun crossedLevelRewards(fromExclusive: Int, toInclusive: Int): List<LevelReward> {
+    val crossed = ((fromExclusive + 1)..toInclusive).flatMap { rewardsForLevel(it) }
+    val totalChips = crossed.filterIsInstance<LevelReward.Chips>().sumOf { it.amount }
+    val hasBoost = crossed.any { it is LevelReward.XpBoost }
+    return buildList {
+        if (totalChips > 0) add(LevelReward.Chips(totalChips))
+        if (hasBoost) add(LevelReward.XpBoost())
+    }
+}
+
+/**
+ * Inputs the level-up gate derives from — the user's current derived level and
+ * the persisted "last celebrated" watermark. Lifted to a value type so the
+ * `combine` emits a single `distinctUntilChanged`-able value.
+ */
+data class LevelCelebrationGate(
+    val currentLevel: Int,
+    val watermark: Int,
 )
 
 /**
@@ -362,4 +456,6 @@ sealed interface HomeAction {
     data class RecentUnlocksChanged(val items: List<RecentAchievement>) : HomeAction
     data class TutorialBannerDismissedChanged(val dismissed: Boolean) : HomeAction
     data object DismissTutorialBanner : HomeAction
+    data class EvaluateLevelUp(val gate: LevelCelebrationGate) : HomeAction
+    data object DismissLevelUp : HomeAction
 }

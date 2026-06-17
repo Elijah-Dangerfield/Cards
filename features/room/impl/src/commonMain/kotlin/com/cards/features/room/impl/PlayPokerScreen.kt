@@ -103,6 +103,7 @@ fun PlayPokerScreen(
     var leaveConfirmOpen by remember { mutableStateOf(false) }
     var swipeFoldConfirmOpen by remember { mutableStateOf(false) }
     var profileSheetSeat by remember { mutableStateOf<SeatView?>(null) }
+    var selfCardOpen by remember { mutableStateOf(false) }
     // Action / bet / hand-label explainers carry their own context so each
     // dialog can render specific copy instead of opening the whole cheat sheet.
     var lastActionDialog by remember { mutableStateOf<Pair<String, PlayerAction>?>(null) }
@@ -296,6 +297,7 @@ fun PlayPokerScreen(
                         onOpponentTap = { seat ->
                             seatMuteKey(seat)?.let { profileSheetSeat = seat }
                         },
+                        onSelfTap = { selfCardOpen = true },
                     )
                 }
             }
@@ -427,6 +429,20 @@ fun PlayPokerScreen(
                 onDismiss = { profileSheetSeat = null },
                 botDifficultyLabel = active?.botDifficultyLabel,
             )
+        }
+
+        if (selfCardOpen) {
+            active?.seats?.firstOrNull { it.isHuman }?.let { human ->
+                PlayerProfileSheet(
+                    seat = human,
+                    isMePlayer = true,
+                    isMuted = false,
+                    onToggleMute = {},
+                    onDismiss = { selfCardOpen = false },
+                    equippedTitle = state.equippedTitle,
+                    permanentBadgeEmoji = state.equippedBadgeEmoji,
+                )
+            }
         }
 
         // Bot-mode achievement-unlock celebration is sequenced *after* the
@@ -684,6 +700,7 @@ private fun ActiveTable(
     onHandLabelClick: (label: String) -> Unit = {},
     onSwipeFold: () -> Unit = {},
     onOpponentTap: (SeatView) -> Unit = {},
+    onSelfTap: () -> Unit = {},
 ) {
     // Pinned-bottom layout: opponents + board scroll if needed, but the
     // player's hand and the action bar always sit at the bottom in reach.
@@ -737,6 +754,7 @@ private fun ActiveTable(
                 onStackClick = onStackClick,
                 onHandLabelClick = onHandLabelClick,
                 onSwipeFold = onSwipeFold,
+                onSelfTap = onSelfTap,
             )
             QuickActionBar(table = table, onIntent = onIntent, onExpandRaise = onExpandRaise)
         }

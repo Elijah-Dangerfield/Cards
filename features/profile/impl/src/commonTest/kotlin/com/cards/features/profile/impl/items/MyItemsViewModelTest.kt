@@ -189,6 +189,7 @@ class MyItemsViewModelTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used")
         // No avatar packs in unit tests — pack-emoji enrichment just stays empty.
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =

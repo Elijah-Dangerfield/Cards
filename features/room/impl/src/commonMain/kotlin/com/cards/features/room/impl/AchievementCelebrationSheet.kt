@@ -45,6 +45,7 @@ import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.achievement.AchievementUnlockReveal
 import com.dangerfield.cards.libraries.ui.components.achievement.toCelebrationTint
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.dialog.BubbleSurface
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheet
 import com.dangerfield.cards.libraries.ui.components.dialog.bottomsheet.BottomSheetDragHandle
@@ -124,6 +125,7 @@ internal fun AchievementCelebrationSheet(
             ButtonPrimary(
                 onClick = onContinue,
                 modifier = Modifier.fillMaxWidth(),
+                size = ButtonSize.Large,
             ) {
                 Text(text = stringResource(Res.string.room_celebration_continue_button))
             }

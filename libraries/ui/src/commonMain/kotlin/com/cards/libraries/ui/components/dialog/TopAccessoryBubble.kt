@@ -130,6 +130,10 @@ internal fun TopAccessoryBubble(
         is BubbleSurface.Solid -> SolidColor(resolvedSurface.color.color.copy(alpha = resolvedSurface.alpha))
         is BubbleSurface.Gradient -> resolvedSurface.brush
     }
+    // A solid surface may pin its own "on" color so a light bubble paints
+    // monochrome glyphs/icons dark (and vice-versa); otherwise inherit the
+    // content color the host passed down.
+    val resolvedContentColor = (resolvedSurface as? BubbleSurface.Solid)?.onContentColor ?: contentColor
 
     Box(
         modifier = modifier
@@ -145,7 +149,7 @@ internal fun TopAccessoryBubble(
                 .background(brush),
             contentAlignment = Alignment.Center,
         ) {
-            ProvideContentColor(contentColor) {
+            ProvideContentColor(resolvedContentColor) {
                 when (accessory) {
                     is TopAccessory.Emoji -> {
                         require(accessory.emoji.isNotEmpty()) {
@@ -154,13 +158,13 @@ internal fun TopAccessoryBubble(
                         Text(
                             text = accessory.emoji,
                             typography = emojiTypography,
-                            color = contentColor,
+                            color = resolvedContentColor,
                         )
                     }
                     is TopAccessory.Icon -> Icon(
                         icon = accessory.icon,
                         size = accessory.iconSize,
-                        color = accessory.iconColor ?: contentColor,
+                        color = accessory.iconColor ?: resolvedContentColor,
                     )
                     is TopAccessory.Custom -> accessory.render()
                 }
@@ -192,11 +196,19 @@ sealed interface BubbleSurface {
      * that mirror an existing in-app tinted treatment (e.g., the shop's
      * grid-card icon tiles are accent/gold at 0.18 alpha — the matching
      * purchase-sheet bubble passes the same color and alpha here).
+     *
+     * [onContentColor] is the color the bubble paints its glyph/icon with
+     * when this surface is used — needed because monochrome glyphs (suit
+     * pips, `$`, digits) and themed icons take the content color, so a
+     * light bubble must carry a dark "on" color (and vice-versa) rather
+     * than inheriting the host's light content color. Null falls back to
+     * the content color the host passes.
      */
     @Immutable
     data class Solid(
         val color: ColorResource,
         val alpha: Float = 1f,
+        val onContentColor: ColorResource? = null,
     ) : BubbleSurface
 
     /** Arbitrary [brush] — gradients, linear or radial. */

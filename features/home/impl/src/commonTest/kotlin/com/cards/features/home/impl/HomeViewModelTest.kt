@@ -9,9 +9,11 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.XpEvent
+import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
@@ -152,6 +154,86 @@ class HomeViewModelTest : CoroutineTest() {
             var last = awaitItem()
             while (last.levelProgress.totalXp != 1_750L) last = awaitItem()
             assertEquals(1_750L, last.levelProgress.totalXp)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_freshWatermark_seedsSilently_noCelebration() = runUnitTest {
+        // lastCelebratedLevel == 0 (unset). The current level (1, empty
+        // progression) seeds the watermark silently — no celebration for a
+        // level the user already had.
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache() // lastCelebratedLevel = 0
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (appCache.get().lastCelebratedLevel == 0) last = awaitItem()
+            assertEquals(1, appCache.get().lastCelebratedLevel)
+            assertNull(last.levelUpCelebration)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_switchIntoLeveledAccount_seedsToCurrent_noCelebration() = runUnitTest {
+        // Account switch wipes the watermark to 0; the switched-in account is
+        // already level 2 (150 XP). Seeding must catch up silently rather than
+        // blasting a celebration for a level the user already holds.
+        val progression = FakeProgressionRepository(initial = Progression.Empty.copy(totalXp = 150L))
+        val appCache = FakeAppCache()
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (appCache.get().lastCelebratedLevel == 0) last = awaitItem()
+            assertEquals(2, appCache.get().lastCelebratedLevel)
+            assertNull(last.levelUpCelebration)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_crossingWatermark_showsCelebration_thenDismissAdvances() = runUnitTest {
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache()
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            // Seed settles to level 1.
+            while (appCache.get().lastCelebratedLevel != 1) last = awaitItem()
+
+            // Earn enough XP to reach level 2 → celebration surfaces.
+            progression.progression.value = progression.progression.value.copy(totalXp = 150L)
+            while (last.levelUpCelebration == null) last = awaitItem()
+            assertEquals(2, last.levelUpCelebration)
+
+            // Dismiss advances the watermark and clears the overlay.
+            vm.takeAction(HomeAction.DismissLevelUp)
+            while (last.levelUpCelebration != null) last = awaitItem()
+            assertEquals(2, appCache.get().lastCelebratedLevel)
+            assertTrue(last.levelUpRewards.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun levelUp_crossingIntoRewardedLevel_revealsAggregatedRewards() = runUnitTest {
+        // Level 3 grants 1,000 chips (LevelRewardTable). Starting from a fresh
+        // level-1 account, the watermark seeds to 1, then a jump straight to
+        // level 3 crosses levels 2 (no reward) + 3 (chips) — the reveal
+        // aggregates that to a single chip row.
+        val progression = FakeProgressionRepository(initial = Progression.Empty)
+        val appCache = FakeAppCache()
+        val vm = buildVm(progression = progression, appCache = appCache)
+        vm.stateFlow.test {
+            var last = awaitItem()
+            while (appCache.get().lastCelebratedLevel != 1) last = awaitItem()
+
+            progression.progression.value =
+                progression.progression.value.copy(totalXp = xpAtStartOfLevel(3))
+            while (last.levelUpCelebration == null) last = awaitItem()
+            assertEquals(3, last.levelUpCelebration)
+            assertEquals(listOf(LevelReward.Chips(1_000)), last.levelUpRewards)
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -519,6 +601,7 @@ class HomeViewModelTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
+            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used by HomeViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by HomeViewModel")

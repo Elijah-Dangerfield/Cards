@@ -24,10 +24,17 @@ import com.dangerfield.cards.libraries.navigation.screen
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_message
 import cards.libraries.resources.generated.resources.shop_snackbar_already_owned_title
+import cards.libraries.resources.generated.resources.shop_snackbar_boost_activated_message
+import cards.libraries.resources.generated.resources.shop_snackbar_boost_activated_title
 import cards.libraries.resources.generated.resources.shop_snackbar_chips_added_message
 import cards.libraries.resources.generated.resources.shop_snackbar_chips_added_title
 import cards.libraries.resources.generated.resources.shop_snackbar_chips_restored_message
 import cards.libraries.resources.generated.resources.shop_snackbar_chips_restored_title
+import cards.libraries.resources.generated.resources.shop_snackbar_claim_required_action
+import cards.libraries.resources.generated.resources.shop_snackbar_claim_required_message
+import cards.libraries.resources.generated.resources.shop_snackbar_claim_required_title
+import cards.libraries.resources.generated.resources.shop_snackbar_insufficient_chips_message
+import cards.libraries.resources.generated.resources.shop_snackbar_insufficient_chips_title
 import cards.libraries.resources.generated.resources.shop_snackbar_not_signed_in_message
 import cards.libraries.resources.generated.resources.shop_snackbar_not_signed_in_title
 import cards.libraries.resources.generated.resources.shop_snackbar_offer_expired_message
@@ -42,6 +49,7 @@ import cards.libraries.resources.generated.resources.shop_snackbar_redeem_succee
 import cards.libraries.resources.generated.resources.shop_snackbar_store_unavailable_message
 import cards.libraries.resources.generated.resources.shop_snackbar_store_unavailable_title
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
+import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
@@ -131,6 +139,12 @@ class ShopFeatureEntryPoint(
                                 },
                             )
                         }
+                        is ShopEvent.BoostActivated -> showSnackBar(
+                            title = getString(Res.string.shop_snackbar_boost_activated_title),
+                            message = getString(Res.string.shop_snackbar_boost_activated_message),
+                            emoji = event.offer.iconEmoji,
+                            duration = SnackbarDuration.Short,
+                        )
                         is ShopEvent.AlreadyOwned -> showSnackBar(
                             title = getString(Res.string.shop_snackbar_already_owned_title),
                             message = getString(Res.string.shop_snackbar_already_owned_message, event.offer.title),
@@ -142,7 +156,23 @@ class ShopFeatureEntryPoint(
                             message = getString(Res.string.shop_snackbar_offer_expired_message),
                             duration = SnackbarDuration.Short,
                         )
-                        ShopEvent.ClaimAccountRequired -> router.navigate(ClaimAccountRoute())
+                        is ShopEvent.InsufficientChips -> showSnackBar(
+                            title = getString(Res.string.shop_snackbar_insufficient_chips_title),
+                            message = getString(
+                                Res.string.shop_snackbar_insufficient_chips_message,
+                                event.offer.title,
+                            ),
+                            level = SnackbarLevel.Error,
+                            duration = SnackbarDuration.Short,
+                        )
+                        ShopEvent.ClaimAccountRequired -> showSnackBar(
+                            title = getString(Res.string.shop_snackbar_claim_required_title),
+                            message = getString(Res.string.shop_snackbar_claim_required_message),
+                            level = SnackbarLevel.Error,
+                            actionLabel = getString(Res.string.shop_snackbar_claim_required_action),
+                            duration = SnackbarDuration.Long,
+                            onAction = { router.navigate(ClaimAccountRoute()) },
+                        )
                     }
                 }
 
@@ -220,16 +250,19 @@ private suspend fun showPurchaseSnackbar(outcome: IapPurchaseOutcome) {
         IapPurchaseOutcome.StoreUnavailable -> showSnackBar(
             title = getString(Res.string.shop_snackbar_store_unavailable_title),
             message = getString(Res.string.shop_snackbar_store_unavailable_message),
+            level = SnackbarLevel.Error,
             duration = SnackbarDuration.Short,
         )
         IapPurchaseOutcome.NotSignedIn -> showSnackBar(
             title = getString(Res.string.shop_snackbar_not_signed_in_title),
             message = getString(Res.string.shop_snackbar_not_signed_in_message),
+            level = SnackbarLevel.Error,
             duration = SnackbarDuration.Short,
         )
         is IapPurchaseOutcome.Failed -> showSnackBar(
             title = getString(Res.string.shop_snackbar_purchase_failed_title),
             message = outcome.reason,
+            level = SnackbarLevel.Error,
             duration = SnackbarDuration.Long,
         )
     }

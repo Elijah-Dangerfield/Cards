@@ -21,6 +21,7 @@ import com.dangerfield.cards.libraries.identity.auth.SignInOutcome
 import com.dangerfield.cards.libraries.identity.auth.SignUpOutcome
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
 import com.dangerfield.cards.libraries.networking.AuthTokenInvalidator
+import com.dangerfield.cards.libraries.networking.SessionRejectionBus
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
 import kotlinx.coroutines.flow.Flow
@@ -69,6 +70,7 @@ class SupabaseAuthRepositoryImpl(
     private val appEventBus: AppEventBus,
     private val userScopedDataReset: UserScopedDataReset,
     private val tokenInvalidator: AuthTokenInvalidator,
+    private val sessionRejectionBus: SessionRejectionBus,
     appScope: AppCoroutineScope,
 ) : AuthRepository {
 
@@ -81,6 +83,15 @@ class SupabaseAuthRepositoryImpl(
         appScope.launch {
             Catching { resolveAndEmit() }
                 .logOnFailure { "Initial auth resolve failed; will retry via AuthRepository.retry()" }
+        }
+        // The token layer signals here when the auth server definitively rejects
+        // our session (a refresh the server itself rejected). Tear it down so the
+        // app stops re-sending the dead token and can route the user to re-auth.
+        appScope.launch {
+            sessionRejectionBus.rejections.collect { rejection ->
+                Catching { onSessionRejected(rejection.wasAnonymous) }
+                    .logOnFailure { "Session-rejection teardown failed" }
+            }
         }
     }
 
@@ -168,18 +179,51 @@ class SupabaseAuthRepositoryImpl(
         return next
     }
 
-    private suspend fun emitUnauthenticatedLocked(cause: Throwable?): AuthState.Unauthenticated {
-        val next = AuthState.Unauthenticated(cause = cause)
+    private suspend fun emitUnauthenticatedLocked(
+        cause: Throwable?,
+        reason: AuthState.Unauthenticated.Reason = AuthState.Unauthenticated.Reason.None,
+        wasAnonymous: Boolean = false,
+    ): AuthState.Unauthenticated {
+        val next = AuthState.Unauthenticated(cause = cause, reason = reason, wasAnonymous = wasAnonymous)
         // Sign-out / lost session — drop the cached bearer so no stale token
         // rides along on the next request.
         tokenInvalidator.invalidate()
         emitLocked(next)
-        if (cause != null) {
-            logger.w(cause) { "Emitted Unauthenticated with cause" }
-        } else {
-            logger.i { "Emitted Unauthenticated (no cause — sign-out or exhausted resolve)" }
+        when {
+            cause != null -> logger.w(cause) { "Emitted Unauthenticated (reason=$reason)" }
+            else -> logger.i { "Emitted Unauthenticated (reason=$reason)" }
         }
         return next
+    }
+
+    /**
+     * The auth server has definitively rejected our session (a refresh it
+     * rejected — token revoked, account deleted, refresh token invalid). Tear the
+     * dead session down: clear the supabase session so the bearer stops
+     * re-attaching the rejected token, then emit
+     * [AuthState.Unauthenticated.Reason.SessionExpired] so the app can route the
+     * user to re-auth (claimed) or a fresh start (guest).
+     *
+     * Idempotent: a burst of rejected requests collapses to one teardown.
+     */
+    private suspend fun onSessionRejected(wasAnonymous: Boolean): Unit = mutex.withLock {
+        val latest = lastEmittedOrNull()
+        if (latest is AuthState.Unauthenticated &&
+            latest.reason == AuthState.Unauthenticated.Reason.SessionExpired
+        ) {
+            logger.d { "onSessionRejected: already SessionExpired — no-op" }
+            return@withLock
+        }
+        logger.w { "Session rejected by auth server — tearing down (wasAnonymous=$wasAnonymous)" }
+        // Clear the dead supabase session so currentSession() goes null and the
+        // bearer stops re-attaching the rejected token.
+        Catching { gateway.signOut() }
+            .logOnFailure { "Gateway signOut during session-rejection cleanup failed; clearing local state anyway" }
+        emitUnauthenticatedLocked(
+            cause = null,
+            reason = AuthState.Unauthenticated.Reason.SessionExpired,
+            wasAnonymous = wasAnonymous,
+        )
     }
 
     /**
@@ -203,7 +247,8 @@ class SupabaseAuthRepositoryImpl(
      * emits so the profile re-resolves to the now-claimed account.
      */
     private suspend fun emitLocked(next: AuthState) {
-        val previousUserId = (lastEmittedOrNull() as? AuthState.Authenticated)?.userId
+        val previous = lastEmittedOrNull()
+        val previousUserId = (previous as? AuthState.Authenticated)?.userId
         val nextUserId = (next as? AuthState.Authenticated)?.userId
         val userChanged = previousUserId != nextUserId
 
@@ -215,10 +260,27 @@ class SupabaseAuthRepositoryImpl(
 
         state.emit(next)
 
-        if (userChanged) {
-            appEventBus.dispatch(AppEvent.UserChanged(previous = previousUserId, current = nextUserId))
+        when {
+            userChanged ->
+                appEventBus.dispatch(AppEvent.UserChanged(previous = previousUserId, current = nextUserId))
+            // Anon → claimed at the same id: not a user change (the guest keeps
+            // their progress, so nothing is dumped and UserChanged stays silent),
+            // but the just-claimed account's pending XP/chips/inventory/equipment
+            // would otherwise only flush on the next foreground. Announce the
+            // claim so the sync listeners reconcile now.
+            isClaim(previous, next) -> {
+                logger.i { "Account claimed (same id $nextUserId) — announcing AccountClaimed to flush user-scoped syncs" }
+                appEventBus.dispatch(AppEvent.AccountClaimed(userId = nextUserId!!))
+            }
         }
     }
+
+    private fun isClaim(previous: AuthState?, next: AuthState): Boolean =
+        previous is AuthState.Authenticated &&
+            next is AuthState.Authenticated &&
+            previous.userId == next.userId &&
+            previous.isAnonymous &&
+            !next.isAnonymous
 
     private fun lastEmittedOrNull(): AuthState? = state.replayCache.firstOrNull()
 

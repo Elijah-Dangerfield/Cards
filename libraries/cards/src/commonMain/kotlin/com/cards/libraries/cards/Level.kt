@@ -76,5 +76,13 @@ fun xpToLevelUpFrom(level: Int): Long {
     return n * n * 100L
 }
 
+/** Cumulative XP required to *reach* (sit at the start of) [level]. */
+fun xpAtStartOfLevel(level: Int): Long {
+    val target = level.coerceAtLeast(1)
+    var sum = 0L
+    for (n in 1 until target) sum += xpToLevelUpFrom(n)
+    return sum
+}
+
 /** Safety bound; nobody will hit this in normal play. */
 const val MAX_LEVEL: Int = 100

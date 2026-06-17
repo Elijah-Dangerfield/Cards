@@ -64,6 +64,11 @@ data class PatchMeRequest(
      * to the theme default. Both fields can't usefully be set together.
      */
     val clearAvatarBackgroundColor: Boolean = false,
+    /**
+     * Replace the featured-badge selection wholesale. `null` = leave alone;
+     * an empty list = clear back to the default. Server caps + de-dups.
+     */
+    val featuredBadgeIds: List<String>? = null,
 )
 
 @Serializable

@@ -42,6 +42,8 @@ import com.dangerfield.cards.features.profile.impl.settings.SettingsScreen
 import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.TutorialRoute
+import com.dangerfield.cards.features.shop.ShopCategory
+import com.dangerfield.cards.features.shop.ShopDeepLinkBus
 import com.dangerfield.cards.features.shop.ShopGraph
 import com.dangerfield.cards.features.shop.ShopProductSheetRoute
 import com.dangerfield.cards.libraries.cards.AchievementProgress
@@ -51,6 +53,7 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.InventoryRepository
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
+import com.dangerfield.cards.libraries.cards.XpBoostRepository
 import com.dangerfield.cards.libraries.cards.UserMessageRepository
 import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
@@ -84,6 +87,7 @@ class ProfileFeatureEntryPoint(
     private val configOverrideRepository: ConfigOverrideRepository,
     private val configuredValues: Set<QaConfigValue>,
     private val progressionRepository: ProgressionRepository,
+    private val xpBoostRepository: XpBoostRepository,
     private val achievementRepository: AchievementRepository,
     private val feedbackViewModelFactory: () -> FeedbackViewModel,
     private val bugReportViewModelFactory: (logId: String?, errorCode: Int?, contextMessage: String?) -> BugReportViewModel,
@@ -96,6 +100,7 @@ class ProfileFeatureEntryPoint(
     private val appCache: AppCache,
     private val userMessageRepository: UserMessageRepository,
     private val inventoryRepository: InventoryRepository,
+    private val shopDeepLinkBus: ShopDeepLinkBus,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -273,6 +278,9 @@ class ProfileFeatureEntryPoint(
                 onSetTotalXp = { xp ->
                     scope.launch { progressionRepository.debugSetTotalXp(xp) }
                 },
+                onActivateXpBoost = {
+                    scope.launch { xpBoostRepository.activate() }
+                },
             )
         }
 
@@ -299,6 +307,13 @@ class ProfileFeatureEntryPoint(
                         if (productId != null) {
                             navigate(ShopProductSheetRoute(productId))
                         }
+                    }
+                    // The one generic (null) shop nav from Edit Profile is
+                    // the "Get more avatar packs" link, so anchor the grid
+                    // on the Avatars shelf. Carried via the deep-link bus,
+                    // not a route arg, for the same arg-less-tab-root reason.
+                    if (productId == null) {
+                        shopDeepLinkBus.requestScrollTo(ShopCategory.Avatars)
                     }
                 },
             )

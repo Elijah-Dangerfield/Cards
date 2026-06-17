@@ -39,10 +39,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.dangerfield.cards.libraries.ui.components.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import com.dangerfield.cards.features.shop.ShopCategory
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -192,6 +199,25 @@ private fun CatalogContent(
     onIdeaTap: () -> Unit,
     scrollState: ScrollState = rememberScrollState(),
 ) {
+    // Content offset of each category's section header, captured as the
+    // grid lays out. Drives the deep-link scroll below. Keyed by the
+    // public ShopCategory so a cross-tab "land on avatars" intent resolves
+    // to the right shelf regardless of catalog order.
+    val sectionOffsets = remember { mutableStateMapOf<ShopCategory, Int>() }
+
+    // Scroll to the requested section once it's measured, then clear the
+    // pending target so a later recompose doesn't re-scroll. Re-runs when
+    // the target offset resolves from null → value (section measured after
+    // a cold deep-link arrived before the catalog hydrated).
+    val pendingCategory = state.pendingScrollCategory
+    val targetOffset = pendingCategory?.let { sectionOffsets[it] }
+    LaunchedEffect(pendingCategory, targetOffset) {
+        if (pendingCategory == null) return@LaunchedEffect
+        val offset = targetOffset ?: return@LaunchedEffect
+        scrollState.animateScrollTo(offset)
+        onAction(ShopAction.ScrollConsumed)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -227,7 +253,14 @@ private fun CatalogContent(
         }
         offerSections.forEachIndexed { index, (section, items) ->
             if (index > 0) VerticalSpacerD800()
-            SectionHeader(title = section.title)
+            SectionHeader(
+                title = section.title,
+                modifier = section.category?.let { category ->
+                    Modifier.onGloballyPositioned { coordinates ->
+                        sectionOffsets[category] = coordinates.positionInParent().y.roundToInt()
+                    }
+                } ?: Modifier,
+            )
             VerticalSpacerD400()
             ProductGrid(items = items) { offer ->
                 ChipOfferCard(
@@ -291,17 +324,19 @@ private fun ShopHeader(chips: Long?) {
  * `tool_`). Titles are unlock-only (earned, not bought) so they never reach
  * the shop and get no shelf here.
  */
-private enum class ShopSection(val title: String) {
-    CardBacks("Card backs"),
-    Felts("Felts"),
-    Tables("Table themes"),
-    Emotes("Emote packs"),
-    Avatars("Avatar packs"),
-    Tools("Tools"),
-    Other("More"),
+private enum class ShopSection(val title: String, val category: ShopCategory?) {
+    Boosts("Boosts", ShopCategory.Boosts),
+    CardBacks("Card backs", ShopCategory.CardBacks),
+    Felts("Felts", ShopCategory.Felts),
+    Tables("Table themes", ShopCategory.Tables),
+    Emotes("Emote packs", ShopCategory.Emotes),
+    Avatars("Avatar packs", ShopCategory.Avatars),
+    Tools("Tools", ShopCategory.Tools),
+    Other("More", null),
 }
 
 private val ShopSectionOrder = listOf(
+    ShopSection.Boosts,
     ShopSection.CardBacks,
     ShopSection.Felts,
     ShopSection.Tables,
@@ -312,6 +347,7 @@ private val ShopSectionOrder = listOf(
 )
 
 private fun shopSectionFor(productId: String): ShopSection = when {
+    productId.startsWith("boost_") -> ShopSection.Boosts
     productId.startsWith("cardback_") -> ShopSection.CardBacks
     productId.startsWith("felt_") -> ShopSection.Felts
     productId.startsWith("table_") -> ShopSection.Tables
@@ -322,8 +358,8 @@ private fun shopSectionFor(productId: String): ShopSection = when {
 }
 
 @Composable
-private fun SectionHeader(title: String, subtitle: String? = null) {
-    Column {
+private fun SectionHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
         Text(
             text = title,
             typography = AppTheme.typography.Heading.H700,
@@ -1176,6 +1212,16 @@ private fun previewFullCatalog(): ProductCatalog = ProductCatalog(
         ),
     ),
     chipOffers = listOf(
+        Product.ChipOffer(
+            id = "boost_xp_2x",
+            title = "2× XP Boost",
+            subtitle = "30 minutes",
+            description = "Earn double XP on every hand for 30 minutes. Stack it by buying more time.",
+            iconEmoji = "⚡",
+            costChips = 5_000,
+            grantsKey = "boost.xp_2x",
+            unlockLevel = 1,
+        ),
         Product.ChipOffer(
             id = "emotes_drama",
             title = "Drama Emote Pack",

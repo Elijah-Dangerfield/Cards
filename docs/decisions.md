@@ -25,6 +25,53 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-17 — XP Boost shop purchase: model the boost as a consumable chip offer, not an inventory item
+
+**Decision:** The chip-priced 2× XP boost is a `Product.ChipOffer` (server-seeded, `grants_key = boost.xp_2x`) that the client routes to a **consumable** purchase path — spend chips via `ChipsRepository.subtractChips`, then `XpBoostRepository.activate()` — instead of `InventoryRepository.redeemChipOffer`. No inventory row is ever written, so the boost never classifies as "owned" and stays re-buyable (re-buying extends the time window). The client discriminator is the shared `XP_BOOST_GRANTS_KEY` constant; the boost gets its own "Boosts" storefront shelf via the existing product-id-prefix (`boost_`) section convention.
+
+**Why:** The shop's whole model is "own this permanently" (one inventory row per product, `ownsProduct` → Owned badge, no re-buy). A time-window consumable contradicts every part of that — forcing it through `redeemChipOffer` would make a one-time boost look permanently owned and block re-purchase. Keeping the boost out of inventory entirely means the existing ownership/equip/My-Items machinery needs zero special cases, and the offline-first boost (pure local XP math, no server grant) stays offline-first.
+
+**Alternatives considered:** (1) A real inventory row with a `quantity`/consumable kind — that's the heavier "inventory quantity + consume path" lift the Pick-a-Card chest needs (todo §Consumables), overkill for a timer that's already fully modeled as a window. (2) A new `Product` subtype — rejected; reusing `ChipOffer` + a grant-key discriminator means no server DTO / catalog-table changes, just one seed row.
+
+**Status:** Locked for the XP boost. When the chest lands (needs true inventory quantity), revisit whether other consumables share a path.
+
+## 2026-06-16 — Session-rejection handling: boot only on a server-confirmed dead session
+
+**Decision:** A 401 alone never boots the user. The single trigger for tearing down a session is **"a token refresh the auth server itself rejected"** (`RestException` 401/403 from the refresh) — surfaced as `AuthState.Unauthenticated(reason = SessionExpired, wasAnonymous)`. Network errors (`HttpRequestException`), 5xx, timeouts, and anything unrecognized are **transient**: keep the session, fall back to cache, show the offline indicator. The signal flows network→auth via a one-way `SessionRejectionBus` (so the token provider stays narrow — no `AuthRepository` dependency, no construction cycle); `AuthRepository` observes it, clears the dead supabase session, and emits `SessionExpired`. `ProfileRepository` drops the cached-profile *ghost* on `SessionExpired` (the ghost is what made the app keep firing authed calls that all 401).
+
+**Why:** Booting on an ambiguous failure is destructive — a guest's progress is server-authoritative and **unrecoverable** once the session is gone — so the bar to boot is deliberately high (only a positively-identified rejection). Conversely, a flaky network must never log anyone out. The bus keeps the layering honest: `AuthTokenProvider` depends only on the gateway + the bus, never the auth repo.
+
+**Anonymous vs claimed (the routing call):** a *claimed* account can "sign in again"; an *anonymous* one can't — there's nothing to log into, so its `SessionExpired` routes to a "guest session ended → Try again / Start fresh" dialog, not a sign-in screen. This is also the strongest argument for the existing claim-early product pressure (claiming turns "progress gone" into "just sign in again").
+
+**Status:** Phase 0+1 **shipped + tested** (classifier, `SessionRejectionBus`, `onSessionRejected` teardown + idempotency, ProfileRepo ghost-drop). Deferred (tracked in [`docs/todo.md`](./todo.md) §Auth): the app-level routing observer + the anon/claimed dialogs (share the seam with the **403 ban gate**), the offline-from-witnessed-failures signal, and the cold-boot ghost (`reason = None`, no session at launch + cached profile). **Alternative rejected:** escalating from each repo's per-call `.NotSignedIn` outcome — that's per-call-site and forgettable; the bus centralizes it at the one choke point every authed request flows through.
+
+## 2026-06-15 — Launch shape: monetized + full public (V1)
+
+**Decision:** V1 ships as a **full public** launch (not a closed beta) **selling chip packs (real-money IAP) from day one.**
+**Why:** This is the chosen rollout for V1; it's logged because it's the gating decision that puts several items on the **hard critical path** a free-or-beta launch could have deferred. If we ever switch to free-at-launch (billing flagged off) or a beta-first track, most of the consequences below relax.
+**Consequences (now critical-path, not deferrable):**
+- **Server-side IAP receipt validation + server-authoritative purchase ledger** before any sale — the client currently trusts the receipt and credits chips locally. ([todo.md §C Billing integrity](./todo.md).)
+- **Store IAP products + pricing + store API credentials** (developer-todo) — these gate the receipt-validation work, and have lead time, so start them first.
+- **Full legal/compliance up front:** ToS/Privacy, store data-safety disclosures, age/content ratings, support + web-deletion URLs, LLC/insurance (developer-todo legal).
+- **Prod DB backups / PITR** before real balances exist (developer-todo dashboard).
+- **Public-MP quality gates** (per-turn timer, orphaned-room forfeit — todo.md B3) — no beta to shake them out.
+**Recommended first code item:** DB-backed config Phase 1 ([todo.md §C](./todo.md)) — unblocked now, gives an IAP kill switch + live `minSupportedVersionCode`, and is a launch-day safety net. Receipt validation jumps to the top once store IAP products + credentials exist.
+**Status:** Locked (revisit only if Elijah switches to free-at-launch or beta-first).
+
+## 2026-06-15 — What stays device-local on a fresh-device login (accept-reset)
+
+**Decision:** When a user signs into an existing account on a fresh install, we re-hydrate the account-level data (chips, total XP, earned achievements, inventory, equipment, messages — all Model-2, server snapshot wins on sync) plus the progression holes tracked in `docs/todo.md` (lifetime hand counters, achievement progress counters, recent-XP feed read-back). We **do not** lift the following — they reset to defaults on a new device, by design:
+- **UI preferences:** bot speed, turn feedback (sound/vibrate). Device-scoped, not account-scoped.
+- **Local UI/onboarding state:** gesture-discovery flags (`swipeFoldGestureAck`, `winOddsFlipHintSeen`), `tutorialBannerDismissed`, `mutedEmojiPlayerKeys`, `shopSeenProductIds`, `feedbacksGiven`/`bugsReported` counters.
+
+**Why:** These are cheap to re-establish and low-stakes if lost — a preference re-set or a re-shown one-shot hint is invisible-to-trivial, not a "my data is gone" moment. Lifting them means a profile column + sync path + cross-device conflict policy for each, which isn't worth it. The bar for lifting is "a returning user would notice and feel robbed" — progression/wallet/cosmetics clear it; preferences and hint-dismissal flags don't.
+
+**Starter-grant "seen" state — explicitly not lifted.** Earlier todo proposed a server `welcome_seen_at` so the grant reveal is "correct across devices." Rejected: the cross-device leak is **already** closed by the server-sourced `ChipsRepository.walletJustCreated` (true only on the first sync that lazy-creates the wallet; false for any pre-existing wallet), so the Home gate (`walletJustCreated && !didSeeInitialGrantInOnboarding`) can never fire for a returning/switched-in account regardless of the local flag. The local `didSeeInitialGrantInOnboarding` is only a same-session de-dup between the onboarding reveal and the Home reveal. A server flag would only buy "reveal exactly once even if the one-shot in-memory moment is missed" (app killed mid-onboarding → user never sees the celebration but still **has** the chips) — cosmetic, not correctness.
+
+**Status:** Locked. Revisit a given preference only if product wants it explicitly account-roaming (would go in a single `preferences` blob on the profile, same reconcile-on-login path).
+
+---
+
 ## 2026-06-09 — Central, declarative auth-gate on navigation
 
 **Decision:** A route declares what identity it needs via `Route.authRequirement` (`None` / `Account` / `ClaimedAccount`). `DelegatingRouter.navigate()` consults an injected `AuthGateChecker` and, when the requirement isn't met, transparently substitutes a shared `AuthGateRoute` (a bottom sheet) for the requested route — copy/CTA chosen from a `GateReason` (finishing-setup / need-account / need-claimed). First applied to `LobbyRoute` + `PlayMultiplayerRoute` (`Account`).
@@ -2027,3 +2074,13 @@ as supporting context.
 **Alternatives considered:** (1) Web Apple on both platforms — rejected: worse iOS UX, App-Review-rejected button, and the secret-rotation burden for no iOS benefit. (2) Native iOS + web Android now — deferred, not rejected: the web path already exists, so turning it on later is just flipping the iOS-only gate + the Supabase Services-ID/secret/redirect config. (3) No Apple at all — rejected: Apple sign-in is expected on iOS and App-Store-required once you offer any third-party login (Google).
 
 **Status:** Locked (native iOS). Web-Apple-on-Android: Tentative / deferred.
+
+## 2026-06-17 — Shop category deep-link via an app-scoped bus, not a route arg
+
+**Decision:** A cross-tab "land on the avatars shelf" intent (Edit Profile's "Get more avatar packs" link) is carried by a new app-scoped `ShopDeepLinkBus` (a conflated, consume-once `Channel<ShopCategory>`) that the `ShopViewModel` observes, **not** by a field on a route. The VM mirrors the request into `ShopState.pendingScrollCategory`; the grid measures each section header's content offset (`onGloballyPositioned` → `positionInParent`) and scrolls to it once measured, then fires `ScrollConsumed`.
+
+**Why:** The Shop tab root (`ShopRoute`) is arg-less by the routing rules (tab-root args get clobbered by `restoreState` — see 2026-05-24/25). `ShopProductSheetRoute` solves the "open this product" case by riding a sub-route, but a "scroll the grid" intent has no sub-route to attach to — it targets the grid itself. A conflated bus also handles the cold deep-link cleanly: a request fired before the VM exists is held until it subscribes, while consume-once semantics stop a later unrelated shop visit from replaying a stale scroll.
+
+**Alternatives considered:** (1) A `ShopRoute` field — rejected: silently dropped by `restoreState`. (2) Resolve the graph-scoped `ShopViewModel` from the deep-link initiator and poke it directly — rejected: the VM is lazily constructed on first shop entry, so it may not exist when the link fires; the bus decouples initiator from VM lifecycle (mirrors `SessionRejectionBus`). (3) A dedicated scroll-anchor sub-route — rejected as heavier than a one-shot signal for what is a transient scroll, not a navigable destination.
+
+**Status:** Shipped (avatars wired; the bus carries any `ShopCategory`).

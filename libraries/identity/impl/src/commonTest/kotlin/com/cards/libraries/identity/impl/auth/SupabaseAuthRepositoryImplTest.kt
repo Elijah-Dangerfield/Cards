@@ -68,6 +68,48 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertEquals(0, gateway.signInAnonymouslyCalls, "no anon sign-in when already authenticated")
     }
 
+    // ---------- session rejection (server rejected our token) ----------
+
+    @Test
+    fun sessionRejected_tearsDown_toSessionExpired_carryingAnonymity() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = anonymousSession(),
+        )
+        val bus = FakeSessionRejectionBus()
+        val repo = build(gateway = gateway, sessionRejectionBus = bus)
+        advanceUntilIdle()
+        assertIs<AuthState.Authenticated>(repo.current())
+
+        // The token layer reports the auth server rejected our (guest) session.
+        bus.signalRejected(wasAnonymous = true)
+        advanceUntilIdle()
+
+        val state = assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(AuthState.Unauthenticated.Reason.SessionExpired, state.reason)
+        assertTrue(state.wasAnonymous, "the lost session's anonymity must survive for routing")
+        assertEquals(1, gateway.signOutCalls, "the dead supabase session is torn down")
+    }
+
+    @Test
+    fun sessionRejected_isIdempotent_acrossABurst() = runUnitTest {
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = claimedSession(),
+        )
+        val bus = FakeSessionRejectionBus()
+        val repo = build(gateway = gateway, sessionRejectionBus = bus)
+        advanceUntilIdle()
+
+        // A storm of rejected requests all signal; the teardown happens once.
+        bus.signalRejected(wasAnonymous = false)
+        bus.signalRejected(wasAnonymous = false)
+        advanceUntilIdle()
+
+        assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(1, gateway.signOutCalls, "a burst collapses to a single teardown")
+    }
+
     @Test
     fun resolve_notAuthenticated_emitsUnauthenticated_withoutCreatingAnAccount() = runUnitTest {
         // Cold-boot fresh-install path: no session. We no longer auto-create
@@ -297,10 +339,12 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun accountClaim_sameUserId_doesNotDumpOrAnnounce() = runUnitTest {
+    fun accountClaim_sameUserId_doesNotDump_andAnnouncesAccountClaimed() = runUnitTest {
         // Linking/claiming keeps the same user id (anon guest-1 becomes a
         // claimed account but stays guest-1). The guest's progress is theirs:
-        // no dump, no UserChanged — just a re-emit so the profile re-resolves.
+        // no dump, no UserChanged. But the just-claimed account's pending
+        // syncs would otherwise wait for the next foreground, so the claim is
+        // announced as AccountClaimed for the sync listeners to flush now.
         val gateway = FakeSupabaseAuthGateway(
             initialStatus = AuthGatewayStatus.Authenticated,
             session = anonymousSession(userId = "guest-1"),
@@ -321,7 +365,16 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         assertEquals("guest-1", state.userId)
         assertEquals(false, state.isAnonymous, "the claim still flips anon → claimed")
         assertTrue(reset.clearedFor.isEmpty(), "same-user claim must not dump the guest's data")
-        assertEquals(dispatchedAtBoot, events.dispatched.size, "same-user claim must not announce UserChanged")
+        val afterClaim = events.dispatched.drop(dispatchedAtBoot)
+        assertTrue(
+            afterClaim.none { it is AppEvent.UserChanged },
+            "same-user claim must not announce UserChanged",
+        )
+        assertEquals(
+            listOf<AppEvent>(AppEvent.AccountClaimed(userId = "guest-1")),
+            afterClaim,
+            "the claim is announced so user-scoped syncs flush now",
+        )
     }
 
     // ---------- refreshSession ----------
@@ -403,12 +456,15 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
         gateway: FakeSupabaseAuthGateway,
         appEventBus: AppEventBus = NoOpEventBus,
         userScopedDataReset: UserScopedDataReset = NoOpUserScopedDataReset,
+        sessionRejectionBus: com.dangerfield.cards.libraries.networking.SessionRejectionBus =
+            FakeSessionRejectionBus(),
     ): SupabaseAuthRepositoryImpl = SupabaseAuthRepositoryImpl(
         gateway = gateway,
         profileApi = UnusedProfileApi,
         appEventBus = appEventBus,
         userScopedDataReset = userScopedDataReset,
         tokenInvalidator = NoOpTokenInvalidator,
+        sessionRejectionBus = sessionRejectionBus,
         appScope = AppCoroutineScope(dispatchers),
     )
 
