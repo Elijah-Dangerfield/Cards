@@ -70,7 +70,7 @@ class LevelUpRewardGranterTest : CoroutineTest() {
     }
 
     @Test
-    fun boostRewardLevel_activatesBoost_alongsideChips() = runUnitTest {
+    fun boostRewardLevel_grantsInactiveBoost_alongsideChips() = runUnitTest {
         val cache = FakeAppCache(AppData(highestLevelRewarded = 9))
         val chips = RecordingChipsRepository()
         val boost = RecordingXpBoostRepository()
@@ -79,7 +79,8 @@ class LevelUpRewardGranterTest : CoroutineTest() {
         build(cache = cache, chips = chips, boost = boost, progression = progression)
 
         assertEquals(listOf("levelup_10" to 7_500L), chips.grants)
-        assertEquals(1, boost.activations, "level 10 also gifts an XP boost")
+        assertEquals(1, boost.grants, "level 10 stashes an XP boost")
+        assertEquals(0, boost.activations, "gifted boost must NOT auto-activate")
         assertEquals(10, cache.get().highestLevelRewarded)
     }
 
@@ -148,11 +149,14 @@ class LevelUpRewardGranterTest : CoroutineTest() {
     }
 
     private class RecordingXpBoostRepository : XpBoostRepository {
+        var grants: Int = 0
+            private set
         var activations: Int = 0
             private set
         override fun observe(): Flow<XpBoostStatus> = MutableStateFlow(XpBoostStatus.None)
         override suspend fun status(): XpBoostStatus = XpBoostStatus.None
-        override suspend fun activate(durationMs: Long) { activations += 1 }
+        override suspend fun grant(count: Int) { grants += count }
+        override suspend fun activate(durationMs: Long): Boolean { activations += 1; return true }
         override suspend fun multiplier(): Int = 1
     }
 

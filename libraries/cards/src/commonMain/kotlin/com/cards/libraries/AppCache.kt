@@ -178,14 +178,23 @@ data class AppData(
     val lastCelebratedLevel: Int = 0,
 
     /**
-     * Epoch-ms at which the active **2× XP boost** expires, or `null` if no
-     * boost is (or has ever been) active. The boost is modeled as a time window
-     * rather than an owned count: buying / gifting one set-or-extends this
-     * timestamp, and `XpCalculator` awards double while `now < this`. Persisted
-     * so an active boost survives a restart; account-scoped (a purchased
-     * per-user consumable) so it doesn't leak across an account switch.
+     * Epoch-ms at which the active XP boost window expires, or `null` if no
+     * boost is (or has ever been) active. Lighting a stashed boost (see
+     * [xpBoostOwnedCount]) set-or-extends this timestamp, and `XpCalculator`
+     * awards double while `now < this`. Persisted so an active boost survives a
+     * restart; account-scoped (a purchased per-user consumable) so it doesn't
+     * leak across an account switch.
      */
     val xpBoostExpiresAtEpochMs: Long? = null,
+
+    /**
+     * How many **inactive** XP boosts the user owns but hasn't lit yet. Buying
+     * one in the shop or being gifted one at level-up increments this; lighting
+     * one (opening the [xpBoostExpiresAtEpochMs] window) decrements it. Boosts
+     * are a uniform 30-minute consumable, so the stash is a plain count rather
+     * than a per-boost duration. Account-scoped like the window.
+     */
+    val xpBoostOwnedCount: Int = 0,
 
     /**
      * Highest level whose **reward** (from the `level → reward` table) has been
@@ -233,8 +242,10 @@ fun AppData.resetAccountScoped(): AppData = copy(
     // user's — otherwise a switch into a higher-level account would either
     // skip its celebrations or fire a spurious one.
     lastCelebratedLevel = 0,
-    // A purchased per-user consumable — the next account starts with no boost.
+    // A purchased per-user consumable — the next account starts with no boost
+    // (neither an active window nor anything stashed).
     xpBoostExpiresAtEpochMs = null,
+    xpBoostOwnedCount = 0,
     // Unset sentinel so the next account silently seeds to its own level rather
     // than retro-granting level rewards on switch-in.
     highestLevelRewarded = 0,

@@ -279,7 +279,12 @@ class ProfileFeatureEntryPoint(
                     scope.launch { progressionRepository.debugSetTotalXp(xp) }
                 },
                 onActivateXpBoost = {
-                    scope.launch { xpBoostRepository.activate() }
+                    // QA shortcut: stash one then light it so the active-boost UI
+                    // shows up in a single tap, without buying from the shop.
+                    scope.launch {
+                        xpBoostRepository.grant()
+                        xpBoostRepository.activate()
+                    }
                 },
             )
         }
