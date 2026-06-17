@@ -2064,3 +2064,13 @@ as supporting context.
 **Alternatives considered:** (1) Web Apple on both platforms — rejected: worse iOS UX, App-Review-rejected button, and the secret-rotation burden for no iOS benefit. (2) Native iOS + web Android now — deferred, not rejected: the web path already exists, so turning it on later is just flipping the iOS-only gate + the Supabase Services-ID/secret/redirect config. (3) No Apple at all — rejected: Apple sign-in is expected on iOS and App-Store-required once you offer any third-party login (Google).
 
 **Status:** Locked (native iOS). Web-Apple-on-Android: Tentative / deferred.
+
+## 2026-06-17 — Shop category deep-link via an app-scoped bus, not a route arg
+
+**Decision:** A cross-tab "land on the avatars shelf" intent (Edit Profile's "Get more avatar packs" link) is carried by a new app-scoped `ShopDeepLinkBus` (a conflated, consume-once `Channel<ShopCategory>`) that the `ShopViewModel` observes, **not** by a field on a route. The VM mirrors the request into `ShopState.pendingScrollCategory`; the grid measures each section header's content offset (`onGloballyPositioned` → `positionInParent`) and scrolls to it once measured, then fires `ScrollConsumed`.
+
+**Why:** The Shop tab root (`ShopRoute`) is arg-less by the routing rules (tab-root args get clobbered by `restoreState` — see 2026-05-24/25). `ShopProductSheetRoute` solves the "open this product" case by riding a sub-route, but a "scroll the grid" intent has no sub-route to attach to — it targets the grid itself. A conflated bus also handles the cold deep-link cleanly: a request fired before the VM exists is held until it subscribes, while consume-once semantics stop a later unrelated shop visit from replaying a stale scroll.
+
+**Alternatives considered:** (1) A `ShopRoute` field — rejected: silently dropped by `restoreState`. (2) Resolve the graph-scoped `ShopViewModel` from the deep-link initiator and poke it directly — rejected: the VM is lazily constructed on first shop entry, so it may not exist when the link fires; the bus decouples initiator from VM lifecycle (mirrors `SessionRejectionBus`). (3) A dedicated scroll-anchor sub-route — rejected as heavier than a one-shot signal for what is a transient scroll, not a navigable destination.
+
+**Status:** Shipped (avatars wired; the bus carries any `ShopCategory`).

@@ -1,6 +1,8 @@
 package com.dangerfield.cards.features.shop.impl
 
 import androidx.lifecycle.viewModelScope
+import com.dangerfield.cards.features.shop.ShopCategory
+import com.dangerfield.cards.features.shop.ShopDeepLinkBus
 import com.dangerfield.cards.libraries.billing.BillingClient
 import com.dangerfield.cards.libraries.billing.PurchaseResult
 import com.dangerfield.cards.libraries.billing.PurchaseTransaction
@@ -62,6 +64,7 @@ class ShopViewModel @Inject constructor(
     private val billingClient: BillingClient,
     private val authRepository: AuthRepository,
     private val equipmentRepository: EquipmentRepository,
+    private val deepLinkBus: ShopDeepLinkBus,
 ) : SEAViewModel<ShopState, ShopEvent, ShopAction>(initialStateArg = ShopState()) {
 
     private val logger = KLog.withTag("ShopViewModel")
@@ -109,6 +112,16 @@ class ShopViewModel @Inject constructor(
             // resistance logic.
             productsRepository.observeTimeAnchor().collect { anchor ->
                 takeAction(ShopAction.TimeAnchorChanged(anchor))
+            }
+        }
+        viewModelScope.launch {
+            // A cross-tab deep-link (e.g. Edit Profile's "Get more avatar
+            // packs") asks the grid to land on a category section. The
+            // bus is conflate-then-consume so a request fired before the
+            // grid existed still lands, and the screen drives the actual
+            // scroll once the section is measured.
+            deepLinkBus.scrollRequests.collect { category ->
+                takeAction(ShopAction.ScrollToCategory(category))
             }
         }
         // No explicit catalog refresh on screen entry: the repository
@@ -178,6 +191,12 @@ class ShopViewModel @Inject constructor(
             }
             is ShopAction.DismissError -> action.updateState {
                 it.copy(errorMessage = null)
+            }
+            is ShopAction.ScrollToCategory -> action.updateState {
+                it.copy(pendingScrollCategory = action.category)
+            }
+            is ShopAction.ScrollConsumed -> action.updateState {
+                it.copy(pendingScrollCategory = null)
             }
 
             // ---- Purchase confirm flow ----
@@ -353,6 +372,14 @@ data class ShopState(
      * resistant remaining time for sale-window offers.
      */
     val timeAnchor: CatalogTimeAnchor? = null,
+    /**
+     * Set when a deep-link asks the grid to scroll to a category section
+     * (e.g. "Get more avatar packs" → [ShopCategory.Avatars]). The screen
+     * scrolls to the section once it's measured, then fires
+     * [ShopAction.ScrollConsumed] to clear this so a recompose doesn't
+     * re-trigger the scroll.
+     */
+    val pendingScrollCategory: ShopCategory? = null,
 ) {
     fun ownsProduct(productId: String): Boolean = productId in ownedProductIds
 
@@ -494,6 +521,16 @@ sealed interface ShopAction {
     data class PlayerLevelChanged(val level: Int) : ShopAction
     data class TimeAnchorChanged(val anchor: CatalogTimeAnchor?) : ShopAction
     data object DismissError : ShopAction
+
+    /**
+     * A deep-link requested the grid scroll to [category]'s section. Held
+     * in state until the screen measures the section and scrolls; cleared
+     * by [ScrollConsumed].
+     */
+    data class ScrollToCategory(val category: ShopCategory) : ShopAction
+
+    /** The screen finished the deep-link scroll — clear the pending target. */
+    data object ScrollConsumed : ShopAction
 
     /**
      * Confirm the purchase of [product] from inside the sheet. Opening

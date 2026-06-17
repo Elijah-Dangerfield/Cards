@@ -35,7 +35,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -109,6 +111,26 @@ class ShopViewModelTest : CoroutineTest() {
 
         vm.takeAction(ShopAction.DismissError)
         assertNull(vm.state.errorMessage)
+    }
+
+    @Test
+    @kotlin.OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun deepLinkScrollRequest_setsPendingCategory_thenScrollConsumedClearsIt() = runUnitTest {
+        val bus = FakeShopDeepLinkBus()
+        val vm = buildVm(deepLinkBus = bus)
+        assertNull(vm.state.pendingScrollCategory)
+
+        bus.requestScrollTo(com.dangerfield.cards.features.shop.ShopCategory.Avatars)
+        advanceUntilIdle()
+        assertEquals(
+            com.dangerfield.cards.features.shop.ShopCategory.Avatars,
+            vm.state.pendingScrollCategory,
+        )
+
+        // The screen fires this once it's scrolled, so a recompose doesn't
+        // re-trigger the deep-link scroll.
+        vm.takeAction(ShopAction.ScrollConsumed)
+        assertNull(vm.state.pendingScrollCategory)
     }
 
     @Test
@@ -444,6 +466,7 @@ class ShopViewModelTest : CoroutineTest() {
             ),
         ),
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
+        deepLinkBus: FakeShopDeepLinkBus = FakeShopDeepLinkBus(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
         inventoryRepository = inventoryRepository,
@@ -452,6 +475,7 @@ class ShopViewModelTest : CoroutineTest() {
         billingClient = billingClient,
         authRepository = authRepository,
         equipmentRepository = equipmentRepository,
+        deepLinkBus = deepLinkBus,
     )
 
     private class FakeProductsRepository(initial: ProductCatalog) : ProductsRepository {
@@ -751,6 +775,23 @@ class ShopViewModelTest : CoroutineTest() {
         override suspend fun deleteAll() {}
         override suspend fun debugSetTotalXp(totalXp: Long) {
             state.value = state.value.copy(totalXp = totalXp)
+        }
+    }
+
+    private class FakeShopDeepLinkBus :
+        com.dangerfield.cards.features.shop.ShopDeepLinkBus {
+        private val channel =
+            kotlinx.coroutines.channels.Channel<com.dangerfield.cards.features.shop.ShopCategory>(
+                capacity = kotlinx.coroutines.channels.Channel.CONFLATED,
+            )
+
+        override val scrollRequests: Flow<com.dangerfield.cards.features.shop.ShopCategory> =
+            channel.receiveAsFlow()
+
+        override fun requestScrollTo(
+            category: com.dangerfield.cards.features.shop.ShopCategory,
+        ) {
+            channel.trySend(category)
         }
     }
 }
