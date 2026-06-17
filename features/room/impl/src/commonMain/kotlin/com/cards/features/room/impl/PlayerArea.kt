@@ -86,7 +86,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.AvatarBackOverlay
 import com.dangerfield.cards.libraries.ui.components.poker.BlindMarker
 import com.dangerfield.cards.libraries.ui.components.poker.ChipPill
 import com.dangerfield.cards.libraries.ui.components.poker.LastActionPill
-import com.dangerfield.cards.libraries.ui.components.poker.PermanentBadgeMarker
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCard
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardBack
 import com.dangerfield.cards.libraries.ui.components.poker.PlayingCardSize
@@ -110,7 +109,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 internal fun PlayerArea(
     table: TableUiState.Active,
     humanTitle: String? = null,
-    humanPermanentBadgeEmoji: String? = null,
     humanStackOverride: Long? = null,
     humanWinOdds: EquityBreakdown? = null,
     silentSwipeFold: Boolean = false,
@@ -344,7 +342,6 @@ internal fun PlayerArea(
             handLabel = table.humanHandLabel,
             isWinner = isWinner,
             title = humanTitle,
-            permanentBadgeEmoji = humanPermanentBadgeEmoji,
             stackOverride = humanStackOverride,
             winOdds = humanWinOdds,
             winOddsFlipHintSeen = winOddsFlipHintSeen,
@@ -482,7 +479,6 @@ private fun PlayerInfoTile(
     handLabel: String?,
     isWinner: Boolean,
     title: String?,
-    permanentBadgeEmoji: String?,
     stackOverride: Long?,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
@@ -571,23 +567,11 @@ private fun PlayerInfoTile(
                 onClick = if (hasBlindRole) onBlindClick else null,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    // x near zero pushes the chip toward the avatar's right
-                    // edge (less invading the emoji); y nudged up gives extra
-                    // breathing room between the marker and the stack number
-                    // below so the two tap targets don't crowd each other.
-                    .offset(x = (-2).dp, y = (-6).dp),
+                    // Inset from the avatar's corner so the chip sits fully
+                    // inside the seat tile (the old near-edge offset clipped it
+                    // against the rounded card border on the self seat).
+                    .offset(x = (-4).dp, y = (-4).dp),
             )
-            if (permanentBadgeEmoji != null) {
-                PermanentBadgeMarker(
-                    emoji = permanentBadgeEmoji,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        // Mirror of the SB/BB offset on the opposite side so
-                        // the two chips read as a matched pair across the
-                        // avatar.
-                        .offset(x = 2.dp, y = (-6).dp),
-                )
-            }
         }
         VerticalSpacerD100()
         // Name + equipped title on one line — title is the gold suffix after
@@ -676,7 +660,6 @@ private fun FlippablePlayerInfoTile(
     handLabel: String?,
     isWinner: Boolean,
     title: String?,
-    permanentBadgeEmoji: String?,
     stackOverride: Long?,
     winOdds: EquityBreakdown?,
     winOddsFlipHintSeen: Boolean,
@@ -756,7 +739,6 @@ private fun FlippablePlayerInfoTile(
                 handLabel = handLabel,
                 isWinner = isWinner,
                 title = title,
-                permanentBadgeEmoji = permanentBadgeEmoji,
                 stackOverride = stackOverride,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,
@@ -1035,17 +1017,6 @@ private fun PlayerAreaPreview_Folded() {
                     lastAction = PlayerAction.Fold,
                 ),
             ),
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PlayerAreaPreview_WithPermanentBadge() {
-    PreviewContent {
-        PlayerArea(
-            table = previewTable(seat = previewHumanSeat()),
-            humanPermanentBadgeEmoji = "🏛",
         )
     }
 }

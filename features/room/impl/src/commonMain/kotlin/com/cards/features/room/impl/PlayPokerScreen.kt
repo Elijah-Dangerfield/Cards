@@ -270,7 +270,6 @@ fun PlayPokerScreen(
                         table = active,
                         humanWinOdds = state.humanWinOdds,
                         humanTitle = state.equippedTitle,
-                        humanPermanentBadgeEmoji = state.equippedBadgeEmoji,
                         humanStackOverride = displayedHumanStack,
                         silentSwipeFold = state.swipeFoldGestureAck,
                         winOddsFlipHintSeen = state.winOddsFlipHintSeen,
@@ -685,7 +684,6 @@ private fun ActiveTable(
     table: TableUiState.Active,
     humanWinOdds: EquityBreakdown?,
     humanTitle: String?,
-    humanPermanentBadgeEmoji: String?,
     humanStackOverride: Long? = null,
     silentSwipeFold: Boolean = false,
     winOddsFlipHintSeen: Boolean = false,
@@ -742,7 +740,6 @@ private fun ActiveTable(
             PlayerArea(
                 table = table,
                 humanTitle = humanTitle,
-                humanPermanentBadgeEmoji = humanPermanentBadgeEmoji,
                 humanStackOverride = humanStackOverride,
                 humanWinOdds = humanWinOdds,
                 silentSwipeFold = silentSwipeFold,
