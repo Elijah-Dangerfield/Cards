@@ -29,6 +29,29 @@ class DeeperPlayTest : IntegrationTest() {
     }
 
     @Test
+    fun headsUp_passivePlay_reachesShowdown_andCompletes() = integration {
+        val table = seatTwoAndConnect()
+        table.hostGame.startHand()
+
+        // Robust cursor-based driver (no seat-dedup): whenever someone is to
+        // act, play the most passive legal action, until the hand completes.
+        var reached: BettingRound? = null
+        var guard = 0
+        while (guard++ < 40) {
+            val s = table.hostGame.nextSnapshot { it.street == BettingRound.Complete || it.actingSeatIndex != null }
+            if (s.street == BettingRound.Complete) { reached = s.street; break }
+            val seatIndex = s.actingSeatIndex!!
+            val seat = s.seatAt(seatIndex)
+            val toCall = s.currentBetThisStreet - seat.contributedThisStreet
+            val ack = table.gameForSeat(s, seatIndex).submit(
+                if (toCall > 0) PlayerIntent.Call(seatIndex) else PlayerIntent.Check(seatIndex),
+            )
+            check(ack.accepted) { "passive action at seat $seatIndex (${s.street}) rejected: ${ack.error}" }
+        }
+        assertEquals(BettingRound.Complete, reached, "a called-down hand must reach showdown")
+    }
+
+    @Test
     fun afterHandCompletes_requestNextHand_dealsANewHand() = integration {
         val table = seatTwoAndConnect()
         table.hostGame.startHand()

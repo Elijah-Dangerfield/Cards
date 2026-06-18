@@ -433,15 +433,40 @@ class PlayPokerViewModel @Inject constructor(
                 // GameState alone can't carry — most notably the HandEnded
                 // event (used for showdown rendering) and the most recent
                 // action per seat (rendered as a "Folded" / "Called X" pill).
-                when (val ev = action.event) {
+                val affectsProjection = when (val ev = action.event) {
                     is GameEvent.HandStarted -> {
                         lastWinners = null
                         lastActionBySeat.clear()
+                        true
                     }
-                    is GameEvent.StreetAdvanced -> lastActionBySeat.clear()
-                    is GameEvent.ActionTaken -> lastActionBySeat[ev.seatIndex] = ev.action
-                    is GameEvent.HandEnded -> lastWinners = ev
-                    else -> Unit
+                    is GameEvent.StreetAdvanced -> { lastActionBySeat.clear(); true }
+                    is GameEvent.ActionTaken -> { lastActionBySeat[ev.seatIndex] = ev.action; true }
+                    is GameEvent.HandEnded -> { lastWinners = ev; true }
+                    else -> false
+                }
+                // The table projection renders these transients but is
+                // otherwise only recomputed on a GameState snapshot. The
+                // server emits the Complete snapshot and the HandEnded event
+                // on two independent flows with no ordering guarantee — so if
+                // the snapshot is projected before HandEnded arrives, the
+                // winner (or a final action pill) would never show. Re-project
+                // here so a transient change is reflected regardless of
+                // event/snapshot ordering. (Bot sessions happened to emit the
+                // event before the final state, which masked this in solo play.)
+                if (affectsProjection) {
+                    lastGameState?.let { gs ->
+                        action.updateState {
+                            it.copy(
+                                table = sessionFactory.tableFor(
+                                    state = gs,
+                                    lastWinners = lastWinners,
+                                    lastActionBySeat = lastActionBySeat.toMap(),
+                                    humanProfile = latestHumanProfile,
+                                    humanLevel = it.humanLevel,
+                                ),
+                            )
+                        }
+                    }
                 }
             }
 
