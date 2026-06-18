@@ -610,7 +610,6 @@ class HomeViewModelTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
-            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used by HomeViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by HomeViewModel")

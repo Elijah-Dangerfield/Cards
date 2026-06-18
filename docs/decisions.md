@@ -189,6 +189,8 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 **Status:** Locked for V1 (Phase 1). Phase 2/3 Tentative — tracked in `backlog.md`.
 
+**Update (2026-06-18):** The server-owned "featured-badge selection" (`/v1/me.featuredBadgeIds`) described above was **superseded** by the unified **equipped badges/titles** cosmetics system, which now drives the Player Card. The featured-badge mechanism was fully removed — client picker + VM state, identity `ProfileRepository`/`MeDto` plumbing, and the server `featured_badge_ids` column/DTO/route (dropped in the V59 migration). Phase 2 should therefore plumb each opponent's **equipped cosmetics** (equipped badges + title) through the room/seat snapshot, not `featuredBadgeIds`.
+
 ---
 
 ## 2026-05-30 — Multiplayer host = first connected member (implicit auto-promotion)

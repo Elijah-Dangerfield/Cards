@@ -1,5 +1,13 @@
 # Multiplayer Architecture Evaluation
 
+> ⚠️ **Historical — superseded 2026-05-29.** This is a step-back review written
+> *before* multiplayer shipped. Its central recommendation (event sourcing,
+> option B) was **not** taken: we chose **snapshot-only** state on 2026-05-29,
+> shipped it (B0/B1), and even added-then-dropped a `game_events` table along the
+> way (migrations V31 → V47). Keep this doc as the record of *why* the options
+> were weighed the way they were — but for what's actually true today and what's
+> left to build, read **[multiplayer-status.md](./multiplayer-status.md)** instead.
+
 **Status:** Evaluation only — no implementation work committed. **Last reviewed:** 2026-05-27.
 
 ## Context

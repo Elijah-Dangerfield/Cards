@@ -71,7 +71,13 @@ class InMemoryRoomService(
         }
     }
 
-    override suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int): CreateResult = mutex.withLock {
+    override suspend fun create(
+        hostUserId: UserId,
+        hostName: String,
+        maxSeats: Int,
+        hostAvatarEmoji: String,
+        hostAvatarBackgroundColor: String?,
+    ): CreateResult = mutex.withLock {
         val activeHosted = rooms.values.count { it.room.hostUserId == hostUserId }
         if (activeHosted >= RoomService.MAX_ROOMS_PER_HOST) {
             // Soft cap — see `RoomService.MAX_ROOMS_PER_HOST`. Honest
@@ -91,6 +97,8 @@ class InMemoryRoomService(
             // same as "disconnected": the seat-grace clock starts now.
             // Cleared by markConnected(true) when the socket opens.
             disconnectedAt = now,
+            avatarEmoji = hostAvatarEmoji,
+            avatarBackgroundColor = hostAvatarBackgroundColor,
         )
         val room = Room(
             code = code,
@@ -104,7 +112,13 @@ class InMemoryRoomService(
         CreateResult.Success(room)
     }
 
-    override suspend fun join(code: String, userId: UserId, name: String): JoinResult = mutex.withLock {
+    override suspend fun join(
+        code: String,
+        userId: UserId,
+        name: String,
+        avatarEmoji: String,
+        avatarBackgroundColor: String?,
+    ): JoinResult = mutex.withLock {
         val state = rooms[code] ?: return@withLock JoinResult.RoomNotFound
         val current = state.room
 
@@ -123,6 +137,8 @@ class InMemoryRoomService(
             // See `create` — stamp disconnectedAt so the sweep treats
             // "joined-but-never-opened-a-socket" the same as a clean drop.
             disconnectedAt = now,
+            avatarEmoji = avatarEmoji,
+            avatarBackgroundColor = avatarBackgroundColor,
         )
         val next = current.copy(members = (current.members + newMember).sortedBy { it.seatIndex })
         state.update(next)

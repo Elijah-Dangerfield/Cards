@@ -40,12 +40,6 @@ interface ProfileRepository {
         avatarEmoji: String?,
         avatarBackgroundColor: String? = null,
         clearAvatarBackgroundColor: Boolean = false,
-        /**
-         * Replace the featured-badge list wholesale. `null` = leave alone;
-         * an empty list = clear the selection back to the default. The route
-         * layer caps + de-dups before this point.
-         */
-        featuredBadgeIds: List<String>? = null,
     ): UpdateProfileOutcome
 
     /**

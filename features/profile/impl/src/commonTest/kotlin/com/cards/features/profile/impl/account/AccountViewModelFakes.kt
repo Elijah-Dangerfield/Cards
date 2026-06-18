@@ -143,7 +143,6 @@ internal class FakeProfileRepository(
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
-        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome {
         updateCalls += 1
         lastUpdateArgs = Quadruple(displayName, avatarEmoji, avatarBackgroundColor, clearAvatarBackgroundColor)

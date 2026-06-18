@@ -287,9 +287,17 @@ data class SeatView(
             }
             val emoji = when {
                 isHuman && humanProfile != null -> humanProfile.avatarEmoji
-                else -> personality?.emoji
+                seat.isBot -> personality?.emoji
+                // Remote human opponent: avatar rides the seat from the server
+                // (snapshotted from their profile at join). Falls back to any
+                // personality emoji, then to the initials avatar when blank.
+                else -> seat.avatarEmoji?.takeIf { it.isNotBlank() } ?: personality?.emoji
             }
-            val avatarBackgroundColorHex = if (isHuman) humanProfile?.avatarBackgroundColor else null
+            val avatarBackgroundColorHex = when {
+                isHuman -> humanProfile?.avatarBackgroundColor
+                seat.isBot -> null
+                else -> seat.avatarBackgroundColor
+            }
             val seatEmpty = seat.playerId == null
             val handResolved = street == BettingRound.Complete ||
                 seat.handParticipation == HandParticipation.NotDealt

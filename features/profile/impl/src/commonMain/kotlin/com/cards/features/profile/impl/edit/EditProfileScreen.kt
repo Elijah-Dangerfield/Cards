@@ -41,7 +41,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -57,8 +56,6 @@ import cards.libraries.resources.generated.resources.profile_edit_display_name_e
 import cards.libraries.resources.generated.resources.profile_edit_display_name_error_taken
 import cards.libraries.resources.generated.resources.profile_edit_display_name_helper_range
 import cards.libraries.resources.generated.resources.profile_edit_display_name_label
-import cards.libraries.resources.generated.resources.profile_edit_featured_empty
-import cards.libraries.resources.generated.resources.profile_edit_featured_section
 import cards.libraries.resources.generated.resources.profile_edit_get_more_packs
 import cards.libraries.resources.generated.resources.profile_edit_save_button
 import cards.libraries.resources.generated.resources.profile_edit_save_button_progress
@@ -67,7 +64,6 @@ import cards.libraries.resources.generated.resources.profile_edit_tab_edit
 import cards.libraries.resources.generated.resources.profile_edit_tab_view
 import cards.libraries.resources.generated.resources.profile_edit_title
 import cards.libraries.resources.generated.resources.profile_player_card_view_blurb
-import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -75,7 +71,6 @@ import com.dangerfield.cards.libraries.ui.components.BadgeDetailSheet
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.PlayerCardContent
 import com.dangerfield.cards.libraries.ui.components.PlayerCardStat
-import com.dangerfield.cards.libraries.ui.components.achievement.AchievementMedal
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.avatarEmojiTypographyFor
@@ -270,10 +265,6 @@ fun EditProfileScreen(
                     onSelect = { onAction(EditProfileAction.AvatarSelected(it)) },
                     onGetMorePacks = { onNavigateToShop(null) },
                 )
-                // The "Featured badges" achievement picker was removed with the
-                // Player Card rework — the card shows equipped badges/titles, not
-                // featured achievements. (Picker composables + state are now
-                // orphaned; cleanup tracked separately.)
                     }
 
                     // Floating Save bar — sits over the bottom of the scroll
@@ -657,91 +648,6 @@ private fun AvatarTile(
 
 private const val GRID_COLUMNS = 4
 
-/**
- * The featured-badge picker: a grid of the user's earned medals. Tapping
- * toggles a badge into the featured set (capped at 3). Selected medals get
- * an accent ring; once the cap is hit, unselected medals dim + disable so
- * the user must deselect one to swap. Empty earned set → a one-line hint.
- */
-@Composable
-private fun FeaturedBadgePicker(
-    badges: List<Achievement>,
-    selectedIds: List<String>,
-    selectionFull: Boolean,
-    enabled: Boolean,
-    onToggle: (String) -> Unit,
-) {
-    if (badges.isEmpty()) {
-        Text(
-            text = stringResource(Res.string.profile_edit_featured_empty),
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.contentSecondary,
-            modifier = Modifier.padding(vertical = Dimension.D400),
-        )
-        return
-    }
-    Column(
-        verticalArrangement = Arrangement.spacedBy(Dimension.D400),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        badges.chunked(FEATURED_GRID_COLUMNS).forEach { row ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(Dimension.D400),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                row.forEach { badge ->
-                    val isSelected = badge.id.name in selectedIds
-                    FeaturedBadgeTile(
-                        badge = badge,
-                        isSelected = isSelected,
-                        // Selected tiles stay tappable (to deselect / swap);
-                        // unselected tiles disable once the cap is reached.
-                        enabled = enabled && (isSelected || !selectionFull),
-                        onClick = { onToggle(badge.id.name) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                repeat(FEATURED_GRID_COLUMNS - row.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-private const val FEATURED_GRID_COLUMNS = 4
-
-@Composable
-private fun FeaturedBadgeTile(
-    badge: Achievement,
-    isSelected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val ring = if (isSelected) {
-        Modifier.border(3.dp, AppTheme.colors.accentPrimary.color, CircleShape)
-    } else {
-        Modifier
-    }
-    Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(CircleShape)
-            .then(ring)
-            .clickable(enabled = enabled, onClick = onClick)
-            .alpha(if (enabled || isSelected) 1f else 0.4f)
-            .padding(Dimension.D200),
-        contentAlignment = Alignment.Center,
-    ) {
-        AchievementMedal(
-            achievement = badge,
-            earned = true,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
 @Composable
 private fun BackgroundColorPicker(
     palette: List<String>,
@@ -972,31 +878,6 @@ private fun EditProfileScreenPreview_AvatarLoadError() {
                     AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
                 ),
                 avatarLoadError = true,
-            ),
-            onAction = {},
-            onBack = {},
-        )
-    }
-}
-
-@org.jetbrains.compose.ui.tooling.preview.Preview
-@Composable
-private fun EditProfileScreenPreview_FeaturedBadges() {
-    // Pins the featured-badge picker on the Edit tab: a grid of earned
-    // medals with two selected (accent ring) and the rest tappable.
-    com.dangerfield.cards.libraries.ui.PreviewContent {
-        val earned = com.dangerfield.cards.libraries.cards.AllAchievements.take(7)
-        EditProfileScreen(
-            state = EditProfileState(
-                initialDisplayName = "Elijah",
-                displayName = "Elijah",
-                initialAvatarEmoji = "🦊",
-                selectedAvatarEmoji = "🦊",
-                allAvatarPacks = listOf(
-                    AvatarPack("starter", "Starter pack", listOf("🦊", "🐱", "🐼", "🐯")),
-                ),
-                earnedBadges = earned,
-                selectedFeaturedBadgeIds = earned.take(2).map { it.id.name },
             ),
             onAction = {},
             onBack = {},

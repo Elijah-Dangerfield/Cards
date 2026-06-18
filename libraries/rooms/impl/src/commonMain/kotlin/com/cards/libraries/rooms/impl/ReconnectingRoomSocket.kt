@@ -20,13 +20,16 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -152,11 +155,41 @@ class ReconnectingRoomSocket @Inject constructor(
         )
         val connection: SharedFlow<RoomConnection> = _connection.asSharedFlow()
 
+        /**
+         * Latest game-state snapshot, retained with replay-1 semantics so a
+         * collector that subscribes *after* the deal — e.g. the non-host
+         * navigating to the play screen on the host's `StartHand` — still
+         * gets the current table instead of an empty one. Mirrors the
+         * server's `GameSession.state` StateFlow. Conflated: only the latest
+         * snapshot matters, and the client's `isStale()` guards intra-hand
+         * ordering if a delayed frame lands after a newer one. NOT reset on
+         * reconnect — keeping the last table visible while reconnecting is
+         * the desired UX, and the server re-sends a fresh snapshot on
+         * resubscribe.
+         */
+        private val _latestGameState = MutableStateFlow<GameplayFrame.StateSnapshot?>(null)
+
+        /**
+         * Live event + ack stream. `replay = 0` deliberately: a mid-hand
+         * joiner renders the correct table from [_latestGameState] and must
+         * NOT have the opening deal animation re-fire from a replayed event
+         * burst.
+         */
         private val _gameplayFrames = MutableSharedFlow<GameplayFrame>(
             replay = 0,
             extraBufferCapacity = 64,
         )
-        val gameplayFrames: SharedFlow<GameplayFrame> = _gameplayFrames.asSharedFlow()
+
+        /**
+         * The retained latest snapshot merged with the live event/ack
+         * stream. A fresh collector immediately receives the current game
+         * state, then live frames. Snapshots flow only through
+         * [_latestGameState]; events/acks only through [_gameplayFrames] —
+         * no double-delivery. The coordinator still tracks subscribers via
+         * [_gameplayFrames] (every collector of this merge subscribes to it).
+         */
+        val gameplayFrames: Flow<GameplayFrame> =
+            merge(_latestGameState.filterNotNull(), _gameplayFrames)
 
         private val coordinatorJob: Job = appScope.launch { runCoordinator() }
 
@@ -302,7 +335,7 @@ class ReconnectingRoomSocket @Inject constructor(
                             is RoomSocketEventDto.MemberPresenceChanged,
                                 -> Unit
                             is RoomSocketEventDto.GameStateSnapshot ->
-                                _gameplayFrames.emit(GameplayFrame.StateSnapshot(event.state))
+                                _latestGameState.value = GameplayFrame.StateSnapshot(event.state)
                             is RoomSocketEventDto.GameEventOccurred ->
                                 _gameplayFrames.emit(GameplayFrame.Event(event.seq, event.event))
                             is RoomSocketEventDto.IntentAck ->

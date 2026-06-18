@@ -377,6 +377,10 @@ private suspend fun handleStartHand(
             badgeProductIds = equipmentRepository.listEquipped(member.userId)
                 .map { it.productId }
                 .filter { it.startsWith("badge_") || it.startsWith("title_") },
+            // Avatar was snapshotted from the profile at join; ride it onto
+            // the Seat so opponents render the real avatar, not initials.
+            avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
+            avatarBackgroundColor = member.avatarBackgroundColor,
         )
     }
     if (occupants.size < 2) {

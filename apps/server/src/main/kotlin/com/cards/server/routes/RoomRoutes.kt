@@ -65,6 +65,8 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                     hostUserId = userId,
                     hostName = profile.displayName,
                     maxSeats = maxSeats,
+                    hostAvatarEmoji = profile.avatarEmoji,
+                    hostAvatarBackgroundColor = profile.avatarBackgroundColor,
                 )) {
                     is CreateResult.Success -> call.respond(
                         HttpStatusCode.OK,
@@ -96,7 +98,15 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                     ?: return@post call.respond(HttpStatusCode.BadRequest)
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val profile = profiles.findOrCreate(userId)
-                when (val outcome = rooms.join(code, userId, profile.displayName)) {
+                when (
+                    val outcome = rooms.join(
+                        code = code,
+                        userId = userId,
+                        name = profile.displayName,
+                        avatarEmoji = profile.avatarEmoji,
+                        avatarBackgroundColor = profile.avatarBackgroundColor,
+                    )
+                ) {
                     is JoinResult.Success -> call.respond(
                         HttpStatusCode.OK,
                         JoinRoomResponse(room = outcome.room.toDto(), alreadyJoined = false),

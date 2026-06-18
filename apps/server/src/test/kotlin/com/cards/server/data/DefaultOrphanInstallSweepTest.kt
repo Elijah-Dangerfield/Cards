@@ -183,7 +183,6 @@ class DefaultOrphanInstallSweepTest {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
-            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("unused")
         override suspend fun touchInstallId(userId: UserId, installId: UUID): UUID? = error("unused")
     }
@@ -253,8 +252,16 @@ class DefaultOrphanInstallSweepTest {
             hostUserId: UserId,
             hostName: String,
             maxSeats: Int,
+            hostAvatarEmoji: String,
+            hostAvatarBackgroundColor: String?,
         ): com.dangerfield.cards.server.domain.CreateResult = error("unused")
-        override suspend fun join(code: String, userId: UserId, name: String): com.dangerfield.cards.server.domain.JoinResult = error("unused")
+        override suspend fun join(
+            code: String,
+            userId: UserId,
+            name: String,
+            avatarEmoji: String,
+            avatarBackgroundColor: String?,
+        ): com.dangerfield.cards.server.domain.JoinResult = error("unused")
         override suspend fun leave(code: String, userId: UserId): com.dangerfield.cards.server.domain.LeaveResult = error("unused")
         override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): com.dangerfield.cards.server.domain.Room? = null
         override suspend fun markPlaying(code: String): com.dangerfield.cards.server.domain.Room? = null

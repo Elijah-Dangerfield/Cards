@@ -511,7 +511,6 @@ internal class FakeProfileRepository(
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
-        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome {
         lastUpdateArgs = displayName to (avatarEmoji to avatarBackgroundColor)
         return updateOutcome

@@ -74,7 +74,6 @@ private object FakeProfiles : ProfileRepository {
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
-        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome = error("unused in the integration harness")
 
     override suspend fun delete(userId: UserId) = Unit

@@ -23,10 +23,4 @@ data class MeDto(
     val isAnonymous: Boolean,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
-    /**
-     * Achievement ids the user features on their Player Card, in display
-     * order. Empty = never chosen — the client falls back to the most-
-     * recently-earned badges.
-     */
-    val featuredBadgeIds: List<String> = emptyList(),
 )

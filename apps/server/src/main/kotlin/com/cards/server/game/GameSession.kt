@@ -319,9 +319,11 @@ class GameSession internal constructor(
                     userId = it.playerId!!,
                     displayName = it.displayName,
                     isBot = it.isBot,
-                    // Preserve resolved badges across hands — they're stable for
-                    // the session, so we don't re-query equipment each hand.
+                    // Preserve resolved badges + avatar across hands — they're
+                    // stable for the session, so we don't re-resolve each hand.
                     badgeProductIds = it.badgeProductIds,
+                    avatarEmoji = it.avatarEmoji,
+                    avatarBackgroundColor = it.avatarBackgroundColor,
                 )
             }
         if (occupants.size < 2) {
@@ -369,6 +371,8 @@ class GameSession internal constructor(
                 handParticipation = HandParticipation.InHand,
                 isBot = occ.isBot,
                 badgeProductIds = occ.badgeProductIds,
+                avatarEmoji = occ.avatarEmoji,
+                avatarBackgroundColor = occ.avatarBackgroundColor,
             )
         }
 

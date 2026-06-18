@@ -23,4 +23,12 @@ data class SeatOccupant(
      * render their badges. Empty for bots.
      */
     val badgeProductIds: List<String> = emptyList(),
+    /**
+     * Avatar emoji + background-color hex, snapshotted from the member's
+     * profile at join. Copied onto the engine
+     * [com.dangerfield.cards.libraries.gameplay.Seat] so opponents' clients
+     * render the real avatar. Null for bots.
+     */
+    val avatarEmoji: String? = null,
+    val avatarBackgroundColor: String? = null,
 )

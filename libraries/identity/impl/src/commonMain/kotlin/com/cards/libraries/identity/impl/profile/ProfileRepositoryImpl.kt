@@ -172,7 +172,6 @@ class ProfileRepositoryImpl(
                 email = auth.email,
                 isAnonymous = me.isAnonymous,
                 createdAt = Instant.fromEpochMilliseconds(me.createdAtEpochMs),
-                featuredBadgeIds = me.featuredBadgeIds,
             )
             profileCache.writeAuthenticated(profile)
             // Real session resolved — local fallback no longer relevant.
@@ -246,7 +245,6 @@ class ProfileRepositoryImpl(
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
-        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome = mutex.withLock {
         // Don't log the new values themselves — display names are
         // mildly user-identifying. Just record which fields are
@@ -258,7 +256,6 @@ class ProfileRepositoryImpl(
                     "avatarEmoji".takeIf { avatarEmoji != null },
                     "avatarBackgroundColor".takeIf { avatarBackgroundColor != null },
                     "clearAvatarBackgroundColor".takeIf { clearAvatarBackgroundColor },
-                    "featuredBadgeIds".takeIf { featuredBadgeIds != null },
                 ).joinToString() +
                 "]"
         }
@@ -285,7 +282,6 @@ class ProfileRepositoryImpl(
                     avatarBackgroundColor != null -> avatarBackgroundColor
                     else -> priorProfile.avatarBackgroundColor
                 },
-                featuredBadgeIds = featuredBadgeIds ?: priorProfile.featuredBadgeIds,
             )
             profileCache.writeAuthenticated(optimistic)
             _state.emit(optimistic)
@@ -299,7 +295,6 @@ class ProfileRepositoryImpl(
                     avatarEmoji = avatarEmoji,
                     avatarBackgroundColor = avatarBackgroundColor,
                     clearAvatarBackgroundColor = clearAvatarBackgroundColor,
-                    featuredBadgeIds = featuredBadgeIds,
                 ),
             )
         }.fold(
@@ -312,7 +307,6 @@ class ProfileRepositoryImpl(
                     isAnonymous = updated.isAnonymous,
                     email = auth.email,
                     createdAt = Instant.fromEpochMilliseconds(updated.createdAtEpochMs),
-                    featuredBadgeIds = updated.featuredBadgeIds,
                 )
                 profileCache.writeAuthenticated(profile)
                 _state.emit(profile)

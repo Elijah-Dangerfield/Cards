@@ -417,75 +417,6 @@ class MeRoutesTest {
         }
     }
 
-    @Test
-    fun patch_featuredBadges_underCap_persistsSelection() = runTest {
-        val repo = FakeProfileRepository(existing = fakeProfile(userId))
-        callPatch(
-            repo,
-            bearer = validJwt(),
-            jsonBody = """{"featuredBadgeIds":["FIRST_HAND","HANDS_10","SHOW_FLUSH"]}""",
-        ) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            assertEquals(listOf("FIRST_HAND", "HANDS_10", "SHOW_FLUSH"), repo.lastFeaturedBadgeIds)
-            assertEquals(
-                listOf("FIRST_HAND", "HANDS_10", "SHOW_FLUSH"),
-                resp.body<MeResponse>().featuredBadgeIds,
-            )
-        }
-    }
-
-    @Test
-    fun patch_featuredBadges_dedupesBeforePersisting() = runTest {
-        val repo = FakeProfileRepository(existing = fakeProfile(userId))
-        callPatch(
-            repo,
-            bearer = validJwt(),
-            jsonBody = """{"featuredBadgeIds":["FIRST_HAND","FIRST_HAND","HANDS_10"]}""",
-        ) { resp ->
-            assertEquals(HttpStatusCode.OK, resp.status)
-            assertEquals(listOf("FIRST_HAND", "HANDS_10"), repo.lastFeaturedBadgeIds)
-        }
-    }
-
-    @Test
-    fun patch_featuredBadges_overCap_returns400_andDoesNotPersist() = runTest {
-        val repo = FakeProfileRepository(existing = fakeProfile(userId))
-        callPatch(
-            repo,
-            bearer = validJwt(),
-            jsonBody = """{"featuredBadgeIds":["A","B","C","D"]}""",
-        ) { resp ->
-            assertEquals(HttpStatusCode.BadRequest, resp.status)
-            assertEquals(0, repo.updateCalls, "an over-cap selection must be rejected before the repo write")
-        }
-    }
-
-    @Test
-    fun patch_featuredBadges_blankId_returns400_andDoesNotPersist() = runTest {
-        val repo = FakeProfileRepository(existing = fakeProfile(userId))
-        callPatch(
-            repo,
-            bearer = validJwt(),
-            jsonBody = """{"featuredBadgeIds":["FIRST_HAND",""]}""",
-        ) { resp ->
-            assertEquals(HttpStatusCode.BadRequest, resp.status)
-            assertEquals(0, repo.updateCalls, "a blank badge id must be rejected before the repo write")
-        }
-    }
-
-    @Test
-    fun patch_featuredBadges_overlongId_returns400_andDoesNotPersist() = runTest {
-        val repo = FakeProfileRepository(existing = fakeProfile(userId))
-        callPatch(
-            repo,
-            bearer = validJwt(),
-            jsonBody = """{"featuredBadgeIds":["${"A".repeat(65)}"]}""",
-        ) { resp ->
-            assertEquals(HttpStatusCode.BadRequest, resp.status)
-            assertEquals(0, repo.updateCalls, "an over-length badge id must be rejected before the repo write")
-        }
-    }
-
     private fun fakeProfile(userId: UserId): Profile {
         val now = Instant.fromEpochMilliseconds(1_700_000_000_000)
         return Profile(
@@ -504,8 +435,6 @@ class MeRoutesTest {
         var deleteCalls: Int = 0
             private set
         var updateCalls: Int = 0
-            private set
-        var lastFeaturedBadgeIds: List<String>? = null
             private set
         val installIdCalls: MutableList<Pair<UserId, UUID>> = mutableListOf()
 
@@ -529,14 +458,10 @@ class MeRoutesTest {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
-            featuredBadgeIds: List<String>?,
         ): com.dangerfield.cards.server.domain.UpdateProfileOutcome {
             updateCalls++
-            lastFeaturedBadgeIds = featuredBadgeIds
             val base = existing ?: findOrCreate(userId)
-            return com.dangerfield.cards.server.domain.UpdateProfileOutcome.Success(
-                base.copy(featuredBadgeIds = featuredBadgeIds ?: base.featuredBadgeIds),
-            )
+            return com.dangerfield.cards.server.domain.UpdateProfileOutcome.Success(base)
         }
 
         override suspend fun delete(userId: UserId) {
@@ -726,10 +651,20 @@ class MeRoutesTest {
     }
 
     private object EmptyRooms : RoomService {
-        override suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int): CreateResult =
-            error("unused")
-        override suspend fun join(code: String, userId: UserId, name: String): JoinResult =
-            error("unused")
+        override suspend fun create(
+            hostUserId: UserId,
+            hostName: String,
+            maxSeats: Int,
+            hostAvatarEmoji: String,
+            hostAvatarBackgroundColor: String?,
+        ): CreateResult = error("unused")
+        override suspend fun join(
+            code: String,
+            userId: UserId,
+            name: String,
+            avatarEmoji: String,
+            avatarBackgroundColor: String?,
+        ): JoinResult = error("unused")
         override suspend fun leave(code: String, userId: UserId): com.dangerfield.cards.server.domain.LeaveResult =
             error("unused")
         override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): Room? = null
