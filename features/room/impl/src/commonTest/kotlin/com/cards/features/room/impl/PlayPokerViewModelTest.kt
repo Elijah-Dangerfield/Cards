@@ -15,7 +15,9 @@ import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.SeatOccupant
+import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.review.ReviewTrigger
@@ -486,6 +488,59 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
         assertEquals(1, progression.awardedSummaries.size)
         assertEquals(30, vm.state.lastHandXpAwarded, "24 + 6 from the two XP events")
+    }
+
+    // ---------- Winner rendering vs event/snapshot ordering (regression) ----------
+    // The server emits the Complete snapshot and the HandEnded event on two
+    // independent flows with no ordering guarantee. The table is projected on
+    // GameState updates; HandEnded only sets a transient. If the projection
+    // doesn't also run on the event, a snapshot-before-event ordering drops the
+    // winner ("nothing happened on the last call"). Both orderings must render.
+
+    @Test
+    fun handEndedEvent_afterCompleteSnapshot_rendersWinnerOnTable() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        // Snapshot FIRST (the ordering that used to drop the winner).
+        session.emitGameState(stubGameState(street = BettingRound.Complete, actingSeatIndex = null))
+        session.emitEvent(
+            GameEvent.HandEnded(
+                sequence = 1,
+                winners = listOf(HandWinner(seatIndex = 0, amount = 200, handRank = null, byFold = true)),
+                board = emptyList(),
+                revealedHoleCards = emptyMap(),
+            ),
+        )
+
+        val table = vm.state.table as TableUiState.Active
+        assertEquals(
+            listOf(0),
+            table.handResult?.winners?.map { it.seatIndex },
+            "winner must render even when the Complete snapshot arrives before HandEnded",
+        )
+    }
+
+    @Test
+    fun handEndedEvent_beforeCompleteSnapshot_rendersWinnerOnTable() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        // Event FIRST (the ordering bot sessions happen to use).
+        session.emitEvent(
+            GameEvent.HandEnded(
+                sequence = 1,
+                winners = listOf(HandWinner(seatIndex = 1, amount = 200, handRank = null, byFold = true)),
+                board = emptyList(),
+                revealedHoleCards = emptyMap(),
+            ),
+        )
+        session.emitGameState(stubGameState(street = BettingRound.Complete, actingSeatIndex = null))
+
+        val table = vm.state.table as TableUiState.Active
+        assertEquals(listOf(1), table.handResult?.winners?.map { it.seatIndex })
     }
 
     @Test

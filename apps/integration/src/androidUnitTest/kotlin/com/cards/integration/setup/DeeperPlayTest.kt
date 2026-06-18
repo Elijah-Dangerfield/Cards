@@ -35,11 +35,11 @@ class DeeperPlayTest : IntegrationTest() {
 
         // Robust cursor-based driver (no seat-dedup): whenever someone is to
         // act, play the most passive legal action, until the hand completes.
-        var reached: BettingRound? = null
+        var complete: GameState? = null
         var guard = 0
         while (guard++ < 40) {
             val s = table.hostGame.nextSnapshot { it.street == BettingRound.Complete || it.actingSeatIndex != null }
-            if (s.street == BettingRound.Complete) { reached = s.street; break }
+            if (s.street == BettingRound.Complete) { complete = s; break }
             val seatIndex = s.actingSeatIndex!!
             val seat = s.seatAt(seatIndex)
             val toCall = s.currentBetThisStreet - seat.contributedThisStreet
@@ -48,7 +48,18 @@ class DeeperPlayTest : IntegrationTest() {
             )
             check(ack.accepted) { "passive action at seat $seatIndex (${s.street}) rejected: ${ack.error}" }
         }
-        assertEquals(BettingRound.Complete, reached, "a called-down hand must reach showdown")
+        val end = complete ?: error("a called-down hand must reach showdown")
+        assertEquals(BettingRound.Complete, end.street)
+        assertEquals(5, end.community.size, "showdown should have all five community cards")
+        // Chips are conserved end-to-end through the wire: the pot was settled
+        // back to the seats, total unchanged from the two buy-ins.
+        assertEquals(
+            end.settings.startingStack * end.seats.size,
+            end.seats.sumOf { it.stack },
+            "the pot must settle back to the seats — no chips created or destroyed over the wire",
+        )
+        // Both clients converge on the completed hand.
+        table.joinerGame.nextSnapshot { it.street == BettingRound.Complete }
     }
 
     @Test
