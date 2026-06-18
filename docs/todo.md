@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-17 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-18 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 > **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
@@ -22,7 +22,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P2]` **MP achievement grants — gate on the server-witnessed hand count.** The server now persists a per-user finished-hand count from the authoritative loop (`HandsFinishedRepository.countForUser`). What's left: actually gate the multiplayer achievements (the `serverWitnessed` set in `ClientGrantableAchievements`) on it — server-side evaluation + grant of the count-based ones (e.g. `HANDS_100_MP`), which also needs the MP-achievement→product mapping those ids currently lack. Per-hand-shape MP achievements (busts, win-by-fold) need richer server-witnessed signals than a raw count. Bot achievements (client self-grant) stay client-side.
+- `[P2]` **MP achievement grants — gate on the server-witnessed hand count.** Count-based MP achievements (e.g. `HANDS_100_MP`) aren't evaluated/granted server-side off the persisted hand count, and the MP-achievement→product mapping is missing for those ids.
+  **Acceptance:** the `serverWitnessed` set in `ClientGrantableAchievements` is granted server-side from `HandsFinishedRepository.countForUser`.
+  **Hints:** per-hand-shape achievements (busts, win-by-fold) need richer signals than a raw count; bot achievements stay client self-grant.
 
 ### Progression & XP (server)
 
@@ -67,8 +69,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Level-up rewards — cosmetic reward kind.** Only `LevelReward.Chips` / `XpBoost` are modeled; add a **cosmetic** reward (felt / card back / title) granted via the achievement-reward grant path so `LevelRewardTable` can gift one. The celebration already reveals chips + boost rows — extend `LevelUpReward` (`:libraries:ui`) + `HomeScreen.toDisplay` to render the cosmetic too. *(proposed 2026-06-06)*
   **Hints:** cosmetic grant precedent is the achievement-reward path; reward maps in `LevelReward.kt` + `LevelUpRewardGranter`. **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
 
-- `[P2]` **Move the level ladder to app-config + reconcile level-up grants server-side.** The reward table now resolves off app-config (`progression.levelRewards` via `ProgressionConfig` / `LevelRewardsConfigValue`, bundled default). Two parts remain: **(a)** the XP-per-level curve in `Level.kt` (`N²×100`; top-level `levelProgressFor` / `xpToLevelUpFrom` / `xpAtStartOfLevel`) is still a compile-time constant — lift the variable-length ladder onto `progression.*` (one `JsonConfigValue`) behind `ProgressionConfig`, threading the configured curve through every level-derivation site (VMs + the granter; previews/QA can keep the default) so display and grant never diverge; **(b)** the server-side reconcile — the client already grants offline by a stable `levelup_<level>` key, but the server doesn't confirm/void those against `total_xp` vs the same config's level thresholds in the progression-sync response. See [`decisions.md`](./decisions.md) 2026-06-17. *(proposed 2026-06-17)*
-  **Pairs with:** the cosmetic reward kind (above) for the full reward set.
+- `[P2]` **Move the level ladder to app-config + reconcile level-up grants server-side.** Two parts remain: **(a)** the XP-per-level curve in `Level.kt` (`N²×100`) is a compile-time constant — lift the variable-length ladder onto `progression.*` (one `JsonConfigValue` behind `ProgressionConfig`) and thread it through every level-derivation site so display and grant never diverge; **(b)** the server doesn't confirm/void the client's offline `levelup_<level>` grants against `total_xp` vs the same config's thresholds in the progression-sync response.
+  **Hints:** the reward *table* already resolves off app-config; this is the curve + the server reconcile. See [`decisions.md`](./decisions.md) 2026-06-17.
+  **Pairs with:** the cosmetic reward kind (above).
 
 ### Consumables & rewards (V1.x / monetization)
 
@@ -79,8 +82,6 @@ Buyable, level-up-giftable consumables. Product + grant-model call is in [`decis
   **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
   **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
   **Hints:** grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. **Interacts with:** wallet, inventory / my-items, shop, and level-up rewards.
-
-- ~~`[P2]` **XP Boost: split buy from activate (own a count, light it on demand).**~~ **Done 2026-06-17.** Buying / level-up gifts now stash an **inactive** boost (`AppData.xpBoostOwnedCount`); the player lights one on demand (`XpBoostRepository.grant` / `activate`) via the profile boost banner. Renamed "2× XP Boost" → "XP Boost". Gift goes to the stash (decision: stash, not auto-activate). Active-boost UI added to the profile banner, the bottom bar (tint + draining line), and the poker level pill (inline countdown). Used a simple count rather than the chest's inventory-quantity machinery — boosts are a uniform consumable with no per-item metadata, so a count in `AppCache` was the lighter fit.
 
 ### Social graph + friends — load-bearing for V1.x
 
