@@ -20,6 +20,33 @@ The only category we're consciously deferring is **device-emulator-based UI test
 
 ---
 
+## ⭐ Field lessons & the production-order principle (read this first)
+
+Four real bugs surfaced during the first dev playtests (2026-06-18). **The engine caught none of them because none were engine bugs** — the engine is property-tested to death (Round 3). Every bug lived at a **seam** the tests reached in the *wrong order*:
+
+| Bug | Seam | Why the tests missed it |
+|---|---|---|
+| Non-host stuck on "dealing in" | client socket (`gameplayFrames` was `replay = 0`) | Every test attached *both* clients' gameplay collectors **before** `startHand`. The app subscribes **after** (navigate-on-deal), so the late-subscriber drop never happened in tests. |
+| Opponent avatar = grey initials | wire (avatar never serialized onto the seat) | No test asserted a public seat field reaches an **opponent's** view. |
+| Winner never shown at showdown | VM projection (table re-projected only on snapshots, not on the `HandEnded` event) | `handEnded` was tested for XP/achievement **side effects**, never for **rendering the winner**; and never with the snapshot arriving before the event. |
+| (Near-miss) showdown "hang" | test **helper** (`advancePassivelyTo` seat-dedup stalled across a street) | A flaky helper looked like an engine bug. Always confirm a failing gameplay test isn't the *driver* before blaming the engine. |
+
+### The principle: **test the seams in production order**
+
+> The recurring trap: tests subscribe/assert **before** the action; the real app does it **after**. That single mismatch hid three of the four bugs.
+
+Concrete rules for anyone adding MP tests:
+
+1. **Subscribe-after-action.** For anything a late subscriber depends on (gameplay frames, the play screen mounting on deal), write the test that attaches the collector **after** the triggering action and asserts it still converges. (Done: `gameplayCollectorAttachingAfterTheDeal_stillSeesTheTable`, `gameplayState_replayReachesLateCollector`.)
+2. **Replay symmetry.** Every hot `SharedFlow`/`StateFlow` a late subscriber reads needs a "replay reaches a late collector" test. The `connection` flow had one; the gameplay-state flow didn't — that was the bug.
+3. **Order-independence at projection seams.** Where the VM merges two independent flows (e.g. `GameStateSnapshot` and `HandEnded`), test **both arrival orders**. (Done: `handEndedEvent_{after,before}CompleteSnapshot_rendersWinnerOnTable`.)
+4. **Public field reaches the opponent.** For every field that should cross the wire, assert it on the **other** player's view, not the sender's. (Partly done: `seat_carriesOpponentAvatar_overTheWire`; generalise via the `WireFormatContractTest` item below.)
+5. **Confirm the driver before blaming the engine.** If a wired gameplay test hangs, first rewrite the driver to be cursor-based (no seat-dedup) — the engine is already property-tested, so a hang is usually the harness.
+
+The engine is solid. **New testing effort should target the wire and the VM projection, in production order**, not re-test the engine.
+
+---
+
 ## Current coverage snapshot (as of the V1 MP-feature stack)
 
 Honest baseline — what exists today, line-counted from the test files (Sept 2025 reading):
@@ -35,6 +62,8 @@ Honest baseline — what exists today, line-counted from the test files (Sept 20
 | **Server registry** | exists | [`GameSessionRegistryIntegrationTest`](../apps/server/src/test/kotlin/com/cards/server/game/GameSessionRegistryIntegrationTest.kt) | Registry lifecycle. |
 | **Engine (shared)** | substantial | [`GameEngineTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEngineTest.kt) + [`GameEngineAdvancedTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GameEngineAdvancedTest.kt) + [`HandEvaluatorTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/HandEvaluatorTest.kt) + [`PotBuilderTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/PotBuilderTest.kt) + [`GeneratedHandsTest`](../libraries/gameplay/src/commonTest/kotlin/com/cards/libraries/gameplay/GeneratedHandsTest.kt) | Engine actions, evaluator, pot building, hand fixtures. **Missing: property tests for invariants.** |
 | **End-to-end integration** | 0 | — | **Nothing exercises both real client + real server stacks together.** |
+
+> ⚠️ This table is the **Sept 2025 baseline** (Round 0), kept for history. It is **out of date** — Rounds 1–4 shipped and Round 2 stood up the `:apps:integration` end-to-end module (the "0" row above is superseded). For current status read the [Tracking](#tracking) table at the bottom and the [Field lessons](#-field-lessons--the-production-order-principle-read-this-first) section.
 
 All fakes are hand-rolled (no Mockito/MockK). No mock-library smell anywhere.
 
@@ -95,7 +124,16 @@ Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/ko
 >
 > *Hydration (Layer 3):* [`SessionHydrationTest`](../apps/server/src/test/kotlin/com/cards/server/game/SessionHydrationTest.kt) — a fresh `DefaultGameSessionRegistry` (server-restart) rebuilds a live session by hydrating from the real `room_sessions` Postgres table.
 >
-> Remaining fan-out: side pots / all-in run-outs, more chaos (backgrounding, latency double-submit dedupe), and the feature-gated public-games / add-a-bot specs.
+> **Seam coverage added 2026-06-18** (from playtest bugs — see [Field lessons](#-field-lessons--the-production-order-principle-read-this-first)): play-to-showdown over the wire with an **end-to-end chip-conservation** assertion (`DeeperPlayTest.headsUp_passivePlay_reachesShowdown_andCompletes`); a **late gameplay collector** that attaches after the deal still converges (`InHandPlayTest.gameplayCollectorAttachingAfterTheDeal_stillSeesTheTable`); **opponent avatar reaches the other player's seat** (`InHandPlayTest.seat_carriesOpponentAvatar_overTheWire`); and at the VM seam, **winner renders for both event/snapshot orders** (`PlayPokerViewModelTest.handEndedEvent_{after,before}CompleteSnapshot_*`).
+>
+> **Remaining fan-out (high-value, prioritised):**
+> - [ ] **Bet/raise lines played to showdown over the wire** — today only *passive* call/check is wired-tested; the bug that started this (`9UQXGW`) was a raise line. Drive a raise+re-raise to showdown via the wire and assert Complete + chip conservation.
+> - [ ] **River/turn fold over the wire** — only *preflop* fold is tested; fold after community cards are dealt.
+> - [ ] **All-in / side-pot settlement through the socket** — the engine has it (Round 3); the wire path doesn't. Two clients all-in, assert per-seat settlement matches the engine.
+> - [ ] **Multi-hand: button rotation + stack carry-over** across `RequestNextHand` (one hand exists; assert button moves and stacks carry).
+> - [ ] **Reconnect-mid-hand resyncs the *winner*** — `ChaosPlayTest` resyncs to a completed hand; also assert the `HandEnded`/winner is present after reconnect (the ordering seam under fault).
+> - [ ] **Action-pill ordering** — a VM test that "Called 50" pills survive the same event/snapshot ordering as the winner fix (same `GameEventReceived` re-projection path).
+> - Plus side pots / all-in run-outs, backgrounding, latency double-submit dedupe, and the feature-gated public-games / add-a-bot specs.
 
 ### Module structure
 
@@ -127,7 +165,7 @@ integration/
 
 > **Reconciled against the shipped `:apps:integration` suite (2026-06-15).** Original plan names kept; covering test (or remaining gap) noted per line.
 
-- [x] **`fullHand_twoClients_dealBetCallFold_renderEqual`** — two clients join the same room, one taps Start, both observe HandStarted → BlindPosted → HoleCardsDealt → fold-around → HandEnded → PotAwarded; assert both clients' `GameState` matches at each step. *(✅ `InHandPlayTest.twoClients_playHeadsUpHand_toCompletion_viaFold` for the fold-to-completion path + `DeeperPlayTest.headsUp_passiveBetting_advancesPreflopToFlop` for bet/call/check across streets.)*
+- [x] **`fullHand_twoClients_dealBetCallFold_renderEqual`** — two clients join the same room, one taps Start, both observe HandStarted → BlindPosted → HoleCardsDealt → fold-around → HandEnded → PotAwarded; assert both clients' `GameState` matches at each step. *(✅ `InHandPlayTest.twoClients_playHeadsUpHand_toCompletion_viaFold` (fold-to-completion) + `DeeperPlayTest.headsUp_passiveBetting_advancesPreflopToFlop` (bet/call/check across streets) + `DeeperPlayTest.headsUp_passivePlay_reachesShowdown_andCompletes` (full call/check-down to showdown + chip conservation). **Still open: a bet/raise line to showdown — see Round 2 Remaining fan-out.**)*
 - [x] **`submitIntent_wrongSeat_serverRejects_clientSurfacesIntentRejected`** — client A submits an intent for client B's seat; assert the server `IntentAck.accepted = false` and the client throws `IntentRejectedException` with the server's reason. *(✅ `InHandPlayTest.outOfTurnIntent_isRejected`.)*
 - [x] **`submitIntent_outOfTurnAttempt_doesNotMutateState`** — both clients see the same state before and after the rejected intent. *(✅ rejection by `InHandPlayTest.outOfTurnIntent_isRejected`; the no-mutation half by Round 4 `submitIntent_invalidIntent_…_doesNotBroadcastSnapshot`.)*
 - [x] **`startHand_serverBroadcastsToBothSubscribers`** — host's StartHand reaches both connected clients via separate handles. (Catches "did sharing actually work end-to-end.") *(✅ `FriendsGameHappyPathTest.twoClients_createJoinPresenceStart_bothNavigate` + both clients observe the deal in `InHandPlayTest`.)*
@@ -326,9 +364,10 @@ Round 0 status (everything that exists today): see [Current coverage snapshot](#
 |---|---|---|
 | 0 — baseline | shipped | The MP-feature stack ([`cea38b18`](https://github.com/Elijah-Dangerfield/Cards/commit/cea38b18) through [`a59ea74d`](https://github.com/Elijah-Dangerfield/Cards/commit/a59ea74d)) shipped with the coverage in the snapshot. Round 1 closes its gaps. |
 | 1 — close MP gaps | shipped | `RemotePokerSessionFactoryTest` (10) + `LobbyViewModelTest` new MP paths (13). Also caught + fixed a latent `HostPromoted` non-firing bug. |
-| 2 — integration module | not started | Biggest contract-safety win. Module setup + ~10 tests, ~6-8h. |
+| 2 — integration module | shipped (+ ongoing fan-out) | `:apps:integration` is built: real in-process Ktor server + real clients. ~24 tests across `FriendsGameHappyPathTest`, `SetupJourneyTest`, `WireFormatContractTest`, `InHandPlayTest`, `DeeperPlayTest`, `ChaosPlayTest` + `FullStackRoomTest`/`SessionHydrationTest` (real Postgres). 2026-06-18 added the seam tests (play-to-showdown + chip conservation, late-collector, opponent avatar). **Open fan-out is listed under Round 2's "Remaining fan-out (prioritised)" — that list is the next-agent's worklist.** |
 | 3 — engine SUPER tests | shipped (bar hand-history) | Property invariants (`GameEnginePropertyTest`), edge-case scenarios (`GameEngineEdgeCaseTest`), and cross-product action tables (`GameEngineActionTableTest`) all landed. Only the 50-hand history fixtures remain — gated on a real production playtest. |
 | 4 — server gameplay flow | shipped | `RoomSocketGameplayRoutesTest` — 9 tests pinning the WS route → registry → per-recipient broadcast cycle. |
 | 5 — chaos / fault injection | in progress | Outbound-saturation pinned at the client-socket unit seam (`ReconnectingRoomSocketTest`); terminal `RoomClosed` mid-hand now pops the play screen (`RemotePokerSession.roomClosed` → `PlayPokerEvent.RoomClosed`); out-of-order snapshots dropped via a `(handNumber, lastSequence)` guard in `RemotePokerSession`. All three are client-seam fixes + tests, not just tests. The rest live in `:integration` (parked in `developer-todo.md`). ~7 tests, ~4-6h. |
 | 6 — Compose UI tests | not started | `:features:room:impl` androidUnitTest. ~15 tests, ~6-8h. |
+| Seam hardening (playtest-driven) | in progress | Cross-cutting, not a numbered round. Driven by real-device playtest bugs (2026-06-18): late-subscriber replay, opponent avatar on the wire, winner-render ordering, play-to-showdown + chip conservation. See [Field lessons](#-field-lessons--the-production-order-principle-read-this-first) for the principle and Round 2's "Remaining fan-out" for the open worklist. This row stays open as long as we're playtesting — each new bug should add its production-order regression here. |
 | Deferred — emulator UI | not planned | Device-smoke checklist covers this for V1. |
