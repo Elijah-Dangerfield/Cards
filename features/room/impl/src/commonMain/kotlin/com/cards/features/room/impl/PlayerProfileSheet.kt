@@ -8,6 +8,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.profile_player_card_view_blurb
+import cards.libraries.resources.generated.resources.room_player_profile_bot_callout_body
+import cards.libraries.resources.generated.resources.room_player_profile_bot_callout_title
 import cards.libraries.resources.generated.resources.room_player_profile_difficulty_section_title
 import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_headline
 import cards.libraries.resources.generated.resources.room_player_profile_mute_emoji_supporting_muted
@@ -19,7 +21,10 @@ import cards.libraries.resources.generated.resources.room_seat_badge_bot_plain
 import cards.libraries.resources.generated.resources.room_seat_badge_bot_with_difficulty
 import cards.libraries.resources.generated.resources.room_seat_badge_level
 import com.dangerfield.cards.libraries.bots.BotPersonality
+import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.components.Banner
+import com.dangerfield.cards.libraries.ui.components.BannerType
 import com.dangerfield.cards.libraries.ui.components.ListSection
 import com.dangerfield.cards.libraries.ui.components.ListSectionItem
 import com.dangerfield.cards.libraries.ui.components.ListItemAccessory
@@ -103,6 +108,14 @@ internal fun PlayerProfileSheet(
                     PlayingStyleBlock(personality = personality)
                     VerticalSpacerD500()
                 }
+                Banner(
+                    type = BannerType.Info,
+                    title = stringResource(Res.string.room_player_profile_bot_callout_title),
+                    body = stringResource(Res.string.room_player_profile_bot_callout_body),
+                    leading = { Text(BotAvatarEmoji) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                VerticalSpacerD500()
             }
             tenureRows(seat).takeIf { it.isNotEmpty() }?.let { rows ->
                 ListSection(

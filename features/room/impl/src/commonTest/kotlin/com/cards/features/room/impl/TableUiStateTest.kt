@@ -1,5 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.libraries.bots.BotPersonality
+import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
@@ -144,6 +146,48 @@ class TableUiStateTest {
             botDifficultyLabel = "Standard",
         )
         assertEquals(null, badge)
+    }
+
+    @Test
+    fun botSeat_projectsReservedRobotAvatar() {
+        val table = activeFromSeats(
+            street = BettingRound.Preflop,
+            seats = listOf(
+                seat(index = 0, stack = 1_000, participation = HandParticipation.InHand),
+                botSeat(index = 1),
+            ),
+        )
+        val bot = table.seats.single { it.index == 1 }
+        assertEquals(BotAvatarEmoji, bot.emoji, "every bot reads as a bot at the table")
+    }
+
+    @Test
+    fun botSeatWithPersonality_stillProjectsRobotAvatar_notPersonalityEmoji() {
+        val state = GameState(
+            settings = RoomSettings.Default,
+            handNumber = 1,
+            buttonSeatIndex = 0,
+            seats = listOf(
+                seat(index = 0, stack = 1_000, participation = HandParticipation.InHand),
+                botSeat(index = 1),
+            ),
+            community = emptyList(),
+            street = BettingRound.Preflop,
+            currentBetThisStreet = 0,
+            lastFullRaiseSize = 0,
+            actingSeatIndex = null,
+            deckRemaining = emptyList(),
+        )
+        val table = TableUiState.fromGameState(
+            gameState = state,
+            humanSeatIndex = 0,
+            personalitiesBySeat = mapOf(1 to BotPersonality.Gina),
+            lastWinners = null,
+            lastActionBySeat = emptyMap(),
+        )
+        val bot = table.seats.single { it.index == 1 }
+        assertEquals(BotAvatarEmoji, bot.emoji, "bots no longer borrow the personality emoji")
+        assertEquals(BotPersonality.Gina, bot.personality, "personality still rides the seat for the profile sheet")
     }
 
     @Test

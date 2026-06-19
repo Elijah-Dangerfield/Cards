@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.cards.Achievement
 import com.dangerfield.cards.libraries.cards.AchievementId
 import com.dangerfield.cards.libraries.cards.AchievementRarity
+import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.cards.Criterion
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -78,7 +79,7 @@ internal object PreviewSamples {
         isHuman = false,
         isBot = true,
         avatarKey = "avatar_$name",
-        emoji = botEmoji(name),
+        emoji = botEmoji(),
         holeCards = holeCards,
         showHoleCardBacks = participation == HandParticipation.InHand && holeCards.isEmpty(),
         participation = participation,
@@ -193,12 +194,6 @@ internal object PreviewSamples {
         byFold = byFold,
     )
 
-    private fun botEmoji(name: String): String = when (name) {
-        "Jane" -> "🧐"
-        "David" -> "😎"
-        "Gina" -> "🦊"
-        "Steve" -> "🐢"
-        "Mike" -> "🤡"
-        else -> "🤖"
-    }
+    // Every bot reads as a bot at the table — previews match runtime.
+    private fun botEmoji(): String = BotAvatarEmoji
 }
