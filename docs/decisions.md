@@ -25,6 +25,63 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-19 — TODO-grooming pass: resolve a batch of deferred product decisions
+
+This entry records several directional calls made in one grooming pass so future agents don't
+re-derive them. Each made its corresponding `developer-todo.md` "deferred product decision" or
+`todo.md` "decide whether…" item actionable; the durable reasoning lives here.
+
+**MP achievement rewards — chips, not cosmetics.** The shipped 100-finished-MP-hands achievement
+(`HANDS_100_MP`) grants **chips** via the wallet ledger (`WalletRepository.apply`, idempotent), not
+the borrowed single-player `emotes_grinder` cosmetic it shipped with. The new "first multiplayer
+hand" achievement is **record-only** — the badge is the reward, no prize. *Why:* chips are the
+universal reward currency and need no content/design pass to mint; a borrowed cosmetic reads as
+off-theme. Dedicated MP cosmetics are dropped, not deferred — chips are the answer.
+
+**Conservative orphan-anon deletion — never delete real progress.** An abandoned anonymous account
+is deleted only when we're *very* sure it's dead: anonymous + never claimed + **zero real-money
+purchases** (hard rule) + **at or below level 1** (any meaningful XP → preserved, never deleted),
+and only when **either** its device/install id is now bound to a *different active* anon account
+(today's opportunistic `DefaultOrphanInstallSweep`) **or** it's been ≥ 1 year fully inactive (a
+scheduled sweep, deferred to `post-launch.md`). *Why:* the risk/reward of accidentally deleting
+someone's progress is indefensible; leaking cheap orphan rows is strictly preferable.
+**Partially supersedes 2026-05-29 (Anon-account cleanup)** — that decision ruled out a time-based
+sweep entirely; we now allow one, but only under the very-conservative 1-yr + low-XP + no-purchase
+gate, post-launch.
+
+**App attestation — no for V1.** Play Integrity / App Attest deferred to `post-launch.md`. *Why:*
+play-money chips make the cheating payoff low; attestation adds setup cost + a legitimate-user
+failure rate. Revisit if forged-client abuse materializes.
+
+**`Profile.Fallback` offline policy.** No per-surface redesign needed — the app is already
+offline-first (write-through + reconcile, see `state-authority-and-sync.md`) and `Profile.Fallback`
+is only the last-resort identity (never-authenticated, or server-rejected session), not a generic
+"offline" state. Blanket rule for the fallback state: reads = cached browse; server-mutating
+surfaces = soft-gate; money + multiplayer = hard-gate. Remaining work is verification, not design.
+
+**Ban policy — manual for V1.** Triggers: collusion/chip-dumping, payment fraud/chargebacks,
+abusive name/chat/emotes, bug/automation exploitation for chips/XP, ban evasion. Manual review by
+Elijah; reversible via appeal email. Automation (weekly sweep + report-threshold auto-ban) deferred
+to `post-launch.md`.
+
+**Degraded bot-play stays local until account creation.** While guest-account creation is pending
+(offline), bot-play XP/chips accrue **purely locally** and never write the server-bound ledger; on
+creation the server grant is authoritative and pending local deltas replay on top once (never
+re-granting the starter grant). *Why:* simplest path that can't double-count.
+
+**Session-expiry cold-boot ghost — accepted as-is.** A rejected session shows an error **snackbar**
++ routes to onboarding (there is no retry/sign-out dialog today). The "cold-boot ghost" (a dead
+cached session firing a sync or two before the first 401 tears it down) is narrow and
+self-correcting; accepted for V1. A richer "session ended" dialog is optional polish in
+`post-launch.md`.
+
+**Remote config / feature flags — build in-house, local GUI, post-launch.** No hosted service
+(PostHog/Statsig/LaunchDarkly); a locally-run admin web GUI edits DB config values directly (never
+published). Deferred to `post-launch.md` (Phase 1 — DB-backed config, no-redeploy flips — is cheap
+and could be pulled forward if redeploy pain bites).
+
+**Status:** Locked for V1.
+
 ## 2026-06-19 — Multiplayer emotes: dedicated ephemeral channel, rendered as a center-screen attributed blast
 
 **Decision:** Table emotes ride a **separate per-room broadcast channel**, not the gameplay flows. A new `GameSession._emojiBlasts: SharedFlow<SeatEmoji>` (replay-0, lock-free `tryEmit`) is merged into the socket fan-out alongside the state/event legs; `ClientFrame.SendEmoji` → `GameSessionRegistry.broadcastEmoji` resolves the caller's seat from live state and emits; the client maps the new `GameplayFrame.EmojiBlast` onto `PokerSession.emoteBlasts` (also replay-0). The client **renders the incoming emote through the existing single full-screen `EmojiBlastOverlay`, attributed to the emitter's seat** (name/avatar/color) — *not* a per-seat-positioned blast. The local sender renders its own blast instantly on tap and **ignores the server echo of its own seat** (`isHuman` check); muted seats are dropped on receipt.
@@ -300,6 +357,8 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 **Walked back from the prior time-based sweep:** anon users buy chip packs, earn cosmetics, accumulate level + achievements. `last_sign_in_at` + TTL can't distinguish "user took a break" from "user abandoned this identity." Risk asymmetry favors leaking 10KB orphan rows over wiping paying users.
 
 **Status of the existing sweep code:** [`OrphanAnonymousSweep`](../apps/server/src/main/kotlin/com/cards/server/data/DefaultOrphanAnonymousSweep.kt) + `POST /v1/admin/sweep-anonymous-users` stay in the codebase but go **dormant** — no cron, no scheduled trigger. Functionally retired once L1 ships. Future cleanup commit can delete the class + endpoint.
+
+**Partially revised 2026-06-19:** the blanket "no time-based sweep, ever" stance is softened — a **very conservative** scheduled sweep (≥ 1 year inactive **and** at/below level 1 **and** no purchase) is now planned post-launch (`post-launch.md`); the L1 `level ≤ 1` guard described above is also still owed in code (`todo.md` §A "Tighten the orphan-anon account sweep"). The risk-asymmetry principle is unchanged — only the absolute ban on a time sweep is relaxed, under tight gates. See [decisions.md 2026-06-19 — TODO-grooming pass](#).
 
 **Upgrade paths preserved in [backlog.md](./backlog.md):**
 - **Option B** — install_id + `identifierForVendor` (iOS) / `ANDROID_ID` (Android). ~3 days of work. Adds same-device-reinstall revival + casual anti-farm gate. No KMP keychain needed.
