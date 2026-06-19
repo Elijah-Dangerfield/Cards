@@ -79,6 +79,10 @@ class FakePokerSession(
     val sentEmotes = mutableListOf<String>()
     var requestNextHandCount: Int = 0
 
+    // When set, [submit] records the intent then throws it — modelling a
+    // server rejection (the real session surfaces a rejected ack as a throw).
+    var submitError: Throwable? = null
+
     /** Drive an inbound opponent emote the way the real session would. */
     fun emitEmote(seatIndex: Int, emoji: String) {
         _emoteBlasts.tryEmit(RemoteEmote(seatIndex = seatIndex, emoji = emoji))
@@ -102,6 +106,7 @@ class FakePokerSession(
 
     override suspend fun submit(intent: PlayerIntent) {
         submittedIntents += intent
+        submitError?.let { throw it }
     }
 
     override fun requestNextHand() {
@@ -331,6 +336,7 @@ fun stubGameState(
     handNumber: Int = 1,
     actingSeatIndex: Int? = 0,
     street: BettingRound = BettingRound.Preflop,
+    lastSequence: Long = 0,
 ): GameState = GameState(
     settings = testSettings,
     handNumber = handNumber,
@@ -342,6 +348,7 @@ fun stubGameState(
     lastFullRaiseSize = 0L,
     actingSeatIndex = actingSeatIndex,
     deckRemaining = emptyList(),
+    lastSequence = lastSequence,
 )
 
 fun testSeat(

@@ -357,6 +357,50 @@ class PlayPokerViewModelTest : CoroutineTest() {
     }
 
     @Test
+    fun submit_doubleTapOnSameDecision_forwardsOnce() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(factory = FakePokerSessionFactory(session = session))
+        session.emitGameState(stubGameState(lastSequence = 5))
+
+        // A slow ack: the user taps the same action twice before the resulting
+        // snapshot lands. Only the first reaches the session.
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Call(seatIndex = 0)))
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Call(seatIndex = 0)))
+
+        assertEquals(1, session.submittedIntents.size)
+    }
+
+    @Test
+    fun submit_nextDecisionAfterSnapshot_forwardsAgain() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(factory = FakePokerSessionFactory(session = session))
+
+        session.emitGameState(stubGameState(lastSequence = 5))
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Call(seatIndex = 0)))
+
+        // The action resolved and the next decision arrived (sequence advanced) —
+        // a fresh token, so the next submit is not mistaken for a duplicate.
+        session.emitGameState(stubGameState(lastSequence = 7))
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Check(seatIndex = 0)))
+
+        assertEquals(2, session.submittedIntents.size)
+    }
+
+    @Test
+    fun submit_rejectedThenRetriedOnSameDecision_forwardsAgain() = runUnitTest {
+        val session = FakePokerSession().apply { submitError = IllegalArgumentException("illegal raise") }
+        val vm = buildVm(factory = FakePokerSessionFactory(session = session))
+        session.emitGameState(stubGameState(lastSequence = 5))
+
+        // A rejected submit must not latch the guard — a corrected resubmit on the
+        // same decision still goes through.
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Raise(seatIndex = 0, totalAmountThisStreet = 10)))
+        vm.takeAction(PlayPokerAction.Submit(PlayerIntent.Raise(seatIndex = 0, totalAmountThisStreet = 50)))
+
+        assertEquals(2, session.submittedIntents.size)
+    }
+
+    @Test
     fun requestNextHand_signalsSession_andClearsTransients() = runUnitTest {
         val session = FakePokerSession()
         val factory = FakePokerSessionFactory(session = session)

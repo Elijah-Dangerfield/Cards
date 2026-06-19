@@ -119,6 +119,15 @@ class PlayPokerViewModel @Inject constructor(
     private var latestHumanProfile: Profile.Authenticated? = null
     private var lastGameState: GameState? = null
 
+    // Dedupes intent submission within a single decision point. Keyed on the
+    // live state's (handNumber, lastSequence) — two taps before the resulting
+    // snapshot lands read the same token and the second is dropped, so a slow
+    // ack / double-tap can't fire the same action twice. Cleared on a rejected
+    // submit so a corrected resubmit (e.g. an illegal raise) on the same turn
+    // still goes through; an accepted action advances lastSequence, so the next
+    // genuine decision carries a fresh token regardless.
+    private var submittedTurnToken: Pair<Int, Long>? = null
+
     // Session created lazily so the hand-end lambda below can reference `viewModelScope`.
     private val session: PokerSession = sessionFactory.create(
         humanSeatIndex = humanSeatIndex,
@@ -485,10 +494,19 @@ class PlayPokerViewModel @Inject constructor(
             }
 
             is PlayPokerAction.Submit -> {
-                logger.d { "VM received Submit ${action.intent}" }
-                viewModelScope.launch {
-                    Catching { session.submit(action.intent) }
-                        .onFailure { e -> logger.w(e) { "submit failed for ${action.intent}" } }
+                val turnToken = lastGameState?.let { it.handNumber to it.lastSequence }
+                if (turnToken != null && turnToken == submittedTurnToken) {
+                    logger.d { "Ignoring duplicate Submit ${action.intent} for turn $turnToken" }
+                } else {
+                    submittedTurnToken = turnToken
+                    logger.d { "VM received Submit ${action.intent}" }
+                    viewModelScope.launch {
+                        Catching { session.submit(action.intent) }
+                            .onFailure { e ->
+                                logger.w(e) { "submit failed for ${action.intent}" }
+                                if (submittedTurnToken == turnToken) submittedTurnToken = null
+                            }
+                    }
                 }
             }
             is PlayPokerAction.RequestNextHand -> {
