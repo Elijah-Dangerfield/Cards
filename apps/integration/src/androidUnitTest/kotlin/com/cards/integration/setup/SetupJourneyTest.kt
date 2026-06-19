@@ -137,6 +137,36 @@ class SetupJourneyTest : IntegrationTest() {
     }
 
     @Test
+    fun hostDropsAndReconnectsFast_bothClientsAgreeOnExactlyOneHost() = integration {
+        val host = client(faulty = true)
+        val joiner = client()
+        val hostVm = host.lobbyVm(autoCreate = true)
+        val code = hostVm.stateFlow.awaitState { it.room != null }.room!!.code
+        val joinerVm = joiner.lobbyVm(prefilledCode = code)
+        joinerVm.stateFlow.awaitState { it.allConnected(2) }
+
+        // Host drops: the joiner takes over as effective host.
+        host.faults!!.dropAndBlock()
+        joinerVm.awaitEvent<LobbyEvent.HostPromoted>()
+        assertEquals(joiner.userId, joinerVm.state.effectiveHostUserId)
+
+        // Host reconnects before the grace reaper frees its seat — the race that
+        // could momentarily look like "two hosts". Both clients must reconverge on
+        // a single effective host (the original), never disagree.
+        host.faults!!.blockReconnects = false
+        hostVm.stateFlow.awaitState { it.allConnected(2) }
+        joinerVm.stateFlow.awaitState { it.allConnected(2) }
+
+        joinerVm.stateFlow.awaitState { it.effectiveHostUserId == host.userId }
+        hostVm.stateFlow.awaitState { it.effectiveHostUserId == host.userId }
+        assertEquals(
+            hostVm.state.effectiveHostUserId,
+            joinerVm.state.effectiveHostUserId,
+            "both clients must agree on exactly one effective host after the reconnect race",
+        )
+    }
+
+    @Test
     fun droppedClient_reconnects_andPresenceIsRestored() = integration {
         val host = client(faulty = true)
         val joiner = client()
