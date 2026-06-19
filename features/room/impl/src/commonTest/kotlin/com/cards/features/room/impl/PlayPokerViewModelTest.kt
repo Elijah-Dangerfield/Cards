@@ -18,6 +18,7 @@ import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.HandWinner
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.review.ReviewTrigger
@@ -541,6 +542,90 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
         val table = vm.state.table as TableUiState.Active
         assertEquals(listOf(1), table.handResult?.winners?.map { it.seatIndex })
+    }
+
+    // ---------- Action pills vs event/snapshot ordering (regression) ----------
+    // The "Called 50" / "Folded" pill below a seat is a per-hand transient the VM
+    // tracks from ActionTaken events — GameState alone can't carry it. The table
+    // is otherwise only re-projected on a GameState snapshot. The server emits
+    // events and snapshots on two independent flows with no ordering guarantee,
+    // so an ActionTaken that lands without a following snapshot must still paint
+    // the pill (the same class of ordering bug the winner-rendering tests pin).
+
+    @Test
+    fun actionTakenEvent_withoutFollowingSnapshot_rendersActionPill() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        session.emitGameState(
+            stubGameState(
+                seats = listOf(
+                    testSeat(0, "You", isBot = false, playerId = "human"),
+                    testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                ),
+                actingSeatIndex = 0,
+            ),
+        )
+        // Only the event arrives — no fresh snapshot behind it.
+        session.emitEvent(
+            GameEvent.ActionTaken(
+                sequence = 1,
+                seatIndex = 1,
+                action = PlayerAction.Call(50),
+                resultingStreetContribution = 50,
+            ),
+        )
+
+        val table = vm.state.table as TableUiState.Active
+        assertEquals(
+            PlayerAction.Call(50),
+            table.seats.first { it.index == 1 }.lastAction,
+            "an ActionTaken must re-project the seat's pill even with no following snapshot",
+        )
+    }
+
+    @Test
+    fun streetAdvancedEvent_clearsStaleActionPills() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        session.emitGameState(
+            stubGameState(
+                seats = listOf(
+                    testSeat(0, "You", isBot = false, playerId = "human"),
+                    testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                ),
+                actingSeatIndex = 0,
+            ),
+        )
+        session.emitEvent(
+            GameEvent.ActionTaken(
+                sequence = 1,
+                seatIndex = 1,
+                action = PlayerAction.Call(50),
+                resultingStreetContribution = 50,
+            ),
+        )
+        assertEquals(
+            PlayerAction.Call(50),
+            (vm.state.table as TableUiState.Active).seats.first { it.index == 1 }.lastAction,
+        )
+
+        // A street change wipes last-street action pills — again with no snapshot.
+        session.emitEvent(
+            GameEvent.StreetAdvanced(
+                sequence = 2,
+                street = BettingRound.Flop,
+                communityCards = emptyList(),
+            ),
+        )
+        assertEquals(
+            null,
+            (vm.state.table as TableUiState.Active).seats.first { it.index == 1 }.lastAction,
+            "advancing the street must clear stale per-seat action pills",
+        )
     }
 
     @Test

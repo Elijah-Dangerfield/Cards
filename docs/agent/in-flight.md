@@ -25,3 +25,11 @@
 **Reviewer notes:** All four assert in production order (each `nextSnapshot` reads strictly after the action via the session's forward cursor). The all-in test relies on equal starting stacks making a single main pot — that's the only-no-side-pot invariant the assertion encodes.
 
 **Deferred:** True 3-player **side-pot** settlement over the wire (sub-part d's harder half) — needs a 3-client table + unequal stacks. Rewrote the `docs/todo.md` bullet down to exactly that remaining gap.
+
+## test(mp): pin action pills survive event/snapshot ordering
+
+**Problem:** B6 sub-part (e) — the "Called 50" / "Folded" pill below a seat is a per-hand transient the VM derives from `ActionTaken` events, not from `GameState`. Snapshots and events arrive on two independent flows with no ordering guarantee; the winner-rendering path had ordering regression tests but the action-pill path didn't, so a snapshot-less `ActionTaken` (or a `StreetAdvanced` that should clear pills) could silently drop/strand a pill.
+
+**Approach:** Two `PlayPokerViewModelTest` cases driving the `FakePokerSession`: emit a snapshot, then an `ActionTaken` with **no following snapshot**, and assert the seat's `lastAction` pill renders; then a `StreetAdvanced` (again snapshot-less) clears it. Mirrors the existing `handEndedEvent_*Snapshot_rendersWinner` regression shape, one layer down on the per-seat projection.
+
+**Reviewer notes:** None.
