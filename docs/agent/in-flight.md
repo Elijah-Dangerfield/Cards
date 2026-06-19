@@ -15,3 +15,13 @@
 **Approach:** Extended `WireFormatContractTest` (`:apps:integration`) with a field-by-field assertion: build a `GameState` whose opponent seat populates every public field (+ hole cards), `scrubbedFor(viewer)`, round-trip through the shared `GameState` serializer (the same bytes both sides decode), and assert each public field survives on the opponent's decoded seat while hole cards are scrubbed. The client `RoomSocketEventDto` is `internal`, so the test exercises the shared `GameState`/`Seat` serializer + `scrubbedFor` directly rather than the frame wrapper — that's where the "forgot to send X" risk actually lives.
 
 **Reviewer notes:** None. Depends on the `Seat.xp` field from the commit above (the test asserts `xp` survives).
+
+## test(mp): cover raise / late-fold / all-in / multi-hand seams over the wire
+
+**Problem:** B6 "buff the seams" — the integration suite only drove passive call/check + a preflop fold. Every recent MP bug lived at the wire, yet aggressive lines, late-street folds, all-ins, and hand-to-hand continuity (button rotation, stack carry-over) had no end-to-end coverage.
+
+**Approach:** Added three integration test classes against the in-process server + two real sockets, plus two reusable drivers in `PlayHelpers.kt` (`advancePassivelyUntil(street)` / `playPassivelyToCompletion()`). Coverage: (a) a preflop **raise** is accepted, applied (`currentBetThisStreet` reaches the raised total on both clients), and the called-down hand reaches a five-card showdown with chips conserved; (b) a **turn fold** ends the hand and awards the pot to the non-folder; (c) across two hands the **button rotates** and stacks **carry over** (proven via `stack + contributedThisHand == priorEndStack`, so it can't be a silent reset); (d) a heads-up **all-in + call** runs the board out and settles winner-take-all/chop (each stack ∈ {0, start, 2×start}). **Direction call:** `playPassivelyToCompletion` acts on the raise responder *directly* before entering the passive loop — the forward-cursor `nextSnapshot` would otherwise stall waiting for a newer snapshot than the one I'd already read to assert the raise applied.
+
+**Reviewer notes:** All four assert in production order (each `nextSnapshot` reads strictly after the action via the session's forward cursor). The all-in test relies on equal starting stacks making a single main pot — that's the only-no-side-pot invariant the assertion encodes.
+
+**Deferred:** True 3-player **side-pot** settlement over the wire (sub-part d's harder half) — needs a 3-client table + unequal stacks. Rewrote the `docs/todo.md` bullet down to exactly that remaining gap.
