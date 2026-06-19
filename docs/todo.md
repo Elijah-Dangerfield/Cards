@@ -22,6 +22,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
+- `[P1]` **Showdown "show a hand" achievements fire even when the player folded.** Folding still credits e.g. `SHOW_STRAIGHT` ("show a straight at showdown") — a false grant. The `Criterion.ShowAtLeast` branch in `AchievementRepositoryImpl.recordHand` gates on `summary.reachedShowdown`, and `HandResultSummaryBuilder` is meant to set `reachedShowdown = !wasFold && humanRevealedCards != null` (so a fold → null `handCategory`, no credit) — but it's firing anyway. Trace why `reachedShowdown`/`handCategory` is truthy for a folded player (suspect the MP summary path mis-deriving `wasFold` / `humanRevealedCards` from the showdown event) and add an explicit `!summary.wasFold` guard as belt-and-suspenders. *(found in 2026-06-19 playtest)*
+  **Acceptance:** folding a hand whose board would have made a straight (or any made hand) grants no `SHOW_*` achievement; reaching showdown with it still does.
+  **Hints:** `AchievementRepositoryImpl.recordHand` (`Criterion.ShowAtLeast`) + `HandResultSummaryBuilder` (`reachedShowdown` / `handCategory`).
+
 - `[P2]` **MP achievement grants — per-hand-shape signals.** The count-based slice ships: `HANDS_100_MP` is evaluated + granted server-side off `HandsFinishedRepository.countForUser` via `ServerWitnessedAchievements`, wired into the hand-finished path. The remaining server-witnessed MP ids (`FIRST_BUST_DEALT_MP`, `BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`, `DOUBLE_UP_MP`, `TRIPLE_UP_MP`, `POT_5000_MP`) gate on per-hand outcome signals (busts dealt, win-by-fold, stack multiple, pot size) the server doesn't capture per hand yet.
   **Acceptance:** each remaining `serverWitnessed` id is evaluated + granted from a server-witnessed per-hand signal.
   **Hints:** extend the hand-finished callback to carry per-hand outcomes; bot achievements stay client self-grant.
@@ -68,6 +72,18 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 - `[P1]` **Tap-an-opponent sheet — remaining affordances.** Add the human-variant "Add friend" affordance (pairs with the friend graph) and "view full profile" tap-through once profile-of-a-stranger is a real route. *(This sheet is the at-table **Player Card** surface — see the Player Card feature below + `decisions.md` 2026-06-06.)*
 
+- `[P2]` **Don't render equipped titles in the per-seat player area — Player Card only.** Equipped titles (e.g. "Pot Magnet") show in the play-screen player area — the human's name renders as "You · The Shark" in `PlayerInfoTile`. The seat has too little real estate; drop the title from the seat/name area and surface it only on the Player Card (`PlayerProfileSheet`) when a seat is tapped. *(found in 2026-06-19 playtest)*
+  **Acceptance:** no equipped-title text renders in any seat's player area on the Play Poker screen; the title still shows on the tapped Player Card.
+  **Hints:** the human title suffix is in `PlayerArea.kt` `PlayerInfoTile`; opponent seats already omit it. Leave the level pill as-is.
+
+- `[P2]` **Reserve the robot avatar for bots + explain bots on their Player Card.** Three parts: (a) exclude the robot emoji (🤖) from the user avatar picker so no human can pick it — it should read unambiguously as "bot"; (b) give every bot a robot avatar at the table (today solo bots use personality emojis like 🐢/🦊 from `BotPersonality`, and MP bots have no avatar — `SeatOccupant.avatarEmoji` is null for bots); (c) on a bot's Player Card (`PlayerProfileSheet`, which already shows a playing-style block for bots) add a callout chip: "Bot" + a short line that bots only see their own hand + the community cards, don't use AI, and follow a fixed heuristic playing style. *(found in 2026-06-19 playtest)*
+  **Acceptance:** 🤖 can't be selected as a user avatar; every bot seat renders a robot avatar in solo + MP; tapping a bot shows a "this is a bot — heuristic, not AI" callout.
+  **Hints:** picker emojis come from `AvatarPack.emojis` (server-driven) — filter 🤖 in the `AvatarPicker` grid (`EditProfileScreen.kt`) and/or drop it from the server pack; bot avatar assignment in `BotPersonality` (solo) + bot-seat construction / `SeatOccupant` (MP); callout in `PlayerProfileSheet`.
+
+- `[P2]` **Multiplayer game summary + recent-games history (MP only).** No post-game summary exists — the end-of-hand XP/achievement dialog is transient and nothing is stored. When an MP game ends (or a player leaves), show a summary: chips won/lost, XP gained, achievements earned during that game. Persist per-game results so Home can show a "recent games" list, each tapping into its summary. Multiplayer only. *(found in 2026-06-19 playtest)*
+  **Acceptance:** finishing/leaving an MP game shows a summary (chips +/-, XP, achievements that game); Home lists recent MP games, each opening its summary.
+  **Hints:** greenfield — needs a per-game result record (client Room table or a server endpoint; the server already logs `hands_finished`). Distinct from the friend-graph `RecentlyPlayedWithStrip` (opponents-to-friend, not results). The chips delta depends on the MP wallet settlement (B3 buy-in/cash-out above) being real. **Worker note:** sketch the data model in the in-flight Approach before coding.
+
 - `[P2]` **Emote button glyph isn't optically centered.** The play-poker emote trigger ([`TopBarEmojiButton`](../features/room/impl/src/commonMain/kotlin/com/cards/features/room/impl/EmojiTray.kt) → DS [`EmojiButton`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/icon/EmojiButton.kt)) centers its circular bounding box correctly, but the emoji glyph sits slightly up-and-left inside it — the text line-box midpoint ≠ the glyph's visual midpoint (the KDoc already notes the vertical half). *(proposed 2026-05-31)*
   **Acceptance:** the glyph reads optically centered in the circle at every `Size`.
   **Hints:** the `Box`/`Text` in `EmojiButton.kt`; likely needs a glyph-vs-line-box offset, not just `Alignment.Center`. **Worker note:** needs Studio to eyeball against the size-scale `@Preview`.
@@ -77,6 +93,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Hints:** [`RoomRepositoryImpl.observeActiveRooms`](../libraries/rooms/impl/src/commonMain/kotlin/com/cards/libraries/rooms/impl/RoomRepositoryImpl.kt) holds the in-memory `MutableStateFlow` today; the durable source is [B2](#b2--persisted-room-membership) (persisted membership), and presence pushes pair with the [online-presence WS signal](#social-graph--friends--load-bearing-for-v1x).
 
 ### Stats & progression
+
+- `[P1]` **Level-up celebration should be a real screen, not a tap-to-dismiss overlay.** Today it's an overlay composable layered over `HomeScreen` (`LevelUpCelebration` inside HomeScreen's `Box`, toggled via `HomeViewModel` / `HomeAction.DismissLevelUp`). Two bugs follow: (a) a full-screen `detectTapGestures { onContinue() }` means tapping *anywhere* dismisses it; (b) the bottom navigation bar stays visible because the overlay lives inside Home's content while the app Scaffold keeps drawing the bar. Make it a routed screen like `BlockingErrorScreen` — a real destination with no bottom bar, dismissed only by its own Continue/claim button. *(found in 2026-06-19 playtest)*
+  **Acceptance:** the level-up screen is full-screen with no bottom bar; only the explicit Continue/claim button dismisses it; a stray tap does nothing.
+  **Hints:** present it the way `BlockingErrorScreen` is (routed `screen<…>` in an entry point → sets `shouldHideBottomBar`) instead of the HomeScreen overlay; reuse the existing `LevelUpCelebration` visual and drop the tap-to-dismiss.
 
 - `[P2]` **Level-up rewards — cosmetic reward kind.** Only `LevelReward.Chips` / `XpBoost` are modeled; add a **cosmetic** reward (felt / card back / title) granted via the achievement-reward grant path so `LevelRewardTable` can gift one. The celebration already reveals chips + boost rows — extend `LevelUpReward` (`:libraries:ui`) + `HomeScreen.toDisplay` to render the cosmetic too. *(proposed 2026-06-06)*
   **Hints:** cosmetic grant precedent is the achievement-reward path; reward maps in `LevelReward.kt` + `LevelUpRewardGranter`. **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
@@ -144,13 +164,17 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 ### B3 — Gameplay items
 
-- `[P1]` **Buy-in / stack / re-buy mechanic.** Spec [§4.1](./product/product-spec.md#wallet-stack--buy-ins). Mutate `room_sessions.state_jsonb` inside the per-session mutex; wallet ledger stays a separate write. Anti-smurf gate rejects sit-down if buy-in > 25% of wallet. Client: re-buy dialog at stack 0 + sit-out toggle. **Depends on:** B0.
+- `[P1]` **Buy-in / stack / re-buy mechanic — settle MP results to the real wallet.** Spec [§4.1](./product/product-spec.md#wallet-stack--buy-ins). Today MP table stacks are ephemeral and never touch the chip wallet, so a player who wins hands sees no change in their real balance (confirmed 2026-06-19 playtest). Buy-in debits the wallet on sit-down; cash-out credits the final stack back on leave / game-end. Mutate `room_sessions.state_jsonb` inside the per-session mutex; wallet ledger stays a separate write. Anti-smurf gate rejects sit-down if buy-in > 25% of wallet. Client: re-buy dialog at stack 0 + sit-out toggle. **Depends on:** B0.
 
 - `[P1]` **Per-turn time limit in multiplayer.** A player shouldn't be able to stall the table by sitting on their action. Give each turn a deadline; on expiry, auto-check if checking is legal, otherwise auto-fold. Surface the countdown to the table. *(proposed 2026-05-30)*
   **Acceptance:** a seat that doesn't act within the limit is auto-checked/folded and play continues; the active seat shows a visible countdown.
   **Hints:** `RoomSettings.turnTimerSeconds` already carries the limit (default 30) — wire enforcement, don't re-add the field. Turn resolution lives in the gameplay engine + `room_sessions.state_jsonb`; deadline is enforced server-side. **Depends on:** B0. **Out of scope:** per-player time banks / configurable clocks.
 
 - `[P1]` **Orphaned-room policy — forfeit-then-spectator.** Last human leaving still kills the room. On disconnect, keep the seat warm via the existing grace; if it expires mid-hand, mark `SeatForfeited`, auto-fold the rest of the session, downgrade the WS subscription to read-only. `GET /v1/me/active-rooms` drives the Rejoin / Forfeit banner. **Depends on:** B0 + B4.
+
+- `[P1]` **Multiplayer leave + last-human-left handling.** Leaving an MP game is a gap today: `PlayPokerAction.LeaveTable` doesn't send a leave frame to the server (it only fires the bot-mode review prompt), the remaining player gets no notification when someone leaves (the table just hangs with an empty seat — `RoomClosed` fires only on a server room-delete), and there's no "you're the only human left" path. Build: the leaver sends a real leave and lands on Home; remaining players see the seat leave; when only one human remains the game is unplayable → show a dialog → route that player to Home. *(found in 2026-06-19 playtest)*
+  **Acceptance:** a leaver returns to Home and the others see them gone; the last remaining human gets a "game can't continue" dialog and is taken to Home, never left on a dead table.
+  **Hints:** `PlayPokerViewModel` (`LeaveTable`) + the room leave endpoint; member-presence / leave handling on the play screen; `RemotePokerSession` / `RoomClosed` (`ClosedReason`) + `PlayMultiplayerFeatureEntryPoint`. The voluntary-leave cousin of the forfeit/grace policy above. **Depends on:** B0.
 
 ### B4 — Spectator role
 
