@@ -75,9 +75,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P2]` **Level-up rewards — cosmetic reward kind.** Only `LevelReward.Chips` / `XpBoost` are modeled; add a **cosmetic** reward (felt / card back / title) granted via the achievement-reward grant path so `LevelRewardTable` can gift one. The celebration already reveals chips + boost rows — extend `LevelUpReward` (`:libraries:ui`) + `HomeScreen.toDisplay` to render the cosmetic too. *(proposed 2026-06-06)*
-  **Hints:** cosmetic grant precedent is the achievement-reward path; reward maps in `LevelReward.kt` + `LevelUpRewardGranter`. **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
-
 - `[P2]` **Move the level ladder to app-config + reconcile level-up grants server-side.** Two parts remain: **(a)** the XP-per-level curve in `Level.kt` (`N²×100`) is a compile-time constant — lift the variable-length ladder onto `progression.*` (one `JsonConfigValue` behind `ProgressionConfig`) and thread it through every level-derivation site so display and grant never diverge; **(b)** the server doesn't confirm/void the client's offline `levelup_<level>` grants against `total_xp` vs the same config's thresholds in the progression-sync response.
   **Hints:** the reward *table* already resolves off app-config; this is the curve + the server reconcile. See [`decisions.md`](./decisions.md) 2026-06-17.
   **Pairs with:** the cosmetic reward kind (above).

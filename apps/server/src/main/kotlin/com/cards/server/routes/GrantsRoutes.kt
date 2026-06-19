@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.ClientGrantableAchievements
 import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.LevelGrantableProducts
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.http.clientContext
 import com.dangerfield.cards.server.plugins.ACHIEVEMENT_GRANT_LIMIT
@@ -47,16 +48,61 @@ import kotlin.time.ExperimentalTime
  * each (user, achievement) once for life — the bucket exists to cap a
  * scripted client from flooding the grants table or our inventory write
  * path, not to throttle legitimate play.
+ *
+ * `POST /v1/me/grants/level-cosmetic/{productId}`
+ *  — the level-up counterpart: record an earned-grant for a cosmetic the
+ *  client's level-reward table says it crossed. Gated by
+ *  [LevelGrantableProducts] (a product not on the allowlist returns `403`,
+ *  not `204`, so a client can't self-grant arbitrary catalog cosmetics).
+ *  Shares the achievement route's `200`/`204` semantics and idempotency.
  */
 @OptIn(ExperimentalTime::class)
 fun Route.grantsRoutes(
     inventory: InventoryRepository,
     catalog: ProductCatalogSource,
     policy: ClientGrantableAchievements = ClientGrantableAchievements.Default,
+    levelGrantable: LevelGrantableProducts = LevelGrantableProducts.Default,
     clock: Clock = Clock.System,
 ) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(ACHIEVEMENT_GRANT_LIMIT)) {
+            post("/v1/me/grants/level-cosmetic/{productId}") {
+                val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                val productId = call.parameters["productId"]
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        grantsProblem(
+                            "invalid_product_id",
+                            "Product id must be non-empty.",
+                        ),
+                    )
+                if (!levelGrantable.isGrantable(productId)) {
+                    return@post call.respond(
+                        HttpStatusCode.Forbidden,
+                        grantsProblem(
+                            "not_level_grantable",
+                            "Product '$productId' is not grantable via level-up.",
+                        ),
+                    )
+                }
+                val product = catalog.readById(productId, call.clientContext())
+                    ?: return@post call.respond(HttpStatusCode.NoContent)
+                val granted = inventory.recordEarnedGrant(
+                    userId = userId,
+                    productId = product.id,
+                    grantedAt = clock.now(),
+                )
+                call.respond(
+                    HttpStatusCode.OK,
+                    OwnedItemDto(
+                        productId = granted.productId,
+                        costChipsAtPurchase = granted.costChipsAtPurchase,
+                        purchasedAtEpochMs = granted.purchasedAt.toEpochMilliseconds(),
+                        acquisitionSource = granted.acquisitionSource.wire,
+                    ),
+                )
+            }
             post("/v1/me/grants/achievement/{achievementId}") {
                 val userId = call.userId() ?: return@post call.respond(HttpStatusCode.Unauthorized)
                 val achievementId = call.parameters["achievementId"]

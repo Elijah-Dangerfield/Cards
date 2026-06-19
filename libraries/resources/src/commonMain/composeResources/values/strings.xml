@@ -955,6 +955,7 @@
     <string name="ui_level_up_rewards_header">You earned</string>
     <string name="ui_level_up_reward_chips">+%1$s chips</string>
     <string name="ui_level_up_reward_xp_boost">XP Boost</string>
+    <string name="ui_level_up_reward_cosmetic">New item</string>
 
     <!-- UI library — Active XP boost indicator. %1$s is a mm:ss countdown. -->
     <string name="ui_xp_boost_active">XP Boost · %1$s</string>

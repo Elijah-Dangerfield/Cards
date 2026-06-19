@@ -2,6 +2,8 @@ package com.dangerfield.cards.libraries.cards.impl
 
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.LevelCosmeticGrantApi
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -40,6 +42,8 @@ class LevelUpRewardGranter(
     private val progressionRepository: ProgressionRepository,
     private val chipsRepository: ChipsRepository,
     private val xpBoostRepository: XpBoostRepository,
+    private val cosmeticGrantApi: LevelCosmeticGrantApi,
+    private val inventoryRepository: InventoryRepository,
     private val progressionConfig: ProgressionConfig,
     private val appCache: AppCache,
     private val appScope: AppCoroutineScope,
@@ -89,6 +93,14 @@ class LevelUpRewardGranter(
                     // lights them from their profile when they're ready, same as
                     // a shop-bought one. Nothing auto-activates.
                     is LevelReward.XpBoost -> xpBoostRepository.grant()
+                    // Cosmetics are server-owned inventory: POST the grant (the
+                    // server's level-grant allowlist gates it) and, on success,
+                    // re-sync so the earned row lands locally — same shape as the
+                    // achievement-reward path.
+                    is LevelReward.Cosmetic ->
+                        if (cosmeticGrantApi.grantLevelCosmetic(reward.productId)) {
+                            inventoryRepository.sync()
+                        }
                 }
             }
         }

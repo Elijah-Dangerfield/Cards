@@ -21,6 +21,7 @@ import cards.libraries.resources.generated.resources.home_coming_soon_quick_matc
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_body
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_title
 import cards.libraries.resources.generated.resources.ui_level_up_reward_chips
+import cards.libraries.resources.generated.resources.ui_level_up_reward_cosmetic
 import cards.libraries.resources.generated.resources.ui_level_up_reward_xp_boost
 import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.features.home.HomeRoute
@@ -103,6 +104,9 @@ class HomeFeatureEntryPoint(
                                     .filterIsInstance<LevelReward.Chips>()
                                     .firstOrNull()?.amount ?: 0L,
                                 xpBoostRewarded = state.levelUpRewards.any { it is LevelReward.XpBoost },
+                                cosmeticProductId = state.levelUpRewards
+                                    .filterIsInstance<LevelReward.Cosmetic>()
+                                    .firstOrNull()?.productId,
                             )
                         }
                     }
@@ -260,9 +264,11 @@ class HomeFeatureEntryPoint(
                 formatThousands(route.chipsRewarded),
             )
             val boostLabel = stringResource(Res.string.ui_level_up_reward_xp_boost)
+            val cosmeticLabel = stringResource(Res.string.ui_level_up_reward_cosmetic)
             val rewards = buildList {
                 if (route.chipsRewarded > 0L) add(LevelUpReward(emoji = "🪙", label = chipsLabel))
                 if (route.xpBoostRewarded) add(LevelUpReward(emoji = "⚡", label = boostLabel))
+                if (route.cosmeticProductId != null) add(LevelUpReward(emoji = "🎁", label = cosmeticLabel))
             }
             LevelUpCelebration(
                 level = route.level,

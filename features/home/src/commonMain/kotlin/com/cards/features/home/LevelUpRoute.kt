@@ -11,16 +11,18 @@ import kotlinx.serialization.Serializable
  * entry point navigates here off the derived level-up gate (`HomeState
  * .levelUpCelebration`) when the user's level crosses the celebrated watermark.
  *
- * Rewards are passed as the aggregated at-most-two prizes the celebration
- * reveals — a single summed chip prize ([chipsRewarded]; 0 = none) and a single
- * XP-boost row ([xpBoostRewarded]). The screen reconstructs the display rows; the
- * grant itself already happened in `LevelUpRewardGranter` (this is the reveal).
+ * Rewards are passed as the aggregated prizes the celebration reveals — a single
+ * summed chip prize ([chipsRewarded]; 0 = none), a single XP-boost row
+ * ([xpBoostRewarded]), and a single cosmetic row ([cosmeticProductId]; null =
+ * none). The screen reconstructs the display rows; the grant itself already
+ * happened in `LevelUpRewardGranter` (this is the reveal).
  */
 @Serializable
 data class LevelUpRoute(
     val level: Int,
     val chipsRewarded: Long,
     val xpBoostRewarded: Boolean,
+    val cosmeticProductId: String? = null,
 ) : Route(
     enter = AnimationType.FadeIn,
     exit = AnimationType.FadeOut,

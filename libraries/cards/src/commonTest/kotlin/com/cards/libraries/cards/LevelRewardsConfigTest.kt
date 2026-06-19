@@ -46,8 +46,21 @@ class LevelRewardsConfigTest {
             LevelRewardConfigEntry(level = 2, xpBoostMs = 1_000).toRewards(),
         )
         assertEquals(
-            listOf(LevelReward.Chips(500), LevelReward.XpBoost(1_000)),
-            LevelRewardConfigEntry(level = 2, chips = 500, xpBoostMs = 1_000).toRewards(),
+            listOf(LevelReward.Cosmetic("cardback_high_roller")),
+            LevelRewardConfigEntry(level = 2, cosmeticProductId = "cardback_high_roller").toRewards(),
+        )
+        assertEquals(
+            listOf(
+                LevelReward.Chips(500),
+                LevelReward.XpBoost(1_000),
+                LevelReward.Cosmetic("felt_emerald"),
+            ),
+            LevelRewardConfigEntry(
+                level = 2,
+                chips = 500,
+                xpBoostMs = 1_000,
+                cosmeticProductId = "felt_emerald",
+            ).toRewards(),
         )
         assertTrue(LevelRewardConfigEntry(level = 2).toRewards().isEmpty())
     }

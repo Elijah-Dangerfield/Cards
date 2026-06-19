@@ -312,9 +312,11 @@ class HomeViewModel(
         val crossed = ((fromExclusive + 1)..toInclusive).flatMap { progressionConfig.rewardsForLevel(it) }
         val totalChips = crossed.filterIsInstance<LevelReward.Chips>().sumOf { it.amount }
         val hasBoost = crossed.any { it is LevelReward.XpBoost }
+        val cosmetic = crossed.filterIsInstance<LevelReward.Cosmetic>().firstOrNull()
         return buildList {
             if (totalChips > 0) add(LevelReward.Chips(totalChips))
             if (hasBoost) add(LevelReward.XpBoost())
+            if (cosmetic != null) add(cosmetic)
         }
     }
 }
