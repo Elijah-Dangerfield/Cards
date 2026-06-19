@@ -2,6 +2,7 @@ package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.XpMode
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.game.SeatOccupant
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
@@ -87,7 +88,10 @@ class RemotePokerSessionFactory @Inject constructor(
                     displayName = seat.displayName,
                     userId = seat.playerId!!,
                     personality = null,
-                    level = 0,
+                    // The server snapshots each player's lifetime XP onto the
+                    // Seat at hand-start; derive their level the same way the
+                    // local human's is derived. 0 when XP hasn't resolved yet.
+                    level = seat.xp?.let { levelProgressFor(it).level } ?: 0,
                     leagueTier = null,
                 )
             }

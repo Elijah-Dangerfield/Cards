@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 
@@ -159,7 +160,10 @@ sealed interface TableUiState {
             seat.playerId == null -> null
             isHuman -> humanLevel?.let { SeatBadge.Level(it) }
             seat.isBot -> botDifficultyLabel?.let { SeatBadge.BotWithDifficulty(it) } ?: SeatBadge.BotPlain
-            else -> null // remote human in MP — level plumbing arrives later
+            // Remote human in MP: the server snapshots their lifetime XP onto
+            // the Seat at hand-start; derive the level the same way the local
+            // human's is. Null xp (not yet resolved) collapses to no pill.
+            else -> seat.xp?.let { SeatBadge.Level(levelProgressFor(it).level) }
         }
 
         private fun blindSeats(state: GameState): Pair<Int?, Int?> {

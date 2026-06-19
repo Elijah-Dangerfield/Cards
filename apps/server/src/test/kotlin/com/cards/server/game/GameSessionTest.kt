@@ -287,6 +287,38 @@ class GameSessionTest {
     }
 
     @Test
+    fun startHand_ridesOccupantXpOntoSeats() = runTest {
+        val session = newSession()
+
+        session.startHand(
+            listOf(alice.copy(xp = 2_500), bob.copy(xp = null)),
+            settings,
+        )
+
+        val state = session.state.value!!
+        assertEquals(2_500L, state.seats.first { it.playerId == "alice" }.xp)
+        assertNull(state.seats.first { it.playerId == "bob" }.xp)
+    }
+
+    @Test
+    fun requestNextHand_preservesSeatXpAcrossHands() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice.copy(xp = 2_500), bob.copy(xp = 90)), settings)
+
+        // Drive to completion by folding the actor, then open the next hand.
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+        session.applyIntent(actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "n1")
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n2")
+
+        val newState = session.state.value!!
+        assertEquals(2_500L, newState.seats.first { it.playerId == "alice" }.xp)
+        assertEquals(90L, newState.seats.first { it.playerId == "bob" }.xp)
+    }
+
+    @Test
     fun stateFlow_isNull_beforeFirstHand() = runTest {
         val session = newSession()
         assertNull(session.state.value)

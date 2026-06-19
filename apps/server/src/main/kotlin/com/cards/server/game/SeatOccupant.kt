@@ -31,4 +31,11 @@ data class SeatOccupant(
      */
     val avatarEmoji: String? = null,
     val avatarBackgroundColor: String? = null,
+    /**
+     * Lifetime XP, resolved once at hand-start from the player's server
+     * progression. Copied onto the engine
+     * [com.dangerfield.cards.libraries.gameplay.Seat] so opponents' clients
+     * derive and render the player's level. Null for bots.
+     */
+    val xp: Long? = null,
 )

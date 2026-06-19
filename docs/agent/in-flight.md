@@ -1,0 +1,9 @@
+# In-flight (worker handoff)
+
+## feat(mp): show opponent level at the table
+
+**Problem:** MP opponents always render at level 0 — `RemotePokerSessionFactory.occupantsFor` hardcoded `level = 0` and `TableUiState.badgeFor` returned `null` for remote humans, because no XP/level ever reached the client over the wire.
+
+**Approach:** Mirrored the existing avatar/badge path exactly. Added `xp: Long?` to the shared engine `Seat` (and server `SeatOccupant`); `RoomSocketRoutes.handleStartHand` resolves each member's `ProgressionRepository.find(userId)?.totalXp` at hand-start (same site that resolves badges), rides it onto the `Seat`, and `GameSession.requestNextHand` preserves it across hands. Client derives the level locally via `levelProgressFor(seat.xp).level` in `badgeFor` + `occupantsFor`. **Direction call:** level **freezes per session** (like badges) rather than re-resolving on `RequestNextHand` — the alternative would thread `ProgressionRepository` into the registry's next-hand path purely for a cosmetic pill tick; not worth the coupling for V1 (rationale + alternatives in `decisions.md` 2026-06-19). Sent **raw XP** over the wire, not a derived level Int, so the client keeps the single source of truth on the curve.
+
+**Reviewer notes:** Needs a server deploy to populate XP — pre-deploy, `find` returns null and the pill omits gracefully (no regression). The `progressionRepository` param was threaded through `roomSocketRoutes` → `handleClientFrame` → `handleStartHand` and wired in `Application.kt`; the in-process integration harness + server test support got no-op/fixed-XP `ProgressionRepository` fakes. The shared `seatToOccupant` helper (solo path) also now derives level from `seat.xp` for consistency, though solo only seats the local human (whose level comes via the `humanLevel` path), so it's a latent-correctness change, not a behavior change today.

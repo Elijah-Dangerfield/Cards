@@ -334,6 +334,7 @@ fun testSeat(
     isBot: Boolean = false,
     playerId: String? = "p-$index",
     stack: Long = 1_000,
+    xp: Long? = null,
 ): Seat = Seat(
     index = index,
     playerId = playerId,
@@ -342,6 +343,7 @@ fun testSeat(
     seatStatus = SeatStatus.Active,
     handParticipation = HandParticipation.InHand,
     isBot = isBot,
+    xp = xp,
 )
 
 fun bizzaroPersonality(label: String = "Tight Aggressive"): Personality = Personality(

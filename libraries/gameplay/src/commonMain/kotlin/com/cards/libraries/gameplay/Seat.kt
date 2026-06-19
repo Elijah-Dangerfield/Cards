@@ -46,6 +46,14 @@ data class Seat(
      */
     val avatarEmoji: String? = null,
     val avatarBackgroundColor: String? = null,
+    /**
+     * The player's lifetime XP, snapshotted from their server progression at
+     * hand-start. Public (no scrub needed) so every opponent's client can
+     * derive and render the player's level (`levelProgressFor(xp).level`)
+     * instead of falling back to no badge. Null for bots and pre-resolve
+     * seats; the client treats null as "level unknown" and omits the pill.
+     */
+    val xp: Long? = null,
 ) {
     val isInHand: Boolean
         get() = handParticipation == HandParticipation.InHand ||

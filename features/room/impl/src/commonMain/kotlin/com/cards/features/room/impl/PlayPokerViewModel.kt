@@ -1001,7 +1001,8 @@ internal fun seatToOccupant(
         displayName = seat.displayName,
         userId = seat.playerId ?: "",
         personality = personality,
-        level = 0,             // sourced from progression repo in a later chunk
+        // Derived from the server-snapshotted Seat.xp; 0 until it resolves.
+        level = seat.xp?.let { levelProgressFor(it).level } ?: 0,
         leagueTier = null,     // sourced from league repo (V1.1)
     )
 }

@@ -42,7 +42,12 @@ class InProcessServer : AutoCloseable {
         installAuthentication(IntegrationAuth.verification)
         routing {
             roomRoutes(rooms, FakeProfiles)
-            roomSocketRoutes(rooms = rooms, gameSessions = registry, equipmentRepository = FakeEquipment)
+            roomSocketRoutes(
+                rooms = rooms,
+                gameSessions = registry,
+                equipmentRepository = FakeEquipment,
+                progressionRepository = FakeProgression,
+            )
         }
     }.start(wait = false)
 
@@ -96,4 +101,24 @@ private object FakeEquipment : com.dangerfield.cards.server.domain.EquipmentRepo
         productId: String,
         opUpdatedAt: Instant,
     ): com.dangerfield.cards.server.domain.EquippedItem? = null
+}
+
+/** No-op progression source — the integration harness doesn't seat opponent levels. */
+private object FakeProgression : com.dangerfield.cards.server.domain.ProgressionRepository {
+    override suspend fun findOrCreateResult(userId: UserId) = error("unused in the integration harness")
+    override suspend fun find(userId: UserId): com.dangerfield.cards.server.domain.UserProgression? = null
+    override suspend fun applyXp(
+        userId: UserId,
+        idempotencyKey: String,
+        deltaXp: Long,
+        source: String,
+        mode: String,
+        handId: String?,
+        wasBoosted: Boolean,
+    ) = error("unused in the integration harness")
+    override suspend fun recentEvents(
+        userId: UserId,
+        limit: Int,
+    ): List<com.dangerfield.cards.server.domain.XpEvent> = emptyList()
+    override suspend fun deleteAllForUser(userId: UserId) = Unit
 }
