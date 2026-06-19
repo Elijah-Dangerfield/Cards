@@ -70,6 +70,9 @@ class RemotePokerSessionFactory @Inject constructor(
         (session as RemotePokerSession).run()
     }
 
+    override fun humanSeatIndex(state: GameState): Int =
+        state.seats.firstOrNull { it.playerId == localUserId }?.index ?: -1
+
     override fun occupantsFor(state: GameState): List<SeatOccupant> {
         if (state.seats.isEmpty()) return emptyList()
         return state.seats.map { seat ->

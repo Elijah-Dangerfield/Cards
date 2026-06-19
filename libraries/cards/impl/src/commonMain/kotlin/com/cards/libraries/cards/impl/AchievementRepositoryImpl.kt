@@ -109,7 +109,8 @@ class AchievementRepositoryImpl(
                     if (summary.wonPot) achievementDao.incrementCounter(ach.id.name, 1)
                 is Criterion.ShowAtLeast -> {
                     val shown = summary.handCategory
-                    if (summary.reachedShowdown &&
+                    if (!summary.wasFold &&
+                        summary.reachedShowdown &&
                         shown != null &&
                         shown.ordinal >= c.category.ordinal
                     ) {

@@ -92,6 +92,11 @@ class PlayPokerViewModel @Inject constructor(
 ) {
 
     private val logger = KLog.withTag("PlayPokerViewModel")
+
+    // Construction-time hint for the session factory only. Solo seats the
+    // human here; MP ignores it and allocates a seat server-side. Anything
+    // that attributes a finished hand resolves the real seat via
+    // [PokerSessionFactory.humanSeatIndex] against the live state instead.
     private val humanSeatIndex: Int = 0
 
     // Cached bot-speed mirror — the session reads this via a non-suspending
@@ -275,11 +280,12 @@ class PlayPokerViewModel @Inject constructor(
                 if (!vmState.winOddsToolEquipped) {
                     EquityInput.NotApplicable
                 } else {
-                    val human = gs.seats.firstOrNull { it.index == humanSeatIndex }
+                    val seatIndex = sessionFactory.humanSeatIndex(gs)
+                    val human = gs.seats.firstOrNull { it.index == seatIndex }
                         ?: return@combine EquityInput.NotApplicable
                     if (human.holeCards.size != 2) return@combine EquityInput.NotApplicable
                     val opponentsInHand = gs.seats.count { seat ->
-                        seat.index != humanSeatIndex &&
+                        seat.index != seatIndex &&
                             (seat.handParticipation == HandParticipation.InHand ||
                                 seat.handParticipation == HandParticipation.AllIn)
                     }
@@ -345,6 +351,11 @@ class PlayPokerViewModel @Inject constructor(
         state: GameState,
         humanStartingStack: Long,
     ) {
+        // Resolve the local human's seat from the finished-hand state rather
+        // than the construction-time hint: in MP the human can sit at any
+        // seat, and attributing the hand to seat 0 would credit a different
+        // player's fold/showdown outcome.
+        val humanSeatIndex = sessionFactory.humanSeatIndex(state)
         val summary = HandResultSummaryBuilder.build(
             event = event,
             state = state,
@@ -1007,6 +1018,18 @@ interface PokerSessionFactory {
 
     /** Derive [SeatOccupant] list from current engine state. */
     fun occupantsFor(state: GameState): List<SeatOccupant>
+
+    /**
+     * The local human's seat index within [state]. Solo sessions seat the
+     * human at a fixed index; MP seats them at whatever index the server
+     * allocated, so this matches the local user id against each seat. Per-
+     * hand attribution (XP, achievements, win-odds) keys off this — using a
+     * hard-coded seat would credit the wrong player whenever the local human
+     * isn't at seat 0. Returns `-1` when the local human isn't seated in
+     * [state] (pre-first-snapshot, or a spectator) so attribution degrades to
+     * "no credit" rather than crediting another seat's outcome.
+     */
+    fun humanSeatIndex(state: GameState): Int
 
     /**
      * Project the raw engine state into a [TableUiState] for rendering.

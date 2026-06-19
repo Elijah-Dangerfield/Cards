@@ -285,6 +285,9 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             (session as LocalBotsSession).runUntilHumansTurnOrComplete()
         }
 
+        override fun humanSeatIndex(state: GameState): Int =
+            state.seats.firstOrNull { !it.isBot }?.index ?: 0
+
         override fun occupantsFor(state: GameState): List<SeatOccupant> =
             state.seats.map { seat -> seatToOccupant(seat, personality = null) }
 

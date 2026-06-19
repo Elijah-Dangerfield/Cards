@@ -22,10 +22,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P1]` **Showdown "show a hand" achievements fire even when the player folded.** Folding still credits e.g. `SHOW_STRAIGHT` ("show a straight at showdown") — a false grant. The `Criterion.ShowAtLeast` branch in `AchievementRepositoryImpl.recordHand` gates on `summary.reachedShowdown`, and `HandResultSummaryBuilder` is meant to set `reachedShowdown = !wasFold && humanRevealedCards != null` (so a fold → null `handCategory`, no credit) — but it's firing anyway. Trace why `reachedShowdown`/`handCategory` is truthy for a folded player (suspect the MP summary path mis-deriving `wasFold` / `humanRevealedCards` from the showdown event) and add an explicit `!summary.wasFold` guard as belt-and-suspenders. *(found in 2026-06-19 playtest)*
-  **Acceptance:** folding a hand whose board would have made a straight (or any made hand) grants no `SHOW_*` achievement; reaching showdown with it still does.
-  **Hints:** `AchievementRepositoryImpl.recordHand` (`Criterion.ShowAtLeast`) + `HandResultSummaryBuilder` (`reachedShowdown` / `handCategory`).
-
 - `[P2]` **MP achievement grants — per-hand-shape signals.** The count-based grant path (`HANDS_100_MP`) ships; the remaining server-witnessed MP ids (`FIRST_BUST_DEALT_MP`, `BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`, `DOUBLE_UP_MP`, `TRIPLE_UP_MP`, `POT_5000_MP`) gate on per-hand outcome signals (busts dealt, win-by-fold, stack multiple, pot size) the server doesn't capture per hand yet.
   **Acceptance:** each remaining `serverWitnessed` id is evaluated + granted from a server-witnessed per-hand signal.
   **Hints:** extend the hand-finished callback to carry per-hand outcomes; bot achievements stay client self-grant.

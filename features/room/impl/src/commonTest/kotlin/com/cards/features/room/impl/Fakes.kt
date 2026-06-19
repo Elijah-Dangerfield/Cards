@@ -141,6 +141,9 @@ class FakePokerSessionFactory(
         // Test stays paused here — production loop runs the bot loop; fake just records.
     }
 
+    override fun humanSeatIndex(state: GameState): Int =
+        state.seats.firstOrNull { !it.isBot }?.index ?: 0
+
     override fun occupantsFor(state: GameState): List<SeatOccupant> = state.seats.map { seat ->
         seatToOccupant(seat, personalities[seat.index])
     }

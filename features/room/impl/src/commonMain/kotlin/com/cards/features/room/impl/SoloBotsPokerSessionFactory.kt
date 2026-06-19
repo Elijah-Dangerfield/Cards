@@ -80,6 +80,8 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         (session as LocalBotsSession).runUntilHumansTurnOrComplete()
     }
 
+    override fun humanSeatIndex(state: GameState): Int = humanSeatIndex
+
     override fun occupantsFor(state: GameState): List<SeatOccupant> = state.seats.map { seat ->
         val personality = personalitiesBySeat[seat.index]?.let { p ->
             // Map :libraries:bots BotPersonality → :libraries:game Personality
