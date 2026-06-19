@@ -72,6 +72,7 @@ class ClientGrantableAchievements(
             serverWitnessed = setOf(
                 "FIRST_BUST_DEALT_MP",
                 "BUST_DEALT_5_MP",
+                "FIRST_HAND_MP",
                 "HANDS_100_MP",
                 "WIN_BY_FOLD_10_MP",
                 "DOUBLE_UP_MP",

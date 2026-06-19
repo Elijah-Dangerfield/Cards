@@ -26,10 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** each remaining `serverWitnessed` id is evaluated + granted from a server-witnessed per-hand signal.
   **Hints:** extend the hand-finished callback to carry per-hand outcomes; bot achievements stay client self-grant.
 
-- `[P2]` **"First multiplayer game" achievement.** Earn an achievement the first time a player finishes a multiplayer hand — a welcoming first-milestone before the `HANDS_100_MP` grind. Count-based server-witnessed id, so it rides the path that already ships: add a new id (e.g. `FIRST_HAND_MP`) at threshold `1` in `DefaultServerWitnessedAchievements.COUNT_THRESHOLDS` and define the achievement on the client (title/copy/rarity). **Record-only — no reward prize** (no cosmetic, no chips); the badge itself is the reward. No new server signal needed — the finished-hand count already drives it.
-  **Acceptance:** finishing one multiplayer hand earns + surfaces the achievement; re-evaluation stays idempotent.
-  **Hints:** mirror the `HANDS_100_MP` wiring, minus the reward grant.
-
 - `[P2]` **`HANDS_100_MP` reward → chips, not a borrowed cosmetic.** The shipped 100-finished-MP-hands grant currently hands out the single-player `emotes_grinder` emote pack as a stand-in. Switch it to a chip grant: in `DefaultServerWitnessedAchievements`, drop `HANDS_100_MP` from `REWARD_PRODUCTS`, inject `WalletRepository`, and on the crossing call `wallet.apply(userId, idempotencyKey = "achievement:HANDS_100_MP", delta = ACHIEVEMENT_HANDS_100_GRANT, reason = "achievement_grant:HANDS_100_MP")` (idempotent — safe to re-run each finished hand).
   **Acceptance:** crossing 100 finished MP hands credits the chip grant exactly once; no cosmetic is granted.
   **Hints:** chip-grant precedent is the wallet ledger (`WalletRepository.apply`); add `ACHIEVEMENT_HANDS_100_GRANT = 2_500` beside `STARTER_GRANT` / `BUST_PROTECTION_GRANT` in `WalletRepository`.

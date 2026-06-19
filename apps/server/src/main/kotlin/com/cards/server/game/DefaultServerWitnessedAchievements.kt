@@ -77,6 +77,7 @@ class DefaultServerWitnessedAchievements(
          * absent — they need richer signals than a raw count.
          */
         val COUNT_THRESHOLDS: Map<String, Long> = mapOf(
+            "FIRST_HAND_MP" to 1L,
             "HANDS_100_MP" to 100L,
         )
 

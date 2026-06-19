@@ -430,6 +430,16 @@ val AllAchievements: List<Achievement> = listOf(
     // the bot originals because they can only fire when the server has
     // witnessed a real multiplayer hand.
     Achievement(
+        id = AchievementId.FIRST_HAND_MP,
+        name = "Took a seat",
+        description = "Finish your first hand against real players.",
+        icon = "🤝",
+        rarity = AchievementRarity.COMMON,
+        criterion = Criterion.Custom(key = HANDS_PLAYED_MP, target = 1),
+        xpReward = AchievementRarity.COMMON.defaultXpReward,
+        mode = AchievementMode.MULTIPLAYER,
+    ),
+    Achievement(
         id = AchievementId.HANDS_100_MP,
         name = "Regular at the table",
         description = "Finish 100 hands against real players.",

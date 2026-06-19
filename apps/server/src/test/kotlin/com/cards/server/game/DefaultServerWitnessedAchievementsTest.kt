@@ -37,16 +37,35 @@ class DefaultServerWitnessedAchievementsTest {
 
         evaluator.evaluate(userId)
 
-        assertEquals(listOf("HANDS_100_MP"), achievements.earned)
+        // At 100 finished hands both the first-hand milestone and the
+        // 100-hand grind cross; only HANDS_100_MP maps to a cosmetic.
+        assertEquals(listOf("FIRST_HAND_MP", "HANDS_100_MP"), achievements.earned)
         assertEquals(listOf("emotes_grinder"), inventory.earnedGrants.map { it.productId })
     }
 
     @Test
-    fun belowThreshold_grantsNothing() = runTest {
+    fun firstFinishedHand_recordsFirstHandMp_butGrantsNoCosmetic() = runTest {
         val achievements = CapturingAchievements()
         val inventory = CapturingInventory()
         val evaluator = build(
-            handsCount = 99,
+            handsCount = 1,
+            achievements = achievements,
+            inventory = inventory,
+            catalog = FakeCatalog.with(stubProduct("emotes_grinder")),
+        )
+
+        evaluator.evaluate(userId)
+
+        assertEquals(listOf("FIRST_HAND_MP"), achievements.earned)
+        assertTrue(inventory.earnedGrants.isEmpty())
+    }
+
+    @Test
+    fun noFinishedHands_grantsNothing() = runTest {
+        val achievements = CapturingAchievements()
+        val inventory = CapturingInventory()
+        val evaluator = build(
+            handsCount = 0,
             achievements = achievements,
             inventory = inventory,
             catalog = FakeCatalog.with(stubProduct("emotes_grinder")),
@@ -60,7 +79,7 @@ class DefaultServerWitnessedAchievementsTest {
 
     @Test
     fun alreadyEarned_isNotReGranted() = runTest {
-        val achievements = CapturingAchievements(seeded = setOf("HANDS_100_MP"))
+        val achievements = CapturingAchievements(seeded = setOf("FIRST_HAND_MP", "HANDS_100_MP"))
         val inventory = CapturingInventory()
         val evaluator = build(
             handsCount = 250,
@@ -88,7 +107,7 @@ class DefaultServerWitnessedAchievementsTest {
 
         evaluator.evaluate(userId)
 
-        assertEquals(listOf("HANDS_100_MP"), achievements.earned)
+        assertEquals(listOf("FIRST_HAND_MP", "HANDS_100_MP"), achievements.earned)
         assertTrue(inventory.earnedGrants.isEmpty())
     }
 
