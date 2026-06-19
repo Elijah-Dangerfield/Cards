@@ -250,6 +250,7 @@ private fun LevelUpCelebrationPreview_WithRewards() {
                 rewards = listOf(
                     LevelUpReward(emoji = "🪙", label = "+7,500 chips"),
                     LevelUpReward(emoji = "⚡", label = "XP Boost"),
+                    LevelUpReward(emoji = "🎁", label = "New item"),
                 ),
             )
         }
