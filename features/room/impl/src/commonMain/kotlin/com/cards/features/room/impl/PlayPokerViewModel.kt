@@ -42,7 +42,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
-import com.dangerfield.cards.libraries.ui.components.poker.titleForProductId
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import com.dangerfield.cards.libraries.rooms.ClosedReason
@@ -229,14 +228,10 @@ class PlayPokerViewModel @Inject constructor(
                     .firstOrNull { it != com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default }
                     ?: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default
                 val winOddsTool = entries.any { it.productId == TOOL_WIN_ODDS_PRODUCT_ID }
-                // Newest-equipped-title wins so a freshly-equipped title
-                // takes over from a prior one without an explicit unequip.
-                val title = entries.firstNotNullOfOrNull { titleForProductId(it.productId) }
                 val badgeEmoji = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) }
                 takeAction(PlayPokerAction.EquippedFeltChanged(felt))
                 takeAction(PlayPokerAction.EquippedCardBackChanged(cardBack))
                 takeAction(PlayPokerAction.WinOddsToolEquippedChanged(winOddsTool))
-                takeAction(PlayPokerAction.EquippedTitleChanged(title))
                 takeAction(PlayPokerAction.EquippedBadgeChanged(badgeEmoji))
             }
         }
@@ -566,9 +561,6 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.WinOddsChanged -> action.updateState {
                 it.copy(humanWinOdds = action.breakdown)
             }
-            is PlayPokerAction.EquippedTitleChanged -> action.updateState {
-                it.copy(equippedTitle = action.title)
-            }
             is PlayPokerAction.EquippedBadgeChanged -> action.updateState {
                 it.copy(equippedBadgeEmoji = action.emoji)
             }
@@ -755,11 +747,6 @@ data class PlayPokerState(
      */
     val humanWinOdds: EquityBreakdown? = null,
     /**
-     * Equipped vanity title (e.g. "The Shark") rendered under the
-     * player's name. Null when nothing's equipped — UI hides the row.
-     */
-    val equippedTitle: String? = null,
-    /**
      * Emoji of the equipped permanent seat badge (founding-member,
      * league rewards, etc.) rendered in the slot mirrored opposite the
      * SB/BB chip on the human seat. Null = empty slot.
@@ -886,7 +873,6 @@ sealed interface PlayPokerAction {
     data class WinOddsChanged(val breakdown: EquityBreakdown?) : PlayPokerAction
 
     /** Fired by the equipment subscription; flips the equipped title shown under the name. */
-    data class EquippedTitleChanged(val title: String?) : PlayPokerAction
 
     /** Fired by the equipment subscription; flips the equipped permanent seat badge. */
     data class EquippedBadgeChanged(val emoji: String?) : PlayPokerAction
