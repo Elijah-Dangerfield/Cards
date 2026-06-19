@@ -14,6 +14,45 @@ suspend fun createAndJoin(host: TestClient, joiner: TestClient): String {
     return created.room.code
 }
 
+/**
+ * Three seated, connected clients and their gameplay sessions — the table a
+ * genuine multi-tier side pot needs (a short all-in plus two larger callers).
+ * `seatTwoAndConnect` can't produce one: equal starting stacks means a single
+ * shove is always covered evenly. Here we seat three so a prior-hand bleed can
+ * leave one seat short before the all-in.
+ */
+suspend fun Harness.seatThreeAndConnect(): Trio {
+    val host = client()
+    val joinerA = client()
+    val joinerB = client()
+    val created = host.repository.createRoom(maxSeats = 3)
+    check(created is CreateRoomOutcome.Success) { "createRoom failed: $created" }
+    val code = created.room.code
+    joinerA.repository.joinRoom(code)
+    joinerB.repository.joinRoom(code)
+    val games = listOf(host, joinerA, joinerB).map { it to gameplay(it.connect(code)) }
+    games.forEach { (_, game) -> game.awaitConnected() }
+    return Trio(code, games)
+}
+
+/**
+ * A three-player table. [observer] reads public state (bet sizes, stacks); each
+ * action routes to the seat that owns it via [gameForSeat], exactly as the
+ * two-player [Table] does.
+ */
+class Trio(
+    val code: String,
+    private val games: List<Pair<TestClient, GameplaySession>>,
+) {
+    /** The session used to read public snapshots and drive hand lifecycle. */
+    val observer: GameplaySession = games.first().second
+
+    fun gameForSeat(state: GameState, seatIndex: Int): GameplaySession {
+        val playerId = state.seatAt(seatIndex).playerId
+        return games.first { (client, _) -> client.userId == playerId }.second
+    }
+}
+
 /** The seat in this state owned by [client]. */
 fun GameState.seatFor(client: TestClient): Seat = seats.first { it.playerId == client.userId }
 

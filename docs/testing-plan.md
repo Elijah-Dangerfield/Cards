@@ -129,7 +129,7 @@ Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/ko
 > **Remaining fan-out (high-value, prioritised):**
 > - [ ] **Bet/raise lines played to showdown over the wire** — today only *passive* call/check is wired-tested; the bug that started this (`9UQXGW`) was a raise line. Drive a raise+re-raise to showdown via the wire and assert Complete + chip conservation.
 > - [ ] **River/turn fold over the wire** — only *preflop* fold is tested; fold after community cards are dealt.
-> - [ ] **All-in / side-pot settlement through the socket** — the engine has it (Round 3); the wire path doesn't. Two clients all-in, assert per-seat settlement matches the engine.
+> - [x] **All-in / side-pot settlement through the socket** — heads-up shove/call/run-out (`WireAllInTest`) plus a three-way *layered* all-in from unequal stacks (`WireSidePotTest`, via the new `seatThreeAndConnect` harness): the short seat's main-pot-only eligibility holds over the wire, chips conserve. Card-independent (the integration deck is `Random.Default`).
 > - [ ] **Multi-hand: button rotation + stack carry-over** across `RequestNextHand` (one hand exists; assert button moves and stacks carry).
 > - [x] **Reconnect-mid-hand resyncs the *winner*** — `ChaosPlayTest.clientDropsMidHand_reconnects_andSeesTheAwardedPot`: the dropped player is the lone non-folder, and after reconnect its own view shows the awarded pot (winner stack up, folder down, chips conserved) — the derived award survives the fault, not just the `Complete` flag.
 > - [ ] **Action-pill ordering** — a VM test that "Called 50" pills survive the same event/snapshot ordering as the winner fix (same `GameEventReceived` re-projection path).
