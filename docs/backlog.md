@@ -596,3 +596,11 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Watch:** a perpetually-ticking countdown is a 1s recomposition driver — keep it cheap (isolate the ticking node) and self-hiding on expiry (the existing `XpBoostBadge` already self-hides).
 
 **Status:** Backlog. Polish on top of the shipped boost mechanic; not a V1 gate.
+
+---
+
+## Level-up reveal — show the cosmetic's real name, not "New item"
+
+**Idea:** The level-up celebration can now gift a cosmetic (felt / card back / title / emote pack), revealed as a generic 🎁 "New item" row. The row doesn't name the actual item because the level-up route has no product catalog injected — resolving `productId → display name` would mean threading a products repo through the route. The generic label is honest (the real cosmetic shows up in inventory/shop), but naming it on the reveal would make the moment land harder.
+
+**Status:** Backlog. Enrichment on top of the shipped cosmetic-reward capability. Do it when threading a catalog read into the level-up entry point is worth the wiring (or once the celebration screen already reads the catalog for something else).
