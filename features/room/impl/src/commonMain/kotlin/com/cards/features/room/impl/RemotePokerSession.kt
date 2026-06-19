@@ -79,6 +79,13 @@ internal class RemotePokerSession(
     )
     override val events: SharedFlow<GameEvent> = _events.asSharedFlow()
 
+    /**
+     * `replay = 0` — an emote is a live reaction. A subscriber that
+     * mounts mid-hand must not see a burst of stale blasts replay.
+     */
+    private val _emoteBlasts = MutableSharedFlow<RemoteEmote>(extraBufferCapacity = 32)
+    override val emoteBlasts: SharedFlow<RemoteEmote> = _emoteBlasts.asSharedFlow()
+
     private val _connectionState = MutableStateFlow(ConnectionState.Disconnected)
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
@@ -148,6 +155,8 @@ internal class RemotePokerSession(
                     _events.tryEmit(frame.event)
                 }
                 is GameplayFrame.IntentAck -> resolvePendingAck(frame)
+                is GameplayFrame.EmojiBlast ->
+                    _emoteBlasts.tryEmit(RemoteEmote(seatIndex = frame.seatIndex, emoji = frame.emoji))
             }
         }
     }
@@ -204,6 +213,10 @@ internal class RemotePokerSession(
 
     override fun requestNextHand() {
         nextHandSignal.trySend(Unit)
+    }
+
+    override suspend fun sendEmote(emoji: String) {
+        handle.send(ClientFrame.SendEmoji(emoji = emoji, clientNonce = newNonce()))
     }
 
     private suspend fun resolvePendingAck(ack: GameplayFrame.IntentAck) {

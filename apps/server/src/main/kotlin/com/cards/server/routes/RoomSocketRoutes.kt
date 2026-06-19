@@ -215,6 +215,18 @@ fun Route.roomSocketRoutes(
                                         link = traced.originSpanContext.takeIf { it.isValid },
                                     )
                                 },
+                                // Ephemeral table emotes — fanned out to
+                                // every socket with no span link (they don't
+                                // originate from an intent / state mutation).
+                                session.emojiBlasts.map { blast ->
+                                    OutboundGameFrame(
+                                        RoomSocketEventDto.EmojiBlast(
+                                            seatIndex = blast.seatIndex,
+                                            emoji = blast.emoji,
+                                        ),
+                                        link = null,
+                                    )
+                                },
                             )
                         }
                         .collect { sendTraced(it.event, code, userIdString, link = it.link) }
@@ -328,6 +340,11 @@ private suspend fun handleClientFrame(
             code = code,
             actorUserId = userId.value.toString(),
             clientNonce = frame.clientNonce,
+        )
+        is RoomClientFrame.SendEmoji -> gameSessions.broadcastEmoji(
+            code = code,
+            actorUserId = userId.value.toString(),
+            emoji = frame.emoji,
         )
     }
     return RoomSocketEventDto.IntentAck(

@@ -145,10 +145,6 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 - `[P2]` **Spectator = WS subscriber without a seat.** Extend the auth check so a non-seated subscriber gets the scrubbed-for-everyone view (no hole cards) and the server rejects `SubmitIntent` from them. Friend rooms stay closed to non-members.
   **Hints:** auth check in `RoomSocketRoutes.kt`. **Out of scope:** public-room discovery, spectator chat.
 
-### B7 — Opponent info + social over the wire (found in 2026-06-18 playtest)
-
-- `[P2]` **Emotes aren't shared in multiplayer.** `PlayPokerAction.BlastEmoji` only sets local state (the KDoc literally says "V1 solo… when MP blasts land, the same key wires through") — an emote a player blasts is never sent over the socket, so opponents never see it. There is **no emote message on the wire at all**. **Build the realtime path:** new `ClientFrame.SendEmoji(emoji, nonce)` → server fans it out to every socket in the room (needs a **per-room ephemeral broadcast channel** — the gameplay flows are state-only, so this is new infra, e.g. a `MutableSharedFlow` per room the socket publishers also collect) → new outbound `GameplayFrame.EmojiBlast(seatIndex/userId, emoji)` → client renders the existing blast animation for the sender's seat (reuse the cooldown + per-player mute already modeled client-side). ~8-10 small files across client + server; needs a server deploy. *(proposed 2026-06-18)*
-
 ### B6 — Bulletproof MP + engine test coverage
 
 - `[P1]` **Close the subscribe-after-action test-ordering gap broadly.** Recurring root cause behind the recent MP bugs: tests subscribe before the action, the app subscribes after. Add a reusable harness scenario (e.g. `startHandBeforeJoinerMounts()`) and apply the **symmetry rule** — any hot `SharedFlow`/`StateFlow` a late subscriber depends on needs a "replay reaches late collector" test (the `connection` flow had one; the gameplay flow didn't). Pairs with Round 5 (chaos/ordering) below. *(proposed 2026-06-18)*

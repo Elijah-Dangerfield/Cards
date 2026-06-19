@@ -72,8 +72,17 @@ class FakePokerSession(
     private val _roomClosed = MutableSharedFlow<ClosedReason>(extraBufferCapacity = 1)
     override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
 
+    private val _emoteBlasts = MutableSharedFlow<RemoteEmote>(extraBufferCapacity = 32)
+    override val emoteBlasts: SharedFlow<RemoteEmote> = _emoteBlasts.asSharedFlow()
+
     val submittedIntents = mutableListOf<PlayerIntent>()
+    val sentEmotes = mutableListOf<String>()
     var requestNextHandCount: Int = 0
+
+    /** Drive an inbound opponent emote the way the real session would. */
+    fun emitEmote(seatIndex: Int, emoji: String) {
+        _emoteBlasts.tryEmit(RemoteEmote(seatIndex = seatIndex, emoji = emoji))
+    }
 
     fun emitRoomClosed(reason: ClosedReason) {
         _roomClosed.tryEmit(reason)
@@ -97,6 +106,10 @@ class FakePokerSession(
 
     override fun requestNextHand() {
         requestNextHandCount += 1
+    }
+
+    override suspend fun sendEmote(emoji: String) {
+        sentEmotes += emoji
     }
 }
 

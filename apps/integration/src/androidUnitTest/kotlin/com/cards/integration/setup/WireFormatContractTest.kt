@@ -67,6 +67,14 @@ class WireFormatContractTest {
     }
 
     @Test
+    fun sendEmoji_clientFrame_decodesAsServerFrame() {
+        val decoded = roundTripToServer(ClientFrame.SendEmoji(emoji = "🎉", clientNonce = "n-emoji"))
+        assertTrue(decoded is RoomClientFrame.SendEmoji, "got $decoded")
+        assertEquals("n-emoji", decoded.clientNonce)
+        assertEquals("🎉", decoded.emoji)
+    }
+
+    @Test
     fun serverFrame_decodesBackAsClientFrame() {
         // The reverse direction — a server-authored frame the client must read.
         val json = wire.encodeToString(RoomClientFrame.serializer(), RoomClientFrame.StartHand("rev"))

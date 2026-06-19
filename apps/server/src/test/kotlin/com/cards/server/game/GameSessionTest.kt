@@ -3,6 +3,8 @@ package com.dangerfield.cards.server.game
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
@@ -322,6 +324,42 @@ class GameSessionTest {
     fun stateFlow_isNull_beforeFirstHand() = runTest {
         val session = newSession()
         assertNull(session.state.value)
+    }
+
+    @Test
+    fun emitEmoji_beforeStart_isRejected() = runTest {
+        val session = newSession()
+
+        val result = session.emitEmoji(actorUserId = "alice", emoji = "🎉")
+
+        assertIs<IntentResult.Rejected>(result)
+    }
+
+    @Test
+    fun emitEmoji_fromNonSeatedUser_isRejected() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+
+        val result = session.emitEmoji(actorUserId = "stranger", emoji = "🎉")
+
+        assertIs<IntentResult.Rejected>(result)
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun emitEmoji_fromSeatedUser_fansOutAttributedToTheirSeat() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        val received = mutableListOf<SeatEmoji>()
+        val collector = launch { session.emojiBlasts.collect { received += it } }
+        runCurrent()
+
+        val result = session.emitEmoji(actorUserId = "bob", emoji = "🔥")
+        runCurrent()
+
+        assertIs<IntentResult.Accepted>(result)
+        assertEquals(SeatEmoji(seatIndex = 1, emoji = "🔥"), received.single())
+        collector.cancel()
     }
 }
 

@@ -78,6 +78,15 @@ interface GameSessionRegistry {
     ): IntentResult
 
     /**
+     * Fan a table emote out to every socket in the room. Resolves to the
+     * in-memory session via [peek] (no hydrate — emotes only matter while
+     * a hand is live and someone's watching the table) and delegates to
+     * [GameSession.emitEmoji]. Rejected when no session is registered for
+     * [code].
+     */
+    fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult
+
+    /**
      * Synchronous lookup of an in-memory session. Returns null when the
      * registry doesn't currently hold one for [code] — does **not**
      * consult the snapshot store. Mostly for tests and one-off code
@@ -155,6 +164,10 @@ class DefaultGameSessionRegistry(
     ): IntentResult = findOrHydrate(code)
         ?.requestNextHand(actorUserId, clientNonce)
         ?: IntentResult.Rejected("no game session for room $code")
+
+    override fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult =
+        peek(code)?.emitEmoji(actorUserId, emoji)
+            ?: IntentResult.Rejected("no game session for room $code")
 
     override fun peek(code: String): GameSession? = sessions.value[code]
 

@@ -200,6 +200,54 @@ class PlayPokerViewModelTest : CoroutineTest() {
         assertEquals(null, vm.state.emojiBlast)
     }
 
+    // ---------- Inbound MP emotes (PokerSession.emoteBlasts → state) ----------
+
+    @Test
+    fun blastEmoji_sendsEmoteOverTheWire() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory, clock = FixedClock(1_000_000L))
+
+        vm.takeAction(PlayPokerAction.BlastEmoji("🔥"))
+
+        assertEquals(listOf("🔥"), session.sentEmotes, "the local blast must also ride the socket to opponents")
+    }
+
+    @Test
+    fun remoteEmote_fromOpponentSeat_rendersBlastAttributedToThatSeat() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory, clock = FixedClock(2_000_000L))
+
+        // The stub table seats "You" (0, human) + "Steve" (1, opponent).
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 1, emoji = "🎉"))
+
+        assertEquals("🎉", vm.state.emojiBlast?.emoji)
+        assertEquals(2_000_000L, vm.state.emojiBlast?.emittedAtEpochMs)
+        assertEquals(1, vm.state.emojiBlastEmitterSeatIndex, "an opponent's blast is attributed to their seat")
+    }
+
+    @Test
+    fun remoteEmote_fromOwnSeat_isIgnored() = runUnitTest {
+        val vm = buildVm()
+
+        // Seat 0 is the local human — an echo of our own blast must not re-render.
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 0, emoji = "🎉"))
+
+        assertEquals(null, vm.state.emojiBlast)
+    }
+
+    @Test
+    fun remoteEmote_fromMutedSeat_isIgnored() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+
+        cache.emit(AppData(mutedEmojiPlayerKeys = setOf("Steve")))
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 1, emoji = "🔥"))
+
+        assertEquals(null, vm.state.emojiBlast, "a muted opponent's emote is dropped")
+    }
+
     @Test
     fun toggleMutePlayer_addsThenRemovesFromAppCache() = runUnitTest {
         val cache = FakeAppCache()

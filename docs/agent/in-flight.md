@@ -33,3 +33,13 @@
 **Approach:** Two `PlayPokerViewModelTest` cases driving the `FakePokerSession`: emit a snapshot, then an `ActionTaken` with **no following snapshot**, and assert the seat's `lastAction` pill renders; then a `StreetAdvanced` (again snapshot-less) clears it. Mirrors the existing `handEndedEvent_*Snapshot_rendersWinner` regression shape, one layer down on the per-seat projection.
 
 **Reviewer notes:** None.
+
+## feat(mp): share table emotes over the wire
+
+**Problem:** B7 — `PlayPokerAction.BlastEmoji` only set local state; an emote a player blasted never left the device, so opponents never saw it. There was no emote message on the wire at all.
+
+**Approach:** Built the realtime path end-to-end on a **dedicated per-room ephemeral channel** so the state-only gameplay flows stay clean (rationale + alternatives in `decisions.md` 2026-06-19). New `ClientFrame.SendEmoji(emoji, nonce)` → `GameSessionRegistry.broadcastEmoji` resolves the caller's seat from live state and `tryEmit`s a `SeatEmoji` onto `GameSession._emojiBlasts` (replay-0, lock-free) → merged into the socket fan-out as a new `RoomSocketEventDto.EmojiBlast`/`GameplayFrame.EmojiBlast` → client surfaces it on a new `PokerSession.emoteBlasts` flow → the VM renders it through the **existing center-screen `EmojiBlastOverlay`, attributed to the emitter's seat**. **Direction call:** render as a center blast attributed to the emitter (reusing the solo overlay + its cooldown/mute model), *not* a per-seat-positioned blast — the latter is a table-geometry rabbit hole and is parked in `docs/backlog.md`. The local sender renders instantly on tap and ignores the server echo of its own seat (`isHuman` check); muted seats are dropped on receipt.
+
+**Reviewer notes:** Needs a server deploy to populate — pre-deploy, no `EmojiBlast` frames arrive and the local blast still renders (no regression). Tests at every layer: server `GameSession.emitEmoji` (seat-resolve + reject non-seated + fan-out), `WireFormatContractTest` `SendEmoji` round-trip, a new `WireEmoteTest` integration test over two real sockets (host blasts → joiner receives, attributed to the host's seat), `RemotePokerSession` (frame→flow + send), and VM (`RemoteEmoteReceived` renders/attributes, own-echo dropped, muted dropped, `BlastEmoji` sends over the wire). The single `emojiBlast` state slot is last-write-wins across local + remote — acceptable for V1 (same as the prior single-slot design); per-seat multi-blast state is the backlog follow-up.
+
+**Deferred:** Per-seat positioned emote blasts (over each opponent's avatar) — appended to `docs/backlog.md`; reviewer please triage.

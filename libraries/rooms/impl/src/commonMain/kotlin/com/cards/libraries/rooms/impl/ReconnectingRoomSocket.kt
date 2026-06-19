@@ -346,6 +346,16 @@ class ReconnectingRoomSocket @Inject constructor(
                                         error = event.error,
                                     ),
                                 )
+                            // Live, ephemeral: route onto the replay-0
+                            // stream so a mid-hand joiner never re-fires a
+                            // stale reaction.
+                            is RoomSocketEventDto.EmojiBlast ->
+                                _gameplayFrames.emit(
+                                    GameplayFrame.EmojiBlast(
+                                        seatIndex = event.seatIndex,
+                                        emoji = event.emoji,
+                                    ),
+                                )
                             RoomSocketEventDto.RoomClosed -> {
                                 _connection.emit(RoomConnection.Closed(ClosedReason.RoomDeleted))
                                 terminal = true

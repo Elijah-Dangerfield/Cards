@@ -110,6 +110,17 @@ class GameSession internal constructor(
     )
     val events: SharedFlow<TracedGameEvent> get() = _events.asSharedFlow()
 
+    /**
+     * Ephemeral table-emote channel — the per-room broadcast the socket
+     * fan-out collects to deliver [SeatEmoji]s to every subscriber. No
+     * replay: an emote is a live, momentary reaction, so a subscriber
+     * that attaches after the blast must not re-fire a stale one. Not
+     * mutex-guarded — emotes carry no engine state, so [emitEmoji] is a
+     * lock-free read of the current seats plus a `tryEmit`.
+     */
+    private val _emojiBlasts = MutableSharedFlow<SeatEmoji>(extraBufferCapacity = 32)
+    val emojiBlasts: SharedFlow<SeatEmoji> get() = _emojiBlasts.asSharedFlow()
+
     // Cached so requestNextHand can re-seed without the caller re-supplying.
     private var settings: RoomSettings = RoomSettings.Default
 
@@ -275,6 +286,23 @@ class GameSession internal constructor(
     }
 
     /**
+     * Fan a table emote out to every socket in the room. Resolves the
+     * caller's seat from the live state (lock-free — emotes never mutate
+     * engine state) and pushes a [SeatEmoji] onto [emojiBlasts]. Rejected
+     * if there's no active hand or the caller isn't seated, so a
+     * spectator / stale client can't spoof an emote from someone else's
+     * seat. The blast is best-effort: a full buffer drops the oldest
+     * pending emote rather than blocking gameplay.
+     */
+    fun emitEmoji(actorUserId: String, emoji: String): IntentResult {
+        val state = _state.value ?: return IntentResult.Rejected("no active hand")
+        val seat = state.seats.firstOrNull { it.playerId == actorUserId }
+            ?: return IntentResult.Rejected("not seated in this room")
+        _emojiBlasts.tryEmit(SeatEmoji(seatIndex = seat.index, emoji = emoji))
+        return IntentResult.Accepted
+    }
+
+    /**
      * Restart-time loader. Pushes a previously-persisted [GameState]
      * into the session without re-running the engine. Intended only for
      * the registry's hydration path — application code that wants a
@@ -416,3 +444,13 @@ class GameSession internal constructor(
         const val NONCE_RING_CAPACITY = 64
     }
 }
+
+/**
+ * A table emote attributed to the seat that blasted it. Rides the
+ * per-room [GameSession.emojiBlasts] channel to the socket fan-out,
+ * which projects it as a [com.dangerfield.cards.server.routes.RoomSocketEventDto.EmojiBlast].
+ */
+data class SeatEmoji(
+    val seatIndex: Int,
+    val emoji: String,
+)

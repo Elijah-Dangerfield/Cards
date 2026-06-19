@@ -50,4 +50,11 @@ sealed interface RoomClientFrame {
     @Serializable
     @SerialName("request_next_hand")
     data class RequestNextHand(override val clientNonce: String) : RoomClientFrame
+
+    @Serializable
+    @SerialName("send_emoji")
+    data class SendEmoji(
+        val emoji: String,
+        override val clientNonce: String,
+    ) : RoomClientFrame
 }

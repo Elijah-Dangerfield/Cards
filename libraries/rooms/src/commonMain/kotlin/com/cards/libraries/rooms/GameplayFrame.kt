@@ -13,6 +13,9 @@ import com.dangerfield.cards.libraries.gameplay.GameState
  *  - [Event] — sequenced `GameEvent` for animation / sound triggers.
  *  - [IntentAck] — ack / reject for a client-submitted [ClientFrame],
  *    correlated by `clientNonce`.
+ *  - [EmojiBlast] — a table emote another seat blasted, fanned out to
+ *    every socket in the room. Ephemeral (no replay): a late subscriber
+ *    must not re-fire a stale reaction.
  *
  * The lobby-shaped concerns (member presence, room snapshot, room
  * closed) flow on [RoomConnectionHandle.connection] instead — the two
@@ -31,5 +34,10 @@ sealed interface GameplayFrame {
         val clientNonce: String,
         val accepted: Boolean,
         val error: String?,
+    ) : GameplayFrame
+
+    data class EmojiBlast(
+        val seatIndex: Int,
+        val emoji: String,
     ) : GameplayFrame
 }

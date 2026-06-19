@@ -83,4 +83,11 @@ sealed interface RoomSocketEventDto {
         val accepted: Boolean,
         val error: String? = null,
     ) : RoomSocketEventDto
+
+    @Serializable
+    @SerialName("emoji_blast")
+    data class EmojiBlast(
+        val seatIndex: Int,
+        val emoji: String,
+    ) : RoomSocketEventDto
 }

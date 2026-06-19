@@ -25,6 +25,16 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-19 — Multiplayer emotes: dedicated ephemeral channel, rendered as a center-screen attributed blast
+
+**Decision:** Table emotes ride a **separate per-room broadcast channel**, not the gameplay flows. A new `GameSession._emojiBlasts: SharedFlow<SeatEmoji>` (replay-0, lock-free `tryEmit`) is merged into the socket fan-out alongside the state/event legs; `ClientFrame.SendEmoji` → `GameSessionRegistry.broadcastEmoji` resolves the caller's seat from live state and emits; the client maps the new `GameplayFrame.EmojiBlast` onto `PokerSession.emoteBlasts` (also replay-0). The client **renders the incoming emote through the existing single full-screen `EmojiBlastOverlay`, attributed to the emitter's seat** (name/avatar/color) — *not* a per-seat-positioned blast. The local sender renders its own blast instantly on tap and **ignores the server echo of its own seat** (`isHuman` check); muted seats are dropped on receipt.
+
+**Why:** The gameplay snapshot/event flows are state-only and persisted; threading a momentary social reaction through them (e.g. a new `GameEvent` variant) would pollute the engine event union, the snapshot store, and the replay/ordering guards. A dedicated replay-0 channel keeps emotes ephemeral by construction — a mid-hand joiner can't have a stale reaction re-fire. Reusing the existing center-screen overlay (which already models emitter attribution + cooldown + mute) means the whole feature is wire + projection plumbing with zero new UI primitive, and the blast feel never drifts from the solo path.
+
+**Alternatives considered:** (1) Carry emotes as a `GameEvent` on the existing event flow — rejected: it conflates social chrome with authoritative gameplay state and rides the persisted/replayed path. (2) Per-seat positioned blasts over each opponent's avatar — deferred to backlog as polish; the attributed center blast is the complete, shippable V1 design and avoids a table-geometry rabbit hole. (3) Echo-suppression server-side (don't send to the originator) — rejected in favor of a client `isHuman` drop, which keeps the server fan-out uniform (every socket gets every frame) and is robust to seat re-resolution.
+
+**Status:** Locked for V1. Needs a server deploy to populate — pre-deploy the client degrades cleanly (no emote frames, local blast still renders). Per-seat positioning is a backlog follow-up.
+
 ## 2026-06-17 — XP Boost shop purchase: model the boost as a consumable chip offer, not an inventory item
 
 **Decision:** The chip-priced 2× XP boost is a `Product.ChipOffer` (server-seeded, `grants_key = boost.xp_2x`) that the client routes to a **consumable** purchase path — spend chips via `ChipsRepository.subtractChips`, then `XpBoostRepository.activate()` — instead of `InventoryRepository.redeemChipOffer`. No inventory row is ever written, so the boost never classifies as "owned" and stays re-buyable (re-buying extends the time window). The client discriminator is the shared `XP_BOOST_GRANTS_KEY` constant; the boost gets its own "Boosts" storefront shelf via the existing product-id-prefix (`boost_`) section convention.

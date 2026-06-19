@@ -9,11 +9,13 @@ import kotlinx.serialization.Serializable
  * server's `RoomClientFrame` wire format; the same `@SerialName`s flow
  * across the wire unchanged.
  *
- * Three variants:
+ * Four variants:
  *  - [StartHand] — the current host opens a hand.
  *  - [SubmitIntent] — the acting seat submits fold / check / call / bet
  *    / raise / all-in.
  *  - [RequestNextHand] — any seated player advances after a hand ends.
+ *  - [SendEmoji] — a seated player blasts a table emote; the server fans
+ *    it out to every socket in the room as a [GameplayFrame.EmojiBlast].
  *
  * Each carries a [clientNonce] so the server's matching `IntentAck` can
  * route back to the originating caller and so server-side dedupe can
@@ -37,4 +39,11 @@ sealed interface ClientFrame {
     @Serializable
     @SerialName("request_next_hand")
     data class RequestNextHand(override val clientNonce: String) : ClientFrame
+
+    @Serializable
+    @SerialName("send_emoji")
+    data class SendEmoji(
+        val emoji: String,
+        override val clientNonce: String,
+    ) : ClientFrame
 }
