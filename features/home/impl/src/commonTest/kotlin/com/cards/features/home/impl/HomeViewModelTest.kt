@@ -195,7 +195,7 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun levelUp_crossingWatermark_showsCelebration_thenDismissAdvances() = runUnitTest {
+    fun levelUp_crossingWatermark_showsCelebration_thenMarkShownAdvances() = runUnitTest {
         val progression = FakeProgressionRepository(initial = Progression.Empty)
         val appCache = FakeAppCache()
         val vm = buildVm(progression = progression, appCache = appCache)
@@ -209,8 +209,9 @@ class HomeViewModelTest : CoroutineTest() {
             while (last.levelUpCelebration == null) last = awaitItem()
             assertEquals(2, last.levelUpCelebration)
 
-            // Dismiss advances the watermark and clears the overlay.
-            vm.takeAction(HomeAction.DismissLevelUp)
+            // Marking it shown (fired by the entry point at navigate time)
+            // advances the watermark and clears the trigger.
+            vm.takeAction(HomeAction.MarkLevelUpShown)
             while (last.levelUpCelebration != null) last = awaitItem()
             assertEquals(2, appCache.get().lastCelebratedLevel)
             assertTrue(last.levelUpRewards.isEmpty())

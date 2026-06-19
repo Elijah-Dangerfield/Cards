@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
@@ -53,14 +51,14 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  *
  * Deliberately a self-contained takeover (its own opaque background, centered
  * content) rather than a [com.dangerfield.cards.libraries.ui.components.dialog.Dialog]:
- * the moment wants the whole screen. It only ever mounts on Home — never at
- * the poker table — per `docs/decisions.md` 2026-06-06. The entrance animates
- * (scale + fade in) and a heavy haptic fires as the dial lands so the level-up
- * registers in the hand as well as the eye.
+ * the moment wants the whole screen. Hosted by a routed full-screen destination
+ * (no bottom bar) — never at the poker table — per `docs/decisions.md`
+ * 2026-06-06. The entrance animates (scale + fade in) and a heavy haptic fires
+ * as the dial lands so the level-up registers in the hand as well as the eye.
  *
  * @param level the level just reached (the net level on a multi-level jump).
- * @param onContinue fires when the user taps Continue or the scrim; the host
- *   advances the watermark in response.
+ * @param onContinue fires only when the user taps Continue — there is no
+ *   tap-to-dismiss; the host advances the watermark in response.
  * @param rewards the prizes granted for crossing into this level (already
  *   granted by `LevelUpRewardGranter` — this is the reveal, not the grant).
  *   Empty for levels that grant nothing; the section then renders nothing.
@@ -92,9 +90,8 @@ fun LevelUpCelebration(
         modifier = modifier
             .fillMaxSize()
             // Opaque app background, not a scrim — this is a full-screen
-            // takeover, so Home shouldn't bleed through behind it.
-            .background(AppTheme.colors.background.color)
-            .pointerInput(Unit) { detectTapGestures { onContinue() } },
+            // takeover, so nothing should bleed through behind it.
+            .background(AppTheme.colors.background.color),
         contentAlignment = Alignment.Center,
     ) {
         Column(

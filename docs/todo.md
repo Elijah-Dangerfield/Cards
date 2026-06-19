@@ -75,10 +75,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P1]` **Level-up celebration should be a real screen, not a tap-to-dismiss overlay.** Today it's an overlay composable layered over `HomeScreen` (`LevelUpCelebration` inside HomeScreen's `Box`, toggled via `HomeViewModel` / `HomeAction.DismissLevelUp`). Two bugs follow: (a) a full-screen `detectTapGestures { onContinue() }` means tapping *anywhere* dismisses it; (b) the bottom navigation bar stays visible because the overlay lives inside Home's content while the app Scaffold keeps drawing the bar. Make it a routed screen like `BlockingErrorScreen` — a real destination with no bottom bar, dismissed only by its own Continue/claim button. *(found in 2026-06-19 playtest)*
-  **Acceptance:** the level-up screen is full-screen with no bottom bar; only the explicit Continue/claim button dismisses it; a stray tap does nothing.
-  **Hints:** present it the way `BlockingErrorScreen` is (routed `screen<…>` in an entry point → sets `shouldHideBottomBar`) instead of the HomeScreen overlay; reuse the existing `LevelUpCelebration` visual and drop the tap-to-dismiss.
-
 - `[P2]` **Level-up rewards — cosmetic reward kind.** Only `LevelReward.Chips` / `XpBoost` are modeled; add a **cosmetic** reward (felt / card back / title) granted via the achievement-reward grant path so `LevelRewardTable` can gift one. The celebration already reveals chips + boost rows — extend `LevelUpReward` (`:libraries:ui`) + `HomeScreen.toDisplay` to render the cosmetic too. *(proposed 2026-06-06)*
   **Hints:** cosmetic grant precedent is the achievement-reward path; reward maps in `LevelReward.kt` + `LevelUpRewardGranter`. **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
 

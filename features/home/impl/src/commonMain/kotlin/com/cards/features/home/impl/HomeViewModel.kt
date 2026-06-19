@@ -248,10 +248,16 @@ class HomeViewModel(
                         }
                 }
             }
-            is HomeAction.DismissLevelUp -> {
-                // Advance the watermark to the level we just celebrated so the
-                // derived gate goes quiet; null the overlay immediately rather
-                // than waiting for the cache round-trip to echo back.
+            is HomeAction.MarkLevelUpShown -> {
+                // Fired by the entry point the instant it navigates to the
+                // routed celebration. Advance the watermark to the level we're
+                // showing so the derived gate goes quiet and we can't re-navigate
+                // (e.g. when Home resumes behind the celebration). Clearing the
+                // state immediately is what makes the navigation idempotent — by
+                // the time Home is visible again, there's nothing to re-fire.
+                // Trade-off: a process death *while the celebration is on screen*
+                // won't re-show it (the rewards are already granted, so missing
+                // the reveal on a crash is fine — mirrors the welcome dialog).
                 val reached = stateFlow.value.levelUpCelebration
                 action.updateState { it.copy(levelUpCelebration = null, levelUpRewards = emptyList()) }
                 if (reached != null) {
@@ -388,11 +394,12 @@ data class HomeState(
      *  AnimatedVisibility enter — same animation, but inviting instead
      *  of jarring. */
     val tutorialBannerDismissed: Boolean = true,
-    /** Non-null when the full-screen level-up celebration should be shown on
-     *  Home for this level. Derived from the `AppData.lastCelebratedLevel`
-     *  watermark vs the current level, so it survives the table→home trip and
-     *  process death; cleared when the user dismisses (which advances the
-     *  watermark). */
+    /** Non-null when the routed full-screen level-up celebration should fire for
+     *  this level. Derived from the `AppData.lastCelebratedLevel` watermark vs the
+     *  current level, so it survives the table→home trip + process death; the Home
+     *  entry point observes it, navigates to `LevelUpRoute`, and immediately fires
+     *  [HomeAction.MarkLevelUpShown] (which advances the watermark and clears this,
+     *  keeping the navigation idempotent). */
     val levelUpCelebration: Int? = null,
     /** Prizes revealed in the level-up celebration — aggregated across every
      *  level crossed since the last celebration (chips summed, boost de-duped
@@ -459,5 +466,5 @@ sealed interface HomeAction {
     data class TutorialBannerDismissedChanged(val dismissed: Boolean) : HomeAction
     data object DismissTutorialBanner : HomeAction
     data class EvaluateLevelUp(val gate: LevelCelebrationGate) : HomeAction
-    data object DismissLevelUp : HomeAction
+    data object MarkLevelUpShown : HomeAction
 }
