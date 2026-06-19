@@ -67,11 +67,3 @@ the config table. Ship in slices:
 
 The seam already exists: `AppConfigSource` (server) + `ConfiguredValue` / `AppConfigMap` (client);
 some eval inputs live in `ClientHeaders` (install id, platform, app version) + the JWT.
-
-## Auth UX polish
-
-### Richer session-ended experience
-When a session is rejected, V1 shows an error **snackbar** and routes to onboarding (the rejection
-path itself is solid + self-correcting). Post-launch polish: a proper "session ended" **dialog** with
-explicit choices — retry / start-fresh vs sign-in — instead of the snackbar. Optional; the snackbar
-is acceptable for launch.

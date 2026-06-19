@@ -69,11 +69,14 @@ to `post-launch.md`.
 creation the server grant is authoritative and pending local deltas replay on top once (never
 re-granting the starter grant). *Why:* simplest path that can't double-count.
 
-**Session-expiry cold-boot ghost — accepted as-is.** A rejected session shows an error **snackbar**
-+ routes to onboarding (there is no retry/sign-out dialog today). The "cold-boot ghost" (a dead
-cached session firing a sync or two before the first 401 tears it down) is narrow and
-self-correcting; accepted for V1. A richer "session ended" dialog is optional polish in
-`post-launch.md`.
+**Session-expiry → blocking retry/logout screen.** When a session the user *used to have* can't be
+authed, we **block** rather than fall back to a guest profile or bounce to onboarding — a full
+blocking screen (modeled on `BlockingErrorScreen`) offers **Retry** (re-attempt the token refresh)
+and **Logout**, with anonymous-aware copy warning that logging out loses unrecoverable progress.
+Only an explicit Logout tears down to onboarding. This also closes the "cold-boot ghost"
+(persisted-but-dead session) by blocking instead of firing blind authed syncs. Tracked in `todo.md`
+§A. *(Reverses an earlier same-day call to accept the snackbar — the snackbar silently drops the
+user to onboarding, throwing away a session that a token refresh might have recovered.)*
 
 **Remote config / feature flags — build in-house, local GUI, post-launch.** No hosted service
 (PostHog/Statsig/LaunchDarkly); a locally-run admin web GUI edits DB config values directly (never
