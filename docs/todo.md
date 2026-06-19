@@ -22,9 +22,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P2]` **MP achievement grants — gate on the server-witnessed hand count.** Count-based MP achievements (e.g. `HANDS_100_MP`) aren't evaluated/granted server-side off the persisted hand count, and the MP-achievement→product mapping is missing for those ids.
-  **Acceptance:** the `serverWitnessed` set in `ClientGrantableAchievements` is granted server-side from `HandsFinishedRepository.countForUser`.
-  **Hints:** per-hand-shape achievements (busts, win-by-fold) need richer signals than a raw count; bot achievements stay client self-grant.
+- `[P2]` **MP achievement grants — per-hand-shape signals.** The count-based slice ships: `HANDS_100_MP` is evaluated + granted server-side off `HandsFinishedRepository.countForUser` via `ServerWitnessedAchievements`, wired into the hand-finished path. The remaining server-witnessed MP ids (`FIRST_BUST_DEALT_MP`, `BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`, `DOUBLE_UP_MP`, `TRIPLE_UP_MP`, `POT_5000_MP`) gate on per-hand outcome signals (busts dealt, win-by-fold, stack multiple, pot size) the server doesn't capture per hand yet.
+  **Acceptance:** each remaining `serverWitnessed` id is evaluated + granted from a server-witnessed per-hand signal.
+  **Hints:** extend the hand-finished callback to carry per-hand outcomes; bot achievements stay client self-grant.
 
 ### Progression & XP (server)
 
