@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-17 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-19 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 > **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
@@ -22,7 +22,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P2]` **MP achievement grants — gate on the server-witnessed hand count.** The server now persists a per-user finished-hand count from the authoritative loop (`HandsFinishedRepository.countForUser`). What's left: actually gate the multiplayer achievements (the `serverWitnessed` set in `ClientGrantableAchievements`) on it — server-side evaluation + grant of the count-based ones (e.g. `HANDS_100_MP`), which also needs the MP-achievement→product mapping those ids currently lack. Per-hand-shape MP achievements (busts, win-by-fold) need richer server-witnessed signals than a raw count. Bot achievements (client self-grant) stay client-side.
+- `[P2]` **MP achievement grants — per-hand-shape signals.** The count-based slice ships: `HANDS_100_MP` is evaluated + granted server-side off `HandsFinishedRepository.countForUser` via `ServerWitnessedAchievements`, wired into the hand-finished path. The remaining server-witnessed MP ids (`FIRST_BUST_DEALT_MP`, `BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`, `DOUBLE_UP_MP`, `TRIPLE_UP_MP`, `POT_5000_MP`) gate on per-hand outcome signals (busts dealt, win-by-fold, stack multiple, pot size) the server doesn't capture per hand yet.
+  **Acceptance:** each remaining `serverWitnessed` id is evaluated + granted from a server-witnessed per-hand signal.
+  **Hints:** extend the hand-finished callback to carry per-hand outcomes; bot achievements stay client self-grant.
 
 ### Progression & XP (server)
 
@@ -67,8 +69,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 - `[P2]` **Level-up rewards — cosmetic reward kind.** Only `LevelReward.Chips` / `XpBoost` are modeled; add a **cosmetic** reward (felt / card back / title) granted via the achievement-reward grant path so `LevelRewardTable` can gift one. The celebration already reveals chips + boost rows — extend `LevelUpReward` (`:libraries:ui`) + `HomeScreen.toDisplay` to render the cosmetic too. *(proposed 2026-06-06)*
   **Hints:** cosmetic grant precedent is the achievement-reward path; reward maps in `LevelReward.kt` + `LevelUpRewardGranter`. **Pairs with:** the Pick-a-Card chest (a third reward kind, below).
 
-- `[P2]` **Move the level ladder to app-config + reconcile level-up grants server-side.** The reward table now resolves off app-config (`progression.levelRewards` via `ProgressionConfig` / `LevelRewardsConfigValue`, bundled default). Two parts remain: **(a)** the XP-per-level curve in `Level.kt` (`N²×100`; top-level `levelProgressFor` / `xpToLevelUpFrom` / `xpAtStartOfLevel`) is still a compile-time constant — lift the variable-length ladder onto `progression.*` (one `JsonConfigValue`) behind `ProgressionConfig`, threading the configured curve through every level-derivation site (VMs + the granter; previews/QA can keep the default) so display and grant never diverge; **(b)** the server-side reconcile — the client already grants offline by a stable `levelup_<level>` key, but the server doesn't confirm/void those against `total_xp` vs the same config's level thresholds in the progression-sync response. See [`decisions.md`](./decisions.md) 2026-06-17. *(proposed 2026-06-17)*
-  **Pairs with:** the cosmetic reward kind (above) for the full reward set.
+- `[P2]` **Move the level ladder to app-config + reconcile level-up grants server-side.** Two parts remain: **(a)** the XP-per-level curve in `Level.kt` (`N²×100`) is a compile-time constant — lift the variable-length ladder onto `progression.*` (one `JsonConfigValue` behind `ProgressionConfig`) and thread it through every level-derivation site so display and grant never diverge; **(b)** the server doesn't confirm/void the client's offline `levelup_<level>` grants against `total_xp` vs the same config's thresholds in the progression-sync response.
+  **Hints:** the reward *table* already resolves off app-config; this is the curve + the server reconcile. See [`decisions.md`](./decisions.md) 2026-06-17.
+  **Pairs with:** the cosmetic reward kind (above).
 
 ### Consumables & rewards (V1.x / monetization)
 
@@ -79,8 +82,6 @@ Buyable, level-up-giftable consumables. Product + grant-model call is in [`decis
   **Phase B — server chest-open:** `POST /v1/me/chest/{id}/open` rolls the weighted loot table, grants the prize (chips → wallet ledger, cosmetic → inventory grant), idempotent per open.
   **Phase C — the pick screen:** full-screen pick/shuffle + reveal showing the server-rolled prize; offline "connect to open" gating.
   **Hints:** grant precedent is `grantApi.grantAchievement` / `GrantsRoutes`; chips prize via `ChipsRepository.addChips(idempotencyKey=…)`. **Interacts with:** wallet, inventory / my-items, shop, and level-up rewards.
-
-- ~~`[P2]` **XP Boost: split buy from activate (own a count, light it on demand).**~~ **Done 2026-06-17.** Buying / level-up gifts now stash an **inactive** boost (`AppData.xpBoostOwnedCount`); the player lights one on demand (`XpBoostRepository.grant` / `activate`) via the profile boost banner. Renamed "2× XP Boost" → "XP Boost". Gift goes to the stash (decision: stash, not auto-activate). Active-boost UI added to the profile banner, the bottom bar (tint + draining line), and the poker level pill (inline countdown). Used a simple count rather than the chest's inventory-quantity machinery — boosts are a uniform consumable with no per-item metadata, so a count in `AppCache` was the lighter fit.
 
 ### Social graph + friends — load-bearing for V1.x
 
@@ -146,9 +147,12 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 
 ### B6 — Bulletproof MP + engine test coverage
 
+- `[P1]` **Close the subscribe-after-action test-ordering gap broadly.** Recurring root cause behind the recent MP bugs: tests subscribe before the action, the app subscribes after. Add a reusable harness scenario (e.g. `startHandBeforeJoinerMounts()`) and apply the **symmetry rule** — any hot `SharedFlow`/`StateFlow` a late subscriber depends on needs a "replay reaches late collector" test (the `connection` flow had one; the gameplay flow didn't). Pairs with Round 5 (chaos/ordering) below. *(proposed 2026-06-18)*
+- `[P2]` **Buff the seams — multi-player side-pot settlement over the wire.** Heads-up all-in (single main pot) now rides the socket, but a *side pot* needs 3+ seats with unequal stacks — a short stack all-in plus two larger callers. The harness only seats two; this needs a 3-client table (`seatThreeAndConnect`) and a multi-hand setup that depletes one stack so the next all-in produces a genuine side pot, then asserts each pot settles to the right eligible seats through the wire. The engine's side-pot math is property-tested; the gap is the end-to-end wire path. *(the wire raise/turn-fold/all-in/button-rotation/stack-carry-over seams + the VM action-pill ordering test shipped 2026-06-19)*
+
 - `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
   **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
-  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) — Rounds 1, 3, 4 are shipped (only Round 3's hand-history fixtures remain, gated on a real production playtest). **The `:apps:integration` module (Round 2) is built** — 7 e2e files bring up a real in-process Ktor server and play two-client hands, incl. fault injection (`ChaosPlayTest` + `FaultInjectingTransport`). Plan reconciled 2026-06-15: Round 2 is 7/10 (open: lossless-snapshot + all-`GameEvent`-variant wire round-trips, two-client nonce race); Round 5 chaos is partly covered (reconnect-resync + server-restart hydration) with the harder fault cases open; Round 6 (Compose UI for `PlayPokerScreen`) is the remaining unstarted round. **Out of scope:** emulator-based UI tests (captured in the plan's Deferred section with re-visit conditions).
+  **Hints:** [`docs/testing-plan.md`](./testing-plan.md) tracks per-round status — the doc IS the running history. Rounds 1/3/4 shipped; Round 2 (`:apps:integration`, in-process Ktor + two-client hands) mostly done; Round 5 chaos partly covered; Round 6 (Compose UI for `PlayPokerScreen`) unstarted. **Out of scope:** emulator-based UI tests.
 
 ### B5 — Parked
 

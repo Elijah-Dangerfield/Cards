@@ -60,4 +60,54 @@ class InHandPlayTest : IntegrationTest() {
         val ack = table.gameOf(idle).submit(PlayerIntent.Fold(seatIndex = dealt.seatFor(idle).index))
         assertFalse(ack.accepted, "an out-of-turn intent must be rejected")
     }
+
+    /**
+     * Regression for the "stuck on dealing in" bug. The existing tests attach
+     * both clients' gameplay collectors *before* `startHand`, which masked the
+     * defect: in the real app the non-host's `RemotePokerSession` subscribes
+     * only when it navigates to the play screen — *after* the deal already
+     * arrived on its (lobby-open) socket. With the old `replay = 0` flow that
+     * snapshot was dropped and the table never rendered.
+     *
+     * Here we let the deal happen, then attach a *fresh* gameplay collector on
+     * the joiner's already-open socket. Pre-fix it received nothing (no new
+     * frames until someone acts) and `nextSnapshot` would time out; the
+     * retained latest snapshot must now reach it.
+     */
+    @Test
+    fun gameplayCollectorAttachingAfterTheDeal_stillSeesTheTable() = integration {
+        val table = seatTwoAndConnect()
+        table.hostGame.startHand()
+        // Deal is delivered to (and now retained on) the joiner's shared socket.
+        table.hostGame.nextSnapshot { it.actingSeatIndex != null }
+        table.joinerGame.nextSnapshot { it.actingSeatIndex != null }
+
+        // The joiner "mounts the play screen" late: a new collector on the same
+        // open socket, well after the deal.
+        val lateJoinerGame = gameplay(table.joiner.connect(table.code))
+        val lateView = lateJoinerGame.nextSnapshot { it.seats.isNotEmpty() }
+        assertTrue(
+            lateView.seats.any { it.playerId == table.joiner.userId },
+            "a gameplay collector attaching after the deal must still receive the table",
+        )
+    }
+
+    /**
+     * Opponent avatar must ride the seat over the wire so the play screen
+     * renders the real avatar instead of initials. The server snapshots each
+     * member's profile avatar at join and copies it onto the engine seat at
+     * hand-start.
+     */
+    @Test
+    fun seat_carriesOpponentAvatar_overTheWire() = integration {
+        val table = seatTwoAndConnect()
+        table.hostGame.startHand()
+        val hostView = table.hostGame.nextSnapshot { it.actingSeatIndex != null }
+
+        val joinerSeat = hostView.seatFor(table.joiner)
+        assertFalse(
+            joinerSeat.avatarEmoji.isNullOrBlank(),
+            "the host must receive the joiner's avatar emoji on the seat, not a blank fallback",
+        )
+    }
 }

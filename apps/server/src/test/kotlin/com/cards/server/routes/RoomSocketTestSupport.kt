@@ -205,6 +205,7 @@ internal suspend fun withRoomSocketTestApp(
     gameSessions: GameSessionRegistry = newRegistry(),
     reaperGrace: Duration = 5.minutes,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository = EmptyEquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository = EmptyProgressionRepository,
     block: suspend (RoomSocketTestApp) -> Unit,
 ) {
     testApplication {
@@ -218,6 +219,7 @@ internal suspend fun withRoomSocketTestApp(
                     rooms = rooms,
                     gameSessions = gameSessions,
                     equipmentRepository = equipmentRepository,
+                    progressionRepository = progressionRepository,
                     reaperGrace = reaperGrace,
                 )
             }
@@ -428,3 +430,50 @@ private object EmptyEquipmentRepository : com.dangerfield.cards.server.domain.Eq
         opUpdatedAt: kotlin.time.Instant,
     ): com.dangerfield.cards.server.domain.EquippedItem? = null
 }
+
+/**
+ * Configurable progression source for room-socket tests. Returns a fixed XP
+ * total for every user (default: no row, so [find] is null and opponent levels
+ * stay unresolved); pass [xpByUser] to drive a specific seat's level over the
+ * wire.
+ */
+@OptIn(kotlin.time.ExperimentalTime::class)
+internal class FakeProgressionRepository(
+    private val xpByUser: Map<com.dangerfield.cards.server.domain.UserId, Long> = emptyMap(),
+) : com.dangerfield.cards.server.domain.ProgressionRepository {
+    override suspend fun findOrCreateResult(
+        userId: com.dangerfield.cards.server.domain.UserId,
+    ) = error("findOrCreateResult not used in room-socket tests")
+
+    override suspend fun find(
+        userId: com.dangerfield.cards.server.domain.UserId,
+    ): com.dangerfield.cards.server.domain.UserProgression? =
+        xpByUser[userId]?.let {
+            com.dangerfield.cards.server.domain.UserProgression(
+                userId = userId,
+                totalXp = it,
+                createdAt = kotlin.time.Instant.DISTANT_PAST,
+                updatedAt = kotlin.time.Instant.DISTANT_PAST,
+            )
+        }
+
+    override suspend fun applyXp(
+        userId: com.dangerfield.cards.server.domain.UserId,
+        idempotencyKey: String,
+        deltaXp: Long,
+        source: String,
+        mode: String,
+        handId: String?,
+        wasBoosted: Boolean,
+    ) = error("applyXp not used in room-socket tests")
+
+    override suspend fun recentEvents(
+        userId: com.dangerfield.cards.server.domain.UserId,
+        limit: Int,
+    ): List<com.dangerfield.cards.server.domain.XpEvent> = emptyList()
+
+    override suspend fun deleteAllForUser(userId: com.dangerfield.cards.server.domain.UserId) = Unit
+}
+
+/** No-op progression source — opponents' levels stay unresolved (null xp). */
+private val EmptyProgressionRepository = FakeProgressionRepository()

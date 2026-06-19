@@ -27,12 +27,6 @@ data class MeResponse(
     val isAnonymous: Boolean,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
-    /**
-     * Achievement ids the owner features on their Player Card, in display
-     * order. Empty = never chosen — the client renders most-recently-earned
-     * badges by default.
-     */
-    val featuredBadgeIds: List<String> = emptyList(),
 )
 
 /**
@@ -55,13 +49,6 @@ data class PatchMeRequest(
     val avatarEmoji: String? = null,
     val avatarBackgroundColor: String? = null,
     val clearAvatarBackgroundColor: Boolean = false,
-    /**
-     * Replace the featured-badge selection wholesale. `null` (absent) =
-     * leave alone; an empty list = clear back to the default. The route
-     * caps the list at [com.dangerfield.cards.server.domain.MAX_FEATURED_BADGES]
-     * and de-dups before persisting.
-     */
-    val featuredBadgeIds: List<String>? = null,
 )
 
 @OptIn(ExperimentalTime::class)
@@ -73,5 +60,4 @@ internal fun Profile.toMeDto(isAnonymous: Boolean): MeResponse = MeResponse(
     isAnonymous = isAnonymous,
     createdAtEpochMs = createdAt.toEpochMilliseconds(),
     updatedAtEpochMs = updatedAt.toEpochMilliseconds(),
-    featuredBadgeIds = featuredBadgeIds,
 )

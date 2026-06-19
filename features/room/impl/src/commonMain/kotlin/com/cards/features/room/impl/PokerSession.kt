@@ -31,6 +31,13 @@ interface PokerSession {
     val events: SharedFlow<GameEvent>
 
     /**
+     * Table emotes other seats blasted, fanned out by the server. Hot,
+     * replay-free flow — a momentary reaction, never re-fired on a late
+     * subscribe. Local-bots sessions have no wire and never emit.
+     */
+    val emoteBlasts: SharedFlow<RemoteEmote>
+
+    /**
      * Connection health. Local sessions stay pinned to [ConnectionState.Connected];
      * remote sessions transition as the underlying socket lifecycle dictates. Drives
      * the play-screen connection banner.
@@ -57,4 +64,22 @@ interface PokerSession {
 
     /** Signal readiness to advance to the next hand. No-op when no hand is pending. */
     fun requestNextHand()
+
+    /**
+     * Blast a table emote to the rest of the room. Fire-and-forget — the
+     * sender already renders its own blast locally, so this only carries
+     * the emote to opponents. No-op for local-bots sessions.
+     */
+    suspend fun sendEmote(emoji: String)
 }
+
+/**
+ * A table emote received from another seat over the wire. [seatIndex]
+ * attributes it so the screen can render the blast against that seat's
+ * avatar; the VM drops a [seatIndex] resolving to the local human (its
+ * own echo) and to a muted seat.
+ */
+data class RemoteEmote(
+    val seatIndex: Int,
+    val emoji: String,
+)

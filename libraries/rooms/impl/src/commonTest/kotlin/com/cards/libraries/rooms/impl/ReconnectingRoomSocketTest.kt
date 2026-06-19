@@ -238,6 +238,35 @@ class ReconnectingRoomSocketTest : CoroutineTest() {
         firstJob.cancel()
     }
 
+    /**
+     * Regression for the "stuck on dealing in" bug: the non-host's lobby
+     * socket received the deal's `GameStateSnapshot` *before* the play
+     * screen's `RemotePokerSession` subscribed to `gameplayFrames`. With the
+     * old `replay = 0` flow that snapshot was dropped and the table never
+     * rendered. The latest game state must now replay to a late collector.
+     */
+    @Test
+    fun gameplayState_replayReachesLateCollector() = runUnitTest {
+        val transport = FakeRoomSocketTransport()
+        val socket = newSocket(transport)
+        val session = transport.primeSuccess()
+        val handle = socket.connect("ABC123")
+
+        // A collector is active when the snapshot lands (this is what drives
+        // the shared WS open — in the app it's the lobby collector).
+        val firstJob = launch { handle.gameplayFrames.collect { } }
+        advanceUntilIdle()
+        session.receive(RoomSocketEventDto.GameStateSnapshot(sampleGameState()))
+        advanceUntilIdle()
+
+        // A *later* collector — the play screen subscribing after navigation —
+        // must still receive the current game state, not wait forever.
+        val late = handle.gameplayFrames.first()
+        assertIs<GameplayFrame.StateSnapshot>(late)
+
+        firstJob.cancel()
+    }
+
     @Test
     fun cancelOneCollector_keepsTransportOpen_whileOtherStillCollects() = runUnitTest {
         val transport = FakeRoomSocketTransport()

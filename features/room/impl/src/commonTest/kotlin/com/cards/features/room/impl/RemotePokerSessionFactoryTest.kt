@@ -87,6 +87,69 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     }
 
     @Test
+    fun occupantsFor_humanSeat_derivesLevelFromServerSnapshottedXp() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, displayName = "Alice", isBot = false, playerId = "alice", xp = 2_500),
+            ),
+        )
+
+        val human = assertIs<SeatOccupant.Human>(factory().occupantsFor(state).single())
+
+        assertEquals(
+            com.dangerfield.cards.libraries.cards.levelProgressFor(2_500).level,
+            human.level,
+        )
+    }
+
+    @Test
+    fun occupantsFor_humanSeat_nullXp_levelZero() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, displayName = "Alice", isBot = false, playerId = "alice", xp = null),
+            ),
+        )
+
+        val human = assertIs<SeatOccupant.Human>(factory().occupantsFor(state).single())
+
+        assertEquals(0, human.level)
+    }
+
+    @Test
+    fun tableFor_remoteOpponent_rendersLevelBadgeFromXp() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, playerId = "local-user", xp = null),
+                testSeat(index = 1, playerId = "peer", isBot = false, xp = 2_500),
+            ),
+            actingSeatIndex = 0,
+        )
+
+        val table = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user"))
+
+        val opponentBadge = table.seats.single { it.index == 1 }.seatBadge
+        assertEquals(
+            SeatBadge.Level(com.dangerfield.cards.libraries.cards.levelProgressFor(2_500).level),
+            opponentBadge,
+        )
+    }
+
+    @Test
+    fun tableFor_remoteOpponent_nullXp_omitsBadge() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, playerId = "local-user", xp = null),
+                testSeat(index = 1, playerId = "peer", isBot = false, xp = null),
+            ),
+            actingSeatIndex = 0,
+        )
+
+        val table = assertIs<TableUiState.Active>(tableFor(state, localUserId = "local-user"))
+
+        assertEquals(null, table.seats.single { it.index == 1 }.seatBadge)
+    }
+
+    @Test
     fun tableFor_emptyState_returnsLoading() = runUnitTest {
         val table = factory().tableFor(
             state = stubGameState(seats = emptyList()),

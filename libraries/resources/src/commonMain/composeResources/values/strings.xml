@@ -466,8 +466,6 @@
     <string name="profile_edit_avatars_loading">Loading…</string>
     <string name="profile_edit_avatars_load_error">Avatars couldn't load. You can still save your current avatar.</string>
     <string name="profile_edit_get_more_packs">Get more avatar packs in the Shop</string>
-    <string name="profile_edit_featured_section">Your badges</string>
-    <string name="profile_edit_featured_empty">Earn achievements to feature them on your card.</string>
     <string name="profile_card_stat_hands_played">Hands played</string>
     <string name="profile_card_stat_member_since">Member since</string>
     <string name="profile_card_member_since_value">%1$s %2$d</string>

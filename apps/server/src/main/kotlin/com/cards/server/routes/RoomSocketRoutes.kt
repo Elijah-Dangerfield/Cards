@@ -94,6 +94,7 @@ fun Route.roomSocketRoutes(
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
     reaperGrace: Duration = DEFAULT_REAPER_GRACE,
 ) {
     val app = application
@@ -214,6 +215,18 @@ fun Route.roomSocketRoutes(
                                         link = traced.originSpanContext.takeIf { it.isValid },
                                     )
                                 },
+                                // Ephemeral table emotes — fanned out to
+                                // every socket with no span link (they don't
+                                // originate from an intent / state mutation).
+                                session.emojiBlasts.map { blast ->
+                                    OutboundGameFrame(
+                                        RoomSocketEventDto.EmojiBlast(
+                                            seatIndex = blast.seatIndex,
+                                            emoji = blast.emoji,
+                                        ),
+                                        link = null,
+                                    )
+                                },
                             )
                         }
                         .collect { sendTraced(it.event, code, userIdString, link = it.link) }
@@ -249,6 +262,7 @@ fun Route.roomSocketRoutes(
                         rooms = rooms,
                         gameSessions = gameSessions,
                         equipmentRepository = equipmentRepository,
+                        progressionRepository = progressionRepository,
                     )
                     sendJson(ack)
                 }
@@ -300,9 +314,11 @@ private suspend fun handleClientFrame(
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): RoomSocketEventDto.IntentAck {
     val result: IntentResult = when (frame) {
-        is RoomClientFrame.StartHand -> handleStartHand(code, userId, rooms, gameSessions, equipmentRepository)
+        is RoomClientFrame.StartHand ->
+            handleStartHand(code, userId, rooms, gameSessions, equipmentRepository, progressionRepository)
         is RoomClientFrame.SubmitIntent -> withSpan(
             name = "submit_intent",
             configure = {
@@ -324,6 +340,11 @@ private suspend fun handleClientFrame(
             code = code,
             actorUserId = userId.value.toString(),
             clientNonce = frame.clientNonce,
+        )
+        is RoomClientFrame.SendEmoji -> gameSessions.broadcastEmoji(
+            code = code,
+            actorUserId = userId.value.toString(),
+            emoji = frame.emoji,
         )
     }
     return RoomSocketEventDto.IntentAck(
@@ -359,6 +380,7 @@ private suspend fun handleStartHand(
     rooms: RoomService,
     gameSessions: GameSessionRegistry,
     equipmentRepository: com.dangerfield.cards.server.domain.EquipmentRepository,
+    progressionRepository: com.dangerfield.cards.server.domain.ProgressionRepository,
 ): IntentResult {
     val room = rooms.find(code)
         ?: return IntentResult.Rejected("room not found")
@@ -377,6 +399,14 @@ private suspend fun handleStartHand(
             badgeProductIds = equipmentRepository.listEquipped(member.userId)
                 .map { it.productId }
                 .filter { it.startsWith("badge_") || it.startsWith("title_") },
+            // Avatar was snapshotted from the profile at join; ride it onto
+            // the Seat so opponents render the real avatar, not initials.
+            avatarEmoji = member.avatarEmoji.takeIf { it.isNotBlank() },
+            avatarBackgroundColor = member.avatarBackgroundColor,
+            // Resolve XP once here too — it rides the Seat so opponents derive
+            // the player's level client-side. Frozen per session (mirrors
+            // badges): preserved across hands rather than re-resolved.
+            xp = progressionRepository.find(member.userId)?.totalXp,
         )
     }
     if (occupants.size < 2) {

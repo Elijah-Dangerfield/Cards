@@ -411,15 +411,19 @@ fun PlayPokerScreen(
         // anonymous emoji on the screen — sets up the MP visual now
         // even though in V1 only the human emits.
         state.emojiBlast?.let { blast ->
-            val humanSeat = active?.seats?.firstOrNull { it.isHuman }
+            // Attribute to the emitting seat for an opponent's emote;
+            // fall back to the human seat for our own outbound blast.
+            val emitterSeat = state.emojiBlastEmitterSeatIndex
+                ?.let { idx -> active?.seats?.firstOrNull { it.index == idx } }
+                ?: active?.seats?.firstOrNull { it.isHuman }
             EmojiBlastOverlay(
                 blast = blast,
                 onAnimationComplete = { ts ->
                     onAction(PlayPokerAction.EmojiBlastConsumed(ts))
                 },
-                emitterName = humanSeat?.displayName,
-                emitterEmoji = humanSeat?.emoji,
-                emitterColorHex = humanSeat?.avatarBackgroundColorHex,
+                emitterName = emitterSeat?.displayName,
+                emitterEmoji = emitterSeat?.emoji,
+                emitterColorHex = emitterSeat?.avatarBackgroundColorHex,
             )
         }
 

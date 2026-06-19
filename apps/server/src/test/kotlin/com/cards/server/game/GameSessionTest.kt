@@ -3,6 +3,8 @@ package com.dangerfield.cards.server.game
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.random.Random
 import kotlin.test.Test
@@ -287,9 +289,77 @@ class GameSessionTest {
     }
 
     @Test
+    fun startHand_ridesOccupantXpOntoSeats() = runTest {
+        val session = newSession()
+
+        session.startHand(
+            listOf(alice.copy(xp = 2_500), bob.copy(xp = null)),
+            settings,
+        )
+
+        val state = session.state.value!!
+        assertEquals(2_500L, state.seats.first { it.playerId == "alice" }.xp)
+        assertNull(state.seats.first { it.playerId == "bob" }.xp)
+    }
+
+    @Test
+    fun requestNextHand_preservesSeatXpAcrossHands() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice.copy(xp = 2_500), bob.copy(xp = 90)), settings)
+
+        // Drive to completion by folding the actor, then open the next hand.
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+        session.applyIntent(actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "n1")
+        assertEquals(BettingRound.Complete, session.state.value!!.street)
+
+        session.requestNextHand(actorUserId = "alice", clientNonce = "n2")
+
+        val newState = session.state.value!!
+        assertEquals(2_500L, newState.seats.first { it.playerId == "alice" }.xp)
+        assertEquals(90L, newState.seats.first { it.playerId == "bob" }.xp)
+    }
+
+    @Test
     fun stateFlow_isNull_beforeFirstHand() = runTest {
         val session = newSession()
         assertNull(session.state.value)
+    }
+
+    @Test
+    fun emitEmoji_beforeStart_isRejected() = runTest {
+        val session = newSession()
+
+        val result = session.emitEmoji(actorUserId = "alice", emoji = "🎉")
+
+        assertIs<IntentResult.Rejected>(result)
+    }
+
+    @Test
+    fun emitEmoji_fromNonSeatedUser_isRejected() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+
+        val result = session.emitEmoji(actorUserId = "stranger", emoji = "🎉")
+
+        assertIs<IntentResult.Rejected>(result)
+    }
+
+    @Test
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun emitEmoji_fromSeatedUser_fansOutAttributedToTheirSeat() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        val received = mutableListOf<SeatEmoji>()
+        val collector = launch { session.emojiBlasts.collect { received += it } }
+        runCurrent()
+
+        val result = session.emitEmoji(actorUserId = "bob", emoji = "🔥")
+        runCurrent()
+
+        assertIs<IntentResult.Accepted>(result)
+        assertEquals(SeatEmoji(seatIndex = 1, emoji = "🔥"), received.single())
+        collector.cancel()
     }
 }
 

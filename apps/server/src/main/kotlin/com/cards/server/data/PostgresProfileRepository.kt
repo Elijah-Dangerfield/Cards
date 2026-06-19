@@ -1,6 +1,5 @@
 package com.dangerfield.cards.server.data
 
-import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.server.db.Database
 import com.dangerfield.cards.server.db.InventoryTable
 import com.dangerfield.cards.server.db.ProfilesTable
@@ -18,9 +17,6 @@ import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.UserMessageKind
 import com.dangerfield.cards.server.domain.UserMessageRepository
 import com.dangerfield.cards.server.domain.UsernameGenerator
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.Json
 import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.ResultRow
@@ -139,13 +135,11 @@ class PostgresProfileRepository(
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
-        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome = database.transaction {
         val nothingToChange = displayName == null &&
             avatarEmoji == null &&
             avatarBackgroundColor == null &&
-            !clearAvatarBackgroundColor &&
-            featuredBadgeIds == null
+            !clearAvatarBackgroundColor
         if (nothingToChange) {
             val current = ProfilesTable
                 .selectAll()
@@ -167,11 +161,6 @@ class PostgresProfileRepository(
                     stmt[ProfilesTable.avatarBackgroundColor] = null
                 } else {
                     avatarBackgroundColor?.let { stmt[ProfilesTable.avatarBackgroundColor] = it }
-                }
-                // null = leave alone; empty = clear back to default (NULL);
-                // non-empty = persist the JSON blob.
-                featuredBadgeIds?.let {
-                    stmt[ProfilesTable.featuredBadgeIds] = it.takeIf(List<String>::isNotEmpty)?.encodeFeaturedBadgeIds()
                 }
                 stmt[ProfilesTable.updatedAt] = nowJava
             }
@@ -363,7 +352,6 @@ class PostgresProfileRepository(
         avatarBackgroundColor = this[ProfilesTable.avatarBackgroundColor],
         createdAt = this[ProfilesTable.createdAt].toKotlinInstant(),
         updatedAt = this[ProfilesTable.updatedAt].toKotlinInstant(),
-        featuredBadgeIds = this[ProfilesTable.featuredBadgeIds].decodeFeaturedBadgeIds(),
     )
 
     private fun ExposedSQLException.isUniqueViolation(): Boolean =
@@ -385,17 +373,5 @@ class PostgresProfileRepository(
         private const val PROFILES_DISPLAY_NAME_UQ = "profiles_display_name_uq"
         private const val MAX_ATTEMPTS = 25
         private const val FOUNDING_MEMBER_MESSAGE_KEY: String = "founding_member_v1"
-
-        private val featuredBadgeSerializer = ListSerializer(String.serializer())
-        private val json = Json { ignoreUnknownKeys = true }
-
-        private fun List<String>.encodeFeaturedBadgeIds(): String =
-            json.encodeToString(featuredBadgeSerializer, this)
-
-        /** Tolerate a malformed/legacy blob by reading it as "no selection." */
-        private fun String?.decodeFeaturedBadgeIds(): List<String> =
-            this?.let { raw ->
-                Catching { json.decodeFromString(featuredBadgeSerializer, raw) }.getOrNull()
-            } ?: emptyList()
     }
 }

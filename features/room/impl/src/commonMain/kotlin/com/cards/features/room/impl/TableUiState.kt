@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
 
@@ -159,7 +160,10 @@ sealed interface TableUiState {
             seat.playerId == null -> null
             isHuman -> humanLevel?.let { SeatBadge.Level(it) }
             seat.isBot -> botDifficultyLabel?.let { SeatBadge.BotWithDifficulty(it) } ?: SeatBadge.BotPlain
-            else -> null // remote human in MP — level plumbing arrives later
+            // Remote human in MP: the server snapshots their lifetime XP onto
+            // the Seat at hand-start; derive the level the same way the local
+            // human's is. Null xp (not yet resolved) collapses to no pill.
+            else -> seat.xp?.let { SeatBadge.Level(levelProgressFor(it).level) }
         }
 
         private fun blindSeats(state: GameState): Pair<Int?, Int?> {
@@ -287,9 +291,17 @@ data class SeatView(
             }
             val emoji = when {
                 isHuman && humanProfile != null -> humanProfile.avatarEmoji
-                else -> personality?.emoji
+                seat.isBot -> personality?.emoji
+                // Remote human opponent: avatar rides the seat from the server
+                // (snapshotted from their profile at join). Falls back to any
+                // personality emoji, then to the initials avatar when blank.
+                else -> seat.avatarEmoji?.takeIf { it.isNotBlank() } ?: personality?.emoji
             }
-            val avatarBackgroundColorHex = if (isHuman) humanProfile?.avatarBackgroundColor else null
+            val avatarBackgroundColorHex = when {
+                isHuman -> humanProfile?.avatarBackgroundColor
+                seat.isBot -> null
+                else -> seat.avatarBackgroundColor
+            }
             val seatEmpty = seat.playerId == null
             val handResolved = street == BettingRound.Complete ||
                 seat.handParticipation == HandParticipation.NotDealt

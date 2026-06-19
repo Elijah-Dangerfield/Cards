@@ -63,6 +63,15 @@ data class RoomMember(
      * is server policy, not client-visible state).
      */
     val disconnectedAt: Instant? = null,
+    /**
+     * Avatar emoji + background-color hex, snapshotted at join alongside
+     * [displayName] (same stability rationale). Carried onto the engine seat
+     * at hand-start so opponents render the real avatar. Defaulted so older
+     * call sites / tests compile; the live join path always supplies them
+     * from the member's profile.
+     */
+    val avatarEmoji: String = "",
+    val avatarBackgroundColor: String? = null,
 )
 
 /**
@@ -92,14 +101,26 @@ interface RoomService {
      * (re-create after a crash is fine — the old rooms get GC'd by
      * the sweep or by the last-out leave).
      */
-    suspend fun create(hostUserId: UserId, hostName: String, maxSeats: Int = MAX_SEATS): CreateResult
+    suspend fun create(
+        hostUserId: UserId,
+        hostName: String,
+        maxSeats: Int = MAX_SEATS,
+        hostAvatarEmoji: String = "",
+        hostAvatarBackgroundColor: String? = null,
+    ): CreateResult
 
     /**
      * Idempotent join. If the user is already a member, returns
      * [JoinResult.AlreadyJoined] with the existing seat preserved.
      * Otherwise drops them in the next free seat.
      */
-    suspend fun join(code: String, userId: UserId, name: String): JoinResult
+    suspend fun join(
+        code: String,
+        userId: UserId,
+        name: String,
+        avatarEmoji: String = "",
+        avatarBackgroundColor: String? = null,
+    ): JoinResult
 
     /**
      * Explicit leave. Frees the seat. When the room empties, the

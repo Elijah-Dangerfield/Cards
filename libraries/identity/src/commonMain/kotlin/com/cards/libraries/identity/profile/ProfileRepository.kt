@@ -49,20 +49,11 @@ interface ProfileRepository {
         avatarEmoji: String? = null,
         avatarBackgroundColor: String? = null,
         clearAvatarBackgroundColor: Boolean = false,
-        /**
-         * Replace the featured-badge selection wholesale. `null` = leave
-         * alone; an empty list = clear back to the default (most-recently-
-         * earned). Capped at [MAX_FEATURED_BADGES] before reaching the server.
-         */
-        featuredBadgeIds: List<String>? = null,
     ): UpdateProfileOutcome
 
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
     suspend fun fetchAvatarPack(): AvatarPackOutcome
 }
-
-/** Most badges a Player Card can feature. Mirrors the server's cap. */
-const val MAX_FEATURED_BADGES: Int = 3
 
 /**
  * Resolved profile. Sealed because the "real Supabase-backed profile"
@@ -94,12 +85,6 @@ sealed interface Profile {
          * [kotlin.time.Duration] back directly.
          */
         val createdAt: Instant,
-        /**
-         * Achievement ids the user features on their Player Card, in display
-         * order. Empty = never chosen — surfaces fall back to the most-
-         * recently-earned badges.
-         */
-        val featuredBadgeIds: List<String> = emptyList(),
     ) : Profile
 
     /**

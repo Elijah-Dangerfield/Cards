@@ -138,6 +138,14 @@ class PlayPokerViewModel @Inject constructor(
                 takeAction(PlayPokerAction.GameEventReceived(ev))
             }
         }
+        // Inbound table emotes from opponents (MP only — solo never emits).
+        // The handler attributes each to its seat, drops the local player's
+        // own echo, and respects the per-seat mute set.
+        viewModelScope.launch {
+            session.emoteBlasts.collect { emote ->
+                takeAction(PlayPokerAction.RemoteEmoteReceived(emote.seatIndex, emote.emoji))
+            }
+        }
         // Bootstrap the bot loop (no-op for remote sessions — they're server-driven).
         viewModelScope.launch {
             sessionFactory.bootstrap(session)
@@ -433,15 +441,40 @@ class PlayPokerViewModel @Inject constructor(
                 // GameState alone can't carry — most notably the HandEnded
                 // event (used for showdown rendering) and the most recent
                 // action per seat (rendered as a "Folded" / "Called X" pill).
-                when (val ev = action.event) {
+                val affectsProjection = when (val ev = action.event) {
                     is GameEvent.HandStarted -> {
                         lastWinners = null
                         lastActionBySeat.clear()
+                        true
                     }
-                    is GameEvent.StreetAdvanced -> lastActionBySeat.clear()
-                    is GameEvent.ActionTaken -> lastActionBySeat[ev.seatIndex] = ev.action
-                    is GameEvent.HandEnded -> lastWinners = ev
-                    else -> Unit
+                    is GameEvent.StreetAdvanced -> { lastActionBySeat.clear(); true }
+                    is GameEvent.ActionTaken -> { lastActionBySeat[ev.seatIndex] = ev.action; true }
+                    is GameEvent.HandEnded -> { lastWinners = ev; true }
+                    else -> false
+                }
+                // The table projection renders these transients but is
+                // otherwise only recomputed on a GameState snapshot. The
+                // server emits the Complete snapshot and the HandEnded event
+                // on two independent flows with no ordering guarantee — so if
+                // the snapshot is projected before HandEnded arrives, the
+                // winner (or a final action pill) would never show. Re-project
+                // here so a transient change is reflected regardless of
+                // event/snapshot ordering. (Bot sessions happened to emit the
+                // event before the final state, which masked this in solo play.)
+                if (affectsProjection) {
+                    lastGameState?.let { gs ->
+                        action.updateState {
+                            it.copy(
+                                table = sessionFactory.tableFor(
+                                    state = gs,
+                                    lastWinners = lastWinners,
+                                    lastActionBySeat = lastActionBySeat.toMap(),
+                                    humanProfile = latestHumanProfile,
+                                    humanLevel = it.humanLevel,
+                                ),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -579,8 +612,33 @@ class PlayPokerViewModel @Inject constructor(
                 if (now < currentState.emojiCooldownEndsAtMs) return
                 action.updateState {
                     it.copy(
+                        // null emitter seat → the screen attributes the blast
+                        // to the human seat (this is our own outbound emote).
                         emojiBlast = EmojiBlast(emoji = action.emoji, emittedAtEpochMs = now),
+                        emojiBlastEmitterSeatIndex = null,
                         emojiCooldownEndsAtMs = now + EMOJI_COOLDOWN_MS,
+                    )
+                }
+                // Carry it to opponents over the wire (no-op for solo bots).
+                // Fire-and-forget: the local blast already rendered above, so
+                // a send failure costs nobody their own animation.
+                viewModelScope.launch {
+                    Catching { session.sendEmote(action.emoji) }
+                        .onFailure { e -> logger.w(e) { "emote send failed" } }
+                }
+            }
+            is PlayPokerAction.RemoteEmoteReceived -> {
+                val now = clock.now().toEpochMilliseconds()
+                val active = stateFlow.value.table as? TableUiState.Active
+                val seat = active?.seats?.firstOrNull { it.index == action.seatIndex }
+                // Drop our own echo (we rendered it locally on tap) and any
+                // seat the user has muted. Unknown seat → drop.
+                if (seat == null || seat.isHuman) return
+                if (seatMuteKey(seat) in stateFlow.value.mutedEmojiPlayerKeys) return
+                action.updateState {
+                    it.copy(
+                        emojiBlast = EmojiBlast(emoji = action.emoji, emittedAtEpochMs = now),
+                        emojiBlastEmitterSeatIndex = action.seatIndex,
                     )
                 }
             }
@@ -589,7 +647,7 @@ class PlayPokerViewModel @Inject constructor(
                 // the one we last emitted — protects against a "consumed"
                 // arriving after a new blast has replaced it.
                 if (it.emojiBlast?.emittedAtEpochMs == action.emittedAtEpochMs) {
-                    it.copy(emojiBlast = null)
+                    it.copy(emojiBlast = null, emojiBlastEmitterSeatIndex = null)
                 } else {
                     it
                 }
@@ -752,6 +810,14 @@ data class PlayPokerState(
     val emojiBlast: EmojiBlast? = null,
 
     /**
+     * Seat the active [emojiBlast] was thrown from, or null when it's the
+     * local human's own outbound blast. The screen resolves this to the
+     * emitter's avatar so an opponent's emote reads as "Bob threw this";
+     * null falls back to the human seat (preserving solo behavior).
+     */
+    val emojiBlastEmitterSeatIndex: Int? = null,
+
+    /**
      * Epoch-ms after which the user can blast again. 0 = no cooldown
      * active. Compared against `clock.now()` server-side (VM owns the
      * clock) to gate `BlastEmoji`; the screen reads this to dim the
@@ -869,6 +935,14 @@ sealed interface PlayPokerAction {
     data class BlastEmoji(val emoji: String) : PlayPokerAction
 
     /**
+     * Fired by the session's emote subscription when an opponent blasts a
+     * table emote (MP only). The VM attributes it to [seatIndex], drops
+     * the local human's own echo and muted seats, then renders it through
+     * the same blast overlay as an outbound emote.
+     */
+    data class RemoteEmoteReceived(val seatIndex: Int, val emoji: String) : PlayPokerAction
+
+    /**
      * Fired by the screen when the 1.5s blast animation finishes. The
      * emit timestamp guards against clearing a freshly-replaced blast.
      */
@@ -976,7 +1050,8 @@ internal fun seatToOccupant(
         displayName = seat.displayName,
         userId = seat.playerId ?: "",
         personality = personality,
-        level = 0,             // sourced from progression repo in a later chunk
+        // Derived from the server-snapshotted Seat.xp; 0 until it resolves.
+        level = seat.xp?.let { levelProgressFor(it).level } ?: 0,
         leagueTier = null,     // sourced from league repo (V1.1)
     )
 }

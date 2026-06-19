@@ -4,6 +4,12 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## Per-seat positioned MP emote blasts
+
+**Idea:** MP emotes ship rendered as a single center-screen `EmojiBlastOverlay` attributed to the emitter's avatar (see [decisions.md](./decisions.md) 2026-06-19). A richer treatment positions each opponent's blast *over their seat* at the table, so a busy table reads who reacted at a glance and two near-simultaneous emotes don't collide on one center slot. Needs per-seat blast state (a `Map<seatIndex, EmojiBlast>` instead of the single `emojiBlast` slot) and the table render loop to anchor each overlay to its seat's layout coordinates — the overlay already takes emitter attribution, so the work is positioning + multi-blast state, not a new component.
+
+**Status:** Backlog. Polish on top of the shipped center-blast emote; the wire path + attribution already land it correctly.
+
 ## Collapse `IdentityCache` into Supabase's session as source of truth
 
 **Idea:** We maintain a separate Cards-side `IdentityCache` (display name, avatar, isAnonymous, userId) alongside supabase-kt's own session cache. Three caches end up overlapping — Supabase's session (tokens + UserInfo metadata), our `IdentityCache` (display fields), and the `IdentityState` `StateFlow`. The 2026-05-21 boot-gate fix (see [decisions.md](./decisions.md)) papers over the race by gating at the network client, but the structural answer is to stop double-caching.
@@ -547,10 +553,10 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 ## Player Card — Phase 2: opponent cards over the wire
 
-**Idea:** Make a tapped *human opponent's* Player Card show their real identity — equipped title, featured badges, and level — not just name + avatar. Today none of that flows to other seats: `SeatView` carries name/emoji/handsAtTable, `equippedTitle`/`equippedBadgeEmoji` exist only on the local human seat, and remote-human `seatBadge` (level) is null pre-fetch. Phase 1 (see [decisions.md](./decisions.md) 2026-06-06) ships the owner-facing card + the shared `PlayerCard` component; this is the cross-player half.
+**Idea:** Make a tapped *human opponent's* Player Card show their real identity — equipped badges and title, and level — not just name + avatar. Today none of that flows to other seats: `SeatView` carries name/emoji/handsAtTable, `equippedTitle`/`equippedBadgeEmoji` exist only on the local human seat, and remote-human `seatBadge` (level) is null pre-fetch. Phase 1 (see [decisions.md](./decisions.md) 2026-06-06) ships the owner-facing card + the shared `PlayerCard` component; this is the cross-player half.
 
 **Sketch:**
-- Server: expose each table participant's public card fields (display name, avatar emoji + bg, equipped title, `featuredBadgeIds`, level) to other players in the room/seat snapshot. `featuredBadgeIds` already lands on `/v1/me` in Phase 1.
+- Server: expose each table participant's public card fields (display name, avatar emoji + bg, equipped title + equipped badges, level) to other players in the room/seat snapshot. The equipped badges/titles cosmetics that now drive the owner's Player Card already land on `/v1/me`; plumb the same equipped-cosmetics shape onto the room/seat snapshot for opponents.
 - Client: carry those fields onto `SeatView` (`TableUiState.fromSeat`) and render the shared `PlayerCard` in `PlayerProfileSheet` for opponents, not just the owner.
 - Pairs with the existing `docs/todo.md` "Tap-an-opponent sheet — view full profile" item.
 

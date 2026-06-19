@@ -229,7 +229,6 @@ class AppViewModelTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
-            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used by AppViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by AppViewModel")
@@ -247,7 +246,6 @@ class AppViewModelTest : CoroutineTest() {
             avatarEmoji: String?,
             avatarBackgroundColor: String?,
             clearAvatarBackgroundColor: Boolean,
-            featuredBadgeIds: List<String>?,
         ): UpdateProfileOutcome = error("not used by AppViewModel")
         override suspend fun fetchAvatarPack(): AvatarPackOutcome =
             error("not used by AppViewModel")

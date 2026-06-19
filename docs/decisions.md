@@ -25,6 +25,16 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-19 — Multiplayer emotes: dedicated ephemeral channel, rendered as a center-screen attributed blast
+
+**Decision:** Table emotes ride a **separate per-room broadcast channel**, not the gameplay flows. A new `GameSession._emojiBlasts: SharedFlow<SeatEmoji>` (replay-0, lock-free `tryEmit`) is merged into the socket fan-out alongside the state/event legs; `ClientFrame.SendEmoji` → `GameSessionRegistry.broadcastEmoji` resolves the caller's seat from live state and emits; the client maps the new `GameplayFrame.EmojiBlast` onto `PokerSession.emoteBlasts` (also replay-0). The client **renders the incoming emote through the existing single full-screen `EmojiBlastOverlay`, attributed to the emitter's seat** (name/avatar/color) — *not* a per-seat-positioned blast. The local sender renders its own blast instantly on tap and **ignores the server echo of its own seat** (`isHuman` check); muted seats are dropped on receipt.
+
+**Why:** The gameplay snapshot/event flows are state-only and persisted; threading a momentary social reaction through them (e.g. a new `GameEvent` variant) would pollute the engine event union, the snapshot store, and the replay/ordering guards. A dedicated replay-0 channel keeps emotes ephemeral by construction — a mid-hand joiner can't have a stale reaction re-fire. Reusing the existing center-screen overlay (which already models emitter attribution + cooldown + mute) means the whole feature is wire + projection plumbing with zero new UI primitive, and the blast feel never drifts from the solo path.
+
+**Alternatives considered:** (1) Carry emotes as a `GameEvent` on the existing event flow — rejected: it conflates social chrome with authoritative gameplay state and rides the persisted/replayed path. (2) Per-seat positioned blasts over each opponent's avatar — deferred to backlog as polish; the attributed center blast is the complete, shippable V1 design and avoids a table-geometry rabbit hole. (3) Echo-suppression server-side (don't send to the originator) — rejected in favor of a client `isHuman` drop, which keeps the server fan-out uniform (every socket gets every frame) and is robust to seat re-resolution.
+
+**Status:** Locked for V1. Needs a server deploy to populate — pre-deploy the client degrades cleanly (no emote frames, local blast still renders). Per-seat positioning is a backlog follow-up.
+
 ## 2026-06-17 — XP Boost shop purchase: model the boost as a consumable chip offer, not an inventory item
 
 **Decision:** The chip-priced 2× XP boost is a `Product.ChipOffer` (server-seeded, `grants_key = boost.xp_2x`) that the client routes to a **consumable** purchase path — spend chips via `ChipsRepository.subtractChips`, then `XpBoostRepository.activate()` — instead of `InventoryRepository.redeemChipOffer`. No inventory row is ever written, so the boost never classifies as "owned" and stays re-buyable (re-buying extends the time window). The client discriminator is the shared `XP_BOOST_GRANTS_KEY` constant; the boost gets its own "Boosts" storefront shelf via the existing product-id-prefix (`boost_`) section convention.
@@ -188,6 +198,8 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
  - **(e) Higher / unlimited featured-badge cap** — a wall of badges defeats "featured" and bloats the table render; 3 keeps it legible (tunable).
 
 **Status:** Locked for V1 (Phase 1). Phase 2/3 Tentative — tracked in `backlog.md`.
+
+**Update (2026-06-18):** The server-owned "featured-badge selection" (`/v1/me.featuredBadgeIds`) described above was **superseded** by the unified **equipped badges/titles** cosmetics system, which now drives the Player Card. The featured-badge mechanism was fully removed — client picker + VM state, identity `ProfileRepository`/`MeDto` plumbing, and the server `featured_badge_ids` column/DTO/route (dropped in the V59 migration). Phase 2 should therefore plumb each opponent's **equipped cosmetics** (equipped badges + title) through the room/seat snapshot, not `featuredBadgeIds`.
 
 ---
 
@@ -2108,3 +2120,13 @@ as supporting context.
 **Alternatives considered:** (1) **`Map<Int, List<LevelReward>>` straight to JSON** — rejected: JSON object keys are strings and `LevelReward` is a sealed type needing a polymorphic discriminator; the flat-entry list sidesteps both. (2) **Ship ladder + table together now** — rejected for this slice: two config migrations touching the same `Level.kt`/`HomeViewModel` surface in one cycle risks stomping, and the ladder's display-divergence problem wants dedicated care.
 
 **Status:** Reward table shipped. Ladder migration + server reconcile remain (`todo.md` — Stats & progression).
+
+## 2026-06-19 — Opponent level over the wire freezes per session (mirrors badges/avatar)
+
+**Decision:** MP opponents' levels are rendered from a new `Seat.xp` field the server snapshots once at hand-start (`RoomSocketRoutes.handleStartHand` resolves each member's `ProgressionRepository.find(userId)?.totalXp`), copied onto the engine `Seat` and preserved across hands in `GameSession.requestNextHand` — exactly the path `badgeProductIds` and `avatarEmoji` already take. The client derives the level locally via `levelProgressFor(seat.xp).level` in `TableUiState.badgeFor` and `occupantsFor`. Level is therefore **frozen for the lifetime of the session**: a player who levels up mid-session keeps their start-of-session level on opponents' screens until a fresh session.
+
+**Why:** The todo flagged a real choice — re-resolve XP on every `RequestNextHand` so levels tick up mid-session, or freeze per session like badges. Freezing is the consistent, lower-risk call: it reuses the existing avatar/badge resolution seam verbatim (one resolve site, no new repo plumbing into the `GameSession`/registry `requestNextHand` path, which has no repository access today), and a stale-by-one-session opponent level is cosmetic and self-corrects next session. Re-resolving fresh would mean threading `ProgressionRepository` down into the registry's next-hand path purely to make a cosmetic pill tick — not worth the coupling for V1.
+
+**Alternatives considered:** (1) **Re-resolve on `RequestNextHand`** — rejected for V1: cosmetic benefit, real coupling cost (repo into the registry/session next-hand path). Revisit if a "leveled up at the table" celebration ever wants live opponent levels. (2) **Send the derived level (Int) over the wire instead of raw XP** — rejected: XP is the canonical value and the client already owns the curve (`levelProgressFor`); sending XP keeps one source of truth and lets the curve change client-side without a server change. The richer tapped-opponent Player Card (badges + title + level) in `backlog.md` reuses this same `Seat.xp`.
+
+**Status:** Shipped — `Seat.xp` plumbed end-to-end; level renders on opponent seats. Needs a server deploy to populate XP (pre-deploy, `find` returns the row or null and the pill omits gracefully).

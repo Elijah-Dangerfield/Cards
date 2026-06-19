@@ -2,12 +2,6 @@ package com.dangerfield.cards.features.profile.impl.edit
 
 import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
-import com.dangerfield.cards.libraries.cards.Achievement
-import com.dangerfield.cards.libraries.cards.AchievementHandContext
-import com.dangerfield.cards.libraries.cards.AchievementProgress
-import com.dangerfield.cards.libraries.cards.AchievementRepository
-import com.dangerfield.cards.libraries.cards.AllAchievements
-import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
@@ -53,7 +47,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -92,7 +85,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = inventory,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -134,7 +126,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = inventory,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -204,7 +195,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = inventory,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -231,7 +221,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -268,7 +257,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -306,7 +294,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -336,7 +323,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -367,7 +353,6 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
-            achievementRepository = NoOpAchievementRepository,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -386,109 +371,6 @@ class EditProfileViewModelTest : CoroutineTest() {
         assertNull(vm.state.displayNameError)
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun featuredBadges_defaultToMostRecentEarned_whenSelectionUnset() = runUnitTest {
-        val ids = AllAchievements.take(4).map { it.id }
-        val progress = AchievementProgress(
-            earned = mapOf(ids[0] to 100L, ids[1] to 200L, ids[2] to 300L, ids[3] to 400L),
-            counters = emptyMap(),
-            customCounters = emptyMap(),
-        )
-        val vm = EditProfileViewModel(
-            profileRepository = GatedUpdateProfile(gate = CompletableDeferred()),
-            inventoryRepository = NoOpInventoryRepository,
-            equipmentRepository = NoOpEquipmentRepository,
-            progressionRepository = NoOpProgressionRepository,
-            achievementRepository = FakeAchievementRepository(progress),
-            productsRepository = NoOpProductsRepository,
-            appScope = AppCoroutineScope(dispatchers),
-        )
-        runCurrent()
-
-        // Earned set is ordered most-recently-earned first.
-        assertEquals(
-            listOf(ids[3], ids[2], ids[1], ids[0]),
-            vm.state.earnedBadges.map { it.id },
-        )
-        // No explicit selection → card shows the three most recent.
-        assertEquals(
-            listOf(ids[3], ids[2], ids[1]),
-            vm.state.featuredBadges.map { it.id },
-        )
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun toggleFeaturedBadge_addsRemoves_andCapsAtThree() = runUnitTest {
-        val ids = AllAchievements.take(4).map { it.id.name }
-        val progress = AchievementProgress(
-            earned = ids.mapIndexed { i, _ -> AllAchievements[i].id to (i + 1).toLong() }.toMap(),
-            counters = emptyMap(),
-            customCounters = emptyMap(),
-        )
-        val vm = EditProfileViewModel(
-            profileRepository = GatedUpdateProfile(gate = CompletableDeferred()),
-            inventoryRepository = NoOpInventoryRepository,
-            equipmentRepository = NoOpEquipmentRepository,
-            progressionRepository = NoOpProgressionRepository,
-            achievementRepository = FakeAchievementRepository(progress),
-            productsRepository = NoOpProductsRepository,
-            appScope = AppCoroutineScope(dispatchers),
-        )
-        runCurrent()
-
-        vm.takeAction(EditProfileAction.ToggleFeaturedBadge(ids[0]))
-        vm.takeAction(EditProfileAction.ToggleFeaturedBadge(ids[1]))
-        vm.takeAction(EditProfileAction.ToggleFeaturedBadge(ids[2]))
-        runCurrent()
-        assertEquals(listOf(ids[0], ids[1], ids[2]), vm.state.selectedFeaturedBadgeIds)
-        assertTrue(vm.state.isFeaturedSelectionFull)
-
-        // A fourth is rejected at the cap.
-        vm.takeAction(EditProfileAction.ToggleFeaturedBadge(ids[3]))
-        runCurrent()
-        assertEquals(listOf(ids[0], ids[1], ids[2]), vm.state.selectedFeaturedBadgeIds)
-
-        // Toggling a selected one removes it, freeing a slot.
-        vm.takeAction(EditProfileAction.ToggleFeaturedBadge(ids[0]))
-        runCurrent()
-        assertEquals(listOf(ids[1], ids[2]), vm.state.selectedFeaturedBadgeIds)
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun submit_featuredSelectionChange_passesIdsToRepo_andEmitsSaved() = runUnitTest {
-        val firstId = AllAchievements.first().id
-        val progress = AchievementProgress(
-            earned = mapOf(firstId to 100L),
-            counters = emptyMap(),
-            customCounters = emptyMap(),
-        )
-        val gate = CompletableDeferred<UpdateProfileOutcome>()
-        val profile = GatedUpdateProfile(gate)
-        val vm = EditProfileViewModel(
-            profileRepository = profile,
-            inventoryRepository = NoOpInventoryRepository,
-            equipmentRepository = NoOpEquipmentRepository,
-            progressionRepository = NoOpProgressionRepository,
-            achievementRepository = FakeAchievementRepository(progress),
-            productsRepository = NoOpProductsRepository,
-            appScope = AppCoroutineScope(dispatchers),
-        )
-        runCurrent()
-
-        vm.eventFlow.test {
-            vm.takeAction(EditProfileAction.ToggleFeaturedBadge(firstId.name))
-            vm.takeAction(EditProfileAction.Submit)
-
-            // Featured-only edit is optimistic — Saved fires immediately.
-            assertEquals(EditProfileEvent.Saved, awaitItem())
-            assertEquals(listOf(firstId.name), profile.lastFeaturedBadgeIds)
-
-            gate.complete(UpdateProfileOutcome.Success(sampleProfile))
-        }
-    }
 }
 
 private val sampleProfile = Profile.Authenticated(
@@ -522,18 +404,13 @@ private class GatedUpdateProfile(
     override suspend fun current(): Profile = seedProfile
     override fun observe(): Flow<Profile> = flow
 
-    var lastFeaturedBadgeIds: List<String>? = null
-        private set
-
     override suspend fun update(
         displayName: String?,
         avatarEmoji: String?,
         avatarBackgroundColor: String?,
         clearAvatarBackgroundColor: Boolean,
-        featuredBadgeIds: List<String>?,
     ): UpdateProfileOutcome {
         updateStarted += 1
-        lastFeaturedBadgeIds = featuredBadgeIds
         val outcome = gate.await()
         updateFinished += 1
         return outcome
@@ -622,18 +499,3 @@ private object NoOpProgressionRepository : ProgressionRepository {
     override suspend fun debugSetTotalXp(totalXp: Long) = Unit
 }
 
-private class FakeAchievementRepository(
-    private val progress: AchievementProgress = AchievementProgress.Empty,
-) : AchievementRepository {
-    override fun observeProgress(): Flow<AchievementProgress> = flowOf(progress)
-    override suspend fun getProgress(): AchievementProgress = progress
-    override suspend fun recordHand(
-        summary: HandResultSummary,
-        context: AchievementHandContext,
-    ): List<EarnedAchievement> = error("unused")
-    override suspend fun recordTutorialComplete(): EarnedAchievement? = error("unused")
-    override suspend fun sync(): Result<Unit> = Result.success(Unit)
-    override suspend fun deleteAll() = Unit
-}
-
-private val NoOpAchievementRepository = FakeAchievementRepository()

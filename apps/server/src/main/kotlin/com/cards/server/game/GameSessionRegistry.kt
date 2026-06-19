@@ -7,6 +7,8 @@ import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
 import com.dangerfield.cards.server.domain.NoOpHandsFinishedRepository
+import com.dangerfield.cards.server.domain.NoOpServerWitnessedAchievements
+import com.dangerfield.cards.server.domain.ServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +80,15 @@ interface GameSessionRegistry {
     ): IntentResult
 
     /**
+     * Fan a table emote out to every socket in the room. Resolves to the
+     * in-memory session via [peek] (no hydrate — emotes only matter while
+     * a hand is live and someone's watching the table) and delegates to
+     * [GameSession.emitEmoji]. Rejected when no session is registered for
+     * [code].
+     */
+    fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult
+
+    /**
      * Synchronous lookup of an in-memory session. Returns null when the
      * registry doesn't currently hold one for [code] — does **not**
      * consult the snapshot store. Mostly for tests and one-off code
@@ -122,6 +133,7 @@ class DefaultGameSessionRegistry(
     // resolves the real binding here; the default only serves direct
     // construction in tests that don't care about the counter.
     private val handsFinishedRepository: HandsFinishedRepository = NoOpHandsFinishedRepository,
+    private val serverWitnessedAchievements: ServerWitnessedAchievements = NoOpServerWitnessedAchievements,
 ) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
@@ -155,6 +167,10 @@ class DefaultGameSessionRegistry(
     ): IntentResult = findOrHydrate(code)
         ?.requestNextHand(actorUserId, clientNonce)
         ?: IntentResult.Rejected("no game session for room $code")
+
+    override fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult =
+        peek(code)?.emitEmoji(actorUserId, emoji)
+            ?: IntentResult.Rejected("no game session for room $code")
 
     override fun peek(code: String): GameSession? = sessions.value[code]
 
@@ -207,11 +223,13 @@ class DefaultGameSessionRegistry(
     )
 
     /**
-     * Witness each human's finished-hand count. Best-effort: a counter
-     * write failing must never break gameplay, so each is wrapped in
-     * [Catching]. A non-UUID actorUserId (a `"bot-..."` string slipping
-     * through, or a test fixture) is skipped — only real Supabase users
-     * carry a server-witnessed count.
+     * Witness each human's finished-hand count, then re-evaluate the
+     * count-based server-witnessed achievements off the freshly-incremented
+     * count. Best-effort: a counter write or grant failing must never break
+     * gameplay, so each is wrapped in [Catching]. A non-UUID actorUserId (a
+     * `"bot-..."` string slipping through, or a test fixture) is skipped —
+     * only real Supabase users carry a server-witnessed count. Evaluation
+     * runs *after* the record so the count includes the hand just finished.
      */
     private suspend fun recordHandsFinished(sessionId: UUID, handNumber: Int, humanUserIds: List<String>) {
         for (userIdString in humanUserIds) {
@@ -224,6 +242,8 @@ class DefaultGameSessionRegistry(
                     handNumber = handNumber,
                 )
             }.onFailure { log.warn("hands_finished record failed for user {} hand {}", userIdString, handNumber, it) }
+            Catching { serverWitnessedAchievements.evaluate(userId) }
+                .onFailure { log.warn("server-witnessed eval failed for user {} hand {}", userIdString, handNumber, it) }
         }
     }
 

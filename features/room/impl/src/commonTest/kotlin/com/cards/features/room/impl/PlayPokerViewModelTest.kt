@@ -15,7 +15,10 @@ import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.game.SeatOccupant
+import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.HandWinner
+import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.review.ReviewTrigger
@@ -195,6 +198,54 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
         vm.takeAction(PlayPokerAction.EmojiBlastConsumed(emittedAtEpochMs = firstTs))
         assertEquals(null, vm.state.emojiBlast)
+    }
+
+    // ---------- Inbound MP emotes (PokerSession.emoteBlasts → state) ----------
+
+    @Test
+    fun blastEmoji_sendsEmoteOverTheWire() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory, clock = FixedClock(1_000_000L))
+
+        vm.takeAction(PlayPokerAction.BlastEmoji("🔥"))
+
+        assertEquals(listOf("🔥"), session.sentEmotes, "the local blast must also ride the socket to opponents")
+    }
+
+    @Test
+    fun remoteEmote_fromOpponentSeat_rendersBlastAttributedToThatSeat() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory, clock = FixedClock(2_000_000L))
+
+        // The stub table seats "You" (0, human) + "Steve" (1, opponent).
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 1, emoji = "🎉"))
+
+        assertEquals("🎉", vm.state.emojiBlast?.emoji)
+        assertEquals(2_000_000L, vm.state.emojiBlast?.emittedAtEpochMs)
+        assertEquals(1, vm.state.emojiBlastEmitterSeatIndex, "an opponent's blast is attributed to their seat")
+    }
+
+    @Test
+    fun remoteEmote_fromOwnSeat_isIgnored() = runUnitTest {
+        val vm = buildVm()
+
+        // Seat 0 is the local human — an echo of our own blast must not re-render.
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 0, emoji = "🎉"))
+
+        assertEquals(null, vm.state.emojiBlast)
+    }
+
+    @Test
+    fun remoteEmote_fromMutedSeat_isIgnored() = runUnitTest {
+        val cache = FakeAppCache()
+        val vm = buildVm(appCache = cache)
+
+        cache.emit(AppData(mutedEmojiPlayerKeys = setOf("Steve")))
+        vm.takeAction(PlayPokerAction.RemoteEmoteReceived(seatIndex = 1, emoji = "🔥"))
+
+        assertEquals(null, vm.state.emojiBlast, "a muted opponent's emote is dropped")
     }
 
     @Test
@@ -486,6 +537,143 @@ class PlayPokerViewModelTest : CoroutineTest() {
 
         assertEquals(1, progression.awardedSummaries.size)
         assertEquals(30, vm.state.lastHandXpAwarded, "24 + 6 from the two XP events")
+    }
+
+    // ---------- Winner rendering vs event/snapshot ordering (regression) ----------
+    // The server emits the Complete snapshot and the HandEnded event on two
+    // independent flows with no ordering guarantee. The table is projected on
+    // GameState updates; HandEnded only sets a transient. If the projection
+    // doesn't also run on the event, a snapshot-before-event ordering drops the
+    // winner ("nothing happened on the last call"). Both orderings must render.
+
+    @Test
+    fun handEndedEvent_afterCompleteSnapshot_rendersWinnerOnTable() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        // Snapshot FIRST (the ordering that used to drop the winner).
+        session.emitGameState(stubGameState(street = BettingRound.Complete, actingSeatIndex = null))
+        session.emitEvent(
+            GameEvent.HandEnded(
+                sequence = 1,
+                winners = listOf(HandWinner(seatIndex = 0, amount = 200, handRank = null, byFold = true)),
+                board = emptyList(),
+                revealedHoleCards = emptyMap(),
+            ),
+        )
+
+        val table = vm.state.table as TableUiState.Active
+        assertEquals(
+            listOf(0),
+            table.handResult?.winners?.map { it.seatIndex },
+            "winner must render even when the Complete snapshot arrives before HandEnded",
+        )
+    }
+
+    @Test
+    fun handEndedEvent_beforeCompleteSnapshot_rendersWinnerOnTable() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        // Event FIRST (the ordering bot sessions happen to use).
+        session.emitEvent(
+            GameEvent.HandEnded(
+                sequence = 1,
+                winners = listOf(HandWinner(seatIndex = 1, amount = 200, handRank = null, byFold = true)),
+                board = emptyList(),
+                revealedHoleCards = emptyMap(),
+            ),
+        )
+        session.emitGameState(stubGameState(street = BettingRound.Complete, actingSeatIndex = null))
+
+        val table = vm.state.table as TableUiState.Active
+        assertEquals(listOf(1), table.handResult?.winners?.map { it.seatIndex })
+    }
+
+    // ---------- Action pills vs event/snapshot ordering (regression) ----------
+    // The "Called 50" / "Folded" pill below a seat is a per-hand transient the VM
+    // tracks from ActionTaken events — GameState alone can't carry it. The table
+    // is otherwise only re-projected on a GameState snapshot. The server emits
+    // events and snapshots on two independent flows with no ordering guarantee,
+    // so an ActionTaken that lands without a following snapshot must still paint
+    // the pill (the same class of ordering bug the winner-rendering tests pin).
+
+    @Test
+    fun actionTakenEvent_withoutFollowingSnapshot_rendersActionPill() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        session.emitGameState(
+            stubGameState(
+                seats = listOf(
+                    testSeat(0, "You", isBot = false, playerId = "human"),
+                    testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                ),
+                actingSeatIndex = 0,
+            ),
+        )
+        // Only the event arrives — no fresh snapshot behind it.
+        session.emitEvent(
+            GameEvent.ActionTaken(
+                sequence = 1,
+                seatIndex = 1,
+                action = PlayerAction.Call(50),
+                resultingStreetContribution = 50,
+            ),
+        )
+
+        val table = vm.state.table as TableUiState.Active
+        assertEquals(
+            PlayerAction.Call(50),
+            table.seats.first { it.index == 1 }.lastAction,
+            "an ActionTaken must re-project the seat's pill even with no following snapshot",
+        )
+    }
+
+    @Test
+    fun streetAdvancedEvent_clearsStaleActionPills() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(session = session)
+        val vm = buildVm(factory = factory)
+
+        session.emitGameState(
+            stubGameState(
+                seats = listOf(
+                    testSeat(0, "You", isBot = false, playerId = "human"),
+                    testSeat(1, "Steve", isBot = true, playerId = "bot-1"),
+                ),
+                actingSeatIndex = 0,
+            ),
+        )
+        session.emitEvent(
+            GameEvent.ActionTaken(
+                sequence = 1,
+                seatIndex = 1,
+                action = PlayerAction.Call(50),
+                resultingStreetContribution = 50,
+            ),
+        )
+        assertEquals(
+            PlayerAction.Call(50),
+            (vm.state.table as TableUiState.Active).seats.first { it.index == 1 }.lastAction,
+        )
+
+        // A street change wipes last-street action pills — again with no snapshot.
+        session.emitEvent(
+            GameEvent.StreetAdvanced(
+                sequence = 2,
+                street = BettingRound.Flop,
+                communityCards = emptyList(),
+            ),
+        )
+        assertEquals(
+            null,
+            (vm.state.table as TableUiState.Active).seats.first { it.index == 1 }.lastAction,
+            "advancing the street must clear stale per-seat action pills",
+        )
     }
 
     @Test

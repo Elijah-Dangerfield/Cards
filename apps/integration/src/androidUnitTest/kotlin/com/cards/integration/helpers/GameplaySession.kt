@@ -32,6 +32,7 @@ class GameplaySession(
 ) {
     private val snapshots = MutableSharedFlow<GameState>(replay = 32, extraBufferCapacity = 64)
     private val acks = MutableSharedFlow<GameplayFrame.IntentAck>(replay = 32, extraBufferCapacity = 64)
+    private val emotes = MutableSharedFlow<GameplayFrame.EmojiBlast>(replay = 32, extraBufferCapacity = 64)
     private val connection = MutableStateFlow<RoomConnection?>(null)
 
     init {
@@ -41,6 +42,7 @@ class GameplaySession(
                 when (frame) {
                     is GameplayFrame.StateSnapshot -> snapshots.emit(frame.state)
                     is GameplayFrame.IntentAck -> acks.emit(frame)
+                    is GameplayFrame.EmojiBlast -> emotes.emit(frame)
                     is GameplayFrame.Event -> Unit
                 }
             }
@@ -78,6 +80,14 @@ class GameplaySession(
 
     private fun GameState.isAfterCursor(): Boolean =
         handNumber > cursorHand || (handNumber == cursorHand && lastSequence > cursorSeq)
+
+    /** Blast a table emote to the rest of the room. */
+    suspend fun sendEmote(emoji: String) =
+        handle.send(ClientFrame.SendEmoji(emoji = emoji, clientNonce = newNonce()))
+
+    /** The next inbound emote blast (from any seat). */
+    suspend fun nextEmote(timeoutMs: Long = DEFAULT_TIMEOUT_MS): GameplayFrame.EmojiBlast =
+        withTimeout(timeoutMs) { emotes.first() }
 
     /** Submit [intent] and return the server's correlated ack (accepted or rejected). */
     suspend fun submit(

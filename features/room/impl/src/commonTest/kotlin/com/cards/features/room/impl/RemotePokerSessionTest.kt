@@ -192,6 +192,36 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     @Test
+    fun emoteBlasts_emit_onEmojiBlastFrame() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        session.emoteBlasts.test {
+            handle.pushFrame(GameplayFrame.EmojiBlast(seatIndex = 2, emoji = "🎉"))
+            advanceUntilIdle()
+            val emote = awaitItem()
+            assertEquals(2, emote.seatIndex)
+            assertEquals("🎉", emote.emoji)
+            cancelAndIgnoreRemainingEvents()
+        }
+        runJob.cancel()
+    }
+
+    @Test
+    fun sendEmote_sendsSendEmojiFrame() = runUnitTest {
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+
+        session.sendEmote("🔥")
+
+        val frame = handle.sent.single()
+        assertIs<ClientFrame.SendEmoji>(frame)
+        assertEquals("🔥", frame.emoji)
+    }
+
+    @Test
     fun connectionState_mirrorsRoomConnectionTransitions() = runUnitTest {
         val handle = FakeRoomConnectionHandle()
         val session = RemotePokerSession(handle)

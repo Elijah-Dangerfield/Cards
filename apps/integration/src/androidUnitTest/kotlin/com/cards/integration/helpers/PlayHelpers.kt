@@ -1,6 +1,8 @@
 package com.cards.integration.helpers
 
+import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.GameState
+import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
 
@@ -50,4 +52,47 @@ class Table(
 
     fun gameForSeat(state: GameState, seatIndex: Int): GameplaySession =
         if (state.seatAt(seatIndex).playerId == host.userId) hostGame else joinerGame
+}
+
+/**
+ * Walk the hand forward over the wire with the most passive legal action
+ * (check when nothing is owed, otherwise call) until it reaches [target],
+ * returning the first snapshot on that street. Reads from the host's view
+ * (bet sizes are public) and routes each action to the seat that owns it.
+ * Each `nextSnapshot` advances the forward cursor, so the assertion always
+ * lands on a post-action snapshot — production ordering, not a buffered one.
+ */
+suspend fun Table.advancePassivelyUntil(target: BettingRound, maxActions: Int = 60): GameState {
+    var guard = 0
+    while (guard++ < maxActions) {
+        val s = hostGame.nextSnapshot { it.street == target || it.actingSeatIndex != null }
+        if (s.street == target) return s
+        actPassively(s)
+    }
+    error("hand did not reach $target within $maxActions actions")
+}
+
+/**
+ * Play the hand to its [BettingRound.Complete] state passively (the called-
+ * down line), returning the completed snapshot. Companion to
+ * [advancePassivelyUntil] for the "all the way to showdown" case.
+ */
+suspend fun Table.playPassivelyToCompletion(maxActions: Int = 60): GameState {
+    var guard = 0
+    while (guard++ < maxActions) {
+        val s = hostGame.nextSnapshot { it.street == BettingRound.Complete || it.actingSeatIndex != null }
+        if (s.street == BettingRound.Complete) return s
+        actPassively(s)
+    }
+    error("hand did not complete within $maxActions actions")
+}
+
+private suspend fun Table.actPassively(state: GameState) {
+    val seatIndex = state.actingSeatIndex!!
+    val seat = state.seatAt(seatIndex)
+    val toCall = state.currentBetThisStreet - seat.contributedThisStreet
+    val ack = gameForSeat(state, seatIndex).submit(
+        if (toCall > 0) PlayerIntent.Call(seatIndex) else PlayerIntent.Check(seatIndex),
+    )
+    check(ack.accepted) { "passive action at seat $seatIndex (${state.street}) rejected: ${ack.error}" }
 }
