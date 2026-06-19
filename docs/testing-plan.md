@@ -131,7 +131,7 @@ Create [`RemotePokerSessionFactoryTest`](../features/room/impl/src/commonTest/ko
 > - [ ] **River/turn fold over the wire** — only *preflop* fold is tested; fold after community cards are dealt.
 > - [ ] **All-in / side-pot settlement through the socket** — the engine has it (Round 3); the wire path doesn't. Two clients all-in, assert per-seat settlement matches the engine.
 > - [ ] **Multi-hand: button rotation + stack carry-over** across `RequestNextHand` (one hand exists; assert button moves and stacks carry).
-> - [ ] **Reconnect-mid-hand resyncs the *winner*** — `ChaosPlayTest` resyncs to a completed hand; also assert the `HandEnded`/winner is present after reconnect (the ordering seam under fault).
+> - [x] **Reconnect-mid-hand resyncs the *winner*** — `ChaosPlayTest.clientDropsMidHand_reconnects_andSeesTheAwardedPot`: the dropped player is the lone non-folder, and after reconnect its own view shows the awarded pot (winner stack up, folder down, chips conserved) — the derived award survives the fault, not just the `Complete` flag.
 > - [ ] **Action-pill ordering** — a VM test that "Called 50" pills survive the same event/snapshot ordering as the winner fix (same `GameEventReceived` re-projection path).
 > - Plus side pots / all-in run-outs, backgrounding, latency double-submit dedupe, and the feature-gated public-games / add-a-bot specs.
 
