@@ -46,6 +46,17 @@ data class Wallet(
         const val BUST_PROTECTION_REASON: String = "bust_protection"
 
         /**
+         * Chip grant for crossing 100 finished multiplayer hands
+         * (`HANDS_100_MP`). Replaces the borrowed single-player grinder
+         * emote pack the achievement used to hand out — a chip grant is
+         * the right reward for an MP volume milestone and needs no
+         * dedicated cosmetic content. Applied idempotently per the
+         * achievement's stable ledger key so re-evaluating the threshold
+         * each finished hand never double-credits.
+         */
+        const val ACHIEVEMENT_HANDS_100_GRANT: Long = 2_500L
+
+        /**
          * Welcome-week daily grant schedule, counted in whole days
          * since the wallet's `createdAt`. Signup day (elapsed day 0)
          * gets the starter grant only — no daily bonus on the same

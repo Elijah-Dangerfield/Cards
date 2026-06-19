@@ -8,6 +8,8 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.http.ClientContext
 import me.tatarka.inject.annotations.Inject
 import org.slf4j.LoggerFactory
@@ -21,14 +23,17 @@ import kotlin.time.ExperimentalTime
  * achievements off [HandsFinishedRepository.countForUser] and grants on a
  * threshold crossing.
  *
- * A "grant" is two idempotent writes: the durable earned-achievement record
+ * A "grant" is the durable earned-achievement record
  * ([AchievementRepository.recordEarned] — what reaches the client's earned set
- * on its next achievements sync) and, when the achievement maps to a cosmetic
- * that's present in the catalog, an inventory earned-grant
- * ([InventoryRepository.recordEarnedGrant]). The cosmetic step degrades
- * gracefully exactly like the client grant route: an id with no mapped product
- * (or a product missing from the catalog) still records the achievement, it
- * just grants no cosmetic.
+ * on its next achievements sync) plus, depending on the achievement's mapped
+ * reward: an inventory earned-grant for a cosmetic
+ * ([InventoryRepository.recordEarnedGrant]) and/or an idempotent chip grant to
+ * the wallet ledger ([WalletRepository.apply]). Every reward step degrades
+ * gracefully exactly like the client grant route: an id with no mapped reward
+ * (or a cosmetic product missing from the catalog) still records the
+ * achievement, it just grants no reward. Chip grants are keyed off a stable
+ * per-achievement ledger key, so re-evaluating the same threshold on each
+ * finished hand never double-credits.
  *
  * Cheap-by-skip: [evaluate] reads the earned set first and short-circuits when
  * every threshold id is already earned, so the hot path costs one read (not two
@@ -43,6 +48,7 @@ class DefaultServerWitnessedAchievements(
     private val achievements: AchievementRepository,
     private val inventory: InventoryRepository,
     private val catalog: ProductCatalogSource,
+    private val wallet: WalletRepository,
     private val clock: Clock,
 ) : ServerWitnessedAchievements {
 
@@ -64,6 +70,14 @@ class DefaultServerWitnessedAchievements(
                         inventory.recordEarnedGrant(userId, product.id, clock.now())
                     }
                 }
+                CHIP_REWARDS[achievementId]?.let { chips ->
+                    wallet.apply(
+                        userId = userId,
+                        idempotencyKey = "achievement:$achievementId",
+                        delta = chips,
+                        reason = "achievement_grant:$achievementId",
+                    )
+                }
             }.onFailure {
                 log.warn("server-witnessed grant failed for user {} achievement {}", userId.value, achievementId, it)
             }
@@ -84,13 +98,21 @@ class DefaultServerWitnessedAchievements(
         /**
          * Cosmetic each count-based achievement grants. Missing entries (or a
          * product absent from the catalog) simply skip the cosmetic — the
-         * earned-achievement record still lands. `HANDS_100_MP` reuses the
-         * single-player grinder emote: a dedicated MP product is a content +
-         * migration call the human owns, and the earned record is the
-         * load-bearing half here.
+         * earned-achievement record still lands. Empty today: the only
+         * count-based MP achievement that grants a reward (`HANDS_100_MP`)
+         * now grants chips ([CHIP_REWARDS]) rather than a borrowed
+         * single-player emote. Kept as the seam for any future count
+         * achievement that maps to a real MP cosmetic.
          */
-        val REWARD_PRODUCTS: Map<String, String> = mapOf(
-            "HANDS_100_MP" to "emotes_grinder",
+        val REWARD_PRODUCTS: Map<String, String> = emptyMap()
+
+        /**
+         * Chips each count-based achievement grants, applied idempotently to
+         * the wallet ledger. `HANDS_100_MP` (100 finished MP hands) credits
+         * [Wallet.ACHIEVEMENT_HANDS_100_GRANT].
+         */
+        val CHIP_REWARDS: Map<String, Long> = mapOf(
+            "HANDS_100_MP" to Wallet.ACHIEVEMENT_HANDS_100_GRANT,
         )
 
         private val SYSTEM_CONTEXT = ClientContext(

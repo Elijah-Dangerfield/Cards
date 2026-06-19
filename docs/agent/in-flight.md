@@ -11,3 +11,9 @@
 **Problem:** No welcoming first-milestone before the `HANDS_100_MP` grind — finishing your first MP hand earned nothing.
 **Approach:** New count-based server-witnessed id riding the existing `DefaultServerWitnessedAchievements` path: added `FIRST_HAND_MP` at threshold `1` in `COUNT_THRESHOLDS`, the client achievement definition ("Took a seat", COMMON, 🤝, MULTIPLAYER mode), and the `serverWitnessed` deny-list entry so the client grant route 403s it. Record-only — no `REWARD_PRODUCTS` entry, so no cosmetic/chips, per the todo.
 **Reviewer notes:** Picked name "Took a seat" / icon 🤝 — directional copy call; reviewer can rename. Adding the threshold-1 id meant the count-based server tests now fire two achievements at count 100 and one at count 1, so I retargeted those tests (the "below threshold grants nothing" case moved to count 0) and added a dedicated count-1 test.
+
+## feat: HANDS_100_MP grants chips, not a borrowed emote
+
+**Problem:** The 100-finished-MP-hands achievement handed out the single-player `emotes_grinder` emote pack as a stand-in — a borrowed cosmetic, not a real MP reward.
+**Approach:** Added `Wallet.ACHIEVEMENT_HANDS_100_GRANT = 2_500`, dropped `HANDS_100_MP` from `DefaultServerWitnessedAchievements.REWARD_PRODUCTS` (now empty, kept as the cosmetic seam), and added a `CHIP_REWARDS` map applied via `wallet.apply(idempotencyKey="achievement:HANDS_100_MP", delta=2500, reason="achievement_grant:HANDS_100_MP")`. The stable ledger key makes the re-evaluation-every-hand path idempotent. Injected `WalletRepository` into the evaluator.
+**Reviewer notes:** `REWARD_PRODUCTS` is intentionally empty now but retained as the generic cosmetic seam for future count achievements (the catalog read path is dead until something maps there again — could be inlined if you'd rather not carry it). 2,500 chips is the todo's specified amount.

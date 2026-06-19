@@ -7,8 +7,13 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
+import com.dangerfield.cards.server.domain.ApplyOutcome
+import com.dangerfield.cards.server.domain.FindOrCreateResult
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.UserId
+import com.dangerfield.cards.server.domain.Wallet
+import com.dangerfield.cards.server.domain.WalletEvent
+import com.dangerfield.cards.server.domain.WalletRepository
 import com.dangerfield.cards.server.http.ClientContext
 import kotlinx.coroutines.test.runTest
 import java.util.UUID
@@ -38,9 +43,50 @@ class DefaultServerWitnessedAchievementsTest {
         evaluator.evaluate(userId)
 
         // At 100 finished hands both the first-hand milestone and the
-        // 100-hand grind cross; only HANDS_100_MP maps to a cosmetic.
+        // 100-hand grind cross; HANDS_100_MP grants chips (not a cosmetic).
         assertEquals(listOf("FIRST_HAND_MP", "HANDS_100_MP"), achievements.earned)
-        assertEquals(listOf("emotes_grinder"), inventory.earnedGrants.map { it.productId })
+        assertTrue(inventory.earnedGrants.isEmpty())
+    }
+
+    @Test
+    fun crossingHandsThreshold_grantsChips_notCosmetic() = runTest {
+        val achievements = CapturingAchievements()
+        val inventory = CapturingInventory()
+        val wallet = CapturingWallet()
+        val evaluator = build(
+            handsCount = 100,
+            achievements = achievements,
+            inventory = inventory,
+            catalog = FakeCatalog.with(stubProduct("emotes_grinder")),
+            wallet = wallet,
+        )
+
+        evaluator.evaluate(userId)
+
+        assertTrue(inventory.earnedGrants.isEmpty())
+        assertEquals(1, wallet.applied.size)
+        val grant = wallet.applied.single()
+        assertEquals("achievement:HANDS_100_MP", grant.idempotencyKey)
+        assertEquals(2_500L, grant.delta)
+        assertEquals("achievement_grant:HANDS_100_MP", grant.reason)
+    }
+
+    @Test
+    fun firstHandMp_grantsNoChips() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        val evaluator = build(
+            handsCount = 1,
+            achievements = achievements,
+            inventory = CapturingInventory(),
+            catalog = FakeCatalog.empty(),
+            wallet = wallet,
+        )
+
+        evaluator.evaluate(userId)
+
+        assertEquals(listOf("FIRST_HAND_MP"), achievements.earned)
+        assertTrue(wallet.applied.isEmpty())
     }
 
     @Test
@@ -116,11 +162,13 @@ class DefaultServerWitnessedAchievementsTest {
         achievements: AchievementRepository,
         inventory: InventoryRepository,
         catalog: ProductCatalogSource,
+        wallet: WalletRepository = CapturingWallet(),
     ): DefaultServerWitnessedAchievements = DefaultServerWitnessedAchievements(
         handsFinished = FixedCountHandsFinished(handsCount),
         achievements = achievements,
         inventory = inventory,
         catalog = catalog,
+        wallet = wallet,
         clock = Clock.System,
     )
 
@@ -187,6 +235,40 @@ class DefaultServerWitnessedAchievementsTest {
                 acquisitionSource = AcquisitionSource.Earned,
             )
         }
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private class CapturingWallet : WalletRepository {
+        val applied = mutableListOf<WalletEvent>()
+        private var balance = 0L
+
+        override suspend fun findOrCreateResult(userId: UserId): FindOrCreateResult =
+            error("findOrCreateResult not used in this test")
+
+        override suspend fun find(userId: UserId): Wallet? = null
+
+        override suspend fun apply(
+            userId: UserId,
+            idempotencyKey: String,
+            delta: Long,
+            reason: String,
+        ): ApplyOutcome {
+            val alreadyApplied = applied.any { it.idempotencyKey == idempotencyKey }
+            if (!alreadyApplied) {
+                applied += WalletEvent(
+                    userId = userId,
+                    idempotencyKey = idempotencyKey,
+                    delta = delta,
+                    reason = reason,
+                    appliedAt = Instant.fromEpochMilliseconds(0),
+                )
+                balance += delta
+            }
+            return ApplyOutcome.Applied(balance = balance, wasAlreadyApplied = alreadyApplied)
+        }
+
+        override suspend fun recentEvents(userId: UserId, limit: Int): List<WalletEvent> = applied
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
