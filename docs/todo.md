@@ -26,6 +26,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** each remaining `serverWitnessed` id is evaluated + granted from a server-witnessed per-hand signal.
   **Hints:** extend the hand-finished callback to carry per-hand outcomes; bot achievements stay client self-grant.
 
+- `[P2]` **"First multiplayer game" achievement.** Earn an achievement the first time a player finishes a multiplayer hand — a welcoming first-milestone reward before the `HANDS_100_MP` grind. It's a count-based server-witnessed id, so it rides the path that already ships: add a new id (e.g. `FIRST_HAND_MP`) at threshold `1` in `DefaultServerWitnessedAchievements.COUNT_THRESHOLDS`, define the achievement on the client (title/copy/rarity), and pick its reward cosmetic + add it to `REWARD_PRODUCTS` (or leave it record-only). No new server signal needed — the finished-hand count already drives it.
+  **Acceptance:** finishing one multiplayer hand earns + surfaces the achievement; re-evaluation stays idempotent.
+  **Hints:** mirror the `HANDS_100_MP` wiring; the reward-product/content call is a [developer-todo.md](./developer-todo.md) item if a dedicated cosmetic is wanted.
+
 ### Progression & XP (server)
 
 - `[P2]` **Graduate lifetime hand + achievement-progress counters to the server.** The `progression` hand counters (handsPlayed/won/folded/lostAtShowdown/botHandsPlayed) and the achievement *progress counters* (no-bust streak, per-bot wins, …) are client-local — they zero on account switch / reinstall and aren't re-hydrated, so a switched-in account shows correct XP/level + earned badges but zeroed hand counts. Decision is to lift them (`decisions.md` 2026-06-15 — accept-reset rejected for these); carry the counters in their respective syncs. The hand counters double as the server `hands_finished` the MP-achievement floor wants. *(proposed 2026-06-14)*
