@@ -7,6 +7,7 @@ import com.dangerfield.cards.server.domain.InstallSweepResult
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.StarterInventory
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
@@ -32,6 +33,10 @@ import java.util.UUID
  *      - **No active room seat.** A candidate currently sitting in a
  *        room is held — leaving the L1 sweep would tear their game out
  *        from under them, which is worse than the leaked profile.
+ *      - **At or below level 1.** A candidate with any meaningful XP
+ *        (≥ [LEVEL_2_XP_THRESHOLD], i.e. above level 1) is preserved —
+ *        the bias is to leak an orphan row rather than ever delete
+ *        someone's earned progress. See `docs/decisions.md` 2026-06-19.
  *  3. Verified candidates get deleted via the same path as DELETE
  *     /v1/me: [SupabaseAdminClient.deleteUser] (the FK CASCADE wipes
  *     the dependent rows from profiles / wallet / inventory / etc.)
@@ -49,6 +54,7 @@ class DefaultOrphanInstallSweep(
     private val profileRepository: ProfileRepository,
     private val adminClient: SupabaseAdminClient,
     private val inventory: InventoryRepository,
+    private val progression: ProgressionRepository,
     private val rooms: RoomService,
 ) : OrphanInstallSweep {
 
@@ -121,6 +127,11 @@ class DefaultOrphanInstallSweep(
         }
         if (hasEngagementInventory) return false
 
+        // Any meaningful XP means this account is above level 1 — preserve
+        // it. A missing progression row reads as 0 XP (level 1, deletable).
+        val totalXp = progression.find(candidate)?.totalXp ?: 0L
+        if (totalXp >= LEVEL_2_XP_THRESHOLD) return false
+
         val isInRoom = rooms.snapshot().any { it.memberFor(candidate) != null }
         if (isInRoom) return false
 
@@ -130,5 +141,15 @@ class DefaultOrphanInstallSweep(
     companion object {
         private val STARTER_AND_FOUNDING_IDS: Set<String> =
             StarterInventory.productIds.toSet() + FoundingMemberCatalog.PRODUCT_ID
+
+        /**
+         * Lifetime XP at which a player crosses from level 1 to level 2.
+         * Mirrors the client level curve (`N² × 100`, so the level-1
+         * ceiling is `1² × 100 = 100`; see `:libraries:cards` `Level.kt`).
+         * Duplicated as a constant rather than depending on the client
+         * module — the level math is a one-liner and the server stays
+         * independent of the Compose/cards layer.
+         */
+        private const val LEVEL_2_XP_THRESHOLD: Long = 100L
     }
 }

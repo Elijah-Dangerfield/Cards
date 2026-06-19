@@ -5,9 +5,14 @@ import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.FoundingMemberCatalog
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OwnedItem
+import com.dangerfield.cards.server.domain.ApplyXpOutcome
+import com.dangerfield.cards.server.domain.FindOrCreateProgressionResult
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
+import com.dangerfield.cards.server.domain.ProgressionRepository
 import com.dangerfield.cards.server.domain.StarterInventory
+import com.dangerfield.cards.server.domain.UserProgression
+import com.dangerfield.cards.server.domain.XpEvent
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
 import com.dangerfield.cards.server.domain.UserId
@@ -40,7 +45,7 @@ class DefaultOrphanInstallSweepTest {
             ),
         )
         val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
 
         val result = sweep.run(install, caller)
 
@@ -67,7 +72,7 @@ class DefaultOrphanInstallSweepTest {
             ),
         )
         val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
 
         val result = sweep.run(install, caller)
 
@@ -84,7 +89,7 @@ class DefaultOrphanInstallSweepTest {
         val admin = FakeAdmin()
         val inventory = FakeInventory(owned = mapOf(sibling1 to starterRows(), sibling2 to starterRows()))
         val rooms = FakeRoomService(seatedUsers = setOf(sibling1))
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
 
         val result = sweep.run(install, caller)
 
@@ -95,6 +100,27 @@ class DefaultOrphanInstallSweepTest {
     }
 
     @Test
+    fun run_skipsCandidate_whenAboveLevel1() = runTest {
+        // sibling1 has crossed into level 2 (>= 100 XP). Even though their
+        // inventory is starter-only and they're not in a room, the sweep
+        // preserves them — earned progress is never deleted.
+        val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
+        val admin = FakeAdmin()
+        val inventory = FakeInventory(owned = mapOf(sibling1 to starterRows(), sibling2 to starterRows()))
+        val progression = FakeProgression(xpByUser = mapOf(sibling1 to 100L, sibling2 to 99L))
+        val rooms = FakeRoomService()
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, progression, rooms)
+
+        val result = sweep.run(install, caller)
+
+        assertEquals(2, result.candidatesFound)
+        assertEquals(1, result.deleted)
+        assertEquals(1, result.skipped)
+        assertEquals(listOf(sibling2), admin.deletedAdminUsers)
+        assertEquals(listOf(sibling2), profiles.deletedProfileUsers)
+    }
+
+    @Test
     fun run_recordsFailedDelete_whenAdminFails() = runTest {
         val profiles = FakeProfileRepository(siblings = listOf(sibling1, sibling2))
         val admin = FakeAdmin(
@@ -102,7 +128,7 @@ class DefaultOrphanInstallSweepTest {
         )
         val inventory = FakeInventory(owned = mapOf(sibling1 to starterRows(), sibling2 to starterRows()))
         val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
 
         val result = sweep.run(install, caller)
 
@@ -123,7 +149,7 @@ class DefaultOrphanInstallSweepTest {
             sibling3 to starterRows(),
         ))
         val rooms = FakeRoomService()
-        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, rooms)
+        val sweep = DefaultOrphanInstallSweep(profiles, admin, inventory, FakeProgression(), rooms)
 
         val result = sweep.run(install, caller)
 
@@ -136,7 +162,7 @@ class DefaultOrphanInstallSweepTest {
     @Test
     fun run_returnsEmpty_whenNoSiblings() = runTest {
         val profiles = FakeProfileRepository(siblings = emptyList())
-        val sweep = DefaultOrphanInstallSweep(profiles, FakeAdmin(), FakeInventory(), FakeRoomService())
+        val sweep = DefaultOrphanInstallSweep(profiles, FakeAdmin(), FakeInventory(), FakeProgression(), FakeRoomService())
 
         val result = sweep.run(install, caller)
 
@@ -219,6 +245,34 @@ class DefaultOrphanInstallSweepTest {
             productId: String,
             grantedAt: Instant,
         ): OwnedItem = error("unused")
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private class FakeProgression(
+        private val xpByUser: Map<UserId, Long> = emptyMap(),
+    ) : ProgressionRepository {
+        override suspend fun find(userId: UserId): UserProgression? =
+            xpByUser[userId]?.let {
+                UserProgression(
+                    userId = userId,
+                    totalXp = it,
+                    createdAt = Instant.fromEpochSeconds(1_700_000_000),
+                    updatedAt = Instant.fromEpochSeconds(1_700_000_000),
+                )
+            }
+
+        override suspend fun findOrCreateResult(userId: UserId): FindOrCreateProgressionResult =
+            error("unused")
+        override suspend fun applyXp(
+            userId: UserId,
+            idempotencyKey: String,
+            deltaXp: Long,
+            source: String,
+            mode: String,
+            handId: String?,
+            wasBoosted: Boolean,
+        ): ApplyXpOutcome = error("unused")
+        override suspend fun recentEvents(userId: UserId, limit: Int): List<XpEvent> = emptyList()
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 
