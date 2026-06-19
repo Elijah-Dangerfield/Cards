@@ -890,8 +890,6 @@ sealed interface PlayPokerAction {
     /** Fired by the equity flow after a fresh Monte Carlo run resolves. */
     data class WinOddsChanged(val breakdown: EquityBreakdown?) : PlayPokerAction
 
-    /** Fired by the equipment subscription; flips the equipped title shown under the name. */
-
     /** Fired by the equipment subscription; flips the equipped permanent seat badge. */
     data class EquippedBadgeChanged(val emoji: String?) : PlayPokerAction
 
