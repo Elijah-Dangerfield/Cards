@@ -16,24 +16,39 @@ import java.util.UUID
  * `<sessionId>:<handNumber>:<userId>`, so a hand-completion observed more than
  * once (e.g. a snapshot replay after a server restart) collapses to one row.
  * Mirrors the [ProgressionRepository] ledger pattern. See
- * `V56__hand_finished_counts.sql`.
+ * `V56__hand_finished_counts.sql` and `V60__hand_outcome_signals.sql`.
+ *
+ * Each row also carries the hand's per-hand outcome shape ([bustsDealtForUser],
+ * [winsByFoldForUser]) so the cumulative per-hand MP achievements
+ * (`BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`) tally off the same dedup'd rows the
+ * count reads — no second ledger.
  */
 interface HandsFinishedRepository {
 
     /**
      * Record that [userId] finished a hand. Idempotent on [idempotencyKey] —
-     * re-recording the same key is a no-op replay, so the count never double-
-     * increments across retries / snapshot replays.
+     * re-recording the same key is a no-op replay, so the count and the outcome
+     * tallies never double-increment across retries / snapshot replays.
+     * [bustsDealt] is the opponents this player busted this hand and
+     * [wonByFold] whether they took the pot without a showdown.
      */
     suspend fun recordHandFinished(
         userId: UserId,
         idempotencyKey: String,
         handSessionId: UUID,
         handNumber: Int,
+        bustsDealt: Int,
+        wonByFold: Boolean,
     )
 
     /** Total hands [userId] has finished server-side. */
     suspend fun countForUser(userId: UserId): Long
+
+    /** Cumulative opponents [userId] has busted across all finished hands. */
+    suspend fun bustsDealtForUser(userId: UserId): Long
+
+    /** Cumulative pots [userId] has taken without reaching showdown. */
+    suspend fun winsByFoldForUser(userId: UserId): Long
 
     /**
      * Wipe the ledger for a user. Called from the `DELETE /v1/me` cascade so
@@ -55,9 +70,15 @@ object NoOpHandsFinishedRepository : HandsFinishedRepository {
         idempotencyKey: String,
         handSessionId: UUID,
         handNumber: Int,
+        bustsDealt: Int,
+        wonByFold: Boolean,
     ) = Unit
 
     override suspend fun countForUser(userId: UserId): Long = 0L
+
+    override suspend fun bustsDealtForUser(userId: UserId): Long = 0L
+
+    override suspend fun winsByFoldForUser(userId: UserId): Long = 0L
 
     override suspend fun deleteAllForUser(userId: UserId) = Unit
 }

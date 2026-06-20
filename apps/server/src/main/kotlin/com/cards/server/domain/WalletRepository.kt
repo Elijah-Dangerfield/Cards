@@ -69,6 +69,17 @@ data class Wallet(
         const val ACHIEVEMENT_POT_5000_MP_GRANT: Long = 1_500L
 
         /**
+         * Chip grants for the *cumulative* per-hand server-witnessed MP
+         * achievements — earned once a career tally crosses the threshold.
+         * Sized to the existing per-hand scale: EPIC `BUST_DEALT_5_MP` (five
+         * scalps) matches [ACHIEVEMENT_TRIPLE_UP_MP_GRANT]; RARE
+         * `WIN_BY_FOLD_10_MP` (ten pots without a showdown) matches the RARE
+         * one-shots.
+         */
+        const val ACHIEVEMENT_BUST_DEALT_5_MP_GRANT: Long = 2_000L
+        const val ACHIEVEMENT_WIN_BY_FOLD_10_MP_GRANT: Long = 1_000L
+
+        /**
          * Welcome-week daily grant schedule, counted in whole days
          * since the wallet's `createdAt`. Signup day (elapsed day 0)
          * gets the starter grant only — no daily bonus on the same

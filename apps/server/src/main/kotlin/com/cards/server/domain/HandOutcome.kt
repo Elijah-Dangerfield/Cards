@@ -33,10 +33,14 @@ data class HandOutcome(
  *   achievement.
  * - [potTotal] — total chips contested this hand (sum of every seat's
  *   contribution). Same value for every participant.
+ * - [wonByFold] — took the pot without reaching showdown (every other player
+ *   folded). Derived from the hand's `HandEnded` event (`HandWinner.byFold`),
+ *   not the stack delta, so an all-in showdown never counts.
  */
 data class PlayerHandOutcome(
     val won: Boolean,
     val stackMultiple: Double,
     val bustsDealt: Int,
     val potTotal: Long,
+    val wonByFold: Boolean = false,
 )

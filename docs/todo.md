@@ -26,12 +26,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
   **Acceptance:** the fan-out completes smoothly with no snap; status text cycles during the wait; the hold never looks frozen.
   **Hints:** the splash/shuffle intro animation + its loading-timeout gating.
 
-### Achievements
-
-- `[P2]` **MP cumulative per-hand achievements — durable per-user counters.** The one-shot per-hand MP ids ship (`FIRST_BUST_DEALT_MP` / `DOUBLE_UP_MP` / `TRIPLE_UP_MP` / `POT_5000_MP`, granted off `HandOutcome` in `ServerWitnessedAchievements.evaluateHand`). The two cumulative ids (`BUST_DEALT_5_MP` at 5 busts dealt, `WIN_BY_FOLD_10_MP` at 10 fold-wins) still need a durable per-user counter the server doesn't keep, so they stay unevaluated.
-  **Acceptance:** `BUST_DEALT_5_MP` + `WIN_BY_FOLD_10_MP` granted off a durable per-user count incremented each qualifying hand.
-  **Hints:** model the counter like `HandsFinishedRepository` (counted-events table); `PlayerHandOutcome` already carries `bustsDealt` — add a `wonByFold` signal for the fold counter. New store is a schema migration — gate accordingly.
-
 ### Progression & XP (server)
 
 - `[P2]` **Graduate lifetime hand + achievement-progress counters to the server.** The `progression` hand counters (handsPlayed/won/folded/lostAtShowdown/botHandsPlayed) and the achievement *progress counters* (no-bust streak, per-bot wins, …) are client-local — they zero on account switch / reinstall and aren't re-hydrated, so a switched-in account shows correct XP/level + earned badges but zeroed hand counts. Decision is to lift them (`decisions.md` 2026-06-15 — accept-reset rejected for these); carry the counters in their respective syncs. The hand counters double as the server `hands_finished` the MP-achievement floor wants. *(proposed 2026-06-14)*

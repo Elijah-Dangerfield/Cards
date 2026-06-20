@@ -97,6 +97,19 @@ class DefaultServerWitnessedAchievements(
             if (outcome.stackMultiple >= 3.0) add("TRIPLE_UP_MP")
             if (outcome.stackMultiple >= 2.0) add("DOUBLE_UP_MP")
             if (outcome.won && outcome.potTotal >= POT_5000_THRESHOLD) add("POT_5000_MP")
+            // Cumulative ids tally the dedup'd ledger (this hand already
+            // recorded). Only query when still unearned — the read is wasted
+            // once the threshold has been crossed.
+            if ("BUST_DEALT_5_MP" !in alreadyEarned &&
+                handsFinished.bustsDealtForUser(userId) >= BUST_DEALT_5_THRESHOLD
+            ) {
+                add("BUST_DEALT_5_MP")
+            }
+            if ("WIN_BY_FOLD_10_MP" !in alreadyEarned &&
+                handsFinished.winsByFoldForUser(userId) >= WIN_BY_FOLD_10_THRESHOLD
+            ) {
+                add("WIN_BY_FOLD_10_MP")
+            }
         }
         for (achievementId in crossed) {
             if (achievementId in alreadyEarned) continue
@@ -128,21 +141,32 @@ class DefaultServerWitnessedAchievements(
         )
 
         /**
-         * One-shot per-hand-shape server-witnessed MP achievements — earned
-         * the first hand whose [PlayerHandOutcome] satisfies the condition.
-         * The cumulative per-hand ids (`BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`)
-         * are absent: they need a durable per-user counter the server doesn't
-         * keep yet. [evaluateHand] short-circuits once every id here is earned.
+         * Per-hand-shape server-witnessed MP achievements [evaluateHand]
+         * drives. The one-shot ids (`FIRST_BUST_DEALT_MP`, double/triple-up,
+         * pot-size) fire off a single hand's [PlayerHandOutcome]; the
+         * cumulative ids (`BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`) fire off a
+         * career tally over the finished-hand ledger
+         * ([HandsFinishedRepository.bustsDealtForUser] /
+         * [HandsFinishedRepository.winsByFoldForUser]). [evaluateHand]
+         * short-circuits once every id here is earned.
          */
         val PER_HAND_IDS: Set<String> = setOf(
             "FIRST_BUST_DEALT_MP",
             "DOUBLE_UP_MP",
             "TRIPLE_UP_MP",
             "POT_5000_MP",
+            "BUST_DEALT_5_MP",
+            "WIN_BY_FOLD_10_MP",
         )
 
         /** Minimum total pot (chips) that earns `POT_5000_MP` for the winner. */
         const val POT_5000_THRESHOLD: Long = 5_000L
+
+        /** Cumulative busts dealt that earns `BUST_DEALT_5_MP`. */
+        const val BUST_DEALT_5_THRESHOLD: Long = 5L
+
+        /** Cumulative pots won by fold that earns `WIN_BY_FOLD_10_MP`. */
+        const val WIN_BY_FOLD_10_THRESHOLD: Long = 10L
 
         /**
          * Cosmetic each count-based achievement grants. Missing entries (or a
@@ -166,6 +190,8 @@ class DefaultServerWitnessedAchievements(
             "DOUBLE_UP_MP" to Wallet.ACHIEVEMENT_DOUBLE_UP_MP_GRANT,
             "TRIPLE_UP_MP" to Wallet.ACHIEVEMENT_TRIPLE_UP_MP_GRANT,
             "POT_5000_MP" to Wallet.ACHIEVEMENT_POT_5000_MP_GRANT,
+            "BUST_DEALT_5_MP" to Wallet.ACHIEVEMENT_BUST_DEALT_5_MP_GRANT,
+            "WIN_BY_FOLD_10_MP" to Wallet.ACHIEVEMENT_WIN_BY_FOLD_10_MP_GRANT,
         )
 
         private val SYSTEM_CONTEXT = ClientContext(

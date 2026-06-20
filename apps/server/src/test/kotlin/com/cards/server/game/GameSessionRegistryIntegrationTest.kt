@@ -163,6 +163,13 @@ class GameSessionRegistryIntegrationTest {
             setOf(aliceId, bobId),
             perHandEvaluations.map { it.first.value.toString() }.toSet(),
         )
+        // The hand ended on a fold, so exactly one player took the pot without
+        // a showdown — the `wonByFold` signal derived from the HandEnded event.
+        assertEquals(
+            1,
+            perHandEvaluations.count { it.second.wonByFold },
+            "the lone non-folder is credited a win by fold",
+        )
     }
 
     @Test

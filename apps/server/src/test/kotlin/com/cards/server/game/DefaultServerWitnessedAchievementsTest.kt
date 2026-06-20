@@ -230,15 +230,98 @@ class DefaultServerWitnessedAchievementsTest {
     @Test
     fun perHandAlreadyEarned_isNotReGranted() = runTest {
         val achievements = CapturingAchievements(
-            seeded = setOf("FIRST_BUST_DEALT_MP", "DOUBLE_UP_MP", "TRIPLE_UP_MP", "POT_5000_MP"),
+            seeded = setOf(
+                "FIRST_BUST_DEALT_MP", "DOUBLE_UP_MP", "TRIPLE_UP_MP", "POT_5000_MP",
+                "BUST_DEALT_5_MP", "WIN_BY_FOLD_10_MP",
+            ),
         )
         val wallet = CapturingWallet()
-        val evaluator = build(handsCount = 0, achievements = achievements, inventory = CapturingInventory(), catalog = FakeCatalog.empty(), wallet = wallet)
+        val evaluator = build(
+            handsCount = 0,
+            achievements = achievements,
+            inventory = CapturingInventory(),
+            catalog = FakeCatalog.empty(),
+            wallet = wallet,
+            bustsTally = 9,
+            winsByFoldTally = 20,
+        )
 
-        evaluator.evaluateHand(userId, outcome(won = true, stackMultiple = 3.0, bustsDealt = 2, potTotal = 9_000))
+        evaluator.evaluateHand(userId, outcome(won = true, stackMultiple = 3.0, bustsDealt = 2, potTotal = 9_000, wonByFold = true))
 
         assertTrue(achievements.recordedThisCall.isEmpty())
         assertTrue(wallet.applied.isEmpty())
+    }
+
+    @Test
+    fun cumulativeBusts_reachingFive_recordsBustDealt5Mp_andGrantsChips() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        val evaluator = build(
+            handsCount = 0,
+            achievements = achievements,
+            inventory = CapturingInventory(),
+            catalog = FakeCatalog.empty(),
+            wallet = wallet,
+            bustsTally = 5,
+        )
+
+        // This hand dealt the bust that crossed the career total of 5 — both
+        // the first-bust one-shot and the cumulative milestone fire.
+        evaluator.evaluateHand(userId, outcome(won = true, bustsDealt = 1))
+
+        assertTrue("BUST_DEALT_5_MP" in achievements.earned)
+        assertEquals(2_000L, wallet.applied.single { it.idempotencyKey == "achievement:BUST_DEALT_5_MP" }.delta)
+    }
+
+    @Test
+    fun cumulativeBusts_belowFive_doesNotRecordBustDealt5Mp() = runTest {
+        val achievements = CapturingAchievements()
+        val evaluator = build(
+            handsCount = 0,
+            achievements = achievements,
+            inventory = CapturingInventory(),
+            catalog = FakeCatalog.empty(),
+            bustsTally = 4,
+        )
+
+        evaluator.evaluateHand(userId, outcome(won = true, bustsDealt = 1))
+
+        assertTrue("BUST_DEALT_5_MP" !in achievements.earned)
+    }
+
+    @Test
+    fun cumulativeWinsByFold_reachingTen_recordsWinByFold10Mp_andGrantsChips() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        val evaluator = build(
+            handsCount = 0,
+            achievements = achievements,
+            inventory = CapturingInventory(),
+            catalog = FakeCatalog.empty(),
+            wallet = wallet,
+            winsByFoldTally = 10,
+        )
+
+        evaluator.evaluateHand(userId, outcome(won = true, wonByFold = true))
+
+        assertTrue("WIN_BY_FOLD_10_MP" in achievements.earned)
+        assertEquals(1_000L, wallet.applied.single { it.idempotencyKey == "achievement:WIN_BY_FOLD_10_MP" }.delta)
+    }
+
+    @Test
+    fun cumulativeWinsByFold_belowTen_doesNotRecordWinByFold10Mp() = runTest {
+        val achievements = CapturingAchievements()
+        val evaluator = build(
+            handsCount = 0,
+            achievements = achievements,
+            inventory = CapturingInventory(),
+            catalog = FakeCatalog.empty(),
+            winsByFoldTally = 9,
+        )
+
+        evaluator.evaluateHand(userId, outcome(won = true, wonByFold = true))
+
+        assertTrue("WIN_BY_FOLD_10_MP" !in achievements.earned)
     }
 
     private fun outcome(
@@ -246,11 +329,13 @@ class DefaultServerWitnessedAchievementsTest {
         stackMultiple: Double = 1.0,
         bustsDealt: Int = 0,
         potTotal: Long = 0,
+        wonByFold: Boolean = false,
     ): PlayerHandOutcome = PlayerHandOutcome(
         won = won,
         stackMultiple = stackMultiple,
         bustsDealt = bustsDealt,
         potTotal = potTotal,
+        wonByFold = wonByFold,
     )
 
     private fun buildWith(
@@ -270,8 +355,10 @@ class DefaultServerWitnessedAchievementsTest {
         inventory: InventoryRepository,
         catalog: ProductCatalogSource,
         wallet: WalletRepository = CapturingWallet(),
+        bustsTally: Long = 0,
+        winsByFoldTally: Long = 0,
     ): DefaultServerWitnessedAchievements = DefaultServerWitnessedAchievements(
-        handsFinished = FixedCountHandsFinished(handsCount),
+        handsFinished = FixedCountHandsFinished(handsCount, bustsTally, winsByFoldTally),
         achievements = achievements,
         inventory = inventory,
         catalog = catalog,
@@ -289,16 +376,25 @@ class DefaultServerWitnessedAchievementsTest {
         isEquippable = true,
     )
 
-    private class FixedCountHandsFinished(private val count: Long) :
-        com.dangerfield.cards.server.domain.HandsFinishedRepository {
+    private class FixedCountHandsFinished(
+        private val count: Long,
+        private val bustsDealt: Long = 0,
+        private val winsByFold: Long = 0,
+    ) : com.dangerfield.cards.server.domain.HandsFinishedRepository {
         override suspend fun recordHandFinished(
             userId: UserId,
             idempotencyKey: String,
             handSessionId: UUID,
             handNumber: Int,
+            bustsDealt: Int,
+            wonByFold: Boolean,
         ) = Unit
 
         override suspend fun countForUser(userId: UserId): Long = count
+
+        override suspend fun bustsDealtForUser(userId: UserId): Long = bustsDealt
+
+        override suspend fun winsByFoldForUser(userId: UserId): Long = winsByFold
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }

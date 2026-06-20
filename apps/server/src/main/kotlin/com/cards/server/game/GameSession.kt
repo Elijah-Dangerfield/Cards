@@ -260,7 +260,7 @@ class GameSession internal constructor(
                     _tracedState.value = TracedState(newState, origin)
                     onStateChange(newState)
                     if (handJustFinished) {
-                        onHandFinished(buildHandOutcome(newState))
+                        onHandFinished(buildHandOutcome(newState, resolved.result.events))
                     }
                     resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
                     recordNonce(clientNonce)
@@ -448,14 +448,23 @@ class GameSession internal constructor(
      * Each human seat dealt into the hand gets a [PlayerHandOutcome] built
      * from its start-of-hand stack ([handStartStacks]) versus its final
      * stack. Bots are excluded — they never carry a server-witnessed grant.
+     *
+     * [events] is the engine step that completed the hand; its `HandEnded`
+     * carries the authoritative `byFold` per winner, which the stack delta
+     * can't distinguish from a showdown win.
      */
-    private fun buildHandOutcome(finalState: GameState): HandOutcome {
+    private fun buildHandOutcome(finalState: GameState, events: List<GameEvent>): HandOutcome {
         val potTotal = finalState.seats.sumOf { it.contributedThisHand }
         val bustedOpponentCount = finalState.seats.count { seat ->
             seat.playerId != null &&
                 (handStartStacks[seat.playerId] ?: 0L) > 0L &&
                 seat.stack == 0L
         }
+        val foldWinnerSeats = events
+            .filterIsInstance<GameEvent.HandEnded>()
+            .flatMap { it.winners }
+            .filter { it.byFold }
+            .mapTo(mutableSetOf()) { it.seatIndex }
         val perHuman = finalState.seats
             .filter { !it.isBot && it.playerId != null }
             .associate { seat ->
@@ -472,6 +481,7 @@ class GameSession internal constructor(
                     stackMultiple = stackMultiple,
                     bustsDealt = bustsDealt,
                     potTotal = potTotal,
+                    wonByFold = seat.index in foldWinnerSeats,
                 )
             }
         return HandOutcome(handNumber = finalState.handNumber, perHuman = perHuman)

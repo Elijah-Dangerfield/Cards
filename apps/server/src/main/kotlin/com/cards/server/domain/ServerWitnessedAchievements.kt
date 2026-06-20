@@ -16,11 +16,12 @@ package com.dangerfield.cards.server.domain
  *  - [evaluate] drives the *count-based* ids off
  *    [HandsFinishedRepository.countForUser] (today: `FIRST_HAND_MP`,
  *    `HANDS_100_MP`).
- *  - [evaluateHand] drives the *per-hand-shape* one-shot ids off a single
- *    finished hand's [PlayerHandOutcome] (busts dealt, double/triple-up,
- *    pot-size). The cumulative per-hand ids (`BUST_DEALT_5_MP`,
- *    `WIN_BY_FOLD_10_MP`) need a durable per-user counter the server
- *    doesn't keep yet and stay unevaluated.
+ *  - [evaluateHand] drives the *per-hand-shape* ids off a finished hand: the
+ *    one-shot ids off a single hand's [PlayerHandOutcome] (busts dealt,
+ *    double/triple-up, pot-size), and the cumulative ids (`BUST_DEALT_5_MP`,
+ *    `WIN_BY_FOLD_10_MP`) off a career tally over the finished-hand ledger
+ *    ([HandsFinishedRepository.bustsDealtForUser] /
+ *    [HandsFinishedRepository.winsByFoldForUser]).
  *
  * Bot-mode achievements stay client self-grant.
  */
@@ -37,12 +38,13 @@ interface ServerWitnessedAchievements {
     suspend fun evaluate(userId: UserId)
 
     /**
-     * Evaluate the one-shot per-hand-shape server-witnessed achievements for
-     * [userId] against a single finished hand's [outcome], granting any whose
-     * condition just fired. Idempotent for the same reason as [evaluate] —
-     * already-earned ids are skipped and the grant is first-write-wins, so
-     * re-deriving the outcome can never double-grant. Default no-op so test
-     * doubles only need the path they exercise.
+     * Evaluate the per-hand-shape server-witnessed achievements for [userId]
+     * against a finished hand's [outcome] — the one-shot ids off this hand and
+     * the cumulative ids off the career tally — granting any whose condition
+     * just fired. Idempotent for the same reason as [evaluate] — already-earned
+     * ids are skipped and the grant is first-write-wins, so re-deriving the
+     * outcome can never double-grant. Default no-op so test doubles only need
+     * the path they exercise.
      */
     suspend fun evaluateHand(userId: UserId, outcome: PlayerHandOutcome) = Unit
 }

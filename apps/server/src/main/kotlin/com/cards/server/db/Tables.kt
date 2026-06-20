@@ -202,6 +202,8 @@ object HandFinishedEventsTable : Table("hand_finished_events") {
     val handSessionId = uuid("hand_session_id")
     val handNumber = integer("hand_number")
     val finishedAt = timestamp("finished_at")
+    val bustsDealt = integer("busts_dealt").default(0)
+    val wonByFold = bool("won_by_fold").default(false)
     override val primaryKey = PrimaryKey(userId, idempotencyKey)
 }
 

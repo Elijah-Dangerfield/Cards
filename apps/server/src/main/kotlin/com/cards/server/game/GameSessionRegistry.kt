@@ -229,8 +229,10 @@ class DefaultGameSessionRegistry(
      * never break gameplay, so each is wrapped in [Catching]. A non-UUID
      * userId (a `"bot-..."` string slipping through, or a test fixture) is
      * skipped — only real Supabase users carry a server-witnessed count.
-     * The count record runs *before* [ServerWitnessedAchievements.evaluate]
-     * so the count includes the hand just finished.
+     * The count record runs *before* both [ServerWitnessedAchievements.evaluate]
+     * and [ServerWitnessedAchievements.evaluateHand] so the count and the
+     * cumulative outcome tallies (busts dealt, wins by fold) include the hand
+     * just finished.
      */
     private suspend fun recordHandsFinished(sessionId: UUID, outcome: HandOutcome) {
         val handNumber = outcome.handNumber
@@ -242,6 +244,8 @@ class DefaultGameSessionRegistry(
                     idempotencyKey = "$sessionId:$handNumber:$userIdString",
                     handSessionId = sessionId,
                     handNumber = handNumber,
+                    bustsDealt = playerOutcome.bustsDealt,
+                    wonByFold = playerOutcome.wonByFold,
                 )
             }.onFailure { log.warn("hands_finished record failed for user {} hand {}", userIdString, handNumber, it) }
             Catching { serverWitnessedAchievements.evaluate(userId) }
