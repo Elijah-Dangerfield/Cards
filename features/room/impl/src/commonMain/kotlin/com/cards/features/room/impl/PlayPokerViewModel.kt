@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -85,6 +86,7 @@ class PlayPokerViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
+    private val appScope: AppCoroutineScope,
     private val clock: Clock,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
     initialStateArg = PlayPokerState(xpMode = sessionFactory.xpMode),
@@ -596,6 +598,15 @@ class PlayPokerViewModel @Inject constructor(
                     Catching {
                         reviewPromptCoordinator.requestPrompt(ReviewTrigger.SessionEnd)
                     }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
+                }
+                // Send the durable leave so the server frees our seat and the
+                // other players see us go. Parented to the app scope, not
+                // viewModelScope: the screen pops this VM the instant it fires
+                // LeaveTable, and the leave must still reach the server. No-op
+                // for local-bots sessions (no server room).
+                appScope.launch {
+                    Catching { session.leave() }
+                        .onFailure { e -> logger.w(e) { "room leave failed" } }
                 }
             }
             is PlayPokerAction.SwipeFoldAckChanged -> action.updateState {

@@ -78,6 +78,7 @@ class FakePokerSession(
     val submittedIntents = mutableListOf<PlayerIntent>()
     val sentEmotes = mutableListOf<String>()
     var requestNextHandCount: Int = 0
+    var leaveCount: Int = 0
 
     // When set, [submit] records the intent then throws it — modelling a
     // server rejection (the real session surfaces a rejected ack as a throw).
@@ -111,6 +112,10 @@ class FakePokerSession(
 
     override fun requestNextHand() {
         requestNextHandCount += 1
+    }
+
+    override suspend fun leave() {
+        leaveCount += 1
     }
 
     override suspend fun sendEmote(emoji: String) {

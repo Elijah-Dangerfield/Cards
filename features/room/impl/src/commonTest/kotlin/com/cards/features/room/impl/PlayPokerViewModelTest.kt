@@ -985,6 +985,24 @@ class PlayPokerViewModelTest : CoroutineTest() {
         )
     }
 
+    @Test
+    fun leaveTable_sendsDurableLeaveToSession() = runUnitTest {
+        val session = FakePokerSession()
+        val factory = FakePokerSessionFactory(
+            session = session,
+            xpMode = com.dangerfield.cards.libraries.cards.XpMode.MULTIPLAYER,
+        )
+        val vm = buildVm(factory = factory)
+
+        vm.takeAction(PlayPokerAction.LeaveTable)
+
+        assertEquals(
+            1,
+            session.leaveCount,
+            "leaving the table must send the server leave so the seat is freed",
+        )
+    }
+
     // ---------- Helpers ----------
 
     private fun buildVm(
@@ -1007,6 +1025,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
         profileRepository = profileRepository,
         reviewPromptCoordinator = reviewPromptCoordinator,
         dispatcherProvider = dispatchers,
+        appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),
         clock = clock,
     )
 

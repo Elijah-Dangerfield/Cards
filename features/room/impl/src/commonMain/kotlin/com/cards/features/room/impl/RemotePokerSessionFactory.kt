@@ -63,7 +63,10 @@ class RemotePokerSessionFactory @Inject constructor(
         // VM's normal GameEvent collector → handleHandEnded path
         // (achievement detection still works there).
         handle = roomRepository.connect(roomCode)
-        return RemotePokerSession(handle = handle)
+        return RemotePokerSession(
+            handle = handle,
+            onLeave = { roomRepository.leaveRoom(roomCode) },
+        )
     }
 
     override suspend fun bootstrap(session: PokerSession) {
