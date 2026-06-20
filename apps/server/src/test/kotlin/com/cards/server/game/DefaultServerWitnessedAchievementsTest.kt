@@ -9,6 +9,7 @@ import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
 import com.dangerfield.cards.server.domain.ApplyOutcome
 import com.dangerfield.cards.server.domain.FindOrCreateResult
+import com.dangerfield.cards.server.domain.PlayerHandOutcome
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.UserId
 import com.dangerfield.cards.server.domain.Wallet
@@ -156,6 +157,112 @@ class DefaultServerWitnessedAchievementsTest {
         assertEquals(listOf("FIRST_HAND_MP", "HANDS_100_MP"), achievements.earned)
         assertTrue(inventory.earnedGrants.isEmpty())
     }
+
+    @Test
+    fun doubleUp_recordsDoubleUpMp_andGrantsChips() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        val evaluator = build(handsCount = 0, achievements = achievements, inventory = CapturingInventory(), catalog = FakeCatalog.empty(), wallet = wallet)
+
+        evaluator.evaluateHand(userId, outcome(stackMultiple = 2.0))
+
+        assertEquals(listOf("DOUBLE_UP_MP"), achievements.earned)
+        assertEquals(1, wallet.applied.size)
+        assertEquals("achievement:DOUBLE_UP_MP", wallet.applied.single().idempotencyKey)
+        assertEquals(1_000L, wallet.applied.single().delta)
+    }
+
+    @Test
+    fun tripleUp_recordsBothDoubleAndTripleMp() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        val evaluator = build(handsCount = 0, achievements = achievements, inventory = CapturingInventory(), catalog = FakeCatalog.empty(), wallet = wallet)
+
+        evaluator.evaluateHand(userId, outcome(stackMultiple = 3.0))
+
+        // Tripling up crosses the double-up milestone too — both are earned.
+        assertEquals(setOf("DOUBLE_UP_MP", "TRIPLE_UP_MP"), achievements.earned.toSet())
+        assertEquals(2_000L, wallet.applied.single { it.idempotencyKey == "achievement:TRIPLE_UP_MP" }.delta)
+    }
+
+    @Test
+    fun bustDealt_recordsFirstBustDealtMp() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        val evaluator = build(handsCount = 0, achievements = achievements, inventory = CapturingInventory(), catalog = FakeCatalog.empty(), wallet = wallet)
+
+        evaluator.evaluateHand(userId, outcome(won = true, bustsDealt = 1))
+
+        assertTrue("FIRST_BUST_DEALT_MP" in achievements.earned)
+        assertEquals(1_000L, wallet.applied.single { it.idempotencyKey == "achievement:FIRST_BUST_DEALT_MP" }.delta)
+    }
+
+    @Test
+    fun bigPotWin_recordsPot5000Mp_forTheWinner() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        buildWith(achievements, wallet).evaluateHand(userId, outcome(won = true, potTotal = 5_000))
+
+        assertTrue("POT_5000_MP" in achievements.earned)
+        assertEquals(1_500L, wallet.applied.single { it.idempotencyKey == "achievement:POT_5000_MP" }.delta)
+    }
+
+    @Test
+    fun bigPot_loserDoesNotEarnPot5000Mp() = runTest {
+        val achievements = CapturingAchievements()
+        buildWith(achievements, CapturingWallet()).evaluateHand(userId, outcome(won = false, potTotal = 5_000))
+
+        assertTrue("POT_5000_MP" !in achievements.earned, "a non-winner in a 5k pot doesn't earn it")
+    }
+
+    @Test
+    fun ordinaryHand_grantsNothing() = runTest {
+        val achievements = CapturingAchievements()
+        val wallet = CapturingWallet()
+        val evaluator = build(handsCount = 0, achievements = achievements, inventory = CapturingInventory(), catalog = FakeCatalog.empty(), wallet = wallet)
+
+        evaluator.evaluateHand(userId, outcome(won = true, stackMultiple = 1.4, bustsDealt = 0, potTotal = 800))
+
+        assertTrue(achievements.earned.isEmpty())
+        assertTrue(wallet.applied.isEmpty())
+    }
+
+    @Test
+    fun perHandAlreadyEarned_isNotReGranted() = runTest {
+        val achievements = CapturingAchievements(
+            seeded = setOf("FIRST_BUST_DEALT_MP", "DOUBLE_UP_MP", "TRIPLE_UP_MP", "POT_5000_MP"),
+        )
+        val wallet = CapturingWallet()
+        val evaluator = build(handsCount = 0, achievements = achievements, inventory = CapturingInventory(), catalog = FakeCatalog.empty(), wallet = wallet)
+
+        evaluator.evaluateHand(userId, outcome(won = true, stackMultiple = 3.0, bustsDealt = 2, potTotal = 9_000))
+
+        assertTrue(achievements.recordedThisCall.isEmpty())
+        assertTrue(wallet.applied.isEmpty())
+    }
+
+    private fun outcome(
+        won: Boolean = false,
+        stackMultiple: Double = 1.0,
+        bustsDealt: Int = 0,
+        potTotal: Long = 0,
+    ): PlayerHandOutcome = PlayerHandOutcome(
+        won = won,
+        stackMultiple = stackMultiple,
+        bustsDealt = bustsDealt,
+        potTotal = potTotal,
+    )
+
+    private fun buildWith(
+        achievements: AchievementRepository,
+        wallet: WalletRepository,
+    ): DefaultServerWitnessedAchievements = build(
+        handsCount = 0,
+        achievements = achievements,
+        inventory = CapturingInventory(),
+        catalog = FakeCatalog.empty(),
+        wallet = wallet,
+    )
 
     private fun build(
         handsCount: Long,

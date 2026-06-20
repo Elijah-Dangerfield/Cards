@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
 import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.PlayerHandOutcome
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.UserId
@@ -84,6 +85,37 @@ class DefaultServerWitnessedAchievements(
         }
     }
 
+    override suspend fun evaluateHand(userId: UserId, outcome: PlayerHandOutcome) {
+        val alreadyEarned = Catching { achievements.listEarned(userId) }
+            .getOrNull()
+            ?.mapTo(mutableSetOf()) { it.achievementId }
+            ?: return
+        if (PER_HAND_IDS.all { it in alreadyEarned }) return
+
+        val crossed = buildList {
+            if (outcome.bustsDealt >= 1) add("FIRST_BUST_DEALT_MP")
+            if (outcome.stackMultiple >= 3.0) add("TRIPLE_UP_MP")
+            if (outcome.stackMultiple >= 2.0) add("DOUBLE_UP_MP")
+            if (outcome.won && outcome.potTotal >= POT_5000_THRESHOLD) add("POT_5000_MP")
+        }
+        for (achievementId in crossed) {
+            if (achievementId in alreadyEarned) continue
+            Catching {
+                achievements.recordEarned(userId, achievementId, clock.now())
+                CHIP_REWARDS[achievementId]?.let { chips ->
+                    wallet.apply(
+                        userId = userId,
+                        idempotencyKey = "achievement:$achievementId",
+                        delta = chips,
+                        reason = "achievement_grant:$achievementId",
+                    )
+                }
+            }.onFailure {
+                log.warn("server-witnessed per-hand grant failed for user {} achievement {}", userId.value, achievementId, it)
+            }
+        }
+    }
+
     companion object {
         /**
          * Count-based server-witnessed MP achievements, keyed to the finished-
@@ -94,6 +126,23 @@ class DefaultServerWitnessedAchievements(
             "FIRST_HAND_MP" to 1L,
             "HANDS_100_MP" to 100L,
         )
+
+        /**
+         * One-shot per-hand-shape server-witnessed MP achievements — earned
+         * the first hand whose [PlayerHandOutcome] satisfies the condition.
+         * The cumulative per-hand ids (`BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`)
+         * are absent: they need a durable per-user counter the server doesn't
+         * keep yet. [evaluateHand] short-circuits once every id here is earned.
+         */
+        val PER_HAND_IDS: Set<String> = setOf(
+            "FIRST_BUST_DEALT_MP",
+            "DOUBLE_UP_MP",
+            "TRIPLE_UP_MP",
+            "POT_5000_MP",
+        )
+
+        /** Minimum total pot (chips) that earns `POT_5000_MP` for the winner. */
+        const val POT_5000_THRESHOLD: Long = 5_000L
 
         /**
          * Cosmetic each count-based achievement grants. Missing entries (or a
@@ -113,6 +162,10 @@ class DefaultServerWitnessedAchievements(
          */
         val CHIP_REWARDS: Map<String, Long> = mapOf(
             "HANDS_100_MP" to Wallet.ACHIEVEMENT_HANDS_100_GRANT,
+            "FIRST_BUST_DEALT_MP" to Wallet.ACHIEVEMENT_FIRST_BUST_DEALT_MP_GRANT,
+            "DOUBLE_UP_MP" to Wallet.ACHIEVEMENT_DOUBLE_UP_MP_GRANT,
+            "TRIPLE_UP_MP" to Wallet.ACHIEVEMENT_TRIPLE_UP_MP_GRANT,
+            "POT_5000_MP" to Wallet.ACHIEVEMENT_POT_5000_MP_GRANT,
         )
 
         private val SYSTEM_CONTEXT = ClientContext(

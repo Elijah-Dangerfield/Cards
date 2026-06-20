@@ -10,6 +10,8 @@ import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.gameplay.SeatStatus
+import com.dangerfield.cards.server.domain.HandOutcome
+import com.dangerfield.cards.server.domain.PlayerHandOutcome
 import com.dangerfield.cards.server.plugins.SpanAttrs
 import com.dangerfield.cards.server.plugins.withSpan
 import io.opentelemetry.api.trace.Span
@@ -85,16 +87,16 @@ class GameSession internal constructor(
     private val onStateChange: suspend (GameState) -> Unit = {},
     /**
      * Called inside the per-session mutex the moment a hand transitions
-     * into [BettingRound.Complete], with the userIds of the **human**
-     * seats that were dealt into the just-finished hand (bots excluded)
-     * and the hand number. The registry wires this to the
-     * `HandsFinishedRepository` so the server witnesses each human's
-     * finished-hand count (gates MP achievement grants). Fires exactly
-     * once per hand — once `Complete`, further intents are rejected, so
-     * the transition can't re-fire. Defaults to no-op for tests / unit
-     * code that doesn't need the counter.
+     * into [BettingRound.Complete], carrying the [HandOutcome] for the
+     * just-finished hand: the **human** seats that were dealt in (bots
+     * excluded) keyed to their per-hand-shape signals. The registry wires
+     * this to the `HandsFinishedRepository` (finished-hand count) and
+     * `ServerWitnessedAchievements` (count + per-hand achievement grants).
+     * Fires exactly once per hand — once `Complete`, further intents are
+     * rejected, so the transition can't re-fire. Defaults to no-op for
+     * tests / unit code that doesn't need the counter.
      */
-    private val onHandFinished: suspend (humanUserIds: List<String>, handNumber: Int) -> Unit = { _, _ -> },
+    private val onHandFinished: suspend (outcome: HandOutcome) -> Unit = { },
 ) {
     private val mutex = Mutex()
 
@@ -123,6 +125,14 @@ class GameSession internal constructor(
 
     // Cached so requestNextHand can re-seed without the caller re-supplying.
     private var settings: RoomSettings = RoomSettings.Default
+
+    // Per-seat stack at the moment the current hand was dealt, keyed by
+    // playerId. Captured in startHandLocked so the hand-finished outcome can
+    // derive double/triple-up and bust-dealt from start-vs-end stacks. Lost
+    // on a server restart mid-hand (in-memory only) — a hand that began
+    // before the restart yields a 0.0 stack multiple, which the affected
+    // one-shot achievements simply skip until they fire on a later hand.
+    private var handStartStacks: Map<String, Long> = emptyMap()
 
     // Bounded ring of nonces we've already processed. New nonce → record
     // and proceed; seen nonce → swallow as idempotent Accepted. Capacity
@@ -250,10 +260,7 @@ class GameSession internal constructor(
                     _tracedState.value = TracedState(newState, origin)
                     onStateChange(newState)
                     if (handJustFinished) {
-                        val humanUserIds = newState.seats
-                            .filter { !it.isBot && it.playerId != null }
-                            .map { it.playerId!! }
-                        onHandFinished(humanUserIds, newState.handNumber)
+                        onHandFinished(buildHandOutcome(newState))
                     }
                     resolved.result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
                     recordNonce(clientNonce)
@@ -428,9 +435,46 @@ class GameSession internal constructor(
         val origin = Span.current().spanContext
         _state.value = result.state
         _tracedState.value = TracedState(result.state, origin)
+        handStartStacks = result.state.seats
+            .filter { it.playerId != null }
+            .associate { it.playerId!! to it.stack }
         onStateChange(result.state)
         result.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
         return IntentResult.Accepted
+    }
+
+    /**
+     * Derive the per-hand-shape signals for the just-completed [finalState].
+     * Each human seat dealt into the hand gets a [PlayerHandOutcome] built
+     * from its start-of-hand stack ([handStartStacks]) versus its final
+     * stack. Bots are excluded — they never carry a server-witnessed grant.
+     */
+    private fun buildHandOutcome(finalState: GameState): HandOutcome {
+        val potTotal = finalState.seats.sumOf { it.contributedThisHand }
+        val bustedOpponentCount = finalState.seats.count { seat ->
+            seat.playerId != null &&
+                (handStartStacks[seat.playerId] ?: 0L) > 0L &&
+                seat.stack == 0L
+        }
+        val perHuman = finalState.seats
+            .filter { !it.isBot && it.playerId != null }
+            .associate { seat ->
+                val playerId = seat.playerId!!
+                val startStack = handStartStacks[playerId] ?: 0L
+                val won = seat.stack > startStack
+                val stackMultiple = if (startStack > 0L) seat.stack.toDouble() / startStack else 0.0
+                // A winner is credited with the busts this hand; non-winners
+                // can't have dealt one. A winner who also went to zero is
+                // impossible (they took the pot), so excluding self is moot.
+                val bustsDealt = if (won) bustedOpponentCount else 0
+                playerId to PlayerHandOutcome(
+                    won = won,
+                    stackMultiple = stackMultiple,
+                    bustsDealt = bustsDealt,
+                    potTotal = potTotal,
+                )
+            }
+        return HandOutcome(handNumber = finalState.handNumber, perHuman = perHuman)
     }
 
     private fun recordNonce(nonce: String) {

@@ -28,9 +28,9 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Achievements
 
-- `[P2]` **MP achievement grants — per-hand-shape signals.** The count-based grant path (`HANDS_100_MP`) ships; the remaining server-witnessed MP ids (`FIRST_BUST_DEALT_MP`, `BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`, `DOUBLE_UP_MP`, `TRIPLE_UP_MP`, `POT_5000_MP`) gate on per-hand outcome signals (busts dealt, win-by-fold, stack multiple, pot size) the server doesn't capture per hand yet.
-  **Acceptance:** each remaining `serverWitnessed` id is evaluated + granted from a server-witnessed per-hand signal.
-  **Hints:** extend the hand-finished callback to carry per-hand outcomes; bot achievements stay client self-grant.
+- `[P2]` **MP cumulative per-hand achievements — durable per-user counters.** The one-shot per-hand MP ids ship (`FIRST_BUST_DEALT_MP` / `DOUBLE_UP_MP` / `TRIPLE_UP_MP` / `POT_5000_MP`, granted off `HandOutcome` in `ServerWitnessedAchievements.evaluateHand`). The two cumulative ids (`BUST_DEALT_5_MP` at 5 busts dealt, `WIN_BY_FOLD_10_MP` at 10 fold-wins) still need a durable per-user counter the server doesn't keep, so they stay unevaluated.
+  **Acceptance:** `BUST_DEALT_5_MP` + `WIN_BY_FOLD_10_MP` granted off a durable per-user count incremented each qualifying hand.
+  **Hints:** model the counter like `HandsFinishedRepository` (counted-events table); `PlayerHandOutcome` already carries `bustsDealt` — add a `wonByFold` signal for the fold counter. New store is a schema migration — gate accordingly.
 
 ### Progression & XP (server)
 
