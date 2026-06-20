@@ -20,6 +20,12 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps observed in the build
 
+### App launch & splash
+
+- `[P2]` **Splash card-shuffle stalls on cold boot — fan-out snaps + late status text.** On a no-internet cold boot the shuffle intro played its two fan-outs, then snapped to the fully-fanned pose and held there before "Shuffling the deck" finally appeared. The fan-out should animate through smoothly (no jump-to-end), the status text should cycle while waiting, and the loading hold likely wants a longer/looping timeout so it never reads as frozen. *(found in 2026-06-20 cold-boot playtest)*
+  **Acceptance:** the fan-out completes smoothly with no snap; status text cycles during the wait; the hold never looks frozen.
+  **Hints:** the splash/shuffle intro animation + its loading-timeout gating.
+
 ### Achievements
 
 - `[P2]` **MP achievement grants — per-hand-shape signals.** The count-based grant path (`HANDS_100_MP`) ships; the remaining server-witnessed MP ids (`FIRST_BUST_DEALT_MP`, `BUST_DEALT_5_MP`, `WIN_BY_FOLD_10_MP`, `DOUBLE_UP_MP`, `TRIPLE_UP_MP`, `POT_5000_MP`) gate on per-hand outcome signals (busts dealt, win-by-fold, stack multiple, pot size) the server doesn't capture per hand yet.
@@ -52,6 +58,10 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 - `[P2]` **Verify network-required surfaces gate cleanly in the true-`Profile.Fallback` state.** The app is already offline-first (write-through + reconcile; see [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md)), and `Profile.Fallback` is only the last-resort identity (brand-new user offline, or a server-rejected session) — a returning user offline sees their cached profile, not fallback. **Decided blanket rule for the fallback state:** read-only surfaces render cached content; surfaces that mutate server state soft-gate (render, mutation affordances disabled with an offline hint); money + multiplayer hard-gate ("you need to be online"). Walk Home / Shop / Profile / Edit Profile / Claim / Inventory / Multiplayer / Settings and confirm each matches — most already do; this is a verification + polish pass, not a redesign. *(proposed 2026-06-09, reframed 2026-06-19)*
   **Hints:** the genuinely network-required surfaces are multiplayer (live socket), real-money purchase (claim-gated + billing), and account claim. Edit Profile's avatar picker falls back to a hardcoded starter list when the avatar-pack fetch never landed — confirm a patchMe from that view surfaces errors cleanly.
+
+- `[P1]` **Cold-boot-offline load + fallback misbehaves — wrong errors, no cached profile.** A no-internet cold boot shows the "connection issues" banner correctly, but downstream is wrong: creating an MP room pops the "account needed" dialog (should read as a connection/offline problem off a cached profile — not as account-less); Edit Profile shows "couldn't save, sign in first" *even after connection returns*; and sign-out → continue-as-guest skips the "new here" banner. Evaluate the load/fallback chain end-to-end — what we load, what we fall back on, and how each fallback colors error copy + gating; offline writes should queue and send on reconnect, not hard-error. *(found in 2026-06-20 cold-boot playtest)*
+  **Acceptance:** offline MP entry reads as a connection problem (not "account needed"); a returning user offline uses their cached profile; Edit Profile saves when online / queues offline instead of a false "sign in first"; sign-out→guest shows the "new here" banner.
+  **Hints:** pairs with the `Profile.Fallback` gating-verification item above + the session-expiry blocking screen; offline write-through is the [state-authority-and-sync](./wiki/state-authority-and-sync.md) reconcile path. **Open product call:** should MP require a real account? (→ `developer-todo.md`).
 
 ### Gameplay & table UX
 
