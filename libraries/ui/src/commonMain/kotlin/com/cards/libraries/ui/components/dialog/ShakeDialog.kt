@@ -10,6 +10,7 @@ import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_shake_dialog_body
 import cards.libraries.resources.generated.resources.ui_shake_dialog_cancel_cta
+import cards.libraries.resources.generated.resources.ui_shake_dialog_inspect_network_cta
 import cards.libraries.resources.generated.resources.ui_shake_dialog_send_cta
 import cards.libraries.resources.generated.resources.ui_shake_dialog_title
 import com.dangerfield.cards.system.AppTheme
@@ -29,6 +30,9 @@ fun ShakeDialog(
     onSendFeedback: () -> Unit,
     modifier: Modifier = Modifier,
     state: DialogState = rememberDialogState(),
+    // Debug-only: when non-null, an extra action opens the on-device network
+    // inspector. Release callers leave this null so the button never shows.
+    onOpenNetworkInspector: (() -> Unit)? = null,
 ) {
     Dialog(
         state = state,
@@ -63,6 +67,20 @@ fun ShakeDialog(
                 ) {
                     Text(stringResource(Res.string.ui_shake_dialog_send_cta))
                 }
+                if (onOpenNetworkInspector != null) {
+                    Spacer(modifier = Modifier.height(Dimension.D500))
+                    Button(
+                        onClick = {
+                            state.dismiss()
+                            onOpenNetworkInspector()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        size = ButtonSize.Medium,
+                        type = ButtonType.Secondary,
+                    ) {
+                        Text(stringResource(Res.string.ui_shake_dialog_inspect_network_cta))
+                    }
+                }
                 Spacer(modifier = Modifier.height(Dimension.D500))
                 Button(
                     onClick = onDismiss,
@@ -84,6 +102,18 @@ private fun ShakeDialogPreview() {
         ShakeDialog(
             onDismiss = {},
             onSendFeedback = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun ShakeDialogWithInspectorPreview() {
+    PreviewContent {
+        ShakeDialog(
+            onDismiss = {},
+            onSendFeedback = {},
+            onOpenNetworkInspector = {},
         )
     }
 }

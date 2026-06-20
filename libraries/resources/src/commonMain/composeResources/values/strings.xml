@@ -753,6 +753,8 @@
     <string name="ui_shake_dialog_body">Shake any time to share a bug or idea.</string>
     <string name="ui_shake_dialog_send_cta">Send</string>
     <string name="ui_shake_dialog_cancel_cta">Cancel</string>
+    <!-- Debug-only action; surfaced from the shake dialog only on debug builds. -->
+    <string name="ui_shake_dialog_inspect_network_cta">Network inspector</string>
 
     <!-- UI library — AppBottomBar tab icon a11y labels (announced by TalkBack / VoiceOver). -->
     <string name="ui_bottom_bar_home_a11y">Home</string>
