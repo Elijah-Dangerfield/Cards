@@ -120,4 +120,40 @@ class LevelTest {
             totalXp += 137L
         }
     }
+
+    @Test
+    fun defaultLevelCurve_reproducesTheQuadraticTable() {
+        assertEquals(100L, DefaultLevelCurve.xpToLevelUpFrom(1))
+        assertEquals(400L, DefaultLevelCurve.xpToLevelUpFrom(2))
+        assertEquals(2_500L, DefaultLevelCurve.xpToLevelUpFrom(5))
+        assertEquals(10_000L, DefaultLevelCurve.xpToLevelUpFrom(10))
+    }
+
+    @Test
+    fun levelCurve_ladderOverridesFrontLevels_quadraticTailFollows() {
+        val curve = LevelCurve(xpPerLevel = listOf(50L, 150L))
+
+        assertEquals(50L, curve.xpToLevelUpFrom(1), "ladder entry 1")
+        assertEquals(150L, curve.xpToLevelUpFrom(2), "ladder entry 2")
+        // Past the ladder, the default 100 × N² tail resumes.
+        assertEquals(900L, curve.xpToLevelUpFrom(3))
+    }
+
+    @Test
+    fun levelCurve_customBaseAndExponent_drivesTheFormula() {
+        val curve = LevelCurve(baseXp = 10, exponent = 3)
+        assertEquals(80L, curve.xpToLevelUpFrom(2), "10 × 2³")
+        assertEquals(270L, curve.xpToLevelUpFrom(3), "10 × 3³")
+    }
+
+    @Test
+    fun levelProgressFor_honorsACustomCurve() {
+        val curve = LevelCurve(xpPerLevel = listOf(50L))
+
+        // 50 XP is level 1 on the default curve, level 2 here.
+        val progress = levelProgressFor(50L, curve)
+
+        assertEquals(2, progress.level)
+        assertEquals(50L, progress.xpAtLevelStart)
+    }
 }

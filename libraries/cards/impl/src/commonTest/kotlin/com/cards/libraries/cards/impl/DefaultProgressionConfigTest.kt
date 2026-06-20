@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import kotlin.test.Test
@@ -16,7 +17,10 @@ class DefaultProgressionConfigTest {
     private class MapAppConfig(override val map: Map<String, *>) : AppConfigMap()
 
     private fun configFrom(map: Map<String, *>): DefaultProgressionConfig =
-        DefaultProgressionConfig(LevelRewardsConfigValue(MapAppConfig(map)))
+        DefaultProgressionConfig(
+            LevelRewardsConfigValue(MapAppConfig(map)),
+            LevelCurveConfigValue(MapAppConfig(map)),
+        )
 
     @Test
     fun missingPath_fallsBackToBundledDefault() {
@@ -48,5 +52,34 @@ class DefaultProgressionConfigTest {
         )
         // A level the override dropped no longer grants the old default prize.
         assertTrue(config.rewardsForLevel(3).isEmpty())
+    }
+
+    @Test
+    fun levelCurve_missingPath_fallsBackToBundledDefault() {
+        val config = configFrom(emptyMap<String, Any>())
+
+        assertEquals(DefaultLevelCurve, config.levelCurve())
+        assertEquals(100L, config.levelCurve().xpToLevelUpFrom(1))
+        assertEquals(400L, config.levelCurve().xpToLevelUpFrom(2))
+    }
+
+    @Test
+    fun levelCurve_serverOverride_retunesTheCurve() {
+        val config = configFrom(
+            mapOf(
+                "progression" to mapOf(
+                    "levelCurve" to mapOf(
+                        "xpPerLevel" to listOf(50L, 150L),
+                        "baseXp" to 200L,
+                    ),
+                ),
+            ),
+        )
+
+        val curve = config.levelCurve()
+        assertEquals(50L, curve.xpToLevelUpFrom(1), "ladder entry 1")
+        assertEquals(150L, curve.xpToLevelUpFrom(2), "ladder entry 2")
+        // Past the ladder, the overridden base feeds the quadratic tail.
+        assertEquals(200L * 9, curve.xpToLevelUpFrom(3), "200 × 3²")
     }
 }

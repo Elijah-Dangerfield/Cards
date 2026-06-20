@@ -9,7 +9,9 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.DefaultLevelRewards
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
@@ -481,6 +483,7 @@ class HomeViewModelTest : CoroutineTest() {
     private class FakeProgressionConfig : ProgressionConfig {
         override fun rewardsForLevel(level: Int): List<LevelReward> =
             DefaultLevelRewards.rewardsForLevel(level)
+        override fun levelCurve(): LevelCurve = DefaultLevelCurve
     }
 
     private fun sampleRoom(

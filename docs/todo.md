@@ -85,9 +85,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P2]` **Move the level ladder to app-config + reconcile level-up grants server-side.** Two parts remain: **(a)** the XP-per-level curve in `Level.kt` (`N²×100`) is a compile-time constant — lift the variable-length ladder onto `progression.*` (one `JsonConfigValue` behind `ProgressionConfig`) and thread it through every level-derivation site so display and grant never diverge; **(b)** the server doesn't confirm/void the client's offline `levelup_<level>` grants against `total_xp` vs the same config's thresholds in the progression-sync response.
-  **Hints:** the reward *table* already resolves off app-config; this is the curve + the server reconcile. See [`decisions.md`](./decisions.md) 2026-06-17.
-  **Pairs with:** the cosmetic reward kind (above).
+- `[P2]` **Thread the configured level curve through display + reconcile level-up grants server-side.** The XP curve now rides app-config (`progression.levelCurve` → `ProgressionConfig.levelCurve()`) and the authoritative grant/persisted-counter paths read it, but **display** sites still derive level off the bundled default curve (`levelProgressFor(xp)` with no curve arg), so a server-retuned curve makes the shown level disagree with the granted one. Two parts: **(a)** thread the configured curve through the display derivations (`HomeViewModel`, `ShopViewModel`, `EditProfileViewModel`, `PlayPokerViewModel`/`RemotePokerSessionFactory`/`TableUiState`, `ProfileScreen`, `StatsScreen`, `QaMenuScreen`, DS `LevelPill`) — the composable-level sites want a `LocalLevelCurve` `staticCompositionLocalOf` seeded at the app root, not DI at each leaf; **(b)** the server doesn't confirm/void the client's offline `levelup_<level>` grants against `total_xp` vs the same curve+thresholds in the progression-sync response.
+  **Hints:** see [`decisions.md`](./decisions.md) 2026-06-17 + the 2026-06-20 curve-config entry. **Pairs with:** the cosmetic reward kind (above).
 
 ### Consumables & rewards (V1.x / monetization)
 

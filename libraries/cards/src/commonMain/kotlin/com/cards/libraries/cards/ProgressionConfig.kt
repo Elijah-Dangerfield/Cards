@@ -13,4 +13,12 @@ package com.dangerfield.cards.libraries.cards
 interface ProgressionConfig {
     /** Prizes earned for crossing [level], or empty if that level grants nothing. */
     fun rewardsForLevel(level: Int): List<LevelReward>
+
+    /**
+     * The XP-per-level curve in force (server-tunable; [DefaultLevelCurve]
+     * bundled). Derive levels through this on the authoritative grant /
+     * persisted-counter paths so a retuned curve never lets display and grant
+     * disagree.
+     */
+    fun levelCurve(): LevelCurve
 }

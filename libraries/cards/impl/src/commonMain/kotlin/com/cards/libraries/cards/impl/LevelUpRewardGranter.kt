@@ -55,7 +55,7 @@ class LevelUpRewardGranter(
     init {
         appScope.launch {
             progressionRepository.observeProgression()
-                .map { levelProgressFor(it.totalXp).level }
+                .map { levelProgressFor(it.totalXp, progressionConfig.levelCurve()).level }
                 .distinctUntilChanged()
                 .collect { level -> reconcile(level) }
         }

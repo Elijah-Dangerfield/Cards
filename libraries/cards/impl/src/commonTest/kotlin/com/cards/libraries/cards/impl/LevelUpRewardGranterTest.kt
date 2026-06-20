@@ -3,7 +3,9 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.DefaultLevelRewards
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
@@ -142,6 +144,21 @@ class LevelUpRewardGranterTest : CoroutineTest() {
         assertEquals(listOf("levelup_3" to 1_000L), chips.grants, "still exactly one grant")
     }
 
+    @Test
+    fun derivesLevelFromTheConfiguredCurve_notTheBundledDefault() = runUnitTest {
+        val cache = FakeAppCache(AppData(highestLevelRewarded = 1))
+        val chips = RecordingChipsRepository()
+        // 50 XP is still level 1 under the bundled 100×N² curve, but the
+        // configured curve levels up at 50 — so this grant only fires if the
+        // granter reads the curve off config, not the global default.
+        val progression = FakeProgressionRepository(Progression.Empty.copy(totalXp = 50))
+
+        build(cache = cache, chips = chips, progression = progression, config = FastCurveLevel2Config)
+
+        assertEquals(listOf("levelup_2" to 777L), chips.grants)
+        assertEquals(2, cache.get().highestLevelRewarded)
+    }
+
     private fun build(
         cache: FakeAppCache = FakeAppCache(),
         chips: RecordingChipsRepository = RecordingChipsRepository(),
@@ -164,11 +181,20 @@ class LevelUpRewardGranterTest : CoroutineTest() {
     private class DefaultProgressionConfigFake : ProgressionConfig {
         override fun rewardsForLevel(level: Int): List<LevelReward> =
             DefaultLevelRewards.rewardsForLevel(level)
+        override fun levelCurve(): LevelCurve = DefaultLevelCurve
     }
 
     private object CosmeticAtLevel3Config : ProgressionConfig {
         override fun rewardsForLevel(level: Int): List<LevelReward> =
             if (level == 3) listOf(LevelReward.Cosmetic("cardback_level_three")) else emptyList()
+        override fun levelCurve(): LevelCurve = DefaultLevelCurve
+    }
+
+    private object FastCurveLevel2Config : ProgressionConfig {
+        override fun rewardsForLevel(level: Int): List<LevelReward> =
+            if (level == 2) listOf(LevelReward.Chips(777)) else emptyList()
+        // Levels up to 2 at 50 XP — half the bundled curve's threshold.
+        override fun levelCurve(): LevelCurve = LevelCurve(xpPerLevel = listOf(50L))
     }
 
     private class RecordingCosmeticGrantApi(
