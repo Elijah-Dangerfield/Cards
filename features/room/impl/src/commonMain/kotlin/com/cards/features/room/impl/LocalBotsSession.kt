@@ -476,6 +476,8 @@ class LocalBotsSession(
 
     override fun requestNextHand() = advanceToNextHand()
 
+    override suspend fun leave() = Unit
+
     override suspend fun sendEmote(emoji: String) = Unit
 
 }

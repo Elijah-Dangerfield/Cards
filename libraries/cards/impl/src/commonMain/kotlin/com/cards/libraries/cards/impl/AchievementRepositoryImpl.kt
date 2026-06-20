@@ -30,6 +30,7 @@ import com.dangerfield.cards.libraries.cards.MAX_POT_BB_RATIO
 import com.dangerfield.cards.libraries.cards.MAX_POT_SEEN
 import com.dangerfield.cards.libraries.cards.NO_BUST_STREAK
 import com.dangerfield.cards.libraries.cards.TUTORIAL_COMPLETE
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.TRIPLED_UP
 import com.dangerfield.cards.libraries.cards.WIN_BY_FOLD
@@ -75,6 +76,7 @@ class AchievementRepositoryImpl(
     private val grantApi: AchievementGrantApi,
     private val inventoryRepository: InventoryRepository,
     private val networkClient: NetworkClient,
+    private val progressionConfig: ProgressionConfig,
     private val appScope: AppCoroutineScope,
     private val clock: Clock,
 ) : AchievementRepository, AppEventListener {
@@ -109,7 +111,8 @@ class AchievementRepositoryImpl(
                     if (summary.wonPot) achievementDao.incrementCounter(ach.id.name, 1)
                 is Criterion.ShowAtLeast -> {
                     val shown = summary.handCategory
-                    if (summary.reachedShowdown &&
+                    if (!summary.wasFold &&
+                        summary.reachedShowdown &&
                         shown != null &&
                         shown.ordinal >= c.category.ordinal
                     ) {
@@ -506,7 +509,7 @@ class AchievementRepositoryImpl(
         // else. Read AFTER `awardForHand` in the caller — the XP for this
         // hand needs to land before we compute level here.
         val xp = progressionRepository.getProgression().totalXp
-        val level = levelProgressFor(xp).level
+        val level = levelProgressFor(xp, progressionConfig.levelCurve()).level
         achievementDao.setCounter(
             AchievementCounterEntity(key = CURRENT_LEVEL, value = level),
         )

@@ -20,18 +20,21 @@ data class LevelRewardsConfig(
 
 /**
  * One level's prizes. [chips] mints a chip prize; [xpBoostMs] gifts an XP boost
- * of that duration. Both are optional and independent — a level can grant either,
- * both, or (absent from the table) nothing.
+ * of that duration; [cosmeticProductId] grants the named catalog cosmetic via the
+ * server's earned-grant allowlist. All three are optional and independent — a
+ * level can grant any combination, or (absent from the table) nothing.
  */
 @Serializable
 data class LevelRewardConfigEntry(
     val level: Int,
     val chips: Long? = null,
     val xpBoostMs: Long? = null,
+    val cosmeticProductId: String? = null,
 ) {
     fun toRewards(): List<LevelReward> = buildList {
         chips?.let { add(LevelReward.Chips(it)) }
         xpBoostMs?.let { add(LevelReward.XpBoost(it)) }
+        cosmeticProductId?.let { add(LevelReward.Cosmetic(it)) }
     }
 }
 

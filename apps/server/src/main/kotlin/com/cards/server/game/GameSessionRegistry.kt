@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.gameplay.GameState
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.HandOutcome
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
 import com.dangerfield.cards.server.domain.NoOpHandsFinishedRepository
 import com.dangerfield.cards.server.domain.NoOpServerWitnessedAchievements
@@ -217,22 +218,25 @@ class DefaultGameSessionRegistry(
     private fun createSession(code: String, sessionId: UUID): GameSession = GameSession(
         id = sessionId,
         onStateChange = { state -> persist(code = code, sessionId = sessionId, state = state) },
-        onHandFinished = { humanUserIds, handNumber ->
-            recordHandsFinished(sessionId = sessionId, handNumber = handNumber, humanUserIds = humanUserIds)
-        },
+        onHandFinished = { outcome -> recordHandsFinished(sessionId = sessionId, outcome = outcome) },
     )
 
     /**
      * Witness each human's finished-hand count, then re-evaluate the
-     * count-based server-witnessed achievements off the freshly-incremented
-     * count. Best-effort: a counter write or grant failing must never break
-     * gameplay, so each is wrapped in [Catching]. A non-UUID actorUserId (a
-     * `"bot-..."` string slipping through, or a test fixture) is skipped —
-     * only real Supabase users carry a server-witnessed count. Evaluation
-     * runs *after* the record so the count includes the hand just finished.
+     * server-witnessed achievements: the count-based ids off the
+     * freshly-incremented count, and the per-hand-shape ids off this hand's
+     * [HandOutcome]. Best-effort: a counter write or grant failing must
+     * never break gameplay, so each is wrapped in [Catching]. A non-UUID
+     * userId (a `"bot-..."` string slipping through, or a test fixture) is
+     * skipped — only real Supabase users carry a server-witnessed count.
+     * The count record runs *before* both [ServerWitnessedAchievements.evaluate]
+     * and [ServerWitnessedAchievements.evaluateHand] so the count and the
+     * cumulative outcome tallies (busts dealt, wins by fold) include the hand
+     * just finished.
      */
-    private suspend fun recordHandsFinished(sessionId: UUID, handNumber: Int, humanUserIds: List<String>) {
-        for (userIdString in humanUserIds) {
+    private suspend fun recordHandsFinished(sessionId: UUID, outcome: HandOutcome) {
+        val handNumber = outcome.handNumber
+        for ((userIdString, playerOutcome) in outcome.perHuman) {
             val userId = Catching { UserId(UUID.fromString(userIdString)) }.getOrNull() ?: continue
             Catching {
                 handsFinishedRepository.recordHandFinished(
@@ -240,10 +244,14 @@ class DefaultGameSessionRegistry(
                     idempotencyKey = "$sessionId:$handNumber:$userIdString",
                     handSessionId = sessionId,
                     handNumber = handNumber,
+                    bustsDealt = playerOutcome.bustsDealt,
+                    wonByFold = playerOutcome.wonByFold,
                 )
             }.onFailure { log.warn("hands_finished record failed for user {} hand {}", userIdString, handNumber, it) }
             Catching { serverWitnessedAchievements.evaluate(userId) }
                 .onFailure { log.warn("server-witnessed eval failed for user {} hand {}", userIdString, handNumber, it) }
+            Catching { serverWitnessedAchievements.evaluateHand(userId, playerOutcome) }
+                .onFailure { log.warn("server-witnessed per-hand eval failed for user {} hand {}", userIdString, handNumber, it) }
         }
     }
 

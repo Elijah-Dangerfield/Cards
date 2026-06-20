@@ -61,11 +61,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.gameplay.BettingRound
@@ -108,7 +105,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 internal fun PlayerArea(
     table: TableUiState.Active,
-    humanTitle: String? = null,
     humanStackOverride: Long? = null,
     humanWinOdds: EquityBreakdown? = null,
     silentSwipeFold: Boolean = false,
@@ -341,7 +337,6 @@ internal fun PlayerArea(
             seat = human,
             handLabel = table.humanHandLabel,
             isWinner = isWinner,
-            title = humanTitle,
             stackOverride = humanStackOverride,
             winOdds = humanWinOdds,
             winOddsFlipHintSeen = winOddsFlipHintSeen,
@@ -478,7 +473,6 @@ private fun PlayerInfoTile(
     seat: SeatView,
     handLabel: String?,
     isWinner: Boolean,
-    title: String?,
     stackOverride: Long?,
     onBlindClick: () -> Unit,
     onBetPillClick: (seatName: String, amount: Long) -> Unit,
@@ -499,8 +493,9 @@ private fun PlayerInfoTile(
     //   • Bigger centered avatar (52dp in a 56dp ring) so the player's
     //     identity reads clearly; previous 40dp avatar was tiny because the
     //     column was carrying too many stacked lines.
-    //   • Name with the equipped title inlined as a gold suffix
-    //     ("You · The Shark") instead of consuming its own row.
+    //   • Name on its own line. The equipped title is intentionally NOT
+    //     rendered here — the seat has too little real estate; it surfaces
+    //     only on the tapped Player Card (PlayerProfileSheet).
     //   • Stack + optional chip/action pill at the bottom.
     //
     // The seat-level badge ("Lvl 14") that opponents show in this stack is
@@ -581,20 +576,10 @@ private fun PlayerInfoTile(
             )
         }
         VerticalSpacerD100()
-        // Name + equipped title on one line — title is the gold suffix after
-        // a middot ("You · The Shark"). Single AnnotatedString so the line
-        // truncates as one unit and the title can't push the name off.
-        val nameText = if (title != null) {
-            buildAnnotatedString {
-                append(seat.displayName)
-                append(" · ")
-                withStyle(SpanStyle(color = AppTheme.colors.poker.chipGold.color)) { append(title) }
-            }
-        } else {
-            buildAnnotatedString { append(seat.displayName) }
-        }
+        // Name only — the equipped title surfaces on the Player Card, not in
+        // the seat's cramped name area.
         Text(
-            text = nameText,
+            text = seat.displayName,
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.content,
             maxLines = 1,
@@ -666,7 +651,6 @@ private fun FlippablePlayerInfoTile(
     seat: SeatView,
     handLabel: String?,
     isWinner: Boolean,
-    title: String?,
     stackOverride: Long?,
     winOdds: EquityBreakdown?,
     winOddsFlipHintSeen: Boolean,
@@ -745,7 +729,6 @@ private fun FlippablePlayerInfoTile(
                 seat = seat,
                 handLabel = handLabel,
                 isWinner = isWinner,
-                title = title,
                 stackOverride = stackOverride,
                 onBlindClick = onBlindClick,
                 onBetPillClick = onBetPillClick,

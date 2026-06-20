@@ -1,9 +1,16 @@
 package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.libraries.cards.XpMode
+import com.dangerfield.cards.libraries.gameplay.Card
 import com.dangerfield.cards.libraries.gameplay.GameEvent
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
+import com.dangerfield.cards.libraries.gameplay.HandWinner
+import com.dangerfield.cards.libraries.gameplay.Rank
+import com.dangerfield.cards.libraries.gameplay.Suit
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 /**
  * Pins the table-composition credit downgrade in [HandResultSummaryBuilder]
@@ -71,6 +78,50 @@ class HandResultSummaryBuilderTest {
             mode = XpMode.BOTS,
         )
         assertEquals(XpMode.BOTS, summary.mode)
+    }
+
+    @Test
+    fun foldedHuman_noShowdownCredit_evenWhenCardsAreRevealed() {
+        // The human folded a hand whose board would have made a straight.
+        // Even if the reveal map carries their cards (the MP showdown reveal
+        // path can over-share), a folded seat must never count as having
+        // shown a hand — reachedShowdown / handCategory stay false/null so no
+        // SHOW_* achievement credits.
+        val humanHole = listOf(Card(Rank.Nine, Suit.Hearts), Card(Rank.King, Suit.Diamonds))
+        val opponentHole = listOf(Card(Rank.Ace, Suit.Clubs), Card(Rank.Ace, Suit.Spades))
+        val board = listOf(
+            Card(Rank.Five, Suit.Hearts),
+            Card(Rank.Six, Suit.Clubs),
+            Card(Rank.Seven, Suit.Diamonds),
+            Card(Rank.Eight, Suit.Spades),
+            Card(Rank.Two, Suit.Clubs),
+        )
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, isBot = false, playerId = "human")
+                    .copy(handParticipation = HandParticipation.Folded, holeCards = humanHole),
+                testSeat(index = 1, isBot = false, playerId = "peer")
+                    .copy(holeCards = opponentHole),
+            ),
+        )
+        val event = GameEvent.HandEnded(
+            sequence = 0,
+            winners = listOf(HandWinner(seatIndex = 1, amount = 100L, handRank = null, byFold = false)),
+            board = board,
+            revealedHoleCards = mapOf(0 to humanHole, 1 to opponentHole),
+        )
+
+        val summary = HandResultSummaryBuilder.build(
+            event = event,
+            state = state,
+            humanSeatIndex = 0,
+            mode = XpMode.MULTIPLAYER,
+        )
+
+        assertEquals(true, summary.wasFold)
+        assertFalse(summary.reachedShowdown)
+        assertNull(summary.handCategory)
+        assertFalse(summary.wonPot)
     }
 
     private fun table(humans: Int, bots: Int) = stubGameState(

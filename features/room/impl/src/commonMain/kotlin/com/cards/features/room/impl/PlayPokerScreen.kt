@@ -38,6 +38,7 @@ import cards.libraries.resources.generated.resources.room_practice_tier_bots_pre
 import cards.libraries.resources.generated.resources.room_top_bar_back_a11y
 import cards.libraries.resources.generated.resources.room_top_bar_hand_info_a11y
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
+import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.Card
@@ -276,7 +277,6 @@ fun PlayPokerScreen(
                     ActiveTable(
                         table = active,
                         humanWinOdds = state.humanWinOdds,
-                        humanTitle = state.equippedTitle,
                         humanStackOverride = displayedHumanStack,
                         silentSwipeFold = state.swipeFoldGestureAck,
                         winOddsFlipHintSeen = state.winOddsFlipHintSeen,
@@ -705,7 +705,6 @@ private fun LoadingTable() {
 private fun ActiveTable(
     table: TableUiState.Active,
     humanWinOdds: EquityBreakdown?,
-    humanTitle: String?,
     humanStackOverride: Long? = null,
     silentSwipeFold: Boolean = false,
     winOddsFlipHintSeen: Boolean = false,
@@ -761,7 +760,6 @@ private fun ActiveTable(
         Column(modifier = Modifier.fillMaxWidth()) {
             PlayerArea(
                 table = table,
-                humanTitle = humanTitle,
                 humanStackOverride = humanStackOverride,
                 humanWinOdds = humanWinOdds,
                 silentSwipeFold = silentSwipeFold,
@@ -790,14 +788,8 @@ private fun ActiveTable(
 
 private fun card(rank: Rank, suit: Suit): Card = Card(rank, suit)
 
-private fun previewBotEmoji(name: String): String = when (name) {
-    "Jane" -> "🧐"
-    "David" -> "😎"
-    "Gina" -> "🦊"
-    "Steve" -> "🐢"
-    "Mike" -> "🤡"
-    else -> "🤖"
-}
+// Every bot reads as a bot at the table — previews match runtime.
+private fun previewBotEmoji(): String = BotAvatarEmoji
 
 private fun previewHumanSeat(
     stack: Long = 980,
@@ -850,7 +842,7 @@ private fun previewBotSeat(
     isHuman = false,
     isBot = true,
     avatarKey = "avatar_$name",
-    emoji = previewBotEmoji(name),
+    emoji = previewBotEmoji(),
     holeCards = holeCards,
     showHoleCardBacks = participation == HandParticipation.InHand && holeCards.isEmpty(),
     participation = participation,

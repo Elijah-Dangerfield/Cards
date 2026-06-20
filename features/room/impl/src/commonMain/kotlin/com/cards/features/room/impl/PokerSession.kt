@@ -66,6 +66,16 @@ interface PokerSession {
     fun requestNextHand()
 
     /**
+     * Leave the room for good. Remote sessions send the durable leave
+     * (the HTTP DELETE) so the server frees the seat and broadcasts the
+     * departure to the other players; local-bots sessions have no server
+     * room and no-op. Best-effort — a failure here only means the seat
+     * lingers until the server's grace sweep, never blocks the user's
+     * exit, so callers fire it without awaiting a result.
+     */
+    suspend fun leave()
+
+    /**
      * Blast a table emote to the rest of the room. Fire-and-forget — the
      * sender already renders its own blast locally, so this only carries
      * the emote to opponents. No-op for local-bots sessions.

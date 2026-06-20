@@ -732,6 +732,8 @@
     <string name="room_player_profile_mute_emoji_headline">Mute emoji</string>
     <string name="room_player_profile_mute_emoji_supporting_muted">You won't see their table blasts.</string>
     <string name="room_player_profile_mute_emoji_supporting_unmuted">Their blasts will show on your screen.</string>
+    <string name="room_player_profile_bot_callout_title">This is a bot</string>
+    <string name="room_player_profile_bot_callout_body">Bots only see their own hand and the community cards. They don't use AI — each follows a fixed heuristic playing style.</string>
 
     <!-- Room — Seat badge (small pill rendered below avatar: human level vs bot difficulty). -->
     <string name="room_seat_badge_level">Lvl %1$d</string>
@@ -953,6 +955,7 @@
     <string name="ui_level_up_rewards_header">You earned</string>
     <string name="ui_level_up_reward_chips">+%1$s chips</string>
     <string name="ui_level_up_reward_xp_boost">XP Boost</string>
+    <string name="ui_level_up_reward_cosmetic">New item</string>
 
     <!-- UI library — Active XP boost indicator. %1$s is a mm:ss countdown. -->
     <string name="ui_xp_boost_active">XP Boost · %1$s</string>

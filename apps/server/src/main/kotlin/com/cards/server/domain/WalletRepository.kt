@@ -46,6 +46,40 @@ data class Wallet(
         const val BUST_PROTECTION_REASON: String = "bust_protection"
 
         /**
+         * Chip grant for crossing 100 finished multiplayer hands
+         * (`HANDS_100_MP`). Replaces the borrowed single-player grinder
+         * emote pack the achievement used to hand out — a chip grant is
+         * the right reward for an MP volume milestone and needs no
+         * dedicated cosmetic content. Applied idempotently per the
+         * achievement's stable ledger key so re-evaluating the threshold
+         * each finished hand never double-credits.
+         */
+        const val ACHIEVEMENT_HANDS_100_GRANT: Long = 2_500L
+
+        /**
+         * Chip grants for the per-hand-shape server-witnessed MP
+         * achievements. Like [ACHIEVEMENT_HANDS_100_GRANT], these replace a
+         * borrowed single-player cosmetic with a chip reward — an MP-only
+         * achievement has no dedicated cosmetic content. Each is applied
+         * once, idempotently, off the achievement's stable ledger key.
+         */
+        const val ACHIEVEMENT_FIRST_BUST_DEALT_MP_GRANT: Long = 1_000L
+        const val ACHIEVEMENT_DOUBLE_UP_MP_GRANT: Long = 1_000L
+        const val ACHIEVEMENT_TRIPLE_UP_MP_GRANT: Long = 2_000L
+        const val ACHIEVEMENT_POT_5000_MP_GRANT: Long = 1_500L
+
+        /**
+         * Chip grants for the *cumulative* per-hand server-witnessed MP
+         * achievements — earned once a career tally crosses the threshold.
+         * Sized to the existing per-hand scale: EPIC `BUST_DEALT_5_MP` (five
+         * scalps) matches [ACHIEVEMENT_TRIPLE_UP_MP_GRANT]; RARE
+         * `WIN_BY_FOLD_10_MP` (ten pots without a showdown) matches the RARE
+         * one-shots.
+         */
+        const val ACHIEVEMENT_BUST_DEALT_5_MP_GRANT: Long = 2_000L
+        const val ACHIEVEMENT_WIN_BY_FOLD_10_MP_GRANT: Long = 1_000L
+
+        /**
          * Welcome-week daily grant schedule, counted in whole days
          * since the wallet's `createdAt`. Signup day (elapsed day 0)
          * gets the starter grant only — no daily bonus on the same

@@ -5,6 +5,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.AcquisitionSource
 import com.dangerfield.cards.server.domain.ClientGrantableAchievements
 import com.dangerfield.cards.server.domain.InventoryRepository
+import com.dangerfield.cards.server.domain.LevelGrantableProducts
 import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.Product
 import com.dangerfield.cards.server.domain.ProductCatalog
@@ -348,6 +349,57 @@ class GrantsRoutesTest {
     }
 
     @Test
+    fun levelCosmetic_allowlistedProduct_returnsOwnedItem_andRecordsEarnedGrant() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("cardback_high_roller"))
+        val allowlist = LevelGrantableProducts(setOf("cardback_high_roller"))
+        postLevel(inventory, catalog, allowlist, "cardback_high_roller") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val body = resp.body<OwnedItemDto>()
+            assertEquals("cardback_high_roller", body.productId)
+            assertEquals(AcquisitionSource.Earned.wire, body.acquisitionSource)
+            assertEquals(0L, body.costChipsAtPurchase)
+            val grant = inventory.earnedGrants.single()
+            assertEquals(userId, grant.userId)
+            assertEquals("cardback_high_roller", grant.productId)
+        }
+    }
+
+    @Test
+    fun levelCosmetic_productNotOnAllowlist_returnsForbidden_andDoesNotRecord() = runTest {
+        // The security branch: a client can't self-grant an arbitrary catalog
+        // cosmetic by POSTing its id — only products on the level allowlist.
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("cardback_premium"))
+        postLevel(inventory, catalog, LevelGrantableProducts.Default, "cardback_premium") { resp ->
+            assertEquals(HttpStatusCode.Forbidden, resp.status)
+            assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
+    fun levelCosmetic_allowlistedButMissingFromCatalog_returnsNoContent() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.empty()
+        val allowlist = LevelGrantableProducts(setOf("cardback_high_roller"))
+        postLevel(inventory, catalog, allowlist, "cardback_high_roller") { resp ->
+            assertEquals(HttpStatusCode.NoContent, resp.status)
+            assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
+    fun levelCosmetic_returns401_whenAuthHeaderMissing() = runTest {
+        val inventory = CapturingInventory()
+        val catalog = FakeCatalog.with(stubProduct("cardback_high_roller"))
+        val allowlist = LevelGrantableProducts(setOf("cardback_high_roller"))
+        postLevel(inventory, catalog, allowlist, "cardback_high_roller", withBearer = false) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+            assertTrue(inventory.earnedGrants.isEmpty())
+        }
+    }
+
+    @Test
     fun returns401_whenAuthHeaderMissing() = runTest {
         val inventory = CapturingInventory()
         val catalog = FakeCatalog.with(stubProduct("title_pot_magnet"))
@@ -422,6 +474,39 @@ class GrantsRoutesTest {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             }
             val response = client.post("/v1/me/grants/achievement/$achievementId") {
+                if (withBearer) header(HttpHeaders.Authorization, "Bearer $bearer")
+            }
+            assert(response)
+        }
+    }
+
+    private suspend fun postLevel(
+        inventory: InventoryRepository,
+        catalog: ProductCatalogSource,
+        levelGrantable: LevelGrantableProducts,
+        productId: String,
+        withBearer: Boolean = true,
+        bearer: String = jwt(),
+        assert: suspend (HttpResponse) -> Unit,
+    ) {
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    grantsRoutes(
+                        inventory = inventory,
+                        catalog = catalog,
+                        levelGrantable = levelGrantable,
+                    )
+                }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val response = client.post("/v1/me/grants/level-cosmetic/$productId") {
                 if (withBearer) header(HttpHeaders.Authorization, "Bearer $bearer")
             }
             assert(response)

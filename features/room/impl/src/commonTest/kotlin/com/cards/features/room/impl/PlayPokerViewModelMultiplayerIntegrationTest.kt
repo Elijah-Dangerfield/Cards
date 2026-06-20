@@ -309,6 +309,7 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
             profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,
+            appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),
             clock = kotlin.time.Clock.System,
         )
         return vm to handle

@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
+import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
@@ -291,7 +292,10 @@ data class SeatView(
             }
             val emoji = when {
                 isHuman && humanProfile != null -> humanProfile.avatarEmoji
-                seat.isBot -> personality?.emoji
+                // Every bot reads as a bot — the robot avatar is reserved for
+                // them (filtered out of the human picker). Solo bots no longer
+                // borrow their personality emoji; MP bots gain an avatar at all.
+                seat.isBot -> BotAvatarEmoji
                 // Remote human opponent: avatar rides the seat from the server
                 // (snapshotted from their profile at join). Falls back to any
                 // personality emoji, then to the initials avatar when blank.

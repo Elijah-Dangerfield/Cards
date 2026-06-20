@@ -170,6 +170,7 @@ class AchievementRepositoryImplSyncTest : CoroutineTest() {
             grantApi = NoopGrantApi,
             inventoryRepository = NoopInventory,
             networkClient = networkClient,
+            progressionConfig = FakeProgressionConfig(),
             appScope = appScope,
             clock = FixedClock,
         )

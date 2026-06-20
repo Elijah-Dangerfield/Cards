@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.cards.impl
 
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import me.tatarka.inject.annotations.Inject
@@ -17,8 +18,11 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class DefaultProgressionConfig(
     private val levelRewards: LevelRewardsConfigValue,
+    private val levelCurveConfig: LevelCurveConfigValue,
 ) : ProgressionConfig {
 
     override fun rewardsForLevel(level: Int): List<LevelReward> =
         levelRewards().rewardsForLevel(level)
+
+    override fun levelCurve(): LevelCurve = levelCurveConfig()
 }

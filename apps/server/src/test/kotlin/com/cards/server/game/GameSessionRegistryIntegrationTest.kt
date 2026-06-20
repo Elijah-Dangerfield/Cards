@@ -123,9 +123,18 @@ class GameSessionRegistryIntegrationTest {
     @Test
     fun finishedHand_evaluatesServerWitnessedAchievements_forEachRealUser() = runTest {
         val evaluations = mutableListOf<com.dangerfield.cards.server.domain.UserId>()
+        val perHandEvaluations =
+            mutableListOf<Pair<com.dangerfield.cards.server.domain.UserId, com.dangerfield.cards.server.domain.PlayerHandOutcome>>()
         val recording = object : com.dangerfield.cards.server.domain.ServerWitnessedAchievements {
             override suspend fun evaluate(userId: com.dangerfield.cards.server.domain.UserId) {
                 evaluations += userId
+            }
+
+            override suspend fun evaluateHand(
+                userId: com.dangerfield.cards.server.domain.UserId,
+                outcome: com.dangerfield.cards.server.domain.PlayerHandOutcome,
+            ) {
+                perHandEvaluations += userId to outcome
             }
         }
         val registry = DefaultGameSessionRegistry(
@@ -148,6 +157,18 @@ class GameSessionRegistryIntegrationTest {
         assertEquals(
             setOf(aliceId, bobId),
             evaluations.map { it.value.toString() }.toSet(),
+        )
+        // The per-hand path is driven for each real user off the same hand.
+        assertEquals(
+            setOf(aliceId, bobId),
+            perHandEvaluations.map { it.first.value.toString() }.toSet(),
+        )
+        // The hand ended on a fold, so exactly one player took the pot without
+        // a showdown — the `wonByFold` signal derived from the HandEnded event.
+        assertEquals(
+            1,
+            perHandEvaluations.count { it.second.wonByFold },
+            "the lone non-folder is credited a win by fold",
         )
     }
 

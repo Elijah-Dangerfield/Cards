@@ -572,6 +572,40 @@ class InMemoryRoomServiceTest {
         assertEquals(1, flow.first().members.size)
     }
 
+    @Test
+    fun create_and_join_pruneTheReservedBotAvatar_soHumansCantImpersonateBots() = runTest {
+        val service = newService()
+
+        // A human host wearing the reserved bot avatar gets it stripped to
+        // blank (renders as initials downstream), never broadcast as a bot.
+        val created = service.create(
+            host,
+            "Host",
+            hostAvatarEmoji = InMemoryRoomService.RESERVED_BOT_AVATAR_EMOJI,
+            hostAvatarBackgroundColor = "#112233",
+        )
+        val room = assertIs<CreateResult.Success>(created).room
+        val hostMember = room.members.single()
+        assertEquals("", hostMember.avatarEmoji, "the bot avatar is stripped for a human host")
+        assertEquals("#112233", hostMember.avatarBackgroundColor, "only the reserved emoji is pruned, not the color")
+
+        // A joiner trying the same is pruned on the join path too.
+        val joined = assertIs<JoinResult.Success>(
+            service.join(room.code, alice, "Alice", avatarEmoji = InMemoryRoomService.RESERVED_BOT_AVATAR_EMOJI),
+        )
+        val aliceMember = joined.room.members.single { it.userId == alice }
+        assertEquals("", aliceMember.avatarEmoji, "the bot avatar is stripped for a human joiner")
+    }
+
+    @Test
+    fun create_keepsAnOrdinaryAvatar() = runTest {
+        val service = newService()
+        val room = assertIs<CreateResult.Success>(
+            service.create(host, "Host", hostAvatarEmoji = "🦊"),
+        ).room
+        assertEquals("🦊", room.members.single().avatarEmoji, "a non-reserved avatar rides through untouched")
+    }
+
     // ---------- scaffolding ----------
 
     private fun newService(seed: Long = 0L): InMemoryRoomService = InMemoryRoomService(

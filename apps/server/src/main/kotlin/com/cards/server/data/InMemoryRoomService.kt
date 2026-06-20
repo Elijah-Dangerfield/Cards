@@ -97,7 +97,7 @@ class InMemoryRoomService(
             // same as "disconnected": the seat-grace clock starts now.
             // Cleared by markConnected(true) when the socket opens.
             disconnectedAt = now,
-            avatarEmoji = hostAvatarEmoji,
+            avatarEmoji = sanitizeMemberAvatar(hostAvatarEmoji),
             avatarBackgroundColor = hostAvatarBackgroundColor,
         )
         val room = Room(
@@ -137,7 +137,7 @@ class InMemoryRoomService(
             // See `create` — stamp disconnectedAt so the sweep treats
             // "joined-but-never-opened-a-socket" the same as a clean drop.
             disconnectedAt = now,
-            avatarEmoji = avatarEmoji,
+            avatarEmoji = sanitizeMemberAvatar(avatarEmoji),
             avatarBackgroundColor = avatarBackgroundColor,
         )
         val next = current.copy(members = (current.members + newMember).sortedBy { it.seatIndex })
@@ -312,6 +312,20 @@ class InMemoryRoomService(
         repeat(CODE_LENGTH) { append(CODE_ALPHABET[random.nextInt(CODE_ALPHABET.length)]) }
     }
 
+    /**
+     * The robot emoji is reserved as the bot avatar — opponents read it as
+     * "this seat is a backend bot." A human must never broadcast it (an old
+     * or third-party client could put it on a profile), so we strip it to
+     * blank here at the one chokepoint every member flows through. Blank
+     * renders as initials downstream — the same fallback as a member with no
+     * avatar — so the human appears as a normal player, never as a bot.
+     * Mirrors `BotAvatarEmoji` in `:libraries:cards` (the server doesn't
+     * depend on that client module; this is the deliberate cross-boundary
+     * duplicate, like the avatar starter-pack fallback list).
+     */
+    private fun sanitizeMemberAvatar(emoji: String): String =
+        if (emoji == RESERVED_BOT_AVATAR_EMOJI) "" else emoji
+
     private fun nextFreeSeat(room: Room): Int {
         // Fill the lowest unused seat index — keeps the seating chart
         // visually stable as people leave + rejoin.
@@ -328,5 +342,8 @@ class InMemoryRoomService(
         // = ~1 billion combos.
         const val CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
         private const val MAX_CODE_RETRIES = 50
+
+        /** The bot avatar emoji a human member may never carry. */
+        const val RESERVED_BOT_AVATAR_EMOJI = "🤖"
     }
 }

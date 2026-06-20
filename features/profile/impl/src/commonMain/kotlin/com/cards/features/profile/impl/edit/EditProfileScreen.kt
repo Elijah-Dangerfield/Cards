@@ -64,6 +64,7 @@ import cards.libraries.resources.generated.resources.profile_edit_tab_edit
 import cards.libraries.resources.generated.resources.profile_edit_tab_view
 import cards.libraries.resources.generated.resources.profile_edit_title
 import cards.libraries.resources.generated.resources.profile_player_card_view_blurb
+import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -539,7 +540,9 @@ private fun AvatarPicker(
             Spacer(modifier = Modifier.height(Dimension.D300))
         }
         AvatarGrid(
-            emojis = pack.emojis,
+            // The robot avatar is reserved for bots at the table, so a human
+            // can never pick it — it must read unambiguously as "bot".
+            emojis = pack.emojis.filter { it != BotAvatarEmoji },
             selected = selected,
             enabled = enabled,
             onSelect = onSelect,

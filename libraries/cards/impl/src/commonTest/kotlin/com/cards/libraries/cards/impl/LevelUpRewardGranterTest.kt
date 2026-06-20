@@ -3,9 +3,15 @@ package com.dangerfield.cards.libraries.cards.impl
 import com.dangerfield.cards.libraries.cards.AppCache
 import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.DefaultLevelRewards
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.InventoryItem
+import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.LevelCosmeticGrantApi
 import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
@@ -85,6 +91,46 @@ class LevelUpRewardGranterTest : CoroutineTest() {
     }
 
     @Test
+    fun crossingCosmeticLevel_postsGrant_andResyncsInventory_onSuccess() = runUnitTest {
+        val cache = FakeAppCache(AppData(highestLevelRewarded = 2))
+        val cosmeticApi = RecordingCosmeticGrantApi(granted = true)
+        val inventory = RecordingInventoryRepository()
+        val progression = FakeProgressionRepository(Progression.Empty.copy(totalXp = xpAtStartOfLevel(3)))
+
+        build(
+            cache = cache,
+            cosmeticApi = cosmeticApi,
+            inventory = inventory,
+            progression = progression,
+            config = CosmeticAtLevel3Config,
+        )
+
+        assertEquals(listOf("cardback_level_three"), cosmeticApi.grants)
+        assertEquals(1, inventory.syncs, "a granted cosmetic re-syncs inventory")
+        assertEquals(3, cache.get().highestLevelRewarded)
+    }
+
+    @Test
+    fun cosmeticGrantFailure_doesNotResync_butStillAdvancesWatermark() = runUnitTest {
+        val cache = FakeAppCache(AppData(highestLevelRewarded = 2))
+        val cosmeticApi = RecordingCosmeticGrantApi(granted = false)
+        val inventory = RecordingInventoryRepository()
+        val progression = FakeProgressionRepository(Progression.Empty.copy(totalXp = xpAtStartOfLevel(3)))
+
+        build(
+            cache = cache,
+            cosmeticApi = cosmeticApi,
+            inventory = inventory,
+            progression = progression,
+            config = CosmeticAtLevel3Config,
+        )
+
+        assertEquals(listOf("cardback_level_three"), cosmeticApi.grants, "still attempts the grant")
+        assertEquals(0, inventory.syncs, "no re-sync when the grant didn't land")
+        assertEquals(3, cache.get().highestLevelRewarded, "watermark advances; the next sync catches a missed grant")
+    }
+
+    @Test
     fun reEmittingSameLevel_doesNotRegrant() = runUnitTest {
         val cache = FakeAppCache(AppData(highestLevelRewarded = 2))
         val chips = RecordingChipsRepository()
@@ -98,16 +144,35 @@ class LevelUpRewardGranterTest : CoroutineTest() {
         assertEquals(listOf("levelup_3" to 1_000L), chips.grants, "still exactly one grant")
     }
 
+    @Test
+    fun derivesLevelFromTheConfiguredCurve_notTheBundledDefault() = runUnitTest {
+        val cache = FakeAppCache(AppData(highestLevelRewarded = 1))
+        val chips = RecordingChipsRepository()
+        // 50 XP is still level 1 under the bundled 100×N² curve, but the
+        // configured curve levels up at 50 — so this grant only fires if the
+        // granter reads the curve off config, not the global default.
+        val progression = FakeProgressionRepository(Progression.Empty.copy(totalXp = 50))
+
+        build(cache = cache, chips = chips, progression = progression, config = FastCurveLevel2Config)
+
+        assertEquals(listOf("levelup_2" to 777L), chips.grants)
+        assertEquals(2, cache.get().highestLevelRewarded)
+    }
+
     private fun build(
         cache: FakeAppCache = FakeAppCache(),
         chips: RecordingChipsRepository = RecordingChipsRepository(),
         boost: RecordingXpBoostRepository = RecordingXpBoostRepository(),
+        cosmeticApi: RecordingCosmeticGrantApi = RecordingCosmeticGrantApi(),
+        inventory: RecordingInventoryRepository = RecordingInventoryRepository(),
         progression: FakeProgressionRepository = FakeProgressionRepository(),
         config: ProgressionConfig = DefaultProgressionConfigFake(),
     ): LevelUpRewardGranter = LevelUpRewardGranter(
         progressionRepository = progression,
         chipsRepository = chips,
         xpBoostRepository = boost,
+        cosmeticGrantApi = cosmeticApi,
+        inventoryRepository = inventory,
         progressionConfig = config,
         appCache = cache,
         appScope = AppCoroutineScope(dispatchers),
@@ -116,6 +181,47 @@ class LevelUpRewardGranterTest : CoroutineTest() {
     private class DefaultProgressionConfigFake : ProgressionConfig {
         override fun rewardsForLevel(level: Int): List<LevelReward> =
             DefaultLevelRewards.rewardsForLevel(level)
+        override fun levelCurve(): LevelCurve = DefaultLevelCurve
+    }
+
+    private object CosmeticAtLevel3Config : ProgressionConfig {
+        override fun rewardsForLevel(level: Int): List<LevelReward> =
+            if (level == 3) listOf(LevelReward.Cosmetic("cardback_level_three")) else emptyList()
+        override fun levelCurve(): LevelCurve = DefaultLevelCurve
+    }
+
+    private object FastCurveLevel2Config : ProgressionConfig {
+        override fun rewardsForLevel(level: Int): List<LevelReward> =
+            if (level == 2) listOf(LevelReward.Chips(777)) else emptyList()
+        // Levels up to 2 at 50 XP — half the bundled curve's threshold.
+        override fun levelCurve(): LevelCurve = LevelCurve(xpPerLevel = listOf(50L))
+    }
+
+    private class RecordingCosmeticGrantApi(
+        private val granted: Boolean = false,
+    ) : LevelCosmeticGrantApi {
+        val grants = mutableListOf<String>()
+        override suspend fun grantLevelCosmetic(productId: String): Boolean {
+            grants += productId
+            return granted
+        }
+    }
+
+    private class RecordingInventoryRepository : InventoryRepository {
+        var syncs: Int = 0
+            private set
+        override fun observeInventory(): Flow<List<InventoryItem>> = MutableStateFlow(emptyList())
+        override suspend fun getInventory(): List<InventoryItem> = emptyList()
+        override suspend fun redeemChipOffer(productId: String, costChips: Long): RedeemResult =
+            RedeemResult.Success
+        override suspend fun markConfirmed(productIds: Collection<String>) = Unit
+        override suspend fun revertPurchase(productId: String) = Unit
+        override suspend fun applyServerSnapshot(authoritative: List<InventoryItem>) = Unit
+        override suspend fun deleteAll() = Unit
+        override suspend fun sync(): Result<Unit> {
+            syncs += 1
+            return Result.success(Unit)
+        }
     }
 
     private class FakeProgressionRepository(

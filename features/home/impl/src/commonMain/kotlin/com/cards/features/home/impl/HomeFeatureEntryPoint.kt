@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import cards.libraries.resources.generated.resources.Res
@@ -18,8 +20,12 @@ import cards.libraries.resources.generated.resources.home_coming_soon_quick_matc
 import cards.libraries.resources.generated.resources.home_coming_soon_quick_match_title
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_body
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_title
+import cards.libraries.resources.generated.resources.ui_level_up_reward_chips
+import cards.libraries.resources.generated.resources.ui_level_up_reward_cosmetic
+import cards.libraries.resources.generated.resources.ui_level_up_reward_xp_boost
 import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.features.home.HomeRoute
+import com.dangerfield.cards.features.home.LevelUpRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
@@ -27,14 +33,20 @@ import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
 import com.dangerfield.cards.features.room.TutorialRoute
 import com.dangerfield.cards.features.shop.ShopGraph
+import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.ObserveWithLifecycle
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
+import com.dangerfield.cards.libraries.ui.components.LevelUpCelebration
+import com.dangerfield.cards.libraries.ui.components.LevelUpReward
 import com.dangerfield.cards.libraries.navigation.OnTabReselected
 import com.dangerfield.cards.libraries.navigation.Router
 import com.dangerfield.cards.libraries.navigation.dialog
 import com.dangerfield.cards.libraries.navigation.screen
 import com.dangerfield.cards.libraries.navigation.toRouteOrNull
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
@@ -48,6 +60,7 @@ class HomeFeatureEntryPoint(
     private val homeViewModelFactory: () -> HomeViewModel,
 ) : FeatureEntryPoint {
 
+    @OptIn(ExperimentalComposeUiApi::class)
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         screen<HomeRoute> {
             val viewModel: HomeViewModel = viewModel { homeViewModelFactory() }
@@ -72,6 +85,37 @@ class HomeFeatureEntryPoint(
                             )
                         )
                     }
+                }
+            }
+            // Routed level-up celebration. The VM derives `levelUpCelebration`
+            // (survives the table→home trip + process death); we observe it and
+            // navigate to the full-screen [LevelUpRoute] (no bottom bar). Firing
+            // [HomeAction.MarkLevelUpShown] the instant we navigate advances the
+            // watermark + clears the state, so a Home resume behind the
+            // celebration can't re-navigate. `remember` keeps the derived flow
+            // stable so [ObserveWithLifecycle] doesn't restart every recomposition.
+            val levelUpRoute = remember(viewModel) {
+                viewModel.stateFlow
+                    .map { state ->
+                        state.levelUpCelebration?.let { level ->
+                            LevelUpRoute(
+                                level = level,
+                                chipsRewarded = state.levelUpRewards
+                                    .filterIsInstance<LevelReward.Chips>()
+                                    .firstOrNull()?.amount ?: 0L,
+                                xpBoostRewarded = state.levelUpRewards.any { it is LevelReward.XpBoost },
+                                cosmeticProductId = state.levelUpRewards
+                                    .filterIsInstance<LevelReward.Cosmetic>()
+                                    .firstOrNull()?.productId,
+                            )
+                        }
+                    }
+                    .distinctUntilChanged()
+            }
+            ObserveWithLifecycle(levelUpRoute) { route ->
+                if (route != null) {
+                    router.navigate(route)
+                    viewModel.takeAction(HomeAction.MarkLevelUpShown)
                 }
             }
             // The bot-table setup sheet picks difficulty *and* seat count
@@ -205,6 +249,31 @@ class HomeFeatureEntryPoint(
                 avatarBackgroundColorHex = route.avatarBackgroundColorHex,
                 chips = route.chips,
                 onDismiss = { router.goBack() },
+            )
+        }
+
+        // Full-screen level-up celebration — a real destination (no bottom bar,
+        // hidden because [LevelUpRoute] isn't in App.kt's `tabString()`). Back is
+        // swallowed so only the explicit Continue button exits; the reward rows
+        // are reconstructed from the route's aggregated prize args.
+        screen<LevelUpRoute> { backStackEntry ->
+            val route = backStackEntry.toRouteOrNull<LevelUpRoute>() ?: return@screen
+            BackHandler { }
+            val chipsLabel = stringResource(
+                Res.string.ui_level_up_reward_chips,
+                formatThousands(route.chipsRewarded),
+            )
+            val boostLabel = stringResource(Res.string.ui_level_up_reward_xp_boost)
+            val cosmeticLabel = stringResource(Res.string.ui_level_up_reward_cosmetic)
+            val rewards = buildList {
+                if (route.chipsRewarded > 0L) add(LevelUpReward(emoji = "🪙", label = chipsLabel))
+                if (route.xpBoostRewarded) add(LevelUpReward(emoji = "⚡", label = boostLabel))
+                if (route.cosmeticProductId != null) add(LevelUpReward(emoji = "🎁", label = cosmeticLabel))
+            }
+            LevelUpCelebration(
+                level = route.level,
+                onContinue = { router.goBack() },
+                rewards = rewards,
             )
         }
     }

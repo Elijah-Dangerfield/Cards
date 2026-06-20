@@ -19,6 +19,7 @@ import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
+import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.game.ConnectionState
@@ -42,7 +43,6 @@ import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import com.dangerfield.cards.libraries.ui.components.poker.badgeEmojiForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.cardBackForProductId
 import com.dangerfield.cards.libraries.ui.components.poker.feltForProductId
-import com.dangerfield.cards.libraries.ui.components.poker.titleForProductId
 import com.dangerfield.cards.libraries.review.ReviewPromptCoordinator
 import com.dangerfield.cards.libraries.review.ReviewTrigger
 import com.dangerfield.cards.libraries.rooms.ClosedReason
@@ -86,12 +86,18 @@ class PlayPokerViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
     private val reviewPromptCoordinator: ReviewPromptCoordinator,
     private val dispatcherProvider: DispatcherProvider,
+    private val appScope: AppCoroutineScope,
     private val clock: Clock,
 ) : SEAViewModel<PlayPokerState, PlayPokerEvent, PlayPokerAction>(
     initialStateArg = PlayPokerState(xpMode = sessionFactory.xpMode),
 ) {
 
     private val logger = KLog.withTag("PlayPokerViewModel")
+
+    // Construction-time hint for the session factory only. Solo seats the
+    // human here; MP ignores it and allocates a seat server-side. Anything
+    // that attributes a finished hand resolves the real seat via
+    // [PokerSessionFactory.humanSeatIndex] against the live state instead.
     private val humanSeatIndex: Int = 0
 
     // Cached bot-speed mirror — the session reads this via a non-suspending
@@ -114,6 +120,15 @@ class PlayPokerViewModel @Inject constructor(
     // they have no display name to render.
     private var latestHumanProfile: Profile.Authenticated? = null
     private var lastGameState: GameState? = null
+
+    // Dedupes intent submission within a single decision point. Keyed on the
+    // live state's (handNumber, lastSequence) — two taps before the resulting
+    // snapshot lands read the same token and the second is dropped, so a slow
+    // ack / double-tap can't fire the same action twice. Cleared on a rejected
+    // submit so a corrected resubmit (e.g. an illegal raise) on the same turn
+    // still goes through; an accepted action advances lastSequence, so the next
+    // genuine decision carries a fresh token regardless.
+    private var submittedTurnToken: Pair<Int, Long>? = null
 
     // Session created lazily so the hand-end lambda below can reference `viewModelScope`.
     private val session: PokerSession = sessionFactory.create(
@@ -224,14 +239,10 @@ class PlayPokerViewModel @Inject constructor(
                     .firstOrNull { it != com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default }
                     ?: com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle.Default
                 val winOddsTool = entries.any { it.productId == TOOL_WIN_ODDS_PRODUCT_ID }
-                // Newest-equipped-title wins so a freshly-equipped title
-                // takes over from a prior one without an explicit unequip.
-                val title = entries.firstNotNullOfOrNull { titleForProductId(it.productId) }
                 val badgeEmoji = entries.firstNotNullOfOrNull { badgeEmojiForProductId(it.productId) }
                 takeAction(PlayPokerAction.EquippedFeltChanged(felt))
                 takeAction(PlayPokerAction.EquippedCardBackChanged(cardBack))
                 takeAction(PlayPokerAction.WinOddsToolEquippedChanged(winOddsTool))
-                takeAction(PlayPokerAction.EquippedTitleChanged(title))
                 takeAction(PlayPokerAction.EquippedBadgeChanged(badgeEmoji))
             }
         }
@@ -275,11 +286,12 @@ class PlayPokerViewModel @Inject constructor(
                 if (!vmState.winOddsToolEquipped) {
                     EquityInput.NotApplicable
                 } else {
-                    val human = gs.seats.firstOrNull { it.index == humanSeatIndex }
+                    val seatIndex = sessionFactory.humanSeatIndex(gs)
+                    val human = gs.seats.firstOrNull { it.index == seatIndex }
                         ?: return@combine EquityInput.NotApplicable
                     if (human.holeCards.size != 2) return@combine EquityInput.NotApplicable
                     val opponentsInHand = gs.seats.count { seat ->
-                        seat.index != humanSeatIndex &&
+                        seat.index != seatIndex &&
                             (seat.handParticipation == HandParticipation.InHand ||
                                 seat.handParticipation == HandParticipation.AllIn)
                     }
@@ -345,6 +357,11 @@ class PlayPokerViewModel @Inject constructor(
         state: GameState,
         humanStartingStack: Long,
     ) {
+        // Resolve the local human's seat from the finished-hand state rather
+        // than the construction-time hint: in MP the human can sit at any
+        // seat, and attributing the hand to seat 0 would credit a different
+        // player's fold/showdown outcome.
+        val humanSeatIndex = sessionFactory.humanSeatIndex(state)
         val summary = HandResultSummaryBuilder.build(
             event = event,
             state = state,
@@ -479,10 +496,19 @@ class PlayPokerViewModel @Inject constructor(
             }
 
             is PlayPokerAction.Submit -> {
-                logger.d { "VM received Submit ${action.intent}" }
-                viewModelScope.launch {
-                    Catching { session.submit(action.intent) }
-                        .onFailure { e -> logger.w(e) { "submit failed for ${action.intent}" } }
+                val turnToken = lastGameState?.let { it.handNumber to it.lastSequence }
+                if (turnToken != null && turnToken == submittedTurnToken) {
+                    logger.d { "Ignoring duplicate Submit ${action.intent} for turn $turnToken" }
+                } else {
+                    submittedTurnToken = turnToken
+                    logger.d { "VM received Submit ${action.intent}" }
+                    viewModelScope.launch {
+                        Catching { session.submit(action.intent) }
+                            .onFailure { e ->
+                                logger.w(e) { "submit failed for ${action.intent}" }
+                                if (submittedTurnToken == turnToken) submittedTurnToken = null
+                            }
+                    }
                 }
             }
             is PlayPokerAction.RequestNextHand -> {
@@ -555,9 +581,6 @@ class PlayPokerViewModel @Inject constructor(
             is PlayPokerAction.WinOddsChanged -> action.updateState {
                 it.copy(humanWinOdds = action.breakdown)
             }
-            is PlayPokerAction.EquippedTitleChanged -> action.updateState {
-                it.copy(equippedTitle = action.title)
-            }
             is PlayPokerAction.EquippedBadgeChanged -> action.updateState {
                 it.copy(equippedBadgeEmoji = action.emoji)
             }
@@ -575,6 +598,15 @@ class PlayPokerViewModel @Inject constructor(
                     Catching {
                         reviewPromptCoordinator.requestPrompt(ReviewTrigger.SessionEnd)
                     }.onFailure { logger.w(it) { "SessionEnd review prompt request failed" } }
+                }
+                // Send the durable leave so the server frees our seat and the
+                // other players see us go. Parented to the app scope, not
+                // viewModelScope: the screen pops this VM the instant it fires
+                // LeaveTable, and the leave must still reach the server. No-op
+                // for local-bots sessions (no server room).
+                appScope.launch {
+                    Catching { session.leave() }
+                        .onFailure { e -> logger.w(e) { "room leave failed" } }
                 }
             }
             is PlayPokerAction.SwipeFoldAckChanged -> action.updateState {
@@ -744,11 +776,6 @@ data class PlayPokerState(
      */
     val humanWinOdds: EquityBreakdown? = null,
     /**
-     * Equipped vanity title (e.g. "The Shark") rendered under the
-     * player's name. Null when nothing's equipped — UI hides the row.
-     */
-    val equippedTitle: String? = null,
-    /**
      * Emoji of the equipped permanent seat badge (founding-member,
      * league rewards, etc.) rendered in the slot mirrored opposite the
      * SB/BB chip on the human seat. Null = empty slot.
@@ -873,9 +900,6 @@ sealed interface PlayPokerAction {
 
     /** Fired by the equity flow after a fresh Monte Carlo run resolves. */
     data class WinOddsChanged(val breakdown: EquityBreakdown?) : PlayPokerAction
-
-    /** Fired by the equipment subscription; flips the equipped title shown under the name. */
-    data class EquippedTitleChanged(val title: String?) : PlayPokerAction
 
     /** Fired by the equipment subscription; flips the equipped permanent seat badge. */
     data class EquippedBadgeChanged(val emoji: String?) : PlayPokerAction
@@ -1007,6 +1031,18 @@ interface PokerSessionFactory {
 
     /** Derive [SeatOccupant] list from current engine state. */
     fun occupantsFor(state: GameState): List<SeatOccupant>
+
+    /**
+     * The local human's seat index within [state]. Solo sessions seat the
+     * human at a fixed index; MP seats them at whatever index the server
+     * allocated, so this matches the local user id against each seat. Per-
+     * hand attribution (XP, achievements, win-odds) keys off this — using a
+     * hard-coded seat would credit the wrong player whenever the local human
+     * isn't at seat 0. Returns `-1` when the local human isn't seated in
+     * [state] (pre-first-snapshot, or a spectator) so attribution degrades to
+     * "no credit" rather than crediting another seat's outcome.
+     */
+    fun humanSeatIndex(state: GameState): Int
 
     /**
      * Project the raw engine state into a [TableUiState] for rendering.

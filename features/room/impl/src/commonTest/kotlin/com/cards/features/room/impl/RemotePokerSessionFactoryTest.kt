@@ -196,6 +196,31 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     }
 
     @Test
+    fun humanSeatIndex_matchesLocalUserAtAnyIndex() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, playerId = "peer-0"),
+                testSeat(index = 1, playerId = "peer-1"),
+                testSeat(index = 2, playerId = "local-user"),
+            ),
+        )
+
+        assertEquals(2, factory(localUserId = "local-user").humanSeatIndex(state))
+    }
+
+    @Test
+    fun humanSeatIndex_localUserNotSeated_returnsNegativeOne() = runUnitTest {
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, playerId = "peer-0"),
+                testSeat(index = 1, playerId = "peer-1"),
+            ),
+        )
+
+        assertEquals(-1, factory(localUserId = "observer-not-in-room").humanSeatIndex(state))
+    }
+
+    @Test
     fun tableFor_localUserNotSeated_hasNoHumanSeat_andDoesNotCrash() = runUnitTest {
         val state = stubGameState(
             seats = listOf(

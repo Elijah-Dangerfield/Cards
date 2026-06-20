@@ -216,6 +216,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             profileRepository = FakeProfileRepository(),
             reviewPromptCoordinator = FakeReviewPromptCoordinator(),
             dispatcherProvider = dispatchers,
+            appScope = com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope(dispatchers),
             clock = kotlin.time.Clock.System,
         )
         return TestVm(
@@ -284,6 +285,9 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         override suspend fun bootstrap(session: PokerSession) {
             (session as LocalBotsSession).runUntilHumansTurnOrComplete()
         }
+
+        override fun humanSeatIndex(state: GameState): Int =
+            state.seats.firstOrNull { !it.isBot }?.index ?: 0
 
         override fun occupantsFor(state: GameState): List<SeatOccupant> =
             state.seats.map { seat -> seatToOccupant(seat, personality = null) }

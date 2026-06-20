@@ -60,6 +60,12 @@ import kotlin.uuid.Uuid
  */
 internal class RemotePokerSession(
     private val handle: RoomConnectionHandle,
+    /**
+     * Sends the durable room-leave (the HTTP DELETE) when the player
+     * exits. Injected as a lambda so the session stays decoupled from
+     * `RoomRepository` + the room code, which only the factory holds.
+     */
+    private val onLeave: suspend () -> Unit = {},
 ) : PokerSession {
 
     private val logger = KLog.withTag("RemotePokerSession")
@@ -213,6 +219,11 @@ internal class RemotePokerSession(
 
     override fun requestNextHand() {
         nextHandSignal.trySend(Unit)
+    }
+
+    override suspend fun leave() {
+        Catching { onLeave() }
+            .onFailure { e -> logger.w(e) { "room leave send failed" } }
     }
 
     override suspend fun sendEmote(emoji: String) {

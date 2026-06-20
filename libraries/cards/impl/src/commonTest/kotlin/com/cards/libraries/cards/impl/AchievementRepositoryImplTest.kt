@@ -468,6 +468,7 @@ class AchievementRepositoryImplTest : CoroutineTest() {
             grantApi = grantApi,
             inventoryRepository = inventory,
             networkClient = NeverCalledNetworkClient,
+            progressionConfig = FakeProgressionConfig(),
             appScope = AppCoroutineScope(dispatchers),
             clock = clock,
         )

@@ -9,7 +9,9 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.DefaultLevelRewards
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
 import com.dangerfield.cards.libraries.cards.ProgressionConfig
@@ -195,7 +197,7 @@ class HomeViewModelTest : CoroutineTest() {
     }
 
     @Test
-    fun levelUp_crossingWatermark_showsCelebration_thenDismissAdvances() = runUnitTest {
+    fun levelUp_crossingWatermark_showsCelebration_thenMarkShownAdvances() = runUnitTest {
         val progression = FakeProgressionRepository(initial = Progression.Empty)
         val appCache = FakeAppCache()
         val vm = buildVm(progression = progression, appCache = appCache)
@@ -209,8 +211,9 @@ class HomeViewModelTest : CoroutineTest() {
             while (last.levelUpCelebration == null) last = awaitItem()
             assertEquals(2, last.levelUpCelebration)
 
-            // Dismiss advances the watermark and clears the overlay.
-            vm.takeAction(HomeAction.DismissLevelUp)
+            // Marking it shown (fired by the entry point at navigate time)
+            // advances the watermark and clears the trigger.
+            vm.takeAction(HomeAction.MarkLevelUpShown)
             while (last.levelUpCelebration != null) last = awaitItem()
             assertEquals(2, appCache.get().lastCelebratedLevel)
             assertTrue(last.levelUpRewards.isEmpty())
@@ -480,6 +483,7 @@ class HomeViewModelTest : CoroutineTest() {
     private class FakeProgressionConfig : ProgressionConfig {
         override fun rewardsForLevel(level: Int): List<LevelReward> =
             DefaultLevelRewards.rewardsForLevel(level)
+        override fun levelCurve(): LevelCurve = DefaultLevelCurve
     }
 
     private fun sampleRoom(

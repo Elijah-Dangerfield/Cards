@@ -12,10 +12,18 @@ package com.dangerfield.cards.server.domain
  * count thresholds and, on a crossing, record the earned achievement and grant
  * the mapped cosmetic.
  *
- * Scope is deliberately the *count-based* slice only (today: `HANDS_100_MP`).
- * The per-hand-shape MP ids (busts, win-by-fold, double/triple-up, pot-size)
- * need richer signals than a raw count and stay unevaluated until those
- * signals exist; bot-mode achievements stay client self-grant.
+ * Two evaluation paths:
+ *  - [evaluate] drives the *count-based* ids off
+ *    [HandsFinishedRepository.countForUser] (today: `FIRST_HAND_MP`,
+ *    `HANDS_100_MP`).
+ *  - [evaluateHand] drives the *per-hand-shape* ids off a finished hand: the
+ *    one-shot ids off a single hand's [PlayerHandOutcome] (busts dealt,
+ *    double/triple-up, pot-size), and the cumulative ids (`BUST_DEALT_5_MP`,
+ *    `WIN_BY_FOLD_10_MP`) off a career tally over the finished-hand ledger
+ *    ([HandsFinishedRepository.bustsDealtForUser] /
+ *    [HandsFinishedRepository.winsByFoldForUser]).
+ *
+ * Bot-mode achievements stay client self-grant.
  */
 interface ServerWitnessedAchievements {
 
@@ -28,6 +36,17 @@ interface ServerWitnessedAchievements {
      * re-evaluation on every finished hand is a safe no-op once granted.
      */
     suspend fun evaluate(userId: UserId)
+
+    /**
+     * Evaluate the per-hand-shape server-witnessed achievements for [userId]
+     * against a finished hand's [outcome] — the one-shot ids off this hand and
+     * the cumulative ids off the career tally — granting any whose condition
+     * just fired. Idempotent for the same reason as [evaluate] — already-earned
+     * ids are skipped and the grant is first-write-wins, so re-deriving the
+     * outcome can never double-grant. Default no-op so test doubles only need
+     * the path they exercise.
+     */
+    suspend fun evaluateHand(userId: UserId, outcome: PlayerHandOutcome) = Unit
 }
 
 /**

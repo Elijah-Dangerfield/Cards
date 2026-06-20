@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.game
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
+import com.dangerfield.cards.server.domain.HandOutcome
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -163,10 +164,10 @@ class GameSessionTest {
 
     @Test
     fun handCompletion_firesOnHandFinishedOnce_withHumanSeatsAndHandNumber() = runTest {
-        val finished = mutableListOf<Pair<List<String>, Int>>()
+        val finished = mutableListOf<HandOutcome>()
         val session = GameSession(
             random = Random(seed = 42),
-            onHandFinished = { ids, handNumber -> finished += ids to handNumber },
+            onHandFinished = { outcome -> finished += outcome },
         )
         session.startHand(listOf(alice, bob), settings)
         val acting = session.state.value!!.actingSeatIndex!!
@@ -175,16 +176,16 @@ class GameSessionTest {
         session.applyIntent(actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "n1")
 
         assertEquals(1, finished.size, "fires exactly once on the completing action")
-        assertEquals(setOf("alice", "bob"), finished.single().first.toSet())
-        assertEquals(1, finished.single().second, "carries the completed hand number")
+        assertEquals(setOf("alice", "bob"), finished.single().perHuman.keys)
+        assertEquals(1, finished.single().handNumber, "carries the completed hand number")
     }
 
     @Test
     fun nonCompletingAction_doesNotFireOnHandFinished() = runTest {
-        val finished = mutableListOf<Pair<List<String>, Int>>()
+        val finished = mutableListOf<HandOutcome>()
         val session = GameSession(
             random = Random(seed = 42),
-            onHandFinished = { ids, handNumber -> finished += ids to handNumber },
+            onHandFinished = { outcome -> finished += outcome },
         )
         session.startHand(listOf(alice, bob), settings)
         val acting = session.state.value!!.actingSeatIndex!!
@@ -202,10 +203,10 @@ class GameSessionTest {
     @Test
     fun onHandFinished_excludesBotSeats() = runTest {
         val bot = SeatOccupant(seatIndex = 1, userId = "bot-1", displayName = "Botty", isBot = true)
-        val finished = mutableListOf<Pair<List<String>, Int>>()
+        val finished = mutableListOf<HandOutcome>()
         val session = GameSession(
             random = Random(seed = 42),
-            onHandFinished = { ids, handNumber -> finished += ids to handNumber },
+            onHandFinished = { outcome -> finished += outcome },
         )
         session.startHand(listOf(alice, bot), settings)
         val acting = session.state.value!!.actingSeatIndex!!
@@ -214,7 +215,29 @@ class GameSessionTest {
         session.applyIntent(actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "n1")
 
         assertEquals(1, finished.size)
-        assertEquals(listOf("alice"), finished.single().first, "bots don't carry a server-witnessed count")
+        assertEquals(setOf("alice"), finished.single().perHuman.keys, "bots don't carry a server-witnessed count")
+    }
+
+    @Test
+    fun onHandFinished_foldWinner_carriesPotAndWinFlag() = runTest {
+        val finished = mutableListOf<HandOutcome>()
+        val session = GameSession(
+            random = Random(seed = 42),
+            onHandFinished = { outcome -> finished += outcome },
+        )
+        session.startHand(listOf(alice, bob), settings)
+        val acting = session.state.value!!.actingSeatIndex!!
+        val folder = session.state.value!!.seats.first { it.index == acting }
+        val winnerId = session.state.value!!.seats.first { it.index != acting }.playerId!!
+
+        session.applyIntent(folder.playerId!!, PlayerIntent.Fold(seatIndex = acting), "n1")
+
+        val outcome = finished.single()
+        // Heads-up SB folds preflop: pot is SB + BB = 15. Winner nets the
+        // small blind; the folder loses theirs.
+        assertEquals(15L, outcome.perHuman.values.first().potTotal)
+        assertTrue(outcome.perHuman.getValue(winnerId).won, "the seat that took the blinds won the hand")
+        assertTrue(!outcome.perHuman.getValue(folder.playerId!!).won, "the folder did not win")
     }
 
     @Test

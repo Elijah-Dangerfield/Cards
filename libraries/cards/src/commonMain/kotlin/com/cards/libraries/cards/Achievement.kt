@@ -101,6 +101,7 @@ enum class AchievementId {
     // the client can't witness which hands were multiplayer and the grant
     // endpoint refuses MP ids posted from clients (see
     // `ClientGrantableAchievements.Default.serverWitnessed`).
+    FIRST_HAND_MP,
     HANDS_100_MP,
     WIN_BY_FOLD_10_MP,
     DOUBLE_UP_MP,

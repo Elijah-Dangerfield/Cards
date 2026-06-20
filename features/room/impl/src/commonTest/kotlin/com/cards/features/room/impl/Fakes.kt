@@ -78,6 +78,11 @@ class FakePokerSession(
     val submittedIntents = mutableListOf<PlayerIntent>()
     val sentEmotes = mutableListOf<String>()
     var requestNextHandCount: Int = 0
+    var leaveCount: Int = 0
+
+    // When set, [submit] records the intent then throws it — modelling a
+    // server rejection (the real session surfaces a rejected ack as a throw).
+    var submitError: Throwable? = null
 
     /** Drive an inbound opponent emote the way the real session would. */
     fun emitEmote(seatIndex: Int, emoji: String) {
@@ -102,10 +107,15 @@ class FakePokerSession(
 
     override suspend fun submit(intent: PlayerIntent) {
         submittedIntents += intent
+        submitError?.let { throw it }
     }
 
     override fun requestNextHand() {
         requestNextHandCount += 1
+    }
+
+    override suspend fun leave() {
+        leaveCount += 1
     }
 
     override suspend fun sendEmote(emoji: String) {
@@ -140,6 +150,9 @@ class FakePokerSessionFactory(
         bootstrapCalled = true
         // Test stays paused here — production loop runs the bot loop; fake just records.
     }
+
+    override fun humanSeatIndex(state: GameState): Int =
+        state.seats.firstOrNull { !it.isBot }?.index ?: 0
 
     override fun occupantsFor(state: GameState): List<SeatOccupant> = state.seats.map { seat ->
         seatToOccupant(seat, personalities[seat.index])
@@ -328,6 +341,7 @@ fun stubGameState(
     handNumber: Int = 1,
     actingSeatIndex: Int? = 0,
     street: BettingRound = BettingRound.Preflop,
+    lastSequence: Long = 0,
 ): GameState = GameState(
     settings = testSettings,
     handNumber = handNumber,
@@ -339,6 +353,7 @@ fun stubGameState(
     lastFullRaiseSize = 0L,
     actingSeatIndex = actingSeatIndex,
     deckRemaining = emptyList(),
+    lastSequence = lastSequence,
 )
 
 fun testSeat(

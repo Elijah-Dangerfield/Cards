@@ -25,6 +25,66 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-19 — TODO-grooming pass: resolve a batch of deferred product decisions
+
+This entry records several directional calls made in one grooming pass so future agents don't
+re-derive them. Each made its corresponding `developer-todo.md` "deferred product decision" or
+`todo.md` "decide whether…" item actionable; the durable reasoning lives here.
+
+**MP achievement rewards — chips, not cosmetics.** The shipped 100-finished-MP-hands achievement
+(`HANDS_100_MP`) grants **chips** via the wallet ledger (`WalletRepository.apply`, idempotent), not
+the borrowed single-player `emotes_grinder` cosmetic it shipped with. The new "first multiplayer
+hand" achievement is **record-only** — the badge is the reward, no prize. *Why:* chips are the
+universal reward currency and need no content/design pass to mint; a borrowed cosmetic reads as
+off-theme. Dedicated MP cosmetics are dropped, not deferred — chips are the answer.
+
+**Conservative orphan-anon deletion — never delete real progress.** An abandoned anonymous account
+is deleted only when we're *very* sure it's dead: anonymous + never claimed + **zero real-money
+purchases** (hard rule) + **at or below level 1** (any meaningful XP → preserved, never deleted),
+and only when **either** its device/install id is now bound to a *different active* anon account
+(today's opportunistic `DefaultOrphanInstallSweep`) **or** it's been ≥ 1 year fully inactive (a
+scheduled sweep, deferred to `post-launch.md`). *Why:* the risk/reward of accidentally deleting
+someone's progress is indefensible; leaking cheap orphan rows is strictly preferable.
+**Partially supersedes 2026-05-29 (Anon-account cleanup)** — that decision ruled out a time-based
+sweep entirely; we now allow one, but only under the very-conservative 1-yr + low-XP + no-purchase
+gate, post-launch.
+
+**App attestation — no for V1.** Play Integrity / App Attest deferred to `post-launch.md`. *Why:*
+play-money chips make the cheating payoff low; attestation adds setup cost + a legitimate-user
+failure rate. Revisit if forged-client abuse materializes.
+
+**`Profile.Fallback` offline policy.** No per-surface redesign needed — the app is already
+offline-first (write-through + reconcile, see `state-authority-and-sync.md`) and `Profile.Fallback`
+is only the last-resort identity (never-authenticated, or server-rejected session), not a generic
+"offline" state. Blanket rule for the fallback state: reads = cached browse; server-mutating
+surfaces = soft-gate; money + multiplayer = hard-gate. Remaining work is verification, not design.
+
+**Ban policy — manual for V1.** Triggers: collusion/chip-dumping, payment fraud/chargebacks,
+abusive name/chat/emotes, bug/automation exploitation for chips/XP, ban evasion. Manual review by
+Elijah; reversible via appeal email. Automation (weekly sweep + report-threshold auto-ban) deferred
+to `post-launch.md`.
+
+**Degraded bot-play stays local until account creation.** While guest-account creation is pending
+(offline), bot-play XP/chips accrue **purely locally** and never write the server-bound ledger; on
+creation the server grant is authoritative and pending local deltas replay on top once (never
+re-granting the starter grant). *Why:* simplest path that can't double-count.
+
+**Session-expiry → blocking retry/logout screen.** When a session the user *used to have* can't be
+authed, we **block** rather than fall back to a guest profile or bounce to onboarding — a full
+blocking screen (modeled on `BlockingErrorScreen`) offers **Retry** (re-attempt the token refresh)
+and **Logout**, with anonymous-aware copy warning that logging out loses unrecoverable progress.
+Only an explicit Logout tears down to onboarding. This also closes the "cold-boot ghost"
+(persisted-but-dead session) by blocking instead of firing blind authed syncs. Tracked in `todo.md`
+§A. *(Reverses an earlier same-day call to accept the snackbar — the snackbar silently drops the
+user to onboarding, throwing away a session that a token refresh might have recovered.)*
+
+**Remote config / feature flags — build in-house, local GUI, post-launch.** No hosted service
+(PostHog/Statsig/LaunchDarkly); a locally-run admin web GUI edits DB config values directly (never
+published). Deferred to `post-launch.md` (Phase 1 — DB-backed config, no-redeploy flips — is cheap
+and could be pulled forward if redeploy pain bites).
+
+**Status:** Locked for V1.
+
 ## 2026-06-19 — Multiplayer emotes: dedicated ephemeral channel, rendered as a center-screen attributed blast
 
 **Decision:** Table emotes ride a **separate per-room broadcast channel**, not the gameplay flows. A new `GameSession._emojiBlasts: SharedFlow<SeatEmoji>` (replay-0, lock-free `tryEmit`) is merged into the socket fan-out alongside the state/event legs; `ClientFrame.SendEmoji` → `GameSessionRegistry.broadcastEmoji` resolves the caller's seat from live state and emits; the client maps the new `GameplayFrame.EmojiBlast` onto `PokerSession.emoteBlasts` (also replay-0). The client **renders the incoming emote through the existing single full-screen `EmojiBlastOverlay`, attributed to the emitter's seat** (name/avatar/color) — *not* a per-seat-positioned blast. The local sender renders its own blast instantly on tap and **ignores the server echo of its own seat** (`isHuman` check); muted seats are dropped on receipt.
@@ -300,6 +360,8 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 **Walked back from the prior time-based sweep:** anon users buy chip packs, earn cosmetics, accumulate level + achievements. `last_sign_in_at` + TTL can't distinguish "user took a break" from "user abandoned this identity." Risk asymmetry favors leaking 10KB orphan rows over wiping paying users.
 
 **Status of the existing sweep code:** [`OrphanAnonymousSweep`](../apps/server/src/main/kotlin/com/cards/server/data/DefaultOrphanAnonymousSweep.kt) + `POST /v1/admin/sweep-anonymous-users` stay in the codebase but go **dormant** — no cron, no scheduled trigger. Functionally retired once L1 ships. Future cleanup commit can delete the class + endpoint.
+
+**Partially revised 2026-06-19:** the blanket "no time-based sweep, ever" stance is softened — a **very conservative** scheduled sweep (≥ 1 year inactive **and** at/below level 1 **and** no purchase) is now planned post-launch (`post-launch.md`); the L1 `level ≤ 1` guard described above is also still owed in code (`todo.md` §A "Tighten the orphan-anon account sweep"). The risk-asymmetry principle is unchanged — only the absolute ban on a time sweep is relaxed, under tight gates. See [decisions.md 2026-06-19 — TODO-grooming pass](#).
 
 **Upgrade paths preserved in [backlog.md](./backlog.md):**
 - **Option B** — install_id + `identifierForVendor` (iOS) / `ANDROID_ID` (Android). ~3 days of work. Adds same-device-reinstall revival + casual anti-farm gate. No KMP keychain needed.
@@ -2130,3 +2192,27 @@ as supporting context.
 **Alternatives considered:** (1) **Re-resolve on `RequestNextHand`** — rejected for V1: cosmetic benefit, real coupling cost (repo into the registry/session next-hand path). Revisit if a "leveled up at the table" celebration ever wants live opponent levels. (2) **Send the derived level (Int) over the wire instead of raw XP** — rejected: XP is the canonical value and the client already owns the curve (`levelProgressFor`); sending XP keeps one source of truth and lets the curve change client-side without a server change. The richer tapped-opponent Player Card (badges + title + level) in `backlog.md` reuses this same `Seat.xp`.
 
 **Status:** Shipped — `Seat.xp` plumbed end-to-end; level renders on opponent seats. Needs a server deploy to populate XP (pre-deploy, `find` returns the row or null and the pill omits gracefully).
+
+## 2026-06-19 — Level-up celebration is a routed screen; watermark advances at show-time
+
+**Decision:** The level-up celebration moved from an overlay layered inside `HomeScreen` to a routed full-screen destination (`LevelUpRoute`, modeled on `BlockingErrorScreen`). It has no bottom bar (it's not in `App.kt`'s `tabString()`), back is swallowed, and the only exit is its Continue button (the old full-screen `detectTapGestures { onContinue() }` is gone, so a stray tap can't dismiss it). The trigger stays the same derived gate (`HomeState.levelUpCelebration`, from the `AppData.lastCelebratedLevel` watermark vs current level); the Home entry point observes it via `ObserveWithLifecycle` and navigates. The watermark now advances **the instant we navigate** (`HomeAction.MarkLevelUpShown`, fired right after `router.navigate`), not when the user taps Continue.
+
+**Why:** Advancing at show-time makes the navigation idempotent for free. Clearing the trigger immediately means that when Home resumes *behind* the celebration (or after it's dismissed), there's nothing left to re-fire — no remembered "already navigated" flag is needed (and `remember` wouldn't survive Home's composition being disposed on navigate anyway). The derived gate keeps the two properties that mattered: it survives the table→home trip (the VM sets the trigger while you're at the table; the entry point navigates when Home next resumes) and process death before reaching the screen (the gate re-derives on cold boot). Multi-level jumps still collapse to one celebration because the trigger is state (latest level), not a per-cross event.
+
+**Trade-off (accepted):** a process death *while the celebration is on screen* won't re-show it next launch — the watermark already advanced. This matches the welcome-dialog precedent (persist-at-emit): the rewards are already granted by `LevelUpRewardGranter`, so missing only the reveal animation on a crash is fine. This narrows the earlier "derived to survive process death" intent (2026-06-06) to "survive up to the moment it's shown."
+
+**Alternatives considered:** (1) **One-shot navigation event** — rejected: an `UNLIMITED`-channel event survives the table→home stop/resume, but per-level-cross events don't collapse a multi-level jump into one celebration the way derived state does. (2) **Advance the watermark on Continue (full process-death survival)** — rejected: it reintroduces a navigate-on-resume race (the watermark-advance is async, so Home can resume and re-read a still-set trigger before it clears, double-pushing the route); killing that race needs a dedup token that doesn't survive Home's composition being disposed on navigate. Show-time advance is race-free by construction.
+
+**Status:** Locked.
+
+## 2026-06-20 — XP-per-level curve moves to app-config; authoritative paths thread it, display follows
+
+**Decision:** The XP-per-level curve is now a server-tunable `LevelCurve` (`:libraries:cards`) riding app-config at `progression.levelCurve` via `LevelCurveConfigValue : JsonConfigValue<LevelCurve>` (`:libraries:cards:impl`) and exposed through `ProgressionConfig.levelCurve()`. `LevelCurve` is `{ xpPerLevel: Long[], baseXp: Long, exponent: Int }`: `xpPerLevel` is an optional front-loaded ladder (entry `i` = XP from level `i+1`→`i+2`), and levels past the ladder fall back to `baseXp × level^exponent`. The bundled `DefaultLevelCurve` (empty ladder, base 100, exp 2) reproduces the old `100 × N²` table exactly. `Level.kt`'s `levelProgressFor` / `xpToLevelUpFrom` / `xpAtStartOfLevel` gained an optional `curve: LevelCurve = DefaultLevelCurve` param. The **authoritative** paths — `LevelUpRewardGranter` (grant-on-cross) and `AchievementRepositoryImpl` (the persisted `CURRENT_LEVEL` counter) — now derive level via `progressionConfig.levelCurve()`. Display sites still call the bare default-curve overload (todo follow-up).
+
+**Why slice it this way:** The 2026-06-17 entry flagged the curve as the rippling half (~10 call sites, several Composables/previews). The optional-`curve`-param-with-default keeps every existing caller compiling on the bundled curve, so the change is incremental and zero-risk to display, while the two paths where a wrong level *corrupts persisted state or mis-grants* read the configured curve. Display divergence (shown level ≠ granted level) only manifests under a server override and is cosmetic + self-correcting; threading it is mechanical follow-on work.
+
+**Direction call (loud for the reviewer):** the remaining display sites should get the curve via a `LocalLevelCurve` `staticCompositionLocalOf` seeded at the app root (default `DefaultLevelCurve`), not DI'd into each leaf — `LevelPill` (a DS component) and several screens compute level inline from raw XP, which is the opposite of DI-injectable. Rejected alternative: pass a resolved `LevelProgress` down from every VM — more plumbing, and DS components that take raw `xp` would still need the curve.
+
+**Wire shape (for the server config author):** `progression.levelCurve` = `{ "xpPerLevel": [Long, …], "baseXp": Long, "exponent": Int }`, all optional. Override only `xpPerLevel` to retune early-game pacing while keeping the quadratic tail; override `baseXp`/`exponent` to reshape the whole curve. Missing/undecodable → bundled default (`JsonConfigValue` soft-fail).
+
+**Status:** Curve config + authoritative-path threading shipped. Display threading (`LocalLevelCurve`) + server-side grant reconcile remain (`todo.md` — Stats & progression).
