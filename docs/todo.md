@@ -120,6 +120,28 @@ Home exposes three surfaces that need this system to work: the friends strip wit
 
 - **Out of scope for V1.x:** friend suggestions, invite-via-share-link, push notifications for requests, group chat.
 
+### Rooms redesign follow-ups
+
+The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are the deferred slices.
+
+- **`[P1]` Public matchmaking backend.** **Problem:** the public Find / Searching / Lobby / NextRound screens are visual shells; seats are static and Searching auto-advances on a cosmetic timer.
+  **Acceptance:** "Find a table" holds seats and matches at the chosen buy-in, then lands a real Lobby (open table) or NextRound (mid-hand). Searching shows live found-count and a working Cancel that releases held seats.
+  **Hints:** [`RoomsFeatureEntryPoint`](../features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/RoomsFeatureEntryPoint.kt); the public screens are stateless today (no `:libraries:rooms` dep yet).
+
+- **`[P1]` Add-a-bot in the private host lobby (SPEC §3).** **Problem:** `RoomSeat` ships the `addBot` variant but it's never passed `true`; bots aren't a thing yet.
+  **Acceptance:** host taps an empty seat's "Add a bot" to seat a bot (teal BOT badge, robot avatar), with the hint line under the grid; bots count toward "Players N/max" and the "Deal hand" CTA. Host/private only.
+  **Hints:** pass `addBot = isHost && seat == null` in `LobbyScreen.InRoomContent`; add a robot avatar face.
+
+- **`[P2]` Wire MatchmakingRadar reduce-motion.** Hardcoded `false` today; source it from a platform accessibility reduce-motion signal. The primitive already renders a static end-state when `true`.
+
+- **`[P2]` Real Share-invite in the private lobby.** "Share invite" copies to clipboard as a placeholder; wire a cross-platform share sheet.
+
+- **`[P2]` Plumb private Create rules.** Stakes / starting stack / max players on the Create screen are presentational; thread the chosen values into room creation (route → `LobbyViewModel` → server), which currently ignores them.
+
+- **`[P2]` Remove the dead Lobby idle screen.** Every `LobbyRoute(...)` now passes `prefilledCode` or `autoCreate`, so `LobbyScreen.IdleContent` + the `lobby_idle_*` strings/previews are unreachable. Confirm no deep-link/test path, then delete.
+
+- **`[P2]` Pass avatar data into MP lobby seats.** `RoomSeat` renders initials for multiplayer members because `RoomMember` carries no emoji/avatar color; thread those through when the membership model exposes them.
+
 ---
 
 ## B. Multiplayer hardening
