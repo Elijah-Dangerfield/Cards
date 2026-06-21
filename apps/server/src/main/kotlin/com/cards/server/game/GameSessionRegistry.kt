@@ -8,7 +8,9 @@ import com.dangerfield.cards.server.di.ServerScope
 import com.dangerfield.cards.server.domain.HandOutcome
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
 import com.dangerfield.cards.server.domain.NoOpHandsFinishedRepository
+import com.dangerfield.cards.server.domain.NoOpRecentOpponentsRepository
 import com.dangerfield.cards.server.domain.NoOpServerWitnessedAchievements
+import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.ServerWitnessedAchievements
 import com.dangerfield.cards.server.domain.UserId
 import kotlinx.coroutines.flow.Flow
@@ -135,6 +137,7 @@ class DefaultGameSessionRegistry(
     // construction in tests that don't care about the counter.
     private val handsFinishedRepository: HandsFinishedRepository = NoOpHandsFinishedRepository,
     private val serverWitnessedAchievements: ServerWitnessedAchievements = NoOpServerWitnessedAchievements,
+    private val recentOpponentsRepository: RecentOpponentsRepository = NoOpRecentOpponentsRepository,
 ) : GameSessionRegistry {
     // StateFlow (not ConcurrentHashMap) so subscribers can observe the
     // moment a session for their code shows up. The mutex serializes
@@ -252,6 +255,26 @@ class DefaultGameSessionRegistry(
                 .onFailure { log.warn("server-witnessed eval failed for user {} hand {}", userIdString, handNumber, it) }
             Catching { serverWitnessedAchievements.evaluateHand(userId, playerOutcome) }
                 .onFailure { log.warn("server-witnessed per-hand eval failed for user {} hand {}", userIdString, handNumber, it) }
+        }
+        recordRecentOpponents(handNumber, outcome.perHuman.keys)
+    }
+
+    /**
+     * Record every human-vs-human pairing in this finished hand into the
+     * recently-played-with shelf, both directions. [perHumanIds] are Supabase
+     * user-id strings (bots are absent — they never appear in [HandOutcome.perHuman]);
+     * a non-UUID string (a test fixture) is skipped. Best-effort: a write
+     * failing must never break gameplay, so each is wrapped in [Catching].
+     */
+    private suspend fun recordRecentOpponents(handNumber: Int, perHumanIds: Set<String>) {
+        val humanIds = perHumanIds.mapNotNull { Catching { UserId(UUID.fromString(it)) }.getOrNull() }
+        if (humanIds.size < 2) return
+        for (viewer in humanIds) {
+            for (opponent in humanIds) {
+                if (viewer == opponent) continue
+                Catching { recentOpponentsRepository.recordPlayedTogether(viewer, opponent) }
+                    .onFailure { log.warn("recently-played-with record failed for {} vs {} hand {}", viewer, opponent, handNumber, it) }
+            }
         }
     }
 

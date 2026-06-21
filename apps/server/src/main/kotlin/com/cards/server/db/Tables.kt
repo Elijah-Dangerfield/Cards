@@ -239,6 +239,21 @@ object FriendRelationsTable : Table("friend_relations") {
 }
 
 /**
+ * Recently-played-with shelf. One *directed* row per (viewer, opponent) —
+ * `userId`'s view of `opponentId`. Both directions are written when a hand
+ * finishes, so a user's shelf reads as `WHERE user_id = me ORDER BY
+ * last_played_at DESC`. `lastPlayedAt` is bumped on every shared hand, keeping
+ * one row per pair with recency ordering implicit. See
+ * `V62__recently_played_with.sql`.
+ */
+object RecentlyPlayedWithTable : Table("recently_played_with") {
+    val userId = uuid("user_id")
+    val opponentId = uuid("opponent_id")
+    val lastPlayedAt = timestamp("last_played_at")
+    override val primaryKey = PrimaryKey(userId, opponentId)
+}
+
+/**
  * Per-user in-app messages. Authored by admins, delivered as either a
  * dialog (modal pop on foreground) or an inbox row (passive entry in
  * the Notifications screen). Acked exactly once; expiry filters out

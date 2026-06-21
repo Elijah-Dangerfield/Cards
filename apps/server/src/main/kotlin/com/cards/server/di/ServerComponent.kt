@@ -13,6 +13,7 @@ import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProductCatalogSource
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ProgressionRepository
+import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UserMessageRepository
@@ -62,6 +63,7 @@ abstract class ServerComponent(
     abstract val achievementRepository: AchievementRepository
     abstract val handsFinishedRepository: HandsFinishedRepository
     abstract val friendRepository: FriendRepository
+    abstract val recentOpponentsRepository: RecentOpponentsRepository
     abstract val userMessageRepository: UserMessageRepository
     abstract val roomService: RoomService
     abstract val gameSessionRegistry: GameSessionRegistry

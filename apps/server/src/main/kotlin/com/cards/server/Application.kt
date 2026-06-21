@@ -29,6 +29,7 @@ import com.dangerfield.cards.server.routes.meRoutes
 import com.dangerfield.cards.server.routes.messageRoutes
 import com.dangerfield.cards.server.routes.productsRoutes
 import com.dangerfield.cards.server.routes.progressionRoutes
+import com.dangerfield.cards.server.routes.recentOpponentsRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.routes.walletRoutes
@@ -118,6 +119,7 @@ fun Application.installApp(
             component.roomService,
             component.orphanInstallSweep,
             component.friendRepository,
+            component.recentOpponentsRepository,
         )
         grantsRoutes(
             inventory = component.inventoryRepository,
@@ -128,6 +130,7 @@ fun Application.installApp(
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
         friendsRoutes(component.friendRepository)
+        recentOpponentsRoutes(component.recentOpponentsRepository)
         roomRoutes(component.roomService, component.profileRepository)
         roomSocketRoutes(
             component.roomService,

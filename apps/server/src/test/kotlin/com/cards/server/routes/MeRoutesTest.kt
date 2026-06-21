@@ -6,6 +6,7 @@ import com.dangerfield.cards.server.data.InMemoryRoomService
 import com.dangerfield.cards.server.domain.DeleteUserResult
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.NoOpHandsFinishedRepository
+import com.dangerfield.cards.server.domain.NoOpRecentOpponentsRepository
 import com.dangerfield.cards.server.domain.OwnedItem
 import com.dangerfield.cards.server.domain.Profile
 import com.dangerfield.cards.server.domain.ProfileRepository
@@ -305,7 +306,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, rooms, NoOpInstallSweep, EmptyFriends)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, rooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
                 }
             }
             val client = createClient {
@@ -355,7 +356,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, installSweep, EmptyFriends) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, installSweep, EmptyFriends, NoOpRecentOpponentsRepository) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -380,7 +381,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -402,7 +403,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, NoOpRecentOpponentsRepository)
                 }
             }
             val client = createClient {

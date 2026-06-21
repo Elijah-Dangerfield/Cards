@@ -101,8 +101,8 @@ Home exposes three surfaces that need this system to work: the friends strip wit
 
 - `[P0]` **Friend graph — enforce the recently-played-with gate.** The schema + endpoints shipped (`friend_relations`, `POST /v1/friends/requests[/{id}/accept|decline|block]`, `GET /v1/friends[/requests]`, per-IP request rate-limit, block dominance). The one unbuilt piece is the product rule that you may only friend ids the recently-played-with shelf surfaced — `POST /v1/friends/requests` currently accepts any valid user id. **Blocked on:** the server-side recently-played-with record (next item); once that lands, gate the send-request path against it (reject with `403` otherwise).
 
-- `[P0]` **Recently-played-with tracking.** Server records the human seats at every MP hand a user finishes; client `RecentOpponentsRepository.observeRecent(limit = 10)` returns deduped most-recent-first; bots excluded server-side.
-  **Acceptance:** [`RecentlyPlayedWithStrip.kt`](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/RecentlyPlayedWithStrip.kt) renders real data and add-friend works end-to-end.
+- `[P0]` **Recently-played-with — client wiring.** The server side shipped: every finished MP hand records both human directions into `recently_played_with` (bots excluded upstream) and `GET /v1/recent-opponents?limit=N` returns ids newest-first. The gap is the client — build a KMP `RecentOpponentsRepository.observeRecent(limit = 10)` over the endpoint (resolve ids → profiles via the profile cache) and wire [`RecentlyPlayedWithStrip.kt`](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/RecentlyPlayedWithStrip.kt) to real data with add-friend end-to-end.
+  **Acceptance:** `RecentlyPlayedWithStrip.kt` renders real data and add-friend works end-to-end.
 
 - `[P1]` **Friend-via-play empty state on the Profile social section.** When the friend-requests inbox lands on `ProfileScreen.kt`, carry the "you can only friend people you've played with" empty-state copy there too. (Home strips already done.)
 

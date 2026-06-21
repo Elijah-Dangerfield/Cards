@@ -11,6 +11,7 @@ import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
 import com.dangerfield.cards.server.domain.ProfileRepository
 import com.dangerfield.cards.server.domain.ProgressionRepository
+import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.SupabaseAdminClient
 import com.dangerfield.cards.server.domain.UpdateProfileOutcome
@@ -83,6 +84,7 @@ fun Route.meRoutes(
     rooms: RoomService,
     installSweep: OrphanInstallSweep,
     friends: FriendRepository,
+    recentOpponents: RecentOpponentsRepository,
 ) {
     val app = application
     authenticate(SUPABASE_JWT_AUTH) {
@@ -198,6 +200,7 @@ fun Route.meRoutes(
                         handsFinished.deleteAllForUser(userId)
                         messages.deleteAllForUser(userId)
                         friends.deleteAllForUser(userId)
+                        recentOpponents.deleteAllForUser(userId)
                         repository.delete(userId)
                         call.respond(HttpStatusCode.NoContent)
                     }
