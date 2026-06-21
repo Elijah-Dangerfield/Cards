@@ -80,8 +80,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P2]` **Thread the configured level curve through display + reconcile level-up grants server-side.** Display sites derive level off the bundled default curve (`levelProgressFor(xp)`, no curve arg), so a server-retuned `progression.levelCurve` makes the shown level disagree with the granted one. **(a)** thread the configured curve through the display derivations (`HomeViewModel`, `ShopViewModel`, `EditProfileViewModel`, `PlayPokerViewModel`/`RemotePokerSessionFactory`/`TableUiState`, `ProfileScreen`, `StatsScreen`, `QaMenuScreen`, DS `LevelPill`) — composable sites want a `LocalLevelCurve` `staticCompositionLocalOf` at the app root, not DI per leaf; **(b)** the server confirms/voids the client's offline `levelup_<level>` grants against `total_xp` vs the same curve in the progression-sync response.
-  **Hints:** [`decisions.md`](./decisions.md) 2026-06-17 + the 2026-06-20 curve-config entry.
+- `[P2]` **Finish curve threading at the MP table + reconcile level-up grants server-side.** `LocalLevelCurve` (app-root `staticCompositionLocalOf`) now feeds every display site except the multiplayer-table seat/opponent levels (`PlayPokerViewModel:392/427/529/1090`, `RemotePokerSessionFactory.occupantsFor`, `TableUiState` badge) — those still call `levelProgressFor(xp)` with the bundled default, so a retuned `progression.levelCurve` desyncs at-table levels. **(a)** thread the curve into the `PokerSessionFactory` projection (inject `ProgressionConfig` into `PlayPokerViewModel`, pass the curve through `occupantsFor`/`tableFor`/`fromGameState`); **(b)** the server confirms/voids the client's offline `levelup_<level>` grants against `total_xp` vs the same curve in the progression-sync response.
+  **Hints:** [`decisions.md`](./decisions.md) 2026-06-17 + the 2026-06-20 curve-config entry. Display sites + `LocalLevelCurve` infra already shipped.
 
 ### Consumables & rewards (V1.x / monetization)
 

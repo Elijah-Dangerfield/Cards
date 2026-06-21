@@ -8,7 +8,11 @@ import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
 import com.dangerfield.cards.libraries.cards.HandResultSummary
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
+import com.dangerfield.cards.libraries.cards.LevelCurve
+import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
@@ -47,6 +51,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -85,6 +90,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = inventory,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -126,6 +132,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = inventory,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -195,6 +202,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = inventory,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -221,6 +229,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -257,6 +266,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -294,6 +304,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -323,6 +334,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -353,6 +365,7 @@ class EditProfileViewModelTest : CoroutineTest() {
             inventoryRepository = NoOpInventoryRepository,
             equipmentRepository = NoOpEquipmentRepository,
             progressionRepository = NoOpProgressionRepository,
+            progressionConfig = NoOpProgressionConfig,
             productsRepository = NoOpProductsRepository,
             appScope = AppCoroutineScope(dispatchers),
         )
@@ -497,5 +510,10 @@ private object NoOpProgressionRepository : ProgressionRepository {
     override suspend fun sync(): Result<Unit> = Result.success(Unit)
     override suspend fun deleteAll() = Unit
     override suspend fun debugSetTotalXp(totalXp: Long) = Unit
+}
+
+private object NoOpProgressionConfig : ProgressionConfig {
+    override fun rewardsForLevel(level: Int): List<LevelReward> = emptyList()
+    override fun levelCurve(): LevelCurve = DefaultLevelCurve
 }
 

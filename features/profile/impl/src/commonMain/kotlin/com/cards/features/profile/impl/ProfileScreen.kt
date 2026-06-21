@@ -93,6 +93,7 @@ import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.BottomBarSpacer
 import com.dangerfield.cards.libraries.ui.components.PlayStyleRadarMark
@@ -369,7 +370,9 @@ private fun ProfileHeader(
         }
         VerticalSpacerD500()
         LevelSummary(
-            progress = remember(settings.xp) { levelProgressFor(settings.xp) },
+            progress = LocalLevelCurve.current.let { curve ->
+                remember(settings.xp, curve) { levelProgressFor(settings.xp, curve) }
+            },
             modifier = Modifier.fillMaxWidth(),
         )
     }

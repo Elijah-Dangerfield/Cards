@@ -3,6 +3,8 @@ package com.dangerfield.cards.libraries.ui.system
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.core.AppState
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.system.color.Colors
@@ -32,3 +34,12 @@ val LocalAppState = staticCompositionLocalOf<AppState> {
 val LocalClock = staticCompositionLocalOf<Clock> {
     error("No LocalClock provided")
 }
+
+/**
+ * The XP-per-level curve in force, provided once at the app root from
+ * `ProgressionConfig.levelCurve()`. Composable display sites read this instead
+ * of calling `levelProgressFor(xp)` with the bundled default so a server-retuned
+ * curve makes the shown level agree with the granted one. Defaults to
+ * [DefaultLevelCurve] so previews and tests render without a provider.
+ */
+val LocalLevelCurve = staticCompositionLocalOf<LevelCurve> { DefaultLevelCurve }

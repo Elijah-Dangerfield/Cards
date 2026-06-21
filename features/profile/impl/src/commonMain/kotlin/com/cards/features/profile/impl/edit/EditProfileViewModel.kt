@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.profile.impl.edit
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
@@ -46,6 +47,7 @@ class EditProfileViewModel(
     private val inventoryRepository: InventoryRepository,
     private val equipmentRepository: EquipmentRepository,
     private val progressionRepository: ProgressionRepository,
+    private val progressionConfig: ProgressionConfig,
     private val productsRepository: ProductsRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<EditProfileState, EditProfileEvent, EditProfileAction>(
@@ -108,7 +110,7 @@ class EditProfileViewModel(
             progressionRepository.observeProgression().collect { progression ->
                 takeAction(
                     EditProfileAction.ProgressionChanged(
-                        level = levelProgressFor(progression.totalXp).level,
+                        level = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level,
                         handsPlayed = progression.handsPlayed,
                     ),
                 )

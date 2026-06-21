@@ -39,6 +39,7 @@ import com.dangerfield.cards.libraries.cards.XpSource
 import com.dangerfield.cards.libraries.cards.formatThousands
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewContent
+import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.ui.components.LevelProgressBar
 import com.dangerfield.cards.libraries.ui.components.PlayingStyleCard
 import com.dangerfield.cards.libraries.ui.components.RadarAxis
@@ -70,8 +71,9 @@ fun StatsScreen(
     onShowExplainers: () -> Unit = {},
     onClaimAccount: () -> Unit = {},
 ) {
-    val levelProgress = remember(state.progression.totalXp) {
-        levelProgressFor(state.progression.totalXp)
+    val levelCurve = LocalLevelCurve.current
+    val levelProgress = remember(state.progression.totalXp, levelCurve) {
+        levelProgressFor(state.progression.totalXp, levelCurve)
     }
     val scrollState = rememberScrollState()
     Screen(

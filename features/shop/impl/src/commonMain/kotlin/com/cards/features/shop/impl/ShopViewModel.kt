@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.cards.ChipsRepository
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.XP_BOOST_GRANTS_KEY
@@ -63,6 +64,7 @@ class ShopViewModel @Inject constructor(
     private val inventoryRepository: InventoryRepository,
     private val chipsRepository: ChipsRepository,
     private val progressionRepository: ProgressionRepository,
+    private val progressionConfig: ProgressionConfig,
     private val billingClient: BillingClient,
     private val authRepository: AuthRepository,
     private val equipmentRepository: EquipmentRepository,
@@ -103,7 +105,7 @@ class ShopViewModel @Inject constructor(
             // so the shop's lock state flips the moment the user levels
             // up mid-session.
             progressionRepository.observeProgression().collect { progression ->
-                val level = levelProgressFor(progression.totalXp).level
+                val level = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level
                 takeAction(ShopAction.PlayerLevelChanged(level))
             }
         }
