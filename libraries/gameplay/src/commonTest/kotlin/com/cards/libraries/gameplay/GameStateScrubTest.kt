@@ -162,4 +162,17 @@ class GameStateScrubTest {
         // Viewer folded but still sees their own muck.
         assertEquals(cardsA, scrubbed.seats[0].holeCards)
     }
+
+    @Test
+    fun hiddenBot_isScrubbedToLookHuman_butRevealedBotKeepsItsMarker() {
+        val revealedBot = seat(1, cardsB).copy(isBot = true, botStyleKey = "Jane")
+        val hiddenBot = seat(2, cardsC).copy(isBot = true, botStyleKey = null)
+        val s = state(BettingRound.Preflop, listOf(seat(0, cardsA), revealedBot, hiddenBot))
+
+        val scrubbed = s.scrubbedFor(viewerSeatIndex = 0)
+
+        assertTrue(scrubbed.seats[1].isBot, "a revealed bot keeps its bot marker on the wire")
+        assertEquals("Jane", scrubbed.seats[1].botStyleKey)
+        assertTrue(!scrubbed.seats[2].isBot, "a hidden bot is scrubbed to present as a human")
+    }
 }

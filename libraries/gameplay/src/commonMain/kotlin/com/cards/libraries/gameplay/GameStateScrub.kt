@@ -21,11 +21,15 @@ package com.dangerfield.cards.libraries.gameplay
 fun GameState.scrubbedFor(viewerSeatIndex: Int): GameState {
     val showdownLike = street == BettingRound.Showdown || street == BettingRound.Complete
     val updatedSeats = seats.map { seat ->
+        // Stealth bots: a bot the server didn't reveal (isBot but no style key)
+        // must present as a human on the wire — strip the bot marker so no
+        // client can tell. Revealed bots keep isBot + their style key.
+        val deBotted = if (seat.isBot && seat.botStyleKey == null) seat.copy(isBot = false) else seat
         when {
-            seat.index == viewerSeatIndex -> seat
-            seat.holeCards.isEmpty() -> seat
-            showdownLike && seat.isInHand -> seat
-            else -> seat.copy(holeCards = emptyList())
+            deBotted.index == viewerSeatIndex -> deBotted
+            deBotted.holeCards.isEmpty() -> deBotted
+            showdownLike && deBotted.isInHand -> deBotted
+            else -> deBotted.copy(holeCards = emptyList())
         }
     }
     return copy(seats = updatedSeats)

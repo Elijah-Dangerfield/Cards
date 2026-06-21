@@ -54,6 +54,15 @@ data class Seat(
      * seats; the client treats null as "level unknown" and omits the pill.
      */
     val xp: Long? = null,
+    /**
+     * Identifier of a *revealed* backend bot's personality (its roster name,
+     * e.g. "Jane"). Non-null only for a bot the server chose to reveal — the
+     * client maps it to a [com.dangerfield.cards.libraries.bots] personality to
+     * render the opponent sheet's playing-style radar. Null for humans and for
+     * stealth bots; [scrubbedFor] additionally hides [isBot] when this is null,
+     * so a hidden bot is wire-indistinguishable from a human.
+     */
+    val botStyleKey: String? = null,
 ) {
     val isInHand: Boolean
         get() = handParticipation == HandParticipation.InHand ||

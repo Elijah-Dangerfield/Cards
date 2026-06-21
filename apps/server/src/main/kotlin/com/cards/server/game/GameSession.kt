@@ -396,14 +396,17 @@ class GameSession internal constructor(
 
         val sorted = occupants.sortedBy { it.seatIndex }
         val seats = sorted.map { occ ->
-            val priorStack = priorState?.seats
-                ?.firstOrNull { it.playerId == occ.userId }
-                ?.stack
+            val priorSeat = priorState?.seats?.firstOrNull { it.playerId == occ.userId }
+            // Only a *revealed* bot publishes its personality to the wire. The
+            // key rides every hand: occupants rebuilt for requestNextHand don't
+            // carry the BotSeat, so fall back to the prior seat's key.
+            val botStyleKey = occ.bot?.takeIf { it.revealed }?.personality?.name
+                ?: priorSeat?.botStyleKey
             Seat(
                 index = occ.seatIndex,
                 playerId = occ.userId,
                 displayName = occ.displayName,
-                stack = priorStack ?: settings.startingStack,
+                stack = priorSeat?.stack ?: settings.startingStack,
                 seatStatus = SeatStatus.Active,
                 handParticipation = HandParticipation.InHand,
                 isBot = occ.isBot,
@@ -411,6 +414,7 @@ class GameSession internal constructor(
                 avatarEmoji = occ.avatarEmoji,
                 avatarBackgroundColor = occ.avatarBackgroundColor,
                 xp = occ.xp,
+                botStyleKey = botStyleKey,
             )
         }
 
