@@ -2223,3 +2223,15 @@ as supporting context.
 **Wire shape (for the server config author):** `progression.levelCurve` = `{ "xpPerLevel": [Long, …], "baseXp": Long, "exponent": Int }`, all optional. Override only `xpPerLevel` to retune early-game pacing while keeping the quadratic tail; override `baseXp`/`exponent` to reshape the whole curve. Missing/undecodable → bundled default (`JsonConfigValue` soft-fail).
 
 **Status:** Curve config + authoritative-path threading shipped. Display threading (`LocalLevelCurve`) + server-side grant reconcile remain (`todo.md` — Stats & progression).
+
+## 2026-06-21 — Server-side level-up grant reconcile: duplicate the curve math, don't modularize; gate on leagues
+
+**Decision:** When we eventually harden level-up grants so the server derives them (instead of trusting the client's `levelup_<level>` chip delta and ungated cosmetic grant), the ~15-line curve interpreter (`levelProgressFor` / `xpToLevelUpFrom`, `Level.kt`) gets **duplicated into `:apps:server`** with the `LevelTest` vector copied alongside — **not** extracted into a shared module. And the work itself is **deferred until XP/chip totals feed leagues/leaderboards** (or anything IAP-equivalent); it is not a pre-launch task.
+
+**Why duplicate, not share:** The server already *owns* the curve — it serves `progression.levelCurve` as app-config; the client merely decodes it (`DefaultLevelCurve` is the offline fallback). So this was never "share the client's logic with the server"; the only thing absent server-side is the tiny interpreter. Level is a pure function of (XP, curve), and after sync both sides agree on XP and the server published the curve — so the two copies converge by construction. A new Gradle module for 15 stable lines (with an existing golden test) is over-engineering; the trigger to extract one would be the math growing non-trivial or a third consumer appearing, neither of which holds. The earlier "crosses a module boundary, needs a human call" framing in the todo overstated it.
+
+**Why defer:** Per [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md), the model is client-grant-optimistically + idempotent now, server-derive when stakes rise. Today's exposure: `/v1/me/wallet/sync` applies the client's chip delta with only a no-below-zero guard, and `/v1/me/grants/level-cosmetic/{id}` gates by product allowlist but not by level reached — so a tampered client can mint level rewards. For **play money with no cash-out** that's self-harm only; it becomes a real fairness problem when leagues/leaderboards consume the totals. Idempotency (the non-skippable rule) is already in place, and the V1 schemas mirror the eventual server tables, so the deferral costs nothing structurally.
+
+**The fix, when triggered:** on progression-sync the server derives level from its reconciled `total_xp` against the curve it already serves, grants `levelup_<level>` rewards itself (idempotent), ignores/caps client-claimed amounts; the client keeps granting optimistically and the two reconcile on the idempotency key.
+
+**Status:** Deferred (`todo.md` — Stats & progression, gated on leagues). No work now.
