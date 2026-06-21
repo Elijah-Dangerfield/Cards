@@ -136,17 +136,9 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
   **Acceptance:** "Find a table" holds seats and matches at the chosen buy-in, then lands a real Lobby (open table) or NextRound (mid-hand). Searching shows live found-count and a working Cancel that releases held seats.
   **Hints:** [`RoomsFeatureEntryPoint`](../features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/RoomsFeatureEntryPoint.kt); the public screens are stateless today (no `:libraries:rooms` dep yet).
 
-- _Shipped (2026-06-21)._ **Add-a-bot in the private host lobby** — host seats backend-driven bots (🤖 + BOT badge), they count toward N/max + the deal CTA, and play server-side. See PR #59 / `ServerBotDriver`.
-
 - **`[P2]` Wire MatchmakingRadar reduce-motion.** Hardcoded `false` today; source it from a platform accessibility reduce-motion signal. The primitive already renders a static end-state when `true`.
 
 - **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code.
-
-- _Shipped (PR #61)._ **Private Create buy-in / stakes.** Max players + a balance-bounded buy-in slider thread Create → `LobbyRoute` → `LobbyViewModel` → `createRoom`; the server persists `Room.buyIn`, derives blinds via `RoomSettings.forBuyIn`, and plays at those stakes (not `RoomSettings.Default`). The chosen buy-in does **not** yet move chips — that's the wallet-settlement plan: [`docs/plans/mp-chip-buyin-economy.md`](./plans/mp-chip-buyin-economy.md).
-
-- _Shipped (2026-06-21)._ **Avatar data into other MP lobby seats** — `RoomMemberDto` now carries `avatarEmoji`/`avatarBackgroundColor` for every member and the lobby renders them (landed alongside the backend-bots avatar work).
-
-- **`[P1]` Restore the shake → Network inspector debug button.** It's not wired into the current `ShakeDialog` (only feedback + dismiss); the wiretap interceptor lib (`:libraries:networking`) is still present but there's no inspector route/screen on `develop`. Re-add the inspector destination and a button in [`ShakeDialog`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/dialog/ShakeDialog.kt) / [`ShakeDialogEntryPoint`](../apps/compose/src/commonMain/kotlin/com/cards/ShakeDialogEntryPoint.kt) (debug builds only). Check the `feat/mp-chip-economy` branch for the original.
 
 ---
 
