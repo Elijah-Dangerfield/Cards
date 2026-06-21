@@ -2251,3 +2251,16 @@ as supporting context.
 **Deferred (see backlog):** Phase 6 (offline profile-edit outbox + ungate Edit Profile — UI/QA-sensitive, unsafe to land unattended) and Phase 7 (shared `Syncable`/`SyncCoordinator` refactor — pure sustainability cleanup, do after 6).
 
 **Status:** Phases 1–5 shipped on the feature branch (not yet PR'd). Phases 6–7 backlogged.
+
+## 2026-06-21 — Offline guest identity reuses the onboarding choice; offline editing (Phase 6, guest half)
+
+**Decision:** Implemented the offline-profile-editing half of the offline-first plan for the **session-less guest** case (the claimed-account-offline PATCH outbox is backlogged). `Profile.Fallback` gained optional `displayName`/`avatarEmoji`/`avatarBackgroundColor` (plus `displayNameOrNull`/`avatarEmojiOrNull`/`avatarBackgroundColorOrNull` accessors that read either profile shape). `ProfileRepositoryImpl` enriches the Fallback from the owed onboarding identity (`PendingGuestAccountStore`), so a user who onboarded offline sees their chosen name/avatar everywhere instead of a generic "You". Edit Profile is ungated (seeds from a Fallback that carries an identity); an offline edit merges into the `PendingGuestAccountStore` record and returns the new `UpdateProfileOutcome.Queued`, so the **existing guest-mint path is the sync** — no separate PATCH outbox needed for this case.
+
+**Why this shape:**
+- *Reuse onboarding choice (vs. a generic "You" placeholder):* product call by the user — the offline identity should reflect what they actually picked. `PendingGuestAccountStore` already holds exactly that, so the profile layer reads it (same module) rather than introducing a parallel store.
+- *Enrich `Profile.Fallback` (vs. faking `Profile.Authenticated`):* `Authenticated` must keep meaning "real server session" — shop purchases and server writes hard-gate on it. A populated `Fallback` stays "no confirmed session," so those gates are untouched; only *display* sites route through the new accessors.
+- *Merge into `PendingGuestAccountStore` (vs. a new `PendingProfileEdit` outbox):* for a guest the mint already applies the held identity, so reusing it makes the single mint the sync and sidesteps a two-store flush-ordering race. The new outbox is only needed for the claimed-account-offline case, which is deferred.
+
+**Deferred (backlog):** offline edits for a **cached real account that's merely offline** (returning claimed user) — still returns `NotSignedIn`; needs the durable PATCH outbox + flush + a validation-rejection banner. Phase 7 (`Syncable`/`SyncCoordinator` refactor) also remains.
+
+**Status:** Guest/Fallback offline editing shipped on `feat/offline-first-identity-heal` (same branch/PR as phases 1–5). Claimed-account-offline outbox backlogged.

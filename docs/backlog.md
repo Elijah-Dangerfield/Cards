@@ -611,15 +611,13 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Status:** Backlog. Correctness-neutral efficiency follow-up; do it when the social lists get long enough to feel the N+1, or when `ProfileRepository` grows a batch read for another caller.
 
-## Offline profile-edit outbox + ungate Edit Profile (offline-first Phase 6)
+## Offline PATCH outbox for a cached real account (offline-first Phase 6, remainder)
 
-**Idea:** The offline-first plan's Phase 6 (the phases 1–5 of which shipped 2026-06-21 — stranded-guest self-heal, PATCH `/v1/me` upsert, connectivity event, auth-call gating). Make Edit Profile work offline: a durable `PendingProfileEdit` outbox, ungate the Edit Profile screen to render on `Profile.Fallback`/offline, optimistic local write + enqueue (return "queued") instead of `NotSignedIn`, flush on the standard triggers once Authenticated (PATCH is now upsert), and surface a validation rejection ("couldn't save your name") by reverting that field.
+**Idea:** Offline profile editing for the *session-less guest* case shipped 2026-06-21 on `feat/offline-first-identity-heal` (see decisions.md): `Profile.Fallback` now carries the onboarding-chosen identity, Edit Profile is ungated, and an offline edit on a Fallback merges into the owed guest-account record (`PendingGuestAccountStore`) so the single guest-mint path syncs it. **Remaining:** the *cached real account that's merely offline* case — a returning claimed user offline still gets `UpdateProfileOutcome.NotSignedIn` on edit (their cached `Profile.Authenticated` shows, but the edit can't apply without a session).
 
-**Why deferred:** Unlike phases 1–5 (data-layer mechanics, fully unit-testable), Phase 6 is UI-design + QA-sensitive: `Profile.Fallback` carries no name/avatar fields, so ungating `EditProfileViewModel` (today hard-gated on `Profile.Authenticated`, seeds the form from it) needs the form to source the current name/avatar from the disk cache and render coherently on a Fallback, plus a rejection-surfacing channel (banner/snackbar). The data-layer outbox alone delivers little while the screen stays gated, and its rejection half can't be completed without the UI. Not safe to land unattended without visual verification against the DS-first/preview conventions.
+**Sketch:** a durable `PendingProfileEdit` outbox (single-slot, mirrors `PendingGuestAccountStore`) for the cached-authed-offline branch in `ProfileRepositoryImpl.update()` — optimistic local write to the profile cache + enqueue → return `Queued` (already wired through the VM); flush on the existing `authRepository.observe()` resolve + a new `onConnectivityRegained`/foreground `AppEventListener` once Authenticated (PATCH is now upsert, Phase 2); validation rejection on flush reverts that field + surfaces "couldn't save your name" via a banner/snackbar the UI observes; network error keeps it queued.
 
-**Sketch:** `PendingProfileEditStore` (durable single-slot, mirrors `PendingGuestAccountStore`); `UpdateProfileOutcome.Queued`; `ProfileRepositoryImpl.update()` enqueues on offline/unauthed/NetworkError + keeps the optimistic write; flush hooks into the existing `authRepository.observe()` resolve + a new `onConnectivityRegained`/foreground `AppEventListener`; validation rejection on flush reverts the field + emits a rejection signal the UI observes. Then ungate `EditProfileViewModel`/`EditProfileScreen`.
-
-**Status:** Backlog. Phases 1–5 shipped (`feat/offline-first-identity-heal`); plan at `delegated-crunching-gem.md`.
+**Status:** Backlog. The guest/Fallback half is done; this is the claimed-account-offline half. Plan at `delegated-crunching-gem.md`.
 
 ## Shared `Syncable`/`SyncCoordinator` registry (offline-first Phase 7)
 
