@@ -154,6 +154,10 @@ class DefaultGameSessionRegistry(
     // Parallel to [sessions], keyed by code. Mutated only under [mutex] in
     // createSession / end, so it stays consistent with the session map.
     private val botDrivers = mutableMapOf<String, ServerBotDriver>()
+    // Parallel to [sessions], keyed by code. Enforces the per-turn time limit
+    // for human seats. Same lifecycle as [botDrivers] — spawned in createSession,
+    // cancelled in end. Mutated only under [mutex].
+    private val turnTimerDrivers = mutableMapOf<String, TurnTimerDriver>()
 
     override suspend fun startHand(
         code: String,
@@ -209,6 +213,7 @@ class DefaultGameSessionRegistry(
         mutex.withLock {
             sessions.value = sessions.value - code
             botDrivers.remove(code)?.cancel()
+            turnTimerDrivers.remove(code)?.cancel()
         }
         Catching { snapshotStore.deleteByCode(code) }
             .onFailure { log.warn("Failed to delete snapshot for room {} during end()", code, it) }
@@ -244,6 +249,8 @@ class DefaultGameSessionRegistry(
         )
         botDrivers.remove(code)?.cancel()
         botDrivers[code] = ServerBotDriver(session = session, scope = botDriverScope).also { it.start() }
+        turnTimerDrivers.remove(code)?.cancel()
+        turnTimerDrivers[code] = TurnTimerDriver(session = session, scope = botDriverScope).also { it.start() }
         return session
     }
 
