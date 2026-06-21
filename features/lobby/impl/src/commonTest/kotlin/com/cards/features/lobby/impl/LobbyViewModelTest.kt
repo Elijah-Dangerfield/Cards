@@ -618,8 +618,22 @@ class LobbyViewModelTest : CoroutineTest() {
         autoCreate = autoCreate,
         rooms = rooms,
         auth = identity,
+        profile = NoProfileRepository,
         appScope = AppCoroutineScope(dispatchers),
     )
+
+    /** Lobby tests don't exercise the avatar; never emits a profile. */
+    private object NoProfileRepository : com.dangerfield.cards.libraries.identity.profile.ProfileRepository {
+        override suspend fun current() = error("not used")
+        override fun observe() = kotlinx.coroutines.flow.emptyFlow<com.dangerfield.cards.libraries.identity.profile.Profile>()
+        override suspend fun update(
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ) = error("not used")
+        override suspend fun fetchAvatarPack() = error("not used")
+    }
 
     private val LOCAL_USER = "11111111-1111-1111-1111-111111111111"
 

@@ -30,16 +30,28 @@ class LobbyFeatureEntryPoint(
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
         // Private create/join front-ends (SPEC §6–7). Thin screens that
         // funnel into the seated lobby below via autoCreate / prefilledCode.
+        // They pop themselves on the way in so the lobby sits directly on
+        // Home; leaving the lobby returns Home, not back to this setup step.
         screen<PrivateCreateRoute> {
             PrivateCreateScreen(
                 onBack = { router.goBack() },
-                onCreate = { router.navigate(LobbyRoute(autoCreate = true)) },
+                onCreate = {
+                    router.batch {
+                        popBackTo(PrivateCreateRoute(), inclusive = true)
+                        navigate(LobbyRoute(autoCreate = true))
+                    }
+                },
             )
         }
         screen<PrivateJoinRoute> {
             PrivateJoinScreen(
                 onBack = { router.goBack() },
-                onJoin = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
+                onJoin = { code ->
+                    router.batch {
+                        popBackTo(PrivateJoinRoute(), inclusive = true)
+                        navigate(LobbyRoute(prefilledCode = code))
+                    }
+                },
             )
         }
 

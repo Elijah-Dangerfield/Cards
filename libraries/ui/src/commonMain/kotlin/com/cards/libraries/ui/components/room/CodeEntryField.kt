@@ -20,6 +20,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -52,6 +54,18 @@ fun CodeEntryField(
     onImeDone: () -> Unit = {},
 ) {
     val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    // Once the code is fully entered there's nothing left to type, so drop the
+    // keyboard automatically — the user just taps the CTA. (Same on IME Done.)
+    LaunchedEffect(value.length >= length) {
+        if (value.length >= length) {
+            keyboard?.hide()
+            focusManager.clearFocus()
+        }
+    }
+
     BasicTextField(
         value = value,
         onValueChange = { raw ->
@@ -67,7 +81,11 @@ fun CodeEntryField(
             imeAction = ImeAction.Done,
             capitalization = KeyboardCapitalization.Characters,
         ),
-        keyboardActions = KeyboardActions(onDone = { onImeDone() }),
+        keyboardActions = KeyboardActions(onDone = {
+            keyboard?.hide()
+            focusManager.clearFocus()
+            onImeDone()
+        }),
         decorationBox = { innerTextField ->
             Box {
                 // Invisible editing surface — keeps input/cursor wired while the

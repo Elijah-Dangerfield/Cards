@@ -99,14 +99,8 @@
     <string name="private_join_helper">Ask the host for their 6-character code.</string>
     <string name="private_join_cta">Join room</string>
 
-    <!-- Lobby - Idle (no room yet): hero copy + create + join affordances. -->
-    <string name="lobby_idle_subtitle">Start a new room and share the code - or type a friend's code to join theirs.</string>
-    <string name="lobby_idle_create_button">Create a room</string>
-    <string name="lobby_idle_create_button_progress">Creating…</string>
-    <string name="lobby_idle_or_join_heading">Or join with a code</string>
-    <string name="lobby_idle_code_field_label">Room code</string>
-    <string name="lobby_idle_join_button">Join room</string>
-    <string name="lobby_idle_join_button_progress">Joining…</string>
+    <!-- Lobby - loading state while a room is being created or joined. -->
+    <string name="lobby_setting_up">Setting up your table…</string>
 
     <!-- Lobby - InRoom: code surface, member list, start + leave CTAs. -->
     <string name="lobby_in_room_code_label">Room code</string>
@@ -116,6 +110,7 @@
     <string name="lobby_in_room_start_button_waiting">Waiting for players…</string>
     <string name="lobby_in_room_copy_button">Copy code</string>
     <string name="lobby_in_room_share_button">Share invite</string>
+    <string name="lobby_in_room_code_copied">Room code copied</string>
     <string name="lobby_in_room_deal_button">Deal hand · %1$d players</string>
     <string name="lobby_in_room_ready_to_deal">Ready to deal</string>
     <string name="lobby_in_room_stakes_label">Stakes</string>

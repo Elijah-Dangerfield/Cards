@@ -5,6 +5,9 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
+import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
+import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.auth.AuthState
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
@@ -50,6 +53,7 @@ class LobbyViewModel(
     @Assisted private val autoCreate: Boolean,
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
+    private val profile: ProfileRepository,
     private val appScope: AppCoroutineScope,
 ) : SEAViewModel<LobbyState, LobbyEvent, LobbyAction>(
     initialStateArg = LobbyState(codeInput = prefilledCode?.uppercase().orEmpty()),
@@ -73,6 +77,15 @@ class LobbyViewModel(
             val resolved = auth.current()
             if (resolved is AuthState.Authenticated) {
                 takeAction(LobbyAction.IdentityResolved(resolved.userId))
+            }
+        }
+        // Observe the local profile so our own seat renders the player's
+        // chosen avatar (emoji + colour) instead of a name initial. Other
+        // seats stay on initials until the room model carries avatar data
+        // (see docs/todo.md).
+        viewModelScope.launch {
+            profile.observe().collect { p ->
+                takeAction(LobbyAction.ProfileResolved(p.avatarEmojiOrNull, p.avatarBackgroundColorOrNull))
             }
         }
         // Deep-link join path: the route opens with a code already
@@ -234,6 +247,13 @@ class LobbyViewModel(
                 it.copy(currentUserId = action.userId)
             }
 
+            is LobbyAction.ProfileResolved -> action.updateState {
+                it.copy(
+                    localAvatarEmoji = action.avatarEmoji,
+                    localAvatarColorHex = action.avatarColorHex,
+                )
+            }
+
             LobbyAction.StartGame -> action.run {
                 val current = state
                 if (!current.canStart) return@run
@@ -339,6 +359,11 @@ data class LobbyState(
     val error: LobbyError? = null,
     /** Filled at init from AuthRepository so the UI can tell who's host. */
     val currentUserId: String? = null,
+    /** Local player's avatar (from ProfileRepository) so our own seat renders
+     *  the chosen emoji/colour. Other seats lack this until the room model
+     *  carries per-member avatar data. */
+    val localAvatarEmoji: String? = null,
+    val localAvatarColorHex: String? = null,
     /** Set on the first GameStateSnapshot received for the current room.
      *  Used by [LobbyAction.GameplaySnapshotReceived] to navigate
      *  non-host clients into the play screen exactly once per session. */
@@ -433,6 +458,11 @@ sealed interface LobbyAction {
     data class ConnectionUpdated(val connection: RoomConnection) : LobbyAction
     /** Internal — fired when bootstrap identity resolves. */
     data class IdentityResolved(val userId: String) : LobbyAction
+
+    data class ProfileResolved(
+        val avatarEmoji: String?,
+        val avatarColorHex: String?,
+    ) : LobbyAction
     /** Internal — fired on the first gameplay-frames StateSnapshot per
      *  room so non-host clients can auto-follow the host into the
      *  play screen. */

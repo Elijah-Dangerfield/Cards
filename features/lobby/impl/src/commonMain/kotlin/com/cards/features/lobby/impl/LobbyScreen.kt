@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,8 +29,6 @@ import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.lobby_connection_connected
@@ -53,13 +49,6 @@ import cards.libraries.resources.generated.resources.lobby_error_join_unknown
 import cards.libraries.resources.generated.resources.lobby_error_leave_server_not_notified
 import cards.libraries.resources.generated.resources.lobby_error_room_was_closed
 import cards.libraries.resources.generated.resources.lobby_error_start_coming_soon
-import cards.libraries.resources.generated.resources.lobby_idle_code_field_label
-import cards.libraries.resources.generated.resources.lobby_idle_create_button
-import cards.libraries.resources.generated.resources.lobby_idle_create_button_progress
-import cards.libraries.resources.generated.resources.lobby_idle_join_button
-import cards.libraries.resources.generated.resources.lobby_idle_join_button_progress
-import cards.libraries.resources.generated.resources.lobby_idle_or_join_heading
-import cards.libraries.resources.generated.resources.lobby_idle_subtitle
 import cards.libraries.resources.generated.resources.lobby_in_room_buyin_label
 import cards.libraries.resources.generated.resources.lobby_in_room_buyin_value
 import cards.libraries.resources.generated.resources.lobby_in_room_code_label
@@ -76,15 +65,17 @@ import cards.libraries.resources.generated.resources.lobby_in_room_ready_to_deal
 import cards.libraries.resources.generated.resources.lobby_in_room_share_button
 import cards.libraries.resources.generated.resources.lobby_in_room_stakes_label
 import cards.libraries.resources.generated.resources.lobby_in_room_stakes_value
+import cards.libraries.resources.generated.resources.lobby_in_room_code_copied
 import cards.libraries.resources.generated.resources.lobby_in_room_start_button_waiting
 import cards.libraries.resources.generated.resources.lobby_in_room_waiting_for_host
+import cards.libraries.resources.generated.resources.lobby_setting_up
 import cards.libraries.resources.generated.resources.lobby_topbar_title_idle
 import cards.libraries.resources.generated.resources.lobby_topbar_title_in_room
 import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.CircularProgressIndicator
 import com.dangerfield.cards.libraries.ui.components.NonLazyVerticalGrid
 import com.dangerfield.cards.libraries.ui.components.Screen
-import com.dangerfield.cards.libraries.ui.components.button.Button
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
@@ -94,8 +85,8 @@ import com.dangerfield.cards.libraries.ui.components.header.TopBar
 import com.dangerfield.cards.libraries.ui.components.room.RoomSeat
 import com.dangerfield.cards.libraries.ui.components.room.RoomSeatPlayer
 import com.dangerfield.cards.libraries.ui.components.room.RoomSeatStatus
-import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
+import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
@@ -104,14 +95,15 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * Multiplayer lobby. Two-mode layout:
- *  - Idle (room == null): show the create-room CTA + a join-by-code form.
- *  - InRoom: show the code (so it can be shared), live member list, and
- *    a leave button. Connection status banner sits above the list when
- *    we're mid-reconnect.
+ *  - Loading (room == null): a spinner while the create/join call is in
+ *    flight. The lobby is only entered via Create (autoCreate) or Join
+ *    (prefilledCode), so there's no standalone create/join form here.
+ *  - InRoom: the room-code hero (copy/share), the seat grid, editable-looking
+ *    stakes, and the deal/leave controls. A connection banner appears when
+ *    we're not cleanly connected.
  *
- * No gameplay UI here — once the room transitions to `Playing`, this
- * screen hands off to the table (Phase 4.2). For now `Playing` is
- * surfaced as a "Game in progress" badge until the handoff exists.
+ * No gameplay UI here; once the room transitions to `Playing` the entry point
+ * hands off to the table.
  */
 @Composable
 @OptIn(ExperimentalComposeUiApi::class)
@@ -152,10 +144,14 @@ fun LobbyScreen(
         ) {
             Spacer(modifier = Modifier.height(Dimension.D300))
 
-            if (!state.isInRoom) {
-                IdleContent(state = state, onAction = onAction)
-            } else {
+            if (state.isInRoom) {
                 InRoomContent(state = state, onAction = onAction)
+            } else {
+                // We only ever enter the lobby via Create (autoCreate) or Join
+                // (prefilledCode), so room == null means the create/join call
+                // is still in flight. Show a spinner, not the old create/join
+                // form (that entry path is gone).
+                LoadingContent()
             }
 
             state.error?.let { err ->
@@ -188,63 +184,19 @@ fun LobbyScreen(
 }
 
 @Composable
-private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
-    Text(
-        text = stringResource(Res.string.lobby_idle_subtitle),
-        typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.contentSecondary,
-    )
-
-    Spacer(modifier = Modifier.height(Dimension.D800))
-
-    Button(
-        onClick = { onAction(LobbyAction.CreateRoom) },
-        enabled = state.canCreate,
-        modifier = Modifier.fillMaxWidth(),
+private fun LoadingContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = Dimension.D1900),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        CircularProgressIndicator()
+        Spacer(modifier = Modifier.height(Dimension.D600))
         Text(
-            stringResource(
-                if (state.creating) Res.string.lobby_idle_create_button_progress
-                else Res.string.lobby_idle_create_button,
-            ),
-        )
-    }
-
-    Spacer(modifier = Modifier.height(Dimension.D700))
-
-    Text(
-        text = stringResource(Res.string.lobby_idle_or_join_heading),
-        typography = AppTheme.typography.Heading.H500,
-        color = AppTheme.colors.content,
-    )
-    Spacer(modifier = Modifier.height(Dimension.D300))
-
-    OutlinedTextField(
-        value = state.codeInput,
-        onValueChange = { onAction(LobbyAction.CodeChanged(it)) },
-        enabled = !state.isBusy,
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(
-            imeAction = ImeAction.Go,
-            capitalization = KeyboardCapitalization.Characters,
-        ),
-        keyboardActions = KeyboardActions(onGo = { onAction(LobbyAction.SubmitJoin) }),
-        label = { Text(stringResource(Res.string.lobby_idle_code_field_label)) },
-        modifier = Modifier.fillMaxWidth(),
-    )
-
-    Spacer(modifier = Modifier.height(Dimension.D500))
-
-    Button(
-        onClick = { onAction(LobbyAction.SubmitJoin) },
-        enabled = state.canSubmitJoin,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            stringResource(
-                if (state.joining) Res.string.lobby_idle_join_button_progress
-                else Res.string.lobby_idle_join_button,
-            ),
+            text = stringResource(Res.string.lobby_setting_up),
+            typography = AppTheme.typography.Body.B500,
+            color = AppTheme.colors.contentSecondary,
         )
     }
 }
@@ -253,6 +205,11 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     val room = state.room ?: return
     val clipboard = LocalClipboardManager.current
+    val copiedMessage = stringResource(Res.string.lobby_in_room_code_copied)
+    val copyCode = {
+        clipboard.setText(AnnotatedString(room.code))
+        showSnackBar(message = copiedMessage)
+    }
 
     // Room-code hero — the share-this artefact, in the gold italic serif
     // that signals "this is the headline of the screen".
@@ -276,16 +233,16 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         Spacer(modifier = Modifier.height(Dimension.D400))
         Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
             ButtonSecondary(
-                onClick = { clipboard.setText(AnnotatedString(room.code)) },
+                onClick = copyCode,
                 size = ButtonSize.Small,
                 style = ButtonStyle.Outlined,
             ) {
                 Text(stringResource(Res.string.lobby_in_room_copy_button))
             }
-            // Share invite — copies for now; a platform share sheet is a
-            // future enhancement (no cross-platform share API wired yet).
+            // Share invite copies for now; a platform share sheet is a future
+            // enhancement (no cross-platform share API wired yet).
             ButtonSecondary(
-                onClick = { clipboard.setText(AnnotatedString(room.code)) },
+                onClick = copyCode,
                 size = ButtonSize.Small,
             ) {
                 Text(stringResource(Res.string.lobby_in_room_share_button))
@@ -409,12 +366,19 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 }
 
 /** Map a live [RoomMember] into the presentational [RoomSeatPlayer]. */
-private fun RoomMember.toSeatPlayer(state: LobbyState): RoomSeatPlayer = RoomSeatPlayer(
-    name = displayName,
-    isHost = userId == state.effectiveHostUserId,
-    isYou = userId == state.currentUserId,
-    status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
-)
+private fun RoomMember.toSeatPlayer(state: LobbyState): RoomSeatPlayer {
+    val isYou = userId == state.currentUserId
+    return RoomSeatPlayer(
+        name = displayName,
+        // Only our own avatar is known client-side today; other members
+        // render a name initial until the room model carries avatar data.
+        emoji = if (isYou) state.localAvatarEmoji else null,
+        avatarBackgroundColorHex = if (isYou) state.localAvatarColorHex else null,
+        isHost = userId == state.effectiveHostUserId,
+        isYou = isYou,
+        status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
+    )
+}
 
 @Composable
 private fun StakeCard(

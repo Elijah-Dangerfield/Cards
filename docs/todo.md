@@ -134,13 +134,13 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 - **`[P2]` Wire MatchmakingRadar reduce-motion.** Hardcoded `false` today; source it from a platform accessibility reduce-motion signal. The primitive already renders a static end-state when `true`.
 
-- **`[P2]` Real Share-invite in the private lobby.** "Share invite" copies to clipboard as a placeholder; wire a cross-platform share sheet.
+- **`[P2]` Real Share-invite in the private lobby.** "Share invite" copies the code to clipboard (with a snackbar) as a placeholder; wire a cross-platform share sheet so it opens the OS share UI.
 
 - **`[P2]` Plumb private Create rules.** Stakes / starting stack / max players on the Create screen are presentational; thread the chosen values into room creation (route → `LobbyViewModel` → server), which currently ignores them.
 
-- **`[P2]` Remove the dead Lobby idle screen.** Every `LobbyRoute(...)` now passes `prefilledCode` or `autoCreate`, so `LobbyScreen.IdleContent` + the `lobby_idle_*` strings/previews are unreachable. Confirm no deep-link/test path, then delete.
+- **`[P2]` Pass avatar data into *other* MP lobby seats.** The local player's seat now renders their real avatar (threaded from `ProfileRepository`), but remote members fall back to a name initial because `RoomMember` carries no emoji/avatar color. Thread per-member avatar through the room model + socket payload.
 
-- **`[P2]` Pass avatar data into MP lobby seats.** `RoomSeat` renders initials for multiplayer members because `RoomMember` carries no emoji/avatar color; thread those through when the membership model exposes them.
+- **`[P1]` Restore the shake → Network inspector debug button.** It's not wired into the current `ShakeDialog` (only feedback + dismiss); the wiretap interceptor lib (`:libraries:networking`) is still present but there's no inspector route/screen on `develop`. Re-add the inspector destination and a button in [`ShakeDialog`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/dialog/ShakeDialog.kt) / [`ShakeDialogEntryPoint`](../apps/compose/src/commonMain/kotlin/com/cards/ShakeDialogEntryPoint.kt) (debug builds only). Check the `feat/mp-chip-economy` branch for the original.
 
 ---
 
