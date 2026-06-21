@@ -28,6 +28,9 @@ data class RoomMemberDto(
     val seatIndex: Int,
     val joinedAtEpochMs: Long,
     val isConnected: Boolean,
+    val isBot: Boolean = false,
+    val avatarEmoji: String? = null,
+    val avatarBackgroundColor: String? = null,
 )
 
 /**
@@ -67,6 +70,18 @@ data class GetRoomResponseDto(
 )
 
 @Serializable
+data class AddBotRequestDto(
+    val seatIndex: Int? = null,
+    val difficulty: String? = null,
+)
+
+@Serializable
+data class AddBotResponseDto(
+    val schemaVersion: Int = 1,
+    val room: RoomDto,
+)
+
+@Serializable
 data class ActiveRoomsResponseDto(
     val schemaVersion: Int = 1,
     val rooms: List<RoomDto> = emptyList(),
@@ -98,6 +113,9 @@ internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(
     seatIndex = seatIndex,
     joinedAtEpochMs = joinedAtEpochMs,
     isConnected = isConnected,
+    isBot = isBot,
+    avatarEmoji = avatarEmoji,
+    avatarBackgroundColorHex = avatarBackgroundColor,
 )
 
 internal fun RoomStatusDto.toDomain(): RoomStatus = when (this) {

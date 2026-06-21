@@ -131,3 +131,56 @@ fun buildHandContext(
         selfRaisedThisStreet = selfRaised,
     )
 }
+
+/**
+ * Build a [HandContext] from a [GameState] snapshot alone, with no action log.
+ *
+ * The server holds only the latest [GameState] (no per-action history), so this
+ * reconstructs the reads the bot actually consumes — exact [TablePosition] plus
+ * coarse aggregate counts (raises / calls / folds in front) and `selfRaised`.
+ * Ordering and the preflop aggressor can't be recovered from a snapshot, so the
+ * postflop c-bet / donk reads are weaker than the client's log-driven context;
+ * the decision model tolerates this (see [HandContext.Empty]).
+ */
+fun buildHandContextFromState(
+    state: GameState,
+    actingSeatIndex: Int,
+): HandContext {
+    val activeIndexes = state.seats
+        .filter { it.handParticipation != HandParticipation.NotDealt && it.seatStatus == SeatStatus.Active }
+        .map { it.index }
+    val position = HandContext.positionOf(actingSeatIndex, state.buttonSeatIndex, activeIndexes)
+
+    // Preflop the big blind already sits as the opening "bet", so a genuine raise
+    // is anything above it; postflop any wager above zero is a bet/raise.
+    val openLine = if (state.street == BettingRound.Preflop) state.settings.bigBlind else 0L
+    val raised = state.currentBetThisStreet > openLine
+
+    val log = state.seats
+        .filter { it.index != actingSeatIndex }
+        .mapNotNull { seat ->
+            when {
+                seat.handParticipation == HandParticipation.Folded ->
+                    StreetAction(seat.index, PlayerAction.Fold)
+                !seat.hasActedThisStreet ->
+                    null
+                raised && seat.contributedThisStreet >= state.currentBetThisStreet ->
+                    StreetAction(seat.index, PlayerAction.Raise(seat.contributedThisStreet, 0))
+                seat.contributedThisStreet > 0 ->
+                    StreetAction(seat.index, PlayerAction.Call(seat.contributedThisStreet))
+                else ->
+                    StreetAction(seat.index, PlayerAction.Check)
+            }
+        }
+
+    val self = state.seats.firstOrNull { it.index == actingSeatIndex }
+    val selfRaised = self != null && self.hasActedThisStreet && raised &&
+        self.contributedThisStreet >= state.currentBetThisStreet
+
+    return HandContext(
+        position = position,
+        streetActionsBeforeSelf = log,
+        preflopAggressorSeatIndex = null,
+        selfRaisedThisStreet = selfRaised,
+    )
+}

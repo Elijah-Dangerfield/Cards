@@ -35,6 +35,7 @@ import cards.libraries.resources.generated.resources.lobby_connection_connected
 import cards.libraries.resources.generated.resources.lobby_connection_connecting
 import cards.libraries.resources.generated.resources.lobby_connection_disconnected
 import cards.libraries.resources.generated.resources.lobby_connection_reconnecting
+import cards.libraries.resources.generated.resources.lobby_error_bot_action_failed
 import cards.libraries.resources.generated.resources.lobby_error_connect_rejected
 import cards.libraries.resources.generated.resources.lobby_error_create_network
 import cards.libraries.resources.generated.resources.lobby_error_create_not_signed_in
@@ -288,8 +289,9 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     }
     Spacer(modifier = Modifier.height(Dimension.D400))
 
-    // 3-column seat grid. Members slot into their seatIndex; the rest render
-    // as neutral "Open" tiles. (No "Add a bot" this pass.)
+    // 3-column seat grid. Members slot into their seatIndex; empty seats render
+    // as "Add a bot" for the host (tap to seat a backend bot) and neutral
+    // "Open" tiles for everyone else. Tapping a seated bot (host only) removes it.
     val seats: List<RoomMember?> = (0 until room.maxSeats).map { index ->
         room.members.firstOrNull { it.seatIndex == index }
     }
@@ -299,8 +301,20 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
         horizontalSpacing = Dimension.D500,
         verticalSpacing = Dimension.D500,
         modifier = Modifier.fillMaxWidth(),
-    ) { _, member ->
-        RoomSeat(player = member?.toSeatPlayer(state))
+    ) { seatIndex, member ->
+        RoomSeat(
+            player = member?.toSeatPlayer(state),
+            addBot = member == null && state.isHost,
+            onClick = when {
+                member == null && state.isHost -> {
+                    { onAction(LobbyAction.AddBot(seatIndex)) }
+                }
+                member?.isBot == true && state.isHost -> {
+                    { onAction(LobbyAction.RemoveBot(member.userId)) }
+                }
+                else -> null
+            },
+        )
     }
 
     Spacer(modifier = Modifier.height(Dimension.D700))
@@ -368,14 +382,19 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 /** Map a live [RoomMember] into the presentational [RoomSeatPlayer]. */
 private fun RoomMember.toSeatPlayer(state: LobbyState): RoomSeatPlayer {
     val isYou = userId == state.currentUserId
+    // Prefer the server-snapshotted avatar (now sent for every member, incl. the
+    // reserved 🤖 for a revealed bot). Fall back to our own local profile avatar
+    // for our seat before the first snapshot lands; otherwise initials.
+    val emoji = avatarEmoji ?: state.localAvatarEmoji.takeIf { isYou }
+    val colorHex = avatarBackgroundColorHex ?: state.localAvatarColorHex.takeIf { isYou }
     return RoomSeatPlayer(
         name = displayName,
-        // Only our own avatar is known client-side today; other members
-        // render a name initial until the room model carries avatar data.
-        emoji = if (isYou) state.localAvatarEmoji else null,
-        avatarBackgroundColorHex = if (isYou) state.localAvatarColorHex else null,
+        emoji = emoji,
+        avatarBackgroundColorHex = colorHex,
         isHost = userId == state.effectiveHostUserId,
+        isBot = isBot,
         isYou = isYou,
+        // Bots are always "connected" server-side, so they read as Seated.
         status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
     )
 }
@@ -676,4 +695,5 @@ private fun LobbyError.message(): String = when (this) {
     LobbyError.RoomWasClosed -> stringResource(Res.string.lobby_error_room_was_closed)
     LobbyError.ConnectRejected -> stringResource(Res.string.lobby_error_connect_rejected)
     LobbyError.StartGameComingSoon -> stringResource(Res.string.lobby_error_start_coming_soon)
+    LobbyError.BotActionFailed -> stringResource(Res.string.lobby_error_bot_action_failed)
 }

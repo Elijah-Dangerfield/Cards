@@ -1,5 +1,6 @@
 package com.dangerfield.cards.features.room.impl
 
+import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -119,10 +120,19 @@ class RemotePokerSessionFactory @Inject constructor(
         // GameStateSnapshot lands.
         if (state.seats.isEmpty()) return TableUiState.Loading
         val humanSeatIndex = state.seats.firstOrNull { it.playerId == localUserId }?.index ?: -1
+        // Revealed backend bots carry their personality name on the wire
+        // (`Seat.botStyleKey`); map it to the local roster so the opponent
+        // sheet can render the playing-style radar. Hidden bots carry no key
+        // (and arrive scrubbed to isBot=false), so they never appear here.
+        val personalitiesBySeat = state.seats.mapNotNull { seat ->
+            seat.botStyleKey
+                ?.let { key -> BotPersonality.Roster.firstOrNull { it.name == key } }
+                ?.let { seat.index to it }
+        }.toMap()
         return TableUiState.fromGameState(
             gameState = state,
             humanSeatIndex = humanSeatIndex,
-            personalitiesBySeat = emptyMap(),
+            personalitiesBySeat = personalitiesBySeat,
             lastWinners = lastWinners,
             lastActionBySeat = lastActionBySeat,
             humanProfile = humanProfile,

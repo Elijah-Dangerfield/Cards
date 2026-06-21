@@ -215,6 +215,59 @@ class RoomRoutesTest {
     }
 
     @Test
+    fun addBot_seatsRevealedBot_thenRemoveFreesSeat() = runTest {
+        withRooms { client ->
+            val room = client.createRoom(maxSeats = 4, asUser = host).body<CreateRoomResponse>().room
+
+            val added = client.addBot(room.code, asUser = host).body<AddBotResponse>().room
+            assertEquals(2, added.members.size)
+            val bot = added.members.single { it.isBot }
+            assertEquals("🤖", bot.avatarEmoji, "revealed bot wears the reserved robot avatar on the wire")
+
+            val removed = client.removeBot(room.code, bot.userId, asUser = host)
+            assertEquals(HttpStatusCode.NoContent, removed.status)
+            val after = client.getRoom(room.code, asUser = host).body<GetRoomResponse>().room
+            assertTrue(after.members.none { it.isBot }, "removing the bot frees its seat")
+        }
+    }
+
+    @Test
+    fun addBot_403_whenNotHost() = runTest {
+        withRooms { client ->
+            val room = client.createRoom(asUser = host).body<CreateRoomResponse>().room
+            client.joinRoom(room.code, asUser = alice)
+            val resp = client.addBot(room.code, asUser = alice)
+            assertEquals(HttpStatusCode.Forbidden, resp.status)
+            assertTrue(resp.bodyAsText().contains("not_host"))
+        }
+    }
+
+    @Test
+    fun memberDto_hidesStealthBot_butRevealsLobbyBot() {
+        val base = com.dangerfield.cards.server.domain.RoomMember(
+            userId = host,
+            displayName = "Decoy",
+            seatIndex = 1,
+            joinedAt = Instant.fromEpochMilliseconds(0),
+            isConnected = false,
+            avatarEmoji = "🦊",
+        )
+        val personality = com.dangerfield.cards.libraries.bots.BotPersonality.Jane
+        val hidden = base.copy(
+            bot = com.dangerfield.cards.server.domain.BotSeat(personality, com.dangerfield.cards.libraries.bots.BotDifficulty.Standard, revealed = false),
+        ).toDto()
+        val revealed = base.copy(
+            avatarEmoji = "🤖",
+            bot = com.dangerfield.cards.server.domain.BotSeat(personality, com.dangerfield.cards.libraries.bots.BotDifficulty.Standard, revealed = true),
+        ).toDto()
+
+        assertEquals(false, hidden.isBot, "a hidden bot must not advertise itself on the wire")
+        assertEquals("🦊", hidden.avatarEmoji, "a hidden bot keeps its ordinary avatar")
+        assertEquals(true, revealed.isBot)
+        assertEquals("🤖", revealed.avatarEmoji)
+    }
+
+    @Test
     fun lowercaseCode_isAcceptedViaUppercasing() = runTest {
         // The URL might roll back through some pathway in lowercase; the
         // route normalizes by uppercasing.
@@ -285,6 +338,16 @@ class RoomRoutesTest {
 
         suspend fun leaveRoom(code: String, asUser: UserId?): HttpResponse =
             raw.delete("/v1/rooms/$code/me") { bearer(asUser) }
+
+        suspend fun addBot(code: String, asUser: UserId?): HttpResponse =
+            raw.post("/v1/rooms/$code/bots") {
+                contentType(ContentType.Application.Json)
+                bearer(asUser)
+                setBody(AddBotRequest())
+            }
+
+        suspend fun removeBot(code: String, botUserId: String, asUser: UserId?): HttpResponse =
+            raw.delete("/v1/rooms/$code/bots/$botUserId") { bearer(asUser) }
 
         private fun io.ktor.client.request.HttpRequestBuilder.bearer(asUser: UserId?) {
             asUser?.let { header(HttpHeaders.Authorization, "Bearer ${jwt(it)}") }

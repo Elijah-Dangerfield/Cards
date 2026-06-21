@@ -32,6 +32,20 @@ data class RoomMemberDto(
     val seatIndex: Int,
     val joinedAtEpochMs: Long,
     val isConnected: Boolean,
+    /**
+     * True only for a *revealed* bot. Hidden bots and humans are false — this
+     * is the lobby chokepoint of the stealth model (the other being the
+     * scrubbed game-state snapshot). The client renders the BOT badge from it.
+     */
+    val isBot: Boolean = false,
+    /**
+     * Avatar emoji + background color, snapshotted at join. Sent for every
+     * member so opponents render the real avatar instead of an initial; for a
+     * revealed bot this carries the reserved robot emoji. Null/blank → the
+     * client's initials fallback.
+     */
+    val avatarEmoji: String? = null,
+    val avatarBackgroundColor: String? = null,
 )
 
 @Serializable
@@ -67,6 +81,23 @@ data class GetRoomResponse(
     val room: RoomDto,
 )
 
+/**
+ * POST /v1/rooms/{code}/bots body. [seatIndex] null fills the next free seat.
+ * [difficulty] is the bot tier name ("Casual" | "Standard" | "Challenging");
+ * null defaults to Standard. Personality is auto-assigned server-side.
+ */
+@Serializable
+data class AddBotRequest(
+    val seatIndex: Int? = null,
+    val difficulty: String? = null,
+)
+
+@Serializable
+data class AddBotResponse(
+    val schemaVersion: Int = 1,
+    val room: RoomDto,
+)
+
 @Serializable
 data class ActiveRoomsResponse(
     val schemaVersion: Int = 1,
@@ -84,13 +115,23 @@ internal fun Room.toDto(): RoomDto = RoomDto(
 )
 
 @OptIn(ExperimentalTime::class)
-internal fun RoomMember.toDto(): RoomMemberDto = RoomMemberDto(
-    userId = userId.value.toString(),
-    displayName = displayName,
-    seatIndex = seatIndex,
-    joinedAtEpochMs = joinedAt.toEpochMilliseconds(),
-    isConnected = isConnected,
-)
+internal fun RoomMember.toDto(): RoomMemberDto {
+    // Stealth chokepoint: only a *revealed* bot is advertised as one. A hidden
+    // bot (future matchmaking auto-fill) flows through here looking exactly like
+    // a human — isBot=false, ordinary avatar — so nothing on the wire reveals it.
+    val revealed = bot?.revealed == true
+    return RoomMemberDto(
+        userId = userId.value.toString(),
+        displayName = displayName,
+        seatIndex = seatIndex,
+        joinedAtEpochMs = joinedAt.toEpochMilliseconds(),
+        // Bots are always "present"; never surface their bookkeeping connected flag.
+        isConnected = if (isBot) true else isConnected,
+        isBot = revealed,
+        avatarEmoji = avatarEmoji.ifBlank { null },
+        avatarBackgroundColor = avatarBackgroundColor,
+    )
+}
 
 internal fun RoomStatus.toDto(): RoomStatusDto = when (this) {
     RoomStatus.Lobby -> RoomStatusDto.Lobby

@@ -153,6 +153,7 @@
     <string name="lobby_error_room_was_closed">The room was closed.</string>
     <string name="lobby_error_connect_rejected">Couldn't connect - try rejoining.</string>
     <string name="lobby_error_start_coming_soon">Multiplayer gameplay launches with the next update - invite your friends and stand by.</string>
+    <string name="lobby_error_bot_action_failed">Couldn't update the bots. Try again.</string>
 
     <!-- Onboarding - inline error states surfaced by the VM (sealed OnboardingAuthError + OnboardingSaveError → resource). -->
     <string name="onboarding_auth_error_oauth_provider_not_enabled">That sign-in option isn't available yet.</string>

@@ -9,6 +9,7 @@ import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
 import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.rooms.AddBotOutcome
 import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.CreateRoomOutcome
@@ -241,6 +242,44 @@ class LobbyViewModel(
                 }
             }
 
+            is LobbyAction.AddBot -> action.run {
+                val current = state
+                // Host-only, lobby-only. The button is gated in the UI; this is
+                // the authority check that matters.
+                if (!current.isHost) return@run
+                val code = current.room?.code ?: return@run
+                when (val outcome = rooms.addBot(code, action.seatIndex)) {
+                    // Success needs no local mutation — the new bot seat arrives
+                    // over the socket as the next room Snapshot.
+                    is AddBotOutcome.Success -> Unit
+                    is AddBotOutcome.NetworkError ->
+                        updateState { it.copy(error = LobbyError.BotActionFailed) }
+                    is AddBotOutcome.Unknown -> {
+                        logger.w(outcome.cause) { "Add bot failed" }
+                        updateState { it.copy(error = LobbyError.BotActionFailed) }
+                    }
+                    AddBotOutcome.Full,
+                    AddBotOutcome.NotHost,
+                    AddBotOutcome.NotJoinable,
+                    AddBotOutcome.NotFound,
+                        -> updateState { it.copy(error = LobbyError.BotActionFailed) }
+                }
+            }
+
+            is LobbyAction.RemoveBot -> action.run {
+                val current = state
+                if (!current.isHost) return@run
+                val code = current.room?.code ?: return@run
+                // Fire-and-forget: the removed seat disappears via the socket
+                // Snapshot. Surface only hard failures.
+                when (rooms.removeBot(code, action.botUserId)) {
+                    com.dangerfield.cards.libraries.rooms.RemoveBotOutcome.Success,
+                    com.dangerfield.cards.libraries.rooms.RemoveBotOutcome.NotFound,
+                        -> Unit
+                    else -> updateState { it.copy(error = LobbyError.BotActionFailed) }
+                }
+            }
+
             LobbyAction.DismissError -> action.updateState { it.copy(error = null) }
 
             is LobbyAction.IdentityResolved -> action.updateState {
@@ -384,7 +423,7 @@ data class LobbyState(
      * may not regain host depending on their seat order.
      */
     val effectiveHostUserId: String?
-        get() = room?.members?.firstOrNull { it.isConnected }?.userId
+        get() = room?.members?.firstOrNull { it.isConnected && !it.isBot }?.userId
 
     /** True when the current user owns this room (and a start-game CTA should appear). */
     val isHost: Boolean
@@ -431,6 +470,8 @@ sealed interface LobbyError {
     data object RoomWasClosed : LobbyError
     data object ConnectRejected : LobbyError
     data object StartGameComingSoon : LobbyError
+    /** Add-/remove-bot call failed (full, network, etc.). */
+    data object BotActionFailed : LobbyError
 }
 
 sealed interface LobbyEvent {
@@ -453,6 +494,10 @@ sealed interface LobbyAction {
     data object SubmitJoin : LobbyAction
     data object Leave : LobbyAction
     data object StartGame : LobbyAction
+    /** Host taps an empty seat's "Add a bot". [seatIndex] targets that seat. */
+    data class AddBot(val seatIndex: Int) : LobbyAction
+    /** Host taps a seated bot to remove it. */
+    data class RemoveBot(val botUserId: String) : LobbyAction
     data object DismissError : LobbyAction
     /** Internal — fired by the WS collector. */
     data class ConnectionUpdated(val connection: RoomConnection) : LobbyAction

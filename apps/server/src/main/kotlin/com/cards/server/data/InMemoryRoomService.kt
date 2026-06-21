@@ -1,15 +1,21 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.server.di.ServerScope
+import com.dangerfield.cards.server.domain.AddBotResult
+import com.dangerfield.cards.server.domain.BotSeat
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
+import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.RoomSweepResult
 import com.dangerfield.cards.server.domain.UserId
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -179,6 +185,64 @@ class InMemoryRoomService(
         LeaveResult.Success(roomGone = false)
     }
 
+    override suspend fun addBot(
+        code: String,
+        requestedBy: UserId,
+        difficulty: BotDifficulty,
+        seatIndex: Int?,
+        revealed: Boolean,
+    ): AddBotResult = mutex.withLock {
+        val state = rooms[code] ?: return@withLock AddBotResult.RoomNotFound
+        val current = state.room
+        if (current.hostUserId != requestedBy) return@withLock AddBotResult.NotHost
+        if (current.status != RoomStatus.Lobby) return@withLock AddBotResult.NotJoinable(current.status)
+        if (current.isFull) return@withLock AddBotResult.Full
+
+        val seat = seatIndex ?: nextFreeSeat(current)
+        if (seat !in 0 until current.maxSeats) return@withLock AddBotResult.SeatTaken
+        if (current.members.any { it.seatIndex == seat }) return@withLock AddBotResult.SeatTaken
+
+        val personality = pickBotPersonality(current, difficulty)
+        val now = clock.now()
+        val botMember = RoomMember(
+            userId = UserId(UUID.randomUUID()),
+            // Revealed bots wear their personality name (Jane/David/…), matching
+            // the solo-game roster. A hidden bot would draw a human-style name
+            // from a pool instead; not needed until matchmaking auto-fill ships.
+            displayName = personality.name,
+            seatIndex = seat,
+            joinedAt = now,
+            // Bots are always present: connected + no disconnect stamp means the
+            // reaper (which requires !isConnected) can never free their seat.
+            isConnected = true,
+            disconnectedAt = null,
+            // The reserved robot emoji is the wire signal for "revealed bot".
+            // A hidden bot would carry a normal avatar; left blank here since
+            // this slice only produces revealed bots.
+            avatarEmoji = if (revealed) RESERVED_BOT_AVATAR_EMOJI else "",
+            avatarBackgroundColor = null,
+            bot = BotSeat(personality = personality, difficulty = difficulty, revealed = revealed),
+        )
+        val next = current.copy(members = (current.members + botMember).sortedBy { it.seatIndex })
+        state.update(next)
+        AddBotResult.Success(next)
+    }
+
+    override suspend fun removeBot(
+        code: String,
+        requestedBy: UserId,
+        botUserId: UserId,
+    ): RemoveBotResult = mutex.withLock {
+        val state = rooms[code] ?: return@withLock RemoveBotResult.RoomNotFound
+        val current = state.room
+        if (current.hostUserId != requestedBy) return@withLock RemoveBotResult.NotHost
+        val target = current.members.firstOrNull { it.userId == botUserId }
+        if (target?.bot == null) return@withLock RemoveBotResult.NotABot
+        val next = current.copy(members = current.members.filterNot { it.userId == botUserId })
+        state.update(next)
+        RemoveBotResult.Success(next)
+    }
+
     override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): Room? = mutex.withLock {
         val state = rooms[code] ?: return@withLock null
         val current = state.room
@@ -325,6 +389,20 @@ class InMemoryRoomService(
      */
     private fun sanitizeMemberAvatar(emoji: String): String =
         if (emoji == RESERVED_BOT_AVATAR_EMOJI) "" else emoji
+
+    /**
+     * Pick a personality for a new bot that, where possible, differs from the
+     * bots already seated so a multi-bot table spans archetypes instead of
+     * cloning one name. [BotPersonality.forDifficulty] already orders its roster
+     * to span archetypes; we ask for one more than the seated-bot count and take
+     * the first not already in use, falling back to the last (a duplicate, which
+     * is unavoidable once the roster of 5 is exhausted).
+     */
+    private fun pickBotPersonality(room: Room, difficulty: BotDifficulty): BotPersonality {
+        val seatedBotNames = room.members.mapNotNull { it.bot?.personality?.name }.toSet()
+        val candidates = BotPersonality.forDifficulty(difficulty, seatedBotNames.size + 1)
+        return candidates.firstOrNull { it.name !in seatedBotNames } ?: candidates.last()
+    }
 
     private fun nextFreeSeat(room: Room): Int {
         // Fill the lowest unused seat index — keeps the seating chart
