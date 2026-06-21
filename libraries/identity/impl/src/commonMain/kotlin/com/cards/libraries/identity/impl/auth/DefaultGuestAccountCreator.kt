@@ -99,7 +99,20 @@ class DefaultGuestAccountCreator(
         }
         logger.d { "start: launching guest-account creation" }
         _state.value = AccountCreationState.InProgress
-        appScope.launch { runCreate(identity) }
+        // Persist the owed creation *before* the attempt, on app scope, the
+        // instant the user commits. The onboarding VM can mark onboarded +
+        // navigate Home moments later — tearing down its own scope; routing the
+        // durable write through the (un-cancellable) app scope here, ahead of
+        // createGuestSession, makes the record un-loseable. Even a process kill
+        // mid-attempt then leaves us able to resume next launch with the same
+        // name/avatar instead of stranding the user as a permanent Fallback.
+        // set → create → clear stays sequential in one coroutine so a fast
+        // success can't be re-overwritten by a late persist.
+        appScope.launch {
+            Catching { pendingStore.set(identity) }
+                .logOnFailure { "Persisting pending guest account failed" }
+            runCreate(identity)
+        }
     }
 
     override fun retry() {
@@ -112,9 +125,9 @@ class DefaultGuestAccountCreator(
         state.first { it is AccountCreationState.Succeeded || it is AccountCreationState.Failed }
 
     private suspend fun runCreate(identity: PendingIdentity) {
-        // Persist the owed creation up front so an app kill mid-attempt still
-        // leaves us able to resume next launch.
-        Catching { pendingStore.set(identity) }.logOnFailure { "Persisting pending guest account failed" }
+        // The owed creation was already persisted by the caller ([start] /
+        // [retry] / init-resume) before we got here, so a kill mid-attempt can
+        // still resume next launch.
         val next = when (val outcome = authRepository.createGuestSession()) {
             is SignInOutcome.Success -> {
                 // Session is live → account exists. Apply the chosen identity

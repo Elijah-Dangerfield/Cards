@@ -23,6 +23,7 @@ import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.storage.Cache
 import com.dangerfield.cards.libraries.storage.CacheFactory
 import com.dangerfield.cards.libraries.storage.CacheJsonSerializer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -154,6 +155,28 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
     }
 
     @Test
+    fun start_persistsPendingRecord_beforeCreationCompletes() = runUnitTest {
+        // The durable write must land the instant the user commits — before the
+        // session-mint attempt even returns — so a fast finish-and-navigate that
+        // tears down the onboarding scope can't lose it (the stranding bug).
+        val gate = CompletableDeferred<Unit>()
+        val store = PendingGuestAccountStore(InMemoryCacheFactory)
+        val auth = FakeAuthRepository(SignInOutcome.Success, createGate = gate)
+        val creator = build(auth, FakeProfileRepository(), store)
+
+        creator.start(identity)
+        advanceUntilIdle()
+
+        // Creation is still suspended on the gate, yet the record is already owed.
+        assertEquals(identity, store.read(), "pending record must persist before creation completes")
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertIs<AccountCreationState.Succeeded>(creator.state.value)
+        assertNull(store.read(), "a created account is no longer owed")
+    }
+
+    @Test
     fun init_resumesOwedCreation_fromStore() = runUnitTest {
         // Simulate a prior session that onboarded offline: the store still owes
         // a guest account. On construction (app launch) the creator resumes it.
@@ -269,12 +292,14 @@ class DefaultGuestAccountCreatorTest : CoroutineTest() {
     private class FakeAuthRepository(
         var guestOutcome: SignInOutcome,
         private val currentState: AuthState = AuthState.Unauthenticated(),
+        private val createGate: CompletableDeferred<Unit>? = null,
     ) : AuthRepository {
         var createGuestCalls = 0
             private set
 
         override suspend fun createGuestSession(): SignInOutcome {
             createGuestCalls++
+            createGate?.await()
             return guestOutcome
         }
 
