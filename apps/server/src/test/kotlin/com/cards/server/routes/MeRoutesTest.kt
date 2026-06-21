@@ -715,6 +715,18 @@ class MeRoutesTest {
         ): JoinResult = error("unused")
         override suspend fun leave(code: String, userId: UserId): com.dangerfield.cards.server.domain.LeaveResult =
             error("unused")
+        override suspend fun addBot(
+            code: String,
+            requestedBy: UserId,
+            difficulty: com.dangerfield.cards.libraries.bots.BotDifficulty,
+            seatIndex: Int?,
+            revealed: Boolean,
+        ): com.dangerfield.cards.server.domain.AddBotResult = error("unused")
+        override suspend fun removeBot(
+            code: String,
+            requestedBy: UserId,
+            botUserId: UserId,
+        ): com.dangerfield.cards.server.domain.RemoveBotResult = error("unused")
         override suspend fun markConnected(code: String, userId: UserId, connected: Boolean): Room? = null
         override suspend fun markPlaying(code: String): Room? = null
         override suspend fun markFinished(code: String): Room? = null

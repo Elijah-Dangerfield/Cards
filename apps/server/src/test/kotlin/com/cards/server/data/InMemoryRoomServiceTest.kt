@@ -1,8 +1,11 @@
 package com.dangerfield.cards.server.data
 
+import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
 import com.dangerfield.cards.server.domain.LeaveResult
+import com.dangerfield.cards.server.domain.RemoveBotResult
 import com.dangerfield.cards.server.domain.RoomService
 import com.dangerfield.cards.server.domain.RoomStatus
 import com.dangerfield.cards.server.domain.UserId
@@ -604,6 +607,130 @@ class InMemoryRoomServiceTest {
             service.create(host, "Host", hostAvatarEmoji = "🦊"),
         ).room
         assertEquals("🦊", room.members.single().avatarEmoji, "a non-reserved avatar rides through untouched")
+    }
+
+    // ---------- bots ----------
+
+    @Test
+    fun addBot_seatsRevealedBot_withRobotAvatarAndConnected() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+
+        val result = service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+
+        val next = assertIs<AddBotResult.Success>(result).room
+        assertEquals(2, next.members.size)
+        val botMember = next.members.first { it.isBot }
+        assertNotNull(botMember.bot, "bot member carries server-side BotSeat truth")
+        assertTrue(botMember.bot!!.revealed, "lobby bots are revealed")
+        assertEquals(InMemoryRoomService.RESERVED_BOT_AVATAR_EMOJI, botMember.avatarEmoji)
+        assertEquals(1, botMember.seatIndex, "bot fills the next free seat")
+        assertTrue(botMember.isConnected, "bots are always present so the reaper never frees them")
+        assertNull(botMember.disconnectedAt)
+    }
+
+    @Test
+    fun addBot_rejectsNonHost() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        service.join(room.code, alice, "Alice")
+
+        val result = service.addBot(room.code, requestedBy = alice, difficulty = BotDifficulty.Standard)
+
+        assertIs<AddBotResult.NotHost>(result)
+    }
+
+    @Test
+    fun addBot_assignsDistinctPersonalities() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 6)
+
+        repeat(3) {
+            assertIs<AddBotResult.Success>(
+                service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard),
+            )
+        }
+
+        val bots = service.find(room.code)!!.members.filter { it.isBot }
+        val names = bots.map { it.bot!!.personality.name }
+        assertEquals(3, names.size)
+        assertEquals(names.size, names.toSet().size, "each bot gets a distinct personality within the roster")
+    }
+
+    @Test
+    fun addBot_respectsCapacity() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 2)
+        assertIs<AddBotResult.Success>(
+            service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard),
+        )
+
+        val full = service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+
+        assertIs<AddBotResult.Full>(full)
+    }
+
+    @Test
+    fun addBot_rejectedOncePlaying() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host")
+        service.markPlaying(room.code)
+
+        val result = service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+
+        val notJoinable = assertIs<AddBotResult.NotJoinable>(result)
+        assertEquals(RoomStatus.Playing, notJoinable.status)
+    }
+
+    @Test
+    fun addBot_rejectsOccupiedSeat() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+
+        // Seat 0 is the host.
+        val result = service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard, seatIndex = 0)
+
+        assertIs<AddBotResult.SeatTaken>(result)
+    }
+
+    @Test
+    fun bot_isImmuneToSweep() = runTest {
+        val clock = AdvanceableClock()
+        val service = InMemoryRoomService(clock = clock, random = Random(0L))
+        val room = when (val r = service.create(host, "Host", maxSeats = 4)) {
+            is CreateResult.Success -> r.room
+            else -> error("expected create success")
+        }
+        service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard)
+
+        clock.advance(60.minutes)
+        val swept = service.sweepDisconnected(maxIdle = 5.minutes)
+
+        // The never-connected host is reaped; the bot is not (it's "connected").
+        val survivors = service.find(room.code)?.members ?: emptyList()
+        assertEquals(1, survivors.size)
+        assertTrue(survivors.single().isBot, "only the bot survives the sweep")
+        assertEquals(1, swept.membersReaped, "just the host was swept")
+    }
+
+    @Test
+    fun removeBot_removesBot_andRejectsNonHostAndHumans() = runTest {
+        val service = newService()
+        val room = service.createOrFail(host, "Host", maxSeats = 4)
+        service.join(room.code, alice, "Alice")
+        val withBot = assertIs<AddBotResult.Success>(
+            service.addBot(room.code, requestedBy = host, difficulty = BotDifficulty.Standard),
+        ).room
+        val botId = withBot.members.first { it.isBot }.userId
+
+        assertIs<RemoveBotResult.NotHost>(service.removeBot(room.code, requestedBy = alice, botUserId = botId))
+        assertIs<RemoveBotResult.NotABot>(service.removeBot(room.code, requestedBy = host, botUserId = alice))
+
+        val removed = assertIs<RemoveBotResult.Success>(
+            service.removeBot(room.code, requestedBy = host, botUserId = botId),
+        ).room
+        assertTrue(removed.members.none { it.isBot }, "the bot seat is freed")
+        assertEquals(2, removed.members.size, "host + alice remain")
     }
 
     // ---------- scaffolding ----------
