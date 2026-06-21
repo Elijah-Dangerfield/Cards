@@ -90,7 +90,7 @@
     <string name="private_create_starting_stack_label">Starting stack</string>
     <string name="private_create_starting_stack_value">5,000</string>
     <string name="private_create_max_players_label">Max players</string>
-    <string name="private_create_invite_note">Invite only. You\'ll get a code to share once it\'s created.</string>
+    <string name="private_create_invite_note">Invite only. You'll get a code to share once it's created.</string>
     <string name="private_create_cta">Create room</string>
 
     <!-- Private — Join-by-code screen (SPEC §7). Codes are 6-char alphanumeric. -->
@@ -213,6 +213,54 @@
     <string name="home_cta_tournament_title">Tournament</string>
     <string name="home_cta_tournament_subtitle">Royal Flush</string>
     <string name="home_tag_soon">Soon</string>
+
+    <!-- Public rooms — Find a table (SPEC §4). Visual shell; no live matchmaking. -->
+    <string name="public_find_title">Find a table</string>
+    <string name="public_find_subtitle">214 online now</string>
+    <string name="public_find_explainer_title">We'll seat you</string>
+    <string name="public_find_explainer_body">Set what you're happy to buy in for. If a hand's already running, you're in for the next one.</string>
+    <string name="public_find_range_label">Your buy-in range</string>
+    <string name="public_find_range_per_table">per table</string>
+    <string name="public_find_blinds_label">Blinds</string>
+    <string name="public_find_blinds_value">Scale with buy-in · 25/50 – 100/200</string>
+    <string name="public_find_cta">Find a table</string>
+    <string name="public_find_cta_hint">Usually seated in a few seconds</string>
+
+    <!-- Public rooms — Searching / matchmaking (SPEC §2). -->
+    <string name="public_searching_title">Finding a table</string>
+    <string name="public_searching_heading">Finding your table</string>
+    <string name="public_searching_body">Matching you with players at your buy-in. Usually a few seconds.</string>
+    <string name="public_searching_found">%1$d players found · holding %2$d more seats</string>
+    <string name="public_searching_buyin_label">Your buy-in range</string>
+    <string name="public_searching_buyin_value">2,000 – 25,000</string>
+    <string name="public_searching_blinds">Blinds 25/50+</string>
+    <string name="public_searching_cancel">Cancel search</string>
+
+    <!-- Public rooms — Lobby (timer auto-deal, SPEC §3). -->
+    <string name="public_lobby_title">The Felt</string>
+    <string name="public_lobby_subtitle">Public table</string>
+    <string name="public_lobby_timer">0:08</string>
+    <string name="public_lobby_autodeal_title">Dealing automatically</string>
+    <string name="public_lobby_autodeal_body">%1$d seated · first hand starts at the buzzer</string>
+    <string name="public_lobby_seats_count">Seats %1$d / %2$d</string>
+    <string name="public_lobby_filling">Filling up…</string>
+    <string name="public_lobby_stakes_label">Stakes</string>
+    <string name="public_lobby_stakes_value">25 / 50</string>
+    <string name="public_lobby_buyin_label">Your buy-in</string>
+    <string name="public_lobby_buyin_value">5,000</string>
+    <string name="public_lobby_reserved">Seat reserved · deals on its own — no host needed</string>
+    <string name="public_leave_table">Leave table</string>
+
+    <!-- Public rooms — Next round (joined mid-hand, SPEC §4). -->
+    <string name="public_next_card_title">You're in for the next hand</string>
+    <string name="public_next_card_body">A hand's in progress — you'll be dealt in the moment it ends.</string>
+    <string name="public_next_at_table">At the table</string>
+    <string name="public_next_in_progress">Hand in progress</string>
+    <string name="public_next_buyin_label">Buying in for</string>
+    <string name="public_next_buyin_value">5,000</string>
+    <string name="public_next_buyin_note">within your range</string>
+    <string name="public_next_change">Change</string>
+    <string name="public_next_joining">Joining automatically when this hand ends</string>
 
     <!-- Home — Private room "create or join" bottom sheet (SPEC §1). -->
     <string name="private_choose_title">Private room</string>
