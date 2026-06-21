@@ -114,6 +114,14 @@
     <string name="lobby_in_room_players_count">Players (%1$d/%2$d)</string>
     <string name="lobby_in_room_start_button">Start game</string>
     <string name="lobby_in_room_start_button_waiting">Waiting for players…</string>
+    <string name="lobby_in_room_copy_button">Copy code</string>
+    <string name="lobby_in_room_share_button">Share invite</string>
+    <string name="lobby_in_room_deal_button">Deal hand · %1$d players</string>
+    <string name="lobby_in_room_ready_to_deal">Ready to deal</string>
+    <string name="lobby_in_room_stakes_label">Stakes</string>
+    <string name="lobby_in_room_stakes_value">25 / 50</string>
+    <string name="lobby_in_room_buyin_label">Buy-in</string>
+    <string name="lobby_in_room_buyin_value">5,000</string>
     <string name="lobby_in_room_waiting_for_host">Waiting for the host to start the game…</string>
     <string name="lobby_in_room_leave_button">Leave room</string>
     <string name="lobby_in_room_leave_button_progress">Leaving…</string>

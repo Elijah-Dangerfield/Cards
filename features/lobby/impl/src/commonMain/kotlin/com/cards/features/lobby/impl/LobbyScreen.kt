@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.lobby.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -30,6 +29,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -59,29 +60,40 @@ import cards.libraries.resources.generated.resources.lobby_idle_join_button
 import cards.libraries.resources.generated.resources.lobby_idle_join_button_progress
 import cards.libraries.resources.generated.resources.lobby_idle_or_join_heading
 import cards.libraries.resources.generated.resources.lobby_idle_subtitle
+import cards.libraries.resources.generated.resources.lobby_in_room_buyin_label
+import cards.libraries.resources.generated.resources.lobby_in_room_buyin_value
 import cards.libraries.resources.generated.resources.lobby_in_room_code_label
-import cards.libraries.resources.generated.resources.lobby_in_room_host_badge
-import cards.libraries.resources.generated.resources.lobby_in_room_code_share_hint
+import cards.libraries.resources.generated.resources.lobby_in_room_copy_button
+import cards.libraries.resources.generated.resources.lobby_in_room_deal_button
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button
 import cards.libraries.resources.generated.resources.lobby_in_room_leave_button_progress
 import cards.libraries.resources.generated.resources.lobby_leave_dialog_body
 import cards.libraries.resources.generated.resources.lobby_leave_dialog_primary
 import cards.libraries.resources.generated.resources.lobby_leave_dialog_secondary
 import cards.libraries.resources.generated.resources.lobby_leave_dialog_title
-import cards.libraries.resources.generated.resources.lobby_in_room_member_seat_label
 import cards.libraries.resources.generated.resources.lobby_in_room_players_count
-import cards.libraries.resources.generated.resources.lobby_in_room_start_button
+import cards.libraries.resources.generated.resources.lobby_in_room_ready_to_deal
+import cards.libraries.resources.generated.resources.lobby_in_room_share_button
+import cards.libraries.resources.generated.resources.lobby_in_room_stakes_label
+import cards.libraries.resources.generated.resources.lobby_in_room_stakes_value
 import cards.libraries.resources.generated.resources.lobby_in_room_start_button_waiting
 import cards.libraries.resources.generated.resources.lobby_in_room_waiting_for_host
 import cards.libraries.resources.generated.resources.lobby_topbar_title_idle
 import cards.libraries.resources.generated.resources.lobby_topbar_title_in_room
 import com.dangerfield.cards.libraries.rooms.RoomMember
+import com.dangerfield.cards.libraries.ui.components.ChipCoin
+import com.dangerfield.cards.libraries.ui.components.NonLazyVerticalGrid
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.Button
+import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSize
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.header.TopBar
+import com.dangerfield.cards.libraries.ui.components.room.RoomSeat
+import com.dangerfield.cards.libraries.ui.components.room.RoomSeatPlayer
+import com.dangerfield.cards.libraries.ui.components.room.RoomSeatStatus
 import com.dangerfield.cards.libraries.ui.components.text.OutlinedTextField
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.screenContentPadding
@@ -240,94 +252,143 @@ private fun IdleContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 @Composable
 private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     val room = state.room ?: return
+    val clipboard = LocalClipboardManager.current
 
-    // Code is the share-this-with-your-friends artefact. Big, centered,
-    // its own surface — it's the one thing the user is here to read
-    // aloud or type into another phone. A future enhancement adds a
-    // share-sheet + clipboard-copy affordance on tap.
+    // Room-code hero — the share-this artefact, in the gold italic serif
+    // that signals "this is the headline of the screen".
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Radii.R800.shape)
-            .background(AppTheme.colors.surface.color)
-            .padding(vertical = Dimension.D900),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
             text = stringResource(Res.string.lobby_in_room_code_label),
-            typography = AppTheme.typography.Label.L500,
-            color = AppTheme.colors.contentSecondary,
+            typography = AppTheme.typography.Label.L300,
+            color = AppTheme.colors.contentTertiary,
+            allCaps = true,
         )
-        Spacer(modifier = Modifier.height(Dimension.D300))
+        Spacer(modifier = Modifier.height(Dimension.D200))
         Text(
             text = room.code,
-            typography = AppTheme.typography.Display.D1000,
-            color = AppTheme.colors.content,
+            typography = AppTheme.typography.Display.D1000.Italic,
+            color = AppTheme.colors.accentPrimary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
-        Text(
-            text = stringResource(Res.string.lobby_in_room_code_share_hint),
-            typography = AppTheme.typography.Body.B400,
-            color = AppTheme.colors.contentSecondary,
-        )
-    }
-
-    Spacer(modifier = Modifier.height(Dimension.D500))
-
-    ConnectionStatusRow(state.connectionStatus)
-
-    Spacer(modifier = Modifier.height(Dimension.D700))
-
-    Text(
-        text = stringResource(Res.string.lobby_in_room_players_count, room.seatCount, room.maxSeats),
-        typography = AppTheme.typography.Heading.H500,
-        color = AppTheme.colors.content,
-    )
-    Spacer(modifier = Modifier.height(Dimension.D300))
-
-    // The member list uses LazyColumn even though seat counts are tiny
-    // (≤9) so the recomposition cost is bounded as the room mutates
-    // (joins, presence flips). Plays well with the outer scrollable
-    // column because we cap the height.
-    LazyColumn(
-        verticalArrangement = Arrangement.spacedBy(Dimension.D300),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height((64 * room.maxSeats).dp.coerceAtLeast(64.dp)),
-    ) {
-        items(room.members, key = { it.userId }) { member ->
-            MemberRow(member, isHost = member.userId == state.effectiveHostUserId)
+        Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
+            ButtonSecondary(
+                onClick = { clipboard.setText(AnnotatedString(room.code)) },
+                size = ButtonSize.Small,
+                style = ButtonStyle.Outlined,
+            ) {
+                Text(stringResource(Res.string.lobby_in_room_copy_button))
+            }
+            // Share invite — copies for now; a platform share sheet is a
+            // future enhancement (no cross-platform share API wired yet).
+            ButtonSecondary(
+                onClick = { clipboard.setText(AnnotatedString(room.code)) },
+                size = ButtonSize.Small,
+            ) {
+                Text(stringResource(Res.string.lobby_in_room_share_button))
+            }
         }
     }
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
-    // Host gets the primary CTA — disabled until at least one other
-    // player joins, with copy that tells them what they're waiting on.
-    // Non-hosts see a "Waiting for the host to start" hint instead so
-    // the room doesn't feel like everyone has the same role.
+    // Surface the connection banner only when we're not cleanly connected,
+    // so the happy path stays uncluttered but reconnects are visible.
+    if (state.connectionStatus != ConnectionStatus.Connected) {
+        ConnectionStatusRow(state.connectionStatus)
+        Spacer(modifier = Modifier.height(Dimension.D500))
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = stringResource(Res.string.lobby_in_room_players_count, room.seatCount, room.maxSeats),
+            typography = AppTheme.typography.Heading.H700,
+            color = AppTheme.colors.content,
+        )
+        if (state.canStart) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(AppTheme.colors.success.color),
+                )
+                Spacer(modifier = Modifier.size(Dimension.D200))
+                Text(
+                    text = stringResource(Res.string.lobby_in_room_ready_to_deal),
+                    typography = AppTheme.typography.Label.L400,
+                    color = AppTheme.colors.success,
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(Dimension.D400))
+
+    // 3-column seat grid. Members slot into their seatIndex; the rest render
+    // as neutral "Open" tiles. (No "Add a bot" this pass.)
+    val seats: List<RoomMember?> = (0 until room.maxSeats).map { index ->
+        room.members.firstOrNull { it.seatIndex == index }
+    }
+    NonLazyVerticalGrid(
+        columns = 3,
+        data = seats,
+        horizontalSpacing = Dimension.D500,
+        verticalSpacing = Dimension.D500,
+        modifier = Modifier.fillMaxWidth(),
+    ) { _, member ->
+        RoomSeat(player = member?.toSeatPlayer(state))
+    }
+
+    Spacer(modifier = Modifier.height(Dimension.D700))
+
+    // Stakes / buy-in — display-only for now (room creation owns these).
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
+        StakeCard(
+            label = stringResource(Res.string.lobby_in_room_stakes_label),
+            value = stringResource(Res.string.lobby_in_room_stakes_value),
+            showCoin = true,
+            modifier = Modifier.weight(1f),
+        )
+        StakeCard(
+            label = stringResource(Res.string.lobby_in_room_buyin_label),
+            value = stringResource(Res.string.lobby_in_room_buyin_value),
+            showCoin = false,
+            modifier = Modifier.weight(1f),
+        )
+    }
+
+    Spacer(modifier = Modifier.height(Dimension.D700))
+
+    // Host runs the deal; non-hosts see a "waiting for the host" hint.
     if (state.isHost) {
-        Button(
+        ButtonPrimary(
             onClick = { onAction(LobbyAction.StartGame) },
             enabled = state.canStart,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                stringResource(
-                    if (state.canStart) Res.string.lobby_in_room_start_button
-                    else Res.string.lobby_in_room_start_button_waiting,
-                ),
+                if (state.canStart) {
+                    stringResource(Res.string.lobby_in_room_deal_button, room.seatCount)
+                } else {
+                    stringResource(Res.string.lobby_in_room_start_button_waiting)
+                },
             )
         }
         Spacer(modifier = Modifier.height(Dimension.D400))
     } else if (state.currentUserId != null) {
-        // Hide the hint for the brief pre-identity window so it doesn't
-        // flash to non-host viewers who are actually the host.
         Text(
             text = stringResource(Res.string.lobby_in_room_waiting_for_host),
             typography = AppTheme.typography.Body.B400,
             color = AppTheme.colors.contentSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(Dimension.D500))
     }
@@ -335,7 +396,7 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
     com.dangerfield.cards.libraries.ui.components.button.ButtonDanger(
         onClick = { onAction(LobbyAction.Leave) },
         enabled = !state.leaving,
-        style = ButtonStyle.Outlined,
+        style = ButtonStyle.Text,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
@@ -344,6 +405,49 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
                 else Res.string.lobby_in_room_leave_button,
             ),
         )
+    }
+}
+
+/** Map a live [RoomMember] into the presentational [RoomSeatPlayer]. */
+private fun RoomMember.toSeatPlayer(state: LobbyState): RoomSeatPlayer = RoomSeatPlayer(
+    name = displayName,
+    isHost = userId == state.effectiveHostUserId,
+    isYou = userId == state.currentUserId,
+    status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
+)
+
+@Composable
+private fun StakeCard(
+    label: String,
+    value: String,
+    showCoin: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(Radii.R700.shape)
+            .background(AppTheme.colors.surface.color)
+            .border(width = 1.dp, color = AppTheme.colors.border.color, shape = Radii.R700.shape)
+            .padding(horizontal = Dimension.D500, vertical = Dimension.D500),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (showCoin) {
+            ChipCoin(size = 18.dp)
+            Spacer(modifier = Modifier.size(Dimension.D400))
+        }
+        Column {
+            Text(
+                text = label,
+                typography = AppTheme.typography.Label.L300,
+                color = AppTheme.colors.contentTertiary,
+                allCaps = true,
+            )
+            Text(
+                text = value,
+                typography = AppTheme.typography.Label.L500,
+                color = AppTheme.colors.content,
+            )
+        }
     }
 }
 
@@ -588,60 +692,6 @@ private fun LobbyScreenPreview_InRoom_Leaving() {
             onAction = {},
             onBack = {},
         )
-    }
-}
-
-@Composable
-private fun MemberRow(member: RoomMember, isHost: Boolean) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(Radii.R500.shape)
-            .background(AppTheme.colors.surface.color)
-            .padding(horizontal = Dimension.D500, vertical = Dimension.D400),
-    ) {
-        // Tiny presence dot — green when their socket's live, gray when
-        // we're holding their seat through a reconnect.
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(
-                    (if (member.isConnected) AppTheme.colors.success
-                    else AppTheme.colors.contentSecondary).color,
-                ),
-        )
-        Spacer(modifier = Modifier.size(Dimension.D400))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = member.displayName,
-                typography = AppTheme.typography.Body.B500,
-                color = AppTheme.colors.content,
-            )
-            Text(
-                text = stringResource(Res.string.lobby_in_room_member_seat_label, member.seatIndex + 1),
-                typography = AppTheme.typography.Body.B400,
-                color = AppTheme.colors.contentSecondary,
-            )
-        }
-        if (isHost) {
-            // Pill renders the "host" affordance — implicit
-            // auto-promotion means this travels to a new seat if the
-            // original host disconnects.
-            Box(
-                modifier = Modifier
-                    .clip(Radii.R300.shape)
-                    .background(AppTheme.colors.accentPrimary.color)
-                    .padding(horizontal = Dimension.D300, vertical = Dimension.D200),
-            ) {
-                Text(
-                    text = stringResource(Res.string.lobby_in_room_host_badge),
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.onAccentPrimary,
-                )
-            }
-        }
     }
 }
 
