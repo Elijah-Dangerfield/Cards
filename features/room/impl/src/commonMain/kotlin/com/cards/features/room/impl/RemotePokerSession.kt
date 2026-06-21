@@ -96,11 +96,17 @@ internal class RemotePokerSession(
     override val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     /**
-     * `extraBufferCapacity = 1` so the terminal reason is buffered even
-     * when the VM's collector attaches a beat after `run()` — a one-shot
-     * `tryEmit` from [collectConnection] never drops it.
+     * `replay = 1` so the terminal reason survives for a collector that
+     * attaches after `run()` has already fanned the close out. The VM's
+     * roomClosed collector is a sibling launch of the connection collector,
+     * so a close racing session bootstrap can fire before the collector
+     * exists — `extraBufferCapacity` alone would drop it (a buffered value
+     * with no subscriber and `replay = 0` is evicted, never replayed), and
+     * the user would sit on a Disconnected banner with nothing popping the
+     * screen. The reason is terminal and idempotent, so replaying it once
+     * to a late collector is exactly the desired behaviour.
      */
-    private val _roomClosed = MutableSharedFlow<ClosedReason>(extraBufferCapacity = 1)
+    private val _roomClosed = MutableSharedFlow<ClosedReason>(replay = 1)
     override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
 
     private val pendingAcks: MutableMap<String, CompletableDeferred<GameplayFrame.IntentAck>> =

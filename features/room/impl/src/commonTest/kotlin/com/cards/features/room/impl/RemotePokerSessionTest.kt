@@ -294,6 +294,34 @@ class RemotePokerSessionTest : CoroutineTest() {
     }
 
     @Test
+    fun roomClosed_replayReachesLateCollector() = runUnitTest {
+        // The terminal close can race session bootstrap: [collectConnection]
+        // fans out the reason before the VM's own roomClosed collector has
+        // attached (both are sibling launches in the VM init). A late
+        // subscriber must still see the reason — otherwise the user is left
+        // spinning on a Disconnected banner with nothing to pop the screen.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Closed(ClosedReason.RoomDeleted))
+        advanceUntilIdle()
+
+        val closes = mutableListOf<ClosedReason>()
+        val collectJob = launch { session.roomClosed.collect { closes += it } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(ClosedReason.RoomDeleted),
+            closes,
+            "a collector attaching after the terminal close must replay the reason",
+        )
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
     fun roomClosed_doesNotEmit_onCancelled() = runUnitTest {
         // Cancelled is our own teardown — the user is already leaving, so
         // popping the screen again would be a spurious double-navigation.
