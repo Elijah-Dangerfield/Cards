@@ -90,6 +90,27 @@ class RoomRoutesTest {
     }
 
     @Test
+    fun create_withBuyIn_returnsDerivedStakes() = runTest {
+        withRooms { client ->
+            val resp = client.createRoom(asUser = host, buyIn = 20_000)
+            assertEquals(HttpStatusCode.OK, resp.status)
+            val room = resp.body<CreateRoomResponse>().room
+            assertEquals(20_000, room.buyIn)
+            assertEquals(200, room.bigBlind)
+            assertEquals(100, room.smallBlind)
+        }
+    }
+
+    @Test
+    fun create_400_whenBuyInTooSmall() = runTest {
+        withRooms { client ->
+            val resp = client.createRoom(asUser = host, buyIn = 1)
+            assertEquals(HttpStatusCode.BadRequest, resp.status)
+            assertTrue(resp.bodyAsText().contains("invalid_buy_in"))
+        }
+    }
+
+    @Test
     fun get_returnsRoom() = runTest {
         withRooms { client ->
             val created = client.createRoom(asUser = host).body<CreateRoomResponse>().room
@@ -320,11 +341,11 @@ class RoomRoutesTest {
         private val app: ApplicationTestBuilder,
         private val raw: io.ktor.client.HttpClient,
     ) {
-        suspend fun createRoom(maxSeats: Int? = null, asUser: UserId?): HttpResponse =
+        suspend fun createRoom(maxSeats: Int? = null, buyIn: Long? = null, asUser: UserId?): HttpResponse =
             raw.post("/v1/rooms") {
                 contentType(ContentType.Application.Json)
                 bearer(asUser)
-                setBody(CreateRoomRequest(maxSeats = maxSeats))
+                setBody(CreateRoomRequest(maxSeats = maxSeats, buyIn = buyIn))
             }
 
         suspend fun getRoom(code: String, asUser: UserId?): HttpResponse =

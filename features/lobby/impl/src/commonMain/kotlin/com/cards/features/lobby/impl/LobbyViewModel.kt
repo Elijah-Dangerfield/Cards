@@ -53,6 +53,7 @@ class LobbyViewModel(
     @Assisted private val prefilledCode: String?,
     @Assisted private val autoCreate: Boolean,
     @Assisted private val maxSeats: Int?,
+    @Assisted private val buyIn: Long?,
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
@@ -112,7 +113,7 @@ class LobbyViewModel(
                 val current = state
                 if (current.isBusy) return@run
                 updateState { it.copy(creating = true, error = null) }
-                when (val outcome = rooms.createRoom(maxSeats = maxSeats)) {
+                when (val outcome = rooms.createRoom(maxSeats = maxSeats, buyIn = buyIn)) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)
                     is CreateRoomOutcome.InvalidMaxSeats -> updateState {
                         it.copy(creating = false, error = LobbyError.CreateInvalidMaxSeats(outcome.message))

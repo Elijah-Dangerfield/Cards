@@ -705,6 +705,7 @@ class MeRoutesTest {
             maxSeats: Int,
             hostAvatarEmoji: String,
             hostAvatarBackgroundColor: String?,
+            buyIn: Long,
         ): CreateResult = error("unused")
         override suspend fun join(
             code: String,

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.AddBotResult
 import com.dangerfield.cards.server.domain.CreateResult
 import com.dangerfield.cards.server.domain.JoinResult
@@ -64,6 +65,16 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                         ),
                     )
                 }
+                val buyIn = body.buyIn ?: RoomSettings.DEFAULT_BUY_IN
+                if (buyIn !in RoomSettings.MIN_BUY_IN..RoomSettings.MAX_BUY_IN) {
+                    return@post call.respond(
+                        HttpStatusCode.BadRequest,
+                        problemEnvelope(
+                            "invalid_buy_in",
+                            "buyIn must be between ${RoomSettings.MIN_BUY_IN} and ${RoomSettings.MAX_BUY_IN}.",
+                        ),
+                    )
+                }
                 val profile = profiles.findOrCreate(userId)
                 when (val outcome = rooms.create(
                     hostUserId = userId,
@@ -71,6 +82,7 @@ fun Route.roomRoutes(rooms: RoomService, profiles: ProfileRepository) {
                     maxSeats = maxSeats,
                     hostAvatarEmoji = profile.avatarEmoji,
                     hostAvatarBackgroundColor = profile.avatarBackgroundColor,
+                    buyIn = buyIn,
                 )) {
                     is CreateResult.Success -> call.respond(
                         HttpStatusCode.OK,

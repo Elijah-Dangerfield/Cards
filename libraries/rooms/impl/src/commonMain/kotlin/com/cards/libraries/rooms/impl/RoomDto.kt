@@ -19,6 +19,9 @@ data class RoomDto(
     val maxSeats: Int,
     val status: RoomStatusDto,
     val members: List<RoomMemberDto>,
+    val buyIn: Long = 0,
+    val smallBlind: Long = 0,
+    val bigBlind: Long = 0,
 )
 
 @Serializable
@@ -48,7 +51,10 @@ enum class RoomStatusDto {
 }
 
 @Serializable
-data class CreateRoomRequestDto(val maxSeats: Int? = null)
+data class CreateRoomRequestDto(
+    val maxSeats: Int? = null,
+    val buyIn: Long? = null,
+)
 
 @Serializable
 data class CreateRoomResponseDto(
@@ -105,6 +111,9 @@ internal fun RoomDto.toDomain(): Room = Room(
     maxSeats = maxSeats,
     status = status.toDomain(),
     members = members.map { it.toDomain() },
+    buyIn = buyIn,
+    smallBlind = smallBlind,
+    bigBlind = bigBlind,
 )
 
 internal fun RoomMemberDto.toDomain(): RoomMember = RoomMember(

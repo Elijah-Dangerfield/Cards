@@ -1,10 +1,12 @@
 package com.dangerfield.cards.server.routes
 
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.Room
 import com.dangerfield.cards.server.domain.RoomMember
 import com.dangerfield.cards.server.domain.RoomStatus
 import kotlinx.serialization.Serializable
 import kotlin.time.ExperimentalTime
+
 
 /**
  * Wire format for the room endpoints. Domain types stay server-internal
@@ -23,6 +25,11 @@ data class RoomDto(
     val maxSeats: Int,
     val status: RoomStatusDto,
     val members: List<RoomMemberDto>,
+    /** Host-chosen buy-in (= starting stack) and the blinds derived from it,
+     *  so the client renders real stakes instead of placeholders. */
+    val buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
+    val smallBlind: Long = 0,
+    val bigBlind: Long = 0,
 )
 
 @Serializable
@@ -59,6 +66,9 @@ enum class RoomStatusDto { Lobby, Playing, Finished }
 @Serializable
 data class CreateRoomRequest(
     val maxSeats: Int? = null,
+    /** Host-chosen buy-in. Null = server default. Validated against
+     *  [RoomSettings.MIN_BUY_IN]..[RoomSettings.MAX_BUY_IN]. */
+    val buyIn: Long? = null,
 )
 
 @Serializable
@@ -112,6 +122,9 @@ internal fun Room.toDto(): RoomDto = RoomDto(
     maxSeats = maxSeats,
     status = status.toDto(),
     members = members.map { it.toDto() },
+    buyIn = buyIn,
+    smallBlind = settings.smallBlind,
+    bigBlind = settings.bigBlind,
 )
 
 @OptIn(ExperimentalTime::class)

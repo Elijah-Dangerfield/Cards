@@ -68,11 +68,13 @@ class TestClient(
         prefilledCode: String? = null,
         autoCreate: Boolean = false,
         maxSeats: Int? = null,
+        buyIn: Long? = null,
     ): LobbyViewModel =
         LobbyViewModel(
             prefilledCode = prefilledCode,
             autoCreate = autoCreate,
             maxSeats = maxSeats,
+            buyIn = buyIn,
             rooms = repository,
             auth = FakeAuthRepository(userId),
             profile = NoProfileRepository,

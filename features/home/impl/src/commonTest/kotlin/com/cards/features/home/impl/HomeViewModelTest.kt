@@ -576,7 +576,7 @@ class HomeViewModelTest : CoroutineTest() {
 
         override fun observeActiveRooms(): Flow<List<Room>> = activeRooms
 
-        override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome =
+        override suspend fun createRoom(maxSeats: Int?, buyIn: Long?): CreateRoomOutcome =
             CreateRoomOutcome.NetworkError(RuntimeException("not used"))
         override suspend fun joinRoom(code: String): JoinRoomOutcome =
             JoinRoomOutcome.NetworkError(RuntimeException("not used"))

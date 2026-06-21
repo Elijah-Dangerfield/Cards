@@ -51,7 +51,6 @@ import cards.libraries.resources.generated.resources.lobby_error_leave_server_no
 import cards.libraries.resources.generated.resources.lobby_error_room_was_closed
 import cards.libraries.resources.generated.resources.lobby_error_start_coming_soon
 import cards.libraries.resources.generated.resources.lobby_in_room_buyin_label
-import cards.libraries.resources.generated.resources.lobby_in_room_buyin_value
 import cards.libraries.resources.generated.resources.lobby_in_room_code_label
 import cards.libraries.resources.generated.resources.lobby_in_room_copy_button
 import cards.libraries.resources.generated.resources.lobby_in_room_deal_button
@@ -64,7 +63,6 @@ import cards.libraries.resources.generated.resources.lobby_leave_dialog_title
 import cards.libraries.resources.generated.resources.lobby_in_room_players_count
 import cards.libraries.resources.generated.resources.lobby_in_room_ready_to_deal
 import cards.libraries.resources.generated.resources.lobby_in_room_stakes_label
-import cards.libraries.resources.generated.resources.lobby_in_room_stakes_value
 import cards.libraries.resources.generated.resources.lobby_in_room_code_copied
 import cards.libraries.resources.generated.resources.lobby_in_room_start_button_waiting
 import cards.libraries.resources.generated.resources.lobby_in_room_waiting_for_host
@@ -311,17 +309,17 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
 
     Spacer(modifier = Modifier.height(Dimension.D700))
 
-    // Stakes / buy-in — display-only for now (room creation owns these).
+    // Stakes / buy-in — the host's chosen values, carried on the room snapshot.
     Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
         StakeCard(
             label = stringResource(Res.string.lobby_in_room_stakes_label),
-            value = stringResource(Res.string.lobby_in_room_stakes_value),
+            value = "${room.smallBlind} / ${room.bigBlind}",
             showCoin = true,
             modifier = Modifier.weight(1f),
         )
         StakeCard(
             label = stringResource(Res.string.lobby_in_room_buyin_label),
-            value = stringResource(Res.string.lobby_in_room_buyin_value),
+            value = formatChips(room.buyIn),
             showCoin = false,
             modifier = Modifier.weight(1f),
         )
@@ -389,6 +387,17 @@ private fun RoomMember.toSeatPlayer(state: LobbyState): RoomSeatPlayer {
         // Bots are always "connected" server-side, so they read as Seated.
         status = if (isConnected) RoomSeatStatus.Seated else RoomSeatStatus.Joining,
     )
+}
+
+/** Group a non-negative chip count with thousands separators. */
+private fun formatChips(value: Long): String {
+    val s = value.toString()
+    return buildString {
+        for (i in s.indices) {
+            if (i > 0 && (s.length - i) % 3 == 0) append(',')
+            append(s[i])
+        }
+    }
 }
 
 @Composable

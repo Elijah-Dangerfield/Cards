@@ -29,7 +29,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface RoomRepository {
 
-    suspend fun createRoom(maxSeats: Int? = null): CreateRoomOutcome
+    suspend fun createRoom(maxSeats: Int? = null, buyIn: Long? = null): CreateRoomOutcome
 
     suspend fun joinRoom(code: String): JoinRoomOutcome
 
