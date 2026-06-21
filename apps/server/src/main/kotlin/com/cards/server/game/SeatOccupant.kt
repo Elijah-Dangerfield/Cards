@@ -1,5 +1,7 @@
 package com.dangerfield.cards.server.game
 
+import com.dangerfield.cards.server.domain.BotSeat
+
 /**
  * Server-side handle for a single seat at the start of (or about to
  * start) a hand. Carries the userId — which can be a real Supabase
@@ -38,4 +40,11 @@ data class SeatOccupant(
      * derive and render the player's level. Null for bots.
      */
     val xp: Long? = null,
+    /**
+     * Backend-bot truth for this seat, carried from the room member so the
+     * server bot driver can read the seat's personality / difficulty without a
+     * separate lookup. Null for humans. Survives across hands (the driver keeps
+     * its own roster keyed by [userId]); see `ServerBotDriver`.
+     */
+    val bot: BotSeat? = null,
 )

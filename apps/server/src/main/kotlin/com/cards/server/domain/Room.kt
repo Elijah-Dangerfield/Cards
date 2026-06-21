@@ -72,7 +72,17 @@ data class RoomMember(
      */
     val avatarEmoji: String = "",
     val avatarBackgroundColor: String? = null,
-)
+    /**
+     * Non-null only for backend bot seats added to the room. Drives the server
+     * bot driver and — when [BotSeat.revealed] — the wire-level bot reveal. Null
+     * for every human member. Bots never disconnect (created connected, never
+     * reaped), so this is the sole source of truth for "is this seat a bot".
+     */
+    val bot: BotSeat? = null,
+) {
+    /** True for a backend bot seat. Prefer this over inspecting [userId]. */
+    val isBot: Boolean get() = bot != null
+}
 
 /**
  * V1 only uses [Lobby]. [Playing] / [Finished] are sketched in for the
