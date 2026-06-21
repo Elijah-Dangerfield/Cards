@@ -49,6 +49,20 @@ sealed class AppEvent {
      * @param userId the (unchanged) id of the now-claimed account.
      */
     data class AccountClaimed(val userId: String) : AppEvent()
+
+    /**
+     * Connectivity was just regained — an offline→online edge. Dispatched by
+     * [com.dangerfield.cards.libraries.cards.impl.ConnectivityEdgeDispatcher],
+     * which watches `AppState.isOffline`, drops the optimistic initial value,
+     * debounces flapping, and only fires on the true→false transition (so an
+     * online cold boot never emits one).
+     *
+     * This is a *data-freshness* trigger: identity self-heal, authed-call
+     * retriggers, and offline outboxes hang their reconnect flush off it. Like
+     * the other events, listeners must run synchronously and hand heavy work off
+     * to their own scope.
+     */
+    data object ConnectivityRegained : AppEvent()
 }
 
 interface AppEventListener {
@@ -58,6 +72,7 @@ interface AppEventListener {
     fun onBackground(event: AppEvent.OnBackground) {}
     fun onUserChanged(event: AppEvent.UserChanged) {}
     fun onAccountClaimed(event: AppEvent.AccountClaimed) {}
+    fun onConnectivityRegained(event: AppEvent.ConnectivityRegained) {}
 }
 
 /**

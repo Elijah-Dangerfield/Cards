@@ -75,22 +75,37 @@ class InAppMessageManagerImpl(
         // next one. The message table itself is wiped by the user-scoped
         // clearer dump; this just clears the in-memory current.
         _current.value = null
-        // On an account *switch* (a real prior user → a new one) re-sync and
-        // surface the incoming user's messages now, instead of stranding them
-        // until the next foreground. The cold-boot / sign-in case (previous ==
-        // null) is already owned by onColdBoot, so this only covers switches —
-        // avoiding a double sync at launch.
-        if (event.current != null && event.previous != null) {
+        // A user just became active — switch OR a session arriving on a cold
+        // boot (previous == null), which is exactly the identity-heal path.
+        // Re-sync + surface the incoming user's messages now. Gated on
+        // Authenticated below, so a sign-out (current == null) no-ops.
+        if (event.current != null) {
             appScope.launch { onForegroundLikeEvent() }
         }
     }
 
+    override fun onAccountClaimed(event: AppEvent.AccountClaimed) {
+        // A guest just claimed — flush + surface their messages now instead of
+        // waiting for the next foreground (UserChanged never fired).
+        appScope.launch { onForegroundLikeEvent() }
+    }
+
+    override fun onConnectivityRegained(event: AppEvent.ConnectivityRegained) {
+        // Reconnect after offline — pull anything that landed while away.
+        appScope.launch { onForegroundLikeEvent() }
+    }
+
     private suspend fun onForegroundLikeEvent() = serializeForegroundsMutex.withLock {
         Catching {
-            authRepository.current()
-            // Best-effort sync — we still consume from cache on failure
-            // so an offline user sees their previously-cached messages.
-            repository.sync()
+            // Only sync when we actually hold a session — a tokenless sync 401s.
+            // A session-less resolve skips the network and falls through to the
+            // cached local DB below, so an unauthenticated/offline user still
+            // sees their previously-cached messages. Re-fires when auth arrives
+            // (UserChanged / AccountClaimed).
+            authRepository.ifAuthenticated {
+                // Best-effort sync — we still consume from cache on failure.
+                repository.sync()
+            } ?: logger.d { "Skipping message sync — not authenticated" }
 
             if (_current.value != null) {
                 logger.d { "Dialog still on screen; skipping consume for this foreground." }

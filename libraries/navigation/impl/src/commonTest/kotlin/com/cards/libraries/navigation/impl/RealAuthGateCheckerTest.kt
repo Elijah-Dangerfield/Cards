@@ -126,6 +126,7 @@ class RealAuthGateCheckerTest : CoroutineTest() {
         override fun start(identity: PendingIdentity) = Unit
         override suspend fun awaitTerminal(): AccountCreationState = state.value
         override fun retry() = Unit
+        override suspend fun ensureSession(fallbackIdentity: PendingIdentity): AccountCreationState = state.value
     }
 
     private class FakeAuthRepository : AuthRepository {

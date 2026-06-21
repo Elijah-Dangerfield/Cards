@@ -53,6 +53,33 @@ interface ProfileRepository {
 
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
     suspend fun fetchAvatarPack(): AvatarPackOutcome
+
+    /**
+     * Attempt to flush a queued offline edit (see [UpdateProfileOutcome.Queued])
+     * now, if a session is available. Best-effort + idempotent — a no-op when
+     * nothing's queued or still offline. Driven by the warm-foreground /
+     * connectivity-regained triggers so a stuck edit isn't stranded when auth
+     * never re-emits (e.g. the session stayed valid but a PATCH failed). Default
+     * no-op so test fakes needn't implement it.
+     */
+    suspend fun flushPendingEdits() {}
+
+    /**
+     * Rejections surfaced when a **queued** offline edit is flushed and the
+     * server refuses it (the display name was taken while you were offline, or
+     * is invalid). The optimistic value is reverted; a global surface shows the
+     * user a "couldn't save your name" message so the silent revert isn't
+     * confusing. Default empty so fakes needn't implement it.
+     */
+    fun observeEditRejections(): Flow<ProfileEditRejection> = kotlinx.coroutines.flow.emptyFlow()
+}
+
+/** Why a flushed offline edit was refused by the server. Drives a user message. */
+enum class ProfileEditRejection {
+    DisplayNameTaken,
+    InvalidDisplayName,
+    InvalidAvatarEmoji,
+    InvalidAvatarBackgroundColor,
 }
 
 /**
@@ -89,15 +116,66 @@ sealed interface Profile {
 
     /**
      * Client-only fallback used when auth couldn't resolve AND there's
-     * no cached profile. `id` is a UUID generated client-side and
+     * no cached server profile. `id` is a UUID generated client-side and
      * persisted across launches so any local-only state (e.g. single-
      * player save) has a stable key.
+     *
+     * May carry a **locally-chosen** identity — the name/avatar the user
+     * picked during an offline onboarding (or an offline Edit Profile) that
+     * hasn't reached the server yet. Surfaced so the app shows the user's
+     * choice instead of a generic placeholder while session-less; it syncs to
+     * the server once a session is established. Null fields = nothing chosen
+     * yet (the UI falls back to "You" / a default avatar).
+     *
+     * `Fallback` still means "no confirmed server session," so callers that
+     * hard-gate on a real account (shop purchases, server writes) keep checking
+     * `is Authenticated` — they must not treat a populated Fallback as real.
      */
-    data class Fallback(override val id: String) : Profile
+    data class Fallback(
+        override val id: String,
+        val displayName: String? = null,
+        val avatarEmoji: String? = null,
+        val avatarBackgroundColor: String? = null,
+    ) : Profile
 }
+
+/**
+ * Display name from either profile shape — the server-confirmed one when
+ * [Profile.Authenticated], the locally-chosen one when [Profile.Fallback].
+ * Null when no name is known yet (render "You" / a placeholder).
+ *
+ * Use these for *rendering* identity. Anything that gates on a real session
+ * (purchases, server writes) must still match on `is Profile.Authenticated`.
+ */
+val Profile.displayNameOrNull: String?
+    get() = when (this) {
+        is Profile.Authenticated -> displayName
+        is Profile.Fallback -> displayName
+    }
+
+val Profile.avatarEmojiOrNull: String?
+    get() = when (this) {
+        is Profile.Authenticated -> avatarEmoji
+        is Profile.Fallback -> avatarEmoji
+    }
+
+val Profile.avatarBackgroundColorOrNull: String?
+    get() = when (this) {
+        is Profile.Authenticated -> avatarBackgroundColor
+        is Profile.Fallback -> avatarBackgroundColor
+    }
 
 sealed interface UpdateProfileOutcome {
     data class Success(val profile: Profile.Authenticated) : UpdateProfileOutcome
+
+    /**
+     * The edit was applied **locally** and queued to sync when a session is
+     * available — the offline / session-less case. The chosen name/avatar shows
+     * immediately (optimistically) and is carried until a session is minted,
+     * which applies it server-side. The caller treats this like a success: the
+     * user's change "stuck," it just hasn't reached the server yet.
+     */
+    data object Queued : UpdateProfileOutcome
     data object DisplayNameTaken : UpdateProfileOutcome
     data object InvalidDisplayName : UpdateProfileOutcome
     data object InvalidAvatarEmoji : UpdateProfileOutcome

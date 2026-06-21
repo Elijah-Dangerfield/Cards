@@ -31,6 +31,27 @@ interface GuestAccountCreator {
     suspend fun awaitTerminal(): AccountCreationState
 
     /**
+     * Single, serialized entry point for "make sure this device has a real
+     * session." Used by the identity self-heal path to recover a user who
+     * onboarded but was stranded session-less (the durable pending record was
+     * lost, or creation never landed). Resolves against the same [healMutex] as
+     * every other mint trigger ([start] / init-resume / offline-flip retry) so
+     * concurrent triggers collapse to a single account:
+     *
+     *  - a session already exists → clears any owed record and returns
+     *    [AccountCreationState.Succeeded] (no second account minted);
+     *  - a mint already succeeded this run → returns [AccountCreationState.Succeeded];
+     *  - a durably-owed record exists → finishes *that* (the user's actual chosen
+     *    name/avatar wins over the derived fallback);
+     *  - otherwise mints fresh from [fallbackIdentity].
+     *
+     * Returns the resulting terminal state. The caller (the healer) only invokes
+     * this once it has confirmed the user is genuinely session-less, onboarded,
+     * online, and not a deliberate sign-out.
+     */
+    suspend fun ensureSession(fallbackIdentity: PendingIdentity): AccountCreationState
+
+    /**
      * Re-attempt a previously [AccountCreationState.Failed] creation with the
      * same held identity (e.g. on an offline→online flip, or a manual button).
      * No-op unless the current state is Failed.

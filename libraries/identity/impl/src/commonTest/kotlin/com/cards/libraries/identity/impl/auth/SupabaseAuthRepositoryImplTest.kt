@@ -310,6 +310,24 @@ class SupabaseAuthRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
+    fun signOut_emitsSignedOutReason_soHealerDoesNotResurrect() = runUnitTest {
+        // The reason distinguishes a deliberate sign-out from a never-signed-in
+        // stranded guest. Without it, identity self-heal would mint a fresh
+        // anonymous guest right after the user chose to sign out.
+        val gateway = FakeSupabaseAuthGateway(
+            initialStatus = AuthGatewayStatus.Authenticated,
+            session = claimedSession(),
+        )
+        val repo = build(gateway = gateway)
+        advanceUntilIdle()
+
+        repo.signOut()
+
+        val state = assertIs<AuthState.Unauthenticated>(repo.current())
+        assertEquals(AuthState.Unauthenticated.Reason.SignedOut, state.reason)
+    }
+
+    @Test
     fun accountSwitch_dumpsDepartingUser_beforeEmit_andAnnouncesUserChange() = runUnitTest {
         // Start signed in as a guest, then sign into a *different* existing
         // account. The guest's local data must be dumped before the new
