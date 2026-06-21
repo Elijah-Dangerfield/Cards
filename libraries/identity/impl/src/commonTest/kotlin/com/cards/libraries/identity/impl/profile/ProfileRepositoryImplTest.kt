@@ -254,13 +254,50 @@ class ProfileRepositoryImplTest : CoroutineTest() {
     // ---------- update ----------
 
     @Test
-    fun update_notSignedIn_returnsNotSignedIn() = runUnitTest {
+    fun update_sessionless_withCachedRealAccount_returnsNotSignedIn() = runUnitTest {
+        // A real (claimed) account that's merely offline shows as cached
+        // Authenticated; an offline edit can't be applied without a session and
+        // must NOT be mistaken for the guest-identity queue path.
+        val cache = newProfileCache()
+        cache.writeAuthenticated(
+            Profile.Authenticated(
+                id = "u1",
+                displayName = "Real",
+                avatarEmoji = "🦊",
+                avatarBackgroundColor = null,
+                email = "a@b.com",
+                isAnonymous = false,
+                createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
+            ),
+        )
         val auth = FakeAuthRepository().also { it.emit(AuthState.Unauthenticated()) }
-        val repo = build(auth, FakeProfileApi())
+        val repo = build(auth, FakeProfileApi(), cache)
         advanceUntilIdle()
 
         val outcome = repo.update(displayName = "NewName")
         assertIs<UpdateProfileOutcome.NotSignedIn>(outcome)
+    }
+
+    @Test
+    fun update_sessionless_fallback_queuesEditIntoPendingGuestIdentity() = runUnitTest {
+        // The offline-onboarded (Fallback, no cached account) case: an edit is
+        // applied locally + queued into the owed guest-account record so it
+        // shows now and syncs when a session is minted.
+        val pendingStore = PendingGuestAccountStore(InMemoryCacheFactory)
+        val auth = FakeAuthRepository().also { it.emit(AuthState.Unauthenticated()) }
+        val repo = build(auth, FakeProfileApi(), pendingGuestAccountStore = pendingStore)
+        advanceUntilIdle()
+
+        val outcome = repo.update(displayName = "Foxy", avatarEmoji = "🦊")
+        assertIs<UpdateProfileOutcome.Queued>(outcome)
+        // Persisted for the mint to apply.
+        val pending = pendingStore.read()
+        assertEquals("Foxy", pending?.displayName)
+        assertEquals("🦊", pending?.avatarEmoji)
+        // Surfaced optimistically on the Fallback.
+        val emitted = assertIs<Profile.Fallback>(repo.observe().first())
+        assertEquals("Foxy", emitted.displayName)
+        assertEquals("🦊", emitted.avatarEmoji)
     }
 
     @Test

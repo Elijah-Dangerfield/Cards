@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
 import com.dangerfield.cards.libraries.identity.impl.auth.PendingGuestAccountStore
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
@@ -251,6 +252,43 @@ class ProfileRepositoryImpl(
         )
     }
 
+    /**
+     * Apply an offline profile edit for a session-less (Fallback) user by
+     * merging it into the owed guest-account record. The guest-mint path applies
+     * that identity when a session is established, so the single mint is the
+     * sync. Emits an enriched [Profile.Fallback] immediately so the UI reflects
+     * the change without waiting on the network. Assumes [mutex] is held.
+     */
+    private suspend fun queueGuestIdentityEditLocked(
+        displayName: String?,
+        avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
+    ): UpdateProfileOutcome {
+        val existing = Catching { pendingGuestAccountStore.read() }.getOrNull()
+        val merged = PendingIdentity(
+            displayName = displayName?.trim()?.takeIf { it.isNotEmpty() } ?: existing?.displayName,
+            avatarEmoji = avatarEmoji ?: existing?.avatarEmoji,
+            avatarBackgroundColor = when {
+                clearAvatarBackgroundColor -> null
+                avatarBackgroundColor != null -> avatarBackgroundColor
+                else -> existing?.avatarBackgroundColor
+            },
+        )
+        Catching { pendingGuestAccountStore.set(merged) }
+            .logOnFailure { "Queuing offline profile edit failed" }
+        _state.emit(
+            Profile.Fallback(
+                id = ensureLocalIdLocked(),
+                displayName = merged.displayName,
+                avatarEmoji = merged.avatarEmoji,
+                avatarBackgroundColor = merged.avatarBackgroundColor,
+            ),
+        )
+        logger.i { "update: Queued offline identity edit (will sync on session mint)" }
+        return UpdateProfileOutcome.Queued
+    }
+
     private suspend fun ensureLocalIdLocked(): String {
         val existing = Catching { profileCache.readLocalId() }.getOrNull()
         if (existing != null) return existing
@@ -281,13 +319,31 @@ class ProfileRepositoryImpl(
                 ).joinToString() +
                 "]"
         }
-        // The auth check here is structural: PATCH /v1/me requires a
-        // session, and the request will 401 cleanly if not. Catching
-        // that here avoids a network round-trip in the obvious case.
+        // PATCH /v1/me requires a session. When we don't have one, branch on
+        // whether this is a real account that's merely offline vs. a guest who
+        // hasn't reached the server yet:
         val auth = authRepository.current()
         if (auth !is AuthState.Authenticated) {
-            logger.w { "update: NotSignedIn (auth is ${auth::class.simpleName})" }
-            return@withLock UpdateProfileOutcome.NotSignedIn
+            val cachedAuthed = Catching { profileCache.readAuthenticated() }
+                .logOnFailure { "Profile cache read during offline update failed" }
+                .getOrNull()
+            if (cachedAuthed != null) {
+                // A real (claimed/anon) account, just offline. An offline PATCH
+                // outbox for this case is a follow-up; for now the edit can't be
+                // applied without a session.
+                logger.w { "update: NotSignedIn (cached real account offline)" }
+                return@withLock UpdateProfileOutcome.NotSignedIn
+            }
+            // True Fallback — onboarded but session-less (e.g. onboarded
+            // offline). Record the chosen identity into the owed guest-account
+            // record so it (a) surfaces on the Fallback now and (b) is applied
+            // server-side when the session is minted. Optimistic local emit.
+            return@withLock queueGuestIdentityEditLocked(
+                displayName = displayName,
+                avatarEmoji = avatarEmoji,
+                avatarBackgroundColor = avatarBackgroundColor,
+                clearAvatarBackgroundColor = clearAvatarBackgroundColor,
+            )
         }
 
         // Optimistic: write the prospective profile to cache + state

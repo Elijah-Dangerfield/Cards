@@ -140,6 +140,15 @@ val Profile.avatarBackgroundColorOrNull: String?
 
 sealed interface UpdateProfileOutcome {
     data class Success(val profile: Profile.Authenticated) : UpdateProfileOutcome
+
+    /**
+     * The edit was applied **locally** and queued to sync when a session is
+     * available — the offline / session-less case. The chosen name/avatar shows
+     * immediately (optimistically) and is carried until a session is minted,
+     * which applies it server-side. The caller treats this like a success: the
+     * user's change "stuck," it just hasn't reached the server yet.
+     */
+    data object Queued : UpdateProfileOutcome
     data object DisplayNameTaken : UpdateProfileOutcome
     data object InvalidDisplayName : UpdateProfileOutcome
     data object InvalidAvatarEmoji : UpdateProfileOutcome
