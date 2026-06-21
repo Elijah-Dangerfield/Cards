@@ -596,6 +596,10 @@ class HomeViewModelTest : CoroutineTest() {
             }
             return leaveOutcome
         }
+        override suspend fun addBot(code: String, seatIndex: Int?): com.dangerfield.cards.libraries.rooms.AddBotOutcome =
+            error("unused")
+        override suspend fun removeBot(code: String, botUserId: String): com.dangerfield.cards.libraries.rooms.RemoveBotOutcome =
+            error("unused")
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome {
             getActiveRoomsCalls += 1
             yield()

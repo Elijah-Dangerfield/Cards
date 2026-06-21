@@ -35,6 +35,8 @@ interface RoomApi {
     suspend fun leave(code: String): HttpResponse
     suspend fun fetch(code: String): HttpResponse
     suspend fun listActive(): HttpResponse
+    suspend fun addBot(code: String, request: AddBotRequestDto): HttpResponse
+    suspend fun removeBot(code: String, botUserId: String): HttpResponse
 }
 
 @SingleIn(AppScope::class)
@@ -73,6 +75,19 @@ class HttpRoomApi(
     override suspend fun listActive(): HttpResponse =
         networkClient.authedCall("rooms.activeList") { client ->
             client.get("/v1/me/active-rooms")
+        }.getOrThrow()
+
+    override suspend fun addBot(code: String, request: AddBotRequestDto): HttpResponse =
+        networkClient.authedCall("rooms.addBot") { client ->
+            client.post("/v1/rooms/$code/bots") {
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+        }.getOrThrow()
+
+    override suspend fun removeBot(code: String, botUserId: String): HttpResponse =
+        networkClient.authedCall("rooms.removeBot") { client ->
+            client.delete("/v1/rooms/$code/bots/$botUserId")
         }.getOrThrow()
 }
 

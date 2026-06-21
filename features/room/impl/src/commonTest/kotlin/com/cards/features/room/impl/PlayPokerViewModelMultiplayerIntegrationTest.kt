@@ -374,6 +374,10 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         override suspend fun createRoom(maxSeats: Int?): CreateRoomOutcome = error("unused")
         override suspend fun joinRoom(code: String): JoinRoomOutcome = error("unused")
         override suspend fun leaveRoom(code: String): LeaveRoomOutcome = error("unused")
+        override suspend fun addBot(code: String, seatIndex: Int?): com.dangerfield.cards.libraries.rooms.AddBotOutcome =
+            error("unused")
+        override suspend fun removeBot(code: String, botUserId: String): com.dangerfield.cards.libraries.rooms.RemoveBotOutcome =
+            error("unused")
         override suspend fun getActiveRooms(): GetActiveRoomsOutcome = error("unused")
         override fun observeActiveRooms(): Flow<List<Room>> = error("unused")
         override fun connect(code: String): RoomConnectionHandle = handle

@@ -32,6 +32,15 @@ data class RoomMember(
     /** Live WebSocket presence per the server. False = seat held but
      *  socket dropped (reconnect grace). */
     val isConnected: Boolean,
+    /** True for a *revealed* backend bot (the server gates this behind its
+     *  stealth flag — a hidden bot arrives here as `false`, indistinguishable
+     *  from a human). Drives the BOT badge + robot avatar in the seat grid. */
+    val isBot: Boolean = false,
+    /** Avatar emoji + background-color hex, snapshotted server-side. Present for
+     *  every member now (including the reserved 🤖 for a revealed bot); null/blank
+     *  falls back to a name initial. */
+    val avatarEmoji: String? = null,
+    val avatarBackgroundColorHex: String? = null,
 )
 
 enum class RoomStatus { Lobby, Playing, Finished, Unknown }

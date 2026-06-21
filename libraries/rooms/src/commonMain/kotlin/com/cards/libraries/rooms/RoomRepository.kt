@@ -36,6 +36,16 @@ interface RoomRepository {
     suspend fun leaveRoom(code: String): LeaveRoomOutcome
 
     /**
+     * Host-only: seat a backend-driven bot in the room. The server assigns the
+     * bot's personality and drives it; the new seat arrives over the live socket
+     * like any other member. [seatIndex] null fills the next free seat.
+     */
+    suspend fun addBot(code: String, seatIndex: Int? = null): AddBotOutcome
+
+    /** Host-only: remove a bot previously added with [addBot]. */
+    suspend fun removeBot(code: String, botUserId: String): RemoveBotOutcome
+
+    /**
      * Rooms the signed-in user is currently a member of. Called on cold
      * launch by the home/launch flow so we can offer "rejoin / forfeit"
      * before silently stranding a player whose previous session left a
@@ -103,6 +113,26 @@ sealed interface LeaveRoomOutcome {
     data object NotInRoom : LeaveRoomOutcome
     data class NetworkError(val cause: Throwable) : LeaveRoomOutcome
     data class Unknown(val cause: Throwable) : LeaveRoomOutcome
+}
+
+sealed interface AddBotOutcome {
+    data class Success(val room: Room) : AddBotOutcome
+    data object NotFound : AddBotOutcome
+    /** The caller isn't the host. */
+    data object NotHost : AddBotOutcome
+    data object Full : AddBotOutcome
+    /** The room isn't in the lobby (e.g. already playing). */
+    data object NotJoinable : AddBotOutcome
+    data class NetworkError(val cause: Throwable) : AddBotOutcome
+    data class Unknown(val cause: Throwable) : AddBotOutcome
+}
+
+sealed interface RemoveBotOutcome {
+    data object Success : RemoveBotOutcome
+    data object NotFound : RemoveBotOutcome
+    data object NotHost : RemoveBotOutcome
+    data class NetworkError(val cause: Throwable) : RemoveBotOutcome
+    data class Unknown(val cause: Throwable) : RemoveBotOutcome
 }
 
 /**
