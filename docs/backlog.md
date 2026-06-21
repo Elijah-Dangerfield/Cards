@@ -604,3 +604,9 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea:** The level-up celebration can now gift a cosmetic (felt / card back / title / emote pack), revealed as a generic 🎁 "New item" row. The row doesn't name the actual item because the level-up route has no product catalog injected — resolving `productId → display name` would mean threading a products repo through the route. The generic label is honest (the real cosmetic shows up in inventory/shop), but naming it on the reveal would make the moment land harder.
 
 **Status:** Backlog. Enrichment on top of the shipped cosmetic-reward capability. Do it when threading a catalog read into the level-up entry point is worth the wiring (or once the celebration screen already reads the catalog for something else).
+
+## Batch the profile-resolution endpoint's lookups
+
+**Idea:** `GET /v1/profiles?ids=…` resolves each id with a separate `ProfileRepository.findById` call in a loop, so a batch of N ids fires N sequential DB round-trips (capped at 100). It's a thin shell over the existing single-id read, fine while the social lists are short, but a player with a large friends list pays one query per tile. Add a `findByIds(ids): List<Profile>` batch read (single `WHERE id IN (…)`) on `ProfileRepository` and have the route use it.
+
+**Status:** Backlog. Correctness-neutral efficiency follow-up; do it when the social lists get long enough to feel the N+1, or when `ProfileRepository` grows a batch read for another caller.
