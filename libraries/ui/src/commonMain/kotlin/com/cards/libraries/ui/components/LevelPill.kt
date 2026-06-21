@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
+import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.ui_level_pill_label
 import com.dangerfield.cards.libraries.ui.PreviewContent
@@ -99,8 +100,9 @@ fun LevelPill(
 
 /**
  * Convenience overload — accepts raw lifetime XP and derives the
- * [LevelProgress] internally. Use when the caller already has xp as
- * a `Long` and would otherwise just immediately wrap it in
+ * [LevelProgress] internally against the [LocalLevelCurve] in force, so the
+ * shown level honors a server-retuned curve. Use when the caller already has
+ * xp as a `Long` and would otherwise just immediately wrap it in
  * `levelProgressFor`.
  */
 @Composable
@@ -111,7 +113,7 @@ fun LevelPill(
     boostExpiresAtEpochMs: Long? = null,
 ) {
     LevelPill(
-        progress = levelProgressFor(xp),
+        progress = levelProgressFor(xp, LocalLevelCurve.current),
         onClick = onClick,
         modifier = modifier,
         boostExpiresAtEpochMs = boostExpiresAtEpochMs,

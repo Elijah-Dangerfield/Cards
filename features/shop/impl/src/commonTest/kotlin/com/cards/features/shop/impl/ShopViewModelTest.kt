@@ -11,8 +11,13 @@ import com.dangerfield.cards.libraries.cards.EquipmentEntry
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.EquipmentSyncState
 import com.dangerfield.cards.libraries.cards.EquipmentToggleResult
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.LevelCurve
+import com.dangerfield.cards.libraries.cards.LevelReward
+import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.PurchaseState
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.flowroutines.testing.CoroutineTest
@@ -493,6 +498,26 @@ class ShopViewModelTest : CoroutineTest() {
         assertEquals(1, inv.syncCalls)
     }
 
+    // ---------- Level curve ----------
+
+    @Test
+    fun playerLevel_derivesAgainstConfiguredCurve_notBundledDefault() = runUnitTest {
+        val xp = 100L
+        // Default curve: 100 XP already crosses into level 2.
+        val defaultVm = buildVm(
+            progressionRepository = FakeProgressionRepository(Progression.Empty.copy(totalXp = xp)),
+        )
+        assertEquals(2, defaultVm.state.playerLevel, "sanity: default curve puts 100 XP at level 2")
+
+        // A server-retuned steeper curve (level 1 needs 1,000 to advance) must
+        // keep the same XP at level 1 — display derives off the configured curve.
+        val steepVm = buildVm(
+            progressionRepository = FakeProgressionRepository(Progression.Empty.copy(totalXp = xp)),
+            progressionConfig = FakeProgressionConfig(LevelCurve(xpPerLevel = listOf(1_000L))),
+        )
+        assertEquals(1, steepVm.state.playerLevel, "configured curve must drive the shown level")
+    }
+
     // ---------- Test scaffolding ----------
 
     private fun buildVm(
@@ -511,17 +536,26 @@ class ShopViewModelTest : CoroutineTest() {
         equipmentRepository: FakeEquipmentRepository = FakeEquipmentRepository(),
         xpBoostRepository: FakeXpBoostRepository = FakeXpBoostRepository(),
         deepLinkBus: FakeShopDeepLinkBus = FakeShopDeepLinkBus(),
+        progressionConfig: ProgressionConfig = FakeProgressionConfig(),
     ): ShopViewModel = ShopViewModel(
         productsRepository = productsRepository,
         inventoryRepository = inventoryRepository,
         chipsRepository = chipsRepository,
         progressionRepository = progressionRepository,
+        progressionConfig = progressionConfig,
         billingClient = billingClient,
         authRepository = authRepository,
         equipmentRepository = equipmentRepository,
         xpBoostRepository = xpBoostRepository,
         deepLinkBus = deepLinkBus,
     )
+
+    private class FakeProgressionConfig(
+        private val curve: LevelCurve = DefaultLevelCurve,
+    ) : ProgressionConfig {
+        override fun rewardsForLevel(level: Int): List<LevelReward> = emptyList()
+        override fun levelCurve(): LevelCurve = curve
+    }
 
     private class FakeXpBoostRepository : com.dangerfield.cards.libraries.cards.XpBoostRepository {
         val grantCalls = mutableListOf<Int>()

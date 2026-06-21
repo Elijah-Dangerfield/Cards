@@ -69,7 +69,11 @@ class HomeViewModel(
         }
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
-                takeAction(HomeAction.ProgressionChanged(levelProgressFor(progression.totalXp)))
+                takeAction(
+                    HomeAction.ProgressionChanged(
+                        levelProgressFor(progression.totalXp, progressionConfig.levelCurve()),
+                    ),
+                )
             }
         }
         viewModelScope.launch {
@@ -81,7 +85,7 @@ class HomeViewModel(
                 appCache.updates,
             ) { progression, appData ->
                 LevelCelebrationGate(
-                    currentLevel = levelProgressFor(progression.totalXp).level,
+                    currentLevel = levelProgressFor(progression.totalXp, progressionConfig.levelCurve()).level,
                     watermark = appData.lastCelebratedLevel,
                 )
             }

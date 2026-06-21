@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.cards.xpAtStartOfLevel
+import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.libraries.config.AppConfigMap
 import com.dangerfield.cards.libraries.config.ConfigOverride
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
@@ -236,7 +237,8 @@ private fun ProgressionDebugBlock(
     onSetTotalXp: (Long) -> Unit,
     onActivateXpBoost: () -> Unit,
 ) {
-    val progress = remember(totalXp) { levelProgressFor(totalXp) }
+    val levelCurve = LocalLevelCurve.current
+    val progress = remember(totalXp, levelCurve) { levelProgressFor(totalXp, levelCurve) }
     var xpDraft by remember(totalXp) { mutableStateOf(totalXp.toString()) }
     var levelDraft by remember(progress.level) { mutableStateOf(progress.level.toString()) }
 
@@ -280,7 +282,7 @@ private fun ProgressionDebugBlock(
                 onDraftChange = { levelDraft = it },
                 onApply = {
                     val parsed = levelDraft.toIntOrNull() ?: return@ProgressionInputRow
-                    onSetTotalXp(xpAtStartOfLevel(parsed))
+                    onSetTotalXp(xpAtStartOfLevel(parsed, levelCurve))
                 },
                 keyboardType = KeyboardType.Number,
             )

@@ -11,6 +11,8 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.Seat
 import com.dangerfield.cards.libraries.cards.BotAvatarEmoji
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.ui.components.formatCompactChips
@@ -80,6 +82,14 @@ sealed interface TableUiState {
              * (product-spec.md §5.4). Defaults false for solo sessions.
              */
             practiceTierBotsPresent: Boolean = false,
+            /**
+             * The server-tunable level curve every derived level on this table
+             * runs through, so remote opponents' pills match the level the
+             * server granted under a retuned `progression.levelCurve`. Defaults
+             * to [DefaultLevelCurve] so previews/tests render without threading
+             * a curve through.
+             */
+            curve: LevelCurve = DefaultLevelCurve,
         ): Active {
             val committedThisStreet = gameState.seats.sumOf { it.contributedThisStreet }
             val pot = committedThisStreet + gameState.pots.sumOf { it.amount }
@@ -106,6 +116,7 @@ sealed interface TableUiState {
                         isHuman = isHuman,
                         humanLevel = humanLevel,
                         botDifficultyLabel = botDifficultyLabel,
+                        curve = curve,
                     ),
                     handsAtTable = gameState.handNumber,
                 )
@@ -157,14 +168,16 @@ sealed interface TableUiState {
             isHuman: Boolean,
             humanLevel: Int?,
             botDifficultyLabel: String?,
+            curve: LevelCurve = DefaultLevelCurve,
         ): SeatBadge? = when {
             seat.playerId == null -> null
             isHuman -> humanLevel?.let { SeatBadge.Level(it) }
             seat.isBot -> botDifficultyLabel?.let { SeatBadge.BotWithDifficulty(it) } ?: SeatBadge.BotPlain
             // Remote human in MP: the server snapshots their lifetime XP onto
             // the Seat at hand-start; derive the level the same way the local
-            // human's is. Null xp (not yet resolved) collapses to no pill.
-            else -> seat.xp?.let { SeatBadge.Level(levelProgressFor(it).level) }
+            // human's is, through the same server-tunable [curve]. Null xp (not
+            // yet resolved) collapses to no pill.
+            else -> seat.xp?.let { SeatBadge.Level(levelProgressFor(it, curve).level) }
         }
 
         private fun blindSeats(state: GameState): Pair<Int?, Int?> {

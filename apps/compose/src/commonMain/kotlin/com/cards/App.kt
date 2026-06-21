@@ -96,6 +96,7 @@ import com.dangerfield.cards.libraries.ui.snackbar.showDebugSnackBar
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.libraries.ui.system.LocalBuildInfo
 import com.dangerfield.cards.libraries.ui.system.LocalClock
+import com.dangerfield.cards.libraries.ui.system.LocalLevelCurve
 import com.dangerfield.cards.system.AppThemeProvider
 import kotlin.reflect.typeOf
 import kotlin.time.Duration.Companion.milliseconds
@@ -117,7 +118,15 @@ fun App(appComponent: AppComponent) {
     val appConfigFlow = remember { appComponent.appConfigFlow }
     val ensureAppConfigLoaded = remember { appComponent.ensureAppConfigLoaded }
     val configOverrideRepository = remember { appComponent.configOverrideRepository }
+    val progressionConfig = remember { appComponent.progressionConfig }
     val appScope = rememberCoroutineScope()
+
+    // The level curve rides app-config, so recompute it whenever config rolls
+    // in (it falls back to the bundled default until then). Provided once at the
+    // root via [LocalLevelCurve] so every display site derives the shown level
+    // against the same curve the grant path uses.
+    val appConfigForCurve by appConfigFlow.collectAsState(initial = null)
+    val levelCurve = remember(appConfigForCurve) { progressionConfig.levelCurve() }
 
     // Boot-warm every @AutoInit singleton. Resolving the Set forces
     // each contributor to construct, running their `init {}` blocks —
@@ -180,6 +189,7 @@ fun App(appComponent: AppComponent) {
         LocalBuildInfo provides BuildInfo,
         LocalDialogHostState provides dialogHostState,
         LocalSnackbarHostState provides snackbarHostState,
+        LocalLevelCurve provides levelCurve,
     ) {
         AppThemeProvider {
             Box(modifier = Modifier.fillMaxSize()) {

@@ -18,9 +18,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -286,6 +289,34 @@ class RemotePokerSessionTest : CoroutineTest() {
         advanceUntilIdle()
 
         assertEquals(listOf(ClosedReason.Rejected), closes)
+        runJob.cancel()
+        collectJob.cancel()
+    }
+
+    @Test
+    fun roomClosed_replayReachesLateCollector() = runUnitTest {
+        // The terminal close can race session bootstrap: [collectConnection]
+        // fans out the reason before the VM's own roomClosed collector has
+        // attached (both are sibling launches in the VM init). A late
+        // subscriber must still see the reason — otherwise the user is left
+        // spinning on a Disconnected banner with nothing to pop the screen.
+        val handle = FakeRoomConnectionHandle()
+        val session = RemotePokerSession(handle)
+        val runJob = launch { session.run() }
+        advanceUntilIdle()
+
+        handle.pushConnection(RoomConnection.Closed(ClosedReason.RoomDeleted))
+        advanceUntilIdle()
+
+        val closes = mutableListOf<ClosedReason>()
+        val collectJob = launch { session.roomClosed.collect { closes += it } }
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(ClosedReason.RoomDeleted),
+            closes,
+            "a collector attaching after the terminal close must replay the reason",
+        )
         runJob.cancel()
         collectJob.cancel()
     }
@@ -649,12 +680,22 @@ class RemotePokerSessionTest : CoroutineTest() {
  */
 internal class FakeRoomConnectionHandle : RoomConnectionHandle {
     private val _connection = MutableSharedFlow<RoomConnection>(replay = 1, extraBufferCapacity = 8)
+
+    // Mirror the production handle ([ReconnectingRoomSocket]): the latest state
+    // snapshot rides a replay-1 [MutableStateFlow] so a late subscriber (the
+    // play screen mounting its session *after* the deal already landed) replays
+    // the current table instead of waiting forever, while events/acks stream on
+    // a replay-0 [MutableSharedFlow] so a mid-hand joiner doesn't re-fire stale
+    // animations. A fake that flattened both into one replay-0 flow couldn't
+    // catch the "stuck on dealing in" subscribe-after-action regression.
+    private val _latestGameState = MutableStateFlow<GameplayFrame.StateSnapshot?>(null)
     private val _gameplayFrames = MutableSharedFlow<GameplayFrame>(replay = 0, extraBufferCapacity = 64)
 
     val sent: MutableList<ClientFrame> = mutableListOf()
 
     override val connection: SharedFlow<RoomConnection> = _connection.asSharedFlow()
-    override val gameplayFrames: SharedFlow<GameplayFrame> = _gameplayFrames.asSharedFlow()
+    override val gameplayFrames: Flow<GameplayFrame> =
+        merge(_latestGameState.filterNotNull(), _gameplayFrames)
 
     override suspend fun send(frame: ClientFrame) {
         sent += frame
@@ -665,6 +706,10 @@ internal class FakeRoomConnectionHandle : RoomConnectionHandle {
     }
 
     suspend fun pushFrame(frame: GameplayFrame) {
-        _gameplayFrames.emit(frame)
+        if (frame is GameplayFrame.StateSnapshot) {
+            _latestGameState.value = frame
+        } else {
+            _gameplayFrames.emit(frame)
+        }
     }
 }

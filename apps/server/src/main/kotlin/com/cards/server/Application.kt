@@ -21,13 +21,16 @@ import com.dangerfield.cards.server.routes.adminRoutes
 import com.dangerfield.cards.server.routes.appConfigRoutes
 import com.dangerfield.cards.server.routes.avatarRoutes
 import com.dangerfield.cards.server.routes.equipmentRoutes
+import com.dangerfield.cards.server.routes.friendsRoutes
 import com.dangerfield.cards.server.routes.grantsRoutes
 import com.dangerfield.cards.server.routes.healthRoutes
 import com.dangerfield.cards.server.routes.inventoryRoutes
 import com.dangerfield.cards.server.routes.meRoutes
 import com.dangerfield.cards.server.routes.messageRoutes
 import com.dangerfield.cards.server.routes.productsRoutes
+import com.dangerfield.cards.server.routes.profilesRoutes
 import com.dangerfield.cards.server.routes.progressionRoutes
+import com.dangerfield.cards.server.routes.recentOpponentsRoutes
 import com.dangerfield.cards.server.routes.roomRoutes
 import com.dangerfield.cards.server.routes.roomSocketRoutes
 import com.dangerfield.cards.server.routes.walletRoutes
@@ -116,6 +119,8 @@ fun Application.installApp(
             component.userMessageRepository,
             component.roomService,
             component.orphanInstallSweep,
+            component.friendRepository,
+            component.recentOpponentsRepository,
         )
         grantsRoutes(
             inventory = component.inventoryRepository,
@@ -125,6 +130,9 @@ fun Application.installApp(
         messageRoutes(component.userMessageRepository, component.provideClock())
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
+        friendsRoutes(component.friendRepository, component.recentOpponentsRepository)
+        recentOpponentsRoutes(component.recentOpponentsRepository)
+        profilesRoutes(component.profileRepository)
         roomRoutes(component.roomService, component.profileRepository)
         roomSocketRoutes(
             component.roomService,

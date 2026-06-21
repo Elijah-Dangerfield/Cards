@@ -8,9 +8,13 @@ import com.dangerfield.cards.libraries.cards.AppData
 import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.HandResultSummary
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
 import com.dangerfield.cards.libraries.cards.InventoryItem
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.LevelCurve
+import com.dangerfield.cards.libraries.cards.LevelReward
 import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.RedeemResult
 import com.dangerfield.cards.libraries.cards.XpEvent
@@ -123,6 +127,21 @@ class FakePokerSession(
     }
 }
 
+// ---------- ProgressionConfig ----------
+
+/**
+ * Drives the server-tunable level curve under test. Defaults to the bundled
+ * [DefaultLevelCurve]; pass a steeper [curve] to prove the table derives
+ * opponent/human levels through the configured curve rather than the bundled
+ * default.
+ */
+class FakeProgressionConfig(
+    private val curve: LevelCurve = DefaultLevelCurve,
+) : ProgressionConfig {
+    override fun rewardsForLevel(level: Int): List<LevelReward> = emptyList()
+    override fun levelCurve(): LevelCurve = curve
+}
+
 // ---------- PokerSessionFactory ----------
 
 class FakePokerSessionFactory(
@@ -154,8 +173,11 @@ class FakePokerSessionFactory(
     override fun humanSeatIndex(state: GameState): Int =
         state.seats.firstOrNull { !it.isBot }?.index ?: 0
 
-    override fun occupantsFor(state: GameState): List<SeatOccupant> = state.seats.map { seat ->
-        seatToOccupant(seat, personalities[seat.index])
+    override fun occupantsFor(
+        state: GameState,
+        curve: com.dangerfield.cards.libraries.cards.LevelCurve,
+    ): List<SeatOccupant> = state.seats.map { seat ->
+        seatToOccupant(seat, personalities[seat.index], curve)
     }
 
     override fun tableFor(
@@ -164,6 +186,7 @@ class FakePokerSessionFactory(
         lastActionBySeat: Map<Int, PlayerAction>,
         humanProfile: Profile.Authenticated?,
         humanLevel: Int?,
+        curve: com.dangerfield.cards.libraries.cards.LevelCurve,
     ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
@@ -172,6 +195,7 @@ class FakePokerSessionFactory(
         lastActionBySeat = lastActionBySeat,
         humanProfile = humanProfile,
         humanLevel = humanLevel,
+        curve = curve,
     )
 }
 

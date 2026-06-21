@@ -11,6 +11,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Drives a real hand through [DefaultGameSessionRegistry] end-to-end:
@@ -170,6 +171,56 @@ class GameSessionRegistryIntegrationTest {
             perHandEvaluations.count { it.second.wonByFold },
             "the lone non-folder is credited a win by fold",
         )
+    }
+
+    @Test
+    fun finishedHand_recordsRecentOpponents_bothDirections_forRealUsers() = runTest {
+        val recent = InMemoryRecentOpponentsRepository()
+        val registry = DefaultGameSessionRegistry(
+            snapshotStore = NoOpSessionSnapshotStore(),
+            clock = kotlin.time.Clock.System,
+            handsFinishedRepository = InMemoryHandsFinishedRepository(),
+            recentOpponentsRepository = recent,
+        )
+        val aliceId = java.util.UUID.randomUUID().toString()
+        val bobId = java.util.UUID.randomUUID().toString()
+        val aliceU = com.dangerfield.cards.server.domain.UserId(java.util.UUID.fromString(aliceId))
+        val bobU = com.dangerfield.cards.server.domain.UserId(java.util.UUID.fromString(bobId))
+        val a = SeatOccupant(seatIndex = 0, userId = aliceId, displayName = "Alice", isBot = false)
+        val b = SeatOccupant(seatIndex = 1, userId = bobId, displayName = "Bob", isBot = false)
+
+        registry.startHand("ROOM1", listOf(a, b), settings)
+        val session = registry.peek("ROOM1")!!
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+        registry.applyIntent("ROOM1", actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "fold-1")
+
+        assertEquals(listOf(bobU), recent.listRecent(aliceU, limit = 10), "alice's shelf shows bob")
+        assertEquals(listOf(aliceU), recent.listRecent(bobU, limit = 10), "bob's shelf shows alice")
+    }
+
+    @Test
+    fun finishedHand_doesNotRecordBots_asRecentOpponents() = runTest {
+        val recent = InMemoryRecentOpponentsRepository()
+        val registry = DefaultGameSessionRegistry(
+            snapshotStore = NoOpSessionSnapshotStore(),
+            clock = kotlin.time.Clock.System,
+            handsFinishedRepository = InMemoryHandsFinishedRepository(),
+            recentOpponentsRepository = recent,
+        )
+        val aliceId = java.util.UUID.randomUUID().toString()
+        val aliceU = com.dangerfield.cards.server.domain.UserId(java.util.UUID.fromString(aliceId))
+        val human = SeatOccupant(seatIndex = 0, userId = aliceId, displayName = "Alice", isBot = false)
+        val bot = SeatOccupant(seatIndex = 1, userId = "bot-1", displayName = "Botty", isBot = true)
+
+        registry.startHand("ROOM1", listOf(human, bot), settings)
+        val session = registry.peek("ROOM1")!!
+        val acting = session.state.value!!.actingSeatIndex!!
+        val actor = session.state.value!!.seats.first { it.index == acting }
+        registry.applyIntent("ROOM1", actor.playerId!!, PlayerIntent.Fold(seatIndex = acting), "fold-1")
+
+        // A bot never enters perHuman, so a lone human has no human opponent.
+        assertTrue(recent.listRecent(aliceU, limit = 10).isEmpty())
     }
 
     @Test

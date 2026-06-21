@@ -13,9 +13,12 @@ import com.dangerfield.cards.libraries.cards.EmojiBlast
 import com.dangerfield.cards.libraries.cards.EmotePackCatalog
 import com.dangerfield.cards.libraries.cards.EquipmentRepository
 import com.dangerfield.cards.libraries.cards.InventoryRepository
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.ProgressionRepository
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpMode
+import com.dangerfield.cards.libraries.cards.DefaultLevelCurve
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -78,6 +81,7 @@ import kotlin.time.Clock
 class PlayPokerViewModel @Inject constructor(
     @Assisted private val sessionFactory: PokerSessionFactory,
     private val progressionRepository: ProgressionRepository,
+    private val progressionConfig: ProgressionConfig,
     private val achievementRepository: AchievementRepository,
     private val appCache: AppCache,
     private val equipmentRepository: EquipmentRepository,
@@ -93,6 +97,12 @@ class PlayPokerViewModel @Inject constructor(
 ) {
 
     private val logger = KLog.withTag("PlayPokerViewModel")
+
+    // The server-tunable level curve every derived level on this screen runs
+    // through. Read live off config (a cheap map lookup) so a mid-session
+    // retune of `progression.levelCurve` reflects on the next projection,
+    // matching how the level the server granted is computed.
+    private val levelCurve: LevelCurve get() = progressionConfig.levelCurve()
 
     // Construction-time hint for the session factory only. Solo seats the
     // human here; MP ignores it and allocates a seat server-side. Anything
@@ -144,7 +154,7 @@ class PlayPokerViewModel @Inject constructor(
         viewModelScope.launch {
             session.gameStateFlow.collect { gs ->
                 takeAction(PlayPokerAction.GameStateUpdated(gs))
-                takeAction(PlayPokerAction.OccupantsUpdated(sessionFactory.occupantsFor(gs)))
+                takeAction(PlayPokerAction.OccupantsUpdated(sessionFactory.occupantsFor(gs, levelCurve)))
             }
         }
         // Engine events → SEA pipeline (animations, telemetry, achievement triggers)
@@ -389,7 +399,7 @@ class PlayPokerViewModel @Inject constructor(
         takeAction(PlayPokerAction.HandEndAchievementsPending)
         viewModelScope.launch {
             val priorLevel = Catching {
-                levelProgressFor(progressionRepository.getProgression().totalXp).level
+                levelProgressFor(progressionRepository.getProgression().totalXp, levelCurve).level
             }.getOrNull()
 
             Catching {
@@ -426,6 +436,7 @@ class PlayPokerViewModel @Inject constructor(
             if (priorLevel != null) {
                 val newLevel = levelProgressFor(
                     progressionRepository.getProgression().totalXp,
+                    levelCurve,
                 ).level
                 if (newLevel > priorLevel) {
                     reviewPromptCoordinator.requestPrompt(ReviewTrigger.LevelUp)
@@ -446,6 +457,7 @@ class PlayPokerViewModel @Inject constructor(
                             lastActionBySeat = lastActionBySeat.toMap(),
                             humanProfile = latestHumanProfile,
                             humanLevel = it.humanLevel,
+                            curve = levelCurve,
                         ),
                     )
                 }
@@ -488,6 +500,7 @@ class PlayPokerViewModel @Inject constructor(
                                     lastActionBySeat = lastActionBySeat.toMap(),
                                     humanProfile = latestHumanProfile,
                                     humanLevel = it.humanLevel,
+                                    curve = levelCurve,
                                 ),
                             )
                         }
@@ -526,7 +539,7 @@ class PlayPokerViewModel @Inject constructor(
             }
 
             is PlayPokerAction.XpChanged -> action.updateState { state ->
-                val newLevel = levelProgressFor(action.totalXp).level
+                val newLevel = levelProgressFor(action.totalXp, levelCurve).level
                 val nextState = state.copy(xp = action.totalXp, humanLevel = newLevel)
                 // Re-project the table so the human seat picks up the
                 // refreshed level pill — only when the level actually
@@ -541,6 +554,7 @@ class PlayPokerViewModel @Inject constructor(
                                 lastActionBySeat = lastActionBySeat.toMap(),
                                 humanProfile = latestHumanProfile,
                                 humanLevel = newLevel,
+                                curve = levelCurve,
                             ),
                         )
                     } ?: nextState
@@ -1029,8 +1043,13 @@ interface PokerSessionFactory {
      */
     suspend fun bootstrap(session: PokerSession)
 
-    /** Derive [SeatOccupant] list from current engine state. */
-    fun occupantsFor(state: GameState): List<SeatOccupant>
+    /**
+     * Derive [SeatOccupant] list from current engine state. [curve] is the
+     * server-tunable level curve opponent levels run through so they match the
+     * level the server granted; defaults to the bundled curve for callers that
+     * don't thread one.
+     */
+    fun occupantsFor(state: GameState, curve: LevelCurve = DefaultLevelCurve): List<SeatOccupant>
 
     /**
      * The local human's seat index within [state]. Solo sessions seat the
@@ -1063,6 +1082,9 @@ interface PokerSessionFactory {
         /** Local user's derived level (`levelProgressFor(xp).level`); null
          *  while progression hasn't resolved yet. */
         humanLevel: Int? = null,
+        /** Server-tunable level curve remote opponents' levels run through;
+         *  defaults to the bundled curve for callers that don't thread one. */
+        curve: LevelCurve = DefaultLevelCurve,
     ): TableUiState
 }
 
@@ -1074,6 +1096,7 @@ interface PokerSessionFactory {
 internal fun seatToOccupant(
     seat: Seat,
     personality: Personality?,
+    curve: LevelCurve = DefaultLevelCurve,
 ): SeatOccupant = when {
     seat.playerId == null -> SeatOccupant.Empty(seatIndex = seat.index)
     seat.isBot -> SeatOccupant.Bot(
@@ -1086,8 +1109,9 @@ internal fun seatToOccupant(
         displayName = seat.displayName,
         userId = seat.playerId ?: "",
         personality = personality,
-        // Derived from the server-snapshotted Seat.xp; 0 until it resolves.
-        level = seat.xp?.let { levelProgressFor(it).level } ?: 0,
+        // Derived from the server-snapshotted Seat.xp through the same
+        // server-tunable [curve] as the local human's; 0 until it resolves.
+        level = seat.xp?.let { levelProgressFor(it, curve).level } ?: 0,
         leagueTier = null,     // sourced from league repo (V1.1)
     )
 }

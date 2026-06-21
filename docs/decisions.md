@@ -25,6 +25,13 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-20 — Friend graph: one canonical-pair row + an `acted_by` direction marker
+
+**Decision:** Model `friend_relations` as one row per *unordered* user pair — `user_a` is always the lexicographically smaller UUID (a DB `CHECK (user_a < user_b)` enforces it) — with `state ∈ {requested, accepted, blocked}` and an extra `acted_by` column recording the user who set the current state (the request sender, the blocker). The repository canonicalises every pair before reading/writing by comparing the lowercase-hex UUID string, which orders identically to Postgres's `uuid <` operator.
+**Why:** The spec required the row to be "unique regardless of direction" (no both-(x,y)-and-(y,x)). A single canonical row satisfies that, but then nothing records who requested whom or who blocked whom — which the inbox ("requests *to* me") and block semantics both need. `acted_by` is the minimal addition that restores direction without a second row. Comparing UUID *strings* (not `java.util.UUID.compareTo`, which is signed-bits) is what keeps the Kotlin canonicalisation in lockstep with the SQL `CHECK` — get this wrong and you get either duplicate-direction rows or constraint violations.
+**Alternatives considered:** *Two directed rows per pair* — rejected: breaks the uniqueness requirement and doubles every read. *No direction column, infer from a separate requests table* — rejected: a second table for what one column carries. *`UUID.compareTo` for canonical order* — rejected: its signed-long comparison disagrees with Postgres `uuid <` for high-bit ids, silently desyncing app and DB.
+**Status:** Locked. (Schema + endpoints shipped; the recently-played-with send gate is the one remaining slice, blocked on the recently-played-with record.)
+
 ## 2026-06-19 — TODO-grooming pass: resolve a batch of deferred product decisions
 
 This entry records several directional calls made in one grooming pass so future agents don't
@@ -2216,3 +2223,15 @@ as supporting context.
 **Wire shape (for the server config author):** `progression.levelCurve` = `{ "xpPerLevel": [Long, …], "baseXp": Long, "exponent": Int }`, all optional. Override only `xpPerLevel` to retune early-game pacing while keeping the quadratic tail; override `baseXp`/`exponent` to reshape the whole curve. Missing/undecodable → bundled default (`JsonConfigValue` soft-fail).
 
 **Status:** Curve config + authoritative-path threading shipped. Display threading (`LocalLevelCurve`) + server-side grant reconcile remain (`todo.md` — Stats & progression).
+
+## 2026-06-21 — Server-side level-up grant reconcile: duplicate the curve math, don't modularize; gate on leagues
+
+**Decision:** When we eventually harden level-up grants so the server derives them (instead of trusting the client's `levelup_<level>` chip delta and ungated cosmetic grant), the ~15-line curve interpreter (`levelProgressFor` / `xpToLevelUpFrom`, `Level.kt`) gets **duplicated into `:apps:server`** with the `LevelTest` vector copied alongside — **not** extracted into a shared module. And the work itself is **deferred until XP/chip totals feed leagues/leaderboards** (or anything IAP-equivalent); it is not a pre-launch task.
+
+**Why duplicate, not share:** The server already *owns* the curve — it serves `progression.levelCurve` as app-config; the client merely decodes it (`DefaultLevelCurve` is the offline fallback). So this was never "share the client's logic with the server"; the only thing absent server-side is the tiny interpreter. Level is a pure function of (XP, curve), and after sync both sides agree on XP and the server published the curve — so the two copies converge by construction. A new Gradle module for 15 stable lines (with an existing golden test) is over-engineering; the trigger to extract one would be the math growing non-trivial or a third consumer appearing, neither of which holds. The earlier "crosses a module boundary, needs a human call" framing in the todo overstated it.
+
+**Why defer:** Per [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md), the model is client-grant-optimistically + idempotent now, server-derive when stakes rise. Today's exposure: `/v1/me/wallet/sync` applies the client's chip delta with only a no-below-zero guard, and `/v1/me/grants/level-cosmetic/{id}` gates by product allowlist but not by level reached — so a tampered client can mint level rewards. For **play money with no cash-out** that's self-harm only; it becomes a real fairness problem when leagues/leaderboards consume the totals. Idempotency (the non-skippable rule) is already in place, and the V1 schemas mirror the eventual server tables, so the deferral costs nothing structurally.
+
+**The fix, when triggered:** on progression-sync the server derives level from its reconciled `total_xp` against the curve it already serves, grants `levelup_<level>` rewards itself (idempotent), ignores/caps client-claimed amounts; the client keeps granting optimistically and the two reconcile on the idempotency key.
+
+**Status:** Deferred (`todo.md` — Stats & progression, gated on leagues). No work now.

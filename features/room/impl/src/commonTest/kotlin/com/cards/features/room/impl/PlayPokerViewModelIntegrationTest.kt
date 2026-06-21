@@ -208,6 +208,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         val vm = PlayPokerViewModel(
             sessionFactory = factory,
             progressionRepository = progression,
+            progressionConfig = FakeProgressionConfig(),
             achievementRepository = achievements,
             appCache = appCache,
             equipmentRepository = FakeEquipmentRepository(),
@@ -289,8 +290,11 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
         override fun humanSeatIndex(state: GameState): Int =
             state.seats.firstOrNull { !it.isBot }?.index ?: 0
 
-        override fun occupantsFor(state: GameState): List<SeatOccupant> =
-            state.seats.map { seat -> seatToOccupant(seat, personality = null) }
+        override fun occupantsFor(
+            state: GameState,
+            curve: com.dangerfield.cards.libraries.cards.LevelCurve,
+        ): List<SeatOccupant> =
+            state.seats.map { seat -> seatToOccupant(seat, personality = null, curve) }
 
         override fun tableFor(
             state: GameState,
@@ -298,6 +302,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             lastActionBySeat: Map<Int, PlayerAction>,
             humanProfile: Profile.Authenticated?,
             humanLevel: Int?,
+            curve: com.dangerfield.cards.libraries.cards.LevelCurve,
         ): TableUiState = TableUiState.fromGameState(
             gameState = state,
             humanSeatIndex = state.seats.firstOrNull { !it.isBot }?.index ?: 0,
@@ -306,6 +311,7 @@ class PlayPokerViewModelIntegrationTest : CoroutineTest() {
             lastActionBySeat = lastActionBySeat,
             humanProfile = humanProfile,
             humanLevel = humanLevel,
+            curve = curve,
         )
     }
 }
