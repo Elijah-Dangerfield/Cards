@@ -129,7 +129,7 @@ fun Application.installApp(
         messageRoutes(component.userMessageRepository, component.provideClock())
         avatarRoutes()
         equipmentRoutes(component.equipmentRepository)
-        friendsRoutes(component.friendRepository)
+        friendsRoutes(component.friendRepository, component.recentOpponentsRepository)
         recentOpponentsRoutes(component.recentOpponentsRepository)
         roomRoutes(component.roomService, component.profileRepository)
         roomSocketRoutes(

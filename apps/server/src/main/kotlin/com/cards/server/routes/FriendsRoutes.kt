@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.routes
 
 import com.dangerfield.cards.server.domain.FriendRepository
+import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RespondResult
 import com.dangerfield.cards.server.domain.SendRequestResult
 import com.dangerfield.cards.server.domain.UserId
@@ -29,12 +30,16 @@ import io.ktor.server.routing.post
  * - `GET /v1/friends` — the caller's accepted friends.
  * - `GET /v1/friends/requests` — the caller's pending inbound requests.
  *
- * **Not yet enforced:** the product rule that you may only friend ids the
- * recently-played-with shelf surfaced — that gate needs the server-side
- * recently-played-with record, which doesn't exist yet (separate todo). Until
- * it lands these endpoints accept any valid user id.
+ * **The recently-played-with gate:** `POST /v1/friends/requests` rejects with
+ * `403 not_played_with` unless [recentOpponents] shows the caller has shared a
+ * multiplayer hand with the target — the product rule that the only way to
+ * friend someone is the recently-played-with shelf. A self-request skips the
+ * gate so it still surfaces the clearer `400 self_request`.
  */
-fun Route.friendsRoutes(friends: FriendRepository) {
+fun Route.friendsRoutes(
+    friends: FriendRepository,
+    recentOpponents: RecentOpponentsRepository,
+) {
     authenticate(SUPABASE_JWT_AUTH) {
         rateLimit(RateLimitName(FRIEND_REQUEST_LIMIT)) {
             post("/v1/friends/requests") {
@@ -44,6 +49,16 @@ fun Route.friendsRoutes(friends: FriendRepository) {
                         HttpStatusCode.BadRequest,
                         friendsProblem("invalid_user_id", "User id must be a valid UUID."),
                     )
+
+                if (me != target && !recentOpponents.hasPlayedWith(me, target)) {
+                    return@post call.respond(
+                        HttpStatusCode.Forbidden,
+                        friendsProblem(
+                            "not_played_with",
+                            "You can only friend someone you've played with.",
+                        ),
+                    )
+                }
 
                 when (friends.sendRequest(from = me, to = target)) {
                     SendRequestResult.Sent,

@@ -3,6 +3,7 @@ package com.dangerfield.cards.server.routes
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.dangerfield.cards.server.domain.FriendRepository
+import com.dangerfield.cards.server.domain.RecentOpponentsRepository
 import com.dangerfield.cards.server.domain.RespondResult
 import com.dangerfield.cards.server.domain.SendRequestResult
 import com.dangerfield.cards.server.domain.UserId
@@ -75,8 +76,46 @@ class FriendsRoutesTest {
     @Test
     fun sendRequest_returns400_onSelfRequest() = runTest {
         val repo = FakeFriendRepo(sendResult = SendRequestResult.SelfRequest)
-        callPost(repo, "/v1/friends/requests", body = """{"userId":"$other"}""", bearer = validJwt()) { resp ->
+        // The self-request body carries the caller's own id; the gate is skipped
+        // for self so the clearer 400 still surfaces even with no played-with row.
+        callPost(
+            repo,
+            "/v1/friends/requests",
+            body = """{"userId":"${userId.value}"}""",
+            bearer = validJwt(),
+            recent = FakeRecentOpponents(hasPlayed = false),
+        ) { resp ->
             assertEquals(HttpStatusCode.BadRequest, resp.status)
+        }
+    }
+
+    @Test
+    fun sendRequest_returns403_whenNotPlayedWith() = runTest {
+        val repo = FakeFriendRepo(sendResult = SendRequestResult.Sent)
+        callPost(
+            repo,
+            "/v1/friends/requests",
+            body = """{"userId":"$other"}""",
+            bearer = validJwt(),
+            recent = FakeRecentOpponents(hasPlayed = false),
+        ) { resp ->
+            assertEquals(HttpStatusCode.Forbidden, resp.status)
+            assertEquals(0, repo.sendCalls, "a stranger never reaches the friend repo")
+        }
+    }
+
+    @Test
+    fun sendRequest_succeeds_whenPlayedWith() = runTest {
+        val repo = FakeFriendRepo(sendResult = SendRequestResult.Sent)
+        callPost(
+            repo,
+            "/v1/friends/requests",
+            body = """{"userId":"$other"}""",
+            bearer = validJwt(),
+            recent = FakeRecentOpponents(hasPlayed = true),
+        ) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(userId to other, repo.lastSend)
         }
     }
 
@@ -203,6 +242,15 @@ class FriendsRoutesTest {
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
 
+    private class FakeRecentOpponents(
+        private val hasPlayed: Boolean = true,
+    ) : RecentOpponentsRepository {
+        override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId) = Unit
+        override suspend fun listRecent(userId: UserId, limit: Int): List<UserId> = emptyList()
+        override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = hasPlayed
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
     private fun validJwt(): String = JWT.create()
         .withIssuer(testIssuer)
         .withAudience("authenticated")
@@ -221,6 +269,7 @@ class FriendsRoutesTest {
         path: String,
         body: String? = null,
         bearer: String?,
+        recent: RecentOpponentsRepository = FakeRecentOpponents(hasPlayed = true),
         assert: suspend (HttpResponse) -> Unit,
     ) {
         testApplication {
@@ -229,7 +278,7 @@ class FriendsRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { friendsRoutes(repo) }
+                routing { friendsRoutes(repo, recent) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -257,7 +306,7 @@ class FriendsRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { friendsRoutes(repo) }
+                routing { friendsRoutes(repo, FakeRecentOpponents(hasPlayed = true)) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
