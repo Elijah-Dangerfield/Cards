@@ -134,8 +134,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
   **Acceptance:** "Find a table" holds seats and matches at the chosen buy-in, then lands a real Lobby (open table) or NextRound (mid-hand). Searching shows live found-count and a working Cancel that releases held seats.
   **Hints:** [`RoomsFeatureEntryPoint`](../features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/RoomsFeatureEntryPoint.kt); the public screens are stateless today (no `:libraries:rooms` dep yet).
 
-- **`[P2]` Wire MatchmakingRadar reduce-motion.** Hardcoded `false` today; source it from a platform accessibility reduce-motion signal. The primitive already renders a static end-state when `true`.
-
 - **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code.
 
 ---
