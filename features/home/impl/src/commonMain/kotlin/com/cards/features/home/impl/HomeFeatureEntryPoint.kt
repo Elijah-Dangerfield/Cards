@@ -28,6 +28,8 @@ import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.LevelUpRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
+import com.dangerfield.cards.features.lobby.PrivateCreateRoute
+import com.dangerfield.cards.features.lobby.PrivateJoinRoute
 import com.dangerfield.cards.features.rooms.PublicFindRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsRoute
@@ -218,15 +220,13 @@ class HomeFeatureEntryPoint(
 
             if (showPrivateSheet) {
                 PrivateChooseSheet(
-                    // Transitional routing — Chunk 3 swaps these for the
-                    // dedicated Create-rules + Join-keypad screens.
                     onCreate = {
                         showPrivateSheet = false
-                        router.navigate(LobbyRoute(autoCreate = true))
+                        router.navigate(PrivateCreateRoute())
                     },
                     onJoin = {
                         showPrivateSheet = false
-                        router.navigate(LobbyRoute())
+                        router.navigate(PrivateJoinRoute())
                     },
                     onDismiss = { showPrivateSheet = false },
                 )

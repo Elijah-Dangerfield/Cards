@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
+import com.dangerfield.cards.features.lobby.PrivateCreateRoute
+import com.dangerfield.cards.features.lobby.PrivateJoinRoute
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.libraries.navigation.FeatureEntryPoint
 import com.dangerfield.cards.libraries.navigation.Router
@@ -26,6 +28,21 @@ class LobbyFeatureEntryPoint(
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
+        // Private create/join front-ends (SPEC §6–7). Thin screens that
+        // funnel into the seated lobby below via autoCreate / prefilledCode.
+        screen<PrivateCreateRoute> {
+            PrivateCreateScreen(
+                onBack = { router.goBack() },
+                onCreate = { router.navigate(LobbyRoute(autoCreate = true)) },
+            )
+        }
+        screen<PrivateJoinRoute> {
+            PrivateJoinScreen(
+                onBack = { router.goBack() },
+                onJoin = { code -> router.navigate(LobbyRoute(prefilledCode = code)) },
+            )
+        }
+
         screen<LobbyRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<LobbyRoute>()
             val viewModel: LobbyViewModel = viewModel {

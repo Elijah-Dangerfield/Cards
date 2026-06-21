@@ -80,6 +80,25 @@
     <string name="lobby_topbar_title_idle">Play with friends</string>
     <string name="lobby_topbar_title_in_room">Game room</string>
 
+    <!-- Private — Create-a-room screen (SPEC §6). -->
+    <string name="private_create_title">Create a room</string>
+    <string name="private_create_room_name_label">Room name</string>
+    <string name="private_create_default_room_name">Your table</string>
+    <string name="private_create_rules_label">Table rules</string>
+    <string name="private_create_stakes_label">Stakes</string>
+    <string name="private_create_stakes_value">25 / 50</string>
+    <string name="private_create_starting_stack_label">Starting stack</string>
+    <string name="private_create_starting_stack_value">5,000</string>
+    <string name="private_create_max_players_label">Max players</string>
+    <string name="private_create_invite_note">Invite only. You\'ll get a code to share once it\'s created.</string>
+    <string name="private_create_cta">Create room</string>
+
+    <!-- Private — Join-by-code screen (SPEC §7). Codes are 6-char alphanumeric. -->
+    <string name="private_join_title">Join a room</string>
+    <string name="private_join_heading">Enter room code</string>
+    <string name="private_join_helper">Ask the host for their 6-character code.</string>
+    <string name="private_join_cta">Join room</string>
+
     <!-- Lobby — Idle (no room yet): hero copy + create + join affordances. -->
     <string name="lobby_idle_subtitle">Start a new room and share the code — or type a friend's code to join theirs.</string>
     <string name="lobby_idle_create_button">Create a room</string>
