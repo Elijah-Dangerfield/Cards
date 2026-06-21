@@ -1,5 +1,6 @@
 package com.dangerfield.cards.libraries.identity.impl.profile
 
+import app.cash.turbine.test
 import com.dangerfield.cards.libraries.cards.Session
 import com.dangerfield.cards.libraries.cards.SessionStartReason
 import com.dangerfield.cards.libraries.cards.SessionTracker
@@ -24,6 +25,7 @@ import com.dangerfield.cards.libraries.identity.impl.ProfileApi
 import com.dangerfield.cards.libraries.identity.impl.auth.PendingGuestAccountStore
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileEditRejection
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import com.dangerfield.cards.libraries.storage.Cache
 import com.dangerfield.cards.libraries.storage.CacheFactory
@@ -254,10 +256,10 @@ class ProfileRepositoryImplTest : CoroutineTest() {
     // ---------- update ----------
 
     @Test
-    fun update_sessionless_withCachedRealAccount_returnsNotSignedIn() = runUnitTest {
-        // A real (claimed) account that's merely offline shows as cached
-        // Authenticated; an offline edit can't be applied without a session and
-        // must NOT be mistaken for the guest-identity queue path.
+    fun update_sessionless_withCachedRealAccount_queuesOptimisticallyAndOutbox() = runUnitTest {
+        // A real (claimed) account that's merely offline: the edit applies
+        // optimistically and is queued in the profile-edit outbox to PATCH when
+        // a session returns — NOT routed to the guest-identity path.
         val cache = newProfileCache()
         cache.writeAuthenticated(
             Profile.Authenticated(
@@ -270,12 +272,93 @@ class ProfileRepositoryImplTest : CoroutineTest() {
                 createdAt = kotlin.time.Instant.fromEpochMilliseconds(0),
             ),
         )
+        val editStore = PendingProfileEditStore(InMemoryCacheFactory)
         val auth = FakeAuthRepository().also { it.emit(AuthState.Unauthenticated()) }
-        val repo = build(auth, FakeProfileApi(), cache)
+        val repo = build(auth, FakeProfileApi(), cache, pendingProfileEditStore = editStore)
         advanceUntilIdle()
 
         val outcome = repo.update(displayName = "NewName")
-        assertIs<UpdateProfileOutcome.NotSignedIn>(outcome)
+        assertIs<UpdateProfileOutcome.Queued>(outcome)
+        // Optimistic emit shows the new name immediately.
+        assertEquals("NewName", (repo.observe().first() as Profile.Authenticated).displayName)
+        // Queued in the outbox for the flush.
+        assertEquals("NewName", editStore.read()?.displayName)
+    }
+
+    @Test
+    fun queuedEdit_flushesOnAuthReturn_thenClearsOutbox() = runUnitTest {
+        // Edit offline → queued. When auth returns, resolve GETs server truth and
+        // PATCHes the queued edit on top, emitting the confirmed profile.
+        val cache = newProfileCache()
+        cache.writeAuthenticated(SAMPLE_CACHED_PROFILE)
+        val editStore = PendingProfileEditStore(InMemoryCacheFactory)
+        val api = FakeProfileApi(
+            meResult = Result.success(SAMPLE_ME),
+            patchResult = Result.success(SAMPLE_ME.copy(displayName = "Renamed")),
+        )
+        val auth = FakeAuthRepository().also { it.emit(AuthState.Unauthenticated()) }
+        val repo = build(auth, api, cache, pendingProfileEditStore = editStore)
+        advanceUntilIdle()
+
+        assertIs<UpdateProfileOutcome.Queued>(repo.update(displayName = "Renamed"))
+        assertEquals("Renamed", editStore.read()?.displayName)
+
+        // Session returns.
+        auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
+        advanceUntilIdle()
+
+        assertEquals("Renamed", api.lastPatchRequest?.displayName, "flush PATCHed the queued edit")
+        assertEquals("Renamed", (repo.observe().first() as Profile.Authenticated).displayName)
+        assertNull(editStore.read(), "outbox cleared after a confirmed flush")
+    }
+
+    @Test
+    fun queuedEdit_flushRejection_revertsAndEmitsRejection() = runUnitTest {
+        // The name got taken while offline. On flush the server 409s: the queue
+        // clears (it can't succeed), the value reverts to server truth, and a
+        // rejection is surfaced for the UI to show "couldn't save your name."
+        val cache = newProfileCache()
+        cache.writeAuthenticated(SAMPLE_CACHED_PROFILE)
+        val editStore = PendingProfileEditStore(InMemoryCacheFactory)
+        val api = FakeProfileApi(
+            meResult = Result.success(SAMPLE_ME), // server truth: "Alice"
+            patchResult = Result.failure(clientResponseException(HttpStatusCode.Conflict)),
+        )
+        val auth = FakeAuthRepository().also { it.emit(AuthState.Unauthenticated()) }
+        val repo = build(auth, api, cache, pendingProfileEditStore = editStore)
+        advanceUntilIdle()
+        repo.update(displayName = "Taken")
+        advanceUntilIdle()
+
+        repo.observeEditRejections().test {
+            auth.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
+            assertEquals(ProfileEditRejection.DisplayNameTaken, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertNull(editStore.read(), "a rejected edit is dropped, not retried forever")
+        assertEquals("Alice", (repo.observe().first() as Profile.Authenticated).displayName, "reverted to server truth")
+    }
+
+    @Test
+    fun update_authed_transientNetworkFailure_queuesInsteadOfRollingBack() = runUnitTest {
+        // Online but the PATCH itself failed (flaky network): keep the optimistic
+        // value and queue it, rather than losing the edit.
+        val cache = newProfileCache()
+        val editStore = PendingProfileEditStore(InMemoryCacheFactory)
+        val api = FakeProfileApi(
+            meResult = Result.success(SAMPLE_ME),
+            patchResult = Result.failure(RuntimeException("network down")),
+        )
+        val auth = FakeAuthRepository().also {
+            it.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = "a@b.com"))
+        }
+        val repo = build(auth, api, cache, pendingProfileEditStore = editStore)
+        advanceUntilIdle()
+
+        val outcome = repo.update(displayName = "Renamed")
+        assertIs<UpdateProfileOutcome.Queued>(outcome)
+        assertEquals("Renamed", (repo.observe().first() as Profile.Authenticated).displayName, "optimistic value kept")
+        assertEquals("Renamed", editStore.read()?.displayName, "queued for retry")
     }
 
     @Test
@@ -363,7 +446,10 @@ class ProfileRepositoryImplTest : CoroutineTest() {
     }
 
     @Test
-    fun update_genericNetworkFailure_returnsNetworkError() = runUnitTest {
+    fun update_genericNetworkFailure_queuesForRetry() = runUnitTest {
+        // Offline-first: a transient network failure on the PATCH no longer
+        // discards the edit — it queues for flush on the next reconnect.
+        val editStore = PendingProfileEditStore(InMemoryCacheFactory)
         val auth = FakeAuthRepository().also {
             it.emit(AuthState.Authenticated(userId = "u1", isAnonymous = false, email = null))
         }
@@ -371,11 +457,12 @@ class ProfileRepositoryImplTest : CoroutineTest() {
             meResult = Result.success(SAMPLE_ME),
             patchResult = Result.failure(RuntimeException("no network")),
         )
-        val repo = build(auth, api)
+        val repo = build(auth, api, pendingProfileEditStore = editStore)
         advanceUntilIdle()
 
         val outcome = repo.update(displayName = "Whatever")
-        assertIs<UpdateProfileOutcome.NetworkError>(outcome)
+        assertIs<UpdateProfileOutcome.Queued>(outcome)
+        assertEquals("Whatever", editStore.read()?.displayName)
     }
 
     // ---------- fetchAvatarPack ----------
@@ -523,6 +610,7 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         avatarPackCache: AvatarPackCache = AvatarPackCache(InMemoryCacheFactory),
         sessionTracker: SessionTracker = FixedSessionTracker(id = 1L),
         pendingGuestAccountStore: PendingGuestAccountStore = PendingGuestAccountStore(InMemoryCacheFactory),
+        pendingProfileEditStore: PendingProfileEditStore = PendingProfileEditStore(InMemoryCacheFactory),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
     ): ProfileRepositoryImpl = ProfileRepositoryImpl(
         authRepository = auth,
@@ -531,6 +619,7 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         avatarPackCache = avatarPackCache,
         sessionTracker = sessionTracker,
         pendingGuestAccountStore = pendingGuestAccountStore,
+        pendingProfileEditStore = pendingProfileEditStore,
         clock = clock,
         appScope = AppCoroutineScope(dispatchers),
     )

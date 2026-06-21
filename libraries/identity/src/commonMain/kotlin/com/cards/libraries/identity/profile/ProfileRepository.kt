@@ -53,6 +53,33 @@ interface ProfileRepository {
 
     /** Fetch the curated starter emoji pack so the avatar picker can render. */
     suspend fun fetchAvatarPack(): AvatarPackOutcome
+
+    /**
+     * Attempt to flush a queued offline edit (see [UpdateProfileOutcome.Queued])
+     * now, if a session is available. Best-effort + idempotent — a no-op when
+     * nothing's queued or still offline. Driven by the warm-foreground /
+     * connectivity-regained triggers so a stuck edit isn't stranded when auth
+     * never re-emits (e.g. the session stayed valid but a PATCH failed). Default
+     * no-op so test fakes needn't implement it.
+     */
+    suspend fun flushPendingEdits() {}
+
+    /**
+     * Rejections surfaced when a **queued** offline edit is flushed and the
+     * server refuses it (the display name was taken while you were offline, or
+     * is invalid). The optimistic value is reverted; a global surface shows the
+     * user a "couldn't save your name" message so the silent revert isn't
+     * confusing. Default empty so fakes needn't implement it.
+     */
+    fun observeEditRejections(): Flow<ProfileEditRejection> = kotlinx.coroutines.flow.emptyFlow()
+}
+
+/** Why a flushed offline edit was refused by the server. Drives a user message. */
+enum class ProfileEditRejection {
+    DisplayNameTaken,
+    InvalidDisplayName,
+    InvalidAvatarEmoji,
+    InvalidAvatarBackgroundColor,
 }
 
 /**
