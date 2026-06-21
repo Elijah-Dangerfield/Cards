@@ -128,17 +128,15 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
   **Acceptance:** "Find a table" holds seats and matches at the chosen buy-in, then lands a real Lobby (open table) or NextRound (mid-hand). Searching shows live found-count and a working Cancel that releases held seats.
   **Hints:** [`RoomsFeatureEntryPoint`](../features/rooms/impl/src/commonMain/kotlin/com/cards/features/rooms/impl/RoomsFeatureEntryPoint.kt); the public screens are stateless today (no `:libraries:rooms` dep yet).
 
-- **`[P1]` Add-a-bot in the private host lobby (SPEC §3).** **Problem:** `RoomSeat` ships the `addBot` variant but it's never passed `true`; bots aren't a thing yet.
-  **Acceptance:** host taps an empty seat's "Add a bot" to seat a bot (teal BOT badge, robot avatar), with the hint line under the grid; bots count toward "Players N/max" and the "Deal hand" CTA. Host/private only.
-  **Hints:** pass `addBot = isHost && seat == null` in `LobbyScreen.InRoomContent`; add a robot avatar face.
+- _Shipped (2026-06-21)._ **Add-a-bot in the private host lobby** — host seats backend-driven bots (🤖 + BOT badge), they count toward N/max + the deal CTA, and play server-side. See PR #59 / `ServerBotDriver`.
 
 - **`[P2]` Wire MatchmakingRadar reduce-motion.** Hardcoded `false` today; source it from a platform accessibility reduce-motion signal. The primitive already renders a static end-state when `true`.
 
-- **`[P2]` Real Share-invite in the private lobby.** "Share invite" copies the code to clipboard (with a snackbar) as a placeholder; wire a cross-platform share sheet so it opens the OS share UI.
+- **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code.
 
-- **`[P2]` Plumb private Create rules.** Stakes / starting stack / max players on the Create screen are presentational; thread the chosen values into room creation (route → `LobbyViewModel` → server), which currently ignores them.
+- **`[P2]` Plumb private Create buy-in / stakes.** Max players is now threaded (Create → `LobbyRoute.maxSeats` → `LobbyViewModel` → `createRoom`). Buy-in / starting stack / blinds are still presentational — thread a chosen buy-in (slider bounded by chip balance) through room creation and use it server-side at hand start instead of `RoomSettings.Default`.
 
-- **`[P2]` Pass avatar data into *other* MP lobby seats.** The local player's seat now renders their real avatar (threaded from `ProfileRepository`), but remote members fall back to a name initial because `RoomMember` carries no emoji/avatar color. Thread per-member avatar through the room model + socket payload.
+- _Shipped (2026-06-21)._ **Avatar data into other MP lobby seats** — `RoomMemberDto` now carries `avatarEmoji`/`avatarBackgroundColor` for every member and the lobby renders them (landed alongside the backend-bots avatar work).
 
 - **`[P1]` Restore the shake → Network inspector debug button.** It's not wired into the current `ShakeDialog` (only feedback + dismiss); the wiretap interceptor lib (`:libraries:networking`) is still present but there's no inspector route/screen on `develop`. Re-add the inspector destination and a button in [`ShakeDialog`](../libraries/ui/src/commonMain/kotlin/com/cards/libraries/ui/components/dialog/ShakeDialog.kt) / [`ShakeDialogEntryPoint`](../apps/compose/src/commonMain/kotlin/com/cards/ShakeDialogEntryPoint.kt) (debug builds only). Check the `feat/mp-chip-economy` branch for the original.
 

@@ -658,9 +658,11 @@ class LobbyViewModelTest : CoroutineTest() {
         identity: AuthRepository = AlwaysSignedInAuth(),
         prefilledCode: String? = null,
         autoCreate: Boolean = false,
+        maxSeats: Int? = null,
     ): LobbyViewModel = LobbyViewModel(
         prefilledCode = prefilledCode,
         autoCreate = autoCreate,
+        maxSeats = maxSeats,
         rooms = rooms,
         auth = identity,
         profile = NoProfileRepository,

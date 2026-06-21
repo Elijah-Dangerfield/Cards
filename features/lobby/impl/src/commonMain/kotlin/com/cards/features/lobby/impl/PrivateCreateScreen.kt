@@ -62,7 +62,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun PrivateCreateScreen(
     onBack: () -> Unit,
-    onCreate: () -> Unit,
+    onCreate: (maxPlayers: Int) -> Unit,
 ) {
     var maxPlayers by remember { mutableStateOf(6) }
     Screen(
@@ -126,25 +126,15 @@ fun PrivateCreateScreen(
                 )
             }
 
-            Spacer(Modifier.height(Dimension.D800))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(Radii.R700.shape)
-                    .background(AppTheme.colors.accentPrimarySubtle.color)
-                    .border(1.dp, AppTheme.colors.accentPrimary.withAlpha(0.28f).color, Radii.R700.shape)
-                    .padding(Dimension.D600),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(Res.string.private_create_invite_note),
-                    typography = AppTheme.typography.Body.B400,
-                    color = AppTheme.colors.contentSecondary,
-                )
-            }
+            Spacer(Modifier.height(Dimension.D600))
+            Text(
+                text = stringResource(Res.string.private_create_invite_note),
+                typography = AppTheme.typography.Body.B400,
+                color = AppTheme.colors.contentSecondary,
+            )
 
             Spacer(Modifier.weight(1f))
-            ButtonPrimary(onClick = onCreate, modifier = Modifier.fillMaxWidth()) {
+            ButtonPrimary(onClick = { onCreate(maxPlayers) }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(Res.string.private_create_cta))
             }
             Spacer(Modifier.height(Dimension.D800))

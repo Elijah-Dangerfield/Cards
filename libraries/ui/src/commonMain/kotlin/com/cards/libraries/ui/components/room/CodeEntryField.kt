@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -91,9 +92,16 @@ fun CodeEntryField(
                 // Invisible editing surface — keeps input/cursor wired while the
                 // cells below are the visible representation.
                 Box(Modifier.size(0.dp)) { innerTextField() }
-                Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D500)) {
+                // Cells flex to share the available width so the field fits any
+                // [length] on a phone — fixed-width cells overflowed off-screen
+                // at 6 (the real room-code length), hiding the last one.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Dimension.D300),
+                ) {
                     repeat(length) { i ->
                         CodeCell(
+                            modifier = Modifier.weight(1f),
                             char = value.getOrNull(i),
                             active = i == value.length.coerceAtMost(length - 1) && value.length < length,
                         )
@@ -109,15 +117,15 @@ fun CodeEntryField(
 }
 
 @Composable
-private fun CodeCell(char: Char?, active: Boolean) {
+private fun CodeCell(char: Char?, active: Boolean, modifier: Modifier = Modifier) {
     val borderColor = when {
         char != null -> AppTheme.colors.accentPrimary
         active -> AppTheme.colors.accentPrimary
         else -> AppTheme.colors.border
     }
     Box(
-        modifier = Modifier
-            .size(width = 62.dp, height = 76.dp)
+        modifier = modifier
+            .height(76.dp)
             .clip(Radii.R700.shape)
             .background(
                 if (char != null) AppTheme.colors.accentPrimarySubtle.color else AppTheme.colors.surface.color,

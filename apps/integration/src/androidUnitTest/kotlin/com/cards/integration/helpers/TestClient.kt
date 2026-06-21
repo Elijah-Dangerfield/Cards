@@ -64,10 +64,15 @@ class TestClient(
     }
 
     /** Build the real lobby VM for this user. Mirrors how the entry point constructs it. */
-    fun lobbyVm(prefilledCode: String? = null, autoCreate: Boolean = false): LobbyViewModel =
+    fun lobbyVm(
+        prefilledCode: String? = null,
+        autoCreate: Boolean = false,
+        maxSeats: Int? = null,
+    ): LobbyViewModel =
         LobbyViewModel(
             prefilledCode = prefilledCode,
             autoCreate = autoCreate,
+            maxSeats = maxSeats,
             rooms = repository,
             auth = FakeAuthRepository(userId),
             profile = NoProfileRepository,
