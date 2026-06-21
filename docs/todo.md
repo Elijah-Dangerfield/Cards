@@ -99,8 +99,7 @@ Home exposes three surfaces that need this system to work: the friends strip wit
 
 **Locked rule:** the only way to friend someone is the "recently played with" shelf — no search-by-handle, no suggestions. Empty states must say so.
 
-- `[P0]` **Friend graph — server schema + endpoints.** Tables: `friend_relations(user_a, user_b, state, created_at)`, `state ∈ {requested, accepted, blocked}`, `user_a` = lexicographically smaller id (row unique regardless of direction). Endpoints: `POST /v1/friends/requests`, `POST /v1/friends/requests/{id}/accept|decline|block`, `GET /v1/friends`, `GET /v1/friends/requests`. Rate-limit outbound requests/day; block dominates accept/decline.
-  **Hard dep:** only ids surfaced by the recently-played-with shelf can be friended (next item).
+- `[P0]` **Friend graph — enforce the recently-played-with gate.** The schema + endpoints shipped (`friend_relations`, `POST /v1/friends/requests[/{id}/accept|decline|block]`, `GET /v1/friends[/requests]`, per-IP request rate-limit, block dominance). The one unbuilt piece is the product rule that you may only friend ids the recently-played-with shelf surfaced — `POST /v1/friends/requests` currently accepts any valid user id. **Blocked on:** the server-side recently-played-with record (next item); once that lands, gate the send-request path against it (reject with `403` otherwise).
 
 - `[P0]` **Recently-played-with tracking.** Server records the human seats at every MP hand a user finishes; client `RecentOpponentsRepository.observeRecent(limit = 10)` returns deduped most-recent-first; bots excluded server-side.
   **Acceptance:** [`RecentlyPlayedWithStrip.kt`](../features/home/impl/src/commonMain/kotlin/com/cards/features/home/impl/RecentlyPlayedWithStrip.kt) renders real data and add-friend works end-to-end.

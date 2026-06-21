@@ -25,6 +25,13 @@ If a later decision supersedes an older one, mark the old one `Superseded by YYY
 
 ---
 
+## 2026-06-20 — Friend graph: one canonical-pair row + an `acted_by` direction marker
+
+**Decision:** Model `friend_relations` as one row per *unordered* user pair — `user_a` is always the lexicographically smaller UUID (a DB `CHECK (user_a < user_b)` enforces it) — with `state ∈ {requested, accepted, blocked}` and an extra `acted_by` column recording the user who set the current state (the request sender, the blocker). The repository canonicalises every pair before reading/writing by comparing the lowercase-hex UUID string, which orders identically to Postgres's `uuid <` operator.
+**Why:** The spec required the row to be "unique regardless of direction" (no both-(x,y)-and-(y,x)). A single canonical row satisfies that, but then nothing records who requested whom or who blocked whom — which the inbox ("requests *to* me") and block semantics both need. `acted_by` is the minimal addition that restores direction without a second row. Comparing UUID *strings* (not `java.util.UUID.compareTo`, which is signed-bits) is what keeps the Kotlin canonicalisation in lockstep with the SQL `CHECK` — get this wrong and you get either duplicate-direction rows or constraint violations.
+**Alternatives considered:** *Two directed rows per pair* — rejected: breaks the uniqueness requirement and doubles every read. *No direction column, infer from a separate requests table* — rejected: a second table for what one column carries. *`UUID.compareTo` for canonical order* — rejected: its signed-long comparison disagrees with Postgres `uuid <` for high-bit ids, silently desyncing app and DB.
+**Status:** Locked. (Schema + endpoints shipped; the recently-played-with send gate is the one remaining slice, blocked on the recently-played-with record.)
+
 ## 2026-06-19 — TODO-grooming pass: resolve a batch of deferred product decisions
 
 This entry records several directional calls made in one grooming pass so future agents don't

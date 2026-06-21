@@ -222,6 +222,23 @@ object RoomSessionsTable : Table("room_sessions") {
 }
 
 /**
+ * Friend graph. One row per *unordered pair* of users — `userA` is always the
+ * lexicographically smaller UUID, `userB` the larger, so a relation is unique
+ * regardless of direction. `state` is the pair lifecycle (requested / accepted
+ * / blocked) and `actedBy` carries the direction the canonical pair can't (the
+ * sender of a request, the blocker of a block). See `V61__friend_relations.sql`.
+ */
+object FriendRelationsTable : Table("friend_relations") {
+    val userA = uuid("user_a")
+    val userB = uuid("user_b")
+    val state = text("state")
+    val actedBy = uuid("acted_by")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+    override val primaryKey = PrimaryKey(userA, userB)
+}
+
+/**
  * Per-user in-app messages. Authored by admins, delivered as either a
  * dialog (modal pop on foreground) or an inbox row (passive entry in
  * the Notifications screen). Acked exactly once; expiry filters out

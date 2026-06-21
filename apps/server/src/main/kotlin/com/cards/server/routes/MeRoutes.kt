@@ -5,6 +5,7 @@ import com.dangerfield.cards.server.domain.AchievementRepository
 import com.dangerfield.cards.server.domain.AvatarPacks
 import com.dangerfield.cards.server.domain.AvatarPalette
 import com.dangerfield.cards.server.domain.DeleteUserResult
+import com.dangerfield.cards.server.domain.FriendRepository
 import com.dangerfield.cards.server.domain.HandsFinishedRepository
 import com.dangerfield.cards.server.domain.InventoryRepository
 import com.dangerfield.cards.server.domain.OrphanInstallSweep
@@ -81,6 +82,7 @@ fun Route.meRoutes(
     messages: UserMessageRepository,
     rooms: RoomService,
     installSweep: OrphanInstallSweep,
+    friends: FriendRepository,
 ) {
     val app = application
     authenticate(SUPABASE_JWT_AUTH) {
@@ -195,6 +197,7 @@ fun Route.meRoutes(
                         achievements.deleteAllForUser(userId)
                         handsFinished.deleteAllForUser(userId)
                         messages.deleteAllForUser(userId)
+                        friends.deleteAllForUser(userId)
                         repository.delete(userId)
                         call.respond(HttpStatusCode.NoContent)
                     }

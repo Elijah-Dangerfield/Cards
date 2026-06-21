@@ -32,6 +32,7 @@ const val WALLET_WRITE_LIMIT = "wallet-write"
 const val PROGRESSION_WRITE_LIMIT = "progression-write"
 const val ACHIEVEMENTS_WRITE_LIMIT = "achievements-write"
 const val ACHIEVEMENT_GRANT_LIMIT = "achievement-grant"
+const val FRIEND_REQUEST_LIMIT = "friend-request"
 
 fun Application.installRateLimits() {
     install(RateLimit) {
@@ -80,6 +81,18 @@ fun Application.installRateLimits() {
             // with two heavy users still fits comfortably, while a scripted
             // flood gets capped at 2/minute sustained.
             rateLimiter(limit = 120, refillPeriod = 1.hours)
+            requestKey { call -> call.clientIp() }
+        }
+
+        register(RateLimitName(FRIEND_REQUEST_LIMIT)) {
+            // POST /v1/friends/requests is the only outbound write that
+            // targets *another* user, so it's the harassment / spam surface
+            // the friend graph exposes. A real user sends a handful of
+            // requests a day off the recently-played-with shelf; 50/hour/IP
+            // keeps a 10x ceiling over heavy-but-legitimate use while making
+            // scripted friend-spam impractical. Per-IP keying mirrors the
+            // rest of the policy (see file header for the per-user caveat).
+            rateLimiter(limit = 50, refillPeriod = 1.hours)
             requestKey { call -> call.clientIp() }
         }
 

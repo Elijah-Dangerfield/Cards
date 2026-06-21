@@ -305,7 +305,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, rooms, NoOpInstallSweep)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, rooms, NoOpInstallSweep, EmptyFriends)
                 }
             }
             val client = createClient {
@@ -355,7 +355,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, installSweep) }
+                routing { meRoutes(repo, adminClient, inventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, installSweep, EmptyFriends) }
             }
             val client = createClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -380,7 +380,7 @@ class MeRoutesTest {
                 installRateLimits()
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
-                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep) }
+                routing { meRoutes(repo, adminClient, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends) }
             }
             val response = createClient { }.delete("/v1/me") {
                 bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
@@ -402,7 +402,7 @@ class MeRoutesTest {
                 installStatusPages()
                 installAuthenticationWithVerifier(testVerifier)
                 routing {
-                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep)
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends)
                 }
             }
             val client = createClient {
@@ -646,6 +646,31 @@ class MeRoutesTest {
         override suspend fun listEarned(
             userId: UserId,
         ): List<com.dangerfield.cards.server.domain.EarnedAchievement> = emptyList()
+
+        override suspend fun deleteAllForUser(userId: UserId) = Unit
+    }
+
+    private object EmptyFriends : com.dangerfield.cards.server.domain.FriendRepository {
+        override suspend fun sendRequest(
+            from: UserId,
+            to: UserId,
+        ): com.dangerfield.cards.server.domain.SendRequestResult = error("unused")
+
+        override suspend fun accept(
+            me: UserId,
+            other: UserId,
+        ): com.dangerfield.cards.server.domain.RespondResult = error("unused")
+
+        override suspend fun decline(
+            me: UserId,
+            other: UserId,
+        ): com.dangerfield.cards.server.domain.RespondResult = error("unused")
+
+        override suspend fun block(me: UserId, other: UserId) = Unit
+
+        override suspend fun listFriends(userId: UserId): List<UserId> = emptyList()
+
+        override suspend fun listIncomingRequests(userId: UserId): List<UserId> = emptyList()
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
