@@ -917,6 +917,9 @@
     <string name="room_top_bar_hand_info_a11y">Hand info and rankings</string>
     <string name="room_loading_dealing_in">Dealing in…</string>
     <string name="room_practice_tier_bots_present">Practice tier · bots present</string>
+    <string name="room_practice_tier_explainer_title">Practice tier</string>
+    <string name="room_practice_tier_explainer_a11y">What practice tier means</string>
+    <string name="room_practice_tier_explainer_body">This table has bots and not enough humans, so the hand counts as practice. You still earn XP, but only half as much, and multiplayer-only achievements stay locked. Get more humans to the table to play for full credit.</string>
 
     <!-- Tutorial - section labels (basics narration block vs. tableau hands). -->
     <string name="tutorial_section_basics">Basics</string>
