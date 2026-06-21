@@ -20,14 +20,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cards.libraries.resources.generated.resources.Res
-import cards.libraries.resources.generated.resources.home_cta_friend_game_title
+import cards.libraries.resources.generated.resources.home_cta_practice_subtitle_short
 import cards.libraries.resources.generated.resources.home_cta_practice_title
-import cards.libraries.resources.generated.resources.home_cta_quick_match_title
-import cards.libraries.resources.generated.resources.home_play_button
-import cards.libraries.resources.generated.resources.home_play_friend_subtitle
-import cards.libraries.resources.generated.resources.home_play_practice_subtitle
-import cards.libraries.resources.generated.resources.home_play_quick_match_subtitle
+import cards.libraries.resources.generated.resources.home_cta_private_room_title
+import cards.libraries.resources.generated.resources.home_cta_public_rooms_title
+import cards.libraries.resources.generated.resources.home_cta_tournament_subtitle
+import cards.libraries.resources.generated.resources.home_cta_tournament_title
+import cards.libraries.resources.generated.resources.home_play_private_room_subtitle
+import cards.libraries.resources.generated.resources.home_play_public_rooms_button
+import cards.libraries.resources.generated.resources.home_play_public_rooms_subtitle
 import cards.libraries.resources.generated.resources.home_section_play
+import cards.libraries.resources.generated.resources.home_tag_soon
 import com.dangerfield.cards.libraries.cards.LevelProgress
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.ui.PreviewBottomBar
@@ -49,8 +52,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun HomeScreen(
     viewModel: HomeViewModel,
     onPlayBots: () -> Unit,
-    onQuickMatch: () -> Unit,
-    onFriendGame: () -> Unit,
+    onPublicRooms: () -> Unit,
+    onPrivateRoom: () -> Unit,
+    onTournament: () -> Unit,
     onStartTutorial: () -> Unit,
     onTapLevel: () -> Unit,
     onTapCash: () -> Unit,
@@ -93,8 +97,9 @@ fun HomeScreen(
         onStartTutorial = onStartTutorial,
         onDismissTutorialBanner = { viewModel.takeAction(HomeAction.DismissTutorialBanner) },
         onPlayBots = onPlayBots,
-        onQuickMatch = onQuickMatch,
-        onFriendGame = onFriendGame,
+        onPublicRooms = onPublicRooms,
+        onPrivateRoom = onPrivateRoom,
+        onTournament = onTournament,
         onTapLevel = onTapLevel,
         onTapCash = onTapCash,
         onRejoinRoom = onRejoinRoom,
@@ -123,8 +128,9 @@ private fun HomeScreenContent(
     onStartTutorial: () -> Unit = {},
     onDismissTutorialBanner: () -> Unit = {},
     onPlayBots: () -> Unit,
-    onQuickMatch: () -> Unit,
-    onFriendGame: () -> Unit,
+    onPublicRooms: () -> Unit,
+    onPrivateRoom: () -> Unit,
+    onTournament: () -> Unit,
     onTapLevel: () -> Unit,
     onTapCash: () -> Unit,
     onRejoinRoom: (code: String) -> Unit,
@@ -198,34 +204,39 @@ private fun HomeScreenContent(
             VerticalSpacerD1100()
             SectionHeader(title = stringResource(Res.string.home_section_play))
             VerticalSpacerD600()
-            // Practice is the hero — it always works, unlike Quick Match
-            // (matchmaking not built yet). The two smaller options sit below.
-            PlayFeatureCard(
-                title = stringResource(Res.string.home_cta_practice_title),
-                subtitle = stringResource(Res.string.home_play_practice_subtitle),
-                glyph = "♠",
-                accent = FeatureCardAccents.Green,
-                cta = stringResource(Res.string.home_play_button),
-                onClick = onPlayBots,
+            // Rooms-forward home (SPEC §5): Public rooms is the hero (pick a
+            // buy-in, auto-seated), Private room opens the create/join sheet,
+            // and Practice / Tournament sit below as the two smaller tiles.
+            PublicRoomsCard(
+                title = stringResource(Res.string.home_cta_public_rooms_title),
+                subtitle = stringResource(Res.string.home_play_public_rooms_subtitle),
+                cta = stringResource(Res.string.home_play_public_rooms_button),
+                onClick = onPublicRooms,
+            )
+            VerticalSpacerD500()
+            PrivateRoomCard(
+                title = stringResource(Res.string.home_cta_private_room_title),
+                subtitle = stringResource(Res.string.home_play_private_room_subtitle),
+                onClick = onPrivateRoom,
             )
             VerticalSpacerD500()
             Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D500)) {
                 PlayTileCard(
-                    title = stringResource(Res.string.home_cta_quick_match_title),
-                    subtitle = stringResource(Res.string.home_play_quick_match_subtitle),
-                    glyph = "✦",
-                    accent = FeatureCardAccents.Blue,
-                    onClick = onQuickMatch,
+                    title = stringResource(Res.string.home_cta_practice_title),
+                    subtitle = stringResource(Res.string.home_cta_practice_subtitle_short),
+                    glyph = "♠",
+                    accent = FeatureCardAccents.Green,
+                    onClick = onPlayBots,
                     modifier = Modifier.weight(1f),
-                    tag = "Coming soon",
                 )
                 PlayTileCard(
-                    title = stringResource(Res.string.home_cta_friend_game_title),
-                    subtitle = stringResource(Res.string.home_play_friend_subtitle),
-                    glyph = "♣",
-                    accent = FeatureCardAccents.Gold,
-                    onClick = onFriendGame,
+                    title = stringResource(Res.string.home_cta_tournament_title),
+                    subtitle = stringResource(Res.string.home_cta_tournament_subtitle),
+                    glyph = "♛",
+                    accent = FeatureCardAccents.Magenta,
+                    onClick = onTournament,
                     modifier = Modifier.weight(1f),
+                    tag = stringResource(Res.string.home_tag_soon),
                 )
             }
 
@@ -247,8 +258,8 @@ private fun HomeScreenContent(
                 opponents = recentOpponents,
                 onAddFriend = { opponent -> onAddRecentOpponent(opponent.id) },
                 onSeeAll = onSeeAllRecentOpponents,
-                onStartFriendGame = onFriendGame,
-                onStartQuickMatch = onQuickMatch,
+                onStartFriendGame = onPrivateRoom,
+                onStartQuickMatch = onPublicRooms,
             )
 
             VerticalSpacerD1100()
@@ -329,8 +340,9 @@ private fun HomeScreenPreview_FullyHydrated() {
             activeRooms = emptyList(),
             showTutorialBanner = true,
             onPlayBots = {},
-            onQuickMatch = {},
-            onFriendGame = {},
+            onPublicRooms = {},
+            onPrivateRoom = {},
+            onTournament = {},
             onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
@@ -353,8 +365,9 @@ private fun HomeScreenPreview_WithActiveRoom() {
             chips = 10_000,
             activeRooms = listOf(ActiveRoomSummary(code = "ABC123")),
             onPlayBots = {},
-            onQuickMatch = {},
-            onFriendGame = {},
+            onPublicRooms = {},
+            onPrivateRoom = {},
+            onTournament = {},
             onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
@@ -377,8 +390,9 @@ private fun HomeScreenPreview_HydratingFromCold() {
             chips = null,
             activeRooms = emptyList(),
             onPlayBots = {},
-            onQuickMatch = {},
-            onFriendGame = {},
+            onPublicRooms = {},
+            onPrivateRoom = {},
+            onTournament = {},
             onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
@@ -404,8 +418,9 @@ private fun HomeScreenPreview_NoSocialState() {
             chips = 1_000,
             activeRooms = emptyList(),
             onPlayBots = {},
-            onQuickMatch = {},
-            onFriendGame = {},
+            onPublicRooms = {},
+            onPrivateRoom = {},
+            onTournament = {},
             onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},
@@ -435,8 +450,9 @@ private fun HomeScreenPreview_Landscape() {
             activeRooms = emptyList(),
             showTutorialBanner = true,
             onPlayBots = {},
-            onQuickMatch = {},
-            onFriendGame = {},
+            onPublicRooms = {},
+            onPrivateRoom = {},
+            onTournament = {},
             onTapLevel = {},
             onTapCash = {},
             onRejoinRoom = {},

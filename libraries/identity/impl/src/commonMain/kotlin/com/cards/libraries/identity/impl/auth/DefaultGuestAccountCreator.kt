@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -57,23 +59,25 @@ class DefaultGuestAccountCreator(
     private val _state = MutableStateFlow<AccountCreationState>(AccountCreationState.Idle)
     override val state: StateFlow<AccountCreationState> = _state.asStateFlow()
 
+    /**
+     * Serializes *every* mint trigger — onboarding [start], init-resume, the
+     * offline-flip retry, and [ensureSession] (identity self-heal). Whichever
+     * trigger wins the lock mints; the rest enter, see the now-live session, and
+     * collapse to a no-op. Replaces the old `_state`-only guard, which couldn't
+     * stop two triggers from both calling `createGuestSession` and minting two
+     * orphan anonymous accounts.
+     */
+    private val healMutex = Mutex()
+
     init {
         // Resume an owed creation from a previous session (e.g. onboarded
-        // offline). No-op when nothing's pending.
+        // offline). No-op when nothing's pending. The locked core reconciles the
+        // already-authenticated crash-recovery case for us.
         appScope.launch {
             val owed = Catching { pendingStore.read() }.getOrNull() ?: return@launch
-            // Guard against double-creation: if a session already exists (last
-            // session's createGuestSession succeeded but the clear() didn't
-            // persist — e.g. a crash in between), reconcile instead of minting
-            // a second anonymous account.
-            if (authRepository.current() is AuthState.Authenticated) {
-                logger.d { "Owed guest account but already authenticated — clearing without re-creating" }
-                Catching { pendingStore.clear() }.logOnFailure { "Clearing reconciled pending account failed" }
-                _state.value = AccountCreationState.Succeeded
-                return@launch
-            }
             logger.i { "Resuming owed guest-account creation from a prior session" }
-            start(owed)
+            Catching { ensureSessionLocked(preferred = owed) }
+                .logOnFailure { "Resuming owed guest-account creation failed" }
         }
 
         // Heal mid-session: when connectivity returns and a creation is still
@@ -98,28 +102,87 @@ class DefaultGuestAccountCreator(
             return
         }
         logger.d { "start: launching guest-account creation" }
+        // Flip InProgress synchronously so a fast onboarding finish that checks
+        // `state.value != Idle` joins on the result instead of skipping it.
         _state.value = AccountCreationState.InProgress
-        appScope.launch { runCreate(identity) }
+        appScope.launch {
+            Catching { ensureSessionLocked(preferred = identity) }
+                .logOnFailure { "Guest-account creation failed" }
+        }
     }
 
     override fun retry() {
         val failed = _state.value as? AccountCreationState.Failed ?: return
         logger.d { "retry: re-attempting failed guest-account creation" }
-        start(failed.identity)
+        appScope.launch {
+            Catching { ensureSessionLocked(preferred = failed.identity) }
+                .logOnFailure { "Retrying guest-account creation failed" }
+        }
     }
+
+    override suspend fun ensureSession(fallbackIdentity: PendingIdentity): AccountCreationState =
+        ensureSessionLocked(preferred = fallbackIdentity)
 
     override suspend fun awaitTerminal(): AccountCreationState =
         state.first { it is AccountCreationState.Succeeded || it is AccountCreationState.Failed }
 
+    /**
+     * The one guarded place a session gets minted. Under [healMutex]:
+     *  1. A session already exists (we lost the race to another trigger, or last
+     *     session minted but the clear didn't persist) → clear any owed record
+     *     and settle [AccountCreationState.Succeeded]; never mint a second
+     *     anonymous account.
+     *  2. A mint already succeeded this run → done.
+     *  3. Resolve the identity to mint: a durably-owed record (the user's actual
+     *     chosen name/avatar) wins over the caller's [preferred] fallback. If
+     *     neither exists there's nothing to do — leave the state as-is.
+     *  4. Persist the owed record *before* the attempt (un-loseable across a
+     *     process kill), then run the create.
+     */
+    private suspend fun ensureSessionLocked(preferred: PendingIdentity?): AccountCreationState =
+        healMutex.withLock {
+            if (authRepository.current() is AuthState.Authenticated) {
+                logger.d { "ensureSession: session already exists — clearing owed record, no re-create" }
+                Catching { pendingStore.clear() }
+                    .logOnFailure { "Clearing reconciled pending account failed" }
+                _state.value = AccountCreationState.Succeeded
+                return@withLock AccountCreationState.Succeeded
+            }
+            if (_state.value is AccountCreationState.Succeeded) {
+                logger.d { "ensureSession: already succeeded this run — no-op" }
+                return@withLock AccountCreationState.Succeeded
+            }
+            val identity = Catching { pendingStore.read() }.getOrNull() ?: preferred
+            if (identity == null) {
+                logger.d { "ensureSession: nothing owed and no fallback — leaving state ${_state.value::class.simpleName}" }
+                return@withLock _state.value
+            }
+            _state.value = AccountCreationState.InProgress
+            // Persist the owed creation *before* the attempt, on app scope, the
+            // instant we commit. A process kill mid-attempt then still resumes
+            // next launch with the same name/avatar instead of stranding the
+            // user as a permanent Fallback.
+            Catching { pendingStore.set(identity) }
+                .logOnFailure { "Persisting pending guest account failed" }
+            runCreate(identity)
+            _state.value
+        }
+
     private suspend fun runCreate(identity: PendingIdentity) {
-        // Persist the owed creation up front so an app kill mid-attempt still
-        // leaves us able to resume next launch.
-        Catching { pendingStore.set(identity) }.logOnFailure { "Persisting pending guest account failed" }
+        // The owed creation was already persisted by [ensureSessionLocked]
+        // before we got here, so a kill mid-attempt can still resume next launch.
         val next = when (val outcome = authRepository.createGuestSession()) {
             is SignInOutcome.Success -> {
-                // Session is live → account exists. Apply the chosen identity
-                // best-effort; failure here is non-fatal (server's generated
-                // default stands and the user can rename later).
+                // Session is live → account exists. Let the profile resolve
+                // settle first: it runs GET /v1/me (server get-or-create), so
+                // the row exists before we PATCH the chosen name/avatar onto it.
+                // The server PATCH is now also get-or-create (Phase 2), so this
+                // is belt-and-suspenders ordering rather than load-bearing.
+                Catching { profileRepository.current() }
+                    .logOnFailure { "Awaiting profile resolve before guest patch failed (non-fatal)" }
+                // Apply the chosen identity best-effort; failure here is
+                // non-fatal (server's generated default stands and the user can
+                // rename later).
                 Catching {
                     profileRepository.update(
                         displayName = identity.displayName,

@@ -2235,3 +2235,42 @@ as supporting context.
 **The fix, when triggered:** on progression-sync the server derives level from its reconciled `total_xp` against the curve it already serves, grants `levelup_<level>` rewards itself (idempotent), ignores/caps client-claimed amounts; the client keeps granting optimistically and the two reconcile on the idempotency key.
 
 **Status:** Deferred (`todo.md` — Stats & progression, gated on leagues). No work now.
+
+## 2026-06-21 — Offline-first identity self-heal (stranded-guest fix), phases 1–5
+
+**Decision:** Shipped the approved offline-first plan (`delegated-crunching-gem.md`) phases 1–5 on `feat/offline-first-identity-heal`, resolving the offline guest-stranding bug, the fresh-install `PATCH /v1/me` 404, and the 401-on-init storm. The shape:
+
+- **Onboarding race (P1):** `DefaultGuestAccountCreator.start()` persists the durable pending record on app scope *before* `createGuestSession`, sequential `set → create → clear` in one coroutine. A fast finish-and-navigate can no longer lose the write and strand the user.
+- **PATCH `/v1/me` is get-or-create (P2):** the route calls `repository.findOrCreate(userId)` before validate/update (reuses the tested creation path — starter inventory, founding badge, name-collision retry — rather than duplicating insert logic in `update`; `update`'s `NotFound→404` stays only for the impossible delete-mid-request race). Client adds GET-before-PATCH ordering as belt-and-suspenders.
+- **Connectivity as an event (P3):** `AppEvent.ConnectivityRegained` + a standalone `ConnectivityEdgeDispatcher` (drop-initial, debounce, true→false edge only), kept separate from `AppEventDispatcher` which knows nothing about networking.
+- **Identity self-heal (P4):** `AuthState.Unauthenticated.Reason.SignedOut` (so heal never resurrects a deliberate sign-out) ships with `GuestSessionHealer`. A `healMutex` in `DefaultGuestAccountCreator` serializes **all** mint triggers (onboarding/init-resume/offline-flip/`ensureSession`) so concurrent triggers collapse to one account instead of minting orphans. Recovery rides the existing `UserChanged(null→X)` fan-out. `StrandedIdentityDetector` is the canary (Sentry breadcrumb `stranded_fallback_online_onboarded`).
+- **Authed-call discipline (P5):** `AuthRepository.awaitAuthenticated()`/`ifAuthenticated{}`; messages/sync gated + wired to the fan-out; **active-rooms driven off `Profile.Authenticated`** in `HomeViewModel` (the session signal it already observes) rather than making `RoomRepositoryImpl` an `AppEventListener` — that would have pulled `:libraries:identity` + `:libraries:cards` deps into `:libraries:rooms` and broken the repo-test constructor, for no extra correctness. `AuthReResolver` re-resolves (never mints) on warm foreground + connectivity.
+
+**Notable constraints hit:** New `AppEventListener`s that depend on `AuthRepository` must take **lazy `() -> T` providers** for the cyclic deps — `AuthRepository → AppEventBus → AppEventDispatcher → Set<AppEventListener>` is a kotlin-inject construction cycle. Mirrors the existing `InAppMessageManagerImpl`.
+
+**Deferred (see backlog):** Phase 6 (offline profile-edit outbox + ungate Edit Profile — UI/QA-sensitive, unsafe to land unattended) and Phase 7 (shared `Syncable`/`SyncCoordinator` refactor — pure sustainability cleanup, do after 6).
+
+**Status:** Phases 1–5 shipped on the feature branch (not yet PR'd). Phases 6–7 backlogged.
+
+## 2026-06-21 — Offline guest identity reuses the onboarding choice; offline editing (Phase 6, guest half)
+
+**Decision:** Implemented the offline-profile-editing half of the offline-first plan for the **session-less guest** case (the claimed-account-offline PATCH outbox is backlogged). `Profile.Fallback` gained optional `displayName`/`avatarEmoji`/`avatarBackgroundColor` (plus `displayNameOrNull`/`avatarEmojiOrNull`/`avatarBackgroundColorOrNull` accessors that read either profile shape). `ProfileRepositoryImpl` enriches the Fallback from the owed onboarding identity (`PendingGuestAccountStore`), so a user who onboarded offline sees their chosen name/avatar everywhere instead of a generic "You". Edit Profile is ungated (seeds from a Fallback that carries an identity); an offline edit merges into the `PendingGuestAccountStore` record and returns the new `UpdateProfileOutcome.Queued`, so the **existing guest-mint path is the sync** — no separate PATCH outbox needed for this case.
+
+**Why this shape:**
+- *Reuse onboarding choice (vs. a generic "You" placeholder):* product call by the user — the offline identity should reflect what they actually picked. `PendingGuestAccountStore` already holds exactly that, so the profile layer reads it (same module) rather than introducing a parallel store.
+- *Enrich `Profile.Fallback` (vs. faking `Profile.Authenticated`):* `Authenticated` must keep meaning "real server session" — shop purchases and server writes hard-gate on it. A populated `Fallback` stays "no confirmed session," so those gates are untouched; only *display* sites route through the new accessors.
+- *Merge into `PendingGuestAccountStore` (vs. a new `PendingProfileEdit` outbox):* for a guest the mint already applies the held identity, so reusing it makes the single mint the sync and sidesteps a two-store flush-ordering race. The new outbox is only needed for the claimed-account-offline case, which is deferred.
+
+**Deferred (backlog):** offline edits for a **cached real account that's merely offline** (returning claimed user) — still returns `NotSignedIn`; needs the durable PATCH outbox + flush + a validation-rejection banner. Phase 7 (`Syncable`/`SyncCoordinator` refactor) also remains.
+
+**Status:** Guest/Fallback offline editing shipped on `feat/offline-first-identity-heal` (same branch/PR as phases 1–5). Claimed-account-offline outbox backlogged.
+
+## 2026-06-21 — Offline profile editing completed: durable PATCH outbox for real accounts
+
+**Decision:** Closed the deferred half of Phase 6 — offline editing now works for a **cached real account** (a returning claimed/anon user who's merely offline), not just the guest/Fallback case. A session-less edit on a cached `Profile.Authenticated` applies optimistically and queues in a durable `PendingProfileEditStore` (single-slot, coalescing), returning `UpdateProfileOutcome.Queued` instead of `NotSignedIn`. An online PATCH that fails *transiently* (network / 401 mid-edit / 5xx) now also queues + keeps the optimistic value rather than rolling back; only **validation** failures (name taken / invalid) stay terminal (roll back + typed outcome — the user must fix the input).
+
+**Flush rides `resolve()`:** when auth returns, the profile repo GETs `/v1/me` then PATCHes the queued edit on top before emitting — folding the flush into the resolve avoids a "new name → server's old name → new name" flicker. `ProfileEditFlusher` (an `AppEventListener` on warm-foreground + connectivity-regained, lazy `() -> ProfileRepository` to dodge the auth↔event-bus DI cycle) covers the already-authed-but-a-PATCH-got-stuck case where auth never re-emits. A flush the server refuses (name taken while away) clears the queue, reverts to server truth, and emits a `ProfileEditRejection` that `App.kt` surfaces as a "couldn't save your name" snackbar — so the silent revert isn't confusing.
+
+**Why no separate outbox for guests:** the guest/Fallback case still routes through `PendingGuestAccountStore` (the guest-mint path is its sync) — two stores, each owning its case, avoids a flush-ordering race between the mint's identity-apply and a profile PATCH.
+
+**Status:** Shipped on `feat/offline-first-identity-heal` (same PR as the rest of the offline-first plan). Offline profile editing is now complete for both guests and real accounts. Only Phase 7 (the `Syncable`/`SyncCoordinator` refactor) remains backlogged.

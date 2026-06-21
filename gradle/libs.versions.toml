@@ -35,6 +35,7 @@ sentryKmp = "0.26.0"
 supabaseKt = "3.6.0"
 lifecycleProcess = "2.10.0"
 turbine = "1.2.1"
+wiretap = "1.0.0-RC15"
 postgresJdbc = "42.7.4"
 hikariCp = "5.1.0"
 exposed = "0.56.0"
@@ -127,6 +128,15 @@ ktor-client-contentNegotiation = { module = "io.ktor:ktor-client-content-negotia
 ktor-client-auth = { module = "io.ktor:ktor-client-auth", version.ref = "ktor" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+
+# WiretapKMP — debug-only network inspector (HTTP/WS/SSE) with a built-in UI.
+# `wiretap-ktor` is the real plugin + launcher; `wiretap-ktor-noop` is the
+# zero-overhead release stand-in with the identical API surface (so common
+# code compiles against either). Swapped per-build: Android via
+# debug/releaseImplementation, iOS via the `cards.wiretap.ios` property.
+# See libraries/networking/impl/build.gradle.kts.
+wiretap-ktor = { module = "dev.skymansandy:wiretap-ktor", version.ref = "wiretap" }
+wiretap-ktor-noop = { module = "dev.skymansandy:wiretap-ktor-noop", version.ref = "wiretap" }
 
 # Supabase KMP — used client-side for auth (anon sign-in, OAuth claim flow,
 # session storage, token refresh). The server does NOT use supabase-kt;

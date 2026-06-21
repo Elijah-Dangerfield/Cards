@@ -61,6 +61,9 @@ import com.dangerfield.cards.libraries.config.AppConfigRepository
 import com.dangerfield.cards.libraries.config.QaConfigValue
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
+import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
+import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.config.ConfigOverrideRepository
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.flowroutines.ObserveEvents
@@ -164,9 +167,14 @@ class ProfileFeatureEntryPoint(
 
             ProfileScreen(
                 settings = ProfileSettings(
-                    displayName = authenticated?.displayName ?: "You",
-                    avatarEmoji = authenticated?.avatarEmoji,
-                    avatarBackgroundColor = authenticated?.avatarBackgroundColor,
+                    // Display identity honors a locally-chosen (offline) name +
+                    // avatar via the accessors, so an offline/Fallback user sees
+                    // their onboarding choice instead of "You". `isAnon` /
+                    // memberSince stay Authenticated-only — real-account facts a
+                    // Fallback doesn't have.
+                    displayName = profile?.displayNameOrNull ?: "You",
+                    avatarEmoji = profile?.avatarEmojiOrNull,
+                    avatarBackgroundColor = profile?.avatarBackgroundColorOrNull,
                     // Rank stays 0 ("Unranked") until the user claims their account
                     // and plays multiplayer — see docs/decisions.md (2026-05-14).
                     rank = if (isAnon) 0 else 1200,
@@ -237,9 +245,14 @@ class ProfileFeatureEntryPoint(
 
             SettingsScreen(
                 settings = ProfileSettings(
-                    displayName = authenticated?.displayName ?: "You",
-                    avatarEmoji = authenticated?.avatarEmoji,
-                    avatarBackgroundColor = authenticated?.avatarBackgroundColor,
+                    // Display identity honors a locally-chosen (offline) name +
+                    // avatar via the accessors, so an offline/Fallback user sees
+                    // their onboarding choice instead of "You". `isAnon` /
+                    // memberSince stay Authenticated-only — real-account facts a
+                    // Fallback doesn't have.
+                    displayName = profile?.displayNameOrNull ?: "You",
+                    avatarEmoji = profile?.avatarEmojiOrNull,
+                    avatarBackgroundColor = profile?.avatarBackgroundColorOrNull,
                     rank = if (isAnon) 0 else 1200,
                     xp = 0,
                     isAnonymous = isAnon,

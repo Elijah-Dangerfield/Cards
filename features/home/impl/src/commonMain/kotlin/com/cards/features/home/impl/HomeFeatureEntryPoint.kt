@@ -16,10 +16,10 @@ import cards.libraries.resources.generated.resources.home_coming_soon_friend_req
 import cards.libraries.resources.generated.resources.home_coming_soon_friend_requests_title
 import cards.libraries.resources.generated.resources.home_coming_soon_friends_body
 import cards.libraries.resources.generated.resources.home_coming_soon_friends_title
-import cards.libraries.resources.generated.resources.home_coming_soon_quick_match_body
-import cards.libraries.resources.generated.resources.home_coming_soon_quick_match_title
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_body
 import cards.libraries.resources.generated.resources.home_coming_soon_recently_played_title
+import cards.libraries.resources.generated.resources.home_coming_soon_tournament_body
+import cards.libraries.resources.generated.resources.home_coming_soon_tournament_title
 import cards.libraries.resources.generated.resources.ui_level_up_reward_chips
 import cards.libraries.resources.generated.resources.ui_level_up_reward_cosmetic
 import cards.libraries.resources.generated.resources.ui_level_up_reward_xp_boost
@@ -28,6 +28,9 @@ import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.home.LevelUpRoute
 import com.dangerfield.cards.features.home.WelcomeDialogRoute
 import com.dangerfield.cards.features.lobby.LobbyRoute
+import com.dangerfield.cards.features.lobby.PrivateCreateRoute
+import com.dangerfield.cards.features.lobby.PrivateJoinRoute
+import com.dangerfield.cards.features.rooms.PublicFindRoute
 import com.dangerfield.cards.features.progression.AchievementsRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayBotsRoute
@@ -122,16 +125,18 @@ class HomeFeatureEntryPoint(
             // in one place, so Home's Practice hero opens it directly — no
             // intermediate difficulty picker.
             var botSetupOpen by remember { mutableStateOf(false) }
-            // Friend Game "create or join" sheet. Both paths route into the
-            // lobby (auto-create on entry, or auto-join via prefilled code).
-            var friendGameOpen by remember { mutableStateOf(false) }
+            // Private-room "create or join" sheet (SPEC §1) — transient Home
+            // state, not a back-stack destination. Both branches route on
+            // into the lobby (Chunk 3 swaps these for dedicated Create/Join
+            // screens; today they fall through to the existing lobby paths).
+            var showPrivateSheet by remember { mutableStateOf(false) }
             // "Coming soon" sheet state, parameterized so the same
             // surface serves Quick Match (not built) and Tournament
             // (V2). Null = closed.
             var comingSoon by remember { mutableStateOf<ComingSoonContent?>(null) }
 
-            val quickMatchTitle = stringResource(Res.string.home_coming_soon_quick_match_title)
-            val quickMatchBody = stringResource(Res.string.home_coming_soon_quick_match_body)
+            val tournamentTitle = stringResource(Res.string.home_coming_soon_tournament_title)
+            val tournamentBody = stringResource(Res.string.home_coming_soon_tournament_body)
             val friendsTitle = stringResource(Res.string.home_coming_soon_friends_title)
             val friendsBody = stringResource(Res.string.home_coming_soon_friends_body)
             val friendRequestsTitle = stringResource(Res.string.home_coming_soon_friend_requests_title)
@@ -142,19 +147,20 @@ class HomeFeatureEntryPoint(
             HomeScreen(
                 viewModel = viewModel,
                 onPlayBots = { botSetupOpen = true },
-                onQuickMatch = {
-                    // Spec §5.3 — Quick Match needs the public-rooms
-                    // matchmaker. Until that lands, surface an honest
-                    // "coming soon" sheet rather than a stub navigation.
+                // Public rooms → the Find flow (visual shells for now; real
+                // matchmaking lands later). No coming-soon stub anymore.
+                onPublicRooms = { router.navigate(PublicFindRoute()) },
+                // Private room opens the create/join sheet; the choice then
+                // routes on into the lobby (the seated surface).
+                onPrivateRoom = { showPrivateSheet = true },
+                onTournament = {
+                    // Tournaments are a V2 surface — honest "coming soon".
                     comingSoon = ComingSoonContent(
-                        title = quickMatchTitle,
-                        emoji = "⚯",
-                        body = quickMatchBody,
+                        title = tournamentTitle,
+                        emoji = "♛",
+                        body = tournamentBody,
                     )
                 },
-                // Friend Game opens a "create or join" sheet; the choice
-                // then routes into the lobby (the seated surface).
-                onFriendGame = { friendGameOpen = true },
                 onStartTutorial = { router.navigate(TutorialRoute()) },
                 // Level pill → Stats — the screen-of-record for the
                 // full level / XP breakdown.
@@ -212,17 +218,17 @@ class HomeFeatureEntryPoint(
                 )
             }
 
-            if (friendGameOpen) {
-                FriendGameSheet(
+            if (showPrivateSheet) {
+                PrivateChooseSheet(
                     onCreate = {
-                        friendGameOpen = false
-                        router.navigate(LobbyRoute(autoCreate = true))
+                        showPrivateSheet = false
+                        router.navigate(PrivateCreateRoute())
                     },
-                    onJoin = { code ->
-                        friendGameOpen = false
-                        router.navigate(LobbyRoute(prefilledCode = code))
+                    onJoin = {
+                        showPrivateSheet = false
+                        router.navigate(PrivateJoinRoute())
                     },
-                    onDismiss = { friendGameOpen = false },
+                    onDismiss = { showPrivateSheet = false },
                 )
             }
 

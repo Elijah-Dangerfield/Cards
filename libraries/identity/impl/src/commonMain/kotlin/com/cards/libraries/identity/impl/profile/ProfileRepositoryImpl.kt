@@ -8,12 +8,16 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.auth.PendingIdentity
+import com.dangerfield.cards.libraries.identity.impl.auth.PendingGuestAccountStore
+import com.dangerfield.cards.libraries.identity.impl.MeDto
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.ProfileEditRejection
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.ServerResponseException
@@ -78,6 +82,8 @@ class ProfileRepositoryImpl(
     private val profileCache: ProfileCache,
     private val avatarPackCache: AvatarPackCache,
     private val sessionTracker: SessionTracker,
+    private val pendingGuestAccountStore: PendingGuestAccountStore,
+    private val pendingProfileEditStore: PendingProfileEditStore,
     private val clock: Clock,
     private val appScope: AppCoroutineScope,
 ) : ProfileRepository, AutoInit {
@@ -86,6 +92,13 @@ class ProfileRepositoryImpl(
     private val mutex = Mutex()
     private val _state = MutableSharedFlow<Profile>(replay = 1)
     private val sharedState: Flow<Profile> = _state.asSharedFlow()
+
+    /**
+     * One-shot rejections from flushing a queued offline edit the server then
+     * refused. `extraBufferCapacity` so an emit from inside the resolve mutex
+     * never suspends waiting on a slow collector.
+     */
+    private val _editRejections = MutableSharedFlow<ProfileEditRejection>(extraBufferCapacity = 4)
 
     /**
      * Serializes avatar-pack fetches so a race (two screens opening
@@ -141,6 +154,20 @@ class ProfileRepositoryImpl(
 
     override fun observe(): Flow<Profile> = sharedState
 
+    override fun observeEditRejections(): Flow<ProfileEditRejection> = _editRejections
+
+    override suspend fun flushPendingEdits() {
+        // Cheap pre-check off the lock: nothing to do unless a session is live
+        // and an edit is actually queued. Otherwise re-resolve, which fetches
+        // server truth and flushes the queued edit on top (see resolve).
+        val auth = authRepository.current()
+        if (auth !is AuthState.Authenticated) return
+        val hasPending = Catching { pendingProfileEditStore.read() }.getOrNull() != null
+        if (!hasPending) return
+        logger.d { "flushPendingEdits: re-resolving to flush a queued edit" }
+        Catching { resolve(auth) }.logOnFailure { "flushPendingEdits resolve failed" }
+    }
+
     private suspend fun resolve(auth: AuthState): Profile = mutex.withLock {
         val resolved = when (auth) {
             is AuthState.Authenticated -> resolveAuthenticatedLocked(auth)
@@ -160,7 +187,16 @@ class ProfileRepositoryImpl(
         resolved
     }
 
-    private suspend fun resolveAuthenticatedLocked(auth: AuthState.Authenticated): Profile =
+    private suspend fun resolveAuthenticatedLocked(auth: AuthState.Authenticated): Profile {
+        val base = fetchServerProfileLocked(auth)
+        // A session is live again — flush any edit queued while offline, on top
+        // of the freshly-fetched server truth, before emitting. Folding the
+        // flush into the resolve means the user never sees the un-patched server
+        // value flash in (no "new name → old name → new name" churn).
+        return if (base is Profile.Authenticated) flushQueuedEditLocked(base, auth.email) else base
+    }
+
+    private suspend fun fetchServerProfileLocked(auth: AuthState.Authenticated): Profile =
         Catching {
             logger.d { "GET /v1/me for ${auth.userId}" }
             val me = profileApi.me()
@@ -192,10 +228,65 @@ class ProfileRepositoryImpl(
                     cached
                 } else {
                     logger.i { "Cache empty: emitting Profile.Fallback with localId" }
-                    Profile.Fallback(id = ensureLocalIdLocked())
+                    buildFallbackLocked()
                 }
             },
         )
+
+    /**
+     * If an offline edit is queued, PATCH it on top of [base] (the freshly
+     * resolved server profile). Returns the profile to emit:
+     *  - **success** → server-confirmed profile; the queue is cleared.
+     *  - **validation rejection** (name taken / invalid) → the queue is cleared
+     *    (it can never succeed as-is), the optimistic value reverts to [base]
+     *    (server truth), and a [ProfileEditRejection] is surfaced.
+     *  - **transient failure** (network / 5xx) → the queue is kept, and the
+     *    optimistic overlay (base + the edit) is emitted so the user keeps
+     *    seeing their pending change; the next trigger retries.
+     */
+    private suspend fun flushQueuedEditLocked(
+        base: Profile.Authenticated,
+        email: String?,
+    ): Profile.Authenticated {
+        val pending = Catching { pendingProfileEditStore.read() }.getOrNull() ?: return base
+        logger.i { "Flushing queued offline profile edit" }
+        return Catching {
+            profileApi.patchMe(
+                PatchMeRequest(
+                    displayName = pending.displayName,
+                    avatarEmoji = pending.avatarEmoji,
+                    avatarBackgroundColor = pending.avatarBackgroundColor,
+                    clearAvatarBackgroundColor = pending.clearAvatarBackgroundColor,
+                ),
+            )
+        }.fold(
+            onSuccess = { updated ->
+                Catching { pendingProfileEditStore.clear() }
+                    .logOnFailure { "Clearing flushed profile edit failed" }
+                val profile = updated.toAuthenticated(email)
+                profileCache.writeAuthenticated(profile)
+                logger.i { "Queued edit flushed: Success for ${profile.id}" }
+                profile
+            },
+            onFailure = { e ->
+                val rejection = e.toValidationRejectionOrNull(pending)
+                if (rejection != null) {
+                    Catching { pendingProfileEditStore.clear() }
+                        .logOnFailure { "Clearing rejected profile edit failed" }
+                    profileCache.writeAuthenticated(base)
+                    _editRejections.tryEmit(rejection)
+                    logger.w(e) { "Queued edit rejected ($rejection) — reverted to server truth" }
+                    base
+                } else {
+                    // Transient — keep the queue, keep showing the optimistic value.
+                    val optimistic = base.applyingEdit(pending)
+                    profileCache.writeAuthenticated(optimistic)
+                    logger.w(e) { "Queued edit flush failed transiently — keeping it queued" }
+                    optimistic
+                }
+            },
+        )
+    }
 
     private suspend fun resolveFallbackLocked(auth: AuthState.Unauthenticated): Profile {
         // A server-confirmed dead session (the auth server rejected our token):
@@ -212,7 +303,7 @@ class ProfileRepositoryImpl(
                 Catching { profileCache.clear() }
                     .logOnFailure { "Failed to clear stale cached profile after session expiry" }
             }
-            return Profile.Fallback(id = ensureLocalIdLocked())
+            return buildFallbackLocked()
         }
 
         // Benign unauthenticated (no session yet / clean sign-out / offline): we
@@ -226,7 +317,64 @@ class ProfileRepositoryImpl(
             return cached
         }
         logger.d { "Unauthenticated + no cache; emitting Profile.Fallback" }
-        return Profile.Fallback(id = ensureLocalIdLocked())
+        return buildFallbackLocked()
+    }
+
+    /**
+     * Build a [Profile.Fallback], enriching it with the user's locally-chosen
+     * identity when one is owed but unsynced — the name/avatar picked during an
+     * offline onboarding (held in [PendingGuestAccountStore]). Surfacing it lets
+     * the app show the user's choice instead of a generic "You" while we're
+     * session-less; it syncs to the server once a session is minted. When nothing
+     * is owed (no offline onboarding pending), the fields stay null.
+     */
+    private suspend fun buildFallbackLocked(): Profile.Fallback {
+        val pending = Catching { pendingGuestAccountStore.read() }
+            .logOnFailure { "Reading pending identity for Fallback failed" }
+            .getOrNull()
+        return Profile.Fallback(
+            id = ensureLocalIdLocked(),
+            displayName = pending?.displayName,
+            avatarEmoji = pending?.avatarEmoji,
+            avatarBackgroundColor = pending?.avatarBackgroundColor,
+        )
+    }
+
+    /**
+     * Apply an offline profile edit for a session-less (Fallback) user by
+     * merging it into the owed guest-account record. The guest-mint path applies
+     * that identity when a session is established, so the single mint is the
+     * sync. Emits an enriched [Profile.Fallback] immediately so the UI reflects
+     * the change without waiting on the network. Assumes [mutex] is held.
+     */
+    private suspend fun queueGuestIdentityEditLocked(
+        displayName: String?,
+        avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
+    ): UpdateProfileOutcome {
+        val existing = Catching { pendingGuestAccountStore.read() }.getOrNull()
+        val merged = PendingIdentity(
+            displayName = displayName?.trim()?.takeIf { it.isNotEmpty() } ?: existing?.displayName,
+            avatarEmoji = avatarEmoji ?: existing?.avatarEmoji,
+            avatarBackgroundColor = when {
+                clearAvatarBackgroundColor -> null
+                avatarBackgroundColor != null -> avatarBackgroundColor
+                else -> existing?.avatarBackgroundColor
+            },
+        )
+        Catching { pendingGuestAccountStore.set(merged) }
+            .logOnFailure { "Queuing offline profile edit failed" }
+        _state.emit(
+            Profile.Fallback(
+                id = ensureLocalIdLocked(),
+                displayName = merged.displayName,
+                avatarEmoji = merged.avatarEmoji,
+                avatarBackgroundColor = merged.avatarBackgroundColor,
+            ),
+        )
+        logger.i { "update: Queued offline identity edit (will sync on session mint)" }
+        return UpdateProfileOutcome.Queued
     }
 
     private suspend fun ensureLocalIdLocked(): String {
@@ -259,13 +407,38 @@ class ProfileRepositoryImpl(
                 ).joinToString() +
                 "]"
         }
-        // The auth check here is structural: PATCH /v1/me requires a
-        // session, and the request will 401 cleanly if not. Catching
-        // that here avoids a network round-trip in the obvious case.
+        // PATCH /v1/me requires a session. When we don't have one, branch on
+        // whether this is a real account that's merely offline vs. a guest who
+        // hasn't reached the server yet:
         val auth = authRepository.current()
         if (auth !is AuthState.Authenticated) {
-            logger.w { "update: NotSignedIn (auth is ${auth::class.simpleName})" }
-            return@withLock UpdateProfileOutcome.NotSignedIn
+            val cachedAuthed = Catching { profileCache.readAuthenticated() }
+                .logOnFailure { "Profile cache read during offline update failed" }
+                .getOrNull()
+            if (cachedAuthed != null) {
+                // A real (claimed/anon) account, just offline. Apply the edit
+                // optimistically and queue it to PATCH when a session returns —
+                // offline-first: the user's change sticks and syncs on reconnect.
+                val base = lastEmittedAuthenticatedOrNull() ?: cachedAuthed
+                val optimistic = base.applyingEdit(displayName, avatarEmoji, avatarBackgroundColor, clearAvatarBackgroundColor)
+                profileCache.writeAuthenticated(optimistic)
+                _state.emit(optimistic)
+                Catching {
+                    pendingProfileEditStore.enqueue(displayName, avatarEmoji, avatarBackgroundColor, clearAvatarBackgroundColor)
+                }.logOnFailure { "Queuing offline profile edit failed" }
+                logger.i { "update: Queued offline edit for cached account (will sync when online)" }
+                return@withLock UpdateProfileOutcome.Queued
+            }
+            // True Fallback — onboarded but session-less (e.g. onboarded
+            // offline). Record the chosen identity into the owed guest-account
+            // record so it (a) surfaces on the Fallback now and (b) is applied
+            // server-side when the session is minted. Optimistic local emit.
+            return@withLock queueGuestIdentityEditLocked(
+                displayName = displayName,
+                avatarEmoji = avatarEmoji,
+                avatarBackgroundColor = avatarBackgroundColor,
+                clearAvatarBackgroundColor = clearAvatarBackgroundColor,
+            )
         }
 
         // Optimistic: write the prospective profile to cache + state
@@ -314,27 +487,38 @@ class ProfileRepositoryImpl(
                 UpdateProfileOutcome.Success(profile)
             },
             onFailure = { e ->
-                if (priorProfile != null) {
-                    profileCache.writeAuthenticated(priorProfile)
-                    _state.emit(priorProfile)
-                    logger.d { "update: rolled back optimistic write" }
-                }
-                val outcome = when (e) {
+                // Validation failures are terminal — the user must fix the input,
+                // so roll the optimistic write back and surface the typed error.
+                val validation = when (e) {
                     is ClientRequestException -> when (e.response.status.value) {
                         409 -> UpdateProfileOutcome.DisplayNameTaken
-                        401 -> UpdateProfileOutcome.NotSignedIn
                         400 -> when {
                             displayName != null -> UpdateProfileOutcome.InvalidDisplayName
                             avatarEmoji != null -> UpdateProfileOutcome.InvalidAvatarEmoji
                             else -> UpdateProfileOutcome.InvalidAvatarBackgroundColor
                         }
-                        else -> UpdateProfileOutcome.Unknown(e)
+                        else -> null
                     }
-                    is ServerResponseException -> UpdateProfileOutcome.Unknown(e)
-                    else -> UpdateProfileOutcome.NetworkError(e)
+                    else -> null
                 }
-                logger.w(e) { "update: ${outcome::class.simpleName}" }
-                outcome
+                if (validation != null) {
+                    if (priorProfile != null) {
+                        profileCache.writeAuthenticated(priorProfile)
+                        _state.emit(priorProfile)
+                        logger.d { "update: rolled back optimistic write (validation)" }
+                    }
+                    logger.w(e) { "update: ${validation::class.simpleName}" }
+                    validation
+                } else {
+                    // Transient (network / 401 mid-edit / 5xx) — keep the
+                    // optimistic value and queue the PATCH to flush on reconnect
+                    // instead of losing the edit. Offline-first.
+                    Catching {
+                        pendingProfileEditStore.enqueue(displayName, avatarEmoji, avatarBackgroundColor, clearAvatarBackgroundColor)
+                    }.logOnFailure { "Queuing edit after transient failure failed" }
+                    logger.w(e) { "update: Queued after transient failure" }
+                    UpdateProfileOutcome.Queued
+                }
             },
         )
     }
@@ -475,4 +659,56 @@ class ProfileRepositoryImpl(
     private fun lastEmittedAuthenticatedOrNull(): Profile.Authenticated? =
         _state.replayCache.firstOrNull() as? Profile.Authenticated
 
+    private fun MeDto.toAuthenticated(email: String?): Profile.Authenticated = Profile.Authenticated(
+        id = userId,
+        displayName = displayName,
+        avatarEmoji = avatarEmoji,
+        avatarBackgroundColor = avatarBackgroundColor,
+        email = email,
+        isAnonymous = isAnonymous,
+        createdAt = Instant.fromEpochMilliseconds(createdAtEpochMs),
+    )
+
+    /** Overlay a raw edit onto a profile — the optimistic-write shape. */
+    private fun Profile.Authenticated.applyingEdit(
+        displayName: String?,
+        avatarEmoji: String?,
+        avatarBackgroundColor: String?,
+        clearAvatarBackgroundColor: Boolean,
+    ): Profile.Authenticated = copy(
+        displayName = displayName?.trim()?.takeIf { it.isNotEmpty() } ?: this.displayName,
+        avatarEmoji = avatarEmoji ?: this.avatarEmoji,
+        avatarBackgroundColor = when {
+            clearAvatarBackgroundColor -> null
+            avatarBackgroundColor != null -> avatarBackgroundColor
+            else -> this.avatarBackgroundColor
+        },
+    )
+
+    private fun Profile.Authenticated.applyingEdit(edit: PendingProfileEdit): Profile.Authenticated =
+        applyingEdit(
+            displayName = edit.displayName,
+            avatarEmoji = edit.avatarEmoji,
+            avatarBackgroundColor = edit.avatarBackgroundColor,
+            clearAvatarBackgroundColor = edit.clearAvatarBackgroundColor,
+        )
+
+    /**
+     * Map a flush failure to a terminal [ProfileEditRejection] (the server
+     * refused the edit on its merits), or null when it's transient (network /
+     * 5xx) and worth keeping queued.
+     */
+    private fun Throwable.toValidationRejectionOrNull(edit: PendingProfileEdit): ProfileEditRejection? =
+        when (this) {
+            is ClientRequestException -> when (response.status.value) {
+                409 -> ProfileEditRejection.DisplayNameTaken
+                400 -> when {
+                    edit.displayName != null -> ProfileEditRejection.InvalidDisplayName
+                    edit.avatarEmoji != null -> ProfileEditRejection.InvalidAvatarEmoji
+                    else -> ProfileEditRejection.InvalidAvatarBackgroundColor
+                }
+                else -> null
+            }
+            else -> null
+        }
 }

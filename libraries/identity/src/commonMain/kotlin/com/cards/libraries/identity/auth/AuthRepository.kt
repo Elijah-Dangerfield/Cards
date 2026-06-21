@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.identity.auth
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Owns the device's Supabase user lifecycle + access token.
@@ -46,6 +47,26 @@ interface AuthRepository {
      * a missing session stays [AuthState.Unauthenticated].
      */
     suspend fun retry(): AuthState
+
+    /**
+     * Suspends until the session resolves to [AuthState.Authenticated], then
+     * returns it. For callers that *must* have a real session before proceeding
+     * (so they never fire a tokenless request that 401s). Never resolves while
+     * the user is session-less — pair with a timeout if the caller can't block
+     * indefinitely.
+     */
+    suspend fun awaitAuthenticated(): AuthState.Authenticated =
+        observe().first { it is AuthState.Authenticated } as AuthState.Authenticated
+
+    /**
+     * Run [block] only if the session is currently [AuthState.Authenticated];
+     * otherwise no-op and return null. The guard for fire-and-forget authed
+     * syncs: a session-less resolve **skips** the call (an intentional, logged
+     * no-op) instead of 401ing. Re-fires when auth later arrives via the
+     * identity fan-out (`UserChanged` / `AccountClaimed`) trigger.
+     */
+    suspend fun <T> ifAuthenticated(block: suspend (AuthState.Authenticated) -> T): T? =
+        (current() as? AuthState.Authenticated)?.let { block(it) }
 
     /**
      * Create a fresh anonymous (guest) session and emit
@@ -191,12 +212,19 @@ sealed interface AuthState {
         /**
          * Why we're unauthenticated.
          *
-         * - [None] — no session / clean sign-out / not-yet-resolved / offline. No
-         *   forced routing; the auth gate handles navigation as usual.
+         * - [None] — no session / not-yet-resolved / offline. No forced routing;
+         *   the auth gate handles navigation as usual. This is also the reason a
+         *   never-signed-in-but-onboarded guest (the stranding case) carries, so
+         *   identity self-heal mints a session for it.
          * - [SessionExpired] — the auth server **rejected** our token and a refresh
          *   failed: the session is genuinely dead. The app boots the user to
          *   re-authenticate (claimed) or start fresh (guest).
+         * - [SignedOut] — a **deliberate** sign-out / account delete this run. The
+         *   distinction from [None] is load-bearing for identity self-heal: it must
+         *   NOT resurrect a user who just chose to sign out as a fresh anonymous
+         *   guest. (After a relaunch this collapses back to [None]; the
+         *   `hasUserOnboarded` guard — cleared on sign-out — covers that case.)
          */
-        enum class Reason { None, SessionExpired }
+        enum class Reason { None, SessionExpired, SignedOut }
     }
 }

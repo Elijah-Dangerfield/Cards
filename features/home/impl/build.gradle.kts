@@ -14,6 +14,7 @@ kotlin {
             implementation(projects.features.profile)
             implementation(projects.features.progression)
             implementation(projects.features.room)
+            implementation(projects.features.rooms)
             implementation(projects.features.shop)
             implementation(projects.libraries.navigation)
 

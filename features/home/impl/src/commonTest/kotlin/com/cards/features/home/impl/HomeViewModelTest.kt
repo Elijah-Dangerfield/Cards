@@ -249,13 +249,34 @@ class HomeViewModelTest : CoroutineTest() {
         val rooms = FakeRoomRepository(
             activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(room)),
         )
-        val vm = buildVm(rooms = rooms)
+        // Active rooms only fetch once a real session exists (gated on
+        // Profile.Authenticated), so the user must be authenticated.
+        val profile = FakeProfileRepository(
+            initial = authenticatedProfile(displayName = "Seated", isAnonymous = true),
+        )
+        val vm = buildVm(rooms = rooms, profile = profile)
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.activeRooms.isEmpty()) last = awaitItem()
             assertEquals(listOf(ActiveRoomSummary(code = "WXYZ12")), last.activeRooms)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun activeRooms_notFetched_whileSessionless_thenFetchesWhenAuthArrives() = runUnitTest {
+        // The 401-on-init fix: a session-less (Fallback) profile must not fetch
+        // /v1/me/active-rooms; the fetch fires once self-heal / sign-in flips the
+        // profile to Authenticated.
+        val rooms = FakeRoomRepository(
+            activeRoomsOutcome = GetActiveRoomsOutcome.Success(emptyList()),
+        )
+        val profile = FakeProfileRepository(initial = Profile.Fallback(id = "anon"))
+        buildVm(rooms = rooms, profile = profile)
+        assertEquals(0, rooms.getActiveRoomsCalls, "no fetch while session-less")
+
+        profile.emit(authenticatedProfile(displayName = "Healed", isAnonymous = true))
+        assertEquals(1, rooms.getActiveRoomsCalls, "fetch once a real session arrives")
     }
 
     @Test
@@ -319,7 +340,7 @@ class HomeViewModelTest : CoroutineTest() {
         val rooms = FakeRoomRepository(
             activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(older, newer, middle)),
         )
-        val vm = buildVm(rooms = rooms)
+        val vm = buildVm(rooms = rooms, profile = seatedProfile())
 
         vm.stateFlow.test {
             var last = awaitItem()
@@ -338,7 +359,7 @@ class HomeViewModelTest : CoroutineTest() {
         val rooms = FakeRoomRepository(
             activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(only)),
         )
-        val vm = buildVm(rooms = rooms)
+        val vm = buildVm(rooms = rooms, profile = seatedProfile())
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.activeRooms.isEmpty()) last = awaitItem()
@@ -447,7 +468,7 @@ class HomeViewModelTest : CoroutineTest() {
             activeRoomsOutcome = GetActiveRoomsOutcome.Success(listOf(original)),
             leaveOutcome = LeaveRoomOutcome.NetworkError(RuntimeException("boom")),
         )
-        val vm = buildVm(rooms = rooms)
+        val vm = buildVm(rooms = rooms, profile = seatedProfile())
         vm.stateFlow.test {
             var last = awaitItem()
             while (last.activeRooms.isEmpty()) last = awaitItem()
@@ -497,6 +518,11 @@ class HomeViewModelTest : CoroutineTest() {
         status = RoomStatus.Playing,
         members = emptyList(),
     )
+
+    /** A signed-in profile for tests that exercise active-rooms (now gated on a
+     *  real session). */
+    private fun seatedProfile(): FakeProfileRepository =
+        FakeProfileRepository(initial = authenticatedProfile(displayName = "Seated", isAnonymous = true))
 
     private fun authenticatedProfile(
         displayName: String,

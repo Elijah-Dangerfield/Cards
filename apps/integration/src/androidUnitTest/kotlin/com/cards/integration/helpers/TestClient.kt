@@ -70,6 +70,7 @@ class TestClient(
             autoCreate = autoCreate,
             rooms = repository,
             auth = FakeAuthRepository(userId),
+            profile = NoProfileRepository,
             appScope = AppCoroutineScope(DefaultDispatcherProvider()),
         )
 
@@ -91,6 +92,20 @@ class TestClient(
             countryCode = null,
             installId = null,
         )
+    }
+
+    /** Avatar isn't exercised by these flows; never emits a profile. */
+    private object NoProfileRepository : com.dangerfield.cards.libraries.identity.profile.ProfileRepository {
+        override suspend fun current() = error("unused")
+        override fun observe() =
+            kotlinx.coroutines.flow.emptyFlow<com.dangerfield.cards.libraries.identity.profile.Profile>()
+        override suspend fun update(
+            displayName: String?,
+            avatarEmoji: String?,
+            avatarBackgroundColor: String?,
+            clearAvatarBackgroundColor: Boolean,
+        ) = error("unused")
+        override suspend fun fetchAvatarPack() = error("unused")
     }
 
     /** Always signed in as [userId]; the rest is unused by the lobby flow. */

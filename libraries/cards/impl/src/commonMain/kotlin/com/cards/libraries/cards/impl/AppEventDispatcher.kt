@@ -76,6 +76,7 @@ class AppEventDispatcher(
                     is AppEvent.OnBackground -> listener.onBackground(event)
                     is AppEvent.UserChanged -> listener.onUserChanged(event)
                     is AppEvent.AccountClaimed -> listener.onAccountClaimed(event)
+                    is AppEvent.ConnectivityRegained -> listener.onConnectivityRegained(event)
                 }
             }.onFailure { throwable ->
                 logger.e(throwable) {

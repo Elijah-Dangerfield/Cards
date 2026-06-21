@@ -155,10 +155,44 @@ class InAppMessageManagerImplTest : CoroutineTest() {
         assertNull(manager.current.value, "no auto-pop without a foreground event")
     }
 
+    @Test
+    fun coldBoot_whenUnauthenticated_skipsSync_butStillConsumesCache() = runUnitTest {
+        // The 401-on-init fix: a session-less cold boot must NOT fire a tokenless
+        // sync, but the cached dialog should still surface.
+        val repo = FakeRepo().apply { enqueue(message("cached")) }
+        val manager = buildManager(repo, auth = FakeAuthRepo(AuthState.Unauthenticated()))
+        manager.onColdBoot(AppEvent.ColdBoot)
+        runCurrent()
+        assertEquals(0, repo.syncCalls, "no tokenless sync when unauthenticated")
+        assertEquals("cached", manager.current.value?.id)
+    }
+
+    @Test
+    fun userChanged_toNewUser_syncs_whenAuthArrives() = runUnitTest {
+        // Cold boot resolved session-less, then auth arrives (heal / sign-in):
+        // UserChanged(null→X) is what now drives the sync that cold boot skipped.
+        val repo = FakeRepo()
+        val manager = buildManager(repo)
+        manager.onUserChanged(AppEvent.UserChanged(previous = null, current = "u1"))
+        runCurrent()
+        assertEquals(1, repo.syncCalls, "a session arriving triggers a sync")
+    }
+
+    @Test
+    fun connectivityRegained_syncs() = runUnitTest {
+        val repo = FakeRepo()
+        val manager = buildManager(repo)
+        manager.onConnectivityRegained(AppEvent.ConnectivityRegained)
+        runCurrent()
+        assertEquals(1, repo.syncCalls)
+    }
+
     // ---------- scaffolding ----------
 
-    private fun buildManager(repo: FakeRepo): InAppMessageManagerImpl {
-        val auth = FakeAuthRepo()
+    private fun buildManager(
+        repo: FakeRepo,
+        auth: AuthRepository = FakeAuthRepo(),
+    ): InAppMessageManagerImpl {
         return InAppMessageManagerImpl(
             repository = repo,
             authRepositoryProvider = { auth },
@@ -207,17 +241,18 @@ class InAppMessageManagerImplTest : CoroutineTest() {
         }
     }
 
-    private class FakeAuthRepo : AuthRepository {
-        private val authenticated: AuthState = AuthState.Authenticated(
+    private class FakeAuthRepo(
+        private val resolved: AuthState = AuthState.Authenticated(
             userId = "test-user",
             isAnonymous = true,
             email = null,
-        )
-        private val state = MutableStateFlow(authenticated)
+        ),
+    ) : AuthRepository {
+        private val state = MutableStateFlow(resolved)
 
-        override suspend fun current(): AuthState = authenticated
+        override suspend fun current(): AuthState = resolved
         override fun observe(): Flow<AuthState> = state
-        override suspend fun retry(): AuthState = authenticated
+        override suspend fun retry(): AuthState = resolved
         override suspend fun signInWithEmail(email: String, password: String): SignInOutcome =
             error("unused")
         override suspend fun signUpWithEmail(email: String, password: String): SignUpOutcome =

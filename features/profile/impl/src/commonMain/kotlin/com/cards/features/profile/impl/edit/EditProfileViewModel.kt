@@ -14,6 +14,9 @@ import com.dangerfield.cards.libraries.identity.profile.DisplayNameRules
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
+import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
+import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
+import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.products.ProductsRepository
 import com.dangerfield.cards.libraries.ui.components.PlayerBadge
 import com.dangerfield.cards.libraries.ui.components.resolvePlayerBadges
@@ -56,13 +59,21 @@ class EditProfileViewModel(
 
     init {
         viewModelScope.launch {
-            // Wait for the first Authenticated profile to land. Fallback
-            // is filtered out — the user shouldn't be on this screen
-            // when there's no real profile to edit.
+            // Seed from the first profile we can edit: a real Authenticated one,
+            // or a Fallback that already carries a locally-chosen identity (the
+            // offline-onboarded case — edits queue and sync on session mint). We
+            // wait past a bare Fallback (no identity yet) so we don't seed an
+            // empty form from a transient pre-resolve emission.
             val profile = profileRepository.observe()
-                .filterIsInstance<Profile.Authenticated>()
-                .first()
-            takeAction(EditProfileAction.SeedFromProfile(profile))
+                .first { it is Profile.Authenticated || (it is Profile.Fallback && it.displayName != null) }
+            takeAction(
+                EditProfileAction.SeedFromProfile(
+                    displayName = profile.displayNameOrNull,
+                    avatarEmoji = profile.avatarEmojiOrNull,
+                    avatarBackgroundColor = profile.avatarBackgroundColorOrNull,
+                    memberSince = (profile as? Profile.Authenticated)?.createdAt,
+                ),
+            )
             takeAction(EditProfileAction.LoadAvatarPack)
         }
         // Live local-inventory observation drives pack visibility. A
@@ -122,13 +133,13 @@ class EditProfileViewModel(
         when (action) {
             is EditProfileAction.SeedFromProfile -> action.updateState {
                 it.copy(
-                    initialDisplayName = action.profile.displayName,
-                    displayName = action.profile.displayName,
-                    initialAvatarEmoji = action.profile.avatarEmoji,
-                    selectedAvatarEmoji = action.profile.avatarEmoji,
-                    initialAvatarBackgroundColor = action.profile.avatarBackgroundColor,
-                    selectedAvatarBackgroundColor = action.profile.avatarBackgroundColor,
-                    memberSince = action.profile.createdAt,
+                    initialDisplayName = action.displayName,
+                    displayName = action.displayName.orEmpty(),
+                    initialAvatarEmoji = action.avatarEmoji,
+                    selectedAvatarEmoji = action.avatarEmoji,
+                    initialAvatarBackgroundColor = action.avatarBackgroundColor,
+                    selectedAvatarBackgroundColor = action.avatarBackgroundColor,
+                    memberSince = action.memberSince,
                 )
             }
 
@@ -251,6 +262,9 @@ class EditProfileViewModel(
     ) {
         when (outcome) {
             is UpdateProfileOutcome.Success -> sendEvent(EditProfileEvent.Saved)
+            // Queued offline: the change applied locally and will sync when a
+            // session lands. Treat it like a save — the user's edit "stuck."
+            UpdateProfileOutcome.Queued -> sendEvent(EditProfileEvent.Saved)
             UpdateProfileOutcome.DisplayNameTaken -> updateState {
                 it.copy(
                     isSubmitting = false,
@@ -277,6 +291,7 @@ class EditProfileViewModel(
 
     private fun UpdateProfileOutcome.toFailureMessage(): String? = when (this) {
         is UpdateProfileOutcome.Success -> null
+        is UpdateProfileOutcome.Queued -> null
         is UpdateProfileOutcome.DisplayNameTaken ->
             "Couldn't save — that name is already taken."
         is UpdateProfileOutcome.InvalidDisplayName ->
@@ -383,7 +398,12 @@ sealed interface EditProfileDisplayNameError {
 }
 
 sealed interface EditProfileAction {
-    data class SeedFromProfile(val profile: Profile.Authenticated) : EditProfileAction
+    data class SeedFromProfile(
+        val displayName: String?,
+        val avatarEmoji: String?,
+        val avatarBackgroundColor: String?,
+        val memberSince: kotlin.time.Instant?,
+    ) : EditProfileAction
     data object LoadAvatarPack : EditProfileAction
     data class OwnedProductsChanged(val productIds: Set<String>) : EditProfileAction
     data class EquippedBadgesChanged(val badges: List<PlayerBadge>) : EditProfileAction

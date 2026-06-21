@@ -41,6 +41,16 @@ import kotlin.test.assertTrue
 
 class EditProfileViewModelTest : CoroutineTest() {
 
+    private fun buildVm(profile: ProfileRepository): EditProfileViewModel = EditProfileViewModel(
+        profileRepository = profile,
+        inventoryRepository = NoOpInventoryRepository,
+        equipmentRepository = NoOpEquipmentRepository,
+        progressionRepository = NoOpProgressionRepository,
+        progressionConfig = NoOpProgressionConfig,
+        productsRepository = NoOpProductsRepository,
+        appScope = AppCoroutineScope(dispatchers),
+    )
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun submit_updateProfileCallSurvivesViewModelTeardown() = runUnitTest {
@@ -253,6 +263,55 @@ class EditProfileViewModelTest : CoroutineTest() {
         }
     }
 
+    @Test
+    fun seedsFromFallback_whenOfflineOnboardedIdentityPresent() = runUnitTest {
+        // Ungated: an offline-onboarded user (Fallback carrying their chosen
+        // identity) can open Edit Profile and the form pre-fills from it.
+        val gate = CompletableDeferred<UpdateProfileOutcome>()
+        val profile = GatedUpdateProfile(
+            gate,
+            seedProfile = Profile.Fallback(
+                id = "local-1",
+                displayName = "Foxy",
+                avatarEmoji = "🦊",
+                avatarBackgroundColor = "#ff6b35",
+            ),
+        )
+        val vm = buildVm(profile)
+        runCurrent()
+
+        assertEquals("Foxy", vm.state.displayName)
+        assertEquals("🦊", vm.state.selectedAvatarEmoji)
+        assertEquals("#ff6b35", vm.state.selectedAvatarBackgroundColor)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun submit_queuedOffline_emitsSaved() = runUnitTest {
+        // A session-less edit returns Queued (applied locally, syncs later); the
+        // VM treats it like a save and lets the user leave.
+        val gate = CompletableDeferred<UpdateProfileOutcome>()
+        val profile = GatedUpdateProfile(
+            gate,
+            seedProfile = Profile.Fallback(
+                id = "local-1",
+                displayName = "Foxy",
+                avatarEmoji = "🦊",
+                avatarBackgroundColor = null,
+            ),
+        )
+        val vm = buildVm(profile)
+        runCurrent()
+
+        vm.eventFlow.test {
+            vm.takeAction(EditProfileAction.DisplayNameChanged("Fox2"))
+            vm.takeAction(EditProfileAction.Submit)
+            runCurrent()
+            gate.complete(UpdateProfileOutcome.Queued)
+            assertEquals(EditProfileEvent.Saved, awaitItem())
+        }
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun submit_nameChanged_waitsForServer_andSurfacesDisplayNameTakenInline() = runUnitTest {
@@ -401,7 +460,7 @@ private class GatedUpdateProfile(
     private val packs: List<AvatarPack> = listOf(
         AvatarPack(id = "starter", name = "Starter", emojis = listOf("🃏", "🦊"), unlockProductId = null),
     ),
-    private val seedProfile: Profile.Authenticated = sampleProfile,
+    private val seedProfile: Profile = sampleProfile,
 ) : ProfileRepository {
     var updateStarted: Int = 0
         private set

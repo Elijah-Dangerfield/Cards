@@ -31,8 +31,11 @@ import com.dangerfield.cards.features.upgrade.impl.AppGuardLayer
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
-import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.identity.profile.ProfileEditRejection
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
+import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
+import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -85,10 +88,14 @@ import com.dangerfield.cards.libraries.ui.snackbar.SnackbarDuration
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarLevel
 import com.dangerfield.cards.libraries.ui.snackbar.showSnackBar
 import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_avatar
+import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_name_invalid
+import cards.libraries.resources.generated.resources.profile_edit_sync_rejected_name_taken
 import cards.libraries.resources.generated.resources.session_expired_guest_message
 import cards.libraries.resources.generated.resources.session_expired_guest_title
 import cards.libraries.resources.generated.resources.session_expired_message
 import cards.libraries.resources.generated.resources.session_expired_title
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import com.dangerfield.cards.libraries.ui.snackbar.SnackbarHost
 import com.dangerfield.cards.libraries.ui.snackbar.rememberSnackbarHostState
@@ -146,6 +153,24 @@ fun App(appComponent: AppComponent) {
 
     LaunchedEffect(ensureAppConfigLoaded) {
         ensureAppConfigLoaded()
+    }
+
+    // Surface a "couldn't save" snackbar when a profile edit queued offline is
+    // refused by the server on flush (name taken while away, etc.) — the
+    // optimistic value already reverted, so without this the change would
+    // silently disappear. App-root so it shows wherever the user is by then.
+    LaunchedEffect(Unit) {
+        appComponent.profileRepository.observeEditRejections().collect { rejection ->
+            val message = getString(
+                when (rejection) {
+                    ProfileEditRejection.DisplayNameTaken -> Res.string.profile_edit_sync_rejected_name_taken
+                    ProfileEditRejection.InvalidDisplayName -> Res.string.profile_edit_sync_rejected_name_invalid
+                    ProfileEditRejection.InvalidAvatarEmoji,
+                    ProfileEditRejection.InvalidAvatarBackgroundColor -> Res.string.profile_edit_sync_rejected_avatar
+                },
+            )
+            showSnackBar(message = message, level = SnackbarLevel.Error)
+        }
     }
 
     LaunchedEffect(navController, deepLinkBridge) {
@@ -339,7 +364,6 @@ private fun AppNavigation(
     val unreadNotifications by userMessageRepository.observeUnreadInboxCount()
         .collectAsState(initial = 0)
     val profile by profileRepository.observe().collectAsState(initial = null)
-    val authedProfile = profile as? Profile.Authenticated
     val shopHasUnseenItems by shopBadgeStateRepository.observeHasUnseenItems()
         .collectAsState(initial = false)
     val shopMarkSeenScope = rememberCoroutineScope()
@@ -388,9 +412,11 @@ private fun AppNavigation(
                         BottomBarItem.Profile(
                             isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
                             badgeAmount = unreadNotifications,
-                            avatarDisplayName = authedProfile?.displayName,
-                            avatarEmoji = authedProfile?.avatarEmoji,
-                            avatarBackgroundColor = authedProfile?.avatarBackgroundColor,
+                            // Honor a locally-chosen (offline) identity so the
+                            // tab avatar isn't a generic icon for a Fallback user.
+                            avatarDisplayName = profile?.displayNameOrNull,
+                            avatarEmoji = profile?.avatarEmojiOrNull,
+                            avatarBackgroundColor = profile?.avatarBackgroundColorOrNull,
                         ),
                     ),
                     onItemClick = { item ->
