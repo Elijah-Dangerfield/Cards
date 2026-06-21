@@ -135,6 +135,45 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     }
 
     @Test
+    fun occupantsFor_humanSeat_derivesLevelThroughConfiguredCurve() = runUnitTest {
+        // A steep server-tuned curve (10k XP per early level) keeps 2,500 XP at
+        // level 1 where the bundled quadratic curve shows level 4 — proving the
+        // opponent level runs through the threaded curve, not the bundled default.
+        val steepCurve = com.dangerfield.cards.libraries.cards.LevelCurve(baseXp = 10_000)
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, displayName = "Alice", isBot = false, playerId = "alice", xp = 2_500),
+            ),
+        )
+
+        val human = assertIs<SeatOccupant.Human>(factory().occupantsFor(state, steepCurve).single())
+
+        assertEquals(1, human.level)
+        assertEquals(4, com.dangerfield.cards.libraries.cards.levelProgressFor(2_500).level)
+    }
+
+    @Test
+    fun tableFor_remoteOpponent_levelBadgeRunsThroughConfiguredCurve() = runUnitTest {
+        val steepCurve = com.dangerfield.cards.libraries.cards.LevelCurve(baseXp = 10_000)
+        val state = stubGameState(
+            seats = listOf(
+                testSeat(index = 0, playerId = "local-user", xp = null),
+                testSeat(index = 1, playerId = "peer", isBot = false, xp = 2_500),
+            ),
+            actingSeatIndex = 0,
+        )
+
+        val table = assertIs<TableUiState.Active>(
+            tableFor(state, localUserId = "local-user", curve = steepCurve),
+        )
+
+        assertEquals(
+            SeatBadge.Level(1),
+            table.seats.single { it.index == 1 }.seatBadge,
+        )
+    }
+
+    @Test
     fun tableFor_remoteOpponent_nullXp_omitsBadge() = runUnitTest {
         val state = stubGameState(
             seats = listOf(
@@ -354,12 +393,15 @@ class RemotePokerSessionFactoryTest : CoroutineTest() {
     private fun tableFor(
         state: com.dangerfield.cards.libraries.gameplay.GameState,
         localUserId: String,
+        curve: com.dangerfield.cards.libraries.cards.LevelCurve =
+            com.dangerfield.cards.libraries.cards.DefaultLevelCurve,
     ): TableUiState = factory(localUserId = localUserId).tableFor(
         state = state,
         lastWinners = null,
         lastActionBySeat = emptyMap(),
         humanProfile = null,
         humanLevel = null,
+        curve = curve,
     )
 
     /**

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.features.room.impl
 
 import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.cards.levelProgressFor
 import com.dangerfield.cards.libraries.game.SeatOccupant
@@ -76,7 +77,7 @@ class RemotePokerSessionFactory @Inject constructor(
     override fun humanSeatIndex(state: GameState): Int =
         state.seats.firstOrNull { it.playerId == localUserId }?.index ?: -1
 
-    override fun occupantsFor(state: GameState): List<SeatOccupant> {
+    override fun occupantsFor(state: GameState, curve: LevelCurve): List<SeatOccupant> {
         if (state.seats.isEmpty()) return emptyList()
         return state.seats.map { seat ->
             when {
@@ -96,8 +97,9 @@ class RemotePokerSessionFactory @Inject constructor(
                     personality = null,
                     // The server snapshots each player's lifetime XP onto the
                     // Seat at hand-start; derive their level the same way the
-                    // local human's is derived. 0 when XP hasn't resolved yet.
-                    level = seat.xp?.let { levelProgressFor(it).level } ?: 0,
+                    // local human's is derived, through the same server-tunable
+                    // [curve]. 0 when XP hasn't resolved yet.
+                    level = seat.xp?.let { levelProgressFor(it, curve).level } ?: 0,
                     leagueTier = null,
                 )
             }
@@ -110,6 +112,7 @@ class RemotePokerSessionFactory @Inject constructor(
         lastActionBySeat: Map<Int, PlayerAction>,
         humanProfile: Profile.Authenticated?,
         humanLevel: Int?,
+        curve: LevelCurve,
     ): TableUiState {
         // Pre-first-snapshot: render Loading. The session emits a
         // sentinel state with empty seats until the server's first
@@ -126,6 +129,7 @@ class RemotePokerSessionFactory @Inject constructor(
             humanLevel = humanLevel,
             botDifficultyLabel = difficultyName,
             practiceTierBotsPresent = MultiplayerCredit.showsPracticeTierLabel(state),
+            curve = curve,
         )
     }
 }

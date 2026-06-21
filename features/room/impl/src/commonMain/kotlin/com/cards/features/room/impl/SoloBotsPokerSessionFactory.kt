@@ -3,6 +3,7 @@ package com.dangerfield.cards.features.room.impl
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.cards.BotSpeed
+import com.dangerfield.cards.libraries.cards.LevelCurve
 import com.dangerfield.cards.libraries.cards.XpMode
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.game.Personality
@@ -82,7 +83,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
 
     override fun humanSeatIndex(state: GameState): Int = humanSeatIndex
 
-    override fun occupantsFor(state: GameState): List<SeatOccupant> = state.seats.map { seat ->
+    override fun occupantsFor(state: GameState, curve: LevelCurve): List<SeatOccupant> = state.seats.map { seat ->
         val personality = personalitiesBySeat[seat.index]?.let { p ->
             // Map :libraries:bots BotPersonality → :libraries:game Personality
             // primitives. The two domains overlap conceptually but live in
@@ -93,7 +94,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
                 style = com.dangerfield.cards.libraries.game.PlayStyle.Unknown,
             )
         }
-        seatToOccupant(seat, personality)
+        seatToOccupant(seat, personality, curve)
     }
 
     override fun tableFor(
@@ -102,6 +103,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         lastActionBySeat: Map<Int, PlayerAction>,
         humanProfile: Profile.Authenticated?,
         humanLevel: Int?,
+        curve: LevelCurve,
     ): TableUiState = TableUiState.fromGameState(
         gameState = state,
         humanSeatIndex = humanSeatIndex,
@@ -111,6 +113,7 @@ class SoloBotsPokerSessionFactory @Inject constructor(
         humanProfile = humanProfile,
         humanLevel = humanLevel,
         botDifficultyLabel = difficultyName,
+        curve = curve,
     )
 }
 

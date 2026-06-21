@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.cards.BotSpeed
 import com.dangerfield.cards.libraries.cards.Criterion
 import com.dangerfield.cards.libraries.cards.EarnedAchievement
 import com.dangerfield.cards.libraries.cards.Progression
+import com.dangerfield.cards.libraries.cards.ProgressionConfig
 import com.dangerfield.cards.libraries.cards.TurnFeedback
 import com.dangerfield.cards.libraries.cards.XpEvent
 import com.dangerfield.cards.libraries.cards.XpMode
@@ -1008,6 +1009,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
     private fun buildVm(
         factory: PokerSessionFactory = FakePokerSessionFactory(),
         progressionRepository: FakeProgressionRepository = FakeProgressionRepository(),
+        progressionConfig: ProgressionConfig = FakeProgressionConfig(),
         achievementRepository: FakeAchievementRepository = FakeAchievementRepository(),
         appCache: FakeAppCache = FakeAppCache(),
         profileRepository: FakeProfileRepository = FakeProfileRepository(),
@@ -1017,6 +1019,7 @@ class PlayPokerViewModelTest : CoroutineTest() {
     ): PlayPokerViewModel = PlayPokerViewModel(
         sessionFactory = factory,
         progressionRepository = progressionRepository,
+        progressionConfig = progressionConfig,
         achievementRepository = achievementRepository,
         appCache = appCache,
         equipmentRepository = FakeEquipmentRepository(),

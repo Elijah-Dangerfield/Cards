@@ -80,8 +80,8 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P2]` **Finish curve threading at the MP table + reconcile level-up grants server-side.** `LocalLevelCurve` (app-root `staticCompositionLocalOf`) now feeds every display site except the multiplayer-table seat/opponent levels (`PlayPokerViewModel:392/427/529/1090`, `RemotePokerSessionFactory.occupantsFor`, `TableUiState` badge) — those still call `levelProgressFor(xp)` with the bundled default, so a retuned `progression.levelCurve` desyncs at-table levels. **(a)** thread the curve into the `PokerSessionFactory` projection (inject `ProgressionConfig` into `PlayPokerViewModel`, pass the curve through `occupantsFor`/`tableFor`/`fromGameState`); **(b)** the server confirms/voids the client's offline `levelup_<level>` grants against `total_xp` vs the same curve in the progression-sync response.
-  **Hints:** [`decisions.md`](./decisions.md) 2026-06-17 + the 2026-06-20 curve-config entry. Display sites + `LocalLevelCurve` infra already shipped.
+- `[P2]` **Reconcile level-up grants server-side against the tunable curve.** The client grants offline `levelup_<level>` rewards by deriving level from `total_xp` through `progression.levelCurve`; nothing on the server re-checks them, so a retuned curve (or a client on a stale curve) can mint or skip a level reward the server would disagree with. The server should confirm/void each client `levelup_<level>` grant against `total_xp` vs the same curve in the progression-sync response. *(Client display + projection threading already shipped — every at-table and display site now runs through the configured curve.)*
+  **Hints:** [`decisions.md`](./decisions.md) 2026-06-17 + the 2026-06-20 curve-config entry. Curve lives in `ProgressionConfig.levelCurve()`; grant precedent is `LevelUpRewardGranter` / the progression sync path.
 
 ### Consumables & rewards (V1.x / monetization)
 
