@@ -52,7 +52,7 @@ class ServerBotDriver(
     private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val random: Random = Random.Default,
     private val equityIterations: Int = 200,
-    private val thinkDelay: (BotPersonality, BotThought) -> Long = ::serverThinkDelayMs,
+    private val thinkDelay: (BotPersonality, BotThought, Random) -> Long = ::serverThinkDelayMs,
     private val nextHandDelayMs: Long = 1_200,
 ) {
     // playerId -> bot truth. Mutated only from the single collector coroutine
@@ -114,7 +114,7 @@ class ServerBotDriver(
 
         // Humanlike pause. collectLatest cancels this the moment the table state
         // moves on, so a stale timer never fires an outdated action.
-        delay(thinkDelay(botSeat.personality, decision.thought))
+        delay(thinkDelay(botSeat.personality, decision.thought, random))
 
         val nonce = "bot:${session.id}:${state.handNumber}:$acting:${state.street}"
         val result = session.applyIntent(playerId, decision.intent, nonce)
@@ -162,19 +162,37 @@ class ServerBotDriver(
 }
 
 /**
- * Humanlike think time for a server bot, derived from the decision's shape (no
- * client [com.dangerfield.cards.libraries.bots.BotPersonality] speed pref to
- * mirror at a shared table). Close decisions — hand strength near the pot odds —
- * read as "thinking"; snap folds/value bets are quick. A deliberate, simpler
- * cousin of the client's `BotTiming`; kept standalone to avoid pulling the
- * client's `BotSpeed` plumbing onto the server.
+ * Humanlike think time for a server bot. Real players don't act on a fixed
+ * cadence, so neither do bots: the base scales with the decision's difficulty
+ * and the personality, then every pause gets per-decision jitter plus a chance
+ * of a quick **snap** (obvious spot, reacted instantly) or a long **tank**
+ * (weighted toward genuinely close spots). The spread matters most for stealth
+ * bots a human reads as a real opponent — a metronome gives them away.
+ *
+ * A deliberately simpler cousin of the client's `BotTiming`; kept standalone to
+ * avoid pulling the client's `BotSpeed` plumbing onto the server. (Mirroring the
+ * table's actual pace — speeding up when humans are snappy — is a future lift.)
  */
-internal fun serverThinkDelayMs(personality: BotPersonality, thought: BotThought): Long {
-    val base = 600.0
-    // Tight bots dwell a touch longer; aggressive bots snap.
+internal fun serverThinkDelayMs(
+    personality: BotPersonality,
+    thought: BotThought,
+    random: Random,
+): Long {
+    // Closeness of the call decision (strength ≈ pot odds) stretches the pause.
+    val closeness = 1.0 - kotlin.math.abs(thought.handStrength - thought.potOdds).coerceIn(0.0, 1.0)
+    // Base 500..1600ms by difficulty; tight bots dwell longer, aggressive snap.
+    val base = 500.0 + closeness * 1_100.0
     val personalityFactor = 0.85 + personality.tightness * 0.4 - personality.aggression * 0.2
-    // Closeness of the call decision stretches the pause.
-    val closeness = 1.0 - (kotlin.math.abs(thought.handStrength - thought.potOdds)).coerceIn(0.0, 1.0)
-    val complexityFactor = 0.7 + closeness * 0.9
-    return (base * personalityFactor * complexityFactor).toLong().coerceIn(450, 2_200)
+    var ms = base * personalityFactor
+
+    when {
+        // ~15% snap: an obvious decision answered without deliberation.
+        random.nextDouble() < 0.15 -> ms *= 0.35
+        // ~8% tank: a long think, amplified on genuinely close spots.
+        random.nextDouble() > 0.92 -> ms *= 2.2 + closeness * 1.8
+    }
+    // Per-decision jitter so two identical spots never time the same.
+    ms *= 0.8 + random.nextDouble() * 0.5
+
+    return ms.toLong().coerceIn(300, 6_000)
 }

@@ -2,6 +2,7 @@ package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
+import com.dangerfield.cards.libraries.bots.BotThought
 import com.dangerfield.cards.libraries.gameplay.BettingRound
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
@@ -51,7 +52,7 @@ class ServerBotDriverTest {
             cpuDispatcher = dispatcher,
             random = Random(seed = 7),
             equityIterations = 20,
-            thinkDelay = { _, _ -> 0 },
+            thinkDelay = { _, _, _ -> 0 },
             nextHandDelayMs = 0,
         )
         driver.updateRoster(listOf(human, bot))
@@ -80,6 +81,28 @@ class ServerBotDriverTest {
     }
 
     @Test
+    fun serverThinkDelay_isVariable_acrossIdenticalSpots() {
+        val thought = BotThought(
+            handStrength = 0.5,
+            potOdds = 0.4,
+            drawProfile = null,
+            opponentNote = null,
+            rationale = "",
+        )
+        val random = Random(seed = 99)
+        val samples = (0 until 200).map {
+            serverThinkDelayMs(BotPersonality.Jane, thought, random)
+        }
+
+        // Same spot, same personality — yet the timing spreads, including the
+        // occasional snap and tank, so the bot never reads as a metronome.
+        assertTrue(samples.toSet().size > 50, "delays should vary decision-to-decision")
+        assertTrue(samples.any { it < 600 }, "some decisions snap")
+        assertTrue(samples.any { it > 2_500 }, "some decisions tank")
+        assertTrue(samples.all { it in 300..6_000 }, "delays stay within sane bounds")
+    }
+
+    @Test
     fun driver_noBots_takesNoActions() = runTest {
         val session = GameSession(random = Random(seed = 1))
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -87,7 +110,7 @@ class ServerBotDriverTest {
             session = session,
             scope = backgroundScope,
             cpuDispatcher = dispatcher,
-            thinkDelay = { _, _ -> 0 },
+            thinkDelay = { _, _, _ -> 0 },
         )
         driver.start()
 
