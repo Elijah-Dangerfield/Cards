@@ -83,6 +83,7 @@ class InMemoryRoomService(
         maxSeats: Int,
         hostAvatarEmoji: String,
         hostAvatarBackgroundColor: String?,
+        buyIn: Long,
     ): CreateResult = mutex.withLock {
         val activeHosted = rooms.values.count { it.room.hostUserId == hostUserId }
         if (activeHosted >= RoomService.MAX_ROOMS_PER_HOST) {
@@ -113,6 +114,7 @@ class InMemoryRoomService(
             maxSeats = maxSeats,
             status = RoomStatus.Lobby,
             members = listOf(host),
+            buyIn = buyIn,
         )
         rooms[code] = RoomState(room = room)
         CreateResult.Success(room)

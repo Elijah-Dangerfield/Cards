@@ -27,4 +27,7 @@ data class LobbyRoute(
     val prefilledCode: String? = null,
     val autoCreate: Boolean = false,
     val maxSeats: Int? = null,
+    /** Host-chosen buy-in carried from the create screen into the auto-create.
+     *  Null falls back to the server default. Only meaningful with [autoCreate]. */
+    val buyIn: Long? = null,
 ) : Route(authRequirement = AuthRequirement.Account)

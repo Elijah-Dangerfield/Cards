@@ -308,6 +308,7 @@ class DefaultOrphanInstallSweepTest {
             maxSeats: Int,
             hostAvatarEmoji: String,
             hostAvatarBackgroundColor: String?,
+            buyIn: Long,
         ): com.dangerfield.cards.server.domain.CreateResult = error("unused")
         override suspend fun join(
             code: String,

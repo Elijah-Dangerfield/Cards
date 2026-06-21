@@ -428,7 +428,9 @@ private suspend fun handleStartHand(
     if (occupants.size < 2) {
         return IntentResult.Rejected("need at least 2 players to start")
     }
-    val result = gameSessions.startHand(code, occupants, RoomSettings.Default)
+    // Play at the host-chosen stakes (buy-in → starting stack + derived blinds),
+    // not the engine default.
+    val result = gameSessions.startHand(code, occupants, room.settings)
     if (result is IntentResult.Accepted) {
         rooms.markPlaying(code)
     }

@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.domain
 
 import com.dangerfield.cards.libraries.bots.BotDifficulty
+import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 import kotlin.time.ExperimentalTime
@@ -33,7 +34,16 @@ data class Room(
     val status: RoomStatus,
     /** Members in seat-index order. List is the authoritative seating chart. */
     val members: List<RoomMember>,
+    /**
+     * Host-chosen buy-in = each player's starting stack. Blinds derive from it
+     * via [RoomSettings.forBuyIn]. Used at hand-start instead of the engine
+     * default so the table actually plays at the chosen stakes.
+     */
+    val buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
 ) {
+    /** Full engine settings derived from [buyIn] + [maxSeats]. */
+    val settings: RoomSettings get() = RoomSettings.forBuyIn(buyIn, maxSeats)
+
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats
     fun memberFor(userId: UserId): RoomMember? = members.firstOrNull { it.userId == userId }
@@ -118,6 +128,7 @@ interface RoomService {
         maxSeats: Int = MAX_SEATS,
         hostAvatarEmoji: String = "",
         hostAvatarBackgroundColor: String? = null,
+        buyIn: Long = RoomSettings.DEFAULT_BUY_IN,
     ): CreateResult
 
     /**

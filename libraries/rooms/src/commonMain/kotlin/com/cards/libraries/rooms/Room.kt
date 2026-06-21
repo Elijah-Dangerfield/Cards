@@ -17,6 +17,11 @@ data class Room(
     val maxSeats: Int,
     val status: RoomStatus,
     val members: List<RoomMember>,
+    /** Host-chosen buy-in (= starting stack) and the blinds derived from it,
+     *  for display in the lobby. 0 until the first room snapshot. */
+    val buyIn: Long = 0,
+    val smallBlind: Long = 0,
+    val bigBlind: Long = 0,
 ) {
     val seatCount: Int get() = members.size
     val isFull: Boolean get() = seatCount >= maxSeats

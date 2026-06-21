@@ -609,6 +609,18 @@ class InMemoryRoomServiceTest {
         assertEquals("🦊", room.members.single().avatarEmoji, "a non-reserved avatar rides through untouched")
     }
 
+    @Test
+    fun create_storesBuyIn_andDerivesSettings() = runTest {
+        val service = newService()
+        val room = when (val r = service.create(host, "Host", maxSeats = 4, buyIn = 20_000)) {
+            is CreateResult.Success -> r.room
+            else -> error("expected success")
+        }
+        assertEquals(20_000, room.buyIn)
+        assertEquals(20_000, room.settings.startingStack)
+        assertEquals(200, room.settings.bigBlind, "blinds derive from buy-in")
+    }
+
     // ---------- bots ----------
 
     @Test
