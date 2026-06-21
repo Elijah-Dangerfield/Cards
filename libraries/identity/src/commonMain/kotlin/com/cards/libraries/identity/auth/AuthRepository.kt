@@ -191,12 +191,19 @@ sealed interface AuthState {
         /**
          * Why we're unauthenticated.
          *
-         * - [None] — no session / clean sign-out / not-yet-resolved / offline. No
-         *   forced routing; the auth gate handles navigation as usual.
+         * - [None] — no session / not-yet-resolved / offline. No forced routing;
+         *   the auth gate handles navigation as usual. This is also the reason a
+         *   never-signed-in-but-onboarded guest (the stranding case) carries, so
+         *   identity self-heal mints a session for it.
          * - [SessionExpired] — the auth server **rejected** our token and a refresh
          *   failed: the session is genuinely dead. The app boots the user to
          *   re-authenticate (claimed) or start fresh (guest).
+         * - [SignedOut] — a **deliberate** sign-out / account delete this run. The
+         *   distinction from [None] is load-bearing for identity self-heal: it must
+         *   NOT resurrect a user who just chose to sign out as a fresh anonymous
+         *   guest. (After a relaunch this collapses back to [None]; the
+         *   `hasUserOnboarded` guard — cleared on sign-out — covers that case.)
          */
-        enum class Reason { None, SessionExpired }
+        enum class Reason { None, SessionExpired, SignedOut }
     }
 }

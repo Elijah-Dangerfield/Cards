@@ -481,6 +481,11 @@ internal class FakeGuestAccountCreator(
     override fun retry() {
         lastIdentity?.let { start(it) }
     }
+
+    override suspend fun ensureSession(fallbackIdentity: PendingIdentity): AccountCreationState {
+        start(fallbackIdentity)
+        return _state.value
+    }
 }
 
 internal class FakeProfileRepository(

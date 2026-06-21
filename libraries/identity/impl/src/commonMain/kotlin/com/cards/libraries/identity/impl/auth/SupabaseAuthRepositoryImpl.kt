@@ -441,7 +441,12 @@ class SupabaseAuthRepositoryImpl(
         // again. A later retry() just re-resolves (still Unauthenticated).
         // emitUnauthenticatedLocked → emitLocked dumps the prior user's local
         // data and dispatches UserChanged(prev, null); no explicit dispatch here.
-        emitUnauthenticatedLocked(cause = null)
+        // Reason.SignedOut so identity self-heal doesn't resurrect this
+        // deliberate sign-out as a fresh anonymous guest.
+        emitUnauthenticatedLocked(
+            cause = null,
+            reason = AuthState.Unauthenticated.Reason.SignedOut,
+        )
     }
 
     override suspend fun deleteAccount(): DeleteAccountOutcome = mutex.withLock {
@@ -484,8 +489,13 @@ class SupabaseAuthRepositoryImpl(
             Catching { gateway.signOut() }
                 .logOnFailure { "Supabase signOut after delete failed; clearing local state anyway" }
             // emitUnauthenticatedLocked → emitLocked dumps this user's local
-            // data and dispatches UserChanged(prev, null).
-            emitUnauthenticatedLocked(cause = null)
+            // data and dispatches UserChanged(prev, null). Reason.SignedOut so
+            // identity self-heal treats a delete like a sign-out and doesn't
+            // mint a fresh guest in its place.
+            emitUnauthenticatedLocked(
+                cause = null,
+                reason = AuthState.Unauthenticated.Reason.SignedOut,
+            )
         } else {
             logger.w { "deleteAccount: ${outcome::class.simpleName}" }
         }
