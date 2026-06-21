@@ -130,9 +130,16 @@ class DefaultGuestAccountCreator(
         // still resume next launch.
         val next = when (val outcome = authRepository.createGuestSession()) {
             is SignInOutcome.Success -> {
-                // Session is live → account exists. Apply the chosen identity
-                // best-effort; failure here is non-fatal (server's generated
-                // default stands and the user can rename later).
+                // Session is live → account exists. Let the profile resolve
+                // settle first: it runs GET /v1/me (server get-or-create), so
+                // the row exists before we PATCH the chosen name/avatar onto it.
+                // The server PATCH is now also get-or-create (Phase 2), so this
+                // is belt-and-suspenders ordering rather than load-bearing.
+                Catching { profileRepository.current() }
+                    .logOnFailure { "Awaiting profile resolve before guest patch failed (non-fatal)" }
+                // Apply the chosen identity best-effort; failure here is
+                // non-fatal (server's generated default stands and the user can
+                // rename later).
                 Catching {
                     profileRepository.update(
                         displayName = identity.displayName,

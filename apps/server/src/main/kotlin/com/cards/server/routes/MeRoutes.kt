@@ -121,6 +121,16 @@ fun Route.meRoutes(
                 val isAnonymous = call.isAnonymousUser()
                 val body = call.receive<PatchMeRequest>()
 
+                // PATCH is get-or-create, mirroring GET /v1/me. The first
+                // identity write a fresh install makes (guest creation patches
+                // the chosen name/avatar) used to 404 because no row existed
+                // yet — the client GET that creates it raced the PATCH. Seeding
+                // the row here removes that race and also seeds starter
+                // inventory, so the avatar-emoji ownership check below passes on
+                // first contact. Idempotent on userId; a returning user's
+                // existing row is returned untouched.
+                repository.findOrCreate(userId)
+
                 val cleanedName = body.displayName?.trim()
                 if (cleanedName != null && (cleanedName.length !in NAME_LENGTH || cleanedName.containsEmoji())) {
                     return@patch call.respond(

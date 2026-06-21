@@ -259,6 +259,28 @@ class MeRoutesTest {
     }
 
     @Test
+    fun patch_createsProfile_onFirstContact_thenUpdates() = runTest {
+        // Fresh install: the guest-creation identity write hits PATCH before any
+        // GET created the row. PATCH is now get-or-create, so it must succeed
+        // (200) rather than 404 — findOrCreate runs and the update applies.
+        val repo = FakeProfileRepository(existing = null)
+        callPatch(repo, bearer = validJwt(), jsonBody = """{"displayName":"NewName"}""") { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertTrue(repo.findOrCreateCalls >= 1, "PATCH must get-or-create the row first")
+            assertEquals(1, repo.updateCalls)
+        }
+    }
+
+    @Test
+    fun patch_returns401_whenAuthHeaderMissing() = runTest {
+        val repo = FakeProfileRepository(existing = null)
+        callPatch(repo, bearer = null, jsonBody = """{"displayName":"NewName"}""") { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+            assertEquals(0, repo.findOrCreateCalls)
+        }
+    }
+
+    @Test
     fun activeRooms_returnsRoomsCallerIsMemberOf() = runTest {
         val rooms = InMemoryRoomService(clock = FixedClock(), random = kotlin.random.Random(0L))
         val otherUser = UserId(UUID.fromString("22222222-2222-2222-2222-222222222222"))
