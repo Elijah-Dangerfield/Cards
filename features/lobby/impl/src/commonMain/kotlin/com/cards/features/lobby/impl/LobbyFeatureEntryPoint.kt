@@ -24,7 +24,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, multibinding = true)
 @Inject
 class LobbyFeatureEntryPoint(
-    private val viewModelFactory: (prefilledCode: String?, autoCreate: Boolean) -> LobbyViewModel,
+    private val viewModelFactory: (prefilledCode: String?, autoCreate: Boolean, maxSeats: Int?) -> LobbyViewModel,
 ) : FeatureEntryPoint {
 
     override fun NavGraphBuilder.buildNavGraph(router: Router) {
@@ -35,10 +35,10 @@ class LobbyFeatureEntryPoint(
         screen<PrivateCreateRoute> {
             PrivateCreateScreen(
                 onBack = { router.goBack() },
-                onCreate = {
+                onCreate = { maxPlayers ->
                     router.batch {
                         popBackTo(PrivateCreateRoute(), inclusive = true)
-                        navigate(LobbyRoute(autoCreate = true))
+                        navigate(LobbyRoute(autoCreate = true, maxSeats = maxPlayers))
                     }
                 },
             )
@@ -58,7 +58,7 @@ class LobbyFeatureEntryPoint(
         screen<LobbyRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<LobbyRoute>()
             val viewModel: LobbyViewModel = viewModel {
-                viewModelFactory(route.prefilledCode, route.autoCreate)
+                viewModelFactory(route.prefilledCode, route.autoCreate, route.maxSeats)
             }
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 

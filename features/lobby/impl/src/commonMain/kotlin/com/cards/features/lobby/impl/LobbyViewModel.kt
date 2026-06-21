@@ -52,6 +52,7 @@ import kotlin.uuid.Uuid
 class LobbyViewModel(
     @Assisted private val prefilledCode: String?,
     @Assisted private val autoCreate: Boolean,
+    @Assisted private val maxSeats: Int?,
     private val rooms: RoomRepository,
     private val auth: AuthRepository,
     private val profile: ProfileRepository,
@@ -111,7 +112,7 @@ class LobbyViewModel(
                 val current = state
                 if (current.isBusy) return@run
                 updateState { it.copy(creating = true, error = null) }
-                when (val outcome = rooms.createRoom()) {
+                when (val outcome = rooms.createRoom(maxSeats = maxSeats)) {
                     is CreateRoomOutcome.Success -> startConnection(outcome.room)
                     is CreateRoomOutcome.InvalidMaxSeats -> updateState {
                         it.copy(creating = false, error = LobbyError.CreateInvalidMaxSeats(outcome.message))

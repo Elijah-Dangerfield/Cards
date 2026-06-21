@@ -63,7 +63,6 @@ import cards.libraries.resources.generated.resources.lobby_leave_dialog_secondar
 import cards.libraries.resources.generated.resources.lobby_leave_dialog_title
 import cards.libraries.resources.generated.resources.lobby_in_room_players_count
 import cards.libraries.resources.generated.resources.lobby_in_room_ready_to_deal
-import cards.libraries.resources.generated.resources.lobby_in_room_share_button
 import cards.libraries.resources.generated.resources.lobby_in_room_stakes_label
 import cards.libraries.resources.generated.resources.lobby_in_room_stakes_value
 import cards.libraries.resources.generated.resources.lobby_in_room_code_copied
@@ -232,22 +231,15 @@ private fun InRoomContent(state: LobbyState, onAction: (LobbyAction) -> Unit) {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(Dimension.D400))
-        Row(horizontalArrangement = Arrangement.spacedBy(Dimension.D400)) {
-            ButtonSecondary(
-                onClick = copyCode,
-                size = ButtonSize.Small,
-                style = ButtonStyle.Outlined,
-            ) {
-                Text(stringResource(Res.string.lobby_in_room_copy_button))
-            }
-            // Share invite copies for now; a platform share sheet is a future
-            // enhancement (no cross-platform share API wired yet).
-            ButtonSecondary(
-                onClick = copyCode,
-                size = ButtonSize.Small,
-            ) {
-                Text(stringResource(Res.string.lobby_in_room_share_button))
-            }
+        // Copy-only for now. A real share sheet (with a deep link into the
+        // lobby) is tracked in docs/todo.md — until then a second "Share"
+        // button that also just copies is misleading, so it's gone.
+        ButtonSecondary(
+            onClick = copyCode,
+            size = ButtonSize.Small,
+            style = ButtonStyle.Outlined,
+        ) {
+            Text(stringResource(Res.string.lobby_in_room_copy_button))
         }
     }
 
