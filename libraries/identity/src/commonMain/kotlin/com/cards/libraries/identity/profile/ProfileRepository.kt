@@ -89,12 +89,54 @@ sealed interface Profile {
 
     /**
      * Client-only fallback used when auth couldn't resolve AND there's
-     * no cached profile. `id` is a UUID generated client-side and
+     * no cached server profile. `id` is a UUID generated client-side and
      * persisted across launches so any local-only state (e.g. single-
      * player save) has a stable key.
+     *
+     * May carry a **locally-chosen** identity — the name/avatar the user
+     * picked during an offline onboarding (or an offline Edit Profile) that
+     * hasn't reached the server yet. Surfaced so the app shows the user's
+     * choice instead of a generic placeholder while session-less; it syncs to
+     * the server once a session is established. Null fields = nothing chosen
+     * yet (the UI falls back to "You" / a default avatar).
+     *
+     * `Fallback` still means "no confirmed server session," so callers that
+     * hard-gate on a real account (shop purchases, server writes) keep checking
+     * `is Authenticated` — they must not treat a populated Fallback as real.
      */
-    data class Fallback(override val id: String) : Profile
+    data class Fallback(
+        override val id: String,
+        val displayName: String? = null,
+        val avatarEmoji: String? = null,
+        val avatarBackgroundColor: String? = null,
+    ) : Profile
 }
+
+/**
+ * Display name from either profile shape — the server-confirmed one when
+ * [Profile.Authenticated], the locally-chosen one when [Profile.Fallback].
+ * Null when no name is known yet (render "You" / a placeholder).
+ *
+ * Use these for *rendering* identity. Anything that gates on a real session
+ * (purchases, server writes) must still match on `is Profile.Authenticated`.
+ */
+val Profile.displayNameOrNull: String?
+    get() = when (this) {
+        is Profile.Authenticated -> displayName
+        is Profile.Fallback -> displayName
+    }
+
+val Profile.avatarEmojiOrNull: String?
+    get() = when (this) {
+        is Profile.Authenticated -> avatarEmoji
+        is Profile.Fallback -> avatarEmoji
+    }
+
+val Profile.avatarBackgroundColorOrNull: String?
+    get() = when (this) {
+        is Profile.Authenticated -> avatarBackgroundColor
+        is Profile.Fallback -> avatarBackgroundColor
+    }
 
 sealed interface UpdateProfileOutcome {
     data class Success(val profile: Profile.Authenticated) : UpdateProfileOutcome

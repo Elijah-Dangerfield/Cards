@@ -31,8 +31,10 @@ import com.dangerfield.cards.features.upgrade.impl.AppGuardLayer
 import com.dangerfield.cards.libraries.config.AppConfigFlow
 import com.dangerfield.cards.libraries.core.Catching
 import com.dangerfield.cards.libraries.core.logOnFailure
-import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
+import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
+import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -339,7 +341,6 @@ private fun AppNavigation(
     val unreadNotifications by userMessageRepository.observeUnreadInboxCount()
         .collectAsState(initial = 0)
     val profile by profileRepository.observe().collectAsState(initial = null)
-    val authedProfile = profile as? Profile.Authenticated
     val shopHasUnseenItems by shopBadgeStateRepository.observeHasUnseenItems()
         .collectAsState(initial = false)
     val shopMarkSeenScope = rememberCoroutineScope()
@@ -388,9 +389,11 @@ private fun AppNavigation(
                         BottomBarItem.Profile(
                             isSelected = currentDestination?.hasRoute<ProfileRoute>() == true,
                             badgeAmount = unreadNotifications,
-                            avatarDisplayName = authedProfile?.displayName,
-                            avatarEmoji = authedProfile?.avatarEmoji,
-                            avatarBackgroundColor = authedProfile?.avatarBackgroundColor,
+                            // Honor a locally-chosen (offline) identity so the
+                            // tab avatar isn't a generic icon for a Fallback user.
+                            avatarDisplayName = profile?.displayNameOrNull,
+                            avatarEmoji = profile?.avatarEmojiOrNull,
+                            avatarBackgroundColor = profile?.avatarBackgroundColorOrNull,
                         ),
                     ),
                     onItemClick = { item ->

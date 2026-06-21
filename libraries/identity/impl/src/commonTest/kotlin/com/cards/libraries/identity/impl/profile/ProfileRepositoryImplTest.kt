@@ -21,6 +21,7 @@ import com.dangerfield.cards.libraries.identity.impl.AvatarPackResponseDto
 import com.dangerfield.cards.libraries.identity.impl.MeDto
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
+import com.dangerfield.cards.libraries.identity.impl.auth.PendingGuestAccountStore
 import com.dangerfield.cards.libraries.identity.profile.AvatarPackOutcome
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.UpdateProfileOutcome
@@ -117,6 +118,31 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         val profile = assertIs<Profile.Fallback>(repo.observe().first())
         // localId persisted so subsequent fallbacks reuse it.
         assertEquals(profile.id, cache.readLocalId())
+    }
+
+    @Test
+    fun unauthenticated_withPendingOnboardingChoice_enrichesFallbackIdentity() = runUnitTest {
+        // A user who onboarded offline has their chosen name/avatar held in the
+        // pending guest-account store. The Fallback surfaces it so the app shows
+        // their choice instead of a generic "You" while session-less.
+        val pendingStore = PendingGuestAccountStore(InMemoryCacheFactory)
+        pendingStore.set(
+            com.dangerfield.cards.libraries.identity.auth.PendingIdentity(
+                displayName = "Foxy",
+                avatarEmoji = "🦊",
+                avatarBackgroundColor = "#ff6b35",
+            ),
+        )
+        val auth = FakeAuthRepository()
+        val repo = build(auth, FakeProfileApi(), pendingGuestAccountStore = pendingStore)
+
+        auth.emit(AuthState.Unauthenticated())
+        advanceUntilIdle()
+
+        val fallback = assertIs<Profile.Fallback>(repo.observe().first())
+        assertEquals("Foxy", fallback.displayName)
+        assertEquals("🦊", fallback.avatarEmoji)
+        assertEquals("#ff6b35", fallback.avatarBackgroundColor)
     }
 
     @Test
@@ -459,6 +485,7 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         cache: ProfileCache = newProfileCache(),
         avatarPackCache: AvatarPackCache = AvatarPackCache(InMemoryCacheFactory),
         sessionTracker: SessionTracker = FixedSessionTracker(id = 1L),
+        pendingGuestAccountStore: PendingGuestAccountStore = PendingGuestAccountStore(InMemoryCacheFactory),
         clock: kotlin.time.Clock = kotlin.time.Clock.System,
     ): ProfileRepositoryImpl = ProfileRepositoryImpl(
         authRepository = auth,
@@ -466,6 +493,7 @@ class ProfileRepositoryImplTest : CoroutineTest() {
         profileCache = cache,
         avatarPackCache = avatarPackCache,
         sessionTracker = sessionTracker,
+        pendingGuestAccountStore = pendingGuestAccountStore,
         clock = clock,
         appScope = AppCoroutineScope(dispatchers),
     )

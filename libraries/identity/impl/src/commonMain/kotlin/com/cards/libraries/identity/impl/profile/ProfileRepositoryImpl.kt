@@ -8,6 +8,7 @@ import com.dangerfield.cards.libraries.core.logging.KLog
 import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
 import com.dangerfield.cards.libraries.identity.auth.AuthState
+import com.dangerfield.cards.libraries.identity.impl.auth.PendingGuestAccountStore
 import com.dangerfield.cards.libraries.identity.impl.PatchMeRequest
 import com.dangerfield.cards.libraries.identity.impl.ProfileApi
 import com.dangerfield.cards.libraries.identity.profile.AvatarPack
@@ -78,6 +79,7 @@ class ProfileRepositoryImpl(
     private val profileCache: ProfileCache,
     private val avatarPackCache: AvatarPackCache,
     private val sessionTracker: SessionTracker,
+    private val pendingGuestAccountStore: PendingGuestAccountStore,
     private val clock: Clock,
     private val appScope: AppCoroutineScope,
 ) : ProfileRepository, AutoInit {
@@ -192,7 +194,7 @@ class ProfileRepositoryImpl(
                     cached
                 } else {
                     logger.i { "Cache empty: emitting Profile.Fallback with localId" }
-                    Profile.Fallback(id = ensureLocalIdLocked())
+                    buildFallbackLocked()
                 }
             },
         )
@@ -212,7 +214,7 @@ class ProfileRepositoryImpl(
                 Catching { profileCache.clear() }
                     .logOnFailure { "Failed to clear stale cached profile after session expiry" }
             }
-            return Profile.Fallback(id = ensureLocalIdLocked())
+            return buildFallbackLocked()
         }
 
         // Benign unauthenticated (no session yet / clean sign-out / offline): we
@@ -226,7 +228,27 @@ class ProfileRepositoryImpl(
             return cached
         }
         logger.d { "Unauthenticated + no cache; emitting Profile.Fallback" }
-        return Profile.Fallback(id = ensureLocalIdLocked())
+        return buildFallbackLocked()
+    }
+
+    /**
+     * Build a [Profile.Fallback], enriching it with the user's locally-chosen
+     * identity when one is owed but unsynced — the name/avatar picked during an
+     * offline onboarding (held in [PendingGuestAccountStore]). Surfacing it lets
+     * the app show the user's choice instead of a generic "You" while we're
+     * session-less; it syncs to the server once a session is minted. When nothing
+     * is owed (no offline onboarding pending), the fields stay null.
+     */
+    private suspend fun buildFallbackLocked(): Profile.Fallback {
+        val pending = Catching { pendingGuestAccountStore.read() }
+            .logOnFailure { "Reading pending identity for Fallback failed" }
+            .getOrNull()
+        return Profile.Fallback(
+            id = ensureLocalIdLocked(),
+            displayName = pending?.displayName,
+            avatarEmoji = pending?.avatarEmoji,
+            avatarBackgroundColor = pending?.avatarBackgroundColor,
+        )
     }
 
     private suspend fun ensureLocalIdLocked(): String {

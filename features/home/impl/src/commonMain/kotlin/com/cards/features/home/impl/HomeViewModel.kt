@@ -16,6 +16,9 @@ import com.dangerfield.cards.libraries.flowroutines.AppCoroutineScope
 import com.dangerfield.cards.libraries.flowroutines.SEAViewModel
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.identity.profile.ProfileRepository
+import com.dangerfield.cards.libraries.identity.profile.avatarBackgroundColorOrNull
+import com.dangerfield.cards.libraries.identity.profile.avatarEmojiOrNull
+import com.dangerfield.cards.libraries.identity.profile.displayNameOrNull
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomRepository
 import com.dangerfield.cards.libraries.ui.system.DialogIntroDelay
@@ -277,13 +280,16 @@ class HomeViewModel(
     }
 
     private suspend fun HomeAction.applyProfile(profile: Profile) {
-        val auth = profile as? Profile.Authenticated
         updateState {
             it.copy(
-                userName = auth?.displayName,
-                avatarEmoji = auth?.avatarEmoji,
-                avatarBackgroundColorHex = auth?.avatarBackgroundColor,
-                isAnonymous = auth?.isAnonymous ?: true,
+                // Display identity honors a locally-chosen (offline) name +
+                // avatar so a Fallback user sees their onboarding choice on the
+                // Home header instead of a placeholder. isAnonymous stays
+                // Authenticated-only — a Fallback has no real account yet.
+                userName = profile.displayNameOrNull,
+                avatarEmoji = profile.avatarEmojiOrNull,
+                avatarBackgroundColorHex = profile.avatarBackgroundColorOrNull,
+                isAnonymous = (profile as? Profile.Authenticated)?.isAnonymous ?: true,
             )
         }
     }
