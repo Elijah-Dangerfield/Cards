@@ -268,6 +268,25 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
     }
 
     @Test
+    fun playScreenMountsAfterDeal_replaysLiveTable_notLoading() = runUnitTest {
+        // The recurring MP ordering bug ("stuck on dealing in"): the lobby
+        // socket receives the deal's snapshot before the play screen's session
+        // subscribes. Tests historically subscribed *before* the action and
+        // missed it; this mounts the VM AFTER the snapshot already landed and
+        // asserts the table replays — the symmetry-rule guarantee at the VM
+        // level, above ReconnectingRoomSocket's own replay test.
+        val (vm, _) = startHandBeforeJoinerMounts(actingSeatIndex = 0)
+        advanceUntilIdle()
+
+        val table = assertIs<TableUiState.Active>(vm.state.table)
+        assertEquals(0, table.seats.single { it.isHuman }.index)
+        assertTrue(
+            table.isHumanTurn,
+            "a play screen mounting after the deal must replay the live table, not sit on Loading",
+        )
+    }
+
+    @Test
     fun observerNotSeated_tableRendersWithoutHumanSeat() = runUnitTest {
         val (vm, handle) = buildMpVm(localUserId = "observer-not-in-room")
         advanceUntilIdle()
@@ -291,8 +310,27 @@ class PlayPokerViewModelMultiplayerIntegrationTest : CoroutineTest() {
         actingSeatIndex = actingSeatIndex,
     )
 
-    private fun buildMpVm(localUserId: String = LOCAL_USER): Pair<PlayPokerViewModel, FakeRoomConnectionHandle> {
+    /**
+     * Reusable subscribe-after-action scenario. A hand is already in progress
+     * on the socket (its [GameplayFrame.StateSnapshot] has landed) *before* the
+     * play screen's [RemotePokerSession] mounts and subscribes — the real
+     * ordering where the lobby socket deals the hand, then the player navigates
+     * to the play screen. The returned VM is the late mounter; its table must
+     * replay the live snapshot rather than sit on [TableUiState.Loading].
+     */
+    private suspend fun startHandBeforeJoinerMounts(
+        localUserId: String = LOCAL_USER,
+        actingSeatIndex: Int = 0,
+    ): Pair<PlayPokerViewModel, FakeRoomConnectionHandle> {
         val handle = FakeRoomConnectionHandle()
+        handle.pushFrame(GameplayFrame.StateSnapshot(twoHumanTable(actingSeatIndex = actingSeatIndex)))
+        return buildMpVm(localUserId = localUserId, handle = handle)
+    }
+
+    private fun buildMpVm(
+        localUserId: String = LOCAL_USER,
+        handle: FakeRoomConnectionHandle = FakeRoomConnectionHandle(),
+    ): Pair<PlayPokerViewModel, FakeRoomConnectionHandle> {
         val factory = RemotePokerSessionFactory(
             roomCode = "ABCDEF",
             localUserId = localUserId,
