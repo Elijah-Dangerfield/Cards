@@ -60,14 +60,6 @@ class HomeViewModel(
             }
         }
         viewModelScope.launch {
-            // Seed the observed set with the server's view on arrival. Runs in
-            // its own coroutine, NOT through the action pipeline — calling
-            // `getActiveRooms()` inside `handleAction` would drive the
-            // collector re-entrantly from the same consumer and strand the
-            // resulting emission.
-            roomRepository.getActiveRooms()
-        }
-        viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
                 takeAction(
                     HomeAction.ProgressionChanged(
@@ -122,8 +114,21 @@ class HomeViewModel(
             // by `/v1/me`). Previously this read from `UserRepository.User`,
             // which the agent never populated correctly — display name
             // stayed null forever on fresh installs.
+            var lastFetchedUserId: String? = null
             profileRepository.observe().collect { profile ->
                 takeAction(HomeAction.ProfileChanged(profile))
+                // Seed the active-rooms set off the server only once we hold a
+                // real session (Profile.Authenticated), and re-seed when the
+                // authenticated identity changes — i.e. when self-heal flips
+                // Fallback → Authenticated, or an account switch lands. Gating on
+                // a real session keeps a session-less cold boot from 401ing the
+                // /v1/me/active-rooms call (it used to fire unconditionally on
+                // init). Launched off the action pipeline so the resulting
+                // observeActiveRooms emission isn't consumed re-entrantly.
+                if (profile is Profile.Authenticated && profile.id != lastFetchedUserId) {
+                    lastFetchedUserId = profile.id
+                    launch { roomRepository.getActiveRooms() }
+                }
             }
         }
         viewModelScope.launch {

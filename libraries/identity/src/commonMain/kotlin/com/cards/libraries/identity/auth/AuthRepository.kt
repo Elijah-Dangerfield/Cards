@@ -1,6 +1,7 @@
 package com.dangerfield.cards.libraries.identity.auth
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Owns the device's Supabase user lifecycle + access token.
@@ -46,6 +47,26 @@ interface AuthRepository {
      * a missing session stays [AuthState.Unauthenticated].
      */
     suspend fun retry(): AuthState
+
+    /**
+     * Suspends until the session resolves to [AuthState.Authenticated], then
+     * returns it. For callers that *must* have a real session before proceeding
+     * (so they never fire a tokenless request that 401s). Never resolves while
+     * the user is session-less — pair with a timeout if the caller can't block
+     * indefinitely.
+     */
+    suspend fun awaitAuthenticated(): AuthState.Authenticated =
+        observe().first { it is AuthState.Authenticated } as AuthState.Authenticated
+
+    /**
+     * Run [block] only if the session is currently [AuthState.Authenticated];
+     * otherwise no-op and return null. The guard for fire-and-forget authed
+     * syncs: a session-less resolve **skips** the call (an intentional, logged
+     * no-op) instead of 401ing. Re-fires when auth later arrives via the
+     * identity fan-out (`UserChanged` / `AccountClaimed`) trigger.
+     */
+    suspend fun <T> ifAuthenticated(block: suspend (AuthState.Authenticated) -> T): T? =
+        (current() as? AuthState.Authenticated)?.let { block(it) }
 
     /**
      * Create a fresh anonymous (guest) session and emit

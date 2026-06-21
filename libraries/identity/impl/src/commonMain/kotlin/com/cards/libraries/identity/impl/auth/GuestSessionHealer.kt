@@ -44,15 +44,22 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, boundType = AppEventListener::class, multibinding = true)
 @Inject
 class GuestSessionHealer(
-    private val authRepository: AuthRepository,
-    private val guestAccountCreator: GuestAccountCreator,
-    private val profileRepository: ProfileRepository,
+    // Lazy providers break the DI construction cycle: this is an AppEventListener
+    // (in the dispatcher's set), and AuthRepository → AppEventBus → the dispatcher
+    // → this set. GuestAccountCreator and ProfileRepository reach AuthRepository
+    // transitively, so they're deferred too. Mirrors InAppMessageManagerImpl.
+    authRepositoryProvider: () -> AuthRepository,
+    guestAccountCreatorProvider: () -> GuestAccountCreator,
+    profileRepositoryProvider: () -> ProfileRepository,
     private val appCache: AppCache,
     private val appState: AppState,
     private val appScope: AppCoroutineScope,
 ) : AppEventListener {
 
     private val logger = KLog.withTag("GuestSessionHealer")
+    private val authRepository: AuthRepository by lazy { authRepositoryProvider() }
+    private val guestAccountCreator: GuestAccountCreator by lazy { guestAccountCreatorProvider() }
+    private val profileRepository: ProfileRepository by lazy { profileRepositoryProvider() }
 
     override fun onColdBoot(event: AppEvent.ColdBoot) = heal("coldBoot")
     override fun onWarmBoot(event: AppEvent.WarmBoot) = heal("warmBoot")

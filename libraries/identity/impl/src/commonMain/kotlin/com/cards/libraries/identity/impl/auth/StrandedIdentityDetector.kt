@@ -31,13 +31,16 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @ContributesBinding(AppScope::class, boundType = AppEventListener::class, multibinding = true)
 @Inject
 class StrandedIdentityDetector(
-    private val profileRepository: ProfileRepository,
+    // Lazy provider breaks the DI cycle (AppEventListener → ProfileRepository →
+    // AuthRepository → AppEventBus → dispatcher → this set).
+    profileRepositoryProvider: () -> ProfileRepository,
     private val appCache: AppCache,
     private val appState: AppState,
     private val appScope: AppCoroutineScope,
 ) : AppEventListener {
 
     private val logger = KLog.withTag("StrandedIdentity")
+    private val profileRepository: ProfileRepository by lazy { profileRepositoryProvider() }
 
     override fun onForeground(event: AppEvent.OnForeground) = check("foreground")
     override fun onConnectivityRegained(event: AppEvent.ConnectivityRegained) = check("connectivityRegained")

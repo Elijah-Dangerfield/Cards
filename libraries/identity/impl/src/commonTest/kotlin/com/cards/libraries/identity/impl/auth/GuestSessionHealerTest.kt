@@ -204,9 +204,9 @@ class GuestSessionHealerTest : CoroutineTest() {
         offline: Boolean = false,
         profile: Profile = Profile.Fallback(id = "local"),
     ) = GuestSessionHealer(
-        authRepository = auth,
-        guestAccountCreator = creator,
-        profileRepository = FakeProfile(profile),
+        authRepositoryProvider = { auth },
+        guestAccountCreatorProvider = { creator },
+        profileRepositoryProvider = { FakeProfile(profile) },
         appCache = FakeAppCache(onboarded),
         appState = FakeAppState(MutableStateFlow(offline)),
         appScope = AppCoroutineScope(dispatchers),
