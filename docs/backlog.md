@@ -610,3 +610,19 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea:** `GET /v1/profiles?ids=…` resolves each id with a separate `ProfileRepository.findById` call in a loop, so a batch of N ids fires N sequential DB round-trips (capped at 100). It's a thin shell over the existing single-id read, fine while the social lists are short, but a player with a large friends list pays one query per tile. Add a `findByIds(ids): List<Profile>` batch read (single `WHERE id IN (…)`) on `ProfileRepository` and have the route use it.
 
 **Status:** Backlog. Correctness-neutral efficiency follow-up; do it when the social lists get long enough to feel the N+1, or when `ProfileRepository` grows a batch read for another caller.
+
+## Offline profile-edit outbox + ungate Edit Profile (offline-first Phase 6)
+
+**Idea:** The offline-first plan's Phase 6 (the phases 1–5 of which shipped 2026-06-21 — stranded-guest self-heal, PATCH `/v1/me` upsert, connectivity event, auth-call gating). Make Edit Profile work offline: a durable `PendingProfileEdit` outbox, ungate the Edit Profile screen to render on `Profile.Fallback`/offline, optimistic local write + enqueue (return "queued") instead of `NotSignedIn`, flush on the standard triggers once Authenticated (PATCH is now upsert), and surface a validation rejection ("couldn't save your name") by reverting that field.
+
+**Why deferred:** Unlike phases 1–5 (data-layer mechanics, fully unit-testable), Phase 6 is UI-design + QA-sensitive: `Profile.Fallback` carries no name/avatar fields, so ungating `EditProfileViewModel` (today hard-gated on `Profile.Authenticated`, seeds the form from it) needs the form to source the current name/avatar from the disk cache and render coherently on a Fallback, plus a rejection-surfacing channel (banner/snackbar). The data-layer outbox alone delivers little while the screen stays gated, and its rejection half can't be completed without the UI. Not safe to land unattended without visual verification against the DS-first/preview conventions.
+
+**Sketch:** `PendingProfileEditStore` (durable single-slot, mirrors `PendingGuestAccountStore`); `UpdateProfileOutcome.Queued`; `ProfileRepositoryImpl.update()` enqueues on offline/unauthed/NetworkError + keeps the optimistic write; flush hooks into the existing `authRepository.observe()` resolve + a new `onConnectivityRegained`/foreground `AppEventListener`; validation rejection on flush reverts the field + emits a rejection signal the UI observes. Then ungate `EditProfileViewModel`/`EditProfileScreen`.
+
+**Status:** Backlog. Phases 1–5 shipped (`feat/offline-first-identity-heal`); plan at `delegated-crunching-gem.md`.
+
+## Shared `Syncable`/`SyncCoordinator` registry (offline-first Phase 7)
+
+**Idea:** Extract `Syncable { suspend fun sync() }` + a `SyncCoordinator` (AutoInit) that owns the trigger wiring once (foreground/connectivity/UserChanged/AccountClaimed/session-rollover, with the `isColdBoot` skip and the Authenticated gate centralized), fanning out with per-syncable error isolation + structured logs. The 5 sync repos (Chips/Progression/Achievement/Equipment/Inventory), the messages/rooms syncs, and the profile outbox become plain `Syncable`s, deleting their duplicated `AppEventListener` boilerplate.
+
+**Status:** Backlog. Pure sustainability refactor; do after Phase 6 so the profile outbox folds into it. Plan at `delegated-crunching-gem.md`.

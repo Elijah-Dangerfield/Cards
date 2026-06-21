@@ -2235,3 +2235,19 @@ as supporting context.
 **The fix, when triggered:** on progression-sync the server derives level from its reconciled `total_xp` against the curve it already serves, grants `levelup_<level>` rewards itself (idempotent), ignores/caps client-claimed amounts; the client keeps granting optimistically and the two reconcile on the idempotency key.
 
 **Status:** Deferred (`todo.md` — Stats & progression, gated on leagues). No work now.
+
+## 2026-06-21 — Offline-first identity self-heal (stranded-guest fix), phases 1–5
+
+**Decision:** Shipped the approved offline-first plan (`delegated-crunching-gem.md`) phases 1–5 on `feat/offline-first-identity-heal`, resolving the offline guest-stranding bug, the fresh-install `PATCH /v1/me` 404, and the 401-on-init storm. The shape:
+
+- **Onboarding race (P1):** `DefaultGuestAccountCreator.start()` persists the durable pending record on app scope *before* `createGuestSession`, sequential `set → create → clear` in one coroutine. A fast finish-and-navigate can no longer lose the write and strand the user.
+- **PATCH `/v1/me` is get-or-create (P2):** the route calls `repository.findOrCreate(userId)` before validate/update (reuses the tested creation path — starter inventory, founding badge, name-collision retry — rather than duplicating insert logic in `update`; `update`'s `NotFound→404` stays only for the impossible delete-mid-request race). Client adds GET-before-PATCH ordering as belt-and-suspenders.
+- **Connectivity as an event (P3):** `AppEvent.ConnectivityRegained` + a standalone `ConnectivityEdgeDispatcher` (drop-initial, debounce, true→false edge only), kept separate from `AppEventDispatcher` which knows nothing about networking.
+- **Identity self-heal (P4):** `AuthState.Unauthenticated.Reason.SignedOut` (so heal never resurrects a deliberate sign-out) ships with `GuestSessionHealer`. A `healMutex` in `DefaultGuestAccountCreator` serializes **all** mint triggers (onboarding/init-resume/offline-flip/`ensureSession`) so concurrent triggers collapse to one account instead of minting orphans. Recovery rides the existing `UserChanged(null→X)` fan-out. `StrandedIdentityDetector` is the canary (Sentry breadcrumb `stranded_fallback_online_onboarded`).
+- **Authed-call discipline (P5):** `AuthRepository.awaitAuthenticated()`/`ifAuthenticated{}`; messages/sync gated + wired to the fan-out; **active-rooms driven off `Profile.Authenticated`** in `HomeViewModel` (the session signal it already observes) rather than making `RoomRepositoryImpl` an `AppEventListener` — that would have pulled `:libraries:identity` + `:libraries:cards` deps into `:libraries:rooms` and broken the repo-test constructor, for no extra correctness. `AuthReResolver` re-resolves (never mints) on warm foreground + connectivity.
+
+**Notable constraints hit:** New `AppEventListener`s that depend on `AuthRepository` must take **lazy `() -> T` providers** for the cyclic deps — `AuthRepository → AppEventBus → AppEventDispatcher → Set<AppEventListener>` is a kotlin-inject construction cycle. Mirrors the existing `InAppMessageManagerImpl`.
+
+**Deferred (see backlog):** Phase 6 (offline profile-edit outbox + ungate Edit Profile — UI/QA-sensitive, unsafe to land unattended) and Phase 7 (shared `Syncable`/`SyncCoordinator` refactor — pure sustainability cleanup, do after 6).
+
+**Status:** Phases 1–5 shipped on the feature branch (not yet PR'd). Phases 6–7 backlogged.
