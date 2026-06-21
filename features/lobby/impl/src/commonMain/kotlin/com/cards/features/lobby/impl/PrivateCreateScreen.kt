@@ -27,13 +27,12 @@ import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.private_create_cta
 import cards.libraries.resources.generated.resources.private_create_default_room_name
 import cards.libraries.resources.generated.resources.private_create_invite_note
+import cards.libraries.resources.generated.resources.private_create_blinds_caption
+import cards.libraries.resources.generated.resources.private_create_buyin_label
+import cards.libraries.resources.generated.resources.private_create_buyin_value
 import cards.libraries.resources.generated.resources.private_create_max_players_label
 import cards.libraries.resources.generated.resources.private_create_room_name_label
 import cards.libraries.resources.generated.resources.private_create_rules_label
-import cards.libraries.resources.generated.resources.private_create_stakes_label
-import cards.libraries.resources.generated.resources.private_create_stakes_value
-import cards.libraries.resources.generated.resources.private_create_starting_stack_label
-import cards.libraries.resources.generated.resources.private_create_starting_stack_value
 import cards.libraries.resources.generated.resources.private_create_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
@@ -112,14 +111,12 @@ fun PrivateCreateScreen(
                     .background(AppTheme.colors.surface.color)
                     .border(1.dp, AppTheme.colors.border.color, Radii.R750.shape),
             ) {
+                // Buy-in is the one number the host picks; blinds scale off it
+                // automatically, so we just show the derived value as a caption.
                 RuleValueRow(
-                    label = stringResource(Res.string.private_create_stakes_label),
-                    value = stringResource(Res.string.private_create_stakes_value),
-                )
-                RuleDivider()
-                RuleValueRow(
-                    label = stringResource(Res.string.private_create_starting_stack_label),
-                    value = stringResource(Res.string.private_create_starting_stack_value),
+                    label = stringResource(Res.string.private_create_buyin_label),
+                    value = stringResource(Res.string.private_create_buyin_value),
+                    caption = stringResource(Res.string.private_create_blinds_caption),
                 )
                 RuleDivider()
                 MaxPlayersRow(
@@ -166,19 +163,27 @@ private fun Eyebrow(text: String) {
 }
 
 @Composable
-private fun RuleValueRow(label: String, value: String) {
+private fun RuleValueRow(label: String, value: String, caption: String? = null) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Dimension.D600, vertical = Dimension.D500),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = label,
-            typography = AppTheme.typography.Label.L500,
-            color = AppTheme.colors.content,
-            modifier = Modifier.weight(1f),
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                typography = AppTheme.typography.Label.L500,
+                color = AppTheme.colors.content,
+            )
+            caption?.let {
+                Text(
+                    text = it,
+                    typography = AppTheme.typography.Caption.C300,
+                    color = AppTheme.colors.contentTertiary,
+                )
+            }
+        }
         ChipCoin(size = 14.dp)
         Spacer(Modifier.size(Dimension.D200))
         Text(text = value, typography = AppTheme.typography.Label.L500, color = AppTheme.colors.content)

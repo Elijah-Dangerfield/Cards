@@ -85,10 +85,9 @@
     <string name="private_create_room_name_label">Room name</string>
     <string name="private_create_default_room_name">Your table</string>
     <string name="private_create_rules_label">Table rules</string>
-    <string name="private_create_stakes_label">Stakes</string>
-    <string name="private_create_stakes_value">25 / 50</string>
-    <string name="private_create_starting_stack_label">Starting stack</string>
-    <string name="private_create_starting_stack_value">5,000</string>
+    <string name="private_create_buyin_label">Buy-in</string>
+    <string name="private_create_buyin_value">5,000</string>
+    <string name="private_create_blinds_caption">Blinds 25 / 50</string>
     <string name="private_create_max_players_label">Max players</string>
     <string name="private_create_invite_note">Invite only. You'll get a code to share once it's created.</string>
     <string name="private_create_cta">Create room</string>
