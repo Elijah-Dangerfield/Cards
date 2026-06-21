@@ -10,7 +10,6 @@ import com.dangerfield.cards.libraries.networking.NetworkClient
 import com.dangerfield.cards.libraries.networking.NetworkConfig
 import com.dangerfield.cards.libraries.networking.NetworkJson
 import com.dangerfield.cards.libraries.networking.NetworkReachability
-import dev.skymansandy.wiretap.plugin.http.WiretapKtorHttpPlugin
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.DefaultRequest
@@ -133,8 +132,10 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         // into the on-device inspector (shake → "Network inspector"). Debug
         // builds link the real plugin; release builds link the noop (and
         // never enter this branch anyway). Applied to both the plain and
-        // authenticated clients since they share this config.
-        install(WiretapKtorHttpPlugin)
+        // authenticated clients since they share this config. Platform-gated
+        // (see installNetworkInspector) so host-JVM unit tests, where
+        // Wiretap's DI isn't bootstrapped, don't install + crash on it.
+        installNetworkInspector()
         // Debug-only by design: bodies are valuable for debugging but
         // dumping them in release would blow up log volume and risk
         // leaking PII. Bodies stay LogLevel.BODY (covers headers + the

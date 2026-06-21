@@ -2,6 +2,7 @@ package com.dangerfield.cards.libraries.networking.impl
 
 import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.libraries.networking.NetworkInspector
+import io.ktor.client.HttpClientConfig
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -38,3 +39,16 @@ class WiretapNetworkInspector : NetworkInspector {
  *    presents the console as a page sheet (swipe down to dismiss).
  */
 internal expect fun launchNetworkInspector()
+
+/**
+ * Installs the Wiretap capture plugin on an [HttpClient] (callers gate this on
+ * `BuildInfo.isDebug`). Per-platform because Wiretap can't run everywhere it
+ * compiles: on Android the plugin's request path resolves dependencies from
+ * Wiretap's own DI, which is bootstrapped by an `androidx.startup` initializer
+ * that only runs in a real app process — NOT in host-JVM unit tests (e.g. the
+ * `:apps:integration` harness, which runs the real client as `testDebugUnitTest`
+ * with `isDebug == true`). Installing it there makes every request crash with
+ * `Could not create instance for ...`, so the Android actual skips installation
+ * when running under a unit test.
+ */
+internal expect fun HttpClientConfig<*>.installNetworkInspector()

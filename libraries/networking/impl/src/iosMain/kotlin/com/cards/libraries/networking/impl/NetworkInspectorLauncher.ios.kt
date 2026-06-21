@@ -1,6 +1,8 @@
 package com.dangerfield.cards.libraries.networking.impl
 
 import dev.skymansandy.wiretap.helper.launcher.WiretapViewController
+import dev.skymansandy.wiretap.plugin.http.WiretapKtorHttpPlugin
+import io.ktor.client.HttpClientConfig
 import platform.UIKit.UIApplication
 import platform.UIKit.UIModalPresentationPageSheet
 import platform.UIKit.UIViewController
@@ -31,4 +33,8 @@ internal actual fun launchNetworkInspector() {
     val consoleVc = WiretapViewController()
     consoleVc.setModalPresentationStyle(UIModalPresentationPageSheet)
     host.presentViewController(consoleVc, animated = true, completion = null)
+}
+
+internal actual fun HttpClientConfig<*>.installNetworkInspector() {
+    install(WiretapKtorHttpPlugin)
 }
