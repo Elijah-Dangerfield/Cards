@@ -62,6 +62,8 @@ kotlin {
             implementation(projects.features.progression.impl)
             implementation(projects.features.room)
             implementation(projects.features.room.impl)
+            implementation(projects.features.rooms)
+            implementation(projects.features.rooms.impl)
             implementation(projects.features.shop)
             implementation(projects.features.shop.impl)
             implementation(projects.features.upgrade)

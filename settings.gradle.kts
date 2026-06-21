@@ -73,6 +73,8 @@ if (!serverOnly) {
     include(":features:progression:impl")
     include(":features:room")
     include(":features:room:impl")
+    include(":features:rooms")
+    include(":features:rooms:impl")
     include(":features:shop")
     include(":features:shop:impl")
     include(":features:upgrade")

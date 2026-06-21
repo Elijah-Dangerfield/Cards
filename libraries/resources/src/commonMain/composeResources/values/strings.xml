@@ -168,7 +168,7 @@
     <string name="onboarding_identity_name_requirements">%1$d–%2$d characters, no emoji</string>
     <string name="onboarding_identity_continue_button">Continue</string>
 
-    <!-- Home — Play section (featured Practice card + Quick Match / Friend Game tiles). -->
+    <!-- Home — Play section (Public rooms hero + Private room row + Practice / Tournament tiles). -->
     <string name="home_section_play">Play</string>
     <string name="home_cta_practice_title">Practice</string>
     <string name="home_cta_friend_game_title">Friend Game</string>
@@ -177,14 +177,22 @@
     <string name="home_play_practice_subtitle">Sharpen up against bots</string>
     <string name="home_play_quick_match_subtitle">Find a table</string>
     <string name="home_play_friend_subtitle">Code or join</string>
+    <string name="home_cta_public_rooms_title">Public rooms</string>
+    <string name="home_play_public_rooms_subtitle">Pick your buy-in — we seat you instantly</string>
+    <string name="home_play_public_rooms_button">Find a table</string>
+    <string name="home_cta_private_room_title">Private room</string>
+    <string name="home_play_private_room_subtitle">Play with friends · create or join by code</string>
+    <string name="home_cta_practice_subtitle_short">vs bots</string>
+    <string name="home_cta_tournament_title">Tournament</string>
+    <string name="home_cta_tournament_subtitle">Royal Flush</string>
+    <string name="home_tag_soon">Soon</string>
 
-    <!-- Home — Friend Game "create or join" sheet. -->
-    <string name="friend_game_sheet_title">Friend game</string>
-    <string name="friend_game_sheet_subtitle">Start a private table, or hop into a friend's.</string>
-    <string name="friend_game_sheet_create_button">Create a room</string>
-    <string name="friend_game_sheet_join_label">Join with a code</string>
-    <string name="friend_game_sheet_code_label">Room code</string>
-    <string name="friend_game_sheet_join_button">Join</string>
+    <!-- Home — Private room "create or join" bottom sheet (SPEC §1). -->
+    <string name="private_choose_title">Private room</string>
+    <string name="private_choose_create_title">Create a room</string>
+    <string name="private_choose_create_subtitle">Host a table, set the stakes, invite your people.</string>
+    <string name="private_choose_join_title">Join with a code</string>
+    <string name="private_choose_join_subtitle">Got a code from a host?</string>
 
     <!-- Home — Friends strip header + empty state + see-all label variants. -->
     <string name="home_friends_section_title">Friends</string>
@@ -216,6 +224,8 @@
     <string name="home_coming_soon_friend_requests_body">Sending friend requests ships with the friend graph. We hang onto who you've played with so you can opt in the moment that lands.</string>
     <string name="home_coming_soon_recently_played_title">Recently played with</string>
     <string name="home_coming_soon_recently_played_body">The full history of humans you've played comes with Quick Match + Friend Games. For now we're showing the most recent at the table.</string>
+    <string name="home_coming_soon_tournament_title">Tournament</string>
+    <string name="home_coming_soon_tournament_body">Multi-table tournaments with a Royal Flush prize pool are coming. For now, sharpen up at a Practice table or start a private room with friends.</string>
 
     <!-- Home — "ongoing game" rejoin/forfeit banner. -->
     <string name="home_active_room_title">You have an ongoing game</string>
