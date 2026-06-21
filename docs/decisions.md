@@ -2264,3 +2264,13 @@ as supporting context.
 **Deferred (backlog):** offline edits for a **cached real account that's merely offline** (returning claimed user) — still returns `NotSignedIn`; needs the durable PATCH outbox + flush + a validation-rejection banner. Phase 7 (`Syncable`/`SyncCoordinator` refactor) also remains.
 
 **Status:** Guest/Fallback offline editing shipped on `feat/offline-first-identity-heal` (same branch/PR as phases 1–5). Claimed-account-offline outbox backlogged.
+
+## 2026-06-21 — Offline profile editing completed: durable PATCH outbox for real accounts
+
+**Decision:** Closed the deferred half of Phase 6 — offline editing now works for a **cached real account** (a returning claimed/anon user who's merely offline), not just the guest/Fallback case. A session-less edit on a cached `Profile.Authenticated` applies optimistically and queues in a durable `PendingProfileEditStore` (single-slot, coalescing), returning `UpdateProfileOutcome.Queued` instead of `NotSignedIn`. An online PATCH that fails *transiently* (network / 401 mid-edit / 5xx) now also queues + keeps the optimistic value rather than rolling back; only **validation** failures (name taken / invalid) stay terminal (roll back + typed outcome — the user must fix the input).
+
+**Flush rides `resolve()`:** when auth returns, the profile repo GETs `/v1/me` then PATCHes the queued edit on top before emitting — folding the flush into the resolve avoids a "new name → server's old name → new name" flicker. `ProfileEditFlusher` (an `AppEventListener` on warm-foreground + connectivity-regained, lazy `() -> ProfileRepository` to dodge the auth↔event-bus DI cycle) covers the already-authed-but-a-PATCH-got-stuck case where auth never re-emits. A flush the server refuses (name taken while away) clears the queue, reverts to server truth, and emits a `ProfileEditRejection` that `App.kt` surfaces as a "couldn't save your name" snackbar — so the silent revert isn't confusing.
+
+**Why no separate outbox for guests:** the guest/Fallback case still routes through `PendingGuestAccountStore` (the guest-mint path is its sync) — two stores, each owning its case, avoids a flush-ordering race between the mint's identity-apply and a profile PATCH.
+
+**Status:** Shipped on `feat/offline-first-identity-heal` (same PR as the rest of the offline-first plan). Offline profile editing is now complete for both guests and real accounts. Only Phase 7 (the `Syncable`/`SyncCoordinator` refactor) remains backlogged.

@@ -611,14 +611,6 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 
 **Status:** Backlog. Correctness-neutral efficiency follow-up; do it when the social lists get long enough to feel the N+1, or when `ProfileRepository` grows a batch read for another caller.
 
-## Offline PATCH outbox for a cached real account (offline-first Phase 6, remainder)
-
-**Idea:** Offline profile editing for the *session-less guest* case shipped 2026-06-21 on `feat/offline-first-identity-heal` (see decisions.md): `Profile.Fallback` now carries the onboarding-chosen identity, Edit Profile is ungated, and an offline edit on a Fallback merges into the owed guest-account record (`PendingGuestAccountStore`) so the single guest-mint path syncs it. **Remaining:** the *cached real account that's merely offline* case — a returning claimed user offline still gets `UpdateProfileOutcome.NotSignedIn` on edit (their cached `Profile.Authenticated` shows, but the edit can't apply without a session).
-
-**Sketch:** a durable `PendingProfileEdit` outbox (single-slot, mirrors `PendingGuestAccountStore`) for the cached-authed-offline branch in `ProfileRepositoryImpl.update()` — optimistic local write to the profile cache + enqueue → return `Queued` (already wired through the VM); flush on the existing `authRepository.observe()` resolve + a new `onConnectivityRegained`/foreground `AppEventListener` once Authenticated (PATCH is now upsert, Phase 2); validation rejection on flush reverts that field + surfaces "couldn't save your name" via a banner/snackbar the UI observes; network error keeps it queued.
-
-**Status:** Backlog. The guest/Fallback half is done; this is the claimed-account-offline half. Plan at `delegated-crunching-gem.md`.
-
 ## Shared `Syncable`/`SyncCoordinator` registry (offline-first Phase 7)
 
 **Idea:** Extract `Syncable { suspend fun sync() }` + a `SyncCoordinator` (AutoInit) that owns the trigger wiring once (foreground/connectivity/UserChanged/AccountClaimed/session-rollover, with the `isColdBoot` skip and the Authenticated gate centralized), fanning out with per-syncable error isolation + structured logs. The 5 sync repos (Chips/Progression/Achievement/Equipment/Inventory), the messages/rooms syncs, and the profile outbox become plain `Syncable`s, deleting their duplicated `AppEventListener` boilerplate.
