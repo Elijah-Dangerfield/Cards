@@ -90,7 +90,7 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
 
         val felt = catalog.chipOffers.single { it.id == "felt_royal_red" }
         assertEquals("felt.royal_red", felt.grantsKey)
-        assertEquals(1_500, felt.costChips)
+        assertEquals(250, felt.costChips)
         assertEquals(1, felt.unlockLevel)
     }
 
