@@ -4,6 +4,22 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## More achievements + early-stage pacing rebalance
+
+**Idea (owner feedback 2026-06-22, Sentry [CARDS-1A](https://elijah-dangerfield.sentry.io/issues/CARDS-1A)):** The achievement set is thin and early-stage achievements come too easily / too many fire up front, which risks spamming a new user. Two threads: (1) design a much larger achievement catalog (owner figures we could easily have ~100), and (2) rebalance early-game pacing so we don't dump a pile of trivial unlocks on the user in their first session. Needs a content/design pass on the achievement list + unlock curve, not just code.
+
+**Status:** Backlog. Content + design call; pull when the achievement system gets a dedicated pass.
+
+---
+
+## Player-style — backend-backed so opponents can see it
+
+**Idea (owner feedback 2026-06-22, Sentry [CARDS-J](https://elijah-dangerfield.sentry.io/issues/CARDS-J)):** Make a plan to implement the player-style metric (TIGHT/LOOSE × PASSIVE/AGGRESSIVE), backed to the server so *other* players can see a given player's style — not a client-only computation. Needs a real tightness/aggression metric defined + a server store + exposure on the room/profile snapshot. Pairs with the existing "PlayStyleBlob reuse" and "Player Card — Phase 2/3" backlog items below — the cross-player plumbing is the same wire those need.
+
+**Status:** Backlog. Product + backend design; do alongside the play-style metric data work the Player Card phases already wait on.
+
+---
+
 ## Per-seat positioned MP emote blasts
 
 **Idea:** MP emotes ship rendered as a single center-screen `EmojiBlastOverlay` attributed to the emitter's avatar (see [decisions.md](./decisions.md) 2026-06-19). A richer treatment positions each opponent's blast *over their seat* at the table, so a busy table reads who reacted at a glance and two near-simultaneous emotes don't collide on one center slot. Needs per-seat blast state (a `Map<seatIndex, EmojiBlast>` instead of the single `emojiBlast` slot) and the table render loop to anchor each overlay to its seat's layout coordinates — the overlay already takes emitter attribution, so the work is positioning + multi-blast state, not a new component.

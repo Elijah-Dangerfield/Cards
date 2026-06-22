@@ -120,6 +120,49 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 - **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code.
 
+### From the 2026-06-22 owner playtest
+
+A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
+
+- `[P2]` **Raise the in-app feedback character limit.** The feedback box caps at 200 chars — too tight to describe behavior. Owner wants a much larger cap on debug builds and ~500 in production. *(feedback CARDS-8)*
+  **Hints:** `FeedbackRoute` / feedback screen in `features/profile/impl/.../feedback/`; cap is a client constant. Sentry [CARDS-8](https://elijah-dangerfield.sentry.io/issues/CARDS-8).
+
+- `[P2]` **"New here" home card — white close button on the right.** The card's close button is black and on the left; make it a white close affordance on the right side. *(feedback CARDS-A)*
+  **Hints:** the "new here" welcome card on `HomeScreen`. Sentry [CARDS-A](https://elijah-dangerfield.sentry.io/issues/CARDS-A).
+
+- `[P2]` **Hide the "Recently played with" shelf when empty.** On Home it renders even with no entries — don't show the empty shelf. *(feedback CARDS-E)*
+  **Hints:** `RecentlyPlayedWithStrip` on `HomeScreen`. Sentry [CARDS-E](https://elijah-dangerfield.sentry.io/issues/CARDS-E).
+
+- `[P2]` **Drop the yellow border on equipped items — keep just the badge.** Owner dislikes the yellow outline around equipped cosmetics; the equipped badge alone is enough. *(feedback CARDS-G)*
+  **Hints:** equipped-item tiles in `MyItemsScreen` / inventory. Sentry [CARDS-G](https://elijah-dangerfield.sentry.io/issues/CARDS-G).
+
+- `[P2]` **Align the chip counter so it reads as shared between Home and Shop.** The top-right chip amount is meant to sit in the exact same position on Home and Shop so it looks persistent across the two pages; today the positions differ. *(feedback CARDS-R)*
+  **Hints:** the chip-balance header on `HomeScreen` vs the Shop top bar. Sentry [CARDS-R](https://elijah-dangerfield.sentry.io/issues/CARDS-R).
+
+- `[P2]` **Remove the "sunset" table theme.** There's no visual difference between table themes and felt, so the sunset table theme is redundant — remove it. *(feedback CARDS-18)*
+  **Hints:** table-theme catalog / cosmetic definitions. Sentry [CARDS-18](https://elijah-dangerfield.sentry.io/issues/CARDS-18).
+
+- `[P2]` **Confirm before leaving the find-a-table / bots lobby via back.** "Find a table" drops the user into the lobby; back exits with no confirmation dialog. Add a confirm-before-leave. *(feedback CARDS-C)*
+  **Hints:** lobby back handling in `features/rooms/impl`. Pairs with the MP back-nav item below. Sentry [CARDS-C](https://elijah-dangerfield.sentry.io/issues/CARDS-C).
+
+- `[P2]` **Back out of an in-progress MP game should go Home, not the lobby.** Swiping back from a multiplayer game returns to the lobby; it should route Home. *(feedback CARDS-12)*
+  **Hints:** back handling in `PlayMultiplayerFeatureEntryPoint` / room nav. Sentry [CARDS-12](https://elijah-dangerfield.sentry.io/issues/CARDS-12).
+
+- `[P2]` **Bot-only MP explainer should say real chips aren't at stake.** When a multiplayer game is only against bots, the explainer dialog should add that real chips are no longer at stake. *(feedback CARDS-14)*
+  **Hints:** the MP explainer dialog; bot-only detection already exists. Pairs with CARDS-W. Sentry [CARDS-14](https://elijah-dangerfield.sentry.io/issues/CARDS-14).
+
+- `[P2]` **"Took a seat" shouldn't count when it's bots-only.** The take-a-seat achievement/stat fires even in bot-only games; it should only count against humans. *(feedback CARDS-W)*
+  **Hints:** seat / achievement trigger; gate on bot-only room. Sentry [CARDS-W](https://elijah-dangerfield.sentry.io/issues/CARDS-W).
+
+- `[P2]` **Achievements: progress ring around the medallion.** For progress-type achievements, draw a ring around the circle showing how close the user is. *(feedback CARDS-M)*
+  **Hints:** `AchievementMedallion` in `:libraries:ui`; achievement progress counters already exist client-side. Sentry [CARDS-M](https://elijah-dangerfield.sentry.io/issues/CARDS-M).
+
+- `[P2]` **More on the stats page (win/loss ratio, players played with).** Owner wants richer stats — at least a win/loss ratio and a count of distinct players played with, with room for more. *(feedback CARDS-P)*
+  **Hints:** `StatsScreen`; some counters exist client-side. Sentry [CARDS-P](https://elijah-dangerfield.sentry.io/issues/CARDS-P).
+
+- `[P2]` **Debug feedback swipe is unreliable inside scroll views.** The right-edge swipe to open the feedback screen often takes a few tries, mostly when the user is already in a scroll view (gesture conflict). *(feedback CARDS-Y; debug-only feature from `fd5aeec8`)*
+  **Hints:** the right-edge swipe detector competing with scroll containers. Sentry [CARDS-Y](https://elijah-dangerfield.sentry.io/issues/CARDS-Y).
+
 ---
 
 ## B. Multiplayer hardening
@@ -127,6 +170,12 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 **Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). **B1 shipped — MP is playable; sequence to *shippable* MP is now B6 (the test gate) → B2 → B3 → B4.**
 
 **State of play (2026-05-30):** rooms work end-to-end (create / join / leave / seat allocation / presence), the server runs **fully authoritative** hands, and the client now consumes server-driven gameplay (B1 shipped). Two humans can play a full hand against each other end-to-end with auto-promotion when the host disconnects. The remaining work is **B6 (test coverage)** — bulletproofing MP before real users — and B2–B4 (persistence, gameplay items, spectator).
+
+### Live bug
+
+- `[P0]` **Bot-occupied MP room stalls at hand end — "nobody's turn".** In a server MP room filled out with bots, the game freezes at the end of a hand: no seat is to act and it never advances. Reproduced live in room `A3DTHY` (trace `44744008b5672640a64d0849c14384bf`): `request_next_hand` fired after hand 1 but **never after hand 2**, and the trace carries **zero bot action spans** the whole session — only the human's intents apply, so once the human's last action lands the server goes idle until the socket closes ~40s later. The server-side hand-advance / bot-driver loop stops scheduling at hand end when the room is bot-occupied. *(found 2026-06-22 owner playtest; reported twice)*
+  **Acceptance:** a bot-occupied MP room plays consecutive hands without stalling — after each hand ends the next hand starts and bots act on their turn; add regression tests covering hand-end → next-hand advance with server bots (owner explicitly asked for tests).
+  **Hints:** server bot-driver + the `request_next_hand` / `start_hand` advance path in the `apps/server` room-session loop; pairs with the backend-bots think-delay / per-move-timer follow-up. Sentry [CARDS-16](https://elijah-dangerfield.sentry.io/issues/CARDS-16) (primary) + [CARDS-T](https://elijah-dangerfield.sentry.io/issues/CARDS-T) (dup). session_id `0c149c11-254b-4a34-bdc1-5c07775702f7`, room `A3DTHY`, trace `44744008b5672640a64d0849c14384bf`.
 
 ### B0 — Server-side state durability
 
@@ -161,6 +210,9 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 - `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
   **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
   **Hints:** [`docs/testing-plan.md`](./testing-plan.md) tracks per-round status — the doc IS the running history. Rounds 1/3/4 shipped; Round 2 (`:apps:integration`, in-process Ktor + two-client hands) mostly done; Round 5 chaos partly covered; Round 6 (Compose UI for `PlayPokerScreen`) unstarted. **Out of scope:** emulator-based UI tests.
+
+- `[P2]` **Integration tests should play full multi-hand games, not thin slices.** Owner review: the `:apps:integration` coverage feels thin — he expected to see full hands actually played end-to-end. Strengthen Round 2 so the in-process server + clients play complete consecutive hands (deal → streets → showdown → next hand), not just connection/seat/handshake assertions. *(feedback 2026-06-22; sharpens B6 Round 2)*
+  **Hints:** the two-client harness in `:apps:integration` / `testing-plan.md` Round 2; the bot-room hand-end stall above is exactly the kind of bug full-hand coverage would catch. Sentry [CARDS-10](https://elijah-dangerfield.sentry.io/issues/CARDS-10).
 
 ### B5 — Parked
 
