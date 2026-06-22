@@ -378,6 +378,23 @@ class PlayPokerViewModel @Inject constructor(
             humanSeatIndex = humanSeatIndex,
             mode = sessionFactory.xpMode,
         )
+        // One-off audio/haptic feedback for the hand result. Gated on the human
+        // actually being seated (humanSeatIndex == -1 ⇒ spectator / pre-snapshot)
+        // so we never attribute another seat's outcome.
+        state.seats.firstOrNull { it.index == humanSeatIndex }?.let { humanSeat ->
+            val humanWon = event.winners.any { it.seatIndex == humanSeatIndex }
+            sendEvent(PlayPokerEvent.PlaySound(SoundKind.Showdown))
+            sendEvent(
+                PlayPokerEvent.PlayHaptic(
+                    if (humanWon) HapticKind.HandWon else HapticKind.HandLost,
+                ),
+            )
+            // Busted out this hand (lost an all-in / blinded off to zero). Fires
+            // alongside HandLost as a heavier, distinct "you're out" cue.
+            if (humanSeat.stack <= 0L) {
+                sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.Bust))
+            }
+        }
         val context = AchievementHandContext(
             opponentBotNames = state.seats
                 .filter { it.index != humanSeatIndex && it.isBot }
@@ -439,6 +456,7 @@ class PlayPokerViewModel @Inject constructor(
                     levelCurve,
                 ).level
                 if (newLevel > priorLevel) {
+                    sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.LevelUp))
                     reviewPromptCoordinator.requestPrompt(ReviewTrigger.LevelUp)
                 }
             }
@@ -474,7 +492,17 @@ class PlayPokerViewModel @Inject constructor(
                     is GameEvent.HandStarted -> {
                         lastWinners = null
                         lastActionBySeat.clear()
+                        // Cards hitting the felt as a fresh hand is dealt.
+                        sendEvent(PlayPokerEvent.PlaySound(SoundKind.CardFlick))
                         true
+                    }
+                    is GameEvent.HoleCardsDealt -> {
+                        // The human's own hole cards sliding in — one flick, not
+                        // one per seat (this fires once per seat dealt).
+                        if (ev.seatIndex == lastGameState?.let { sessionFactory.humanSeatIndex(it) }) {
+                            sendEvent(PlayPokerEvent.PlaySound(SoundKind.CardFlick))
+                        }
+                        false
                     }
                     is GameEvent.StreetAdvanced -> { lastActionBySeat.clear(); true }
                     is GameEvent.ActionTaken -> { lastActionBySeat[ev.seatIndex] = ev.action; true }
@@ -515,6 +543,16 @@ class PlayPokerViewModel @Inject constructor(
                 } else {
                     submittedTurnToken = turnToken
                     logger.d { "VM received Submit ${action.intent}" }
+                    // Immediate tactile + audible confirmation that the tap
+                    // registered. Every action gets the haptic; the chip sound
+                    // only fires when chips actually move (call/bet/raise/all-in)
+                    // — a check or fold is silent.
+                    sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.ActionTaken))
+                    val movesChips = action.intent is PlayerIntent.Call ||
+                        action.intent is PlayerIntent.Bet ||
+                        action.intent is PlayerIntent.Raise ||
+                        action.intent is PlayerIntent.AllIn
+                    if (movesChips) sendEvent(PlayPokerEvent.PlaySound(SoundKind.ChipClick))
                     viewModelScope.launch {
                         Catching { session.submit(action.intent) }
                             .onFailure { e ->
