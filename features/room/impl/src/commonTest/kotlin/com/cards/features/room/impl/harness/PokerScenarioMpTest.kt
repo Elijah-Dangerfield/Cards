@@ -10,6 +10,7 @@ import com.dangerfield.cards.libraries.rooms.ClientFrame
 import com.dangerfield.cards.libraries.rooms.ClosedReason
 import com.dangerfield.cards.libraries.rooms.Room
 import com.dangerfield.cards.libraries.rooms.RoomConnection
+import com.dangerfield.cards.libraries.rooms.RoomMember
 import com.dangerfield.cards.libraries.rooms.RoomStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -175,6 +176,56 @@ class PokerScenarioMpTest : PokerScenarioTest() {
         assertEquals(ConnectionState.Connected, s.connection)
         assertTable(s.table) { isHumanTurn(true) }
     }
+
+    @Test
+    fun allOtherHumansLeave_emitsOpponentsLeft() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+
+        // Baseline: two humans seated.
+        s.serverConnection(
+            RoomConnection.Connected(roomWith(member(MP_LOCAL_USER), member("peer"))),
+        )
+        // The peer leaves — the local user is the last human standing.
+        s.serverConnection(
+            RoomConnection.Connected(roomWith(member(MP_LOCAL_USER))),
+        )
+
+        assertTrue(
+            s.events.events.contains(PlayPokerEvent.OpponentsLeft),
+            "dropping to the last human fans out OpponentsLeft; got ${s.events.events}",
+        )
+    }
+
+    @Test
+    fun practiceWithBots_neverEmitsOpponentsLeft() = runUnitTest {
+        val s = mpScenario(localUserId = MP_LOCAL_USER).start()
+
+        // A game that begins with a single human + bots must never read as
+        // "opponents left" — there were never two humans to drop from.
+        val table = roomWith(member(MP_LOCAL_USER), member("bot-1", isBot = true))
+        s.serverConnection(RoomConnection.Connected(table))
+        s.serverConnection(RoomConnection.Connected(table))
+
+        assertFalse(s.events.events.contains(PlayPokerEvent.OpponentsLeft))
+    }
+
+    private fun member(userId: String, isBot: Boolean = false): RoomMember = RoomMember(
+        userId = userId,
+        displayName = userId,
+        seatIndex = 0,
+        joinedAtEpochMs = 0L,
+        isConnected = true,
+        isBot = isBot,
+    )
+
+    private fun roomWith(vararg members: RoomMember): Room = Room(
+        code = "ABCDEF",
+        hostUserId = MP_LOCAL_USER,
+        createdAtEpochMs = 0L,
+        maxSeats = 6,
+        status = RoomStatus.Playing,
+        members = members.toList(),
+    )
 
     private fun sampleRoom(): Room = Room(
         code = "ABCDEF",

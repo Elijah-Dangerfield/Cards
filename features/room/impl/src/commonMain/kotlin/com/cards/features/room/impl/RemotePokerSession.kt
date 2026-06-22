@@ -61,6 +61,13 @@ import kotlin.uuid.Uuid
 internal class RemotePokerSession(
     private val handle: RoomConnectionHandle,
     /**
+     * The local player's user id, matched against `RoomMember.userId` to
+     * decide when they've become the last human at the table. Defaults to
+     * blank for tests that don't exercise presence (it simply never matches a
+     * real member, so the opponents-left signal stays dormant).
+     */
+    private val localUserId: String = "",
+    /**
      * Sends the durable room-leave (the HTTP DELETE) when the player
      * exits. Injected as a lambda so the session stays decoupled from
      * `RoomRepository` + the room code, which only the factory holds.
@@ -109,6 +116,19 @@ internal class RemotePokerSession(
     private val _roomClosed = MutableSharedFlow<ClosedReason>(replay = 1)
     override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
 
+    /**
+     * `replay = 1` so a collector that mounts after the transition still sees
+     * it (mirrors [roomClosed]). Fired at most once per session — see
+     * [opponentsAlreadyLeft].
+     */
+    private val _opponentsLeft = MutableSharedFlow<Unit>(replay = 1)
+    override val opponentsLeft: SharedFlow<Unit> = _opponentsLeft.asSharedFlow()
+
+    // Last observed count of human (non-bot) room members. Seeded to -1 so the
+    // first snapshot establishes a baseline without ever reading as a "drop."
+    private var previousHumanCount: Int = -1
+    private var opponentsAlreadyLeft: Boolean = false
+
     private val pendingAcks: MutableMap<String, CompletableDeferred<GameplayFrame.IntentAck>> =
         mutableMapOf()
     private val pendingAcksMutex = Mutex()
@@ -140,6 +160,21 @@ internal class RemotePokerSession(
                 is RoomConnection.Closed -> ConnectionState.Disconnected
             }
             _connectionState.value = next
+
+            // Detect "all other opponents left": the human (non-bot) member
+            // count drops to the local player alone, after having been 2+. Only
+            // a Connected snapshot carries the live member list.
+            if (conn is RoomConnection.Connected) {
+                val humans = conn.room.members.count { !it.isBot }
+                val iAmStillSeated = conn.room.members.any { it.userId == localUserId }
+                if (!opponentsAlreadyLeft && iAmStillSeated &&
+                    previousHumanCount >= 2 && humans <= 1
+                ) {
+                    opponentsAlreadyLeft = true
+                    _opponentsLeft.tryEmit(Unit)
+                }
+                previousHumanCount = humans
+            }
             // Info: connection lifecycle is the backbone of reconstructing a
             // reported MP session — it rides in release breadcrumbs and, with
             // the close reason, explains "the game just froze/dropped."

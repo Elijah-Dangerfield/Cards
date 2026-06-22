@@ -23,8 +23,11 @@ import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
 import com.dangerfield.cards.libraries.review.ReviewTrigger
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -1002,6 +1005,74 @@ class PlayPokerViewModelTest : CoroutineTest() {
             session.leaveCount,
             "leaving the table must send the server leave so the seat is freed",
         )
+    }
+
+    // ---------- Multiplayer bust dialog + opponent-left ----------
+
+    @Test
+    fun isRealMultiplayer_trueForMultiplayerActiveTable() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER))
+
+        assertTrue(
+            vm.state.isRealMultiplayer,
+            "a multiplayer session with a live table is real-MP (not practice/solo)",
+        )
+    }
+
+    @Test
+    fun isRealMultiplayer_falseForBotsMode() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.BOTS))
+
+        assertFalse(vm.state.isRealMultiplayer, "solo bots is never real multiplayer")
+    }
+
+    @Test
+    fun buyChips_fromBustDialog_emitsNavigateToShop() = runUnitTest {
+        val vm = buildVm(factory = FakePokerSessionFactory(xpMode = XpMode.MULTIPLAYER))
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        vm.takeAction(PlayPokerAction.BuyChips)
+        advanceUntilIdle()
+
+        assertTrue(
+            events.contains(PlayPokerEvent.NavigateToShop),
+            "Buy chips routes to the Shop tab via a one-shot event; got $events",
+        )
+        job.cancel()
+    }
+
+    @Test
+    fun leaveGameFromBust_sendsDurableLeave() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+
+        vm.takeAction(PlayPokerAction.LeaveGameFromBust)
+
+        assertEquals(1, session.leaveCount, "Leave game from the bust dialog frees the seat")
+    }
+
+    @Test
+    fun opponentsLeft_fromSession_emitsOpponentsLeftEvent() = runUnitTest {
+        val session = FakePokerSession()
+        val vm = buildVm(
+            factory = FakePokerSessionFactory(session = session, xpMode = XpMode.MULTIPLAYER),
+        )
+        val events = mutableListOf<PlayPokerEvent>()
+        val job = launch { vm.eventFlow.collect { events += it } }
+        advanceUntilIdle()
+
+        session.emitOpponentsLeft()
+        advanceUntilIdle()
+
+        assertTrue(
+            events.contains(PlayPokerEvent.OpponentsLeft),
+            "the session's opponents-left signal surfaces as a one-shot VM event; got $events",
+        )
+        job.cancel()
     }
 
     // ---------- Helpers ----------

@@ -193,6 +193,15 @@ class PlayPokerViewModel @Inject constructor(
                 sendEvent(PlayPokerEvent.RoomClosed(reason))
             }
         }
+        // Last human standing — every other human left. The room isn't gone, so
+        // this is distinct from roomClosed: the entry point surfaces a notice and
+        // routes (back to the lobby for a private game, to matchmaking for a
+        // public one). Never fires for solo bots.
+        viewModelScope.launch {
+            session.opponentsLeft.collect {
+                sendEvent(PlayPokerEvent.OpponentsLeft)
+            }
+        }
         // XP mirror
         viewModelScope.launch {
             progressionRepository.observeProgression().collect { progression ->
@@ -661,6 +670,15 @@ class PlayPokerViewModel @Inject constructor(
                         .onFailure { e -> logger.w(e) { "room leave failed" } }
                 }
             }
+            is PlayPokerAction.LeaveGameFromBust -> {
+                // Same teardown as LeaveTable — the durable leave on the app
+                // scope so it lands even as the screen routes away.
+                appScope.launch {
+                    Catching { session.leave() }
+                        .onFailure { e -> logger.w(e) { "room leave failed" } }
+                }
+            }
+            is PlayPokerAction.BuyChips -> sendEvent(PlayPokerEvent.NavigateToShop)
             is PlayPokerAction.SwipeFoldAckChanged -> action.updateState {
                 it.copy(swipeFoldGestureAck = action.acknowledged)
             }
@@ -913,7 +931,18 @@ data class PlayPokerState(
      * row on the dialog itself.
      */
     val xpMode: XpMode = XpMode.BOTS,
-)
+) {
+    /**
+     * True for a real-chips multiplayer game — multiplayer xpMode and the table
+     * is not the bots-only practice sub-case. Drives the bust dialog split: real
+     * MP shows the terminal "you're out" (Leave / Buy chips) dialog, while solo
+     * and practice/bots-only MP keep the "deal me in" rebuy dialog. Falls back
+     * to false until the first table projection lands.
+     */
+    val isRealMultiplayer: Boolean
+        get() = xpMode == XpMode.MULTIPLAYER &&
+            (table as? TableUiState.Active)?.practiceTierBotsOnly == false
+}
 
 sealed interface PlayPokerAction {
     // Engine subscriptions (internal — fired by VM's own session observers)
@@ -976,6 +1005,20 @@ sealed interface PlayPokerAction {
      * update; navigation itself is the screen's job.
      */
     data object LeaveTable : PlayPokerAction
+
+    /**
+     * Fired by the "Leave game" button on the real-multiplayer bust dialog.
+     * Tears down the session the same way [LeaveTable] does (sends the durable
+     * leave on the app scope); the screen routes out afterward.
+     */
+    data object LeaveGameFromBust : PlayPokerAction
+
+    /**
+     * Fired by the "Buy chips" button on the real-multiplayer bust dialog —
+     * the upsell. The VM only emits [PlayPokerEvent.NavigateToShop]; the entry
+     * point owns the actual navigation to the Shop tab.
+     */
+    data object BuyChips : PlayPokerAction
 
     /** Fired by the AppCache mirror; flips the swipe-fold confirmation gate. */
     data class SwipeFoldAckChanged(val acknowledged: Boolean) : PlayPokerAction
@@ -1043,6 +1086,21 @@ sealed interface PlayPokerEvent {
      * banner. Only ever fires for multiplayer; local-bots rooms can't close.
      */
     data class RoomClosed(val reason: ClosedReason) : PlayPokerEvent
+
+    /**
+     * Every other human left the table (the local player is the last one
+     * standing). The entry point surfaces a notice and routes by room kind —
+     * back to the lobby for a private game, to matchmaking search for a public
+     * one. The room itself isn't gone, which is why this is distinct from
+     * [RoomClosed]. Multiplayer only.
+     */
+    data object OpponentsLeft : PlayPokerEvent
+
+    /**
+     * The player tapped "Buy chips" on the multiplayer bust dialog. The entry
+     * point switches to the Shop tab; the VM holds no purchase logic.
+     */
+    data object NavigateToShop : PlayPokerEvent
 }
 
 enum class HapticKind { ActionTaken, HandWon, HandLost, Bust, LevelUp }

@@ -57,6 +57,18 @@ interface PokerSession {
     val roomClosed: SharedFlow<ClosedReason>
 
     /**
+     * Fires once when the local player becomes the last human at the table —
+     * i.e. every other human has left ("all other opponents left"). Distinct
+     * from [roomClosed]: the room still exists (the seat may be backfilled, or
+     * the player sent off to find another game), so the screen surfaces a
+     * notification and routes rather than treating the room as gone. Only fires
+     * on the transition from two-or-more humans down to one; a game that *began*
+     * with a single human + bots (practice tier) never emits. Local-bots
+     * sessions never emit.
+     */
+    val opponentsLeft: SharedFlow<Unit>
+
+    /**
      * Submit the local player's intent. Suspends because the local-bots implementation
      * runs the bot loop synchronously after the human acts.
      */

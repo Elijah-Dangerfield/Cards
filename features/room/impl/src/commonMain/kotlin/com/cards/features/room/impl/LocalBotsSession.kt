@@ -152,6 +152,9 @@ class LocalBotsSession(
     // In-process sessions have no room to close — this never emits for solo.
     override val roomClosed: SharedFlow<ClosedReason> = MutableSharedFlow()
 
+    // Solo bots can't have human opponents leave — never emits.
+    override val opponentsLeft: SharedFlow<Unit> = MutableSharedFlow()
+
     // Solo bots have no wire to fan emotes over — the local player's own
     // blast renders directly. Never emits; [sendEmote] is a no-op.
     override val emoteBlasts: SharedFlow<RemoteEmote> = MutableSharedFlow()

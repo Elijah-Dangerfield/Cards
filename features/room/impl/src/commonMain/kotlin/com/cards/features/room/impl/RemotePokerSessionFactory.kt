@@ -69,6 +69,7 @@ class RemotePokerSessionFactory @Inject constructor(
         handle = roomRepository.connect(roomCode)
         return RemotePokerSession(
             handle = handle,
+            localUserId = localUserId,
             onLeave = { roomRepository.leaveRoom(roomCode) },
         )
     }

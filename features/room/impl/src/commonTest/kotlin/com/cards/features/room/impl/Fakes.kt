@@ -76,6 +76,13 @@ class FakePokerSession(
     private val _roomClosed = MutableSharedFlow<ClosedReason>(extraBufferCapacity = 1)
     override val roomClosed: SharedFlow<ClosedReason> = _roomClosed.asSharedFlow()
 
+    private val _opponentsLeft = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
+    override val opponentsLeft: SharedFlow<Unit> = _opponentsLeft.asSharedFlow()
+
+    fun emitOpponentsLeft() {
+        _opponentsLeft.tryEmit(Unit)
+    }
+
     private val _emoteBlasts = MutableSharedFlow<RemoteEmote>(extraBufferCapacity = 32)
     override val emoteBlasts: SharedFlow<RemoteEmote> = _emoteBlasts.asSharedFlow()
 
