@@ -2274,3 +2274,13 @@ as supporting context.
 **Why no separate outbox for guests:** the guest/Fallback case still routes through `PendingGuestAccountStore` (the guest-mint path is its sync) — two stores, each owning its case, avoids a flush-ordering race between the mint's identity-apply and a profile PATCH.
 
 **Status:** Shipped on `feat/offline-first-identity-heal` (same PR as the rest of the offline-first plan). Offline profile editing is now complete for both guests and real accounts. Only Phase 7 (the `Syncable`/`SyncCoordinator` refactor) remains backlogged.
+
+## 2026-06-21 — Recently-played-with client lives in a new `:libraries:social` module
+
+**Decision:** The KMP client for the social graph (recently-played-with shelf + outbound friend requests) landed as a new `:libraries:social` (api) + `:libraries:social:impl` module pair, not folded into `:libraries:identity`. `RecentOpponentsRepository` does the server's two-step resolve (`GET /v1/recent-opponents` bare ids → `GET /v1/profiles`), preserving newest-first order and dropping ids that don't resolve; `FriendRepository.sendRequest` maps the server's status codes onto a typed `SendFriendRequestResult` (403 → NotPlayedWith, 400 → SelfRequest, 429 → RateLimited). Both sit behind a single faked `SocialApi` seam.
+
+**Why a new module (vs. extending `:libraries:identity`):** identity owns *who you are* (auth, your own `/v1/me` profile, avatar packs); the friend graph is *your relationships to others* — a distinct concern that will grow (presence WS, friend-requests inbox, friends list, block relations). Keeping it separate avoids turning identity into the social grab-bag and gives the remaining social todo items a natural home to extend. The cost is one extra module pair, which the convention plugins + DI multibinding absorb with no app-side wiring beyond the `projects.libraries.social(.impl)` deps.
+
+**Notable constraints:** wire DTOs declare `schemaVersion` because debug's `NetworkJson` is strict (`ignoreUnknownKeys = false`) and would otherwise throw on the server's version field. The `403` mapping conflates not-played-with with a blocked pair (the server returns 403 for both) — acceptable until the block UI exists.
+
+**Status:** Shipped on `develop` this cycle. Closes the P0 "Recently-played-with — client wiring." The inbox / presence / friends-list / block items (separate P1s) will extend `FriendRepository` + `:libraries:social`.
