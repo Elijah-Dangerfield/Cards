@@ -86,6 +86,16 @@ interface GameSessionRegistry {
     ): IntentResult
 
     /**
+     * Fold [userId]'s seat out of the live hand because they left or were
+     * reaped from the room mid-hand. Resolves via [peek] (no hydrate — a
+     * leave only matters while a live in-memory session exists) and delegates
+     * to [GameSession.forfeitSeat]. Idempotent and a no-op (Accepted) when no
+     * session is registered for [code]. Keeps the table from stalling on a
+     * gone player and lets the hand resolve for whoever remains.
+     */
+    suspend fun forfeitSeat(code: String, userId: String): IntentResult
+
+    /**
      * Fan a table emote out to every socket in the room. Resolves to the
      * in-memory session via [peek] (no hydrate — emotes only matter while
      * a hand is live and someone's watching the table) and delegates to
@@ -187,6 +197,9 @@ class DefaultGameSessionRegistry(
     ): IntentResult = findOrHydrate(code)
         ?.requestNextHand(actorUserId, clientNonce)
         ?: IntentResult.Rejected("no game session for room $code")
+
+    override suspend fun forfeitSeat(code: String, userId: String): IntentResult =
+        peek(code)?.forfeitSeat(userId) ?: IntentResult.Accepted
 
     override fun broadcastEmoji(code: String, actorUserId: String, emoji: String): IntentResult =
         peek(code)?.emitEmoji(actorUserId, emoji)

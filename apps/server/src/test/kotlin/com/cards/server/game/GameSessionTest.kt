@@ -1,6 +1,7 @@
 package com.dangerfield.cards.server.game
 
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.HandParticipation
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.gameplay.RoomSettings
 import com.dangerfield.cards.server.domain.HandOutcome
@@ -37,6 +38,78 @@ class GameSessionTest {
     private val bob = SeatOccupant(seatIndex = 1, userId = "bob", displayName = "Bob", isBot = false)
 
     private fun newSession() = GameSession(random = Random(seed = 42))
+
+    private val carol = SeatOccupant(seatIndex = 2, userId = "carol", displayName = "Carol", isBot = false)
+
+    private fun GameSession.actingUserId(): String =
+        state.value!!.let { s -> s.seats.first { it.index == s.actingSeatIndex }.playerId!! }
+
+    // ---------- forfeitSeat (mid-hand leave) ----------
+
+    @Test
+    fun forfeitActingSeat_threeHanded_advancesAction_andContinues() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob, carol), settings)
+        runCurrent()
+        val actingIdx = session.state.value!!.actingSeatIndex!!
+        val actingUser = session.actingUserId()
+
+        val result = session.forfeitSeat(actingUser)
+        runCurrent()
+
+        assertIs<IntentResult.Accepted>(result)
+        val state = session.state.value!!
+        assertEquals(
+            HandParticipation.Folded,
+            state.seats.first { it.index == actingIdx }.handParticipation,
+        )
+        assertTrue(state.street != BettingRound.Complete, "two contenders remain → hand continues")
+        assertTrue(
+            state.actingSeatIndex != null && state.actingSeatIndex != actingIdx,
+            "action moved off the gone seat (no stall)",
+        )
+    }
+
+    @Test
+    fun forfeitActingSeat_headsUp_endsHand() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+
+        session.forfeitSeat(session.actingUserId())
+        runCurrent()
+
+        assertEquals(BettingRound.Complete, session.state.value!!.street, "one contender left → hand over")
+    }
+
+    @Test
+    fun forfeit_unknownUser_isNoOpAccepted() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        val before = session.state.value
+
+        val result = session.forfeitSeat("ghost")
+
+        assertIs<IntentResult.Accepted>(result)
+        assertEquals(before, session.state.value, "no state change for an unseated user")
+    }
+
+    @Test
+    fun forfeit_isIdempotent_andNoOpAfterComplete() = runTest {
+        val session = newSession()
+        session.startHand(listOf(alice, bob), settings)
+        runCurrent()
+        val user = session.actingUserId()
+        session.forfeitSeat(user) // ends the heads-up hand
+        runCurrent()
+        val afterFirst = session.state.value
+
+        val again = session.forfeitSeat(user)
+
+        assertIs<IntentResult.Accepted>(again)
+        assertEquals(afterFirst, session.state.value, "a repeat / post-complete forfeit changes nothing")
+    }
 
     @Test
     fun startHand_revealedBotOccupant_seatCarriesStyleKey_hiddenDoesNot() = runTest {

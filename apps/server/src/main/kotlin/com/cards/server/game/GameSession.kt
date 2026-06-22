@@ -398,6 +398,44 @@ class GameSession internal constructor(
         }
     }
 
+    /**
+     * Fold a seat out of the live hand because its player left or was reaped
+     * from the room mid-hand. The seat is resolved by [actorUserId] → matching
+     * `Seat.playerId`. **Idempotent and safe to call repeatedly** (the socket
+     * publisher fires the leave delta once per remaining subscriber): a no-op
+     * — returning [IntentResult.Accepted] — when there's no active hand, the
+     * user isn't seated, or the seat is already out of the action (folded /
+     * all-in / not dealt). When the forfeit ends the hand the usual
+     * hand-finished side-effects fire exactly once, mirroring [applyIntent].
+     *
+     * Fixes the "stuck — nobody's turn" bug: a player leaving while on the
+     * clock used to strand `actingSeatIndex` on a seat that would never act.
+     */
+    suspend fun forfeitSeat(actorUserId: String): IntentResult = mutex.withLock {
+        val current = _state.value ?: return@withLock IntentResult.Accepted
+        if (current.street == BettingRound.Complete) return@withLock IntentResult.Accepted
+        val seat = current.seats.firstOrNull { it.playerId == actorUserId }
+            ?: return@withLock IntentResult.Accepted
+        if (seat.handParticipation != HandParticipation.InHand) return@withLock IntentResult.Accepted
+
+        val step = GameEngine.forfeitSeat(current, seat.index)
+        if (step.events.isEmpty()) return@withLock IntentResult.Accepted // engine treated it as a no-op
+
+        val origin = Span.current().spanContext
+        val newState = step.state
+        val handJustFinished = current.street != BettingRound.Complete &&
+            newState.street == BettingRound.Complete
+        _state.value = newState
+        _tracedState.value = TracedState(newState, origin)
+        onStateChange(newState)
+        if (handJustFinished) {
+            log.info("Hand ${current.handNumber} finished (seat $actorUserId forfeited) — session=$id")
+            onHandFinished(buildHandOutcome(newState, step.events))
+        }
+        step.events.forEach { _events.tryEmit(TracedGameEvent(it, origin)) }
+        IntentResult.Accepted
+    }
+
     private suspend fun startHandLocked(
         occupants: List<SeatOccupant>,
         settings: RoomSettings,

@@ -178,7 +178,20 @@ fun Route.roomSocketRoutes(
                                 // state) then any deltas the client can
                                 // use for toasts / animations.
                                 sendTraced(RoomSocketEventDto.Snapshot(next.toDto()), code, userIdString)
-                                diffDeltas(previous, next).forEach { sendTraced(it, code, userIdString) }
+                                val deltas = diffDeltas(previous, next)
+                                deltas.forEach { sendTraced(it, code, userIdString) }
+                                // A member leaving (explicit /leave or a reaped
+                                // disconnect — both surface as MemberLeft) folds
+                                // their seat out of any live hand so the table
+                                // doesn't stall on a gone player. Idempotent, so
+                                // the per-subscriber duplicate calls are harmless.
+                                deltas.filterIsInstance<RoomSocketEventDto.MemberLeft>().forEach { left ->
+                                    Catching { gameSessions.forfeitSeat(code, left.userId) }
+                                        .onFailure { e ->
+                                            LoggerFactory.getLogger("RoomSocket")
+                                                .warn("forfeitSeat failed for room=$code user=${left.userId}", e)
+                                        }
+                                }
                             }
                         }
                 } catch (_: CancellationException) {
