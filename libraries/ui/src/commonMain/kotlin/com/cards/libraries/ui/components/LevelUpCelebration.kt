@@ -9,10 +9,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,9 +99,15 @@ fun LevelUpCelebration(
             .background(AppTheme.colors.background.color),
         contentAlignment = Alignment.Center,
     ) {
+        // Top-anchored content with the dial + level number owning the upper
+        // screen, and Continue pinned to the bottom edge via the weighted
+        // spacer below — so the primary action sits in thumb reach instead of
+        // floating directly under the rewards panel. safeDrawing insets keep
+        // both ends off the system bars (this is a full-screen destination).
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(horizontal = Dimension.D1000)
                 .graphicsLayer {
                     val e = entrance.value
@@ -105,8 +116,9 @@ fun LevelUpCelebration(
                     scaleY = 0.85f + 0.15f * e
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.Top,
         ) {
+            Spacer(modifier = Modifier.height(Dimension.D1000))
             RotatingDial(
                 size = 248.dp,
                 rayColor = AppTheme.colors.accentSecondary,
@@ -150,11 +162,12 @@ fun LevelUpCelebration(
                     modifier = Modifier.padding(top = Dimension.D700),
                 )
             }
+            Spacer(modifier = Modifier.weight(1f))
             ButtonPrimary(
                 onClick = onContinue,
                 accent = ButtonAccent.Secondary,
                 modifier = Modifier
-                    .padding(top = Dimension.D900)
+                    .padding(bottom = Dimension.D500)
                     .fillMaxWidth(),
             ) {
                 Text(text = stringResource(Res.string.ui_level_up_continue))
