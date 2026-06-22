@@ -21,6 +21,8 @@ import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
 import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 @Inject
 @SingleIn(AppScope::class)
@@ -83,6 +85,19 @@ private class ConfiguredTelemetry(
                 options.enableAutoSessionTracking = config.enableAutoSessionTracking
                 config.tracesSampleRate?.let { options.tracesSampleRate = it }
                 config.profilesSampleRate?.let { options.sampleRate = it }
+                // Every feedback carrier event has an identical message
+                // ("User feedback" / "Bug report") and no stacktrace, so Sentry
+                // would group them all into one issue. Give each its own
+                // fingerprint (keyed by a per-feedback id set in
+                // captureUserFeedback) so every report is its own issue —
+                // individually triageable and resolvable. Other events fall
+                // through untouched.
+                options.beforeSend = { event ->
+                    event.getTag(FEEDBACK_EVENT_TAG)?.let { id ->
+                        event.fingerprint = mutableListOf(FEEDBACK_FINGERPRINT, id)
+                    }
+                    event
+                }
             }
         }.onFailure {
             logger.e(it) { scope ->
@@ -159,6 +174,7 @@ private class ConfiguredTelemetry(
         }
     }
 
+    @OptIn(ExperimentalUuidApi::class)
     override fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
@@ -194,24 +210,19 @@ private class ConfiguredTelemetry(
         // attach the feedback to that. Mirrors Sentry's documented
         // captureMessage → captureUserFeedback flow. The KLog id / error code
         // ride along in the comment for correlation back to the logs.
-        // Dump the in-memory log buffer — the fine-grained Debug/Verbose we
-        // never ship as breadcrumbs — onto the carrier event as an attachment,
-        // but only here, when the user actually files feedback. Must sit on the
-        // scope before captureMessage; cleared after so it can't ride later
-        // events. Best-effort: a buffer/attachment hiccup never blocks feedback.
+        // Mint a unique id for this report and stamp it on a LOCAL scope for
+        // just the carrier event: beforeSend reads it to fingerprint the event
+        // into its own issue (see init), and the in-memory log buffer rides
+        // along as an attachment — the fine-grained Debug/Verbose we never ship
+        // as breadcrumbs, captured only when the user actually files feedback.
+        // Local scope means none of this leaks onto later events.
         val logDump = sentryLogTree?.snapshot()?.takeIf { it.isNotBlank() }
-        if (logDump != null) {
-            Catching {
-                Sentry.configureScope {
-                    it.addAttachment(Attachment(logDump.encodeToByteArray(), "session-log.txt", "text/plain"))
-                }
+        val feedbackId = Uuid.random().toString()
+        val sentryId = Sentry.captureMessage(if (isBugReport) "Bug report" else "User feedback") { scope ->
+            scope.setTag(FEEDBACK_EVENT_TAG, feedbackId)
+            if (logDump != null) {
+                scope.addAttachment(Attachment(logDump.encodeToByteArray(), "session-log.txt", "text/plain"))
             }
-        }
-
-        val sentryId = Sentry.captureMessage(if (isBugReport) "Bug report" else "User feedback")
-
-        if (logDump != null) {
-            Catching { Sentry.configureScope { it.clearAttachments() } }
         }
 
         val feedback = UserFeedback(sentryId).apply {
@@ -252,6 +263,12 @@ private const val INSTALL_ID_KEY = "install_id"
 // Mirrors the backend gameplay span attribute `room.code` so feedback during a
 // game pivots to that room's server traces/logs.
 private const val ROOM_CODE_KEY = "room_code"
+
+// Per-feedback id stamped on the carrier event; `beforeSend` turns it into the
+// event fingerprint so each feedback report is its own Sentry issue despite the
+// shared "User feedback" / "Bug report" message.
+private const val FEEDBACK_EVENT_TAG = "feedback_event"
+private const val FEEDBACK_FINGERPRINT = "feedback"
 
 // All platforms / build types report to the single `cards` Sentry project.
 // The `environment` tag (releaseChannel-platform-buildType) and the

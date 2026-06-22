@@ -34,7 +34,7 @@ search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', qu
 
 Cross-check each candidate's event id against `docs/agent/feedback-log.md`; **skip anything already logged.** If nothing new, write "no new feedback" to the run summary and stop.
 
-**Grouping caveat:** every general feedback is `captureMessage("User feedback")` with an identical message and no stacktrace, so Sentry groups *all* of them into one issue (and all bug reports into another) — one issue can hold many distinct feedbacks as separate events. Until that's fixed (per-feedback fingerprinting), treat each **event** within a feedback issue as a separate report: pull recent events via `search_issue_events` (or `get_sentry_resource` on the issue) and triage each by its own `session_id`/comment. Resolving the issue resolves them all, so only resolve once you've triaged every unhandled event in it (and a new feedback later reopens it — that's expected).
+Each feedback report is its own issue: the carrier event is fingerprinted per-feedback (`beforeSend` keys off the `feedback_event` tag — see `AppTelemetry`), so one issue = one report even though the title is always "User feedback" / "Bug report". (Reports filed before that shipped grouped into a single issue — if you hit one with many events, triage each event by its own `session_id`.)
 
 ### 2. Pull the report + its identifiers
 
