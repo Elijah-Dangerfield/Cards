@@ -30,6 +30,18 @@ data class MeResponse(
 )
 
 /**
+ * Wire format for `GET /v1/me/stats` — lifetime stats the client can't
+ * derive from its local progression counters because they live only on the
+ * server. Kept off [MeResponse] so the profile DTO + its PATCH echo stay a
+ * pure projection of the profile row.
+ */
+@Serializable
+data class MeStatsResponse(
+    /** Distinct humans the caller has shared a finished multiplayer hand with. */
+    val distinctOpponentsPlayed: Long,
+)
+
+/**
  * All fields are optional. Sending `{}` is a valid no-op; sending one
  * field updates only that field.
  *

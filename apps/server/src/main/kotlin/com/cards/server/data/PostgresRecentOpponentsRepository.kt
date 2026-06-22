@@ -10,6 +10,7 @@ import me.tatarka.inject.annotations.Inject
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.countDistinct
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.or
@@ -68,6 +69,16 @@ class PostgresRecentOpponentsRepository(
             .orderBy(RecentlyPlayedWithTable.lastPlayedAt to SortOrder.DESC)
             .limit(limit)
             .map { UserId(it[RecentlyPlayedWithTable.opponentId]) }
+    }
+
+    override suspend fun countDistinctOpponents(userId: UserId): Long = database.transaction {
+        val distinct = RecentlyPlayedWithTable.opponentId.countDistinct()
+        RecentlyPlayedWithTable
+            .select(distinct)
+            .where { RecentlyPlayedWithTable.userId eq userId.value }
+            .firstOrNull()
+            ?.get(distinct)
+            ?: 0L
     }
 
     override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = database.transaction {

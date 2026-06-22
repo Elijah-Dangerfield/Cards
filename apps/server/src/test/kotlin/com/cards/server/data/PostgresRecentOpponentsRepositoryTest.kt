@@ -97,6 +97,28 @@ class PostgresRecentOpponentsRepositoryTest : DatabaseTest() {
     }
 
     @Test
+    fun countDistinctOpponents_countsUniquePartners_scopedPerUser() = runTest {
+        val repo = newRepo()
+        val me = newUser()
+        val you = newUser()
+        val a = newUser()
+        val b = newUser()
+
+        assertEquals(0L, repo.countDistinctOpponents(me), "no hands played yet")
+
+        repo.recordPlayedTogether(me, a)
+        repo.recordPlayedTogether(me, b)
+        // Re-playing the same opponent must not double-count.
+        clock.instant = Instant.fromEpochMilliseconds(5_000)
+        repo.recordPlayedTogether(me, a)
+        // Another user's pairings don't bleed into my count.
+        repo.recordPlayedTogether(you, a)
+
+        assertEquals(2L, repo.countDistinctOpponents(me))
+        assertEquals(1L, repo.countDistinctOpponents(you))
+    }
+
+    @Test
     fun hasPlayedWith_reflectsTheRecord() = runTest {
         val repo = newRepo()
         val me = newUser()

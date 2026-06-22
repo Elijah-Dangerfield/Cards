@@ -25,6 +25,14 @@ interface RecentOpponentsRepository {
     /** The opponents [userId] has most-recently played with, newest-first, capped at [limit]. */
     suspend fun listRecent(userId: UserId, limit: Int): List<UserId>
 
+    /**
+     * The lifetime count of distinct humans [userId] has shared a finished hand
+     * with. Drives the "players played with" lifetime stat. One row per
+     * (viewer, opponent) pair, so this is the directed row count for the
+     * viewer — bots never appear (the writer sources humans only).
+     */
+    suspend fun countDistinctOpponents(userId: UserId): Long
+
     /** Whether [userId] has ever shared a finished hand with [opponentId]. */
     suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean
 
@@ -46,6 +54,7 @@ interface RecentOpponentsRepository {
 object NoOpRecentOpponentsRepository : RecentOpponentsRepository {
     override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId) = Unit
     override suspend fun listRecent(userId: UserId, limit: Int): List<UserId> = emptyList()
+    override suspend fun countDistinctOpponents(userId: UserId): Long = 0L
     override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = false
     override suspend fun deleteAllForUser(userId: UserId) = Unit
 }

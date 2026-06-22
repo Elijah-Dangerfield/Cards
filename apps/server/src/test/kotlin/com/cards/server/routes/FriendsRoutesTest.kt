@@ -247,6 +247,7 @@ class FriendsRoutesTest {
     ) : RecentOpponentsRepository {
         override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId) = Unit
         override suspend fun listRecent(userId: UserId, limit: Int): List<UserId> = emptyList()
+        override suspend fun countDistinctOpponents(userId: UserId): Long = 0L
         override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = hasPlayed
         override suspend fun deleteAllForUser(userId: UserId) = Unit
     }
