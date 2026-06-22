@@ -3,7 +3,6 @@ package com.dangerfield.cards.features.room.impl
 import androidx.lifecycle.viewModelScope
 import com.dangerfield.cards.libraries.bots.EquityBreakdown
 import com.dangerfield.cards.libraries.bots.HandStrength
-import com.dangerfield.cards.libraries.cards.AchievementHandContext
 import com.dangerfield.cards.libraries.cards.AchievementRarity
 import com.dangerfield.cards.libraries.cards.AchievementRepository
 import com.dangerfield.cards.libraries.cards.AppCache
@@ -387,37 +386,15 @@ class PlayPokerViewModel @Inject constructor(
             humanSeatIndex = humanSeatIndex,
             mode = sessionFactory.xpMode,
         )
-        // One-off audio/haptic feedback for the hand result. Gated on the human
-        // actually being seated (humanSeatIndex == -1 ⇒ spectator / pre-snapshot)
-        // so we never attribute another seat's outcome.
-        state.seats.firstOrNull { it.index == humanSeatIndex }?.let { humanSeat ->
-            val humanWon = event.winners.any { it.seatIndex == humanSeatIndex }
-            sendEvent(PlayPokerEvent.PlaySound(SoundKind.Showdown))
-            sendEvent(
-                PlayPokerEvent.PlayHaptic(
-                    if (humanWon) HapticKind.HandWon else HapticKind.HandLost,
-                ),
-            )
-            // Busted out this hand (lost an all-in / blinded off to zero). Fires
-            // alongside HandLost as a heavier, distinct "you're out" cue.
-            if (humanSeat.stack <= 0L) {
-                sendEvent(PlayPokerEvent.PlayHaptic(HapticKind.Bust))
-            }
-        }
-        val context = AchievementHandContext(
-            opponentBotNames = state.seats
-                .filter { it.index != humanSeatIndex && it.isBot }
-                .map { it.displayName },
-            botDifficulty = sessionFactory.difficultyName,
+        // One-off audio/haptic feedback for the hand result (pure derivation —
+        // empty when the human isn't seated, so no other seat's outcome leaks).
+        HandEndProgression.feedbackEvents(event, state, humanSeatIndex)
+            .forEach { sendEvent(it) }
+        val context = HandEndProgression.achievementContext(
+            state = state,
+            humanSeatIndex = humanSeatIndex,
             humanStartingStack = humanStartingStack,
-            humanEndingStack = state.seats
-                .firstOrNull { it.index == humanSeatIndex }?.stack ?: 0L,
-            bigBlind = state.settings.bigBlind,
-            // Opponents whose stack hit zero this hand. Bots auto-rebuy at
-            // the start of the *next* hand, so the end-of-hand snapshot
-            // still shows their bust at attribution time.
-            bustedOpponentCount = state.seats
-                .count { it.index != humanSeatIndex && it.stack <= 0 },
+            difficultyName = sessionFactory.difficultyName,
         )
         // Mark achievement computation in flight *before* the launch so the
         // dialog's dismiss path knows to wait rather than skip a reveal that
@@ -1075,7 +1052,6 @@ sealed interface PlayPokerAction {
 }
 
 sealed interface PlayPokerEvent {
-    data object NavigatedBack : PlayPokerEvent
     data class PlayHaptic(val kind: HapticKind) : PlayPokerEvent
     data class PlaySound(val kind: SoundKind) : PlayPokerEvent
 
