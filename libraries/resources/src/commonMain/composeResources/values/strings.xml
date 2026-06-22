@@ -244,6 +244,10 @@
     <string name="public_lobby_buyin_value">5,000</string>
     <string name="public_lobby_reserved">Seat reserved · deals on its own - no host needed</string>
     <string name="public_leave_table">Leave table</string>
+    <string name="public_lobby_leave_dialog_title">Leave this table?</string>
+    <string name="public_lobby_leave_dialog_body">You'll give up your seat and go back to find another table.</string>
+    <string name="public_lobby_leave_dialog_primary">Leave</string>
+    <string name="public_lobby_leave_dialog_secondary">Stay</string>
 
     <!-- Public rooms - Next round (joined mid-hand, SPEC §4). -->
     <string name="public_next_card_title">You're in for the next hand</string>

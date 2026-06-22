@@ -124,9 +124,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
 
-- `[P2]` **Confirm before leaving the find-a-table / bots lobby via back.** "Find a table" drops the user into the lobby; back exits with no confirmation dialog. Add a confirm-before-leave. *(feedback CARDS-C)*
-  **Hints:** lobby back handling in `features/rooms/impl`. Pairs with the MP back-nav item below. Sentry [CARDS-C](https://elijah-dangerfield.sentry.io/issues/CARDS-C).
-
 - `[P2]` **Stats page: distinct-players-played-with count.** Win rate + fold rate shipped (computable from the local `Progression` counters). The remaining ask is a lifetime count of distinct humans played with — not available client-side. The data exists server-side in `recently_played_with` (humans only); add `countDistinctOpponents(userId)` to the server `RecentOpponentsRepository`, expose it (extend `GET /v1/me` or a stats endpoint), carry it onto `Progression`/`StatsState`, and render a `StatTile`. *(feedback CARDS-P)*
   **Hints:** `StatsScreen.LifetimeStatsGrid`; `PostgresRecentOpponentsRepository` + `V62__recently_played_with.sql`. Count is MP-only (bot hands don't populate the table). Sentry [CARDS-P](https://elijah-dangerfield.sentry.io/issues/CARDS-P).
 
