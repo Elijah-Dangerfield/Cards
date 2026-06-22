@@ -14,12 +14,22 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.public_leave_table
+import cards.libraries.resources.generated.resources.public_lobby_leave_dialog_body
+import cards.libraries.resources.generated.resources.public_lobby_leave_dialog_primary
+import cards.libraries.resources.generated.resources.public_lobby_leave_dialog_secondary
+import cards.libraries.resources.generated.resources.public_lobby_leave_dialog_title
 import cards.libraries.resources.generated.resources.public_lobby_autodeal_body
 import cards.libraries.resources.generated.resources.public_lobby_autodeal_title
 import cards.libraries.resources.generated.resources.public_lobby_buyin_label
@@ -37,6 +47,7 @@ import com.dangerfield.cards.libraries.ui.components.NonLazyVerticalGrid
 import com.dangerfield.cards.libraries.ui.components.Screen
 import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.button.ButtonStyle
+import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.room.RoomHeader
 import com.dangerfield.cards.libraries.ui.components.room.RoomSeat
 import com.dangerfield.cards.libraries.ui.components.room.RoomVisibility
@@ -52,18 +63,24 @@ import org.jetbrains.compose.resources.stringResource
  * Public Lobby shell (SPEC §3) — matched into a table that hasn't dealt yet; a
  * timer auto-deals (no host). Static placeholder seats; "Leave table" exits.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PublicLobbyScreen(
     onLeave: () -> Unit,
 ) {
     val seats = lobbySeats()
     val filled = seats.count { it != null }
+    // Leaving forfeits the held seat, so confirm first — both the header back
+    // arrow and the system back gesture route through the same gate (matching
+    // the multiplayer LobbyScreen's leave-confirm).
+    var confirmingLeave by remember { mutableStateOf(false) }
+    BackHandler(enabled = !confirmingLeave) { confirmingLeave = true }
     Screen(
         topBar = {
             RoomHeader(
                 title = stringResource(Res.string.public_lobby_title),
                 sub = stringResource(Res.string.public_lobby_subtitle),
-                onNavigateBack = onLeave,
+                onNavigateBack = { confirmingLeave = true },
                 right = { VisTag(kind = RoomVisibility.Public) },
             )
         },
@@ -158,7 +175,7 @@ fun PublicLobbyScreen(
             }
             Spacer(Modifier.height(Dimension.D200))
             ButtonSecondary(
-                onClick = onLeave,
+                onClick = { confirmingLeave = true },
                 style = ButtonStyle.Text,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -166,6 +183,21 @@ fun PublicLobbyScreen(
             }
             Spacer(Modifier.height(Dimension.D800))
         }
+    }
+
+    if (confirmingLeave) {
+        Dialog(
+            title = stringResource(Res.string.public_lobby_leave_dialog_title),
+            description = stringResource(Res.string.public_lobby_leave_dialog_body),
+            primaryButtonText = stringResource(Res.string.public_lobby_leave_dialog_primary),
+            secondaryButtonText = stringResource(Res.string.public_lobby_leave_dialog_secondary),
+            onDismissRequest = { confirmingLeave = false },
+            onPrimaryButtonClicked = {
+                confirmingLeave = false
+                onLeave()
+            },
+            onSecondaryButtonClicked = { confirmingLeave = false },
+        )
     }
 }
 

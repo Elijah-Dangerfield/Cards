@@ -22,6 +22,16 @@ import kotlin.uuid.Uuid
  * attributes (see logback.xml `captureMdcAttributes`), so every backend log
  * line is filterable in Loki by the same `session_id` the client tags its
  * Sentry events and request spans with — one id, all three systems.
+ *
+ * Room-route calls additionally carry `room_code`, parsed from the request path
+ * (`/v1/rooms/{code}/…`) and uppercased to match the span `room.code` attribute
+ * and the room's canonical code. It's emitted as MDC (→ Loki structured
+ * metadata), not a stream label — a room code is unbounded high-cardinality, so
+ * a Loki label would explode the index; structured metadata makes
+ * `{service_name="cards-server"} | room_code="<CODE>"` cheap. This is the
+ * load-bearing pivot for multiplayer issues, where one room spans many
+ * users/sessions and a long-lived socket coroutine's `session_id` is just
+ * whoever currently holds it (a bot has none).
  */
 @OptIn(ExperimentalUuidApi::class)
 fun Application.installObservability() {
@@ -39,10 +49,31 @@ fun Application.installObservability() {
         mdc(MDC_INSTALL_ID) { call ->
             call.request.header(ClientContext.HEADER_INSTALL_ID)?.takeIf { it.isNotBlank() }
         }
+        // Room code rides in the path, not a header — extract it from the raw
+        // request path (available before routing resolves, unlike
+        // `call.parameters["code"]`). Every `/v1/rooms/{code}/…` segment-1 is a
+        // code (create is `POST /v1/rooms` with no trailing segment, so it can't
+        // false-match). Uppercased to match the handlers + the span `room.code`.
+        mdc(MDC_ROOM_CODE) { call -> roomCodeFromPath(call.request.path()) }
     }
 }
+
+/**
+ * Extract the room code from a request path, uppercased to match the room's
+ * canonical code and the span `room.code` attribute, or null when the path
+ * isn't a room-scoped route. The first segment after `/v1/rooms/` is always a
+ * code (create is `POST /v1/rooms` with no trailing segment, so it can't
+ * false-match; `join`/`me`/`bots`/`socket` only appear at segment 2). Reads the
+ * raw path rather than `call.parameters["code"]` so it works in the CallLogging
+ * MDC provider, which runs before routing resolves path parameters.
+ */
+internal fun roomCodeFromPath(path: String): String? =
+    ROOM_CODE_IN_PATH.find(path)?.groupValues?.get(1)?.uppercase()
 
 // MDC keys mirror the Sentry tags and OTel span attribute keys so a session's
 // logs, traces, and crash reports all answer to the same query string.
 private const val MDC_SESSION_ID = "session_id"
 private const val MDC_INSTALL_ID = "install_id"
+private const val MDC_ROOM_CODE = "room_code"
+
+private val ROOM_CODE_IN_PATH = Regex("""/v1/rooms/([^/]+)""")

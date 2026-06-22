@@ -23,8 +23,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
@@ -156,6 +158,18 @@ fun AchievementMedal(
     }
     val backInk = if (earned) lerp(rarity, Color.Black, 0.62f) else Color.White.copy(alpha = 0.88f)
 
+    // Front-face progress ring: how close a still-locked, multi-step chase is.
+    // Only meaningful while the medal is unearned, countable (target > 1), and
+    // not a mystery — an earned medal is "100%" and needs no hint, a mystery
+    // keeps its progress secret. The arc is tinted the reward's rarity so the
+    // grey locked disc still teases the colour you're working toward.
+    val progressFraction = if (!earned && !isMystery && achievement.criterion.target > 1) {
+        (progress.toFloat() / achievement.criterion.target.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val ringTrack = Color.Black.copy(alpha = 0.18f)
+
     val textMeasurer = rememberTextMeasurer()
 
     Canvas(
@@ -240,7 +254,33 @@ fun AchievementMedal(
         drawCircle(color = rim, radius = r - rimW / 2f, style = Stroke(width = rimW))
 
         if (!showingBack) {
-            // Front: the icon.
+            // Front: a progress ring (locked chases only) hugging the rim, then
+            // the icon. The ring sits behind the glyph so a wide icon still reads.
+            if (progressFraction > 0f) {
+                val ringW = r * 0.06f
+                val ringRadius = r - r * 0.05f
+                val arcTopLeft = Offset(c.x - ringRadius, c.y - ringRadius)
+                val arcSize = Size(ringRadius * 2f, ringRadius * 2f)
+                drawArc(
+                    color = ringTrack,
+                    startAngle = 0f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = Stroke(width = ringW),
+                )
+                drawArc(
+                    color = rarity,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progressFraction,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = Stroke(width = ringW, cap = StrokeCap.Round),
+                )
+            }
+            // The icon.
             val measured = textMeasurer.measure(
                 text = glyph,
                 style = TextStyle(fontSize = (r * 0.9f).toSp(), color = glyphColor),
@@ -318,8 +358,16 @@ private fun AchievementMedalPreview_States() {
         ) {
             val earnedAch = com.dangerfield.cards.libraries.cards.AllAchievements.first { !it.isMystery }
             val mysteryAch = com.dangerfield.cards.libraries.cards.AllAchievements.first { it.isMystery }
+            val chaseAch = com.dangerfield.cards.libraries.cards.AllAchievements
+                .first { !it.isMystery && it.criterion.target > 1 }
             AchievementMedal(achievement = earnedAch, earned = true, modifier = Modifier.size(72.dp))
             AchievementMedal(achievement = earnedAch, earned = false, modifier = Modifier.size(72.dp))
+            AchievementMedal(
+                achievement = chaseAch,
+                earned = false,
+                progress = chaseAch.criterion.target * 2 / 3,
+                modifier = Modifier.size(72.dp),
+            )
             AchievementMedal(achievement = mysteryAch, earned = false, modifier = Modifier.size(72.dp))
         }
     }

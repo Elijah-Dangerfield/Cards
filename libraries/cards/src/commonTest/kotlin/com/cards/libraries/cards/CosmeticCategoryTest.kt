@@ -25,7 +25,6 @@ class CosmeticCategoryTest {
     @Test
     fun cosmeticSlotFor_tablePrefix_isFelt() {
         assertEquals(CosmeticSlot.Felt, cosmeticSlotFor("table_neon"))
-        assertEquals(CosmeticSlot.Felt, cosmeticSlotFor("table_sunset"))
     }
 
     @Test

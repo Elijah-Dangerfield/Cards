@@ -96,6 +96,8 @@ class RecentOpponentsRoutesTest {
             return recent
         }
 
+        override suspend fun countDistinctOpponents(userId: UserId): Long = recent.size.toLong()
+
         override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = false
 
         override suspend fun deleteAllForUser(userId: UserId) = Unit

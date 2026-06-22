@@ -184,7 +184,7 @@ private fun PreviewCosmeticPreview_Felts() {
             CosmeticPreview(productId = "felt_midnight_blue", emoji = "🟦")
             CosmeticPreview(productId = "felt_charcoal", emoji = "⬛")
             CosmeticPreview(productId = "felt_pine_green", emoji = "🟩")
-            CosmeticPreview(productId = "table_sunset", emoji = "🌅")
+            CosmeticPreview(productId = "felt_sunset_weekend", emoji = "🌅")
         }
     }
 }

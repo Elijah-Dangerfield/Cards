@@ -2,15 +2,12 @@ package com.dangerfield.cards.features.home.impl
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -23,11 +20,8 @@ import androidx.compose.ui.unit.dp
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.home_recents_add_friend
 import cards.libraries.resources.generated.resources.home_recents_add_friend_sent
-import cards.libraries.resources.generated.resources.home_recents_empty_state
 import cards.libraries.resources.generated.resources.home_recents_section_title
 import cards.libraries.resources.generated.resources.home_recents_see_all
-import cards.libraries.resources.generated.resources.home_recents_suggest_friend_game
-import cards.libraries.resources.generated.resources.home_recents_suggest_quick_match
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.AvatarCircle
 import com.dangerfield.cards.libraries.ui.components.EdgeToEdgeRow
@@ -52,88 +46,30 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * filter happens upstream; this composable just renders whatever
  * it's handed.
  *
- * Empty state renders the friend-via-play rule + CTAs into the two
- * flows that can actually surface a future tile here (Friend Game
- * and Quick Match) — this shelf is the only path to friending, so
- * a zero-friend user needs to know how to seed it. Spec's voice
- * rule against "begging" doesn't override the load-bearing
- * explanation here: it's a one-time instruction, not urgency-bait.
+ * With no opponents the whole shelf is hidden (early return) rather
+ * than rendering an empty header — a zero-friend user just doesn't
+ * see it until a real tile exists to populate it.
  */
 @Composable
 internal fun RecentlyPlayedWithStrip(
     opponents: List<RecentOpponent>,
     onAddFriend: (RecentOpponent) -> Unit,
     onSeeAll: () -> Unit,
-    onStartFriendGame: () -> Unit,
-    onStartQuickMatch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (opponents.isEmpty()) return
     Column(modifier = modifier.fillMaxWidth()) {
         SectionHeader(
             title = stringResource(Res.string.home_recents_section_title),
-            trailingLabel = if (opponents.isEmpty()) null else stringResource(Res.string.home_recents_see_all),
-            onClick = if (opponents.isEmpty()) null else onSeeAll,
+            trailingLabel = stringResource(Res.string.home_recents_see_all),
+            onClick = onSeeAll,
         )
         VerticalSpacerD500()
-        if (opponents.isEmpty()) {
-            EmptyRecentOpponents(
-                onStartFriendGame = onStartFriendGame,
-                onStartQuickMatch = onStartQuickMatch,
-            )
-        } else {
-            EdgeToEdgeRow {
-                items(items = opponents, key = { it.id }) { opponent ->
-                    OpponentTile(opponent = opponent, onAddFriend = { onAddFriend(opponent) })
-                }
+        EdgeToEdgeRow {
+            items(items = opponents, key = { it.id }) { opponent ->
+                OpponentTile(opponent = opponent, onAddFriend = { onAddFriend(opponent) })
             }
         }
-    }
-}
-
-@Composable
-private fun EmptyRecentOpponents(
-    onStartFriendGame: () -> Unit,
-    onStartQuickMatch: () -> Unit,
-) {
-    Text(
-        text = stringResource(Res.string.home_recents_empty_state),
-        typography = AppTheme.typography.Body.B500,
-        color = AppTheme.colors.contentSecondary,
-    )
-    VerticalSpacerD500()
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Dimension.D500),
-    ) {
-        SuggestPill(
-            label = stringResource(Res.string.home_recents_suggest_friend_game),
-            onClick = onStartFriendGame,
-            modifier = Modifier.weight(1f),
-        )
-        SuggestPill(
-            label = stringResource(Res.string.home_recents_suggest_quick_match),
-            onClick = onStartQuickMatch,
-            modifier = Modifier.weight(1f),
-        )
-    }
-}
-
-@Composable
-private fun SuggestPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .clip(Radii.R500.shape)
-            .background(AppTheme.colors.surface.color)
-            .clickable(onClick = onClick)
-            .padding(vertical = Dimension.D400, horizontal = Dimension.D500)
-            .wrapContentWidth(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            typography = AppTheme.typography.Label.L400,
-            color = AppTheme.colors.content,
-        )
     }
 }
 
@@ -211,7 +147,8 @@ private val TILE_WIDTH = 132.dp
 // ---------------------------------------------------------------------------
 // Previews — a fresh list with one tile already showing "Sent" (the
 // idempotent state the friend-graph wire-up flips into), and a single-tile
-// state so the see-all link is exercised against a thin scroll.
+// state so the see-all link is exercised against a thin scroll. The empty
+// list renders nothing, so there's no empty-state preview.
 // ---------------------------------------------------------------------------
 
 @Preview
@@ -226,8 +163,6 @@ private fun RecentlyPlayedWithStripPreview_MixedState() {
             ),
             onAddFriend = {},
             onSeeAll = {},
-            onStartFriendGame = {},
-            onStartQuickMatch = {},
         )
     }
 }
@@ -240,22 +175,6 @@ private fun RecentlyPlayedWithStripPreview_SingleOpponent() {
             opponents = listOf(RecentOpponent("u1", "Patrice", "🦁", "#C658E4")),
             onAddFriend = {},
             onSeeAll = {},
-            onStartFriendGame = {},
-            onStartQuickMatch = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun RecentlyPlayedWithStripPreview_Empty() {
-    PreviewContent(contentPadding = PaddingValues(16.dp)) {
-        RecentlyPlayedWithStrip(
-            opponents = emptyList(),
-            onAddFriend = {},
-            onSeeAll = {},
-            onStartFriendGame = {},
-            onStartQuickMatch = {},
         )
     }
 }

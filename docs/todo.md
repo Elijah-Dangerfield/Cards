@@ -1,6 +1,6 @@
 # TODO
 
-**Last reviewed:** 2026-06-20 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
+**Last reviewed:** 2026-06-22 · **Companion to:** [product/product-spec.md](./product/product-spec.md), [backlog.md](./backlog.md), [developer-todo.md](./developer-todo.md)
 
 > **🎯 Top priority (2026-05-30): bulletproof multiplayer (§B).** **B1 shipped** — two humans can now play a full hand against each other end-to-end. The new top priority is **B6 (test coverage)** — MP is the load-bearing feature of the app, the V1 stack shipped with significant test gaps, and the testing plan in [`testing-plan.md`](./testing-plan.md) lays out six rounds of work that take it to "brooklyn-bridge-solid." B2–B4 (persistence / gameplay items / spectator) are the remaining MP finish-out behind that.
 
@@ -74,11 +74,11 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ### Stats & progression
 
-- `[P3 — gate on leagues/leaderboards]` **Server-derive level-up grants instead of trusting the client.** Today the client grants offline `levelup_<level>` rewards (chips → `/v1/me/wallet/sync`, cosmetics → `/v1/me/grants/level-cosmetic/{id}`) and the server doesn't re-derive the level: the wallet sync applies whatever chip `delta` the client sends (only guard is no-below-zero), and the cosmetic grant gates by *product* allowlist but not by *level reached*. So a tampered client can mint level rewards it didn't earn. **For play money with no cash-out this is "the cheater cheats themselves" — fine until XP/chip totals feed leagues/leaderboards (or anything IAP-equivalent).** That's the trigger to do this; not before. The fix: on progression-sync the server derives level from its own reconciled `total_xp` against the curve config it already serves, grants the `levelup_<level>` rewards itself (idempotent), and ignores/caps client-claimed amounts. The client keeps granting optimistically for instant offline UX; the two reconcile on the idempotency key. This is exactly the "server-derive when stakes rise" step in [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md). *(Client display + projection threading already shipped — every at-table and display site runs through the configured curve.)*
+- `[P3 — gate on leagues/leaderboards]` **Server-derive level-up grants instead of trusting the client.** Today the client grants offline `levelup_<level>` rewards (chips → `/v1/me/wallet/sync`, cosmetics → `/v1/me/grants/level-cosmetic/{id}`) and the server doesn't re-derive the level: the wallet sync applies whatever chip `delta` the client sends (only guard is no-below-zero), and the cosmetic grant gates by *product* allowlist but not by *level reached*. So a tampered client can mint level rewards it didn't earn. **For play money with no cash-out this is "the cheater cheats themselves" — fine until XP/chip totals feed leagues/leaderboards (or anything IAP-equivalent).** That's the trigger to do this; not before. The fix: on progression-sync the server derives level from its own reconciled `total_xp` against the curve config it already serves, grants the `levelup_<level>` rewards itself (idempotent), and ignores/caps client-claimed amounts. The client keeps granting optimistically for instant offline UX; the two reconcile on the idempotency key. This is exactly the "server-derive when stakes rise" step in [`state-authority-and-sync.md`](./wiki/state-authority-and-sync.md).
   **Note on the curve math:** the server already *owns* the curve — it serves `progression.levelCurve` as app-config; the client just decodes it with `DefaultLevelCurve` as the offline fallback. The only thing missing server-side is the ~15-line interpreter (`levelProgressFor` / `xpToLevelUpFrom` in [`Level.kt`](../libraries/cards/src/commonMain/kotlin/com/cards/libraries/cards/Level.kt)). **Duplicate those into `:apps:server` with the [`LevelTest`](../libraries/cards/src/commonTest/kotlin/com/cards/libraries/cards/LevelTest.kt) vector copied alongside — do *not* extract a shared module for 15 stable lines.** Level is a pure function of (XP, curve); both sides derive from inputs they agree on after sync, so they converge by construction. See [`decisions.md`](./decisions.md) 2026-06-21.
   **Hints:** curve lives in `ProgressionConfig.levelCurve()`; client grant path is `LevelUpRewardGranter`; server grant precedents are the wallet ledger (`PostgresWalletRepository.apply`) and `LevelGrantableProducts` / `GrantsRoutes`.
 
-- `[P2]` **Level-up celebration — bigger entrance ceremony.** The reveal lands flat. The dial currently scale+fades in via a `MediumBouncy` spring with one `LongPress` haptic. Make it *land*: a "slam in" (overshoot scale that snaps, or a quick fall-and-settle), a punchier/sequenced haptic (impact on the slam, not just the start), and confetti on arrival. Keep it on the teal/progression identity and bake the feel into the DS component, not the host. **File:** `LevelUpCelebration.kt` in `:libraries:ui`. Confetti is a new DS primitive — check whether one exists before writing it. *(proposed 2026-06-21; Continue-to-bottom layout slice shipped)*
+- `[P2]` **Level-up celebration — bigger entrance ceremony.** The reveal lands flat. The dial currently scale+fades in via a `MediumBouncy` spring with one `LongPress` haptic. Make it *land*: a "slam in" (overshoot scale that snaps, or a quick fall-and-settle), a punchier/sequenced haptic (impact on the slam, not just the start), and confetti on arrival. Keep it on the teal/progression identity and bake the feel into the DS component, not the host. **File:** `LevelUpCelebration.kt` in `:libraries:ui`. Confetti is a new DS primitive — check whether one exists before writing it. *(proposed 2026-06-21)*
 
 ### Consumables & rewards (V1.x / monetization)
 
@@ -120,6 +120,16 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 - **`[P2]` Deep-link + share-invite in the private lobby.** The placeholder "Share invite" button (which only copied the code, same as Copy) was removed. The real feature is a shareable **deep link into the lobby** (`PrivateJoinRoute` / `LobbyRoute(prefilledCode=…)`) opened via a cross-platform OS share sheet — so a tapped link lands the invitee straight in the join/lobby flow, not just a bare code.
 
+### From the 2026-06-22 owner playtest
+
+A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
+
+- `[P2]` **Stats page: distinct-players-played-with count — client wiring.** Server slice shipped: `RecentOpponentsRepository.countDistinctOpponents` + `GET /v1/me/stats` now returns `{distinctOpponentsPlayed}`. Remaining: call that endpoint client-side, carry the count onto `StatsState` (its own field, or fold into `Progression` if/when it gains a sync), and render a `StatTile` in `StatsScreen.LifetimeStatsGrid`. *(feedback CARDS-P)*
+  **Hints:** `StatsScreen.LifetimeStatsGrid` / `StatsViewModel` (today driven only by `Progression` — needs a new read path for the server-only stat). Count is MP-only (bot hands don't populate the table). Sentry [CARDS-P](https://elijah-dangerfield.sentry.io/issues/CARDS-P).
+
+- `[P2]` **Debug feedback swipe is unreliable inside scroll views.** The right-edge swipe to open the feedback screen often takes a few tries, mostly when the user is already in a scroll view (gesture conflict). *(feedback CARDS-Y; debug-only feature from `fd5aeec8`)*
+  **Hints:** the right-edge swipe detector competing with scroll containers. Sentry [CARDS-Y](https://elijah-dangerfield.sentry.io/issues/CARDS-Y).
+
 ---
 
 ## B. Multiplayer hardening
@@ -127,6 +137,12 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 **Architecture (2026-05-29):** snapshot-only state, OTel for debugging — see [decisions.md](./decisions.md). **B1 shipped — MP is playable; sequence to *shippable* MP is now B6 (the test gate) → B2 → B3 → B4.**
 
 **State of play (2026-05-30):** rooms work end-to-end (create / join / leave / seat allocation / presence), the server runs **fully authoritative** hands, and the client now consumes server-driven gameplay (B1 shipped). Two humans can play a full hand against each other end-to-end with auto-promotion when the host disconnects. The remaining work is **B6 (test coverage)** — bulletproofing MP before real users — and B2–B4 (persistence, gameplay items, spectator).
+
+### Live bug
+
+- `[P0]` **Bot-occupied MP room stalls at hand end — "nobody's turn".** In a server MP room filled out with bots, the game freezes at the end of a hand: no seat is to act and it never advances. Reproduced live in room `A3DTHY` (trace `44744008b5672640a64d0849c14384bf`): `request_next_hand` fired after hand 1 but **never after hand 2**, and the trace carries **zero bot action spans** the whole session — only the human's intents apply, so once the human's last action lands the server goes idle until the socket closes ~40s later. The server-side hand-advance / bot-driver loop stops scheduling at hand end when the room is bot-occupied. *(found 2026-06-22 owner playtest; reported twice)*
+  **Acceptance:** a bot-occupied MP room plays consecutive hands without stalling — after each hand ends the next hand starts and bots act on their turn; add regression tests covering hand-end → next-hand advance with server bots (owner explicitly asked for tests).
+  **Hints:** server bot-driver + the `request_next_hand` / `start_hand` advance path in the `apps/server` room-session loop; pairs with the backend-bots think-delay / per-move-timer follow-up. Sentry [CARDS-16](https://elijah-dangerfield.sentry.io/issues/CARDS-16) (primary) + [CARDS-T](https://elijah-dangerfield.sentry.io/issues/CARDS-T) (dup). session_id `0c149c11-254b-4a34-bdc1-5c07775702f7`, room `A3DTHY`, trace `44744008b5672640a64d0849c14384bf`.
 
 ### B0 — Server-side state durability
 
@@ -161,6 +177,9 @@ _Shipped._ Room socket exposes `gameplayFrames` on a sibling flow; [`RemotePoker
 - `[P0]` **Implement the multiplayer + gameplay-engine testing plan in [`testing-plan.md`](./testing-plan.md).** MP is the load-bearing feature of the app; the V1 stack shipped with major test gaps in the new wiring (lobby's new MP paths, `RemotePokerSessionFactory`'s seat-derivation logic, end-to-end wire-format contract). Six rounds of work, ordered by impact-per-hour: Round 1 closes the silent-failure surfaces on the new MP code; Round 2 stands up a new `:integration` JVM module that brings up a real Ktor server in-process and points real clients at it (KMP + same-repo server makes this feasible where most codebases can't); Round 3 SUPER-tests the engine via property-based invariants + cross-product action tables + edge scenarios; Round 4 fills the missing server gameplay-flow plumbing tests; Round 5 chaos / fault injection (reconnects mid-hand, host promotion races); Round 6 adds Compose UI tests for `PlayPokerScreen`. *(proposed 2026-05-30)*
   **Acceptance:** every round checkbox in `testing-plan.md` is ticked. Don't pick this up as a single sprint — interleave each round with other feature work; the doc IS the running history.
   **Hints:** [`docs/testing-plan.md`](./testing-plan.md) tracks per-round status — the doc IS the running history. Rounds 1/3/4 shipped; Round 2 (`:apps:integration`, in-process Ktor + two-client hands) mostly done; Round 5 chaos partly covered; Round 6 (Compose UI for `PlayPokerScreen`) unstarted. **Out of scope:** emulator-based UI tests.
+
+- `[P2]` **Integration tests should play full multi-hand games, not thin slices.** Owner review: the `:apps:integration` coverage feels thin — he expected to see full hands actually played end-to-end. Strengthen Round 2 so the in-process server + clients play complete consecutive hands (deal → streets → showdown → next hand), not just connection/seat/handshake assertions. *(feedback 2026-06-22; sharpens B6 Round 2)*
+  **Hints:** the two-client harness in `:apps:integration` / `testing-plan.md` Round 2; the bot-room hand-end stall above is exactly the kind of bug full-hand coverage would catch. Sentry [CARDS-10](https://elijah-dangerfield.sentry.io/issues/CARDS-10).
 
 ### B5 — Parked
 

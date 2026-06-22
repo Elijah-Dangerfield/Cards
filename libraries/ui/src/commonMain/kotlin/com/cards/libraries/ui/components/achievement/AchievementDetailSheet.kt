@@ -64,6 +64,9 @@ fun AchievementMedalWithDetail(
         // caller's modifier governs (the profile / Achievements grids fill
         // their column).
         modifier = if (size != null) modifier.size(size.dp) else modifier,
+        // Drives the front-face progress ring on a still-locked chase. The grid
+        // medal never flips, so it needs no [earnedAtEpochMs] for the back.
+        progress = progress,
         onClick = { showSheet = true },
     )
     if (showSheet) {

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextAlign
 import cards.libraries.resources.generated.resources.Res
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_body
+import cards.libraries.resources.generated.resources.room_practice_tier_explainer_bots_only_body
 import cards.libraries.resources.generated.resources.room_practice_tier_explainer_title
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
@@ -20,9 +21,15 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * they play. A bot-stacked / under-filled MP table halves XP (0.5x) and locks
  * multiplayer-only achievements; this dialog says so in plain language instead
  * of leaving the pill a silent downgrade.
+ *
+ * When [botsOnly] (the local player is the only human at the table) it adds a
+ * line that real chips aren't at stake — the bots play for practice only.
  */
 @Composable
-internal fun PracticeTierExplainer(onDismiss: () -> Unit) {
+internal fun PracticeTierExplainer(
+    botsOnly: Boolean,
+    onDismiss: () -> Unit,
+) {
     Dialog(
         title = stringResource(Res.string.room_practice_tier_explainer_title),
         onDismissRequest = onDismiss,
@@ -35,6 +42,14 @@ internal fun PracticeTierExplainer(onDismiss: () -> Unit) {
             color = AppTheme.colors.contentSecondary,
             textAlign = TextAlign.Center,
         )
+        if (botsOnly) {
+            Text(
+                text = stringResource(Res.string.room_practice_tier_explainer_bots_only_body),
+                typography = AppTheme.typography.Body.B500,
+                color = AppTheme.colors.contentSecondary,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
@@ -42,6 +57,14 @@ internal fun PracticeTierExplainer(onDismiss: () -> Unit) {
 @Composable
 private fun PracticeTierExplainerPreview() {
     PreviewContent {
-        PracticeTierExplainer(onDismiss = {})
+        PracticeTierExplainer(botsOnly = false, onDismiss = {})
+    }
+}
+
+@Preview
+@Composable
+private fun PracticeTierExplainerPreview_BotsOnly() {
+    PreviewContent {
+        PracticeTierExplainer(botsOnly = true, onDismiss = {})
     }
 }

@@ -371,7 +371,10 @@ fun PlayPokerScreen(
         }
 
         if (practiceTierExplainerOpen) {
-            PracticeTierExplainer(onDismiss = { practiceTierExplainerOpen = false })
+            PracticeTierExplainer(
+                botsOnly = active?.practiceTierBotsOnly == true,
+                onDismiss = { practiceTierExplainerOpen = false },
+            )
         }
 
         lastActionDialog?.let { (name, action) ->
@@ -890,6 +893,7 @@ private fun previewActive(
     smallBlindSeatIndex: Int? = 1,
     bigBlindSeatIndex: Int? = 2,
     practiceTierBotsPresent: Boolean = false,
+    practiceTierBotsOnly: Boolean = false,
 ): TableUiState.Active = TableUiState.Active(
     street = street,
     communityCards = communityCards,
@@ -908,6 +912,7 @@ private fun previewActive(
     smallBlindSeatIndex = smallBlindSeatIndex,
     bigBlindSeatIndex = bigBlindSeatIndex,
     practiceTierBotsPresent = practiceTierBotsPresent,
+    practiceTierBotsOnly = practiceTierBotsOnly,
 )
 
 private fun previewDefaultSeats(): List<SeatView> = listOf(

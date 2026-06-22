@@ -27,6 +27,7 @@ import cards.libraries.resources.generated.resources.profile_feedback_hero
 import cards.libraries.resources.generated.resources.profile_feedback_submit_button
 import cards.libraries.resources.generated.resources.profile_feedback_submit_button_progress
 import cards.libraries.resources.generated.resources.profile_feedback_title
+import com.dangerfield.cards.libraries.core.BuildInfo
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Dimension
 import com.dangerfield.cards.system.VerticalSpacerD1000
@@ -42,7 +43,10 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private const val FEEDBACK_CHAR_LIMIT = 200
+// Release builds cap feedback at 500 chars; debug builds are uncapped so the
+// owner can paste long behavior notes / repro steps while testing.
+private const val FEEDBACK_CHAR_LIMIT = 500
+private val feedbackCharLimit: Int? get() = if (BuildInfo.isDebug) null else FEEDBACK_CHAR_LIMIT
 private const val EMAIL_CHAR_LIMIT = 254
 
 @Composable
@@ -87,7 +91,8 @@ fun FeedbackScreen(
             OutlinedTextField(
                 value = state.message,
                 onValueChange = { newValue ->
-                    val limited = newValue.take(FEEDBACK_CHAR_LIMIT)
+                    val limit = feedbackCharLimit
+                    val limited = if (limit != null) newValue.take(limit) else newValue
                     onAction(FeedbackAction.MessageChanged(limited))
                 },
                 modifier = Modifier
@@ -128,27 +133,30 @@ fun FeedbackScreen(
 
             VerticalSpacerD500()
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val messageLength = state.message.length
-                val counterColor = if (messageLength >= FEEDBACK_CHAR_LIMIT) {
-                    AppTheme.colors.danger
-                } else {
-                    AppTheme.colors.contentSecondary
-                }
+            // No counter when uncapped (debug) — there's nothing to count toward.
+            feedbackCharLimit?.let { limit ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val messageLength = state.message.length
+                    val counterColor = if (messageLength >= limit) {
+                        AppTheme.colors.danger
+                    } else {
+                        AppTheme.colors.contentSecondary
+                    }
 
-                Text(
-                    text = stringResource(
-                        Res.string.profile_feedback_char_counter,
-                        messageLength,
-                        FEEDBACK_CHAR_LIMIT,
-                    ),
-                    color = counterColor,
-                    typography = AppTheme.typography.Body.B500
-                )
+                    Text(
+                        text = stringResource(
+                            Res.string.profile_feedback_char_counter,
+                            messageLength,
+                            limit,
+                        ),
+                        color = counterColor,
+                        typography = AppTheme.typography.Body.B500
+                    )
+                }
             }
 
             state.errorMessage?.let { err ->

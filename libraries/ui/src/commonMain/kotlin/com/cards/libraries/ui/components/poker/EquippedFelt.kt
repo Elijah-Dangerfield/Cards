@@ -31,7 +31,7 @@ fun feltForProductId(productId: String?): EquippedFelt = when (productId) {
     "felt_midnight_blue" -> EquippedFelt.MidnightBlue
     "felt_charcoal" -> EquippedFelt.Charcoal
     "felt_pine_green" -> EquippedFelt.PineGreen
-    "felt_sunset_weekend", "table_sunset" -> EquippedFelt.Sunset
+    "felt_sunset_weekend" -> EquippedFelt.Sunset
     "table_neon" -> EquippedFelt.Neon
     else -> EquippedFelt.Default
 }

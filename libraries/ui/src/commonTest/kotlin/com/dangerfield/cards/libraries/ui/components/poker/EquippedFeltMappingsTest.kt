@@ -40,15 +40,12 @@ class EquippedFeltMappingsTest {
     }
 
     @Test
-    fun feltForProductId_acceptsBothLegacyAndCurrentSunsetId() {
-        // Two productIds resolve to the same felt — the legacy
-        // `table_sunset` id stays mapped alongside the current
-        // `felt_sunset_weekend` so a stale inventory row from before
-        // the rename still renders. Pinning this prevents a future
-        // "clean up legacy aliases" pass from silently dropping one
-        // without a migration plan.
+    fun feltForProductId_removedSunsetTableThemeFallsToDefault() {
+        // The legacy `table_sunset` table-theme product was removed (it was
+        // visually redundant with the `felt_sunset_weekend` felt, which stays).
+        // Its id is no longer mapped, so it falls through to the default felt.
         assertEquals(EquippedFelt.Sunset, feltForProductId("felt_sunset_weekend"))
-        assertEquals(EquippedFelt.Sunset, feltForProductId("table_sunset"))
+        assertEquals(EquippedFelt.Default, feltForProductId("table_sunset"))
     }
 
     @Test

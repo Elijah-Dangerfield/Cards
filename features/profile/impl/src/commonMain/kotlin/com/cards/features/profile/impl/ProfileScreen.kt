@@ -878,23 +878,22 @@ private fun OwnedCosmeticTile(
 ) {
     // Accent border fades in then out to spotlight a just-acquired tile
     // without nudging layout. Same treatment the old My Items list used.
+    // Equipped tiles read from the corner badge alone — no persistent ring,
+    // which the owner found heavy-handed; the pulse is the only thing that
+    // ever draws the border now.
     val pulseAlpha by animateFloatAsState(
         targetValue = if (isPulsing) 1f else 0f,
         animationSpec = tween(durationMillis = 600, easing = LinearEasing),
         label = "OwnedCosmeticTilePulse",
     )
-    // Equipped tiles carry a persistent accent ring so the active pick reads at
-    // a glance; the pulse reuses the same ring at a higher transient alpha when
-    // a just-bought tile is spotlighted. Only genuinely equippable cosmetics
-    // (card backs / felts / titles) get the equipped ring — packs (emotes,
-    // avatars) are owned, not "equipped", so they never carry it.
-    val showEquippedRing = item.isEquipped && item.isEquippable
-    val ringAlpha = maxOf(pulseAlpha, if (showEquippedRing) 1f else 0f)
+    // Only genuinely equippable cosmetics (card backs / felts / titles) get the
+    // equipped badge — packs (emotes, avatars) are owned, not "equipped".
+    val showEquippedBadge = item.isEquipped && item.isEquippable
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
                 .clip(Radii.R500.shape)
-                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = ringAlpha), Radii.R500.shape)
+                .border(2.dp, AppTheme.colors.accentPrimary.color.copy(alpha = pulseAlpha), Radii.R500.shape)
                 .clickable(onClick = onClick),
         ) {
             CosmeticPreview(
@@ -904,7 +903,7 @@ private fun OwnedCosmeticTile(
                 packEmojis = item.packEmojis,
             )
         }
-        if (showEquippedRing) {
+        if (showEquippedBadge) {
             EquippedBadge(modifier = Modifier.align(Alignment.TopEnd))
         }
     }

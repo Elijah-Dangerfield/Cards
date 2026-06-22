@@ -315,6 +315,54 @@ class MeRoutesTest {
         }
     }
 
+    @Test
+    fun meStats_returnsDistinctOpponentCount() = runTest {
+        val recent = object : com.dangerfield.cards.server.domain.RecentOpponentsRepository {
+            override suspend fun recordPlayedTogether(userId: UserId, opponentId: UserId) = Unit
+            override suspend fun listRecent(userId: UserId, limit: Int): List<UserId> = emptyList()
+            override suspend fun countDistinctOpponents(userId: UserId): Long = 7L
+            override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean = false
+            override suspend fun deleteAllForUser(userId: UserId) = Unit
+        }
+        callMeStats(recent, bearer = validJwt()) { resp ->
+            assertEquals(HttpStatusCode.OK, resp.status)
+            assertEquals(7L, resp.body<MeStatsResponse>().distinctOpponentsPlayed)
+        }
+    }
+
+    @Test
+    fun meStats_requiresAuth() = runTest {
+        callMeStats(NoOpRecentOpponentsRepository, bearer = null) { resp ->
+            assertEquals(HttpStatusCode.Unauthorized, resp.status)
+        }
+    }
+
+    private suspend fun callMeStats(
+        recent: com.dangerfield.cards.server.domain.RecentOpponentsRepository,
+        bearer: String?,
+        assert: suspend (io.ktor.client.statement.HttpResponse) -> Unit,
+    ) {
+        val repo = FakeProfileRepository(existing = fakeProfile(userId))
+        testApplication {
+            application {
+                installSerialization()
+                installRateLimits()
+                installStatusPages()
+                installAuthenticationWithVerifier(testVerifier)
+                routing {
+                    meRoutes(repo, AlwaysSuccessAdmin, EmptyInventory, EmptyWallet, EmptyProgression, EmptyAchievements, NoOpHandsFinishedRepository, EmptyMessages, EmptyRooms, NoOpInstallSweep, EmptyFriends, recent)
+                }
+            }
+            val client = createClient {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+            val response = client.get("/v1/me/stats") {
+                bearer?.let { header(HttpHeaders.Authorization, "Bearer $it") }
+            }
+            assert(response)
+        }
+    }
+
     private suspend fun callActiveRooms(
         rooms: RoomService,
         bearer: String?,

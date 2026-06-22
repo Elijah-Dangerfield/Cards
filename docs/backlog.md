@@ -4,6 +4,22 @@ Ideas and follow-ups we want to remember but aren't doing right now. Append-only
 
 ---
 
+## More achievements + early-stage pacing rebalance
+
+**Idea (owner feedback 2026-06-22, Sentry [CARDS-1A](https://elijah-dangerfield.sentry.io/issues/CARDS-1A)):** The achievement set is thin and early-stage achievements come too easily / too many fire up front, which risks spamming a new user. Two threads: (1) design a much larger achievement catalog (owner figures we could easily have ~100), and (2) rebalance early-game pacing so we don't dump a pile of trivial unlocks on the user in their first session. Needs a content/design pass on the achievement list + unlock curve, not just code.
+
+**Status:** Backlog. Content + design call; pull when the achievement system gets a dedicated pass.
+
+---
+
+## Player-style — backend-backed so opponents can see it
+
+**Idea (owner feedback 2026-06-22, Sentry [CARDS-J](https://elijah-dangerfield.sentry.io/issues/CARDS-J)):** Make a plan to implement the player-style metric (TIGHT/LOOSE × PASSIVE/AGGRESSIVE), backed to the server so *other* players can see a given player's style — not a client-only computation. Needs a real tightness/aggression metric defined + a server store + exposure on the room/profile snapshot. Pairs with the existing "PlayStyleBlob reuse" and "Player Card — Phase 2/3" backlog items below — the cross-player plumbing is the same wire those need.
+
+**Status:** Backlog. Product + backend design; do alongside the play-style metric data work the Player Card phases already wait on.
+
+---
+
 ## Per-seat positioned MP emote blasts
 
 **Idea:** MP emotes ship rendered as a single center-screen `EmojiBlastOverlay` attributed to the emitter's avatar (see [decisions.md](./decisions.md) 2026-06-19). A richer treatment positions each opponent's blast *over their seat* at the table, so a busy table reads who reacted at a glance and two near-simultaneous emotes don't collide on one center slot. Needs per-seat blast state (a `Map<seatIndex, EmojiBlast>` instead of the single `emojiBlast` slot) and the table render loop to anchor each overlay to its seat's layout coordinates — the overlay already takes emitter attribution, so the work is positioning + multi-blast state, not a new component.
@@ -622,3 +638,21 @@ These read more like poker visuals than DS surfaces, which AGENTS.md rule #4 car
 **Idea:** The recently-played-with shelf flips the "Add" tile to "Sent" optimistically and silently reverts it if the server rejects the request (not-played-with, rate-limited, or a network error). The revert is correct but invisible — the user just sees the tile flick back with no explanation. Once a global snackbar/toast surface exists, show a short reason ("You can only add people you've played with", "Too many requests, try later", "Couldn't reach the server") off the typed `SendFriendRequestResult` cases the repo already returns.
 
 **Status:** Backlog. The repo already distinguishes the rejection cases; this is the user-facing message on top. Do it when the app grows a shared snackbar host.
+
+---
+
+## Remove the redundant "Neon" table-theme product (pairs with Sunset removal)
+
+**Idea (owner feedback 2026-06-22, Sentry [CARDS-18](https://elijah-dangerfield.sentry.io/issues/CARDS-18)):** The owner had us remove the `table_sunset` table theme because a "table theme" and a "felt" look identical in V1 (both just recolor the felt). `table_neon` is the other surviving table theme and is redundant for the same reason. It was left alone because the owner only called out sunset by name, and unlike sunset it's already **unlock-only** (not in the `GET /v1/products` shop catalog as of V51) — so removing it is a different call than dropping a purchasable product: it's an earned reward someone could already hold. Needs an owner decision on whether to drop it too (and, if so, what happens to anyone who unlocked it).
+
+**Sketch:** Mirror the sunset removal — an append-only `DELETE FROM products WHERE id = 'table_neon'` migration, drop the `table_neon` mapping in `feltForProductId` (`:libraries:ui`), repoint any catalog/preview references, and decide whether `EquippedFelt.Neon` stays (no felt uses it today, unlike Sunset).
+
+**Status:** Backlog. Needs an owner call (earned-reward removal, not just catalog cleanup).
+
+---
+
+## Stats lifetime-grid labels should be string resources
+
+**Idea (raised 2026-06-22):** `StatsScreen.LifetimeStatsGrid` passes inline string literals for every `StatTile` label ("Hands played", "Hands won", "Win rate", "Fold rate", "Folds", "Showdown losses") — the win-rate / fold-rate tiles added this cycle matched the file's existing inline-label convention rather than introducing two lone resource entries. Per the coding guideline every user-facing string belongs in `:libraries:resources`. Convert the whole grid's labels in one pass so it's consistent rather than half-migrated.
+
+**Status:** Backlog. Pre-existing convention drift across the whole grid; do it as one sweep when next touching `StatsScreen`.

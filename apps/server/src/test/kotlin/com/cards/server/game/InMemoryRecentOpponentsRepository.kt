@@ -27,6 +27,9 @@ internal class InMemoryRecentOpponentsRepository : RecentOpponentsRepository {
             .take(limit)
             .map { UserId(it.second) }
 
+    override suspend fun countDistinctOpponents(userId: UserId): Long =
+        rows.keys.count { it.first == userId.value }.toLong()
+
     override suspend fun hasPlayedWith(userId: UserId, opponentId: UserId): Boolean =
         rows.containsKey(userId.value to opponentId.value)
 

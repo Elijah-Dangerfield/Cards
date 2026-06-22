@@ -208,10 +208,10 @@ class PostgresProductCatalogSourceTest : DatabaseTest() {
             "emotes.cute",
             "emotes.fierce",
             "emotes.royal",
-            // table.neon + the three titles are unlock-only as of V51 — they're
-            // earned/granted, not in the GET /v1/products catalog, so they're
-            // intentionally absent here.
-            "table.sunset",
+            // table.neon + the three titles are unlock-only as of V51, and the
+            // table.sunset table theme was removed in V64 (redundant with the
+            // sunset felt) — none are in the GET /v1/products catalog, so
+            // they're intentionally absent here.
         )
 
         val catalog = newSource().read(androidContext)

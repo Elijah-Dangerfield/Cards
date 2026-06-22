@@ -10,6 +10,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.features.room)
+            implementation(projects.features.home)
             implementation(projects.features.progression)
             implementation(projects.features.shop)
             implementation(projects.libraries.bots)

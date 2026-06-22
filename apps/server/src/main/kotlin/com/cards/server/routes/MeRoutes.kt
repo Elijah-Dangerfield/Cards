@@ -106,6 +106,16 @@ fun Route.meRoutes(
             call.respond(HttpStatusCode.OK, profile.toMeDto(isAnonymous = call.isAnonymousUser()))
         }
 
+        get("/v1/me/stats") {
+            val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+            call.respond(
+                HttpStatusCode.OK,
+                MeStatsResponse(
+                    distinctOpponentsPlayed = recentOpponents.countDistinctOpponents(userId),
+                ),
+            )
+        }
+
         get("/v1/me/active-rooms") {
             val userId = call.userId() ?: return@get call.respond(HttpStatusCode.Unauthorized)
             val active = rooms.snapshot().filter { it.memberFor(userId) != null }
