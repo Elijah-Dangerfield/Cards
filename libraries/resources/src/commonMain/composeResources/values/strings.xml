@@ -278,9 +278,6 @@
     <!-- Home - Recently-played-with strip header, empty state, suggest pills, add-friend tile. -->
     <string name="home_recents_section_title">Recently played with</string>
     <string name="home_recents_see_all">See all</string>
-    <string name="home_recents_empty_state">Make a friend by playing together - start a Friend Game or sit down at a public table. Anyone you face will show up here.</string>
-    <string name="home_recents_suggest_friend_game">Friend Game</string>
-    <string name="home_recents_suggest_quick_match">Quick Match</string>
     <string name="home_recents_add_friend">Add friend</string>
     <string name="home_recents_add_friend_sent">Sent</string>
 

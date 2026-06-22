@@ -27,3 +27,9 @@ Handoff log for this cycle. Reviewer reads it when writing the PR, then deletes 
 **Problem:** Equipped cosmetic tiles in My Items carried a persistent gold accent ring around them; the owner found it heavy-handed and wanted the corner "equipped" badge to stand alone (feedback CARDS-G).
 **Approach:** In `OwnedCosmeticTile`, dropped the equipped contribution to the border alpha so the ring now only ever draws from the transient just-acquired `pulseAlpha` (kept — that's a different, momentary spotlight, not the persistent equipped state). The `EquippedBadge` corner check is untouched. Renamed the now-badge-only flag `showEquippedRing` → `showEquippedBadge` to match.
 **Reviewer notes:** Kept the buy-pulse border on purpose — it's a 600ms fade on a just-purchased tile, unrelated to the equipped-state ring the owner objected to. If the owner wants that gone too, it's a one-line follow-up.
+
+## fix(home): hide the "Recently played with" shelf when empty
+
+**Problem:** The recents shelf rendered its header + a friend-via-play empty state even with zero opponents; the owner wanted it gone entirely when empty (feedback CARDS-E).
+**Approach:** Early-return from `RecentlyPlayedWithStrip` on an empty list (matching `RecentAchievementsStrip`), and deleted the now-unreachable empty-state path — the `EmptyRecentOpponents` / `SuggestPill` composables, the two `onStart*` callbacks they used, the empty `@Preview`, and the three orphaned `home_recents_*` strings.
+**Reviewer notes:** This removes the only in-app explanation of the "you can only friend people you've played with" rule (it lived in that empty state). The friend-graph epic in `docs/todo.md` still calls for that copy on the Profile social section — if the owner wants it on Home too, it'd come back as a separate banner, not this shelf's empty state.

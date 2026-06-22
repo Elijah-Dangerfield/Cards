@@ -124,9 +124,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
 
-- `[P2]` **Hide the "Recently played with" shelf when empty.** On Home it renders even with no entries — don't show the empty shelf. *(feedback CARDS-E)*
-  **Hints:** `RecentlyPlayedWithStrip` on `HomeScreen`. Sentry [CARDS-E](https://elijah-dangerfield.sentry.io/issues/CARDS-E).
-
 - `[P2]` **Align the chip counter so it reads as shared between Home and Shop.** The top-right chip amount is meant to sit in the exact same position on Home and Shop so it looks persistent across the two pages; today the positions differ. *(feedback CARDS-R)*
   **Hints:** the chip-balance header on `HomeScreen` vs the Shop top bar. Sentry [CARDS-R](https://elijah-dangerfield.sentry.io/issues/CARDS-R).
 
