@@ -15,6 +15,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.toRoute
+import com.dangerfield.cards.features.home.HomeRoute
 import com.dangerfield.cards.features.progression.StatsRoute
 import com.dangerfield.cards.features.room.PlayMultiplayerRoute
 import com.dangerfield.cards.libraries.identity.auth.AuthRepository
@@ -78,7 +79,18 @@ class PlayMultiplayerFeatureEntryPoint(
             PlayPokerScreen(
                 state = state,
                 onAction = viewModel::takeAction,
-                onBack = { router.goBack() },
+                // Backing out of an in-progress MP game lands on Home, not the
+                // lobby the player came through. goBack() first tears down this
+                // screen's VM so the room socket closes (the server frees the
+                // seat after grace); switchTab then surfaces Home. The whole
+                // pair runs as one batched op so a mid-teardown scope death
+                // can't strand the player on a dead table.
+                onBack = {
+                    router.batch {
+                        goBack()
+                        switchTab(HomeRoute())
+                    }
+                },
                 onTapXp = { router.navigate(StatsRoute()) },
             )
         }

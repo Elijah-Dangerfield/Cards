@@ -133,9 +133,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 - `[P2]` **Confirm before leaving the find-a-table / bots lobby via back.** "Find a table" drops the user into the lobby; back exits with no confirmation dialog. Add a confirm-before-leave. *(feedback CARDS-C)*
   **Hints:** lobby back handling in `features/rooms/impl`. Pairs with the MP back-nav item below. Sentry [CARDS-C](https://elijah-dangerfield.sentry.io/issues/CARDS-C).
 
-- `[P2]` **Back out of an in-progress MP game should go Home, not the lobby.** Swiping back from a multiplayer game returns to the lobby; it should route Home. *(feedback CARDS-12)*
-  **Hints:** back handling in `PlayMultiplayerFeatureEntryPoint` / room nav. Sentry [CARDS-12](https://elijah-dangerfield.sentry.io/issues/CARDS-12).
-
 - `[P2]` **"Took a seat" shouldn't count when it's bots-only.** The take-a-seat achievement/stat fires even in bot-only games; it should only count against humans. *(feedback CARDS-W)*
   **Hints:** seat / achievement trigger; gate on bot-only room. Sentry [CARDS-W](https://elijah-dangerfield.sentry.io/issues/CARDS-W).
 
