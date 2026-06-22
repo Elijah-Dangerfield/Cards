@@ -50,7 +50,21 @@ import kotlin.time.Clock
 abstract class PokerScenarioTest : CoroutineTest() {
     protected fun TestScope.soloScenario(): SoloScenarioBuilder =
         SoloScenarioBuilder(scope = this, dispatchers = dispatchers)
+
+    /**
+     * Start a multiplayer scenario: a real [PlayPokerViewModel] over a real
+     * [RemotePokerSession] fed by a [FakeRoomConnectionHandle]. Opponent actions
+     * are injected as server frames (snapshots + events); assertions use the
+     * same [assertTable] vocabulary as solo. [localUserId] decides which seat is
+     * "you" (matched by `Seat.playerId`).
+     */
+    protected fun TestScope.mpScenario(
+        localUserId: String = MP_LOCAL_USER,
+    ): MpScenarioBuilder =
+        MpScenarioBuilder(scope = this, dispatchers = dispatchers, localUserId = localUserId)
 }
+
+const val MP_LOCAL_USER: String = "local-user"
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SoloScenarioBuilder(

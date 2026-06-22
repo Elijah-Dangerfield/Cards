@@ -70,6 +70,13 @@ class TableAssertionScope(val table: TableUiState.Active) {
         assertEquals(expected, view.isBusted, "seat $seat busted")
     }
 
+    /** Assert [seat] shows [count] hole cards (e.g. 2 once revealed at showdown). */
+    fun seatHoleCardsVisible(seat: Int, count: Int = 2) {
+        val view = table.seats.firstOrNull { it.index == seat }
+            ?: throw AssertionError("no seat $seat in table")
+        assertEquals(count, view.holeCards.size, "seat $seat visible hole cards")
+    }
+
     fun seatFolded(seat: Int) {
         val view = table.seats.firstOrNull { it.index == seat }
             ?: throw AssertionError("no seat $seat in table")
