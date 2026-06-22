@@ -13,6 +13,7 @@ import com.dangerfield.cards.libraries.cards.impl.logging.KermitLogTree
 import com.dangerfield.cards.libraries.cards.impl.logging.SentryLogTree
 import co.touchlab.kermit.Logger as KermitLogger
 import co.touchlab.kermit.Severity as KermitSeverity
+import io.sentry.kotlin.multiplatform.Attachment
 import io.sentry.kotlin.multiplatform.Sentry
 import io.sentry.kotlin.multiplatform.protocol.User
 import io.sentry.kotlin.multiplatform.protocol.UserFeedback
@@ -38,6 +39,10 @@ private class ConfiguredTelemetry(
 
     private val logger: Logger = KLog.withTag("Telemetry")
     private var initialized = false
+
+    // The planted Sentry tree, held so captureUserFeedback can dump its
+    // in-memory log buffer as an attachment. Null until Sentry initializes.
+    private var sentryLogTree: SentryLogTree? = null
 
     override fun initialize() {
         if (initialized) return
@@ -86,12 +91,13 @@ private class ConfiguredTelemetry(
                 scope.tag("build_type", config.buildTypeTag)
             }
         }.onSuccess {
-            KLog.plant(
-                SentryLogTree(
-                    minBreadcrumbLevel = config.logPolicy.minBreadcrumbLevel,
-                    minEventLevel = config.logPolicy.minEventLevel
-                )
+            val tree = SentryLogTree(
+                minBreadcrumbLevel = config.logPolicy.minBreadcrumbLevel,
+                minEventLevel = config.logPolicy.minEventLevel,
+                minBufferLevel = config.logPolicy.minBufferLevel,
             )
+            sentryLogTree = tree
+            KLog.plant(tree)
             Sentry.configureScope {
                 it.setExtra("platform", config.platformTag)
                 it.setExtra("build_type", config.buildTypeTag)
@@ -181,7 +187,25 @@ private class ConfiguredTelemetry(
         // attach the feedback to that. Mirrors Sentry's documented
         // captureMessage → captureUserFeedback flow. The KLog id / error code
         // ride along in the comment for correlation back to the logs.
+        // Dump the in-memory log buffer — the fine-grained Debug/Verbose we
+        // never ship as breadcrumbs — onto the carrier event as an attachment,
+        // but only here, when the user actually files feedback. Must sit on the
+        // scope before captureMessage; cleared after so it can't ride later
+        // events. Best-effort: a buffer/attachment hiccup never blocks feedback.
+        val logDump = sentryLogTree?.snapshot()?.takeIf { it.isNotBlank() }
+        if (logDump != null) {
+            Catching {
+                Sentry.configureScope {
+                    it.addAttachment(Attachment(logDump.encodeToByteArray(), "session-log.txt", "text/plain"))
+                }
+            }
+        }
+
         val sentryId = Sentry.captureMessage(if (isBugReport) "Bug report" else "User feedback")
+
+        if (logDump != null) {
+            Catching { Sentry.configureScope { it.clearAttachments() } }
+        }
 
         val feedback = UserFeedback(sentryId).apply {
             comments = buildString {
@@ -243,7 +267,14 @@ data class SentryRuntimeConfig(
 
     data class LogPolicy(
         val minBreadcrumbLevel: LogLevel,
-        val minEventLevel: LogLevel
+        val minEventLevel: LogLevel,
+        /**
+         * Lowest level retained in the in-memory ring buffer dumped onto user
+         * feedback (null = no buffer). Set below [minBreadcrumbLevel] to keep
+         * the fine-grained detail we don't ship — debug builds buffer Verbose+,
+         * release buffers Debug+ (skips per-frame Verbose churn).
+         */
+        val minBufferLevel: LogLevel? = null,
     )
 
     companion object {
@@ -271,7 +302,8 @@ data class SentryRuntimeConfig(
                 buildTypeTag = buildTypeTag,
                 logPolicy = LogPolicy(
                     minBreadcrumbLevel = breadcrumbLevel,
-                    minEventLevel = LogLevel.Error
+                    minEventLevel = LogLevel.Error,
+                    minBufferLevel = if (buildInfo.isDebug) LogLevel.Verbose else LogLevel.Debug,
                 ),
                 enableAutoSessionTracking = true
             )
