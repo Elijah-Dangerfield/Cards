@@ -130,8 +130,8 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 - `[P2]` **Confirm before leaving the find-a-table / bots lobby via back.** "Find a table" drops the user into the lobby; back exits with no confirmation dialog. Add a confirm-before-leave. *(feedback CARDS-C)*
   **Hints:** lobby back handling in `features/rooms/impl`. Pairs with the MP back-nav item below. Sentry [CARDS-C](https://elijah-dangerfield.sentry.io/issues/CARDS-C).
 
-- `[P2]` **More on the stats page (win/loss ratio, players played with).** Owner wants richer stats — at least a win/loss ratio and a count of distinct players played with, with room for more. *(feedback CARDS-P)*
-  **Hints:** `StatsScreen`; some counters exist client-side. Sentry [CARDS-P](https://elijah-dangerfield.sentry.io/issues/CARDS-P).
+- `[P2]` **Stats page: distinct-players-played-with count.** Win rate + fold rate shipped (computable from the local `Progression` counters). The remaining ask is a lifetime count of distinct humans played with — not available client-side. The data exists server-side in `recently_played_with` (humans only); add `countDistinctOpponents(userId)` to the server `RecentOpponentsRepository`, expose it (extend `GET /v1/me` or a stats endpoint), carry it onto `Progression`/`StatsState`, and render a `StatTile`. *(feedback CARDS-P)*
+  **Hints:** `StatsScreen.LifetimeStatsGrid`; `PostgresRecentOpponentsRepository` + `V62__recently_played_with.sql`. Count is MP-only (bot hands don't populate the table). Sentry [CARDS-P](https://elijah-dangerfield.sentry.io/issues/CARDS-P).
 
 - `[P2]` **Debug feedback swipe is unreliable inside scroll views.** The right-edge swipe to open the feedback screen often takes a few tries, mostly when the user is already in a scroll view (gesture conflict). *(feedback CARDS-Y; debug-only feature from `fd5aeec8`)*
   **Hints:** the right-edge swipe detector competing with scroll containers. Sentry [CARDS-Y](https://elijah-dangerfield.sentry.io/issues/CARDS-Y).

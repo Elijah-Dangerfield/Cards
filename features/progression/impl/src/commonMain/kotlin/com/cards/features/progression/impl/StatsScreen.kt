@@ -59,6 +59,7 @@ import com.dangerfield.cards.libraries.ui.screenContentPadding
 import com.dangerfield.cards.libraries.ui.system.color.ColorResource
 import com.dangerfield.cards.system.AppTheme
 import com.dangerfield.cards.system.Radii
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -197,6 +198,9 @@ private fun XpHero(progress: LevelProgress) {
 
 @Composable
 private fun LifetimeStatsGrid(progression: Progression) {
+    val played = progression.handsPlayed
+    val winRate = percentOf(progression.handsWon, played)
+    val foldRate = percentOf(progression.handsFolded, played)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
@@ -213,6 +217,18 @@ private fun LifetimeStatsGrid(progression: Progression) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
                 modifier = Modifier.weight(1f),
+                label = "Win rate",
+                value = winRate,
+            )
+            StatTile(
+                modifier = Modifier.weight(1f),
+                label = "Fold rate",
+                value = foldRate,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile(
+                modifier = Modifier.weight(1f),
                 label = "Folds",
                 value = formatThousands(progression.handsFolded),
             )
@@ -224,6 +240,14 @@ private fun LifetimeStatsGrid(progression: Progression) {
         }
     }
 }
+
+/**
+ * A rounded whole-percent string for [part] of [whole] ("26%"), or an em-free
+ * "-" dash when there's no denominator yet so a brand-new player doesn't read a
+ * misleading "0%".
+ */
+private fun percentOf(part: Long, whole: Long): String =
+    if (whole <= 0L) "-" else "${(part * 100.0 / whole).roundToInt()}%"
 
 @Composable
 private fun StatTile(
