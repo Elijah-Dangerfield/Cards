@@ -64,8 +64,8 @@ internal fun TutorialBanner(
                 iconSize = IconSize.Small,
                 onClick = onDismiss,
                 padding = Dimension.D200,
-                backgroundColor = AppTheme.colors.background,
-                contentColor = AppTheme.colors.content,
+                backgroundColor = AppTheme.colors.surfaceInverse,
+                contentColor = AppTheme.colors.onSurfaceInverse,
                 elevation = Elevation.Button,
             )
         },

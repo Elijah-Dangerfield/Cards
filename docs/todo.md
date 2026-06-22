@@ -124,9 +124,6 @@ The rooms handoff (`docs/design-handoff/rooms/SPEC.md`) shipped as UI. These are
 
 A batch of small UX directives the owner filed via in-app feedback in one session. Grouped here for skimmability; the maintainer can redistribute into the topic sections above. Each links its Sentry report.
 
-- `[P2]` **"New here" home card — white close button on the right.** The card's close button is black and on the left; make it a white close affordance on the right side. *(feedback CARDS-A)*
-  **Hints:** the "new here" welcome card on `HomeScreen`. Sentry [CARDS-A](https://elijah-dangerfield.sentry.io/issues/CARDS-A).
-
 - `[P2]` **Hide the "Recently played with" shelf when empty.** On Home it renders even with no entries — don't show the empty shelf. *(feedback CARDS-E)*
   **Hints:** `RecentlyPlayedWithStrip` on `HomeScreen`. Sentry [CARDS-E](https://elijah-dangerfield.sentry.io/issues/CARDS-E).
 

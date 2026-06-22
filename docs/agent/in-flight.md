@@ -15,3 +15,9 @@ Handoff log for this cycle. Reviewer reads it when writing the PR, then deletes 
 **Problem:** The in-app feedback box capped messages at 200 chars — too tight for the owner to paste behavior notes / repro steps (feedback CARDS-8).
 **Approach:** Raised the release cap from 200 to 500; debug builds are uncapped (and the char counter is hidden) so the owner can paste long notes while testing. Cap is a client constant in `FeedbackScreen.kt`.
 **Reviewer notes:** Pre-existing commit reconstructed from its message. The CARDS-8 todo bullet was still in `docs/todo.md` after this shipped — I removed it this cycle (see the `docs(todo)` cleanup below).
+
+## fix(home): white close button on the "New here" card
+
+**Problem:** The tutorial banner's dismiss ✕ used a dark fill (`background`/`content`), which the owner read as a low-contrast "black button" and wanted a white close affordance on the right (feedback CARDS-A).
+**Approach:** Swapped the `CircleIcon` fill to the DS `surfaceInverse` / `onSurfaceInverse` tokens (near-white circle, dark ink) instead of hand-tuning a color. It already sits top-right via `BadgePlacement.EdgeAlignedTop`, so only the color needed to change — the "on the left" in the report was a contrast-perception read of the dark sticker on the green gradient, not an actual left placement.
+**Reviewer notes:** None.
