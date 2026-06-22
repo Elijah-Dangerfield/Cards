@@ -122,6 +122,7 @@ private fun HttpClientConfig<*>.applyCommonConfig(
         headers.append(ClientHeaders.HEADER_BUILD_NUMBER, h.buildNumber)
         h.countryCode?.let { headers.append(ClientHeaders.HEADER_COUNTRY_CODE, it) }
         h.installId?.let { headers.append(ClientHeaders.HEADER_INSTALL_ID, it) }
+        headers.append(ClientHeaders.HEADER_SESSION_ID, h.sessionId)
     }
     if (BuildInfo.isDebug) {
         // WiretapKMP — captures every request/response through this client

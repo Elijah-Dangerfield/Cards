@@ -98,6 +98,7 @@ class TestClient(
             acceptLanguage = "en-US",
             countryCode = null,
             installId = null,
+            sessionId = "test-session",
         )
     }
 

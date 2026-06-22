@@ -174,6 +174,7 @@ class OfflineFirstAppConfigRepositoryTest : CoroutineTest() {
         id = id,
         startedAtMs = 0L,
         reason = SessionStartReason.ColdBoot,
+        uuid = "session-$id",
     )
 
     private class FakeRemoteDataSource(

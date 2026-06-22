@@ -133,6 +133,19 @@ private class ConfiguredTelemetry(
         }
     }
 
+    override fun setSession(sessionId: String) {
+        // Best-effort, same scope-persistence reasoning as setCurrentRoute:
+        // writing the tag on the scope means a later native crash (turned into
+        // an event on next launch) still carries the session it happened in.
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope { it.setTag(SESSION_ID_KEY, sessionId) }
+    }
+
+    override fun setInstallId(installId: String) {
+        if (!Sentry.isEnabled()) return
+        Sentry.configureScope { it.setTag(INSTALL_ID_KEY, installId) }
+    }
+
     override fun captureUserFeedback(
         message: String,
         isBugReport: Boolean,
@@ -200,6 +213,11 @@ private class ConfiguredTelemetry(
 // Scope key for the current navigation route (set via [Telemetry.setCurrentRoute]).
 // Shared by the tag and the extra so they read identically in Sentry.
 private const val ROUTE_KEY = "route"
+
+// Correlation keys mirrored on the backend (OTel span attributes + log
+// fields), so the same value queries Sentry, Tempo, and Loki.
+private const val SESSION_ID_KEY = "session_id"
+private const val INSTALL_ID_KEY = "install_id"
 
 // All platforms / build types report to the single `cards` Sentry project.
 // The `environment` tag (releaseChannel-platform-buildType) and the

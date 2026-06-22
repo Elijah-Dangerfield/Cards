@@ -5,6 +5,7 @@ import com.dangerfield.cards.libraries.core.Platform
 import com.dangerfield.cards.libraries.networking.ClientHeaders
 import com.dangerfield.cards.libraries.networking.ClientHeadersProvider
 import com.dangerfield.cards.libraries.networking.InstallIdProvider
+import com.dangerfield.cards.libraries.networking.SessionIdProvider
 import me.tatarka.inject.annotations.Inject
 import software.amazon.lastmile.kotlin.inject.anvil.AppScope
 import software.amazon.lastmile.kotlin.inject.anvil.ContributesBinding
@@ -26,6 +27,7 @@ import software.amazon.lastmile.kotlin.inject.anvil.SingleIn
 @Inject
 class DefaultClientHeadersProvider(
     private val installIdProvider: InstallIdProvider,
+    private val sessionIdProvider: SessionIdProvider,
 ) : ClientHeadersProvider {
 
     private val platform: String = when (BuildInfo.platform) {
@@ -42,5 +44,6 @@ class DefaultClientHeadersProvider(
         acceptLanguage = LocaleSource.acceptLanguage(),
         countryCode = LocaleSource.countryCode(),
         installId = installIdProvider.current(),
+        sessionId = sessionIdProvider.current(),
     )
 }

@@ -35,6 +35,16 @@ data class Session(
     val id: Long,
     val startedAtMs: Long,
     val reason: SessionStartReason,
+    /**
+     * Globally-unique id for this session, fresh per boundary. Unlike
+     * [id] (a 1,2,3… per-process counter that collides across devices),
+     * this is a UUID safe to use as a **cross-system correlation key**:
+     * it's stamped on the crash-reporting scope and sent to the backend
+     * via `X-Session-Id`, so a single value pulls this session's frontend
+     * events (Sentry) and backend traces/logs (Tempo/Loki). See
+     * [SessionTracker] and `SessionIdProvider`.
+     */
+    val uuid: String,
 )
 
 sealed interface SessionStartReason {
