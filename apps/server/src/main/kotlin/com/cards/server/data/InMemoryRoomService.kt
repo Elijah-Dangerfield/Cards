@@ -63,6 +63,8 @@ class InMemoryRoomService(
     private val random: Random = Random.Default,
 ) : RoomService {
 
+    private val log = org.slf4j.LoggerFactory.getLogger("RoomService")
+
     private val mutex = Mutex()
     /** All live rooms by code. Each value also owns its own flow for observers. */
     private val rooms: MutableMap<String, RoomState> = mutableMapOf()
@@ -164,6 +166,8 @@ class InMemoryRoomService(
             // stragglers observing get a final value through the
             // GC sweep on the caller side.
             rooms.remove(code)
+            // Info: room lifecycle end — explains "the room disappeared."
+            log.info("Room $code closed: last member $userId left")
             return@withLock LeaveResult.Success(roomGone = true)
         }
 
@@ -184,6 +188,13 @@ class InMemoryRoomService(
             members = remaining,
         )
         state.update(next)
+        // Info: member churn + host migration is session-meaningful — answers
+        // "who left / who's host now" when a game's flow is reported as broken.
+        if (nextHostUserId != current.hostUserId) {
+            log.info("Room $code: $userId left (was host); host migrated to $nextHostUserId, ${remaining.size} remain")
+        } else {
+            log.info("Room $code: $userId left, ${remaining.size} remain")
+        }
         LeaveResult.Success(roomGone = false)
     }
 
@@ -360,8 +371,12 @@ class InMemoryRoomService(
         val survivors = current.members - member
         if (survivors.isEmpty()) {
             rooms.remove(code)
+            log.info("Room $code: reaped $userId after disconnect grace; room now empty, closed")
         } else {
             state.update(current.copy(members = survivors))
+            // Info: seat-freeing after a drop — explains "my opponent vanished"
+            // or "I got kicked" in a reported session.
+            log.info("Room $code: reaped $userId after disconnect grace, ${survivors.size} remain")
         }
         true
     }
