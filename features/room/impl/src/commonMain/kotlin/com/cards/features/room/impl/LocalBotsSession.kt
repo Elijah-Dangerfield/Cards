@@ -1,9 +1,11 @@
 package com.dangerfield.cards.features.room.impl
 
-import com.dangerfield.cards.libraries.bots.BotDecision
+import com.dangerfield.cards.libraries.bots.BotDecider
+import com.dangerfield.cards.libraries.bots.BotDecisionRequest
 import com.dangerfield.cards.libraries.bots.BotDifficulty
 import com.dangerfield.cards.libraries.bots.BotPersonality
 import com.dangerfield.cards.libraries.bots.OpponentTracker
+import com.dangerfield.cards.libraries.bots.RngBotDecider
 import com.dangerfield.cards.libraries.bots.StreetAction
 import com.dangerfield.cards.libraries.bots.buildHandContext
 import com.dangerfield.cards.libraries.core.logging.KLog
@@ -11,6 +13,7 @@ import com.dangerfield.cards.libraries.flowroutines.DefaultDispatcherProvider
 import com.dangerfield.cards.libraries.flowroutines.DispatcherProvider
 import com.dangerfield.cards.libraries.game.ConnectionState
 import com.dangerfield.cards.libraries.gameplay.BettingRound
+import com.dangerfield.cards.libraries.gameplay.Deck
 import com.dangerfield.cards.libraries.gameplay.GameEngine
 import com.dangerfield.cards.libraries.gameplay.GameEvent
 import com.dangerfield.cards.libraries.gameplay.GameState
@@ -68,6 +71,20 @@ class LocalBotsSession(
      * the DI-provided [DispatcherProvider].
      */
     private val dispatchers: DispatcherProvider = DefaultDispatcherProvider(),
+    /**
+     * Source of bot actions. Defaults to [RngBotDecider] (the real
+     * equity-driven logic), so production play is unchanged. Tests inject a
+     * scripted decider to force specific bot actions and assert the resulting
+     * UI — see the `harness` test package.
+     */
+    private val botDecider: BotDecider = RngBotDecider,
+    /**
+     * Per-hand deck factory, keyed by the 1-based hand number. Defaults to a
+     * shuffled deck seeded off the session [random] — byte-for-byte today's
+     * behaviour. Tests pass a stacked deck so specific hole cards and boards
+     * are dealt deterministically.
+     */
+    private val deckFactory: (handNumber: Int) -> Deck = { deterministicDeck(random.nextLong()) },
 ) : PokerSession {
     // Logger must be declared BEFORE any field whose initializer transitively
     // calls a method that logs — Kotlin runs field initializers top-to-bottom,
@@ -181,7 +198,7 @@ class LocalBotsSession(
             seats = seedSeats,
             handNumber = handNumber,
             buttonSeatIndex = buttonIndex,
-            deck = deterministicDeck(random.nextLong()),
+            deck = deckFactory(handNumber),
         )
         observeAndEmit(result.events)
         lastActionBySeat.clear()
@@ -265,15 +282,17 @@ class LocalBotsSession(
                 preflopAggressorSeatIndex = preflopAggressorSeatIndex,
             )
             val decision = withContext(dispatchers.default) {
-                BotDecision.choose(
-                    state = gameState,
-                    seatIndex = acting,
-                    personality = personality,
-                    difficulty = difficulty,
-                    opponentTracker = tracker,
-                    random = random,
-                    equityIterations = 200,
-                    handContext = handContext,
+                botDecider.decide(
+                    BotDecisionRequest(
+                        state = gameState,
+                        seatIndex = acting,
+                        personality = personality,
+                        difficulty = difficulty,
+                        opponentTracker = tracker,
+                        random = random,
+                        equityIterations = 200,
+                        handContext = handContext,
+                    ),
                 )
             }
             // Calibrated think delay — driven by who the bot is, how hard the
