@@ -127,9 +127,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 - `[P2]` **Hide the "Recently played with" shelf when empty.** On Home it renders even with no entries — don't show the empty shelf. *(feedback CARDS-E)*
   **Hints:** `RecentlyPlayedWithStrip` on `HomeScreen`. Sentry [CARDS-E](https://elijah-dangerfield.sentry.io/issues/CARDS-E).
 
-- `[P2]` **Drop the yellow border on equipped items — keep just the badge.** Owner dislikes the yellow outline around equipped cosmetics; the equipped badge alone is enough. *(feedback CARDS-G)*
-  **Hints:** equipped-item tiles in `MyItemsScreen` / inventory. Sentry [CARDS-G](https://elijah-dangerfield.sentry.io/issues/CARDS-G).
-
 - `[P2]` **Align the chip counter so it reads as shared between Home and Shop.** The top-right chip amount is meant to sit in the exact same position on Home and Shop so it looks persistent across the two pages; today the positions differ. *(feedback CARDS-R)*
   **Hints:** the chip-balance header on `HomeScreen` vs the Shop top bar. Sentry [CARDS-R](https://elijah-dangerfield.sentry.io/issues/CARDS-R).
 

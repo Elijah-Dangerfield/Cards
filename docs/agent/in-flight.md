@@ -21,3 +21,9 @@ Handoff log for this cycle. Reviewer reads it when writing the PR, then deletes 
 **Problem:** The tutorial banner's dismiss ✕ used a dark fill (`background`/`content`), which the owner read as a low-contrast "black button" and wanted a white close affordance on the right (feedback CARDS-A).
 **Approach:** Swapped the `CircleIcon` fill to the DS `surfaceInverse` / `onSurfaceInverse` tokens (near-white circle, dark ink) instead of hand-tuning a color. It already sits top-right via `BadgePlacement.EdgeAlignedTop`, so only the color needed to change — the "on the left" in the report was a contrast-perception read of the dark sticker on the green gradient, not an actual left placement.
 **Reviewer notes:** None.
+
+## fix(profile): drop the persistent equipped ring, keep the badge
+
+**Problem:** Equipped cosmetic tiles in My Items carried a persistent gold accent ring around them; the owner found it heavy-handed and wanted the corner "equipped" badge to stand alone (feedback CARDS-G).
+**Approach:** In `OwnedCosmeticTile`, dropped the equipped contribution to the border alpha so the ring now only ever draws from the transient just-acquired `pulseAlpha` (kept — that's a different, momentary spotlight, not the persistent equipped state). The `EquippedBadge` corner check is untouched. Renamed the now-badge-only flag `showEquippedRing` → `showEquippedBadge` to match.
+**Reviewer notes:** Kept the buy-pulse border on purpose — it's a 600ms fade on a just-purchased tile, unrelated to the equipped-state ring the owner objected to. If the owner wants that gone too, it's a one-line follow-up.
