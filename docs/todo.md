@@ -127,9 +127,6 @@ A batch of small UX directives the owner filed via in-app feedback in one sessio
 - `[P2]` **Align the chip counter so it reads as shared between Home and Shop.** The top-right chip amount is meant to sit in the exact same position on Home and Shop so it looks persistent across the two pages; today the positions differ. *(feedback CARDS-R)*
   **Hints:** the chip-balance header on `HomeScreen` vs the Shop top bar. Sentry [CARDS-R](https://elijah-dangerfield.sentry.io/issues/CARDS-R).
 
-- `[P2]` **Remove the "sunset" table theme.** There's no visual difference between table themes and felt, so the sunset table theme is redundant — remove it. *(feedback CARDS-18)*
-  **Hints:** table-theme catalog / cosmetic definitions. Sentry [CARDS-18](https://elijah-dangerfield.sentry.io/issues/CARDS-18).
-
 - `[P2]` **Confirm before leaving the find-a-table / bots lobby via back.** "Find a table" drops the user into the lobby; back exits with no confirmation dialog. Add a confirm-before-leave. *(feedback CARDS-C)*
   **Hints:** lobby back handling in `features/rooms/impl`. Pairs with the MP back-nav item below. Sentry [CARDS-C](https://elijah-dangerfield.sentry.io/issues/CARDS-C).
 
