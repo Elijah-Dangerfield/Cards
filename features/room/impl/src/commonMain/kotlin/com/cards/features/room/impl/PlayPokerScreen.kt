@@ -526,13 +526,23 @@ fun PlayPokerScreen(
                     else -> onAction(PlayPokerAction.RequestNextHand)
                 }
             }
-            if (humanBust) {
-                // Bust takes over the moment — focused "you went bust, here's
-                // a fresh stack" modal instead of the full showdown. Per the
-                // V1 decision (docs/decisions.md 2026-05-14) bot stacks
-                // auto-rebuy between hands; this dialog just makes that
-                // recovery visible so new players aren't confused. Always
-                // shows; busting is a real moment.
+            if (humanBust && state.isRealMultiplayer) {
+                // Real multiplayer: chips are gone for keeps (the server drops a
+                // busted player from the next hand — no rebuy). Terminal modal
+                // with Leave / Buy-chips, never the practice "deal me in" copy.
+                MultiplayerBustDialog(
+                    xpEarned = state.lastHandXpAwarded,
+                    earnedAchievements = state.recentlyEarned,
+                    onBuyChips = { onAction(PlayPokerAction.BuyChips) },
+                    onLeaveGame = {
+                        onAction(PlayPokerAction.LeaveGameFromBust)
+                        onBack()
+                    },
+                )
+            } else if (humanBust) {
+                // Solo / practice-tier: stacks auto-rebuy between hands (per the
+                // V1 decision, docs/decisions.md 2026-05-14); this modal just
+                // makes that recovery visible. Single "deal me in" CTA.
                 BustDialog(
                     xpEarned = state.lastHandXpAwarded,
                     earnedAchievements = state.recentlyEarned,

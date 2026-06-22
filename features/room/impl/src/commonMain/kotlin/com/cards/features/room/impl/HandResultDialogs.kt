@@ -29,6 +29,10 @@ import cards.libraries.resources.generated.resources.room_achievement_reward_xp_
 import cards.libraries.resources.generated.resources.room_bust_body
 import cards.libraries.resources.generated.resources.room_bust_deal_me_in_button
 import cards.libraries.resources.generated.resources.room_bust_title
+import cards.libraries.resources.generated.resources.room_mp_bust_body
+import cards.libraries.resources.generated.resources.room_mp_bust_buy_chips_button
+import cards.libraries.resources.generated.resources.room_mp_bust_leave_button
+import cards.libraries.resources.generated.resources.room_mp_bust_title
 import cards.libraries.resources.generated.resources.room_showdown_board_label
 import cards.libraries.resources.generated.resources.room_showdown_next_hand_button
 import cards.libraries.resources.generated.resources.room_showdown_outcome_showdown
@@ -57,6 +61,7 @@ import com.dangerfield.cards.libraries.gameplay.Suit
 import com.dangerfield.cards.libraries.gameplay.describe
 import com.dangerfield.cards.libraries.ui.PreviewContent
 import com.dangerfield.cards.libraries.ui.components.button.ButtonPrimary
+import com.dangerfield.cards.libraries.ui.components.button.ButtonSecondary
 import com.dangerfield.cards.libraries.ui.components.dialog.Dialog
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryChipBubble
 import com.dangerfield.cards.libraries.ui.components.dialog.topAccessoryEmoji
@@ -271,6 +276,70 @@ internal fun BustDialog(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(text = stringResource(Res.string.room_bust_deal_me_in_button))
+            }
+        }
+    }
+}
+
+/**
+ * Real-multiplayer bust dialog: chips are gone for keeps (no silent rebuy), so
+ * this is terminal. Two CTAs — "Buy chips" (the upsell, primary) and "Leave
+ * game" (secondary). Distinct from [BustDialog], which is the solo / practice
+ * "deal me in" rebuy modal; the screen picks between them on
+ * [PlayPokerState.isRealMultiplayer].
+ */
+@Composable
+internal fun MultiplayerBustDialog(
+    xpEarned: Int?,
+    earnedAchievements: List<EarnedAchievement>,
+    onBuyChips: () -> Unit,
+    onLeaveGame: () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onLeaveGame,
+        topAccessory = topAccessoryChipBubble(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = stringResource(Res.string.room_mp_bust_title),
+                    typography = AppTheme.typography.Heading.H700,
+                    color = AppTheme.colors.content,
+                )
+                Text(
+                    text = stringResource(Res.string.room_mp_bust_body),
+                    typography = AppTheme.typography.Body.B500,
+                    color = AppTheme.colors.contentSecondary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            if (xpEarned != null && xpEarned > 0) {
+                XpEarnedBubble(amount = xpEarned)
+            }
+            // Real MP keeps the inline achievement row (same as ShowdownDialog).
+            earnedAchievements.forEach { earned ->
+                AchievementUnlockedCallout(earned = earned)
+            }
+            ButtonPrimary(
+                onClick = onBuyChips,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = stringResource(Res.string.room_mp_bust_buy_chips_button))
+            }
+            ButtonSecondary(
+                onClick = onLeaveGame,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = stringResource(Res.string.room_mp_bust_leave_button))
             }
         }
     }
