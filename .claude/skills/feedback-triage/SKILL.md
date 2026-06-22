@@ -25,16 +25,16 @@ In-app feedback is captured as a Sentry event whose message is exactly **`User f
 
 ### 1. List unresolved feedback
 
+`search_issues` does **not** support boolean `OR`, so run two queries and union the results:
+
 ```
-search_issues(
-  organizationSlug='elijah-dangerfield',
-  projectSlugOrId='cards',
-  query='is:unresolved (message:"User feedback" OR message:"Bug report")',
-  sort='new',
-)
+search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved message:"User feedback"', sort='new')
+search_issues(organizationSlug='elijah-dangerfield', projectSlugOrId='cards', query='is:unresolved message:"Bug report"', sort='new')
 ```
 
 Cross-check each candidate's event id against `docs/agent/feedback-log.md`; **skip anything already logged.** If nothing new, write "no new feedback" to the run summary and stop.
+
+**Grouping caveat:** every general feedback is `captureMessage("User feedback")` with an identical message and no stacktrace, so Sentry groups *all* of them into one issue (and all bug reports into another) — one issue can hold many distinct feedbacks as separate events. Until that's fixed (per-feedback fingerprinting), treat each **event** within a feedback issue as a separate report: pull recent events via `search_issue_events` (or `get_sentry_resource` on the issue) and triage each by its own `session_id`/comment. Resolving the issue resolves them all, so only resolve once you've triaged every unhandled event in it (and a new feedback later reopens it — that's expected).
 
 ### 2. Pull the report + its identifiers
 
