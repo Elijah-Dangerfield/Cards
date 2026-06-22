@@ -22,11 +22,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import cards.libraries.resources.generated.resources.Res
+import cards.libraries.resources.generated.resources.app_offline_banner_message
 import com.dangerfield.cards.libraries.ui.components.icon.Icon
 import com.dangerfield.cards.libraries.ui.components.icon.Icons
 import com.dangerfield.cards.libraries.ui.components.text.Text
 import com.dangerfield.cards.libraries.ui.system.LocalAppState
 import com.dangerfield.cards.system.AppTheme
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * Top-of-screen banner shown whenever [LocalAppState]'s `isOffline` is
@@ -50,7 +53,7 @@ fun OfflineBanner() {
 }
 
 @Composable
-private fun OfflineBannerContent() {
+internal fun OfflineBannerContent() {
     val warning = AppTheme.colors.warning
     Row(
         modifier = Modifier
@@ -67,7 +70,7 @@ private fun OfflineBannerContent() {
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
-            text = "Offline — some features unavailable.",
+            text = stringResource(Res.string.app_offline_banner_message),
             typography = AppTheme.typography.Body.B500,
             color = AppTheme.colors.content,
             textAlign = TextAlign.Start,

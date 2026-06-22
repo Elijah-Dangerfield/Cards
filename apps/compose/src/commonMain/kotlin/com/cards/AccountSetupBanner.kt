@@ -61,8 +61,36 @@ import org.jetbrains.compose.resources.stringResource
  */
 @Composable
 fun AccountSetupBanner(creator: GuestAccountCreator) {
-    val state by creator.state.collectAsState()
+    val status = rememberAccountSetupStatus(creator)
+    AnimatedVisibility(
+        visible = status.pending,
+        enter = slideInVertically { -it } + fadeIn(),
+        exit = slideOutVertically { -it } + fadeOut(),
+    ) {
+        AccountSetupBannerContent(
+            isRetrying = status.isRetrying,
+            onRetry = { creator.retry() },
+        )
+    }
+}
 
+/**
+ * Pending / retrying snapshot of [GuestAccountCreator] for the banner host.
+ * [pending] mirrors the once-failed gating ([AccountSetupBanner]'s KDoc): the
+ * first never-failed creation pass never reads as pending.
+ */
+internal data class AccountSetupStatus(
+    val pending: Boolean,
+    val isRetrying: Boolean,
+)
+
+/**
+ * Tracks the once-failed gating so both [AccountSetupBanner] and the combined
+ * offline banner host ([AppStatusBanners]) decide visibility off one source.
+ */
+@Composable
+internal fun rememberAccountSetupStatus(creator: GuestAccountCreator): AccountSetupStatus {
+    val state by creator.state.collectAsState()
     var hasFailed by remember { mutableStateOf(false) }
     LaunchedEffect(state) {
         when (state) {
@@ -71,22 +99,14 @@ fun AccountSetupBanner(creator: GuestAccountCreator) {
             else -> Unit
         }
     }
-
-    val isRetrying = hasFailed && state is AccountCreationState.InProgress
-    AnimatedVisibility(
-        visible = hasFailed && state !is AccountCreationState.Succeeded,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
-    ) {
-        AccountSetupBannerContent(
-            isRetrying = isRetrying,
-            onRetry = { creator.retry() },
-        )
-    }
+    return AccountSetupStatus(
+        pending = hasFailed && state !is AccountCreationState.Succeeded,
+        isRetrying = hasFailed && state is AccountCreationState.InProgress,
+    )
 }
 
 @Composable
-private fun AccountSetupBannerContent(
+internal fun AccountSetupBannerContent(
     isRetrying: Boolean,
     onRetry: () -> Unit,
 ) {

@@ -1100,4 +1100,12 @@
     <string name="account_setup_banner_message">Finishing account setup - we'll keep trying. Some features are limited until then.</string>
     <string name="account_setup_banner_retry">Retry</string>
     <string name="account_setup_banner_retrying">Retrying…</string>
+
+    <!-- Generic top-of-screen offline strip shown whenever the device has no
+         connection. -->
+    <string name="app_offline_banner_message">Offline, some features unavailable.</string>
+    <!-- Combined banner shown when the device is offline AND a guest account is
+         still pending creation at first launch, replacing the two separate
+         offline + account-setup banners with one scenario-specific line. -->
+    <string name="app_offline_account_setup_banner">You can keep playing offline, and we'll finish creating your profile once you're back online.</string>
 </resources>
