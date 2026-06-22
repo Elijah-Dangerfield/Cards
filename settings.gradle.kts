@@ -102,6 +102,8 @@ if (!serverOnly) {
     include(":libraries:cards:storage")
     include(":libraries:identity")
     include(":libraries:identity:impl")
+    include(":libraries:social")
+    include(":libraries:social:impl")
     include(":libraries:rooms")
     include(":libraries:rooms:impl")
     include(":libraries:review")
