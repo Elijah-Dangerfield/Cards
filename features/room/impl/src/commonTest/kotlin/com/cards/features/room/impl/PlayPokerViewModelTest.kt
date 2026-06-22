@@ -22,7 +22,10 @@ import com.dangerfield.cards.libraries.gameplay.HandWinner
 import com.dangerfield.cards.libraries.gameplay.PlayerAction
 import com.dangerfield.cards.libraries.gameplay.PlayerIntent
 import com.dangerfield.cards.libraries.identity.profile.Profile
+import com.dangerfield.cards.libraries.products.ProductCatalog
 import com.dangerfield.cards.libraries.review.ReviewTrigger
+import com.dangerfield.cards.libraries.ui.components.poker.CardBackStyle
+import com.dangerfield.cards.libraries.ui.components.poker.EquippedFelt
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlin.test.Test
@@ -1073,6 +1076,69 @@ class PlayPokerViewModelTest : CoroutineTest() {
             "the session's opponents-left signal surfaces as a one-shot VM event; got $events",
         )
         job.cancel()
+    }
+
+    // ---------- Settings / cosmetics / win-odds mirrors ----------
+
+    @Test
+    fun xpBoostChanged_mirrorsExpiry() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.XpBoostChanged(expiresAtEpochMs = 12_345L))
+        assertEquals(12_345L, vm.state.xpBoostExpiresAtEpochMs)
+    }
+
+    @Test
+    fun equippedFeltChanged_repaintsTableSurface() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedFeltChanged(EquippedFelt.Neon))
+        assertEquals(EquippedFelt.Neon, vm.state.equippedFelt)
+    }
+
+    @Test
+    fun equippedCardBackChanged_setsStyle() = runUnitTest {
+        val style = CardBackStyle.entries.first { it != CardBackStyle.Default }
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedCardBackChanged(style))
+        assertEquals(style, vm.state.equippedCardBack)
+    }
+
+    @Test
+    fun equippedBadgeChanged_setsEmoji() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.EquippedBadgeChanged("🔥"))
+        assertEquals("🔥", vm.state.equippedBadgeEmoji)
+    }
+
+    @Test
+    fun catalogChanged_mirrorsCatalog() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.CatalogChanged(ProductCatalog.Empty))
+        assertEquals(ProductCatalog.Empty, vm.state.catalog)
+    }
+
+    @Test
+    fun winOddsFlipHintSeenChanged_mirrorsFlag() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.WinOddsFlipHintSeenChanged(seen = true))
+        assertTrue(vm.state.winOddsFlipHintSeen)
+    }
+
+    @Test
+    fun winOddsToolEquipped_flippingOff_clearsBreakdown() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.WinOddsToolEquippedChanged(equipped = true))
+        assertTrue(vm.state.winOddsToolEquipped)
+
+        vm.takeAction(PlayPokerAction.WinOddsToolEquippedChanged(equipped = false))
+        assertFalse(vm.state.winOddsToolEquipped)
+        assertEquals(null, vm.state.humanWinOdds, "stale odds are cleared when the tool unequips")
+    }
+
+    @Test
+    fun winOddsChanged_null_clearsBreakdown() = runUnitTest {
+        val vm = buildVm()
+        vm.takeAction(PlayPokerAction.WinOddsChanged(breakdown = null))
+        assertEquals(null, vm.state.humanWinOdds)
     }
 
     // ---------- Helpers ----------
