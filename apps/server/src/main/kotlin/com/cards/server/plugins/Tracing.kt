@@ -2,13 +2,17 @@ package com.dangerfield.cards.server.plugins
 
 import com.dangerfield.cards.server.http.ClientContext
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCallPipeline
+import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.baggage.Baggage
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.api.trace.Tracer
+import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.ktor.v3_0.KtorServerTelemetry
 import kotlinx.coroutines.CancellationException
@@ -28,11 +32,11 @@ import kotlinx.coroutines.withContext
 fun Application.installHttpServerTracing(openTelemetry: OpenTelemetry) {
     install(KtorServerTelemetry) {
         setOpenTelemetry(openTelemetry)
-        // Stamp the client's session/install ids onto every request span as it
-        // starts, straight from the headers. These are the same ids the client
-        // tags its Sentry events with, so one value (`session_id`) pivots from
-        // a feedback report to this session's full backend trace in Tempo. The
-        // log side carries the matching field via CallLogging MDC.
+        // Pin the correlation ids onto the HTTP root span directly from headers.
+        // The root span's parent context is built by the plugin before any
+        // request-scoped interceptor runs, so baggage isn't reliably present at
+        // root-span creation — the extractor guarantees the most-queried span.
+        // Child spans are covered by the baggage path below.
         attributesExtractor {
             onStart {
                 request.headers[ClientContext.HEADER_SESSION_ID]?.takeIf { it.isNotBlank() }
@@ -42,7 +46,33 @@ fun Application.installHttpServerTracing(openTelemetry: OpenTelemetry) {
             }
         }
     }
+
+    // Carry the same ids in OTel Baggage for the rest of the request. Baggage
+    // rides the OTel context across suspend boundaries, so every span created
+    // during handling — including the gameplay `withSpan` chain — inherits it
+    // as parent-context baggage, and [BaggageAttributeSpanProcessor] copies it
+    // onto each span. One value (`session_id`) therefore matches the whole
+    // trace tree in Tempo, not just the HTTP root. Runs in the Plugins phase,
+    // before route handlers, and wraps `proceed()` so the context propagates
+    // downstream. Logs get the same ids via CallLogging MDC (Observability.kt).
+    intercept(ApplicationCallPipeline.Plugins) {
+        val session = call.request.headers[ClientContext.HEADER_SESSION_ID]?.takeIf { it.isNotBlank() }
+        val install = call.request.headers[ClientContext.HEADER_INSTALL_ID]?.takeIf { it.isNotBlank() }
+        if (session == null && install == null) return@intercept
+
+        var builder = Baggage.current().toBuilder()
+        session?.let { builder = builder.put(BAGGAGE_SESSION_ID, it) }
+        install?.let { builder = builder.put(BAGGAGE_INSTALL_ID, it) }
+        val context = builder.build().storeInContext(Context.current())
+
+        withContext(context.asContextElement()) { proceed() }
+    }
 }
+
+// Baggage keys — must match BaggageAttributeSpanProcessor's CORRELATION_BAGGAGE_KEYS
+// and the SpanAttrs correlation keys so the value lands under one query string.
+private const val BAGGAGE_SESSION_ID = "session_id"
+private const val BAGGAGE_INSTALL_ID = "install_id"
 
 /**
  * Single tracer name for the whole server. The OTel convention is one

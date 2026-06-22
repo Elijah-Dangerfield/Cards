@@ -6,8 +6,10 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopPreparing
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.baggage.Baggage
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.context.Context
 import io.opentelemetry.exporter.logging.LoggingMetricExporter
 import io.opentelemetry.exporter.logging.LoggingSpanExporter
 import io.opentelemetry.exporter.logging.SystemOutLogRecordExporter
@@ -25,7 +27,10 @@ import io.opentelemetry.sdk.metrics.export.MetricExporter
 import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.resources.Resource
+import io.opentelemetry.sdk.trace.ReadWriteSpan
+import io.opentelemetry.sdk.trace.ReadableSpan
 import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.SpanProcessor
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import io.opentelemetry.sdk.trace.export.SpanExporter
@@ -134,6 +139,9 @@ fun buildOpenTelemetrySdk(
 
     val tracerProvider = SdkTracerProvider.builder()
         .setResource(resource)
+        // Runs first: copy correlation baggage onto every span (root + children)
+        // as it starts, before the export processor sees it.
+        .addSpanProcessor(BaggageAttributeSpanProcessor(CORRELATION_BAGGAGE_KEYS))
         .addSpanProcessor(spanProcessor)
         .build()
 
@@ -230,4 +238,39 @@ internal fun parseOtlpHeaders(raw: String?): List<Pair<String, String>> {
 
 private fun String.percentDecode(): String =
     java.net.URLDecoder.decode(this, Charsets.UTF_8)
+
+/**
+ * Correlation ids carried in OTel Baggage for the duration of a request (set
+ * in [Application.installHttpServerTracing]) and copied onto every span by
+ * [BaggageAttributeSpanProcessor]. Same keys as the Sentry tags and Loki log
+ * fields, so one query string works across all three systems.
+ */
+internal val CORRELATION_BAGGAGE_KEYS: List<String> = listOf("session_id", "install_id")
+
+/**
+ * Copies the given baggage entries onto every span as it starts — including
+ * child spans the gameplay `withSpan` chain creates, which the per-request
+ * HTTP-span attribute extractor can't reach (span attributes don't inherit;
+ * baggage propagates through the OTel context, so a processor is the canonical
+ * way to land a per-request value on the whole trace tree).
+ *
+ * onStart only; cheap string copies. Pairs with the baggage population in
+ * [Application.installHttpServerTracing].
+ */
+internal class BaggageAttributeSpanProcessor(
+    private val keys: List<String>,
+) : SpanProcessor {
+    override fun isStartRequired(): Boolean = true
+
+    override fun onStart(parentContext: Context, span: ReadWriteSpan) {
+        val baggage = Baggage.fromContext(parentContext)
+        keys.forEach { key ->
+            baggage.getEntryValue(key)?.let { span.setAttribute(key, it) }
+        }
+    }
+
+    override fun isEndRequired(): Boolean = false
+
+    override fun onEnd(span: ReadableSpan) = Unit
+}
 

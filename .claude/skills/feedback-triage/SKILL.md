@@ -56,7 +56,7 @@ Use a window of ~`event_timestamp ± 15m` (RFC3339). The session almost always s
 
 - **Traces (Tempo):**
   `tempo_traceql-search(datasourceUid='grafanacloud-traces', query='{ .session_id = "<id>" }', start=..., end=...)`
-  Inspect slow or error spans with `tempo_get-trace`. Endpoints like `/v1/...` map to features.
+  Matches the whole trace tree — HTTP root spans *and* gameplay child spans (`submit_intent`, `engine.apply_intent`, …) all carry `session_id` via baggage. Inspect slow or error spans with `tempo_get-trace`. Endpoints like `/v1/...` and span names map to features. For multiplayer issues, also pivot on `room.code` / `session.id` (the game-room session, distinct from the app `session_id`) once you've found the trace.
 - **Logs (Loki):**
   `query_loki_logs(datasourceUid='grafanacloud-logs', logql='{service_name="cards-server"} | session_id="<id>"', startRfc3339=..., endRfc3339=...)`
   Look for warnings/errors/stack traces in the window.
