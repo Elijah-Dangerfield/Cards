@@ -14,7 +14,6 @@ import com.dangerfield.cards.libraries.cards.impl.logging.SentryLogTree
 import co.touchlab.kermit.Logger as KermitLogger
 import co.touchlab.kermit.Severity as KermitSeverity
 import io.sentry.kotlin.multiplatform.Sentry
-import io.sentry.kotlin.multiplatform.protocol.SentryId
 import io.sentry.kotlin.multiplatform.protocol.User
 import io.sentry.kotlin.multiplatform.protocol.UserFeedback
 import me.tatarka.inject.annotations.Inject
@@ -159,12 +158,24 @@ private class ConfiguredTelemetry(
         }
 
         val typeTag = if (isBugReport) "bug_report" else "feedback"
-        val sentryId = eventId?.let { Catching { SentryId(it) }.getOrNull() } ?: SentryId.EMPTY_ID
         val sanitizedEmail = email?.trim()?.takeIf { it.isNotBlank() }
+
+        // The legacy User Feedback API only persists feedback attached to an
+        // event Sentry has already ingested — an empty or unknown event id is
+        // silently dropped on ingest, which is why feedback never surfaced.
+        // `eventId` here is our internal KLog id (or null for general feedback),
+        // never a real Sentry id, so mint a carrier event via captureMessage and
+        // attach the feedback to that. Mirrors Sentry's documented
+        // captureMessage → captureUserFeedback flow. The KLog id / error code
+        // ride along in the comment for correlation back to the logs.
+        val sentryId = Sentry.captureMessage(if (isBugReport) "Bug report" else "User feedback")
+
         val feedback = UserFeedback(sentryId).apply {
             comments = buildString {
-                if (isBugReport && errorCode != null) {
-                    append("Error code: $errorCode\n\n")
+                if (isBugReport) {
+                    errorCode?.let { append("Error code: $it\n") }
+                    eventId?.let { append("Log ID: $it\n") }
+                    if (errorCode != null || eventId != null) append('\n')
                 }
                 append(payload)
             }
