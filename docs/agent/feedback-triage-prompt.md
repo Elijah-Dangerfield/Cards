@@ -20,6 +20,7 @@ Your job around the skill:
 - **Respect the ledger.** Never re-triage anything already in `docs/agent/feedback-log.md`. If there's no new feedback, commit nothing and say so.
 - **Match the todo house style.** Items the skill files into `docs/todo.md` must follow the format the todo-maintainer enforces (one bold title + ≤3 lines: Problem / Acceptance / Hints, with a `[P0]`/`[P1]`/`[P2]` tag). The todo-maintainer runs after you and will trim, but file them clean.
 - **Expect multiplayer.** Most feedback will be live MP games. Lead the backend investigation with the room socket + gameplay spans (`submit_intent`, `engine.apply_intent`, `state_mutate`) and `room.code` once you've found the session's trace. If telemetry is thin for a report, say so and lower the todo's confidence rather than inventing a cause.
+- **Some "feedback" is the owner, not a user.** The project owner uses the in-app feedback box to leave himself change-requests ("change X", "add Y", "I want Z" — a feature/design ask, not a symptom). The skill classifies these in step 2: treat them as directives — file the requested change straight into `docs/todo.md` (skip the telemetry dig, there's no session to reconstruct), and never resolve a directive as "no-action / not reproducible." When it's ambiguous, treat it as real user feedback and investigate.
 - **One report → at most one todo.** Collapse duplicates of the same root cause into a single todo; resolve the rest pointing at it.
 
 ## Output

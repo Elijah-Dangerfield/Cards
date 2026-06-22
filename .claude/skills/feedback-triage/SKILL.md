@@ -45,6 +45,11 @@ For each new feedback issue, `get_issue_details` (and `get_sentry_resource` with
 
 If `session_id` is absent (older client build before the correlation work shipped), fall back to `user.id` + a tight time window and note the degraded correlation in the todo.
 
+**Classify the report first — two kinds come through this channel:**
+
+- **End-user feedback / bug report** — someone describing a problem or experience. These get the full investigation (steps 3–4) before you decide.
+- **Owner change-request / self-note** — the project owner uses the in-app feedback box to jot things he wants changed ("change the X", "add Y", "I want Z", a design/feature tweak). These are *directives*, not problems to reproduce. Tell-tales: first-person imperative or "I want…" phrasing, a feature/design ask rather than a symptom. When a report reads this way, **skip the telemetry dig** (steps 3–4) — there's no session to reconstruct — and turn it straight into a todo (step 5a) or, if larger/fuzzier, a backlog one-liner. Never resolve a directive as "no-action / not reproducible"; it's a wanted change. When unsure which kind it is, treat it as end-user feedback and investigate.
+
 ### 3. Reconstruct the session — frontend (Sentry)
 
 - The feedback event's **breadcrumbs** are the frontend trail (route changes, logged events) leading up to the report.
@@ -73,7 +78,7 @@ Synthesize comment + frontend trail + backend traces/logs into a concrete root c
   **Hints:** the file/route/span that points at the cause; Sentry issue URL; session_id <id>.
 ```
 
-Priority guide: crash / data-loss / blocks core MP → `[P0]`; real broken behavior → `[P1]`; polish / rare edge → `[P2]`. If the work is large or needs a product call, put a one-liner in `docs/backlog.md` instead and reference it.
+Priority guide: crash / data-loss / blocks core MP → `[P0]`; real broken behavior → `[P1]`; polish / rare edge → `[P2]`. If the work is large or needs a product call, put a one-liner in `docs/backlog.md` instead and reference it. **Owner change-requests** (classified in step 2) land here too — file the requested change verbatim-in-spirit as the todo; priority by impact, default `[P2]` for a pure preference tweak.
 
 **(b) No action needed → resolve.** Praise-only, duplicate of an existing todo/issue, not-reproducible-and-not-a-defect, or user error. Record why in the ledger.
 
