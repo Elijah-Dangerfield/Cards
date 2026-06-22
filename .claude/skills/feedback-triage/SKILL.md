@@ -64,7 +64,7 @@ Use a window of ~`event_timestamp ± 15m` (RFC3339). The session almost always s
   Matches the whole trace tree — HTTP root spans *and* gameplay child spans (`submit_intent`, `engine.apply_intent`, …) all carry `session_id` via baggage. Inspect slow or error spans with `tempo_get-trace`. Endpoints like `/v1/...` and span names map to features. For multiplayer issues, also pivot on `room.code` / `session.id` (the game-room session, distinct from the app `session_id`) once you've found the trace.
 - **Logs (Loki):**
   `query_loki_logs(datasourceUid='grafanacloud-logs', logql='{service_name="cards-server"} | session_id="<id>"', startRfc3339=..., endRfc3339=...)`
-  Look for warnings/errors/stack traces in the window.
+  Look for warnings/errors/stack traces in the window. **The only stream labels are `service_name` and `deployment_environment`** — `session_id`, `install_id`, `room_code`, `trace_id` are **structured metadata**, so match them with the label-matcher pipe (`| session_id="<id>"`), **not** a line filter (`|= "<id>"`) — a line filter only scans the log message text and silently returns nothing for these fields. For multiplayer, `| room_code="<CODE>"` (uppercase — it's normalized server-side) is the best pivot: it tags every `/v1/rooms/{code}/…` route's logs including the socket handler, whereas `session_id` on a long-lived room coroutine is just whoever's socket currently holds it (a bot has none). Seeded into MDC in `apps/server/.../plugins/Observability.kt`.
 
 ### 5. Determine root cause and decide
 
