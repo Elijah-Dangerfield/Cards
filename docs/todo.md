@@ -20,12 +20,6 @@ Everything here is worker-pickable. Human-only work (device QA, dashboard config
 
 ## A. UX gaps observed in the build
 
-### App launch & splash
-
-- `[P2]` **Splash card-shuffle stalls on cold boot — fan-out snaps + late status text.** On a no-internet cold boot the shuffle intro played its two fan-outs, then snapped to the fully-fanned pose and held there before "Shuffling the deck" finally appeared. The fan-out should animate through smoothly (no jump-to-end), the status text should cycle while waiting, and the loading hold likely wants a longer/looping timeout so it never reads as frozen. *(found in 2026-06-20 cold-boot playtest)*
-  **Acceptance:** the fan-out completes smoothly with no snap; status text cycles during the wait; the hold never looks frozen.
-  **Hints:** the splash/shuffle intro animation + its loading-timeout gating.
-
 ### Progression & XP (server)
 
 - `[P2]` **Graduate lifetime hand + achievement-progress counters to the server.** The `progression` hand counters (handsPlayed/won/folded/lostAtShowdown/botHandsPlayed) and the achievement *progress counters* (no-bust streak, per-bot wins, …) are client-local — they zero on account switch / reinstall and aren't re-hydrated, so a switched-in account shows correct XP/level + earned badges but zeroed hand counts. Decision is to lift them (`decisions.md` 2026-06-15 — accept-reset rejected for these); carry the counters in their respective syncs. The hand counters double as the server `hands_finished` the MP-achievement floor wants. *(proposed 2026-06-14)*
